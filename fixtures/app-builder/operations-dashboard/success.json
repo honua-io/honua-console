@@ -1,0 +1,234 @@
+{
+  "id": "operations-dashboard-success",
+  "kind": "success",
+  "ticket": "honua-console#5",
+  "mode": "model-free",
+  "prompt": "Build an operations dashboard for this saved map showing a map, incident list, incident count, incidents by type chart, and district filter.",
+  "source": {
+    "savedMapId": "saved-map-ops-demo",
+    "catalogItemId": "catalog-incident-service",
+    "title": "Island incidents operations map",
+    "sourceIds": ["incidents"]
+  },
+  "intent": {
+    "id": "intent-ops-dashboard",
+    "kind": "builder",
+    "request": "Build an operations dashboard for this saved map showing a map, incident list, incident count, incidents by type chart, and district filter.",
+    "clarifications": [
+      {
+        "id": "district-field",
+        "label": "Which field should drive the district filter?",
+        "type": "select",
+        "required": true,
+        "options": [
+          { "value": "district", "label": "district" },
+          { "value": "response_area", "label": "response_area" }
+        ]
+      }
+    ]
+  },
+  "clarificationAnswers": [
+    {
+      "fieldId": "district-field",
+      "value": "district"
+    }
+  ],
+  "clarifiedIntent": {
+    "id": "intent-ops-dashboard",
+    "kind": "builder",
+    "request": "Build an operations dashboard for this saved map showing a map, incident list, incident count, incidents by type chart, and district filter.",
+    "selectedBindings": {
+      "districtField": "district",
+      "typeField": "incident_type",
+      "idField": "incident_id"
+    }
+  },
+  "spec": {
+    "id": "buildspec-ops-dashboard-v1",
+    "manifestVersion": "honua_app_manifest.v1",
+    "datasetId": "ops-dashboard-dataset",
+    "runtime": {
+      "package": "@honua/sdk-js",
+      "entrypoints": ["@honua/sdk-js/operator", "@honua/sdk-js/exploration"],
+      "chartSpec": "vega-lite"
+    },
+    "widgets": [
+      {
+        "id": "ops-map",
+        "kind": "map",
+        "role": "map",
+        "title": "Incident map",
+        "runtime": "@honua/sdk-js/exploration",
+        "binding": { "sourceId": "incidents" }
+      },
+      {
+        "id": "incident-list",
+        "kind": "list",
+        "role": "grid",
+        "title": "Incident list",
+        "runtime": "@honua/sdk-js/exploration",
+        "binding": { "sourceId": "incidents", "idField": "incident_id" }
+      },
+      {
+        "id": "incident-count",
+        "kind": "indicator",
+        "role": "custom",
+        "title": "Open incidents",
+        "runtime": "@honua/sdk-js/exploration",
+        "binding": { "sourceId": "incidents", "metric": "count" }
+      },
+      {
+        "id": "incidents-by-type",
+        "kind": "chart",
+        "role": "chart",
+        "title": "Incidents by type",
+        "runtime": "@honua/sdk-js/exploration",
+        "binding": { "sourceId": "incidents", "groupBy": "incident_type", "metric": "count" }
+      },
+      {
+        "id": "district-filter",
+        "kind": "filter",
+        "role": "form",
+        "title": "District",
+        "runtime": "@honua/sdk-js/exploration",
+        "binding": { "sourceId": "incidents", "field": "district", "operator": "=" }
+      }
+    ],
+    "layout": [
+      { "widgetId": "ops-map", "region": "main" },
+      { "widgetId": "incident-list", "region": "right" },
+      { "widgetId": "incident-count", "region": "top" },
+      { "widgetId": "incidents-by-type", "region": "bottom" },
+      { "widgetId": "district-filter", "region": "left" }
+    ],
+    "theme": {
+      "accent": "#0f766e",
+      "surface": "#ffffff",
+      "critical": "#b91c1c"
+    },
+    "refreshIntervalSeconds": 60
+  },
+  "plan": {
+    "id": "plan-ops-dashboard",
+    "intentId": "intent-ops-dashboard",
+    "kind": "builder",
+    "warnings": ["Uses fixture-backed builder transport; no live model calls are allowed."],
+    "steps": [
+      {
+        "id": "plan-step-ground",
+        "kind": "ground-sources",
+        "label": "Ground saved map and incident layer",
+        "outputs": ["sourceBindings"]
+      },
+      {
+        "id": "plan-step-draft",
+        "kind": "draft-app-spec",
+        "label": "Draft operations dashboard spec",
+        "inputs": ["sourceBindings"],
+        "outputs": ["BuildSpec"]
+      },
+      {
+        "id": "plan-step-apply",
+        "kind": "apply-builder-plan",
+        "label": "Apply app package",
+        "inputs": ["BuildSpec"],
+        "outputs": ["AppPackage", "MapPackage"],
+        "requiresApproval": true,
+        "estimatedCostUsd": 0
+      }
+    ]
+  },
+  "execution": {
+    "id": "job-ops-dashboard-apply",
+    "progress": [
+      { "percent": 20, "message": "Grounding saved map" },
+      { "percent": 65, "message": "Building app manifest" },
+      { "percent": 100, "message": "Preview package ready" }
+    ]
+  },
+  "mapPackage": {
+    "mapPackageId": "mappkg-ops-dashboard-001",
+    "format": "honua_map_package.v1",
+    "status": "Ready",
+    "sourceBindings": [
+      {
+        "sourceId": "incidents",
+        "protocol": "workspace_artifact",
+        "locator": { "serviceId": "catalog-incident-service" },
+        "metadata": { "fixture": "operations-dashboard-success" }
+      }
+    ],
+    "mapSpec": {
+      "version": 8,
+      "sources": {
+        "incidents": {
+          "type": "geojson",
+          "data": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "layers": [
+        {
+          "id": "incidents-circle",
+          "type": "circle",
+          "source": "incidents",
+          "paint": {
+            "circle-color": "#0f766e",
+            "circle-radius": 6
+          }
+        }
+      ]
+    },
+    "initialView": {
+      "center": [-157.8583, 21.3069],
+      "zoom": 10
+    }
+  },
+  "appPackage": {
+    "id": "appkg-ops-dashboard-001",
+    "version": "honua_app_manifest.v1",
+    "assets": [
+      {
+        "id": "asset-app-entry",
+        "kind": "app-package",
+        "url": "https://fixtures.honua.example/apps/appkg-ops-dashboard-001/index.html"
+      },
+      {
+        "id": "asset-app-manifest",
+        "kind": "artifact",
+        "url": "https://fixtures.honua.example/apps/appkg-ops-dashboard-001/manifest.json"
+      }
+    ],
+    "metadata": {
+      "title": "Operations dashboard",
+      "description": "Fixture-backed incident operations dashboard.",
+      "manifestVersion": "honua_app_manifest.v1",
+      "generatedWithoutLiveModel": true,
+      "runtimePackage": "@honua/sdk-js"
+    },
+    "manifest": {
+      "title": "Operations dashboard",
+      "widgets": ["ops-map", "incident-list", "incident-count", "incidents-by-type", "district-filter"],
+      "runtime": "@honua/sdk-js/exploration"
+    }
+  },
+  "edit": {
+    "field": "title",
+    "before": "Operations dashboard",
+    "after": "Island incident command dashboard",
+    "themeAccent": "#0f766e",
+    "refreshIntervalSeconds": 45
+  },
+  "publish": {
+    "itemId": "portal-app-ops-dashboard-001",
+    "url": "/apps/portal-app-ops-dashboard-001",
+    "visibility": "private",
+    "reopenRequiresGeneration": false
+  },
+  "expectedEvidence": {
+    "screenshots": ["success-path.png"],
+    "outputs": ["fixtureId", "generatedPackageId", "mapPackageId", "manifestVersion", "publishedItemId"]
+  }
+}

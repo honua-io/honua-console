@@ -1,0 +1,21 @@
+{
+  "id": "operations-dashboard-missing-binding",
+  "kind": "failure",
+  "ticket": "honua-console#5",
+  "mode": "model-free",
+  "prompt": "Build an operations dashboard but use the missing district_name field for filtering.",
+  "failure": {
+    "code": "missing-binding",
+    "stage": "preview-validation",
+    "title": "Missing binding",
+    "message": "The generated filter references district_name, but the incidents source only exposes district. Preview must show a binding error instead of a blank app.",
+    "expectedSurface": "preview validation error with binding details",
+    "owner": "portal",
+    "attributedOwner": "sdk",
+    "canRetryWithoutModel": true
+  },
+  "evidence": {
+    "selector": "failure-missing-binding",
+    "screenshot": "failure-states.png"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "operations-dashboard-auth-denial",
+  "kind": "failure",
+  "ticket": "honua-console#5",
+  "mode": "model-free",
+  "prompt": "Build an operations dashboard from the restricted responder map.",
+  "failure": {
+    "code": "auth-denial",
+    "stage": "prompt",
+    "title": "Access denied",
+    "message": "The signed-in member cannot read saved-map restricted-responder-map or its incident layer. The proof must stop before drafting a package.",
+    "expectedSurface": "permission-aware forbidden state",
+    "owner": "portal",
+    "attributedOwner": "server",
+    "canRetryWithoutModel": false
+  },
+  "evidence": {
+    "selector": "failure-auth-denial",
+    "screenshot": "failure-states.png"
+  }
+}

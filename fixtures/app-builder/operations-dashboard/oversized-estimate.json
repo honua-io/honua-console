@@ -1,0 +1,21 @@
+{
+  "id": "operations-dashboard-oversized-estimate",
+  "kind": "failure",
+  "ticket": "honua-console#5",
+  "mode": "model-free",
+  "prompt": "Build an operations dashboard for all historical incident records with every attachment and hourly backfill.",
+  "failure": {
+    "code": "oversized-estimate",
+    "stage": "plan-review",
+    "title": "Estimate exceeds proof limit",
+    "message": "The plan estimates 1,800,000 source rows and 7.5 GB of preview artifacts, which is above the GTM proof budget. Narrow the date range or source layers before apply.",
+    "expectedSurface": "plan warning with apply disabled",
+    "owner": "portal",
+    "attributedOwner": "server",
+    "canRetryWithoutModel": true
+  },
+  "evidence": {
+    "selector": "failure-oversized-estimate",
+    "screenshot": "failure-states.png"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "operations-dashboard-unsupported-capability",
+  "kind": "failure",
+  "ticket": "honua-console#5",
+  "mode": "model-free",
+  "prompt": "Build the operations dashboard with a 3D scene, live AVL feed, and custom widget marketplace extension.",
+  "failure": {
+    "code": "unsupported-capability",
+    "stage": "spec-review",
+    "title": "Unsupported capability",
+    "message": "The proof slice supports map, list, count, chart, and filter widgets only. 3D scenes, live AVL feeds, and custom marketplace widgets must be removed before apply.",
+    "expectedSurface": "warning empty-state with a revise action",
+    "owner": "portal",
+    "attributedOwner": "sdk",
+    "canRetryWithoutModel": true
+  },
+  "evidence": {
+    "selector": "failure-unsupported-capability",
+    "screenshot": "failure-states.png"
+  }
+}

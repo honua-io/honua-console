@@ -19,6 +19,19 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
 - [Operate Observability Information Model](docs/architecture/operate-observability-information-model.md)
 - [Honua Console Design Handoff](docs/design-handoff/README.md)
+- [Studio port notes](docs/studio/PORT.md)
+
+## Getting Started
+
+```sh
+npm install
+npm run dev      # vite dev server on 127.0.0.1:5173
+npm run typecheck
+npm run test     # vitest unit tests
+npm run smoke:app-builder-proof   # Playwright model-free Studio proof harness
+```
+
+Honua Studio is reachable at `/studio/proof`; the generated-app preview at `/studio/apps/:itemId/preview`.
 
 ## Migration Coordination
 
@@ -30,7 +43,7 @@ The Console migration spans the in-repo child-ticket backlog and external owner 
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library. The Console IA route map (#3) and Studio app-builder lifecycle port (#5) land alongside that scaffold, with other areas tracked in their own tickets.
 
 Until parity is accepted, source behavior remains in:
 

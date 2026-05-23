@@ -1,0 +1,22 @@
+{
+  "id": "operations-dashboard-apply-failure",
+  "kind": "failure",
+  "ticket": "honua-console#5",
+  "mode": "model-free",
+  "prompt": "Build an operations dashboard for the incidents saved map.",
+  "failure": {
+    "code": "apply-failure",
+    "stage": "apply",
+    "title": "Apply failed",
+    "message": "The deterministic apply job returned ExecutionFailed while packaging the preview artifact. The proof must keep the reviewed spec visible and surface the job id.",
+    "expectedSurface": "apply error with retry and job diagnostics",
+    "owner": "portal",
+    "attributedOwner": "server",
+    "canRetryWithoutModel": true,
+    "jobId": "job-ops-dashboard-apply-failed"
+  },
+  "evidence": {
+    "selector": "failure-apply-failure",
+    "screenshot": "failure-states.png"
+  }
+}
