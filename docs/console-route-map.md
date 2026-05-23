@@ -38,8 +38,10 @@ routes. Path prefixes are frozen for downstream tickets:
 /catalog                       Search / list (q, type, kind, visibility, tag, owner, sort, cursor)
 /catalog/:idOrSlug             Catalog item detail
 
-/maps/:mapId                   Interactive map viewer (Catalog/Studio/Share target)
+/maps/:mapId                   Interactive map viewer (Catalog/Studio/Share target; anonymous-capable via ShareAccess + ?token=)
 /maps/new                      New-map flow (from=:itemId)
+
+/groups                        Workspace groups (authenticated; any scope — member, operator, or admin)
 
 /operate                       Operator landing (operator scope only)
 /operate/connections           Data connections list
@@ -60,7 +62,6 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/deploy                Deploy control
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
-/operate/groups                Workspace group management (moved from Portal /groups)
 /operate/legacy/<path>         Transitional iframe container for legacy Admin pages
 
 /share/public                  Open-data collection page
@@ -77,7 +78,18 @@ Top-level placement notes:
   viewer is a shared target of Catalog, Studio, and Share, and the embed
   URL is the contract surface that external sites already use. Forcing
   them under `/catalog` or `/studio` would either invent two list
-  surfaces or break embed deep-links.
+  surfaces or break embed deep-links. `/maps/:mapId` is additionally the
+  share-link target emitted by `honua-portal:src/share/snippet.ts:29` for
+  saved-map items (`/maps/:id` plus `?token=<value>` for public-link tier),
+  so the route must accept anonymous reads when `ShareAccess` authorizes
+  them; see §2.5 and §6.4.
+- `/groups` stays top-level (not under `/operate`) because workspace
+  groups are member-accessible in Portal today
+  (`honua-portal:src/routes/Groups.tsx:10` allows `member`, `operator`, or
+  `admin`), and `/operate/*` is gated to `canSeeOperatorLinks(session)`
+  (operator-or-admin only). Folding groups under Operate would remove
+  member access. Preserving the legacy `/groups` URL also avoids a
+  redirect for existing deep links.
 - `/operate/legacy/<path>` is a transitional container that mirrors the
   legacy `@page` path one-to-one (see §5, EMBED rows). This survives
   existing deep-links from internal docs and runbooks.
@@ -106,10 +118,15 @@ will not see Operate while B is active. Confirmed default (§13, Q4).
 
 Connections, Publishing, Identity, License, Observability, Operations,
 Control Center, Services, Layers, Deploy, Server Info, Analytics,
-Groups, Legacy.
+Legacy.
 
 The Legacy submenu contains the transitional iframe-embedded pages from
 §5 (EMBED rows) and disappears when those pages are retired.
+
+Groups is **not** in Operate secondary nav. `/groups` is a top-level
+workspace surface accessible to any authenticated user (§1, §6.1); it is
+surfaced via deep links and the workspace switcher menu until a dedicated
+Groups feature ticket lands (tracked alongside `honua-portal#15`).
 
 ### 2.3 Edition gates
 
@@ -146,10 +163,34 @@ Keys cited by the route map below (all verified in `FeatureCatalog.cs`):
 ### 2.5 Anonymous routes
 
 `/auth/signin`, `/auth/callback`, `/auth/signed-out`, `/share/public`,
-`/share/public/items/:idOrSlug`, `/embed/maps/:mapId`, and `*` (NotFound)
-are anonymous-capable. The Share and Embed routes still resolve through
-`ShareAccess` and `resolveEmbedAuthorization` (§4) — anonymous-capable
-does not mean unauthenticated reads always succeed.
+`/share/public/items/:idOrSlug`, `/embed/maps/:mapId`, `/maps/:mapId`
+(only when `ShareAccess` authorizes the read — either `sharing = public`
+or `sharing = public-link` with a valid `?token=<value>` query),
+`/catalog/:idOrSlug` (same condition: anonymous read only when
+`ShareAccess` authorizes the item via `?token=<value>` at public-link
+tier, or `sharing = public`), and `*` (NotFound) are anonymous-capable.
+The Share, Embed, Catalog-item, and public map-viewer routes still
+resolve through `ShareAccess` and `resolveEmbedAuthorization` (§4) —
+anonymous-capable does not mean unauthenticated reads always succeed.
+
+The `/maps/:mapId` and `/catalog/:idOrSlug` anonymous cases exist
+because `honua-portal:src/share/snippet.ts:27` emits one of two URLs:
+
+- `/maps/:id?token=<value>` for `itemKind = "map"` at public-link tier
+  (test fixture `share/__tests__/snippet.test.ts:23` expects
+  `${HOST}/maps/m-1?token=abc-123`).
+- `/catalog/:id?token=<value>` for every other `itemKind` (service,
+  layer, dashboard, report, app, etc.) at public-link tier — same
+  `buildShareLink` builder, different `itemKind` branch
+  (`share/snippet.ts:29`).
+
+The token is in the query (not the fragment) because share-link
+recipients paste the full URL into a browser; recipients are not
+embedding the URL in an iframe — that path uses
+`/embed/maps/:mapId#embedToken=` (§8) instead. Console must therefore
+honor the `?token=` query on both `/maps/:mapId` and
+`/catalog/:idOrSlug` as an anonymous bearer; signed-in users get the
+authenticated read path instead.
 
 ---
 
@@ -168,21 +209,23 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | 6 | `/public/items/:idOrSlug` | `/share/public/items/:idOrSlug` | preserves DCAT-US / schema.org JSON-LD body | `anonymous` (+ `ShareAccess`) | share | open-data, share |
 | 7 | `/embed/maps/:mapId` | `/embed/maps/:mapId` | `chrome`, `legend`, `zoom`, `extent=W,S,E,N` (WGS84 lon/lat); fragment `#embedToken=` | `anonymous` (+ `resolveEmbedAuthorization`) | embed | embed |
 | 8 | `/catalog` | `/catalog` | `q`, `type`, `kind`, `visibility`, `tag`, `owner`, `sort`, `cursor` | `auth` | catalog | catalog-list |
-| 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | — | `auth` (+ `resolvePortalItemRole` for actions) | catalog | catalog-detail |
+| 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:29` emits this for non-map items) | `auth` (+ `resolvePortalItemRole` for actions) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | catalog | catalog-detail |
 | 10 | `/maps` | `/catalog?type=map` (list) + `/studio` (create CTA) | preserves `from=:itemId` on the create path | `auth` | catalog (list), studio (create) | — |
-| 11 | `/maps/:mapId` | `/maps/:mapId` | `from=:itemId` (when transiting from Catalog) | `auth` or `ShareAccess` (`item-role:viewer`) | viewer | viewer |
-| 12 | `/data` | `/catalog?kind=dataset` | placeholder route removed; Catalog filters cover datasets, layers, and tables | `auth` | catalog | catalog-list |
-| 13 | `/groups` | `/operate/groups` | member-facing group sharing remains in item share controls; workspace group management moves to Operate | `auth` (+ `canSeeOperatorLinks`) | operate | — |
-| 14 | `/app-builder/proof` | `/studio` (entry) + `/studio/proof` (legacy alias) | legacy 301 → `/studio?source=…&itemId=…` | `auth` | studio | studio-generation |
-| 15 | `/apps/:itemId/preview` | `/studio/apps/:itemId/preview` | preserves `?revision=<n>` | `auth` (+ `item-role:viewer`) | studio | studio-generation |
+| 11 | `/maps/:mapId` | `/maps/:mapId` | `from=:itemId` (when transiting from Catalog); `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:27`) | `auth` (+ `item-role:viewer`) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | viewer | viewer |
+| 12 | `/app-builder/proof` | `/studio` (entry) + `/studio/proof` (legacy alias) | legacy 301 → `/studio?source=…&itemId=…` | `auth` | studio | studio-generation |
+| 13 | `/apps/:itemId/preview` | `/studio/apps/:itemId/preview` | preserves `?revision=<n>` | `auth` (+ `item-role:viewer`) | studio | studio-generation |
+| 14 | `/data` | `/catalog?type=service&kind=dataset` | — (Portal `/data` is a placeholder; Catalog filter covers it) | `auth` | catalog | — |
+| 15 | `/groups` | `/groups` | — | `auth` (any scope — member, operator, or admin, per `hasAnyScope(session, ["member", "operator", "admin"])` in `honua-portal:src/routes/Groups.tsx:10`) | shell | — |
 | 16 | `*` | `*` (Console NotFound) | — | `anonymous` | shell | — |
 
 **Redirects.** Old `/public`, `/public/items/:idOrSlug`, `/app-builder/proof`,
-`/maps` (list), `/data`, `/groups`, and `/apps/:itemId/preview` serve a
-301 to their Console destination once Console is live. The exception is
-`/embed/maps/:mapId` and any already-issued `/share/public/items/...` URL
-with an external crawler audience: these are served at the legacy path
-with a 200 (see §8, Frozen URLs).
+`/maps` (list), `/apps/:itemId/preview`, and `/data` serve a 301 to their
+Console destination once Console is live. `/groups` is **not** redirected
+— the legacy path is preserved at top level (see §1 placement notes and
+§6.1 routing). The exception is `/embed/maps/:mapId` and any
+already-issued `/share/public/items/...` URL with an external crawler
+audience: these are served at the legacy path with a 200 (see §8,
+Frozen URLs).
 
 ---
 
@@ -232,6 +275,12 @@ Defined in `honua-portal:src/share/` and `honua-portal:src/embed/`:
   with the server 409 closure-violation contract.
 - `resolveEmbedAuthorization(...)` (`embed/permissions.ts:68`) — the
   read decision for `/embed/maps/:mapId`.
+- `buildShareLink({ portalHost, itemId, itemKind, publicLinkToken })`
+  (`share/snippet.ts:27`) — emits `/maps/:id` for saved-map items and
+  `/maps/:id?token=<value>` for public-link tier. The Console
+  `/maps/:mapId` route must accept the anonymous `?token=` variant so
+  share-link recipients are not bounced to sign-in (§2.5, §6.4). Tests
+  pin the format at `share/__tests__/snippet.test.ts:23`.
 
 ### 4.4 Edition and entitlement
 
@@ -414,7 +463,13 @@ and the smoke label (see §10) when applicable.
 | `/auth/signin` | `anonymous` | — | — | shell+auth |
 | `/auth/callback` | `anonymous` | — | session-error | shell+auth |
 | `/auth/signed-out` | `anonymous` | — | — | shell+auth |
+| `/groups` | `auth` (any scope: `member`, `operator`, or `admin`) | empty-groups (no group memberships yet) | unauth-redirect | shell |
 | `*` | `anonymous` | notfound | — | shell |
+
+`/groups` lives in the shell chunk (not Operate or Catalog) because it
+is a member-accessible workspace surface and is a placeholder pending a
+dedicated Groups feature ticket. Empty-state copy mirrors current Portal
+("You're not a member of any groups yet" — `honua-portal:src/routes/Groups.tsx:27`).
 
 ### 6.2 Studio
 
@@ -429,14 +484,30 @@ and the smoke label (see §10) when applicable.
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
 | `/catalog` | `auth` | empty-catalog (start a search / publish first item) | unauth-redirect | catalog |
-| `/catalog/:idOrSlug` | `auth`, `item-role:viewer` | missing-item | forbidden / unsupported-service | catalog |
+| `/catalog/:idOrSlug` | `auth` (+ `item-role:viewer`) **or** `anonymous` (+ `ShareAccess` with `share-tier:public`, or `share-tier:public-link` and a valid `?token=<value>`) | missing-item | forbidden / unsupported-service / unavailable (anonymous) | catalog |
+
+`/catalog/:idOrSlug` is anonymous-capable on the same `ShareAccess` +
+`?token=` contract as `/maps/:mapId` (§6.4, §2.5). Anonymous denials
+render `<UnavailableView>` (not the upgrade tile) so upgrade copy is
+not leaked to anonymous users (§13 Q5). Authenticated denials render
+`<ForbiddenView>`. Action gates (editMetadata, updateSharing, etc.)
+still require authenticated `item-role` per `ROLE_MATRIX` (§4.2) and
+are hidden from the anonymous read surface.
 
 ### 6.4 Maps (viewer)
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
-| `/maps/:mapId` | `auth` or `ShareAccess`; `item-role:viewer` | missing-item | forbidden | viewer |
+| `/maps/:mapId` | `auth` (+ `item-role:viewer`) **or** `anonymous` (+ `ShareAccess` with `share-tier:public`, or `share-tier:public-link` and a valid `?token=<value>`) | missing-item | forbidden / unavailable (anonymous) | viewer |
 | `/maps/new` | `auth` | empty-studio (redirect to `/studio?from=`) | unauth-redirect | viewer + studio |
+
+`/maps/:mapId` is anonymous-capable for `ShareAccess.sharing = public`
+and for `sharing = public-link` when the URL carries the matching
+`?token=<value>` query that `honua-portal:src/share/snippet.ts:27` emits
+(see §2.5). Authenticated reads use `item-role:viewer` per `ROLE_MATRIX`
+(§4.2). The `forbidden` surface renders for authenticated denials; the
+`unavailable` surface (§7) renders for anonymous denials so upgrade copy
+is not leaked to anonymous users (§13 Q5).
 
 ### 6.5 Operate
 
@@ -465,7 +536,6 @@ or entitlement requirements on top.
 | `/operate/deploy` | — | empty-operate | forbidden | operate |
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro`, `entitlement:analytics.*` (per tab) | empty-operate | forbidden / upgrade | operate |
-| `/operate/groups` | — | empty-operate | forbidden | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
 
 Other entitlement gates that surface inside Operate sub-pages but do
@@ -501,7 +571,7 @@ routes do not author bespoke 403/404/empty copy.
 | Missing item | `<MissingItemView kind=...>` | item id resolved → not found | item-kind hint: map, service, layer, app, dashboard, report |
 | Unsupported service metadata | `<UnsupportedServiceView>` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug` and Studio "open from catalog" |
 | Unsupported package binding | `<UnsupportedPackageView>` | generated-app or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview` and `/maps/:mapId` |
-| Empty state | `<EmptyState area=...>` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace |
+| Empty state | `<EmptyState area=...>` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `<SectionSkeleton>` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
 | Unavailable (anonymous) | `<UnavailableView>` | anonymous viewer on `/share/*` for content that requires entitlement | does not reveal upgrade copy to anonymous users (§13 Q5) |
@@ -541,7 +611,7 @@ constraint).
 
 | Chunk | Routes |
 |---|---|
-| shell + auth | `/`, `/auth/*`, `*` |
+| shell + auth | `/`, `/auth/*`, `/groups`, `*` |
 | studio | `/studio*`, `/studio/apps/:itemId/preview` |
 | catalog | `/catalog`, `/catalog/:idOrSlug` |
 | viewer | `/maps/:mapId`, `/maps/new` |
@@ -603,15 +673,17 @@ PRs that touch each ticket should link to its section number(s).
 
 | Ticket | Cites |
 |---|---|
-| `honua-console#4` — Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data | §1 (taxonomy: `/catalog`, `/maps`, `/share`, `/embed`), §3 rows 5–12, §5.4 REDIRECTs (`/layers`, `/services`, `/layers/{id}/preview`), §6.3 / §6.4 / §6.6 / §6.7 (route catalogue), §7 (exception surfaces), §8 (frozen URLs), §9 (chunks), §10 (smoke). |
-| `honua-console#5` — Port Studio app-builder and generated-app lifecycle | §1 (`/studio*`), §3 rows 14–15, §5.2 RETIRE (`/operator/app-builder`), §6.2 (route catalogue), §7 (`<UnsupportedPackageView>`), §9 (studio chunk), §10 (studio-generation smoke). |
-| `honua-console#6` — Integrate legacy Admin as transitional Operate surface | §1 (`/operate/*`, `/operate/legacy/<path>`), §3 row 13 (`/groups` → `/operate/groups`), all of §5 (Admin disposition map), §6.5 (Operate gates and surfaces), §11 (`honua-server-admin#96` consumer notes). |
+| `honua-console#4` — Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data | §1 (taxonomy: `/catalog`, `/maps`, `/share`, `/embed`), §3 rows 5–11 and row 14 (`/data` → Catalog filter), §5.4 REDIRECTs (`/layers`, `/services`, `/layers/{id}/preview`), §6.3 / §6.4 / §6.6 / §6.7 (route catalogue), §7 (exception surfaces), §8 (frozen URLs), §9 (chunks), §10 (smoke). |
+| `honua-console#5` — Port Studio app-builder and generated-app lifecycle | §1 (`/studio*`), §3 rows 12–13, §5.2 RETIRE (`/operator/app-builder`), §6.2 (route catalogue), §7 (`<UnsupportedPackageView>`), §9 (studio chunk), §10 (studio-generation smoke). |
+| `honua-console#6` — Integrate legacy Admin as transitional Operate surface | §1 (`/operate/*`, `/operate/legacy/<path>`), all of §5 (Admin disposition map), §6.5 (Operate gates and surfaces), §11 (`honua-server-admin#96` consumer notes). |
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
 | `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 / §6 rows carrying smoke labels. |
 
 `honua-console#2` (scaffold) seeds the `<RouteGuard>`, the exception
-surface components in §7, the chunk boundaries in §9, and the redirect
-behavior in §3 and §5.
+surface components in §7, the chunk boundaries in §9, the redirect
+behavior in §3 and §5, and the `/groups` placeholder route (§3 row 15,
+§6.1) — including its empty-state copy that mirrors current Portal until
+a dedicated Groups feature ticket lands alongside `honua-portal#15`.
 
 ---
 

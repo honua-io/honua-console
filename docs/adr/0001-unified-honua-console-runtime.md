@@ -132,7 +132,7 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 
 ## Implementation Guidance
 
-1. Define the Honua Console IA and route map with `Studio`, `Catalog`, `Operate`, and `Share` as first-class areas.
+1. Define the Honua Console IA and route map with `Studio`, `Catalog`, `Operate`, and `Share` as first-class areas. Filed as [docs/console-route-map.md](../console-route-map.md) ([honua-console#3](https://github.com/honua-io/honua-console/issues/3)).
 2. Scaffold the Blazor Web Console shell and a shared Razor component library before porting major workflows.
 3. Use Metadata v2 as the shared model consumed by both operator and builder workflows.
 4. Generate or validate .NET and JavaScript client contracts from server-owned OpenAPI/JSON Schema/proto sources.
