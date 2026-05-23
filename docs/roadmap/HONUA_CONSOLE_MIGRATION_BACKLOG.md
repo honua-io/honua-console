@@ -36,6 +36,7 @@ This backlog intentionally separates three decisions:
 
 ### P1 AI GIS Studio Work
 
+- [honua-console#19](https://github.com/honua-io/honua-console/issues/19): Define Studio information model for NL GIS artifacts and publishing.
 - [honua-console#16](https://github.com/honua-io/honua-console/issues/16): Publish maps dashboards reports and apps from Studio.
 - [honua-console#17](https://github.com/honua-io/honua-console/issues/17): Studio unified GP and ETL workflow editor.
 
@@ -63,12 +64,13 @@ This backlog intentionally separates three decisions:
 2. Land the server Metadata v2/content/RBAC baseline and SDK projections.
 3. Port Catalog, Viewer, Share, and Open Data from Portal into Console.
 4. Port Studio app-builder and generated-app lifecycle into Console.
-5. Add Studio publishing for maps, dashboards, reports, and apps.
-6. Add the unified GP/ETL editor that publishes workflow definitions to Honua batch/job-runner execution and eligible GP/process service endpoints.
-7. Make legacy Admin available as a transitional Operate surface and hide duplicate builder routes.
-8. Build the single deployable artifact and preview/release pipeline.
-9. Pass the cross-surface smoke: publish service -> catalog item -> Studio generated artifact -> share/embed.
-10. Freeze and retire old Portal deployment paths.
+5. Define the Studio information model for NL GIS artifacts and publishing.
+6. Add Studio publishing for maps, dashboards, reports, and apps.
+7. Add the unified GP/ETL editor that publishes workflow definitions to Honua batch/job-runner execution and eligible GP/process service endpoints.
+8. Make legacy Admin available as a transitional Operate surface and hide duplicate builder routes.
+9. Build the single deployable artifact and preview/release pipeline.
+10. Pass the cross-surface smoke: publish service -> catalog item -> Studio generated artifact -> share/embed.
+11. Freeze and retire old Portal deployment paths.
 
 ## Parity Gate
 
