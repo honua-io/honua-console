@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  GENERATED_APP_EXTENSION,
-  GENERATED_APP_EXTENSION_SCHEMA,
-} from "./types.js";
 import { buildDefaultGeneratedAppLifecycleRecords } from "./default-client.js";
 import {
   buildGeneratedAppPreviewUrl,
@@ -11,6 +7,7 @@ import {
   readGeneratedAppLifecycle,
   rollbackGeneratedAppItem,
 } from "./lifecycle.js";
+import { GENERATED_APP_EXTENSION, GENERATED_APP_EXTENSION_SCHEMA } from "./types.js";
 
 describe("studio generated-app lifecycle", () => {
   const records = buildDefaultGeneratedAppLifecycleRecords();

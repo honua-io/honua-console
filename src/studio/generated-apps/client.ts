@@ -259,7 +259,11 @@ export class HttpGeneratedAppLifecycleClient implements GeneratedAppLifecycleCli
 }
 
 interface HttpErrorEnvelope {
-  readonly error: { readonly code: string; readonly message: string; readonly details?: Readonly<Record<string, unknown>> };
+  readonly error: {
+    readonly code: string;
+    readonly message: string;
+    readonly details?: Readonly<Record<string, unknown>>;
+  };
 }
 
 async function readErrorEnvelope(response: Response): Promise<HttpErrorEnvelope | null> {

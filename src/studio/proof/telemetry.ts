@@ -31,9 +31,7 @@ export interface StudioProofTelemetryEvent {
  */
 export const STUDIO_PROOF_EVENT = "honua:app-builder-proof";
 
-export function emitStudioProofTelemetry(
-  input: Omit<StudioProofTelemetryEvent, "at">,
-): StudioProofTelemetryEvent {
+export function emitStudioProofTelemetry(input: Omit<StudioProofTelemetryEvent, "at">): StudioProofTelemetryEvent {
   const event: StudioProofTelemetryEvent = {
     ...input,
     at: new Date().toISOString(),

@@ -31,7 +31,7 @@ npm run test     # vitest unit tests
 npm run smoke:app-builder-proof   # Playwright model-free Studio proof harness
 ```
 
-Honua Studio is reachable at `/studio/proof`; the generated-app preview at `/studio/apps/:itemId/preview`.
+Honua Studio is reachable at `/studio/proof`; the generated-app preview at `/studio/apps/:itemId/preview`. The proof route accepts `?fixture=` to select one of `happy`, `clarification`, `unsupported`, `auth-denied`, `oversized`, `apply-failure` (default `happy`); see `docs/studio/PORT.md` for the full Studio port notes.
 
 ## Migration Coordination
 

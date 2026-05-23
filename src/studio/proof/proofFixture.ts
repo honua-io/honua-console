@@ -422,7 +422,10 @@ class ProofJobRun implements IJobRun<ExecutionResult> {
 
   public async results(): Promise<JobResult<ExecutionResult>> {
     this.start();
-    return this.#terminal!;
+    if (!this.#terminal) {
+      throw new Error("Proof apply job not started");
+    }
+    return this.#terminal;
   }
 
   public async cancel(): Promise<JobStatus> {

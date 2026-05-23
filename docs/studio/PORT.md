@@ -13,6 +13,7 @@ This note records what the Studio port lands in Console, what is intentionally t
   - `src/studio/generated-apps/` — `types`, `lifecycle`, `client` (`FixtureGeneratedAppLifecycleClient` + `HttpGeneratedAppLifecycleClient`), `default-client`, `GeneratedAppLifecycleContext`, `GeneratedAppPreviewPage`, `telemetry`. Mounted at `/studio/apps/:itemId/preview`.
   - `src/studio/charts/ChartSpecView.tsx` — Vega-Lite chart adapter with CSS-bar fallback. The proof fixture's `incidents-by-type` chart now carries a Vega-Lite spec by default.
 - Smoke / eval harness: `tests/smoke/app-builder-proof.{spec,config}.ts`, `tests/smoke/generated-apps.spec.ts`, and `fixtures/app-builder/operations-dashboard/*` copied verbatim from `honua-portal`. Ticket id retargeted to `honua-console#5`; chart-spec evidence added to the success-path manifest.
+- Vitest unit coverage: `src/studio/proof/proofFixture.test.ts` (fixture normalization + builder-plan shape) and `src/studio/generated-apps/lifecycle.test.ts` (draft -> revision -> publish -> rollback transitions). Run via `npm run test`.
 
 ## Source mapping
 
@@ -36,9 +37,19 @@ This note records what the Studio port lands in Console, what is intentionally t
 - Route base: `/app-builder/proof` -> `/studio/proof`. `/apps/:itemId/preview` -> `/studio/apps/:itemId/preview`.
 - Copy: "Portal" -> "Honua Console" / "Honua Studio". "portal source" -> "catalog source". Back-links default to Console home until Catalog is ported (#4).
 - Telemetry namespace: `proof.*` -> `studio.proof.*`. `generated-app.*` -> `studio.generated-app.*`.
+- Window event name: kept as `honua:app-builder-proof` so the ported smoke harness can match without translation. Telemetry detail still carries the new `studio.proof.*` event name on the `detail.name` field.
 - Storage namespace: `honua.portal.app-builder-proof.*` -> `honua.console.studio.proof.*`.
 - Preview URL builder: `portal.honua.example/apps/...` -> `console.honua.example/studio/apps/...`.
-- `self` link format: `Honua:Portal:v1` -> `Honua:Console:v1`.
+- `self` link format: `Honua:Portal:v1` -> `Honua:Console:v1` (Console value added alongside the legacy one in `src/transitional/conforms-to.ts`).
+
+## Usage
+
+- `/studio/proof` accepts a `?fixture=` query param to select any of `happy`, `clarification`, `unsupported`, `auth-denied`, `oversized`, `apply-failure`. Default is `happy`.
+- `/studio/apps/:itemId/preview` reads a stored `AppPackage` + manifest from the lifecycle store; it does not re-invoke generation. With the default fixture client the seeded item id is `01J7APPS00000000000000`.
+- Lifecycle client selection is controlled by `VITE_GENERATED_APP_LIFECYCLE_CLIENT`:
+  - `auto` (default): fixture client when `VITE_SESSION_DRIVER=fixture`, HTTP client otherwise.
+  - `fixture`: force the in-memory `FixtureGeneratedAppLifecycleClient` seeded from `fixtures/catalog/proof-source-map.json`.
+  - `http`: force `HttpGeneratedAppLifecycleClient` against `VITE_CONSOLE_API_BASE_URL` (defaults to `/api/v1/console`).
 
 ## Transitional shims (retire on cleanup tickets)
 

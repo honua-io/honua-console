@@ -229,10 +229,7 @@ export function previousGeneratedAppRevision(lifecycle: GeneratedAppLifecycleExt
 }
 
 export function buildGeneratedAppPreviewUrl(consoleBaseUrl: string, itemId: string, revisionId: string): string {
-  const url = new URL(
-    `/studio/apps/${encodeURIComponent(itemId)}/preview`,
-    normalizeBaseUrl(consoleBaseUrl),
-  );
+  const url = new URL(`/studio/apps/${encodeURIComponent(itemId)}/preview`, normalizeBaseUrl(consoleBaseUrl));
   url.searchParams.set("revision", revisionId);
   return url.toString();
 }

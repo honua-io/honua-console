@@ -418,10 +418,8 @@
 .abp-map-grid {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(90deg, var(--abp-preview-grid) 1px, transparent 1px),
-    linear-gradient(0deg, var(--abp-preview-grid) 1px, transparent 1px),
-    var(--abp-preview-map-bg);
+  background: linear-gradient(90deg, var(--abp-preview-grid) 1px, transparent 1px),
+    linear-gradient(0deg, var(--abp-preview-grid) 1px, transparent 1px), var(--abp-preview-map-bg);
   background-size: 44px 44px;
 }
 

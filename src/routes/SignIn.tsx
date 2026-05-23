@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { FIXTURE_PRESETS, setFixtureSession } from "../auth/fixtureDriver";
 import { useSession } from "../auth/SessionContext";
+import { FIXTURE_PRESETS, setFixtureSession } from "../auth/fixtureDriver";
 import { sanitizeReturnTo } from "../auth/returnTo";
 
 export default function SignIn(): JSX.Element {

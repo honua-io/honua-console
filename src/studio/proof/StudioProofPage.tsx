@@ -172,7 +172,10 @@ export function StudioProofPage(): JSX.Element {
     return (
       <main className="abp" data-testid="app-builder-proof-page">
         <PageSkeleton fixture={fixture} onFixtureChange={handleFixtureChange} />
-        <EmptyState title="Loading source" description="Resolving the selected catalog source for the Studio proof route." />
+        <EmptyState
+          title="Loading source"
+          description="Resolving the selected catalog source for the Studio proof route."
+        />
       </main>
     );
   }
