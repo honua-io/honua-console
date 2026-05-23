@@ -1,0 +1,37 @@
+{
+  "sourceServiceId": "honua-server-svc-01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+  "eventKind": "publish",
+  "serviceUrl": "https://server.smoke.honua.example/api/v1/services/city-parcels-2026",
+  "serviceType": "feature",
+  "importJobId": "job-01HXY3ZK7N1J2Q9V8M0FQ2PWAC",
+  "status": "Active",
+  "statusReason": null,
+  "adminDiagnosticsRef": "admin-diag-01HXY3ZK7N1J2Q9V8M0FQ2PWAD",
+  "lastCheckedAt": "2026-05-22T18:00:00.000Z",
+  "owner": {
+    "id": "user-operator-honolulu",
+    "kind": "user",
+    "displayName": "Honolulu Operator"
+  },
+  "metadata": {
+    "title": "City Parcels 2026",
+    "summary": "City of Honolulu parcels reference layer for 2026.",
+    "tags": ["parcels", "honolulu", "reference"],
+    "extent": {
+      "bbox": [-158.3, 21.2, -157.6, 21.7],
+      "crs": "EPSG:4326"
+    },
+    "description": "Authoritative parcel polygons for the City and County of Honolulu, refreshed monthly from the assessor database.",
+    "nativeCrs": "EPSG:2783",
+    "license": {
+      "spdx": "CC-BY-4.0",
+      "name": "Creative Commons Attribution 4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/"
+    },
+    "attribution": "City and County of Honolulu",
+    "serviceName": "city-parcels-2026",
+    "layerCount": 1,
+    "capabilities": ["query", "tiles", "render"]
+  },
+  "actor": "user-operator-honolulu"
+}

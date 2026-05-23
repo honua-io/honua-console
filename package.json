@@ -5,6 +5,9 @@
   "description": "Honua Console: unified web surface for Studio, Catalog, Operate, and Share.",
   "license": "Apache-2.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
@@ -14,7 +17,9 @@
     "lint": "biome check src tests",
     "format": "biome format --write src tests",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke:parity": "node smoke/parity/run.mjs",
+    "smoke:parity:test": "node --test 'smoke/parity/__tests__/*.test.mjs'"
   },
   "dependencies": {
     "react": "18.3.1",

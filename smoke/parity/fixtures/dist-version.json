@@ -1,0 +1,13 @@
+{
+  "name": "honua-console",
+  "version": "0.1.0",
+  "commit": "0000000000000000000000000000000000000000",
+  "shortCommit": "000000000000",
+  "ref": "feature/honua-console-9",
+  "builtAt": "2026-05-23T00:00:00.000Z",
+  "legacy": {
+    "portal": "active",
+    "admin": "active"
+  },
+  "areas": ["studio", "catalog", "share", "operate"]
+}
