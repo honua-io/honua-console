@@ -37,7 +37,7 @@ This table is implementable end-to-end only when all four preconditions hold:
 
 1. `honua-console#2` lands the React/TypeScript shell that exposes a route table for `/operate/*` and `/studio/*`.
 2. `honua-console#3` lands the IA, navigation, and `canSeeOperate` RBAC predicate.
-3. `honua-server-admin#96` rehosts the legacy Blazor bundle so it serves under `/operate/legacy/` with the matching base href and a frame-ancestors policy that allows same-origin embedding.
+3. `honua-server-admin#96` rehosts the legacy Blazor bundle so it serves under `/operate/legacy/` with the matching base href and a frame-ancestors policy that allows same-origin embedding, AND rewrites root-absolute in-app navigation (`NavMenu.razor`, `NavigateTo("/...")` call sites, in-page `<a href="/...">`) to base-relative form so in-frame clicks stay under `/operate/legacy/` (see [Legacy Link Resolution](../operate/embed-contract.md#legacy-link-resolution)).
 4. `honua-devops#55` builds a single deployable artifact that serves Console and the legacy bundle from one origin.
 
 Until all four hold, the EMBED rows operate in a degraded mode documented in [`embed-contract.md`](../operate/embed-contract.md) (`mode: link-out`).
@@ -168,8 +168,11 @@ Per the project's telemetry constraint, a Console Operate smoke must:
 1. Sign in as an operator-scoped user.
 2. Visit `/operate` and confirm the landing renders.
 3. Visit `/operate/legacy/operator/publishing` and confirm the embed loads (or the documented degraded surface, if the same-origin precondition is unmet).
-4. Visit `/operator/app-builder` and confirm the redirect lands on the Studio target or the `moved-to-studio` page.
-5. Sign in as a non-operator user, visit `/operate`, and confirm the `Forbidden` surface renders.
+4. Inside the publishing embed, click an in-frame nav entry (for example, the legacy NavMenu's "Services" link) and confirm the iframe URL stays under `/operate/legacy/` (proves the `honua-server-admin#96` link rewrite is in place and the embed does not escape to a bare legacy path).
+5. Visit a bare legacy path that maps to an `EMBED` row (for example, `/services`) and confirm the Console router passthrough redirects to `/operate/legacy/services`.
+6. Trigger one embedded download — for example, visit `/operate/legacy/operator/print` and download a print preview, or `/operate/legacy/operator/analytics` and export a usage CSV — and confirm the browser writes the file (proves the `allow-downloads` sandbox token is in place).
+7. Visit `/operator/app-builder` and confirm the redirect lands on the Studio target or the `moved-to-studio` page.
+8. Sign in as a non-operator user, visit `/operate`, and confirm the `Forbidden` surface renders.
 
 The smoke is owned by this ticket but lands physically once `honua-console#2` has the Playwright harness in place.
 
