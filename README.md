@@ -13,6 +13,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 
 - [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md)
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
+- [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
 
 ## Current Status
 
@@ -25,4 +26,3 @@ Until parity is accepted, source behavior remains in:
 - `honua-sdk-js` for browser-safe SDK contracts and generated app runtime.
 - `honua-server` for server-owned metadata, content, RBAC, provenance, and package APIs.
 - `honua-devops` for the single deployable artifact and release pipeline.
-
