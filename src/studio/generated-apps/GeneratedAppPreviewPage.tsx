@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { EmptyState } from "../../shell/EmptyState.js";
@@ -39,8 +39,27 @@ export function GeneratedAppPreviewPage(): JSX.Element {
   const client = useGeneratedAppLifecycleClient();
   const [state, setState] = useState<PreviewState>({ kind: "loading" });
   const [rollbackState, setRollbackState] = useState<"idle" | "working" | "error">("idle");
+  const rollbackAttemptRef = useRef(0);
+  const mountedRef = useRef(false);
+  const previewRouteKey = `${itemId ?? ""}\u0000${revisionId ?? ""}`;
+  const previewRouteKeyRef = useRef(previewRouteKey);
+  previewRouteKeyRef.current = previewRouteKey;
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      rollbackAttemptRef.current += 1;
+    };
+  }, []);
+
+  const canCommitRollback = useCallback((attempt: number, routeKey: string) => {
+    return mountedRef.current && rollbackAttemptRef.current === attempt && previewRouteKeyRef.current === routeKey;
+  }, []);
+
+  useEffect(() => {
+    rollbackAttemptRef.current += 1;
+    setRollbackState("idle");
     if (!itemId) {
       setState({ kind: "error", error: new GeneratedAppLifecycleError("missing", "No generated app id provided.") });
       return;
@@ -68,9 +87,12 @@ export function GeneratedAppPreviewPage(): JSX.Element {
   }, [client, itemId, revisionId]);
 
   const handleRollback = useCallback(async () => {
-    if (state.kind !== "ready") return;
+    if (state.kind !== "ready" || rollbackState === "working") return;
     const previous = previousGeneratedAppRevision(state.descriptor.lifecycle);
     if (!previous) return;
+    const attempt = rollbackAttemptRef.current + 1;
+    rollbackAttemptRef.current = attempt;
+    const routeKey = previewRouteKeyRef.current;
     setRollbackState("working");
     emitGeneratedAppLifecycleTelemetry({
       name: "studio.generated-app.rollback-started",
@@ -79,7 +101,9 @@ export function GeneratedAppPreviewPage(): JSX.Element {
     });
     try {
       const record = await client.rollback(state.descriptor.item.id, previous.id);
+      if (!canCommitRollback(attempt, routeKey)) return;
       const descriptor = await client.getPreview(record.item.id);
+      if (!canCommitRollback(attempt, routeKey)) return;
       setState({ kind: "ready", descriptor });
       setSearchParams(new URLSearchParams({ revision: descriptor.activeRevision.id }), { replace: true });
       setRollbackState("idle");
@@ -89,6 +113,7 @@ export function GeneratedAppPreviewPage(): JSX.Element {
         revisionId: descriptor.activeRevision.id,
       });
     } catch (error) {
+      if (!canCommitRollback(attempt, routeKey)) return;
       setRollbackState("error");
       setState({ kind: "error", error: toError(error) });
       emitGeneratedAppLifecycleTelemetry({
@@ -98,7 +123,7 @@ export function GeneratedAppPreviewPage(): JSX.Element {
         detail: { message: error instanceof Error ? error.message : String(error) },
       });
     }
-  }, [client, setSearchParams, state]);
+  }, [canCommitRollback, client, rollbackState, setSearchParams, state]);
 
   if (state.kind === "loading") {
     return (
