@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Suspense, useMemo } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Suspense, useCallback, useMemo, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 
 import { OperatorRoute } from "./auth/OperatorRoute";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
-import { SessionProvider } from "./auth/SessionContext";
+import { SessionProvider, useSession } from "./auth/SessionContext";
+import { FIXTURE_PRESETS, consumeReturnTo, setFixtureSession } from "./auth/fixtureDriver";
+import { sanitizeReturnTo } from "./auth/returnTo";
 import type { SessionDriver } from "./auth/types";
 import { AppShell } from "./shell/AppShell";
 import { EmptyState } from "./shell/EmptyState";
@@ -15,6 +17,24 @@ interface AppProps {
   Router?: React.ComponentType<{ children: React.ReactNode }>;
   sessionDriver?: SessionDriver;
 }
+
+const FIXTURE_SIGN_IN_CHOICES = [
+  {
+    id: "builder",
+    label: "Continue as builder",
+    description: "Studio, Catalog, and Share access for local porting work.",
+  },
+  {
+    id: "operator",
+    label: "Continue as operator",
+    description: "Builder access plus Operate navigation and legacy admin link-back.",
+  },
+  {
+    id: "admin",
+    label: "Continue as admin",
+    description: "Full fixture scope for RBAC and transition-path smoke checks.",
+  },
+] as const;
 
 function ShellRoute({ children }: { children: React.ReactNode }): JSX.Element {
   return (
@@ -66,6 +86,47 @@ function PlaceholderPage({
 }
 
 function SignInPage(): JSX.Element {
+  const { driverName, refresh, signIn } = useSession();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [pendingChoice, setPendingChoice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const resolveReturnTo = useCallback(
+    () => sanitizeReturnTo(searchParams.get("returnTo") ?? consumeReturnTo() ?? "/"),
+    [searchParams],
+  );
+
+  const handleFixtureSignIn = useCallback(
+    async (preset: keyof typeof FIXTURE_PRESETS) => {
+      setPendingChoice(preset);
+      setError(null);
+      try {
+        setFixtureSession(preset);
+        await refresh();
+        navigate(resolveReturnTo(), { replace: true });
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : "Fixture sign-in failed.";
+        setError(message);
+      } finally {
+        setPendingChoice(null);
+      }
+    },
+    [navigate, refresh, resolveReturnTo],
+  );
+
+  const handleServerSignIn = useCallback(async () => {
+    setPendingChoice("server");
+    setError(null);
+    try {
+      await signIn(resolveReturnTo());
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Sign-in redirect failed.";
+      setError(message);
+      setPendingChoice(null);
+    }
+  }, [resolveReturnTo, signIn]);
+
   return (
     <div className="hc-auth-page">
       <section className="hc-auth-card">
@@ -73,6 +134,45 @@ function SignInPage(): JSX.Element {
         <p className="hc-auth-card__lede">
           Fixture sign-in is provided by the session driver until the shared server whoami contract lands.
         </p>
+        {driverName === "fixture" ? (
+          <ul className="hc-auth-card__presets" aria-label="Fixture sign-in presets">
+            {FIXTURE_SIGN_IN_CHOICES.map((choice) => {
+              const preset = FIXTURE_PRESETS[choice.id];
+              return (
+                <li key={choice.id} className="hc-auth-card__preset">
+                  <button
+                    type="button"
+                    className="hc-btn hc-btn--primary"
+                    onClick={() => {
+                      void handleFixtureSignIn(choice.id);
+                    }}
+                    disabled={pendingChoice !== null}
+                  >
+                    {pendingChoice === choice.id ? "Signing in..." : choice.label}
+                  </button>
+                  <span className="hc-auth-card__preset-meta">
+                    <strong>{preset.user.displayName}</strong>
+                    <span>{choice.description}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="hc-auth-card__actions">
+            <button
+              type="button"
+              className="hc-btn hc-btn--primary"
+              onClick={() => {
+                void handleServerSignIn();
+              }}
+              disabled={pendingChoice !== null}
+            >
+              {pendingChoice === "server" ? "Redirecting..." : "Continue"}
+            </button>
+          </div>
+        )}
+        {error && <p className="hc-auth-card__error">{error}</p>}
       </section>
     </div>
   );

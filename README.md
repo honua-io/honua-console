@@ -40,3 +40,28 @@ Until parity is accepted, source behavior remains in:
 - `honua-sdk-js` for browser-safe SDK contracts and generated app runtime.
 - `honua-server` for server-owned metadata, content, RBAC, provenance, and package APIs.
 - `honua-devops` for the single deployable artifact and release pipeline.
+
+## Local Development
+
+Install dependencies with `npm install`, then run `npm run dev`. Vite binds to `127.0.0.1:5173` by default.
+
+The default auth driver is `fixture`, so protected routes redirect to `/auth/signin` and let local users choose a builder, operator, or admin fixture session. The fixture flow stores session state in `sessionStorage` only.
+
+### Scripts
+
+- `npm run typecheck` runs TypeScript with `--noEmit`.
+- `npm run lint` runs Biome checks for `src` and `tests`.
+- `npm run test` runs Vitest.
+- `npm run build` runs typecheck and produces the Vite production build.
+- `npm run smoke` runs the Playwright shell smoke suite once wired by follow-on work.
+
+### Environment
+
+All client environment reads live in `src/env.ts` and use Vite `VITE_*` variables:
+
+- `VITE_API_BASE_URL`: Honua Server REST base URL. Empty means same-origin proxy.
+- `VITE_ADMIN_BASE_URL`: transitional legacy Admin base URL for Operate link-back.
+- `VITE_AUTH_DRIVER`: `fixture` or `whoami`; defaults to `fixture`.
+- `VITE_WHOAMI_URL`: whoami endpoint when `VITE_AUTH_DRIVER=whoami`; defaults to `/api/portal/whoami`.
+- `VITE_FEATURE_FLAGS`: comma-separated feature flag names.
+- `VITE_FAKE_SESSION`: optional JSON authenticated fixture session seed for local tests.

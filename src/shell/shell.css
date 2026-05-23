@@ -591,3 +591,9 @@
   flex-wrap: wrap;
   gap: var(--hc-space-2);
 }
+
+.hc-auth-card__error {
+  margin: 0;
+  color: var(--hc-color-danger);
+  font-size: 13px;
+}
