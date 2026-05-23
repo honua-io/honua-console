@@ -12,6 +12,8 @@ Coordination contracts (binding on all child tickets):
 - [`honua-portal` Freeze And Retirement Policy](../migration/PORTAL_FREEZE_POLICY.md) - soft/hard freeze gates, exception path, retirement trigger.
 - [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md) - per-language .NET and browser shim boundaries while `honua-sdk-dotnet#166` and `honua-sdk-js#225` land; removed under `honua-console#7`.
 
+IA source: [Honua Console Route Map, RBAC, and Navigation](../console-route-map.md). Migration tickets `#4`, `#5`, `#6`, `#7`, and `#9` cite specific sections of this map for URL shapes, gates, empty states, and smoke evidence — see `console-route-map.md` §12 for the per-ticket section index.
+
 ## Objective
 
 Port current `honua-portal` logic into `honua-console` and consolidate Studio, Catalog, Operate, and Share into one deployable Honua runtime.
@@ -31,16 +33,16 @@ This backlog intentionally separates three decisions:
 ### P0 Blockers
 
 - [honua-console#2](https://github.com/honua-io/honua-console/issues/2): Scaffold Blazor Web Console shell and shared Razor component library.
-- [honua-console#3](https://github.com/honua-io/honua-console/issues/3): Define Console IA route map RBAC and navigation.
-- [honua-console#6](https://github.com/honua-io/honua-console/issues/6): Integrate legacy Admin as transitional Operate surface.
+- [honua-console#3](https://github.com/honua-io/honua-console/issues/3): Define Console IA route map RBAC and navigation. Artifact: [docs/console-route-map.md](../console-route-map.md).
+- [honua-console#6](https://github.com/honua-io/honua-console/issues/6): Integrate legacy Admin as transitional Operate surface. IA: route-map §1, §3 row 13, §5 (Admin disposition map), §6.5, §11.
 
 ### P1 Migration And Runtime Work
 
-- [honua-console#4](https://github.com/honua-io/honua-console/issues/4): Port Catalog Viewer Saved Maps Share Embed and Open Data from `honua-portal`.
-- [honua-console#5](https://github.com/honua-io/honua-console/issues/5): Port Honua Studio app-builder and generated-app lifecycle.
-- [honua-console#7](https://github.com/honua-io/honua-console/issues/7): Wire Console to shared metadata content package and RBAC contracts.
+- [honua-console#4](https://github.com/honua-io/honua-console/issues/4): Port Catalog Viewer Saved Maps Share Embed and Open Data from `honua-portal`. IA: route-map §1, §3 rows 5–12, §5.4, §6.3/6.4/6.6/6.7, §7, §8, §9, §10.
+- [honua-console#5](https://github.com/honua-io/honua-console/issues/5): Port Honua Studio app-builder and generated-app lifecycle. IA: route-map §1, §3 rows 14–15, §5.2 RETIRE, §6.2, §7, §9, §10.
+- [honua-console#7](https://github.com/honua-io/honua-console/issues/7): Wire Console to shared metadata content package and RBAC contracts. IA: route-map §4 (full RBAC reference), §6 per-route gates, §11.
 - [honua-console#8](https://github.com/honua-io/honua-console/issues/8): Integrate Console with single deployable artifact and preview pipeline.
-- [honua-console#9](https://github.com/honua-io/honua-console/issues/9): Console parity smoke: publish service to catalog to Studio artifact to share embed.
+- [honua-console#9](https://github.com/honua-io/honua-console/issues/9): Console parity smoke: publish service to catalog to Studio artifact to share embed. IA: route-map §10 (smoke evidence map), §3/§6 rows with smoke labels.
 
 ### P1 AI GIS Studio Work
 
