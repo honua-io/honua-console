@@ -24,7 +24,11 @@ interface SessionProviderProps {
 
 function resolveDefaultDriver(): SessionDriver {
   if (consoleEnv.authDriver === "whoami") {
-    return createWhoamiDriver(consoleEnv.whoamiUrl);
+    return createWhoamiDriver({
+      whoamiUrl: consoleEnv.whoamiUrl,
+      signInUrl: consoleEnv.authSignInUrl,
+      signOutUrl: consoleEnv.authSignOutUrl,
+    });
   }
   return createFixtureDriver();
 }

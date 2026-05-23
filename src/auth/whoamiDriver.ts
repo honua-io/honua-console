@@ -3,6 +3,18 @@ import type { Session, SessionDriver } from "./types";
 
 const RETURN_TO_KEY = "honua.console.return-to";
 
+interface WhoamiDriverOptions {
+  readonly whoamiUrl: string;
+  readonly signInUrl: string;
+  readonly signOutUrl: string;
+}
+
+export function buildAuthRedirectUrl(endpoint: string, returnTo: string, origin = window.location.origin): string {
+  const target = new URL(endpoint, origin);
+  target.searchParams.set("returnTo", sanitizeReturnTo(returnTo));
+  return target.toString();
+}
+
 /**
  * Driver that hydrates the session from a server-rendered `whoami` endpoint.
  *
@@ -13,7 +25,7 @@ const RETURN_TO_KEY = "honua.console.return-to";
  * future ticket can swap in oidc-client-ts here without touching the rest
  * of the console.
  */
-export function createWhoamiDriver(whoamiUrl: string): SessionDriver {
+export function createWhoamiDriver({ whoamiUrl, signInUrl, signOutUrl }: WhoamiDriverOptions): SessionDriver {
   return {
     name: "whoami",
     async probe(): Promise<Session> {
@@ -58,12 +70,10 @@ export function createWhoamiDriver(whoamiUrl: string): SessionDriver {
       } catch {
         // Best-effort.
       }
-      const target = new URL("/auth/signin", window.location.origin);
-      target.searchParams.set("returnTo", safeReturnTo);
-      window.location.assign(target.toString());
+      window.location.assign(buildAuthRedirectUrl(signInUrl, safeReturnTo));
     },
     async signOut(): Promise<void> {
-      window.location.assign("/auth/signout");
+      window.location.assign(signOutUrl);
     },
   };
 }

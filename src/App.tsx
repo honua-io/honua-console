@@ -50,13 +50,15 @@ function ShellRoute({ children }: { children: React.ReactNode }): JSX.Element {
 
 function OperatorShellRoute({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <OperatorRoute>
+    <ProtectedRoute>
       <AppShell>
         <ErrorBoundary>
-          <Suspense fallback={<LoadingShell label="Loading operator view" />}>{children}</Suspense>
+          <Suspense fallback={<LoadingShell label="Loading operator view" />}>
+            <OperatorRoute>{children}</OperatorRoute>
+          </Suspense>
         </ErrorBoundary>
       </AppShell>
-    </OperatorRoute>
+    </ProtectedRoute>
   );
 }
 

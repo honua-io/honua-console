@@ -32,6 +32,7 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       VITE_ADMIN_BASE_URL: SMOKE_ADMIN_URL,
+      VITE_ALLOW_FIXTURE_AUTH: "true",
       VITE_API_BASE_URL: SMOKE_API_URL,
       VITE_AUTH_DRIVER: "fixture",
     },

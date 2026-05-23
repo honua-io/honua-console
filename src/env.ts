@@ -20,6 +20,10 @@ export interface ConsoleEnv {
   readonly authDriver: AuthDriverName;
   /** Optional override for the whoami endpoint when `authDriver === "whoami"`. */
   readonly whoamiUrl: string;
+  /** Server-owned sign-in endpoint used by the whoami driver. */
+  readonly authSignInUrl: string;
+  /** Server-owned sign-out endpoint used by the whoami driver. */
+  readonly authSignOutUrl: string;
   /** Comma-separated feature flags. Empty unless explicitly configured. */
   readonly featureFlags: ReadonlySet<string>;
 }
@@ -29,10 +33,33 @@ function readEnv(key: string): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
-function parseAuthDriver(raw: string): AuthDriverName {
+function readBooleanEnv(key: string): boolean {
+  const value = readEnv(key).toLowerCase();
+  if (!value) return false;
+  if (value === "true" || value === "1" || value === "yes") return true;
+  if (value === "false" || value === "0" || value === "no") return false;
+  throw new Error(`${key} must be 'true' or 'false' (got '${readEnv(key)}').`);
+}
+
+function isProductionBuild(): boolean {
+  return import.meta.env.PROD === true || import.meta.env.MODE === "production";
+}
+
+interface ParseAuthDriverOptions {
+  readonly allowFixtureAuth: boolean;
+  readonly productionBuild: boolean;
+}
+
+export function parseAuthDriver(raw: string, options: ParseAuthDriverOptions): AuthDriverName {
   const value = raw.toLowerCase();
   if (value === "whoami") return "whoami";
-  if (value === "" || value === "fixture") return "fixture";
+  if (!value) return options.productionBuild ? "whoami" : "fixture";
+  if (value === "fixture") {
+    if (options.productionBuild && !options.allowFixtureAuth) {
+      throw new Error("VITE_AUTH_DRIVER=fixture requires VITE_ALLOW_FIXTURE_AUTH=true in production builds.");
+    }
+    return "fixture";
+  }
   throw new Error(`VITE_AUTH_DRIVER must be 'fixture' or 'whoami' (got '${raw}').`);
 }
 
@@ -47,11 +74,17 @@ function parseFlags(raw: string): ReadonlySet<string> {
 }
 
 export function loadConsoleEnv(): ConsoleEnv {
+  const allowFixtureAuth = readBooleanEnv("VITE_ALLOW_FIXTURE_AUTH");
   return {
     apiBaseUrl: readEnv("VITE_API_BASE_URL"),
     adminBaseUrl: readEnv("VITE_ADMIN_BASE_URL"),
-    authDriver: parseAuthDriver(readEnv("VITE_AUTH_DRIVER")),
+    authDriver: parseAuthDriver(readEnv("VITE_AUTH_DRIVER"), {
+      allowFixtureAuth,
+      productionBuild: isProductionBuild(),
+    }),
     whoamiUrl: readEnv("VITE_WHOAMI_URL") || "/api/portal/whoami",
+    authSignInUrl: readEnv("VITE_AUTH_SIGN_IN_URL") || "/api/auth/signin",
+    authSignOutUrl: readEnv("VITE_AUTH_SIGN_OUT_URL") || "/api/auth/signout",
     featureFlags: parseFlags(readEnv("VITE_FEATURE_FLAGS")),
   };
 }

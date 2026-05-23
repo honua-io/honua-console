@@ -34,4 +34,17 @@ describe("fixture sign-in", () => {
     expect(await screen.findByRole("heading", { name: "Studio" })).toBeInTheDocument();
     expect(screen.getByTestId("usermenu-trigger")).toHaveTextContent("Mira Chen");
   });
+
+  it("renders Operate permission failures inside the shared shell", async () => {
+    const user = userEvent.setup();
+
+    render(<App Router={testRouter(["/operate"])} />);
+
+    expect(await screen.findByRole("heading", { name: "Sign in to Honua Console" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue as builder" }));
+
+    expect(await screen.findByTestId("brand-home")).toBeInTheDocument();
+    expect(screen.getByText(/reserved for operator and admin scopes/)).toBeInTheDocument();
+  });
 });
