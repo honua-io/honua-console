@@ -102,17 +102,17 @@ export function GeneratedAppPreviewPage(): JSX.Element {
 
   if (state.kind === "loading") {
     return (
-      <main className="generated-app" data-testid="generated-app-preview-page">
+      <div className="generated-app" data-testid="generated-app-preview-page">
         <EmptyState title="Loading generated app" description="Resolving the authenticated preview package." />
-      </main>
+      </div>
     );
   }
 
   if (state.kind === "error") {
     return (
-      <main className="generated-app" data-testid="generated-app-preview-page">
+      <div className="generated-app" data-testid="generated-app-preview-page">
         <PreviewError error={state.error} />
-      </main>
+      </div>
     );
   }
 
@@ -135,7 +135,7 @@ function GeneratedAppPreviewView({
   const rollbackLabel = previous ? `Roll back to ${previous.label}` : "No prior revision";
 
   return (
-    <main
+    <div
       className="generated-app"
       data-testid="generated-app-preview-page"
       data-item-id={item.id}
@@ -243,7 +243,7 @@ function GeneratedAppPreviewView({
             ))}
         </ol>
       </section>
-    </main>
+    </div>
   );
 }
 

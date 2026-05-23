@@ -170,27 +170,27 @@ export function StudioProofPage(): JSX.Element {
 
   if (sourceState.kind === "loading") {
     return (
-      <main className="abp" data-testid="app-builder-proof-page">
+      <div className="abp" data-testid="app-builder-proof-page">
         <PageSkeleton fixture={fixture} onFixtureChange={handleFixtureChange} />
         <EmptyState
           title="Loading source"
           description="Resolving the selected catalog source for the Studio proof route."
         />
-      </main>
+      </div>
     );
   }
 
   if (sourceState.kind === "error") {
     return (
-      <main className="abp" data-testid="app-builder-proof-page">
+      <div className="abp" data-testid="app-builder-proof-page">
         <PageSkeleton fixture={fixture} onFixtureChange={handleFixtureChange} />
         <SourceErrorState error={sourceState.error} />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main
+    <div
       className="abp"
       data-testid="app-builder-proof-page"
       data-source-kind={sourceState.source.kind}
@@ -206,7 +206,7 @@ export function StudioProofPage(): JSX.Element {
           fixture={fixture}
         />
       )}
-    </main>
+    </div>
   );
 }
 

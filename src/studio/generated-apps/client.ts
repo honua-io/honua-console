@@ -283,18 +283,20 @@ function canRead(item: ContentItem, actorId: string | null): boolean {
   return item.access.sharing !== "private";
 }
 
-function lifecycleCodeFromStatus(status: number): GeneratedAppLifecycleErrorCode {
-  return status === 404
-    ? "missing"
-    : status === 403
-      ? "unauthorized"
-      : status === 409
-        ? "conflict"
-        : status === 422
-          ? "unsupported"
-          : status >= 500
-            ? "server"
-            : "invalid";
+/**
+ * Map an HTTP response status to a `GeneratedAppLifecycleErrorCode`. Both
+ * 401 and 403 collapse to `unauthorized` so an expired session and a
+ * permission denial render the same Forbidden surface — parity with the
+ * session probe in `whoamiDriver`, which also treats 401 and 403 as auth
+ * failures. Exported so the mapping invariant can be unit-tested.
+ */
+export function lifecycleCodeFromStatus(status: number): GeneratedAppLifecycleErrorCode {
+  if (status === 404) return "missing";
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 409) return "conflict";
+  if (status === 422) return "unsupported";
+  if (status >= 500) return "server";
+  return "invalid";
 }
 
 function cloneRecord(record: GeneratedAppLifecycleRecord): GeneratedAppLifecycleRecord {
