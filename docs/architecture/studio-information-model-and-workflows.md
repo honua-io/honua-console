@@ -26,6 +26,17 @@ The same package contracts must work from:
 - Generated apps and embedded experiences.
 - Operator flows in Console Operate.
 
+## Authoritative Contract Sources
+
+This document is a contract brief for follow-up implementation, not a separate Console schema. When fields or behavior conflict, implementation must resolve toward these sources:
+
+- `honua-server` owns Metadata v2, workspace policy, content items, content versions, package persistence, package validation, publication records, job-runner execution, RBAC, audit, lineage, provenance, and service endpoints.
+- `honua-sdk-js` owns browser-safe TypeScript projections, client request/response types, package helper APIs, generated-app runtime adapters, and MCP/QGIS-safe contract exports derived from server contracts.
+- `honua-console` owns Studio authoring workflows, editor projections, preview orchestration, publish review UI, Catalog/Share/Operate navigation, and route-level use of server-authored RBAC decisions.
+- `honua-portal` is a source for current Catalog, Share, Open Data, and Studio proof behavior until parity is accepted. It is not authoritative for new artifact models.
+- `honua-server-admin` is a source for legacy operator workflow behavior during the Operate transition. It is not authoritative for builder package schemas.
+- MCP clients, QGIS plugins, generated apps, and embeds consume server/SDK contracts. They must not define parallel artifact models.
+
 ## Design Principles
 
 - Server owns truth: permissions, validation, content items, versions, publishing, job execution, audit, provenance, and service endpoints are server-owned.
@@ -35,6 +46,22 @@ The same package contracts must work from:
 - Execution is queued: analysis, GP, ETL, scheduled work, and batch publication run through Honua's job runner rather than a browser-only runtime.
 - Charts use standards: Vega-Lite remains the dashboard/report chart spec layer.
 - Visual editors are projections: forms, maps, dashboards, and workflows can have UI editors, but the saved contract is the source of truth.
+
+## Contract Ownership Matrix
+
+| Object or surface | Owner | Contract rule |
+| --- | --- | --- |
+| Workspace | Server-owned | Defines tenant boundary, policy, feature flags, RBAC scope, retention, and job execution limits. Console and SDK read projections only. |
+| Content item | Server-owned | Canonical Catalog record for discoverability, ACLs, lineage, sharing, embedding, invocation, and current version pointer. |
+| Content version | Server-owned | Immutable package snapshot plus dependency, validation, rollback, and provenance evidence. |
+| Studio project | Studio-owned authoring aggregate | Console owns the authoring experience and draft grouping; server persists identifiers, permissions, and links to produced content items. |
+| Conversation / provenance | Split ownership | Studio owns prompts, clarifications, assumptions, and model/tool context while drafting. Server owns audit-grade provenance once attached to packages, content versions, publications, and job runs. |
+| Package | Server contract with SDK projection | Server owns canonical schema, persistence, and validation. SDK owns browser-safe types and helpers. Studio editors modify package drafts through those contracts. |
+| Data binding | Server contract with SDK projection | Server validates permissions, lineage, source versions, field mappings, CRS, refresh policy, and service capability. SDK exposes safe references for browser, MCP, QGIS, and generated apps. |
+| Publication | Server-owned | Server creates routes, visibility state, embed policy, service policy, schedule policy, rollback policy, and invocation metadata. |
+| Job run | Server-owned | Server/job runner owns execution state, queue, logs, artifacts, metrics, failures, audit, and provenance for analysis, GP, ETL, scheduled, and batch work. |
+| SDK package projections | SDK-owned | Generated or hand-maintained TypeScript projections must track server contracts and be shared by Console, generated apps, MCP, and QGIS integrations. |
+| UI editor state | UI-projection-only | Inspectors, canvases, layout handles, wizard steps, selection state, local preview state, and unsaved UI affordances are not persisted as canonical artifact data. |
 
 ## Core Object Model
 
@@ -126,13 +153,14 @@ Key fields:
 - `target_audience`
 - `status`
 
-### Conversation
+### Conversation / Provenance
 
 Prompt and clarification record for AI-assisted authoring. This is not the artifact; it is provenance and authoring context.
 
 Key fields:
 
 - `conversation_id`
+- `provenance_id`
 - `messages`
 - `clarifications`
 - `accepted_assumptions`
@@ -140,6 +168,8 @@ Key fields:
 - `tool_calls`
 - `source_context_refs`
 - `generated_package_refs`
+- `decision_log`
+- `audit_refs`
 
 ### Package
 
@@ -166,6 +196,7 @@ Every package should carry:
 - `data_bindings`
 - `parameters`
 - `dependencies`
+- `publication_intent`
 - `warnings`
 - `provenance`
 
@@ -194,11 +225,15 @@ Key fields:
 - `publication_id`
 - `item_id`
 - `version_id`
+- `publication_mode`
 - `route`
 - `visibility`
 - `embed_policy`
 - `service_policy`
 - `schedule_policy`
+- `runtime_target`
+- `job_definition_id`
+- `latest_job_run_id`
 - `rollback_policy`
 - `published_by`
 - `published_at`
@@ -206,6 +241,19 @@ Key fields:
 ### Job Run
 
 Execution record for analysis, ETL, GP, validation, publishing, export, or scheduled work.
+
+Job kinds must include:
+
+- `analysis_preview`
+- `analysis_run`
+- `gp_service_invocation`
+- `etl_pipeline_run`
+- `workflow_dry_run`
+- `manual_job`
+- `scheduled_job`
+- `event_job`
+- `batch_publication`
+- `export`
 
 Key fields:
 
@@ -383,6 +431,23 @@ Workflow publication modes:
 - `gp_service`: parameterized service endpoint backed by the canonical geoprocessing runtime.
 - `etl_pipeline`: reusable ETL definition backed by the job runner.
 
+### Publication Package
+
+Represents the publish request, review state, and release instruction for one or more versioned packages. It does not replace the server-owned publication record; it is the portable package that Studio, MCP, QGIS, and generated-app workflows can validate before the server creates or updates publication state.
+
+Minimum shape:
+
+- target content item and version refs
+- publication mode
+- route and slug intent
+- visibility and embed policy
+- service, schedule, or job policy
+- dependency validation evidence
+- warning acknowledgements
+- release note
+- rollback target
+- execution plan for job-backed publication
+
 ## Studio Authoring Workflow
 
 ### 1. Start From Intent
@@ -513,7 +578,34 @@ After publication, Console links the artifact to operational state:
 - audit trail
 - permissions
 
+## Publishing Behavior
+
+Publishing always creates or updates a server-owned content item version before exposing routes, embeds, services, schedules, or job definitions. Studio can draft and review the publish request, but the server owns the final publication record and any execution.
+
+| Artifact | Package family | Published item | Publication behavior | Execution path |
+| --- | --- | --- | --- | --- |
+| Query | `query.package` | `query` or `view` content item | Saves the query plan, dependency bindings, permission requirements, preview evidence, and optional routable query/view endpoint. | Server validates and executes previews. Large materializations, exports, or refreshes use job runs. |
+| Analysis | `analysis.package` | `analysis` content item plus optional result item | Saves the analysis definition, parameters, result package definition, validation evidence, and lineage to produced results. | Preview, dry-run, run, and publication-time materialization route through Honua's job runner. |
+| Map | `map.package` | `map` content item | Saves basemap, layers, styles, filters, popups, labels, bookmarks, interactions, extent, dependencies, share route, and embed policy. | Browser renders the map from server/SDK bindings; any dependent analysis or materialized refresh follows the related job run. |
+| Dashboard | `dashboard.package` | `dashboard` content item | Saves linked map/chart state, Vega-Lite specs, filters, selectors, KPI cards, refresh policy, route, and embed policy. | Browser renders interactive views from SDK projections; scheduled refresh or materialized aggregates use job runs. |
+| Report | `report.package` | `report` content item | Saves narrative sections, maps, Vega-Lite specs, tables, export settings, refresh policy, route, and embed/export policy. | Live reports render from bindings; scheduled generation, batch export, and heavy refresh use job runs. |
+| Form | `form.package` | `form` content item | Saves fields, rules, geometry capture, attachments, offline policy, submit action, direct route, and embed policy. | Form submissions go to server endpoints. Submissions that trigger workflows, GP services, ETL, or batch actions create job runs. |
+| App | `app.package` | `app` content item | Saves routes, pages, panels, component references, actions, navigation, permissions, theme tokens, stable routes, and embed policy. | Generated-app runtime consumes SDK projections. App actions that invoke analysis, GP, ETL, scheduled, or batch work create job runs. |
+| Workflow | `workflow.package` | `workflow`, `gp_service`, `etl_pipeline`, or `job_definition` content item | Saves sources, transforms, sinks, parameters, triggers, schedules, worker profile, dry-run policy, artifact policy, rollback policy, and publication mode. | Manual jobs, scheduled jobs, event jobs, GP service invocations, ETL pipelines, dry-runs, and batch runs route through Honua's job runner. |
+| Publication | `publication.package` | Publication record for a versioned content item | Captures release instructions, route, visibility, embed/service/schedule policy, rollback target, validation evidence, and acknowledged warnings. | Batch publication and any release step requiring analysis, GP, ETL, scheduled, or batch work creates job runs. |
+
+The browser is never the authoritative execution runtime for analysis, GP, ETL, scheduled, or batch work. Console submits validation, preview, publish, and run requests to server/SDK APIs and follows the resulting `Job Run` state.
+
 ## Required User Journeys
+
+### Natural Language To Query Or Analysis
+
+1. User asks a spatial question or requests an analytical output.
+2. Studio identifies candidate layers, fields, CRS, predicates, operations, and result shape.
+3. Studio drafts a query or analysis package and shows assumptions, permission requirements, and validation warnings.
+4. Server validates the package. Query preview returns a sample/query plan; analysis preview creates a dry-run job when needed.
+5. User publishes a saved query, view, analysis definition, or result item.
+6. Analysis execution, materialization, scheduled refresh, and batch export are visible as job runs in Operate.
 
 ### Natural Language To Map
 
@@ -531,6 +623,15 @@ After publication, Console links the artifact to operational state:
 3. Studio drafts dashboard package with Vega-Lite chart specs and map panels.
 4. User previews linked filters and map/chart interactions.
 5. User publishes a dashboard content item.
+
+### Natural Language To Report
+
+1. User asks for a report.
+2. Studio identifies the narrative sections, maps, tables, metrics, charts, export format, and refresh policy.
+3. Studio drafts a report package with data bindings, Vega-Lite chart specs, maps, tables, and export settings.
+4. User previews the report and resolves missing permissions, unsupported bindings, or refresh warnings.
+5. User publishes a report content item.
+6. Scheduled report generation, batch export, and heavy refresh are visible as job runs in Operate.
 
 ### Natural Language To Form
 
@@ -583,12 +684,22 @@ Studio should own:
 
 The shared contract between them is the content item, package, publication, and job model. Admin should not have a separate metadata model for the same artifacts.
 
+## Follow-Up Implementation Ticket Boundaries
+
+Follow-up implementation should stay bounded by repository ownership so every surface adopts the same model instead of inventing a local variant:
+
+- `honua-server`: define Metadata v2 fields, content version persistence, canonical package schemas, validation endpoints, publication records, job-runner integration, RBAC checks, provenance, audit, and rollback APIs.
+- `honua-sdk-js`: expose server-derived package DTOs, validators/helpers, client methods for validate/preview/publish/run, generated-app runtime adapters, and MCP/QGIS-safe exports.
+- `honua-console`: implement Studio project and conversation UX, package editors as projections, previews, publish review, Catalog/Share/Operate links, and route-level RBAC use without duplicating server DTOs.
+- MCP/QGIS integrations: use SDK/server package contracts for draft, validate, preview, publish, and run flows; do not define separate map/dashboard/report/app/workflow artifacts.
+- Generated apps and embeds: consume content item, content version, publication, package, data binding, and job-run projections through SDK APIs.
+
 ## MVP Backlog Slices
 
-1. Define package schemas for query, map, dashboard, form, app, publication, and workflow.
+1. Define package schemas for query, analysis, map, dashboard, report, form, app, workflow, and publication.
 2. Add Studio project/conversation/provenance records that link prompts to generated packages.
 3. Add package validation endpoints in server/SDK for preview and publish.
-4. Implement map publishing and dashboard/report publishing through content items.
+4. Implement query, analysis, map, dashboard, and report publishing through content items.
 5. Implement form package authoring with target layer/table/workflow binding.
 6. Implement workflow package authoring and dry-run through the job runner.
 7. Implement publish review and rollback for all package families.
