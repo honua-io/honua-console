@@ -10,6 +10,7 @@ import { Forbidden } from "../../shell/Forbidden.js";
 import { useCatalogClient } from "../../transitional/CatalogContext.js";
 import { CatalogError, type ContentItem } from "../../transitional/content-item.js";
 import { ChartSpecView } from "../charts/ChartSpecView.js";
+import { applyFilter, filterLabelForBinding, filterOptionsForBinding, resolveFilterDefault } from "./proofFilter.js";
 import {
   APP_BUILDER_PROOF_FIXTURES,
   APP_BUILDER_PROOF_PROMPT,
@@ -17,7 +18,6 @@ import {
   DEFAULT_APP_BUILDER_PROOF_FIXTURE,
   PROOF_THEME_TOKENS,
   PROOF_WIDGET_REGIONS,
-  type ProofChartSpec,
   type ProofDraftSpec,
   type ProofDraftWidget,
   type ProofIncidentRow,
@@ -1187,13 +1187,24 @@ function PreviewDashboard({
   );
   const [filterValue, setFilterValue] = useState(() => resolveFilterDefault(metadata.filterDefault, filterOptions));
 
+  // When the filter binding or `filterDefault` changes externally, the stored
+  // user selection may no longer exist in `filterOptions`. Derive an effective
+  // value for rendering so this render never filters by a stale label, and
+  // reconcile the stored selection in an effect so future user changes start
+  // from a value that's still in the option set.
+  const effectiveFilterValue = filterOptions.includes(filterValue)
+    ? filterValue
+    : resolveFilterDefault(metadata.filterDefault, filterOptions);
+
   useEffect(() => {
-    setFilterValue(resolveFilterDefault(metadata.filterDefault, filterOptions));
-  }, [metadata.filterDefault, filterOptions]);
+    if (filterValue !== effectiveFilterValue) {
+      setFilterValue(effectiveFilterValue);
+    }
+  }, [filterValue, effectiveFilterValue]);
 
   const rows = useMemo(
-    () => applyFilter(metadata.rows, filterBinding, filterValue),
-    [filterBinding, filterValue, metadata.rows],
+    () => applyFilter(metadata.rows, filterBinding, effectiveFilterValue),
+    [filterBinding, effectiveFilterValue, metadata.rows],
   );
   const widgetsByRegion = useMemo(() => {
     const regions: Record<ProofWidgetRegion, EditableProofWidget[]> = { main: [], side: [], footer: [] };
@@ -1232,7 +1243,7 @@ function PreviewDashboard({
             {widgetsByRegion[region].map((widget) =>
               renderPreviewWidget(widget, {
                 rows,
-                filterValue,
+                filterValue: effectiveFilterValue,
                 filterOptions,
                 setFilterValue,
               }),
@@ -1550,30 +1561,6 @@ function isSupportedBinding(kind: WidgetKind, binding: string): boolean {
   return bindingOptionsForWidget(kind).some((option) => option.value === binding);
 }
 
-function filterOptionsForBinding(rows: readonly ProofIncidentRow[], binding: string): readonly string[] {
-  const field = filterFieldForBinding(binding);
-  if (!field) return ["All"];
-  return [allFilterLabel(field), ...unique(rows.map((row) => String(row[field])))];
-}
-
-function resolveFilterDefault(value: string | undefined, options: readonly string[]): string {
-  if (value && options.includes(value)) return value;
-  return options[0] ?? "All";
-}
-
-function filterFieldForBinding(binding: string): keyof ProofIncidentRow | null {
-  switch (binding) {
-    case "incidents.district":
-      return "district";
-    case "incidents.priority":
-      return "priority";
-    case "incidents.status":
-      return "status";
-    default:
-      return null;
-  }
-}
-
 function chartFieldForBinding(binding: string): keyof ProofIncidentRow {
   switch (binding) {
     case "incidents.priority":
@@ -1583,31 +1570,6 @@ function chartFieldForBinding(binding: string): keyof ProofIncidentRow {
     default:
       return "type";
   }
-}
-
-function filterLabelForBinding(binding: string): string {
-  const field = filterFieldForBinding(binding);
-  if (!field) return "Filter";
-  return field[0].toUpperCase() + field.slice(1);
-}
-
-function allFilterLabel(field: keyof ProofIncidentRow): string {
-  switch (field) {
-    case "district":
-      return "All districts";
-    case "priority":
-      return "All priorities";
-    case "status":
-      return "All statuses";
-    default:
-      return "All";
-  }
-}
-
-function applyFilter(rows: readonly ProofIncidentRow[], binding: string, value: string): readonly ProofIncidentRow[] {
-  const field = filterFieldForBinding(binding);
-  if (!field || value === allFilterLabel(field)) return rows;
-  return rows.filter((row) => String(row[field]) === value);
 }
 
 function rowsForWidgetBinding(rows: readonly ProofIncidentRow[], binding: string): readonly ProofIncidentRow[] {
@@ -1630,10 +1592,6 @@ function countByField(rows: readonly ProofIncidentRow[], field: keyof ProofIncid
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
-}
-
-function unique(values: readonly string[]): string[] {
-  return [...new Set(values)];
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -1720,6 +1678,3 @@ function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
 }
-
-// suppress unused-symbol noise from copying a static type ref forward
-export type { ProofChartSpec };

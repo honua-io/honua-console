@@ -1,7 +1,6 @@
 import type { Session } from "../../auth/types.js";
 import type { ContentItem } from "../../transitional/content-item.js";
 import {
-  GeneratedAppLifecycleContractError,
   addGeneratedAppRevision,
   materializeGeneratedAppDraft,
   publishGeneratedAppItem,
@@ -305,6 +304,3 @@ function cloneRecord(record: GeneratedAppLifecycleRecord): GeneratedAppLifecycle
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
-
-// re-export so call sites can map contract errors to lifecycle errors at the API boundary.
-export { GeneratedAppLifecycleContractError };

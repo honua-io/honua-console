@@ -15,12 +15,13 @@ interface ChartSpecViewProps {
 
 /**
  * Render a chart for a Studio generated-dashboard widget. When a Vega-Lite
- * spec is present on the widget, the adapter renders via vega-embed; otherwise
- * the deterministic CSS bar-chart fallback is used (matches the Portal proof
- * behavior). The fallback is also used while Vega-Lite is loading. ADR-0001
- * names Vega-Lite as the long-term chart spec layer for Console; this is the
- * minimum adapter that lets future dashboards/reports ship richer charts
- * without re-plumbing the widget runtime.
+ * spec is present on the widget, the adapter mounts vega-embed inside an
+ * empty container while the chunk loads, then renders the chart in place;
+ * widgets without a Vega-Lite spec — and any vega-embed failure — fall back
+ * to the deterministic CSS bar-chart (matches the Portal proof behavior).
+ * ADR-0001 names Vega-Lite as the long-term chart spec layer for Console;
+ * this is the minimum adapter that lets future dashboards/reports ship richer
+ * charts without re-plumbing the widget runtime.
  */
 export function ChartSpecView({ chartSpec, fallback, title, ...rest }: ChartSpecViewProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
