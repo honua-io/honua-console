@@ -1,11 +1,13 @@
 // Console area registry. The single deployable artifact serves all four
-// areas from the same origin (see ADR-0001). This list is referenced by the
-// router, the area placeholders, and the deploy-bundle smoke tests so that
-// "supported areas" has exactly one source of truth.
+// areas from the same origin (see ADR-0001). The runtime list lives in
+// areas.json so vite.config.ts, scripts/write-build-metadata.mjs, and the
+// build-metadata test consume the same source as the React router.
 
-export const CONSOLE_AREAS = ["studio", "catalog", "operate", "share"] as const;
+import areasJson from "./areas.json";
 
-export type ConsoleArea = (typeof CONSOLE_AREAS)[number];
+export type ConsoleArea = "studio" | "catalog" | "operate" | "share";
+
+export const CONSOLE_AREAS = areasJson as readonly ConsoleArea[];
 
 export interface AreaDescriptor {
   id: ConsoleArea;

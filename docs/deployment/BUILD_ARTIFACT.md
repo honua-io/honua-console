@@ -30,15 +30,23 @@ Environment variables consumed at build time:
   Defaults to `active` until `honua-portal` is frozen.
 - `HONUA_CONSOLE_LEGACY_ADMIN_STATUS` — One of `active`, `retiring`, `retired`.
   Defaults to `active` until `honua-server-admin` legacy routes are retired.
+- `HONUA_CONSOLE_DIST_DIR` — Consumed only by the standalone
+  `npm run build:metadata` re-stamp script. Overrides the `dist/` target so
+  promotion tooling can write `version.json` next to a staged artifact copy
+  without touching the source tree.
 
 ## Artifact layout
 
 ```
 dist/
   index.html            # SPA entrypoint
-  assets/               # Hashed JS, CSS, and chunked vendor bundles
+  assets/               # Hashed JS, CSS, vendor chunks, and `.map` sourcemaps
   version.json          # Build metadata (see below)
 ```
+
+The build emits `.map` sourcemaps alongside each JS/CSS asset. Devops may
+strip or gate them per release policy; doing so does not change the
+`version.json` schema or the SPA fallback contract below.
 
 `index.html` is the SPA entrypoint for every Console route. Devops MUST serve
 `index.html` as the fallback for unknown paths under the configured base path
@@ -62,9 +70,13 @@ tooling. Schema:
     "portal": "active | retiring | retired",
     "admin":  "active | retiring | retired"
   },
-  "areas": ["studio", "catalog", "share", "operate"]
+  "areas": ["studio", "catalog", "operate", "share"]
 }
 ```
+
+The `areas` array is sourced from `src/areas.json` so the React router, the
+Vite build-metadata plugin, and the standalone `build:metadata` script
+emit one canonical area list.
 
 Devops release notes use this file to identify the deployed Console artifact
 version and the legacy `portal` / `admin` deployment status at promotion time.
@@ -76,6 +88,14 @@ HONUA_CONSOLE_LEGACY_PORTAL_STATUS=retiring \
 HONUA_CONSOLE_REF=release/2026.06 \
   npm run build:metadata
 ```
+
+`build:metadata` writes to `dist/version.json` by default. Set
+`HONUA_CONSOLE_DIST_DIR=/path/to/staged/artifact` to overlay the file
+against a copy of the bundle without mutating the working tree. The same
+fields are also stamped into the JS bundle at build time and re-exported as
+`BUILD_INFO` from `src/build-info.ts` so in-app surfaces (e.g., the home
+footer) and release smoke can read the version without fetching
+`/version.json`.
 
 ## Same-origin routing
 

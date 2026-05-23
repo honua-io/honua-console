@@ -7,6 +7,7 @@ import { defineConfig, type Plugin } from "vite";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(here, "package.json"), "utf8")) as { version: string };
+const consoleAreas = JSON.parse(readFileSync(resolve(here, "src/areas.json"), "utf8")) as readonly string[];
 
 function describeCommit(): { sha: string; shortSha: string; ref: string } {
   const sha = process.env.HONUA_CONSOLE_COMMIT_SHA ?? readGit(["rev-parse", "HEAD"]);
@@ -49,7 +50,7 @@ function buildMetadataPlugin(): Plugin {
           portal: process.env.HONUA_CONSOLE_LEGACY_PORTAL_STATUS ?? "active",
           admin: process.env.HONUA_CONSOLE_LEGACY_ADMIN_STATUS ?? "active",
         },
-        areas: ["studio", "catalog", "share", "operate"],
+        areas: consoleAreas,
       };
       const outDir = resolve(here, "dist");
       mkdirSync(outDir, { recursive: true });

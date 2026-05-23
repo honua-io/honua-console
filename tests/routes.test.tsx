@@ -6,8 +6,12 @@ import { App } from "../src/App";
 import { AREA_DESCRIPTORS, CONSOLE_AREAS } from "../src/areas";
 
 function MemoryRouterWith(initialEntries: string[]) {
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>;
+  return function Wrapper({ basename, children }: { basename?: string; children: React.ReactNode }) {
+    return (
+      <MemoryRouter basename={basename} initialEntries={initialEntries}>
+        {children}
+      </MemoryRouter>
+    );
   };
 }
 
@@ -33,5 +37,13 @@ describe("Console area routes", () => {
   it("falls back to NotFound for unknown routes", () => {
     render(<App Router={MemoryRouterWith(["/no-such-route"])} />);
     expect(screen.getByRole("heading", { level: 1, name: "Not found" })).toBeInTheDocument();
+  });
+
+  it("routes area paths under a subpath basename (HONUA_CONSOLE_BASE_PATH)", () => {
+    // Mirrors the production wiring documented in BUILD_ARTIFACT.md: Vite emits
+    // assets under HONUA_CONSOLE_BASE_PATH and React Router strips that
+    // basename before matching the /studio route.
+    render(<App basename="/console" Router={MemoryRouterWith(["/console/studio"])} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Studio" })).toBeInTheDocument();
   });
 });

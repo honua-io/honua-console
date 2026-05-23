@@ -5,6 +5,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { CONSOLE_AREAS } from "../src/areas";
+import areasJson from "../src/areas.json";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
 const script = resolve(repoRoot, "scripts/write-build-metadata.mjs");
@@ -42,8 +45,9 @@ describe("write-build-metadata", () => {
     expect(metadata.legacy).toEqual({ portal: "retiring", admin: "active" });
   });
 
-  it("declares the supported areas", () => {
-    expect(metadata.areas).toEqual(["studio", "catalog", "share", "operate"]);
+  it("declares the supported areas from the shared registry", () => {
+    expect(metadata.areas).toEqual(areasJson);
+    expect(metadata.areas).toEqual(CONSOLE_AREAS);
   });
 
   it("includes a parseable builtAt timestamp", () => {

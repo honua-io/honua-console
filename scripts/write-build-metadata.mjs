@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
 const pkg = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
+const consoleAreas = JSON.parse(readFileSync(resolve(repoRoot, "src/areas.json"), "utf8"));
 
 function readGit(args) {
   try {
@@ -38,7 +39,7 @@ const metadata = {
     portal: process.env.HONUA_CONSOLE_LEGACY_PORTAL_STATUS ?? "active",
     admin: process.env.HONUA_CONSOLE_LEGACY_ADMIN_STATUS ?? "active",
   },
-  areas: ["studio", "catalog", "share", "operate"],
+  areas: consoleAreas,
 };
 
 const outDir = process.env.HONUA_CONSOLE_DIST_DIR
