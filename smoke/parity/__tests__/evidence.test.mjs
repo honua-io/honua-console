@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 import { buildEvidenceReport, formatTextSummary, writeEvidence } from "../evidence.mjs";
 import { runParitySmoke } from "../run.mjs";
 
+const ORIGIN = "http://127.0.0.1:4174";
 let work;
 
 beforeEach(async () => {
@@ -19,13 +20,13 @@ afterEach(async () => {
 
 describe("evidence emitter", () => {
   test("writeEvidence produces a JSON file readable as the schema we declare", async () => {
-    const { report } = await runParitySmoke({ originUrl: "https://console.smoke.example" });
+    const { report } = await runParitySmoke({ originUrl: ORIGIN });
     const outputPath = join(work, "console-parity.json");
     await writeEvidence({ outputPath, report });
     const onDisk = JSON.parse(await readFile(outputPath, "utf8"));
     assert.equal(onDisk.scenario, "console-parity-publish-to-embed");
     assert.equal(onDisk.result, "ok");
-    assert.equal(onDisk.originUrl, "https://console.smoke.example");
+    assert.equal(onDisk.originUrl, ORIGIN);
     assert.ok(Array.isArray(onDisk.steps));
     assert.ok(Array.isArray(onDisk.contractVersions));
     assert.ok(onDisk.items);
@@ -33,7 +34,7 @@ describe("evidence emitter", () => {
   });
 
   test("formatTextSummary lists every step with its owning layer and the result", async () => {
-    const { report } = await runParitySmoke({ originUrl: "https://console.smoke.example" });
+    const { report } = await runParitySmoke({ originUrl: ORIGIN });
     const text = formatTextSummary(report);
     assert.match(text, /console-parity-publish-to-embed/);
     assert.match(text, /result: ok/);

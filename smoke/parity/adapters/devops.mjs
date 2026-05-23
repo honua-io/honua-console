@@ -1,12 +1,20 @@
 // Devops adapter: loads the build-artifact metadata that honua-devops
-// promotes. By default the smoke prefers `dist/version.json` (produced by
-// honua-console#8's vite plugin / write-build-metadata script). When that
-// file is absent (e.g., trunk before the scaffold lands, or a Console
-// repo checkout without `npm run build`), the smoke falls back to the
-// committed fixture under `smoke/parity/fixtures/dist-version.json`. The
-// fallback is reported in evidence as `source: "fixture"` so a CI
-// reviewer can tell the difference between a real artifact verification
-// and a placeholder run.
+// promotes. Operates in two modes:
+//
+//   - Deployed-origin mode (originUrl host is NOT loopback): MUST fetch
+//     `${originUrl}/version.json` over HTTP and validate it. A failed fetch
+//     or schema-invalid response throws so the smoke cannot silently ship a
+//     "looks deployed" evidence file against an unreachable artifact. This
+//     is the path CI uses when `--origin "$PREVIEW_ORIGIN"` is passed.
+//   - Local/offline mode (originUrl host is loopback, or no origin given):
+//     prefer `dist/version.json` (honua-console#8 writer); when absent, fall
+//     back to the committed fixture under
+//     `smoke/parity/fixtures/dist-version.json`. The fallback is reported
+//     as `source: "fixture"` in evidence so a reviewer can tell the
+//     placeholder run from a real artifact verification.
+//
+// The evidence `buildArtifact.source` is `"origin"`, `"dist"`, or
+// `"fixture"`; downstream tooling can refuse to gate on `"fixture"`.
 
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -16,6 +24,11 @@ import { findContract } from "../contracts.mjs";
 const REQUIRED_BUILD_FIELDS = ["name", "version", "commit", "shortCommit", "ref", "builtAt", "legacy", "areas"];
 const REQUIRED_LEGACY_FIELDS = ["portal", "admin"];
 const REQUIRED_AREAS = ["studio", "catalog", "share", "operate"];
+
+// Hosts treated as local/offline. Anything else is a deployed origin and
+// MUST be verified via HTTP fetch — we never silently fall back to the
+// fixture for a remote origin.
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
 
 export class BuildArtifactError extends Error {
   constructor(message, { reason }) {
@@ -34,8 +47,67 @@ async function exists(path) {
   }
 }
 
-export async function loadBuildArtifact({ repoRoot, distPath, fixturePath } = {}) {
+/** True when the origin URL is a loopback address (local dev / smoke harness). */
+export function isLocalOrigin(originUrl) {
+  if (!originUrl) return true;
+  let parsed;
+  try {
+    parsed = new URL(originUrl);
+  } catch {
+    return false;
+  }
+  return LOOPBACK_HOSTS.has(parsed.hostname);
+}
+
+async function fetchOriginVersion({ originUrl, fetchImpl }) {
+  const target = new URL("/version.json", originUrl).toString();
+  let response;
+  try {
+    response = await fetchImpl(target);
+  } catch (cause) {
+    throw new BuildArtifactError(
+      `deployed-origin smoke could not reach ${target}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { reason: "origin-unreachable" },
+    );
+  }
+  if (!response.ok) {
+    throw new BuildArtifactError(
+      `deployed-origin smoke got HTTP ${response.status} from ${target}`,
+      { reason: "origin-http-error" },
+    );
+  }
+  let parsed;
+  try {
+    parsed = await response.json();
+  } catch (cause) {
+    throw new BuildArtifactError(`deployed-origin ${target} did not return valid JSON`, {
+      reason: cause instanceof Error ? cause.message : String(cause),
+    });
+  }
+  return { parsed, path: target };
+}
+
+export async function loadBuildArtifact({ repoRoot, originUrl, distPath, fixturePath, fetchImpl = globalThis.fetch } = {}) {
   if (!repoRoot) throw new Error("loadBuildArtifact requires repoRoot");
+
+  // Deployed-origin path: the AC2 promise is that the smoke runs against
+  // the single deployable artifact. When the caller has supplied a non-
+  // loopback origin we honor that — falling back to the local fixture
+  // here would ship an evidence file with `source: "fixture"` against a
+  // URL that may not even exist, which is exactly the false-green the
+  // earlier code review found.
+  if (originUrl && !isLocalOrigin(originUrl)) {
+    if (typeof fetchImpl !== "function") {
+      throw new BuildArtifactError(
+        `deployed-origin smoke requires a fetch implementation (Node 18+ global fetch or an injected fetchImpl)`,
+        { reason: "no-fetch" },
+      );
+    }
+    const { parsed, path } = await fetchOriginVersion({ originUrl, fetchImpl });
+    validateBuildArtifact(parsed, path);
+    return { metadata: parsed, source: "origin", path, contract: findContract("build-artifact") };
+  }
+
   const dist = distPath ?? resolve(repoRoot, "dist/version.json");
   const fixture = fixturePath ?? resolve(repoRoot, "smoke/parity/fixtures/dist-version.json");
 

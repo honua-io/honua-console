@@ -48,6 +48,8 @@ const CONTENT_ITEM_SUMMARY_REQUIRED = [
   "viewerSupport",
 ];
 
+const CONTENT_ITEM_ULID_REGEX = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
 describe("publish-handoff fixture", () => {
   test("ships every top-level field required by publish-handoff/v1.1.0", async () => {
     const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
@@ -92,6 +94,13 @@ describe("publish-handoff fixture", () => {
     if (handoff.access.openData) {
       assert.equal(handoff.access.sharing, "public");
     }
+  });
+
+  test("Honolulu fixture uses the Oahu State Plane native CRS", async () => {
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    assert.deepEqual(handoff.extent.bbox, [-158.3, 21.2, -157.6, 21.7]);
+    assert.equal(handoff.extent.crs, "EPSG:4326");
+    assert.equal(handoff.nativeCrs, "EPSG:2784");
   });
 });
 
@@ -165,6 +174,7 @@ describe("server.publishService output", () => {
 
     // Server fills in id, endpoints.self, and source.history.
     assert.ok(item.id, "server must assign an id");
+    assert.match(item.id, CONTENT_ITEM_ULID_REGEX);
     assert.equal(item.endpoints.self.format, "Honua:Portal:v1");
     assert.ok(item.source.history.length >= 1, "server must seed source.history");
 
@@ -241,7 +251,7 @@ describe("server.publishService output", () => {
 
     // Simulate Console-side mutations of portal-owned fields after publish.
     first.preview = { thumbnail: "https://console.smoke.example/cdn/edited.png", image: null };
-    first.dependencies = [{ id: "dep-edited", type: "layer", role: "datasource" }];
+    first.dependencies = [{ id: "01ARZ3NDEKTSV4RRFFQ69G5FAV", type: "layer", role: "datasource" }];
     first.extensions = { ...first.extensions, "honua-portal-viewer": { supported: false, reason: "tiles" } };
     const editedSelf = first.endpoints.self;
 
@@ -319,6 +329,38 @@ describe("projectCatalogSummary", () => {
 });
 
 describe("generated-app content-item mapping", () => {
+  test("emits schema-valid ULIDs for content items and dependency refs", async () => {
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item: svc } = server.publishService(handoff);
+    const { savedMap } = server.saveMap({
+      title: "x",
+      owner: svc.owner,
+      sourceItem: svc,
+      extent: svc.extent,
+    });
+    const { item: app } = server.publishGeneratedApp({
+      source: { kind: "saved-map", itemId: savedMap.id, itemType: "map", title: savedMap.title },
+      manifestVersion: "1.0.0",
+      plan: { id: "plan-1", warnings: [] },
+      appPackage: { id: "pkg-1", version: "1" },
+      owner: svc.owner,
+      title: "field app",
+    });
+
+    const lifecycle = app.extensions["honua-generated-app"];
+    const active = lifecycle.revisions.find((r) => r.id === lifecycle.activeRevisionId);
+    for (const id of [svc.id, savedMap.id, app.id, lifecycle.activeRevisionId]) {
+      assert.match(id, CONTENT_ITEM_ULID_REGEX);
+    }
+    for (const dep of app.dependencies) {
+      assert.match(dep.id, CONTENT_ITEM_ULID_REGEX);
+    }
+    for (const provenance of active.provenance) {
+      assert.match(provenance.itemId, CONTENT_ITEM_ULID_REGEX);
+    }
+  });
+
   test("publishGeneratedApp emits target.url/framework and saved-map dependency", async () => {
     const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
     const server = createServerAdapter({ originUrl: "https://console.smoke.example" });

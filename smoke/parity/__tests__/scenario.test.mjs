@@ -5,7 +5,18 @@ import { OWNING_LAYER_IDS } from "../owning-layers.mjs";
 import { SCENARIO_STEPS } from "../scenario.mjs";
 import { runParitySmoke } from "../run.mjs";
 
-const ORIGIN = "https://console.smoke.honua.example";
+const ORIGIN = "http://127.0.0.1:4174";
+const REMOTE_ORIGIN = "https://console.smoke.honua.example";
+const REMOTE_BUILD_ARTIFACT = {
+  name: "honua-console",
+  version: "2026.05.23-smoke",
+  commit: "0123456789abcdef0123456789abcdef01234567",
+  shortCommit: "0123456",
+  ref: "refs/heads/feature/honua-console-9",
+  builtAt: "2026-05-23T00:00:00.000Z",
+  legacy: { portal: "honua-portal@fixture", admin: "honua-server-admin@fixture" },
+  areas: ["studio", "catalog", "share", "operate"],
+};
 
 describe("parity scenario", () => {
   test("happy path completes every step and records owning-layer-tagged evidence", async () => {
@@ -55,6 +66,7 @@ describe("parity scenario", () => {
 
     // Build artifact metadata captured (fixture in this test environment).
     assert.equal(report.buildArtifact.name, "honua-console");
+    assert.equal(report.buildArtifact.source, "fixture");
     assert.deepEqual(report.buildArtifact.areas, ["studio", "catalog", "share", "operate"]);
 
     // The runner records the origin used so a CI reviewer can correlate the
@@ -63,6 +75,41 @@ describe("parity scenario", () => {
 
     // Sanity check the ctx is consistent with the report.
     assert.equal(ctx.itemIds.serviceItemId, report.items.serviceItemId);
+  });
+
+  test("deployed-origin build artifact is fetched from the origin", async () => {
+    let requestedUrl = null;
+    const fetchImpl = async (url) => {
+      requestedUrl = url;
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return REMOTE_BUILD_ARTIFACT;
+        },
+      };
+    };
+
+    const { report } = await runParitySmoke({ originUrl: REMOTE_ORIGIN, fetchImpl });
+    assert.equal(report.result, "ok", `parity smoke failed: ${report.failure?.message ?? "unknown"}`);
+    assert.equal(requestedUrl, `${REMOTE_ORIGIN}/version.json`);
+    assert.equal(report.buildArtifact.source, "origin");
+    assert.equal(report.buildArtifact.path, `${REMOTE_ORIGIN}/version.json`);
+    assert.equal(report.buildArtifact.version, REMOTE_BUILD_ARTIFACT.version);
+  });
+
+  test("deployed-origin build artifact failure is attributed to devops", async () => {
+    const fetchImpl = async () => {
+      throw new Error("simulated unreachable origin");
+    };
+
+    const { report } = await runParitySmoke({ originUrl: REMOTE_ORIGIN, fetchImpl });
+    assert.equal(report.result, "failed");
+    assert.equal(report.failure.stepId, "devops/build-artifact");
+    assert.equal(report.failure.owningLayer, "devops");
+    assert.match(report.failure.message, /could not reach/);
+    assert.match(report.failure.message, /simulated unreachable origin/);
+    assert.equal(report.buildArtifact, null);
   });
 
   test("server upsert produces canonical content-item v1.1.0 shape consumed downstream", async () => {
@@ -118,7 +165,7 @@ describe("parity scenario", () => {
     assert.equal(app.type, "app");
     assert.equal(app.target.type, "app");
     assert.equal(app.target.framework, "honua");
-    assert.match(app.target.url, /^https:\/\/console\.smoke\.honua\.example\/apps\//);
+    assert.match(app.target.url, new RegExp(`^${ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/apps/`));
     assert.equal(app.source.kind, "manual");
     assert.equal(app.source.sourceId, ctx.savedMap.id);
     const dep = app.dependencies.find((d) => d.id === ctx.savedMap.id);

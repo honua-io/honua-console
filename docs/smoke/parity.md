@@ -33,14 +33,19 @@ Exit codes:
   and the JSON evidence file written under `smoke-evidence/` for details.
 - `2` — runner setup error (e.g., bad CLI arguments).
 
-The runner reads `dist/version.json` (produced by
-[`honua-console#8`](https://github.com/honua-io/honua-console/issues/8)
-and consumed by the devops promotion pipeline). When that file is absent
-— for example, on trunk before the scaffolding lands, or on a checkout
-that has not run `npm run build` — the runner falls back to the
-committed fixture under [`smoke/parity/fixtures/dist-version.json`](../../smoke/parity/fixtures/dist-version.json).
-The evidence JSON records `buildArtifact.source` as `"dist"` or
-`"fixture"` so a CI reviewer can tell the two apart.
+For deployed origins, the runner fetches and validates
+`<origin>/version.json` and fails the `devops/build-artifact` step if the
+origin is unreachable or serves invalid metadata. Local/offline runs
+(default `127.0.0.1`, `localhost`, or no origin) read `dist/version.json`
+produced by
+[`honua-console#8`](https://github.com/honua-io/honua-console/issues/8).
+When that local file is absent — for example, on trunk before the
+scaffolding lands, or on a checkout that has not run `npm run build` —
+the runner falls back to the committed fixture under
+[`smoke/parity/fixtures/dist-version.json`](../../smoke/parity/fixtures/dist-version.json).
+The evidence JSON records `buildArtifact.source` as `"origin"`, `"dist"`,
+or `"fixture"` so promotion tooling can distinguish deployed-origin
+evidence from a local placeholder run.
 
 ## Owning-layer taxonomy
 
@@ -68,7 +73,7 @@ failure short-circuits and the remaining steps are recorded as
 
 | Order | Step id                          | Layer          | What it verifies                                                                                |
 | ----- | -------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
-| 1     | `devops/build-artifact`          | `devops`       | `dist/version.json` declares the four areas and the legacy block.                               |
+| 1     | `devops/build-artifact`          | `devops`       | The deployed or local `version.json` declares the four areas and the legacy block.              |
 | 2     | `legacy-admin/operator-publish`  | `legacy-admin` | Publish-handoff event from the transitional admin surface.                                      |
 | 3     | `server/catalog-upsert`          | `server`       | Server upserts the event and returns a stable content item id.                                  |
 | 4     | `sdk/catalog-projection`         | `sdk`          | SDK projects the row into a browser-safe summary the viewer accepts.                            |
@@ -134,7 +139,9 @@ real HTTP transport cannot silently accept a drifted payload:
   `ContentItem`. Upsert identity keys on **`(source.kind, source.sourceId)`**
   per the schema's idempotency description, so the same `sourceId`
   republished under a different `source.kind` mints a distinct item
-  (regression test pins this). The SDK projection
+  (regression test pins this). Generated item, saved-map, revision, and
+  dependency ids use the canonical Crockford ULID alphabet and match
+  `/^[0-9A-HJKMNP-TV-Z]{26}$/`. The SDK projection
   (`sdk.summarizeContentItem`) emits the canonical `ContentItemSummary`
   (`id, slug, type, title, summary, owner, tags, extent, preview,
   modified, capabilities, formats, sharing, openData, viewerSupport`).
@@ -199,10 +206,10 @@ Top-level fields:
 - `scenario` — Stable scenario id (`console-parity-publish-to-embed`).
 - `ranAt` — ISO-8601 timestamp.
 - `originUrl` — The origin the smoke ran against.
-- `buildArtifact` — `dist/version.json` snapshot (or `null` if neither
-  `dist/version.json` nor the fixture loaded). Includes `source:
-  "dist"|"fixture"` so promotion tooling can distinguish a real build
-  verification from a placeholder run.
+- `buildArtifact` — Deployed `<origin>/version.json`, local
+  `dist/version.json`, or local fixture snapshot. Includes `source:
+  "origin"|"dist"|"fixture"` so promotion tooling can distinguish a
+  deployed-origin verification from a placeholder run.
 - `contractVersions[]` — All contracts exercised by the scenario, with
   owning layer and source repo.
 - `items` — Stable ids generated during the run
@@ -219,15 +226,14 @@ Top-level fields:
 
 ## Wiring to the real surfaces
 
-The smoke ships with fixture adapters today so the scenario can run
-green before its dependencies merge. When the porting tickets land,
-replace the in-memory adapter implementations with their real
-counterparts — the scenario steps and the evidence format stay the
-same.
+The smoke ships with fixture/in-memory adapters today so the scenario can
+run green before all dependencies merge. When the porting tickets land,
+replace the remaining in-memory adapter implementations with their real
+counterparts — the scenario steps and the evidence format stay the same.
 
 | Adapter                                          | Replace with                                                                 |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- |
-| [`adapters/devops.mjs`](../../smoke/parity/adapters/devops.mjs)   | `fetch('/version.json')` against the deployed origin (devops `#55` / `#56`). |
+| [`adapters/devops.mjs`](../../smoke/parity/adapters/devops.mjs)   | Already fetches `<origin>/version.json` for deployed origins; devops `#55` / `#56` should provide the real file and CI origin. |
 | [`adapters/admin.mjs`](../../smoke/parity/adapters/admin.mjs)     | Real publish trigger against `honua-server-admin` (or Console Operate when `#6` ports it). |
 | [`adapters/server.mjs`](../../smoke/parity/adapters/server.mjs)   | HTTP calls to `honua-server` (Console metadata v2 baseline, `#1162`).        |
 | [`adapters/sdk.mjs`](../../smoke/parity/adapters/sdk.mjs)         | Imports from `@honua/sdk-js` (`honua-sdk-js#225` / `#226`). `resolveViewerOpenability` (the type-default openability gate the SDK summary intentionally does not project) is a transitional home here; it moves into the Console viewer module under `honua-console#4` so the canonical `ContentItemSummary.viewerSupport: null` contract is preserved. |

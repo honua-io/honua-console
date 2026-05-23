@@ -12,18 +12,49 @@
 import { findContract } from "../contracts.mjs";
 import { summarizeContentItem } from "./sdk.mjs";
 
+// Crockford base32 alphabet — the canonical content-item/v1 Ulid pattern
+// is /^[0-9A-HJKMNP-TV-Z]{26}$/ (honua-portal/schemas/content-item-v1.json
+// $defs.Ulid). I, L, O, U are excluded. The smoke MUST emit ids in this
+// alphabet so the evidence does not ship a schema-invalid content-item id
+// while reporting content-item/v1.1.0 conformance.
 const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const ULID_REGEX = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/** Encode an unsigned integer in Crockford base32, left-padded to `width`. */
+function encodeCrockford(value, width) {
+  let v = BigInt(value);
+  const base = BigInt(ULID_ALPHABET.length);
+  const chars = [];
+  if (v === 0n) {
+    chars.push(ULID_ALPHABET[0]);
+  } else {
+    while (v > 0n) {
+      chars.push(ULID_ALPHABET[Number(v % base)]);
+      v /= base;
+    }
+  }
+  while (chars.length < width) chars.push(ULID_ALPHABET[0]);
+  return chars.reverse().join("").slice(-width);
+}
 
 function deterministicUlid(prefix, counter) {
+  // First 10 chars encode the (deterministic) timestamp in Crockford base32
+  // — the same alphabet ULIDs use, so the result satisfies the canonical
+  // content-item Ulid regex. The remaining 16 chars are a per-prefix
+  // deterministic suffix drawn from the same alphabet.
   const ts = Date.UTC(2026, 4, 23) + counter;
-  const base = ts.toString(36).padStart(10, "0").toUpperCase();
+  const base = encodeCrockford(ts, 10);
   const tail = [];
   let v = counter;
   for (let i = 0; i < 16; i += 1) {
     tail.push(ULID_ALPHABET[(v + prefix.charCodeAt(0) * (i + 1)) % ULID_ALPHABET.length]);
     v = (v * 31 + prefix.charCodeAt(i % prefix.length)) >>> 0;
   }
-  return (base + tail.join("")).slice(0, 26);
+  const id = (base + tail.join("")).slice(0, 26);
+  if (!ULID_REGEX.test(id)) {
+    throw new Error(`deterministicUlid produced non-Crockford id "${id}" — alphabet drift in encoding`);
+  }
+  return id;
 }
 
 function portalSelfLink(href) {

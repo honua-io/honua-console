@@ -3,12 +3,12 @@
 //
 // One automated command (honua-console#9 AC1) that drives the cross-surface
 // chain: publish -> catalog -> Studio -> share/embed. The command runs
-// against the single deployable artifact (AC2) by reading its
-// `dist/version.json` build metadata when present and falling back to the
-// committed fixture otherwise. Every scenario step is tagged with its
-// owning layer; a failure prints a human-readable triage line that points
-// directly at the responsible repo (AC3). Evidence is written as JSON
-// containing URLs, item/package IDs, and contract versions (AC4).
+// against the single deployable artifact (AC2) by fetching `/version.json`
+// for deployed origins, or by reading local `dist/version.json` with a
+// fixture fallback for offline runs. Every scenario step is tagged with
+// its owning layer; a failure prints a human-readable triage line that
+// points directly at the responsible repo (AC3). Evidence is written as
+// JSON containing URLs, item/package IDs, and contract versions (AC4).
 //
 // Usage:
 //   node smoke/parity/run.mjs                   # run with defaults
@@ -49,10 +49,10 @@ function parseArgs(argv) {
   return args;
 }
 
-export async function runParitySmoke({ originUrl, repoRoot = REPO_ROOT, steps = SCENARIO_STEPS } = {}) {
+export async function runParitySmoke({ originUrl, repoRoot = REPO_ROOT, steps = SCENARIO_STEPS, fetchImpl } = {}) {
   if (!originUrl) throw new Error("runParitySmoke requires originUrl");
   const ranAt = new Date().toISOString();
-  const ctx = { repoRoot, originUrl, itemIds: {} };
+  const ctx = { repoRoot, originUrl, itemIds: {}, fetchImpl };
   const executed = [];
   let failure = null;
 

@@ -1,7 +1,7 @@
 {
   "scenario": "console-parity-publish-to-embed",
-  "ranAt": "2026-05-23T22:59:09.212Z",
-  "originUrl": "https://console.staging.honua.example",
+  "ranAt": "2026-05-23T23:32:27.165Z",
+  "originUrl": "http://127.0.0.1:4174",
   "repoRoot": "/path/to/honua-console",
   "buildArtifact": {
     "source": "fixture",
@@ -75,20 +75,20 @@
     }
   ],
   "items": {
-    "serviceItemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
-    "savedMapId": "00MPHL0QO2F5XEMWXKBW2AB1SA",
-    "generatedAppId": "00MPHL0QO340N28KA6V8ESGC1E",
+    "serviceItemId": "01KS923C01MRXBKM6AFX56RW1F",
+    "savedMapId": "01KS923C02F5XEMWXKBW2AB1SA",
+    "generatedAppId": "01KS923C0340N28KA6V8ESGC1E",
     "shareTier": "org",
-    "embedToken": "embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5"
+    "embedToken": "embed-01KS923C0340N28KA6V8ESGC1E-pilot-5"
   },
   "urls": {
-    "catalog": "https://console.staging.honua.example/catalog/00MPHL0QO1MRXBKM6AFX56RW1F",
-    "viewerHydration": "https://console.staging.honua.example/maps/new?from=00MPHL0QO1MRXBKM6AFX56RW1F",
-    "viewer": "https://console.staging.honua.example/maps/00MPHL0QO2F5XEMWXKBW2AB1SA",
-    "studio": "https://console.staging.honua.example/studio/drafts?source=saved-map&id=00MPHL0QO2F5XEMWXKBW2AB1SA",
-    "generatedApp": "https://console.staging.honua.example/catalog/00MPHL0QO340N28KA6V8ESGC1E",
-    "share": "https://console.staging.honua.example/share/items/00MPHL0QO340N28KA6V8ESGC1E",
-    "embed": "https://console.staging.honua.example/embed/items/00MPHL0QO340N28KA6V8ESGC1E#embedToken=embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5"
+    "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
+    "viewerHydration": "http://127.0.0.1:4174/maps/new?from=01KS923C01MRXBKM6AFX56RW1F",
+    "viewer": "http://127.0.0.1:4174/maps/01KS923C02F5XEMWXKBW2AB1SA",
+    "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+    "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
+    "share": "http://127.0.0.1:4174/share/items/01KS923C0340N28KA6V8ESGC1E",
+    "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=embed-01KS923C0340N28KA6V8ESGC1E-pilot-5"
   },
   "steps": [
     {
@@ -122,7 +122,7 @@
       "owningLayer": "legacy-admin",
       "owningLayerLabel": "Legacy Admin transition surface",
       "status": "ok",
-      "durationMs": 1,
+      "durationMs": 0,
       "description": "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff/v1.1.0 payload into Console catalog.",
       "evidence": {
         "type": "service",
@@ -143,7 +143,7 @@
       "durationMs": 0,
       "description": "Server upserts the publish-handoff into the catalog and returns a stable content item id.",
       "evidence": {
-        "itemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
+        "itemId": "01KS923C01MRXBKM6AFX56RW1F",
         "serviceUrl": "https://server.smoke.honua.example/api/v1/services/city-parcels-2026",
         "status": "available",
         "sourceKind": "publish",
@@ -159,7 +159,7 @@
       "durationMs": 0,
       "description": "SDK projects the server catalog row into the canonical content-item/v1.1.0 ContentItemSummary Console consumes.",
       "evidence": {
-        "itemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
+        "itemId": "01KS923C01MRXBKM6AFX56RW1F",
         "title": "City Parcels 2026",
         "viewerSupport": null,
         "viewerOpenability": {
@@ -191,7 +191,7 @@
       "evidence": {
         "listed": 1,
         "includesPublished": true,
-        "listedItemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
+        "listedItemId": "01KS923C01MRXBKM6AFX56RW1F",
         "formats": [
           "GeoServices:FeatureService",
           "OGC:API:Features"
@@ -207,7 +207,7 @@
       "durationMs": 0,
       "description": "Console viewer route opens the catalog item via the same-origin /maps/new?from=... hydration URL.",
       "evidence": {
-        "hydrationUrl": "https://console.staging.honua.example/maps/new?from=00MPHL0QO1MRXBKM6AFX56RW1F"
+        "hydrationUrl": "http://127.0.0.1:4174/maps/new?from=01KS923C01MRXBKM6AFX56RW1F"
       },
       "error": null
     },
@@ -219,7 +219,7 @@
       "durationMs": 0,
       "description": "Save a map that references the published service; saved-map document conforms to webmap-doc/v1.",
       "evidence": {
-        "savedMapId": "00MPHL0QO2F5XEMWXKBW2AB1SA",
+        "savedMapId": "01KS923C02F5XEMWXKBW2AB1SA",
         "title": "City Parcels 2026 — overview",
         "documentVersion": "honua-webmap/v1",
         "operationalLayerCount": 1
@@ -234,10 +234,10 @@
       "durationMs": 0,
       "description": "Studio creates a dashboard/app/report draft from the saved map; the draft route is same-origin.",
       "evidence": {
-        "draftUrl": "https://console.staging.honua.example/studio/drafts?source=saved-map&id=00MPHL0QO2F5XEMWXKBW2AB1SA",
+        "draftUrl": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
         "source": {
           "kind": "saved-map",
-          "itemId": "00MPHL0QO2F5XEMWXKBW2AB1SA",
+          "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
           "itemType": "map",
           "title": "City Parcels 2026 — overview"
         }
@@ -252,10 +252,10 @@
       "durationMs": 0,
       "description": "SDK builds the BuilderPlan and AppPackage from the draft using shared contracts.",
       "evidence": {
-        "planId": "plan-00MPHL0QO2F5XEMWXKBW2AB1SA-00MPHL0QO2F5XEMWXKBW2AB1SA",
+        "planId": "plan-01KS923C02F5XEMWXKBW2AB1SA-01KS923C02F5XEMWXKBW2AB1SA",
         "planKind": "builder",
         "stepCount": 3,
-        "appPackageId": "plan-00MPHL0QO2F5XEMWXKBW2AB1SA-00MPHL0QO2F5XEMWXKBW2AB1SA-pkg",
+        "appPackageId": "plan-01KS923C02F5XEMWXKBW2AB1SA-01KS923C02F5XEMWXKBW2AB1SA-pkg",
         "appPackageVersion": "1.0.0",
         "assetKinds": [
           "manifest",
@@ -277,14 +277,14 @@
       "durationMs": 0,
       "description": "Server records the generated app as a published content item with target.url/framework and a saved-map/catalog-item dependency back to the source.",
       "evidence": {
-        "generatedAppId": "00MPHL0QO340N28KA6V8ESGC1E",
-        "targetUrl": "https://console.staging.honua.example/apps/00MPHL0QO340N28KA6V8ESGC1E/preview?revision=00MPHL0QO4PJD7DY2YSKSAEA5Z",
+        "generatedAppId": "01KS923C0340N28KA6V8ESGC1E",
+        "targetUrl": "http://127.0.0.1:4174/apps/01KS923C0340N28KA6V8ESGC1E/preview?revision=01KS923C04PJD7DY2YSKSAEA5Z",
         "targetFramework": "honua",
-        "activeRevisionId": "00MPHL0QO4PJD7DY2YSKSAEA5Z",
+        "activeRevisionId": "01KS923C04PJD7DY2YSKSAEA5Z",
         "provenanceCount": 1,
         "dependencyRoles": [
           {
-            "id": "00MPHL0QO2F5XEMWXKBW2AB1SA",
+            "id": "01KS923C02F5XEMWXKBW2AB1SA",
             "role": "saved-map"
           }
         ]
@@ -299,7 +299,7 @@
       "durationMs": 0,
       "description": "Console share dialog promotes the generated app to org-tier and marks it embeddable.",
       "evidence": {
-        "itemId": "00MPHL0QO340N28KA6V8ESGC1E",
+        "itemId": "01KS923C0340N28KA6V8ESGC1E",
         "sharing": "org",
         "embeddable": true
       },
@@ -313,10 +313,10 @@
       "durationMs": 0,
       "description": "Server mints a same-origin embed-token/v1 descriptor for the generated app.",
       "evidence": {
-        "token": "embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5",
+        "token": "embed-01KS923C0340N28KA6V8ESGC1E-pilot-5",
         "audience": "pilot",
         "closureSize": 1,
-        "expiresAt": "2026-05-23T23:29:09.217Z"
+        "expiresAt": "2026-05-24T00:02:27.170Z"
       },
       "error": null
     },
@@ -329,13 +329,13 @@
       "description": "Console assembles the same-origin embed URL using the minted token; URL is reachable from the deployable artifact origin and carries the token in the URL fragment per embed-token/v1.",
       "evidence": {
         "urls": {
-          "catalog": "https://console.staging.honua.example/catalog/00MPHL0QO1MRXBKM6AFX56RW1F",
-          "viewerHydration": "https://console.staging.honua.example/maps/new?from=00MPHL0QO1MRXBKM6AFX56RW1F",
-          "viewer": "https://console.staging.honua.example/maps/00MPHL0QO2F5XEMWXKBW2AB1SA",
-          "studio": "https://console.staging.honua.example/studio/drafts?source=saved-map&id=00MPHL0QO2F5XEMWXKBW2AB1SA",
-          "generatedApp": "https://console.staging.honua.example/catalog/00MPHL0QO340N28KA6V8ESGC1E",
-          "share": "https://console.staging.honua.example/share/items/00MPHL0QO340N28KA6V8ESGC1E",
-          "embed": "https://console.staging.honua.example/embed/items/00MPHL0QO340N28KA6V8ESGC1E#embedToken=embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5"
+          "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
+          "viewerHydration": "http://127.0.0.1:4174/maps/new?from=01KS923C01MRXBKM6AFX56RW1F",
+          "viewer": "http://127.0.0.1:4174/maps/01KS923C02F5XEMWXKBW2AB1SA",
+          "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+          "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
+          "share": "http://127.0.0.1:4174/share/items/01KS923C0340N28KA6V8ESGC1E",
+          "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=embed-01KS923C0340N28KA6V8ESGC1E-pilot-5"
         }
       },
       "error": null

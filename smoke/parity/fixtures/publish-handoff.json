@@ -13,7 +13,7 @@
     "bbox": [-158.3, 21.2, -157.6, 21.7],
     "crs": "EPSG:4326"
   },
-  "nativeCrs": "EPSG:2783",
+  "nativeCrs": "EPSG:2784",
   "license": {
     "spdx": "CC-BY-4.0",
     "name": "Creative Commons Attribution 4.0",
