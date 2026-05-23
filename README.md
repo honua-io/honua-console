@@ -20,6 +20,8 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
 - [Operate Observability Information Model](docs/architecture/operate-observability-information-model.md)
 - [Honua Console Design Handoff](docs/design-handoff/README.md)
+- [Legacy Admin Route Disposition](docs/migration/legacy-admin-route-disposition.md)
+- [Operate Embed Contract](docs/operate/embed-contract.md)
 
 ## Migration Coordination
 
