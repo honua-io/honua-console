@@ -35,7 +35,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /studio/proof                  Legacy alias for current proof flow
 /studio/apps/:itemId/preview   Generated-app preview / publish lifecycle
 
-/catalog                       Search / list (q, type, kind, visibility, tag, owner, sort, cursor)
+/catalog                       Search / list (q, type, tag, owner, visibility, sort, cursor)
 /catalog/:idOrSlug             Catalog item detail
 
 /maps/:mapId                   Interactive map viewer (Catalog/Studio/Share target; anonymous-capable via ShareAccess + ?token=)
@@ -132,15 +132,37 @@ Groups feature ticket lands (tracked alongside `honua-portal#15`).
 
 Edition gates render as a per-route badge or upgrade tile (not a hidden
 route). Anonymous deep links to gated routes resolve to a clear upgrade
-surface, not a 404. Edition is sourced from
-`LicenseInfo.Edition` (HTTP DTO of `HonuaEdition` from
-`honua-server:src/Honua.Core/Features/Licensing/Domain/LicenseModels.cs:9`).
+surface, not a 404. Edition is sourced from `LicenseInfo.Edition`
+(`honua-server:src/Honua.Core/Features/Licensing/Domain/LicenseInfo.cs:14`).
+On the wire, `LicenseInfo.Edition` is a `string` populated from
+`HonuaEdition.ToString()` (e.g. server mappers at
+`honua-server:src/Honua.Server/Features/Admin/LicenseStatusResponseMapper.cs:40`
+and `LicenseAdminEndpoints.cs:91`), so the literal values are
+`"Community"`, `"Pro"`, or `"Enterprise"`. A direct lexicographic string
+comparison is **incorrect** (`"Enterprise" >= "Pro"` is false because
+`'E' < 'P'`); Console must parse the wire string into an ordered rank
+from `HonuaEdition`
+(`honua-server:src/Honua.Core/Features/Licensing/Domain/LicenseModels.cs:9–25`)
+before evaluating the gate:
+
+```
+edition rank: Community = 0, Pro = 1, Enterprise = 2
+```
+
+This rank map lives once in the `<RouteGuard>` projection
+(`honua-console#2`); per-route gates only name the required tier.
 
 Edition gate values:
 
 - `edition:any` — no edition constraint (default).
-- `edition:Pro` — requires `LicenseInfo.Edition` ≥ Pro.
-- `edition:Enterprise` — requires `LicenseInfo.Edition` ≥ Enterprise.
+- `edition:Pro` — requires `rank(LicenseInfo.Edition) ≥ rank("Pro")`.
+- `edition:Enterprise` — requires `rank(LicenseInfo.Edition) ≥ rank("Enterprise")`.
+
+Console owns the rank table for now (a six-line constant). The wire DTO
+stays a string so the trimmer constraint flagged for `honua-server#1162`
+(§11) remains satisfied; if a future SDK projection ever exposes a typed
+`Edition` surface, Console swaps the local rank table for it (tracked
+by §14 alongside the other Portal-to-SDK swaps).
 
 ### 2.4 Feature flag (entitlement) gates
 
@@ -208,13 +230,13 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | 5 | `/public` | `/share/public` | — | `anonymous` | share | open-data |
 | 6 | `/public/items/:idOrSlug` | `/share/public/items/:idOrSlug` | preserves DCAT-US / schema.org JSON-LD body | `anonymous` (+ `ShareAccess`) | share | open-data, share |
 | 7 | `/embed/maps/:mapId` | `/embed/maps/:mapId` | `chrome`, `legend`, `zoom`, `extent=W,S,E,N` (WGS84 lon/lat); fragment `#embedToken=` | `anonymous` (+ `resolveEmbedAuthorization`) | embed | embed |
-| 8 | `/catalog` | `/catalog` | `q`, `type`, `kind`, `visibility`, `tag`, `owner`, `sort`, `cursor` | `auth` | catalog | catalog-list |
+| 8 | `/catalog` | `/catalog` | `q`, `type`, `tag`, `owner`, `visibility`, `sort`, `cursor` (per `honua-portal:src/catalog/searchParams.ts:38` and `ListItemsRequest` in `honua-portal:src/contracts/content-item.ts:251`; the wire contract sets `additionalProperties: false`, so the Console list page must not invent new query keys) | `auth` | catalog | catalog-list |
 | 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:29` emits this for non-map items) | `auth` (+ `resolvePortalItemRole` for actions) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | catalog | catalog-detail |
 | 10 | `/maps` | `/catalog?type=map` (list) + `/studio` (create CTA) | preserves `from=:itemId` on the create path | `auth` | catalog (list), studio (create) | — |
 | 11 | `/maps/:mapId` | `/maps/:mapId` | `from=:itemId` (when transiting from Catalog); `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:27`) | `auth` (+ `item-role:viewer`) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | viewer | viewer |
 | 12 | `/app-builder/proof` | `/studio` (entry) + `/studio/proof` (legacy alias) | legacy 301 → `/studio?source=…&itemId=…` | `auth` | studio | studio-generation |
 | 13 | `/apps/:itemId/preview` | `/studio/apps/:itemId/preview` | preserves `?revision=<n>` | `auth` (+ `item-role:viewer`) | studio | studio-generation |
-| 14 | `/data` | `/catalog?type=service&kind=dataset` | — (Portal `/data` is a placeholder; Catalog filter covers it) | `auth` | catalog | — |
+| 14 | `/data` | `/catalog` | — (Portal `/data` renders an `EmptyState` placeholder at `honua-portal:src/routes/Data.tsx:10` — "Data view is coming soon"; the legacy nav copy "Datasets, layers, and tables" at `honua-portal:src/shell/NavConfig.ts:53` has no single matching filter in the current `ListItemsRequest` contract — `type` is single-valued and `ItemType` does not include a `dataset` member — so Console drops `/data` as a dedicated surface and Catalog's type filter is the entry point; widening to a multi-type or "dataset-like" filter is deferred until a shared catalog filter contract change lands) | `auth` | catalog | — |
 | 15 | `/groups` | `/groups` | — | `auth` (any scope — member, operator, or admin, per `hasAnyScope(session, ["member", "operator", "admin"])` in `honua-portal:src/routes/Groups.tsx:10`) | shell | — |
 | 16 | `*` | `*` (Console NotFound) | — | `anonymous` | shell | — |
 
@@ -286,18 +308,23 @@ Defined in `honua-portal:src/share/` and `honua-portal:src/embed/`:
 
 Server-authored, consumed by Console via the `LicenseInfo` DTO:
 
-- `HonuaEdition` enum: `Community`, `Pro`, `Enterprise`
+- `HonuaEdition` enum: `Community = 0`, `Pro = 1`, `Enterprise = 2`
   (`honua-server:src/Honua.Core/Features/Licensing/Domain/LicenseModels.cs:9`,
-  values at lines 14, 19, 24).
+  values at lines 14, 19, 24). The integer ordinals encode the rank used
+  by `edition:<tier>` gates (§2.3).
 - `LicenseEntitlementDecision` with `UpgradeMessage`
   (`LicenseModels.cs:141`, `UpgradeMessage` at line 147).
 - `ILicenseEntitlementService.GetSnapshot()` and
   `CheckEntitlement(entitlementKey)`
   (`honua-server:src/Honua.Core/Features/Licensing/Abstractions/ILicenseEntitlementService.cs:11/17/24`).
-- `LicenseInfo` HTTP DTO with `Edition`, `IsValid`, `ExpiresAt`,
-  `ValidationState`, `Entitlements[].Key/Name/IsActive`
+- `LicenseInfo` HTTP DTO with `Edition` (`string`, populated from
+  `HonuaEdition.ToString()`), `IsValid`, `ExpiresAt`, `ValidationState`,
+  `Entitlements[].Key/Name/IsActive`
   (`honua-server:src/Honua.Core/Features/Licensing/Domain/LicenseInfo.cs:9/14/19/24/29/49`;
-  `Entitlement` at line 55, fields at 60/65/70).
+  `Entitlement` at line 55, fields at 60/65/70). Wire values are the
+  enum names: `"Community"`, `"Pro"`, `"Enterprise"`. Console parses to
+  the rank table in §2.3 before evaluating `edition:<tier>`; do **not**
+  string-compare on the wire value.
 - Feature keys: `honua-server:src/Honua.Core/Features/Licensing/Domain/FeatureCatalog.cs`,
   individual keys at the line numbers cited in §2.4.
 
@@ -328,7 +355,7 @@ route may have multiple gates; all must pass.
 | `item-role:<min>` | `resolvePortalItemRole(session, item)` ≥ `<min>` per `ROLE_MATRIX`. |
 | `share-tier:<min>` | `ShareAccess.sharing` ≥ `<min>`. |
 | `entitlement:<key>` | `ILicenseEntitlementService.CheckEntitlement(<key>)` is granted. |
-| `edition:<tier>` | `LicenseInfo.Edition` ≥ `<tier>`. |
+| `edition:<tier>` | `rank(LicenseInfo.Edition) ≥ rank(<tier>)` per the rank table in §2.3 (`Community = 0`, `Pro = 1`, `Enterprise = 2`); the wire value is a string and must not be compared lexicographically. |
 
 Console must implement these as one `<RouteGuard>` consuming the named
 contracts; the guard surface is the seam called out in `honua-console#2`.
@@ -673,7 +700,7 @@ PRs that touch each ticket should link to its section number(s).
 
 | Ticket | Cites |
 |---|---|
-| `honua-console#4` — Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data | §1 (taxonomy: `/catalog`, `/maps`, `/share`, `/embed`), §3 rows 5–11 and row 14 (`/data` → Catalog filter), §5.4 REDIRECTs (`/layers`, `/services`, `/layers/{id}/preview`), §6.3 / §6.4 / §6.6 / §6.7 (route catalogue), §7 (exception surfaces), §8 (frozen URLs), §9 (chunks), §10 (smoke). |
+| `honua-console#4` — Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data | §1 (taxonomy: `/catalog`, `/maps`, `/share`, `/embed`), §3 rows 5–11 and row 14 (`/data` → `/catalog`; no dedicated dataset filter today — `ListItemsRequest` has no `kind` field and `ItemType` has no `dataset` member), §5.4 REDIRECTs (`/layers`, `/services`, `/layers/{id}/preview`), §6.3 / §6.4 / §6.6 / §6.7 (route catalogue), §7 (exception surfaces), §8 (frozen URLs), §9 (chunks), §10 (smoke). |
 | `honua-console#5` — Port Studio app-builder and generated-app lifecycle | §1 (`/studio*`), §3 rows 12–13, §5.2 RETIRE (`/operator/app-builder`), §6.2 (route catalogue), §7 (`<UnsupportedPackageView>`), §9 (studio chunk), §10 (studio-generation smoke). |
 | `honua-console#6` — Integrate legacy Admin as transitional Operate surface | §1 (`/operate/*`, `/operate/legacy/<path>`), all of §5 (Admin disposition map), §6.5 (Operate gates and surfaces), §11 (`honua-server-admin#96` consumer notes). |
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
