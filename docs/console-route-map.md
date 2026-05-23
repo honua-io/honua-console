@@ -395,7 +395,7 @@ dual-reference window is bounded.
 
 Every `@page` declared in
 `honua-server-admin/src/Honua.Admin/Pages` appears here. The inventory
-is 41 unique paths across 31 `.razor` files (some files declare
+is 41 unique paths across 36 `.razor` files (some files declare
 multi-route aliases). Disposition values:
 
 - **REDIRECT** — Console covers it now or imminently. Admin path serves
@@ -681,23 +681,50 @@ Studio and Operate.
 
 ## 10. Smoke Evidence Map
 
-The cross-surface smoke (`honua-console#9`) follows this quadruple:
+The cross-surface smoke (`honua-console#9`) follows this pipeline.
+Each step names the content kind it acts on, because the published
+service and the Studio-generated artifact are routed through different
+surfaces (the generated artifact is `type: "app"` with
+`access.openData: false` per
+`honua-portal:src/generated-apps/lifecycle.ts:66/107`, so it is not
+eligible for `/share/public/items/:idOrSlug` per §6.6).
 
 1. **POST publish service** — operator publishes a service via
    `/operate/publishing` (or the equivalent SDK control-plane call
-   under `HONUA_CONTROL_PLANE_BASE_PATH` =`/api/v1/admin`).
-2. **`/catalog/:id`** — the published service appears as a catalog
-   item; Catalog detail loads.
-3. **`/studio`** — Studio prompt generates a map/dashboard/app from
-   the catalog item; apply succeeds; preview renders.
-4. **`/share/public/items/:id`** and **`/embed/maps/:mapId`** —
-   share/embed surfaces serve the generated artifact; anonymous embed
-   loads.
+   under `HONUA_CONTROL_PLANE_BASE_PATH` = `/api/v1/admin`). The
+   service is published as public open-data (`access.sharing = public`,
+   `access.openData = true`, `type = "service"`) so it satisfies
+   `isPublicOpenDataItem` per §4.3.
+2. **`/catalog/:id`** (service) — the published service appears as a
+   catalog item; Catalog detail loads. Smoke labels: `catalog-detail`
+   (row 9), `catalog-list` (row 8) if the smoke walks the list first.
+3. **`/studio`** → **`/studio/apps/:itemId/preview`** — Studio prompt
+   generates a saved map / dashboard / app from the catalog item; apply
+   succeeds; preview renders. Smoke label: `studio-generation` (rows
+   12–13).
+4. **Share / embed surfaces** — three distinct routes, one per
+   eligible content kind. Together they exercise the remaining smoke
+   labels.
+   - **`/share/public/items/:sourceServiceId`** — open-data detail
+     for the **source service** from step 1 (eligible because
+     `type = "service"` and the publish step set
+     `openData = true`/`sharing = public`). Smoke labels: `open-data`,
+     `share` (row 6). The Studio-generated artifact is **not** routed
+     here; it fails `isPublicOpenDataItem` on both `openData` and
+     `type`.
+   - **`/maps/:mapId`** — viewer load of the generated saved map
+     (authenticated path uses `item-role:viewer`; anonymous-via-token
+     path uses `?token=<value>` per §2.5 / §6.4). Smoke label:
+     `viewer` (row 11).
+   - **`/embed/maps/:mapId`** — anonymous embed of the generated
+     saved map (`resolveEmbedAuthorization`; token in `#embedToken=`
+     fragment per §8). Smoke label: `embed` (row 7).
 
 Route rows in §3 and §6 carry smoke labels matching this pipeline:
 `catalog-list`, `catalog-detail`, `viewer`, `studio-generation`,
 `open-data`, `share`, `embed`. Migration tickets `#4`, `#5`, and `#9`
-must preserve evidence emission at each label.
+must preserve evidence emission at each label and must not route
+generated artifacts through `/share/public/items/:idOrSlug` (§6.6).
 
 No new instrumentation is added by `#3`; this section pins which rows
 the smoke flow consumes so the labels survive feature ports.
