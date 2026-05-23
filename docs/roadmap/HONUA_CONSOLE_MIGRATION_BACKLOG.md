@@ -34,6 +34,11 @@ This backlog intentionally separates three decisions:
 - [honua-console#8](https://github.com/honua-io/honua-console/issues/8): Integrate Console with single deployable artifact and preview pipeline.
 - [honua-console#9](https://github.com/honua-io/honua-console/issues/9): Console parity smoke: publish service to catalog to Studio artifact to share embed.
 
+### P1 AI GIS Studio Work
+
+- [honua-console#16](https://github.com/honua-io/honua-console/issues/16): Publish maps dashboards reports and apps from Studio.
+- [honua-console#17](https://github.com/honua-io/honua-console/issues/17): Studio unified GP and ETL workflow editor.
+
 ### Cleanup
 
 - [honua-console#10](https://github.com/honua-io/honua-console/issues/10): Freeze and retire `honua-portal` after Console parity.
@@ -46,6 +51,11 @@ This backlog intentionally separates three decisions:
 - [honua-server-admin#96](https://github.com/honua-io/honua-server-admin/issues/96): Prepare legacy Admin for Honua Console Operate transition.
 - [honua-devops#55](https://github.com/honua-io/honua-devops/issues/55): Build one deployable artifact for Honua Console server and legacy Admin transition.
 - [honua-devops#56](https://github.com/honua-io/honua-devops/issues/56): Add Honua Console CI release promotion and preview environment pipeline.
+- [honua-server#360](https://github.com/honua-io/honua-server/issues/360): Geoprocess framework comparative research and Honua target model.
+- [honua-server#361](https://github.com/honua-io/honua-server/issues/361): GeoETL spatial extract-transform-load pipelines.
+- [honua-server#682](https://github.com/honua-io/honua-server/issues/682): GeoETL competitor evaluation and product strategy.
+- [honua-server#721](https://github.com/honua-io/honua-server/issues/721): Geoprocessing canonical process contract and result package.
+- [honua-server#724](https://github.com/honua-io/honua-server/issues/724): Geoprocessing orchestration layer for chaining, scheduling, and workflow DAGs.
 
 ## Order Of Operations
 
@@ -53,10 +63,12 @@ This backlog intentionally separates three decisions:
 2. Land the server Metadata v2/content/RBAC baseline and SDK projections.
 3. Port Catalog, Viewer, Share, and Open Data from Portal into Console.
 4. Port Studio app-builder and generated-app lifecycle into Console.
-5. Make legacy Admin available as a transitional Operate surface and hide duplicate builder routes.
-6. Build the single deployable artifact and preview/release pipeline.
-7. Pass the cross-surface smoke: publish service -> catalog item -> Studio generated artifact -> share/embed.
-8. Freeze and retire old Portal deployment paths.
+5. Add Studio publishing for maps, dashboards, reports, and apps.
+6. Add the unified GP/ETL editor that publishes workflow definitions to Honua batch/job-runner execution and eligible GP/process service endpoints.
+7. Make legacy Admin available as a transitional Operate surface and hide duplicate builder routes.
+8. Build the single deployable artifact and preview/release pipeline.
+9. Pass the cross-surface smoke: publish service -> catalog item -> Studio generated artifact -> share/embed.
+10. Freeze and retire old Portal deployment paths.
 
 ## Parity Gate
 
@@ -64,8 +76,9 @@ Do not retire `honua-portal` or separate Admin deployment paths until:
 
 - Console can run the current catalog item -> viewer -> saved map -> share/embed path.
 - Console can run the Studio prompt -> clarification -> spec/plan -> apply -> preview -> edit -> publish/reopen proof path.
+- Console can publish maps, dashboards, reports, apps, batch workflows, and eligible GP/process services from Studio using shared server/SDK contracts.
+- The unified GP/ETL editor can dry-run and publish definitions to the existing Honua job runner with execution history, logs, artifacts, and provenance.
 - The single deployable artifact serves `/studio`, `/catalog`, `/share`, and `/operate` from one origin.
 - Server-authored RBAC/entitlement checks gate route and item actions.
 - Metadata v2/content item/provenance data is shared across operator and builder workflows.
 - Cross-surface smoke evidence is captured in CI or release promotion.
-
