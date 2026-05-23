@@ -29,8 +29,9 @@ npm run smoke:parity:test
 Runner options:
 
 - `--origin <url>` (or `-o <url>`) — origin to verify. Non-loopback
-  origins must serve `<origin>/version.json`; loopback origins use the
-  local/offline artifact path.
+  origins must serve `<origin>/version.json`; loopback origins
+  (`127.0.0.1`, `localhost`, `[::1]`, or `0.0.0.0`) use the local/offline
+  artifact path.
 - `--output <path>` — write evidence somewhere other than
   `smoke-evidence/console-parity.json`.
 - `--quiet` — write evidence without printing the text summary.
@@ -46,8 +47,8 @@ Exit codes:
 For deployed origins, the runner fetches and validates
 `<origin>/version.json` and fails the `devops/build-artifact` step if the
 origin is unreachable or serves invalid metadata. Local/offline runs
-(default `127.0.0.1`, `localhost`, or no origin) read `dist/version.json`
-produced by
+(default `127.0.0.1`, `localhost`, `[::1]`, `0.0.0.0`, or no origin) read
+`dist/version.json` produced by
 [`honua-console#8`](https://github.com/honua-io/honua-console/issues/8).
 When that local file is absent — for example, on trunk before the
 scaffolding lands, or on a checkout that has not run `npm run build` —
@@ -55,7 +56,9 @@ the runner falls back to the committed fixture under
 [`smoke/parity/fixtures/dist-version.json`](../../smoke/parity/fixtures/dist-version.json).
 The evidence JSON records `buildArtifact.source` as `"origin"`, `"dist"`,
 or `"fixture"` so promotion tooling can distinguish deployed-origin
-evidence from a local placeholder run.
+evidence from a local placeholder run. Release-promotion jobs should gate
+on `"origin"` evidence once the preview pipeline is wired; `"fixture"` is
+only harness/protocol evidence.
 
 ## Owning-layer taxonomy
 
@@ -92,7 +95,7 @@ failure short-circuits and the remaining steps are recorded as
 | 7     | `console/saved-map-save`         | `console`      | Saved map references the published service via `webmap-doc/v1`.                                 |
 | 8     | `console/studio-draft`           | `console`      | Studio draft route is same-origin with the artifact.                                            |
 | 9     | `sdk/app-package-build`          | `sdk`          | SDK builds the BuilderPlan and AppPackage from the draft.                                       |
-| 10    | `server/generated-app-publish`   | `server`       | Server records the generated app as a content item with provenance back to the source service.  |
+| 10    | `server/generated-app-publish`   | `server`       | Server records the generated app as a content item with provenance back to the source saved map or catalog item. |
 | 11    | `console/share-publish`          | `console`      | Share dialog promotes the generated app to org-tier and marks it embeddable.                    |
 | 12    | `server/embed-token-mint`        | `server`       | Server mints a same-origin embed token descriptor.                                              |
 | 13    | `console/embed-render`           | `console`      | Console assembles the same-origin embed URL using the minted token.                             |
@@ -113,6 +116,19 @@ The registry lives in
 [`smoke/parity/contracts.mjs`](../../smoke/parity/contracts.mjs). When a
 contract version changes in its source repo, bump the `version` field
 there in the same PR so the smoke evidence stays truthful.
+
+Response-contract notes worth keeping in sync with the registry:
+
+- `build-artifact/v1` requires `name`, `version`, `commit`,
+  `shortCommit`, `ref`, `builtAt`, `legacy.portal`, `legacy.admin`, and
+  an `areas[]` list containing `studio`, `catalog`, `share`, and
+  `operate`.
+- `share-access/v1` patch responses contain `sharing`, `embeddable`, and
+  `groupIds` for group-tier shares. They do not echo `openData`; that
+  field is owned by `content-item.access`.
+- `embed-token/v1` owns the dependency closure descriptor and the Console
+  embed URL must carry the minted bearer in `#embedToken=<token>`, not in
+  the query string.
 
 The `Version` column tracks the **major version family** the registry
 emits into evidence (e.g., `v1`). The "Wire shapes" section below cites
@@ -236,6 +252,10 @@ Top-level fields:
 - `result` — `ok` or `failed`.
 - `failure` — When `result === "failed"`, the step id, owning layer,
   owning repo, and the error message. Used as the CI triage line.
+
+The current harness emits JSON evidence only. Browser screenshots or
+trace attachments should be added when the fixture/in-memory adapters are
+replaced by real browser and HTTP transports.
 
 ## Wiring to the real surfaces
 

@@ -51,8 +51,9 @@ function parseArgs(argv) {
 
 export async function runParitySmoke({ originUrl, repoRoot = REPO_ROOT, steps = SCENARIO_STEPS, fetchImpl } = {}) {
   if (!originUrl) throw new Error("runParitySmoke requires originUrl");
+  const normalizedOriginUrl = new URL(originUrl).origin;
   const ranAt = new Date().toISOString();
-  const ctx = { repoRoot, originUrl, itemIds: {}, fetchImpl };
+  const ctx = { repoRoot, originUrl: normalizedOriginUrl, itemIds: {}, fetchImpl };
   const executed = [];
   let failure = null;
 

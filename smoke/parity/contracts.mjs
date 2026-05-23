@@ -39,7 +39,7 @@ export const CONTRACT_VERSIONS = Object.freeze([
     version: "v1",
     owningLayer: OWNING_LAYERS.server.id,
     sourceRepo: "honua-portal",
-    note: "ShareAccess tier ladder plus dependency closure shape.",
+    note: "ShareAccess tier ladder response; openData stays on content-item.access.",
   }),
   Object.freeze({
     name: "embed-token",

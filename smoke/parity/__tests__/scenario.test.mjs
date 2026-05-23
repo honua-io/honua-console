@@ -98,6 +98,39 @@ describe("parity scenario", () => {
     assert.equal(report.buildArtifact.version, REMOTE_BUILD_ARTIFACT.version);
   });
 
+  test("trailing-slash origins are normalized before evidence URLs are assembled", async () => {
+    let requestedUrl = null;
+    const fetchImpl = async (url) => {
+      requestedUrl = url;
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return REMOTE_BUILD_ARTIFACT;
+        },
+      };
+    };
+
+    const { report, ctx } = await runParitySmoke({ originUrl: `${REMOTE_ORIGIN}/`, fetchImpl });
+    assert.equal(report.result, "ok", `parity smoke failed: ${report.failure?.message ?? "unknown"}`);
+    assert.equal(ctx.originUrl, REMOTE_ORIGIN);
+    assert.equal(report.originUrl, REMOTE_ORIGIN);
+    assert.equal(requestedUrl, `${REMOTE_ORIGIN}/version.json`);
+
+    for (const [label, value] of Object.entries(report.urls)) {
+      assert.equal(new URL(value).origin, REMOTE_ORIGIN);
+      assert.ok(!value.startsWith(`${REMOTE_ORIGIN}//`), `${label} URL contains a doubled route slash: ${value}`);
+    }
+    assert.equal(
+      report.steps.find((step) => step.id === "console/viewer-open").evidence.hydrationUrl,
+      `${REMOTE_ORIGIN}/maps/new?from=${report.items.serviceItemId}`,
+    );
+    assert.equal(
+      report.steps.find((step) => step.id === "console/studio-draft").evidence.draftUrl,
+      `${REMOTE_ORIGIN}/studio/drafts?source=saved-map&id=${report.items.savedMapId}`,
+    );
+  });
+
   test("deployed-origin build artifact failure is attributed to devops", async () => {
     const fetchImpl = async () => {
       throw new Error("simulated unreachable origin");

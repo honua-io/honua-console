@@ -64,7 +64,7 @@
       "version": "v1",
       "owningLayer": "server",
       "sourceRepo": "honua-portal",
-      "note": "ShareAccess tier ladder plus dependency closure shape."
+      "note": "ShareAccess tier ladder response; openData stays on content-item.access."
     },
     {
       "name": "embed-token",
