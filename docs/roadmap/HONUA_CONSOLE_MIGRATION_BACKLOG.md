@@ -75,7 +75,11 @@ This backlog intentionally separates three decisions:
 
 ### Cleanup
 
-- [honua-console#10](https://github.com/honua-io/honua-console/issues/10): Freeze and retire `honua-portal` after Console parity.
+- [honua-console#10](https://github.com/honua-io/honua-console/issues/10): Freeze and retire `honua-portal` after Console parity. The freeze trigger, per-surface coverage, and per-repo retirement sequence are defined in two artifacts in this repo:
+  - [Portal Parity Checklist](../migration/PORTAL_PARITY_CHECKLIST.md) — one row per Portal surface mapped to its Console destination route, owning ticket, status, and parity evidence. This is the gate the freeze decision reads.
+  - [Portal Retirement Playbook](../migration/PORTAL_RETIREMENT_PLAYBOOK.md) — freeze trigger, per-repo retirement sequence, retention decision (archive read-only), and announcement path.
+
+  Physical retirement happens via four bounded single-repo child tickets in `honua-portal`, `honua-server-admin`, and `honua-devops`. Those tickets are enumerated in the playbook and are intentionally filed outside this ticket, gated on honua-console#8 and honua-console#9.
 
 ## External Owner Dependencies
 
