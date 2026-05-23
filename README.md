@@ -55,10 +55,17 @@ Portal/Admin path for the core buyer journey:
 
 ```sh
 npm run smoke:parity
+npm run smoke:parity -- --origin https://console.staging.honua.example
+npm run smoke:parity:test
 ```
 
-See [docs/smoke/parity.md](docs/smoke/parity.md) for the scenario, the
-owning-layer triage taxonomy, and the evidence format.
+Local runs read `dist/version.json` when present and otherwise use the
+committed fixture. Deployed-origin runs verify `<origin>/version.json`
+and fail the `devops/build-artifact` step if the artifact metadata is
+missing or invalid.
+
+See [docs/smoke/parity.md](docs/smoke/parity.md) for the CLI options,
+scenario, owning-layer triage taxonomy, and evidence format.
 
 ## Current Status
 

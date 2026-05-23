@@ -56,7 +56,10 @@ export function isLocalOrigin(originUrl) {
   } catch {
     return false;
   }
-  return LOOPBACK_HOSTS.has(parsed.hostname);
+  const hostname = parsed.hostname;
+  const normalizedHostname =
+    hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
+  return LOOPBACK_HOSTS.has(normalizedHostname);
 }
 
 async function fetchOriginVersion({ originUrl, fetchImpl }) {

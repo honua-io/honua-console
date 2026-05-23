@@ -26,6 +26,16 @@ npm run smoke:parity -- --origin https://console.staging.honua.example
 npm run smoke:parity:test
 ```
 
+Runner options:
+
+- `--origin <url>` (or `-o <url>`) — origin to verify. Non-loopback
+  origins must serve `<origin>/version.json`; loopback origins use the
+  local/offline artifact path.
+- `--output <path>` — write evidence somewhere other than
+  `smoke-evidence/console-parity.json`.
+- `--quiet` — write evidence without printing the text summary.
+- `--help` (or `-h`) — print the runner usage line.
+
 Exit codes:
 
 - `0` — scenario completed (`result: ok`).
@@ -206,6 +216,8 @@ Top-level fields:
 - `scenario` — Stable scenario id (`console-parity-publish-to-embed`).
 - `ranAt` — ISO-8601 timestamp.
 - `originUrl` — The origin the smoke ran against.
+- `repoRoot` — Local repository root used by the runner. The committed
+  sample sanitizes this path.
 - `buildArtifact` — Deployed `<origin>/version.json`, local
   `dist/version.json`, or local fixture snapshot. Includes `source:
   "origin"|"dist"|"fixture"` so promotion tooling can distinguish a
@@ -218,8 +230,9 @@ Top-level fields:
 - `urls` — Same-origin URLs for catalog, viewer hydration, viewer, Studio
   draft, generated app detail, share, and embed surfaces.
 - `steps[]` — Per-step status (`ok` / `failed` / `skipped`),
-  `owningLayer`, `owningLayerLabel`, `durationMs`, and the step's
-  declared evidence payload.
+  `owningLayer`, `owningLayerLabel`, `description`, `durationMs`, the
+  step's declared evidence payload, and `error` (`null` unless that step
+  failed).
 - `result` — `ok` or `failed`.
 - `failure` — When `result === "failed"`, the step id, owning layer,
   owning repo, and the error message. Used as the CI triage line.
