@@ -39,6 +39,9 @@ const SOURCE_REQUIRED = Object.freeze(["kind", "sourceId", "jobId", "publishedBy
 const ENDPOINT_SLOTS = Object.freeze(["geoservices", "ogcFeatures", "stac", "tiles"]);
 const VALID_SOURCE_KINDS = Object.freeze(["import", "publish", "admin-job", "external"]);
 const VALID_ITEM_TYPES = Object.freeze(["service", "layer", "map", "scene", "app", "document", "external-url"]);
+// Mirrors content-item/v1.1.0 Access.sharing enum
+// (honua-portal/schemas/content-item-v1.json#/$defs/Access).
+const VALID_SHARING_TIERS = Object.freeze(["private", "org", "group", "public-link", "public"]);
 
 export class PublishHandoffError extends Error {
   constructor(message, { reason }) {
@@ -122,9 +125,32 @@ export function validatePublishHandoff(handoff, source) {
       reason: "missing-preview",
     });
   }
-  if (!handoff.access || typeof handoff.access.sharing !== "string" || typeof handoff.access.embeddable !== "boolean") {
-    throw new PublishHandoffError(`publish-handoff from ${source} requires access { sharing, embeddable, openData }`, {
-      reason: "invalid-access",
+  if (!handoff.access || typeof handoff.access !== "object") {
+    throw new PublishHandoffError(`publish-handoff from ${source} requires access object`, {
+      reason: "missing-access",
     });
+  }
+  if (!VALID_SHARING_TIERS.includes(handoff.access.sharing)) {
+    throw new PublishHandoffError(
+      `publish-handoff from ${source} has invalid access.sharing "${handoff.access.sharing}"; allowed: ${VALID_SHARING_TIERS.join(", ")}`,
+      { reason: "invalid-sharing-tier" },
+    );
+  }
+  if (typeof handoff.access.embeddable !== "boolean") {
+    throw new PublishHandoffError(`publish-handoff from ${source} requires access.embeddable to be boolean`, {
+      reason: "invalid-embeddable",
+    });
+  }
+  if (typeof handoff.access.openData !== "boolean") {
+    throw new PublishHandoffError(`publish-handoff from ${source} requires access.openData to be boolean`, {
+      reason: "invalid-open-data",
+    });
+  }
+  // content-item/v1.1.0 Access conditional: openData=true implies sharing=public.
+  if (handoff.access.openData === true && handoff.access.sharing !== "public") {
+    throw new PublishHandoffError(
+      `publish-handoff from ${source} sets access.openData=true but access.sharing is "${handoff.access.sharing}"; open-data items must be shared as public.`,
+      { reason: "open-data-requires-public-sharing" },
+    );
   }
 }

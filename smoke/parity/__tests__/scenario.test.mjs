@@ -100,8 +100,12 @@ describe("parity scenario", () => {
     ]) {
       assert.ok(required in summary, `summary missing required field "${required}"`);
     }
-    assert.ok(summary.viewerSupport && typeof summary.viewerSupport.supported === "boolean");
-    assert.ok("reason" in summary.viewerSupport, "viewerSupport must carry both supported and reason");
+    // content-item/v1.1.0 ContentItemSummary.viewerSupport is null when
+    // the publisher has not asserted an honua-portal-viewer extension
+    // override. The fixture has no extensions, so the projection MUST
+    // emit null here — anything else means the SDK adapter has baked the
+    // type-default openability gate back into the summary DTO.
+    assert.equal(summary.viewerSupport, null);
     // The publish-handoff fixture populates geoservices + ogcFeatures, so
     // the summary's format pills must list both — proving the catalog card
     // can render without a per-item detail fetch.
@@ -199,17 +203,18 @@ describe("parity scenario", () => {
         ? {
             ...s,
             async run(ctx) {
-              const { projectCatalogSummary } = await import("../adapters/sdk.mjs");
+              const { projectCatalogSummary, resolveViewerOpenability } = await import("../adapters/sdk.mjs");
               const summary = projectCatalogSummary({
                 ...ctx.serviceItem,
-                // Simulate the SDK accidentally producing a non-service type
-                // that fails the viewer-support check.
+                // Simulate the SDK accidentally projecting a non-openable
+                // type (the type-default openability gate flips negative).
                 type: "scene",
               });
               ctx.summary = summary;
-              if (summary.viewerSupport?.supported !== true) {
+              const openability = resolveViewerOpenability(summary);
+              if (openability.supported !== true) {
                 throw new Error(
-                  `SDK projection marks the published service as unsupported by the viewer: ${summary.viewerSupport?.reason ?? "no reason"}`,
+                  `SDK projection + viewer openability mark the published service as unsupported: ${openability.reason ?? "no reason"}`,
                 );
               }
               return { evidence: {} };

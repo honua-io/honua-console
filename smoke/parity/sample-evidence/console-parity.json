@@ -1,6 +1,6 @@
 {
   "scenario": "console-parity-publish-to-embed",
-  "ranAt": "2026-05-23T22:37:59.872Z",
+  "ranAt": "2026-05-23T22:59:09.212Z",
   "originUrl": "https://console.staging.honua.example",
   "repoRoot": "/path/to/honua-console",
   "buildArtifact": {
@@ -100,7 +100,7 @@
       "description": "Verify the single deployable artifact metadata (dist/version.json) declares name=honua-console, the four areas, and the legacy block.",
       "evidence": {
         "source": "fixture",
-        "path": "/home/makani/worktrees/honua-console/honua-console-9/smoke/parity/fixtures/dist-version.json",
+        "path": "/path/to/honua-console/smoke/parity/fixtures/dist-version.json",
         "version": "0.1.0",
         "commit": "000000000000",
         "ref": "feature/honua-console-9",
@@ -122,7 +122,7 @@
       "owningLayer": "legacy-admin",
       "owningLayerLabel": "Legacy Admin transition surface",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff/v1.1.0 payload into Console catalog.",
       "evidence": {
         "type": "service",
@@ -161,7 +161,11 @@
       "evidence": {
         "itemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
         "title": "City Parcels 2026",
-        "viewerSupported": true,
+        "viewerSupport": null,
+        "viewerOpenability": {
+          "supported": true,
+          "reason": null
+        },
         "capabilities": [
           "query",
           "queryExtent",
@@ -249,10 +253,17 @@
       "description": "SDK builds the BuilderPlan and AppPackage from the draft using shared contracts.",
       "evidence": {
         "planId": "plan-00MPHL0QO2F5XEMWXKBW2AB1SA-00MPHL0QO2F5XEMWXKBW2AB1SA",
+        "planKind": "builder",
+        "stepCount": 3,
         "appPackageId": "plan-00MPHL0QO2F5XEMWXKBW2AB1SA-00MPHL0QO2F5XEMWXKBW2AB1SA-pkg",
+        "appPackageVersion": "1.0.0",
+        "assetKinds": [
+          "manifest",
+          "app-package"
+        ],
         "widgetKinds": [
           "map",
-          "list",
+          "table",
           "filter"
         ]
       },
@@ -305,7 +316,7 @@
         "token": "embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5",
         "audience": "pilot",
         "closureSize": 1,
-        "expiresAt": "2026-05-23T23:07:59.876Z"
+        "expiresAt": "2026-05-23T23:29:09.217Z"
       },
       "error": null
     },

@@ -28,7 +28,13 @@
 import { loadPublishHandoff } from "./adapters/admin.mjs";
 import { assertEmbedTokenInFragment, assertSameOrigin, buildConsoleUrls } from "./adapters/console.mjs";
 import { loadBuildArtifact } from "./adapters/devops.mjs";
-import { projectAppPackage, projectBuilderPlan, projectCatalogSummary, projectGeneratedAppRecord } from "./adapters/sdk.mjs";
+import {
+  projectAppPackage,
+  projectBuilderPlan,
+  projectCatalogSummary,
+  projectGeneratedAppRecord,
+  resolveViewerOpenability,
+} from "./adapters/sdk.mjs";
 import { createServerAdapter } from "./adapters/server.mjs";
 import { findContract } from "./contracts.mjs";
 
@@ -109,16 +115,24 @@ export const SCENARIO_STEPS = [
     async run(ctx) {
       const summary = projectCatalogSummary(ctx.serviceItem);
       ctx.summary = summary;
-      if (summary.viewerSupport?.supported !== true) {
+      // content-item/v1.1.0 ContentItemSummary.viewerSupport is null when
+      // the publisher has not asserted an override; the openability gate
+      // is resolved by the viewer layer using the type default. The smoke
+      // mirrors that split so a regression that bakes type defaults back
+      // into the summary DTO is caught here (the projection drift the
+      // SDK adapter must not silently absorb).
+      const openability = resolveViewerOpenability(summary);
+      if (openability.supported !== true) {
         throw new Error(
-          `SDK projection marks the published service as unsupported by the viewer: ${summary.viewerSupport?.reason ?? "no reason"}`,
+          `SDK projection + viewer openability mark the published service as unsupported: ${openability.reason ?? "no reason"}`,
         );
       }
       return {
         evidence: {
           itemId: summary.id,
           title: summary.title,
-          viewerSupported: summary.viewerSupport.supported,
+          viewerSupport: summary.viewerSupport,
+          viewerOpenability: openability,
           capabilities: summary.capabilities,
           formats: summary.formats,
           sharing: summary.sharing,
@@ -220,11 +234,34 @@ export const SCENARIO_STEPS = [
       const appPackage = projectAppPackage({ plan });
       ctx.builderPlan = plan;
       ctx.appPackage = appPackage;
+      // SDK contract guards: a regression that drops kind='builder' or
+      // assets[] would let the smoke "pass" while producing a package
+      // Console cannot hydrate. Fail fast at the sdk layer so triage
+      // doesn't bounce to the server or console layer first.
+      if (plan.kind !== "builder") {
+        throw new Error(`BuilderPlan.kind must be "builder"; got "${plan.kind}".`);
+      }
+      if (!Array.isArray(plan.steps) || plan.steps.length === 0) {
+        throw new Error("BuilderPlan.steps must be a non-empty array.");
+      }
+      if (!Array.isArray(appPackage.assets) || appPackage.assets.length === 0) {
+        throw new Error("AppPackage.assets must be a non-empty array (per @honua/sdk-js AppPackage).");
+      }
+      if (!appPackage.manifestArtifact && !appPackage.manifest_artifact) {
+        throw new Error(
+          "AppPackage must carry manifestArtifact or manifest_artifact for the generated-app preview projection.",
+        );
+      }
+      const manifestArtifact = appPackage.manifestArtifact ?? appPackage.manifest_artifact;
       return {
         evidence: {
           planId: plan.id,
+          planKind: plan.kind,
+          stepCount: plan.steps.length,
           appPackageId: appPackage.id,
-          widgetKinds: appPackage.widgets.map((w) => w.kind),
+          appPackageVersion: appPackage.version,
+          assetKinds: appPackage.assets.map((a) => a.kind),
+          widgetKinds: manifestArtifact.manifest.layout.widgets.map((w) => w.kind),
         },
         contracts: [plan.contract, appPackage.contract],
       };

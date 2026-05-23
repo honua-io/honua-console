@@ -42,7 +42,13 @@ export function readViewerSupport(extensions) {
   return { supported, reason };
 }
 
-const VIEWER_DEFAULTS = Object.freeze({
+// Default openability gate per item type. NOT part of the summary
+// projection — content-item/v1.1.0 ContentItemSummary.viewerSupport is
+// `null` when the publisher has not asserted an override (see
+// honua-portal/src/contracts/content-item.ts `summarize()`). The viewer
+// layer applies this default when deciding whether to render the "Open
+// in viewer" button on a card whose summary carries null viewerSupport.
+const VIEWER_TYPE_DEFAULTS = Object.freeze({
   service: { supported: true, reason: null },
   layer: { supported: true, reason: null },
   map: { supported: true, reason: null },
@@ -53,14 +59,26 @@ const VIEWER_DEFAULTS = Object.freeze({
 });
 
 /**
+ * Viewer-layer openability gate. Reads the publisher override from the
+ * summary if asserted, otherwise applies the type default. Lives outside
+ * `summarizeContentItem` so the summary DTO matches the canonical schema
+ * (`viewerSupport: null` when no override is asserted).
+ */
+export function resolveViewerOpenability(summary) {
+  if (!summary) throw new Error("resolveViewerOpenability requires a summary");
+  if (summary.viewerSupport) return summary.viewerSupport;
+  return VIEWER_TYPE_DEFAULTS[summary.type] ?? { supported: null, reason: null };
+}
+
+/**
  * Canonical content-item/v1.1.0 ContentItemSummary projection. Mirrors
  * honua-portal/src/contracts/content-item.ts `summarize()`; viewerSupport
- * falls back to the type-default openability gate when the publisher has
- * not asserted an override via extensions["honua-portal-viewer"].
+ * is the projection of `extensions['honua-portal-viewer']` and is `null`
+ * when the publisher has not asserted an override. Type-default
+ * openability lives in `resolveViewerOpenability` on the viewer layer.
  */
 export function summarizeContentItem(item) {
   if (!item) throw new Error("summarizeContentItem requires a content item");
-  const viewerSupport = readViewerSupport(item.extensions) ?? VIEWER_DEFAULTS[item.type] ?? { supported: null, reason: null };
   return {
     id: item.id,
     slug: item.slug,
@@ -76,7 +94,7 @@ export function summarizeContentItem(item) {
     formats: collectFormats(item),
     sharing: item.access.sharing,
     openData: item.access.openData,
-    viewerSupport,
+    viewerSupport: readViewerSupport(item.extensions),
   };
 }
 
@@ -86,9 +104,49 @@ export function projectCatalogSummary(item) {
   return { ...summary, contract: findContract("content-item") };
 }
 
+// Constants mirroring honua-sdk-js/src/generated-app/manifest.ts so a
+// version bump there surfaces here when the test fixtures are regenerated.
+// Kept inline (not imported) until #4/#5 wire the SDK package in directly.
+const HONUA_GENERATED_APP_MANIFEST_FORMAT_V1 = "honua_generated_app_manifest.v1";
+const HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND = "honua.generated-app.manifest";
+const HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION = 1;
+const HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1 = "operations-dashboard.v1";
+
+/**
+ * BuilderPlan projection. Mirrors @honua/sdk-js
+ * `operator/workspace/types.ts` `BuilderPlan` so a porting ticket can
+ * swap this fixture for the real SDK structure without changing the
+ * smoke scenario shape. Required: id, intentId, kind='builder', steps[].
+ */
 export function projectBuilderPlan({ source, savedMap }) {
+  const planId = `plan-${source.itemId}-${savedMap.id}`;
   return {
-    id: `plan-${source.itemId}-${savedMap.id}`,
+    id: planId,
+    intentId: `intent-${source.itemId}`,
+    kind: "builder",
+    steps: [
+      {
+        id: `${planId}-compose-spec`,
+        kind: "builder.compose-spec",
+        label: "Compose BuildSpec from saved map",
+        inputs: [source.itemId, savedMap.id],
+        outputs: [`${planId}-spec`],
+      },
+      {
+        id: `${planId}-materialize-package`,
+        kind: "builder.materialize-package",
+        label: "Materialize AppPackage from BuildSpec",
+        inputs: [`${planId}-spec`],
+        outputs: [`${planId}-pkg`],
+      },
+      {
+        id: `${planId}-publish-manifest`,
+        kind: "builder.publish-manifest",
+        label: "Publish generated-app manifest artifact",
+        inputs: [`${planId}-pkg`],
+        outputs: [`${planId}-pkg-manifest`],
+      },
+    ],
     sourceItemId: source.itemId,
     savedMapId: savedMap.id,
     warnings: [],
@@ -96,15 +154,48 @@ export function projectBuilderPlan({ source, savedMap }) {
   };
 }
 
+/**
+ * AppPackage projection. Satisfies the @honua/sdk-js `AppPackage`
+ * structural interface (id, version, assets[]) AND the generated-app
+ * preview projection's `HonuaGeneratedAppPackage` extension
+ * (manifest_artifact OR manifestArtifact carrying a profile-v1 manifest)
+ * so the preview runtime can hydrate without a second fetch. Adding both
+ * casings mirrors how the real generated-app projection accepts either.
+ */
 export function projectAppPackage({ plan }) {
+  const packageId = `${plan.id}-pkg`;
+  const manifestArtifactId = `${packageId}-manifest`;
+  const widgets = [
+    { id: `${packageId}-w-map`, kind: "map", sourceId: plan.savedMapId },
+    { id: `${packageId}-w-table`, kind: "table", sourceId: plan.sourceItemId },
+    { id: `${packageId}-w-filter`, kind: "filter", sourceId: plan.sourceItemId, field: "status" },
+  ];
+  const manifest = {
+    format: HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
+    profile: HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1,
+    appId: packageId,
+    title: `Generated app for ${plan.sourceItemId}`,
+    data: { sourceId: plan.sourceItemId },
+    layout: { kind: "operations-dashboard", widgets },
+  };
+  const manifestArtifact = {
+    artifactKind: HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND,
+    artifactVersion: HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION,
+    manifest,
+  };
   return {
-    id: `${plan.id}-pkg`,
-    version: "1",
-    widgets: [
-      { kind: "map", binding: plan.savedMapId },
-      { kind: "list", binding: plan.sourceItemId },
-      { kind: "filter", binding: plan.sourceItemId },
+    id: packageId,
+    version: "1.0.0",
+    assets: [
+      { id: manifestArtifactId, kind: "manifest", url: `urn:honua:asset:${manifestArtifactId}` },
+      { id: `${packageId}-bundle`, kind: "app-package", url: `urn:honua:asset:${packageId}-bundle` },
     ],
+    // Both casings are accepted by the SDK generated-app projection; we
+    // emit `manifestArtifact` (camelCase) and re-expose under the
+    // snake_case alias so a consumer reading either key sees the same
+    // artifact and a regression to a single casing is caught downstream.
+    manifestArtifact,
+    manifest_artifact: manifestArtifact,
     contract: findContract("generated-app-lifecycle"),
   };
 }

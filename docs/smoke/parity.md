@@ -99,6 +99,15 @@ The registry lives in
 contract version changes in its source repo, bump the `version` field
 there in the same PR so the smoke evidence stays truthful.
 
+The `Version` column tracks the **major version family** the registry
+emits into evidence (e.g., `v1`). The "Wire shapes" section below cites
+the **specific schema revision** the smoke materializes (e.g.,
+`publish-handoff/v1.1.0`) using the canonical schema `$id` URI. The two
+will diverge until a contract's next major bump; readers triaging an
+evidence file should treat the `Version` cell as the family and the
+schema URI in the wire-shape entry as the precise revision the smoke
+asserts.
+
 ### Wire shapes the smoke actually exercises
 
 The smoke does not just report contract versions — it materializes the
@@ -115,18 +124,40 @@ real HTTP transport cannot silently accept a drifted payload:
   `target.type` is asserted to match the item `type`, and every populated
   ServiceLink carries the v1.1 keys
   (`accessURL/format/mediaType/describedBy/describedByType/conformsTo`).
+  The `access` object is validated against the canonical
+  `content-item/v1.1.0` `Access` schema: `sharing` must be one of
+  `private|org|group|public-link|public`, `embeddable` and `openData`
+  must be booleans, and the `openData=true ⇒ sharing="public"`
+  conditional is enforced (negative cases covered in
+  `__tests__/contract-shapes.test.mjs`).
 - **`content-item/v1.1.0`** — `server.publishService` produces a full
-  `ContentItem` and the SDK projection emits the canonical
-  `ContentItemSummary` (`id, slug, type, title, summary, owner, tags,
-  extent, preview, modified, capabilities, formats, sharing, openData,
-  viewerSupport`). `formats` is derived from the non-`self` endpoint
-  slots so catalog cards render format pills without a per-item detail
-  fetch. `viewerSupport` always carries both `supported` and `reason`.
+  `ContentItem`. Upsert identity keys on **`(source.kind, source.sourceId)`**
+  per the schema's idempotency description, so the same `sourceId`
+  republished under a different `source.kind` mints a distinct item
+  (regression test pins this). The SDK projection
+  (`sdk.summarizeContentItem`) emits the canonical `ContentItemSummary`
+  (`id, slug, type, title, summary, owner, tags, extent, preview,
+  modified, capabilities, formats, sharing, openData, viewerSupport`).
+  `formats` is derived from the non-`self` endpoint slots so catalog
+  cards render format pills without a per-item detail fetch.
+  `viewerSupport` is the projection of `extensions["honua-portal-viewer"]`
+  and is **`null` when the publisher has not asserted an override** (the
+  canonical contract — the previous type-default fallback inside
+  `summarize()` was a contract drift and has been moved to
+  `resolveViewerOpenability` on the viewer layer).
 - **`generated-app-lifecycle/v1`** — Published generated-app items carry
   `target = { type: "app", url, framework: "honua" }` and a
   `saved-map` (or `catalog-item`) dependency back to the source the
   generator was run against. `source.kind` is `manual` and the active
-  revision records source provenance with the matching role.
+  revision records source provenance with the matching role. The
+  upstream SDK projections are structurally faithful to
+  `@honua/sdk-js`: `BuilderPlan` carries `{ id, intentId, kind:"builder",
+  steps[] }` with each `PlanStep` typed `{ id, kind, label, inputs?,
+  outputs? }`; `AppPackage` carries `{ id, version, assets[] }` plus a
+  `manifestArtifact` (and its `manifest_artifact` snake_case alias) with
+  the `honua_generated_app_manifest.v1` format and an
+  `operations-dashboard.v1` profile layout whose widget kinds belong to
+  the `HonuaGeneratedAppWidgetKind` union.
 - **`share-access/v1`** — `patchAccess` returns
   `{ sharing, embeddable, groupIds? }` only; `openData` lives on
   `content-item.access` and is not echoed in the share-access response.

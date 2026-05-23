@@ -11,9 +11,15 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
 
-import { loadPublishHandoff, PUBLISH_HANDOFF_REQUIRED_FIELDS } from "../adapters/admin.mjs";
+import { loadPublishHandoff, PUBLISH_HANDOFF_REQUIRED_FIELDS, validatePublishHandoff } from "../adapters/admin.mjs";
 import { createServerAdapter } from "../adapters/server.mjs";
-import { projectCatalogSummary, projectGeneratedAppRecord, summarizeContentItem } from "../adapters/sdk.mjs";
+import {
+  projectAppPackage,
+  projectBuilderPlan,
+  projectCatalogSummary,
+  projectGeneratedAppRecord,
+  summarizeContentItem,
+} from "../adapters/sdk.mjs";
 import { CONSOLE_ROUTES } from "../adapters/console.mjs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -89,6 +95,68 @@ describe("publish-handoff fixture", () => {
   });
 });
 
+describe("validatePublishHandoff access object", () => {
+  // Negative tests for the content-item/v1.1.0 Access object: the canonical
+  // schema requires sharing (enum), embeddable (boolean), openData (boolean),
+  // and enforces openData=true => sharing=public. The smoke validator now
+  // matches that surface so a drifted admin producer cannot publish a
+  // schema-invalid access object.
+  async function baseHandoff() {
+    return await loadPublishHandoff({ repoRoot: REPO_ROOT });
+  }
+
+  test("rejects missing access.openData", async () => {
+    const handoff = await baseHandoff();
+    delete handoff.access.openData;
+    assert.throws(
+      () => validatePublishHandoff(handoff, "test"),
+      /access\.openData/,
+    );
+  });
+
+  test("rejects non-boolean access.openData", async () => {
+    const handoff = await baseHandoff();
+    handoff.access.openData = "false";
+    assert.throws(
+      () => validatePublishHandoff(handoff, "test"),
+      /access\.openData/,
+    );
+  });
+
+  test("rejects non-boolean access.embeddable", async () => {
+    const handoff = await baseHandoff();
+    handoff.access.embeddable = "true";
+    assert.throws(
+      () => validatePublishHandoff(handoff, "test"),
+      /access\.embeddable/,
+    );
+  });
+
+  test("rejects access.sharing outside the schema enum", async () => {
+    const handoff = await baseHandoff();
+    handoff.access.sharing = "world-readable";
+    assert.throws(
+      () => validatePublishHandoff(handoff, "test"),
+      /invalid access\.sharing/,
+    );
+  });
+
+  test("rejects openData=true with non-public sharing", async () => {
+    const handoff = await baseHandoff();
+    handoff.access = { sharing: "private", embeddable: false, openData: true };
+    assert.throws(
+      () => validatePublishHandoff(handoff, "test"),
+      /open-data items must be shared as public/,
+    );
+  });
+
+  test("accepts openData=true with sharing=public", async () => {
+    const handoff = await baseHandoff();
+    handoff.access = { sharing: "public", embeddable: true, openData: true };
+    assert.doesNotThrow(() => validatePublishHandoff(handoff, "test"));
+  });
+});
+
 describe("server.publishService output", () => {
   test("emits a content item that survives the SDK summarize() projection", async () => {
     const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
@@ -121,6 +189,33 @@ describe("server.publishService output", () => {
       assert.ok(field in first, `catalog list item missing summary field "${field}"`);
     }
   });
+
+  test("upsert identity keys on (source.kind, source.sourceId), not sourceId alone", async () => {
+    // publish-handoff/v1.1.0 idempotency: re-publishing the same sourceId under
+    // the same kind merges history; under a different kind, the second publish
+    // is a distinct provenance chain and must mint a new item.
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+
+    const { item: first } = server.publishService(handoff);
+    const { item: republish } = server.publishService(handoff);
+    assert.equal(republish.id, first.id, "same (kind, sourceId) must merge into the same item");
+    assert.ok(
+      republish.source.history.length >= 2,
+      "republish must append to source.history rather than reset it",
+    );
+
+    const externalHandoff = structuredClone(handoff);
+    externalHandoff.source = { ...handoff.source, kind: "external" };
+    const { item: external } = server.publishService(externalHandoff);
+    assert.notEqual(
+      external.id,
+      first.id,
+      "same sourceId under a different source.kind must mint a distinct item",
+    );
+    assert.equal(external.source.kind, "external");
+    assert.equal(external.source.history.length, 1, "external publish gets its own history chain");
+  });
 });
 
 describe("projectCatalogSummary", () => {
@@ -134,7 +229,47 @@ describe("projectCatalogSummary", () => {
     }
     assert.equal(projected.contract.name, "content-item");
     assert.equal(projected.contract.version, "v1.1.0");
-    assert.ok(projected.viewerSupport && "supported" in projected.viewerSupport && "reason" in projected.viewerSupport);
+    // ViewerSupport schema is `null` when the publisher has no override,
+    // otherwise `{ supported, reason }`. The fixture sets no extensions,
+    // so the summary MUST carry null here.
+    assert.equal(projected.viewerSupport, null);
+  });
+
+  test("projects publisher viewerSupport override when extensions assert one", async () => {
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item } = server.publishService(handoff);
+    item.extensions = {
+      ...item.extensions,
+      "honua-portal-viewer": { supported: false, reason: "Service uses an unsupported tile scheme." },
+    };
+    const projected = projectCatalogSummary(item);
+    assert.deepEqual(projected.viewerSupport, {
+      supported: false,
+      reason: "Service uses an unsupported tile scheme.",
+    });
+  });
+
+  test("resolveViewerOpenability falls back to type defaults when summary.viewerSupport is null", async () => {
+    const { resolveViewerOpenability } = await import("../adapters/sdk.mjs");
+    // Service: openable by default.
+    assert.equal(
+      resolveViewerOpenability({ type: "service", viewerSupport: null }).supported,
+      true,
+    );
+    // App: type default says not openable in the viewer.
+    assert.equal(
+      resolveViewerOpenability({ type: "app", viewerSupport: null }).supported,
+      false,
+    );
+    // Publisher override wins.
+    assert.deepEqual(
+      resolveViewerOpenability({
+        type: "service",
+        viewerSupport: { supported: false, reason: "tiles" },
+      }),
+      { supported: false, reason: "tiles" },
+    );
   });
 });
 
@@ -190,6 +325,66 @@ describe("generated-app content-item mapping", () => {
         }),
       /saved-map.+catalog-item/,
     );
+  });
+});
+
+describe("BuilderPlan / AppPackage SDK contracts", () => {
+  // The smoke must exercise the structural shape @honua/sdk-js consumers
+  // (BuilderWorkspaceController, generated-app preview projection) require:
+  // BuilderPlan { id, intentId, kind="builder", steps[] }; AppPackage
+  // { id, version, assets[] } with manifest_artifact OR manifestArtifact
+  // for the generated-app preview projection. A drifted projection that
+  // omits these fields would let the smoke pass while shipping a package
+  // Console cannot hydrate — so a contract regression here is recorded as
+  // an SDK-layer failure, not a downstream Console mystery.
+  function fixturePlanInputs() {
+    return {
+      source: { kind: "saved-map", itemId: "svc-001", itemType: "service", title: "Source" },
+      savedMap: { id: "map-001" },
+    };
+  }
+
+  test("projectBuilderPlan ships every required BuilderPlan field", () => {
+    const plan = projectBuilderPlan(fixturePlanInputs());
+    for (const field of ["id", "intentId", "kind", "steps"]) {
+      assert.ok(field in plan, `BuilderPlan missing required field "${field}"`);
+    }
+    assert.equal(plan.kind, "builder", "BuilderPlan.kind must be the literal 'builder'");
+    assert.ok(Array.isArray(plan.steps) && plan.steps.length > 0, "BuilderPlan.steps must be non-empty");
+    for (const step of plan.steps) {
+      for (const field of ["id", "kind", "label"]) {
+        assert.ok(field in step, `PlanStep missing required field "${field}"`);
+      }
+    }
+  });
+
+  test("projectAppPackage ships AppPackage assets[] plus a manifest artifact", () => {
+    const plan = projectBuilderPlan(fixturePlanInputs());
+    const pkg = projectAppPackage({ plan });
+    for (const field of ["id", "version", "assets"]) {
+      assert.ok(field in pkg, `AppPackage missing required field "${field}"`);
+    }
+    assert.ok(Array.isArray(pkg.assets) && pkg.assets.length > 0, "AppPackage.assets must be non-empty");
+    for (const asset of pkg.assets) {
+      assert.ok("id" in asset && "kind" in asset, "ArtifactRef must carry id and kind");
+    }
+    // Generated-app preview projection requires manifest_artifact OR manifestArtifact.
+    const manifestArtifact = pkg.manifestArtifact ?? pkg.manifest_artifact;
+    assert.ok(manifestArtifact, "AppPackage must carry manifest_artifact or manifestArtifact");
+    assert.equal(manifestArtifact.artifactKind, "honua.generated-app.manifest");
+    assert.equal(manifestArtifact.artifactVersion, 1);
+    // Manifest layout uses an operations-dashboard profile with concrete widgets.
+    assert.equal(manifestArtifact.manifest.profile, "operations-dashboard.v1");
+    assert.equal(manifestArtifact.manifest.layout.kind, "operations-dashboard");
+    const widgetKinds = manifestArtifact.manifest.layout.widgets.map((w) => w.kind);
+    for (const kind of widgetKinds) {
+      assert.ok(
+        ["map", "table", "list", "count", "chart", "filter"].includes(kind),
+        `widget kind "${kind}" not in HonuaGeneratedAppWidgetKind union`,
+      );
+    }
+    // The smoke pins both casings so a single-casing regression is caught.
+    assert.equal(pkg.manifestArtifact, pkg.manifest_artifact);
   });
 });
 

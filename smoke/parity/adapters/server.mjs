@@ -63,8 +63,14 @@ export function createServerAdapter({ originUrl } = {}) {
   return {
     /** Apply a publish-handoff/v1.1.0 payload from legacy admin. */
     publishService(handoff) {
+      // publish-handoff/v1.1.0 idempotency key is (source.kind, source.sourceId);
+      // the same sourceId under a different source.kind is a distinct provenance
+      // chain and must mint a new content item rather than merge history.
       const existing = [...items.values()].find(
-        (i) => i.target?.type === "service" && i.source.sourceId === handoff.source.sourceId,
+        (i) =>
+          i.target?.type === "service" &&
+          i.source.kind === handoff.source.kind &&
+          i.source.sourceId === handoff.source.sourceId,
       );
       const id = existing?.id ?? nextId("svc");
       const now = new Date().toISOString();
