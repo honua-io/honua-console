@@ -380,14 +380,16 @@ contracts; the guard surface is the seam called out in `honua-console#2`.
 ### 4.7 SDK projection timing (default)
 
 Several helpers (`resolvePortalItemRole`, `evaluateShareEscalation`,
-`resolveEmbedAuthorization`) live in `honua-portal` and have not yet
-been projected to shared SDK contracts. Default decision (§13, Q7):
-the Blazor Web Console treats the Portal helpers as behavior references
-until `honua-sdk-dotnet#166` projects the server-owned route/RBAC DTOs;
-generated apps, embeds, MCP/QGIS/browser integrations, and map/chart
-interop use `honua-sdk-js#225` once it projects the equivalent JS
-contracts. Portal is on the retirement path (`honua-console#10`), so the
-dual-reference window is bounded.
+`resolveEmbedAuthorization`, `buildShareLink`, `PUBLIC_OPEN_DATA_TYPES`,
+`isPublicOpenDataSummary`, `isPublicOpenDataItem`) live in
+`honua-portal` and have not yet been projected to shared SDK contracts.
+Default decision (§13, Q7): the Blazor Web Console treats the Portal
+helpers as behavior references until `honua-sdk-dotnet#166` projects the
+server-owned route/RBAC/content DTOs; generated apps, embeds,
+MCP/QGIS/browser integrations, and map/chart/editor interop use
+`honua-sdk-js#225` once it projects the equivalent JS contracts. Portal
+is on the retirement path (`honua-console#10`), so the dual-reference
+window is bounded.
 
 ---
 
@@ -507,13 +509,15 @@ and the smoke label (see §10) when applicable.
 | `/auth/signin` | `anonymous` | — | — | shell+auth |
 | `/auth/callback` | `anonymous` | — | session-error | shell+auth |
 | `/auth/signed-out` | `anonymous` | — | — | shell+auth |
-| `/groups` | `auth` (any scope: `member`, `operator`, or `admin`) | empty-groups (no group memberships yet) | unauth-redirect | shell |
+| `/groups` | `auth` (any scope: `member`, `operator`, or `admin`) | empty-groups (no group memberships yet) | unauth-redirect / forbidden | shell |
 | `*` | `anonymous` | notfound | — | shell |
 
 `/groups` lives in the shell chunk (not Operate or Catalog) because it
 is a member-accessible workspace surface and is a placeholder pending a
 dedicated Groups feature ticket. Empty-state copy mirrors current Portal
 ("You're not a member of any groups yet" — `honua-portal:src/routes/Groups.tsx:27`).
+Authenticated sessions without `member`, `operator`, or `admin` render
+`<ForbiddenView>` rather than redirecting.
 
 ### 6.2 Studio
 
@@ -740,7 +744,7 @@ work consumes the route map but is not edited by `#3`:
 |---|---|
 | `honua-server#1162` | Metadata v2 / content / RBAC API baseline backing `/catalog/:idOrSlug` and Studio open-from-catalog. License snapshot DTO contract for `/operate/license` (avoid leaking `System.*` types through trimmer). |
 | `honua-sdk-dotnet#166` | Projects the server-owned Console client contracts for the Blazor Web shell and optional MAUI host, including metadata/content/package, route guard, RBAC, license, transport, and environment-profile DTOs. Until landed, Portal helpers remain behavior references (§4.7). |
-| `honua-sdk-js#225` | Projects `resolvePortalItemRole`, `evaluateShareEscalation`, `resolveEmbedAuthorization`, and metadata/content/package DTOs for generated apps, embeds, MCP/QGIS/browser integrations, and map/chart/editor interop. Until landed, Portal helpers remain behavior references (§4.7). |
+| `honua-sdk-js#225` | Projects `resolvePortalItemRole`, `evaluateShareEscalation`, `resolveEmbedAuthorization`, `buildShareLink`, open-data predicates/constants, and metadata/content/package DTOs for generated apps, embeds, MCP/QGIS/browser integrations, and map/chart/editor interop. Until landed, Portal helpers remain behavior references (§4.7). |
 | `honua-server-admin#96` | Prepare legacy Admin for the `/operate/legacy/*` iframe container; ensure session cookie domain and CSP frame-ancestors allow the Console origin. |
 | `honua-devops#55` / `honua-devops#56` | Edge config that preserves the §8 frozen URLs at both paths with a 200; preview/release pipeline that bundles Console + Admin into one origin. |
 | `honua-server#969` | Backs the `/admin/identity/api-keys` RETIRE decision. |
@@ -783,7 +787,7 @@ the human review answers land in
 | Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |
 | Q5 | Anonymous user on a gated `/share/*` link | Generic `<UnavailableView>` for anonymous; upgrade tile only when authenticated. | default |
 | Q6 | Admin EMBED container path: `/operate/legacy/<path>` vs `/operate/admin-legacy/<opaque>` | One-to-one `/operate/legacy/<path>` to preserve deep-link history. | default |
-| Q7 | SDK projection timing | Blazor Web Console treats Portal RBAC/embed helpers as behavior references until `honua-sdk-dotnet#166` projects server-owned route/RBAC DTOs; JS runtimes use `honua-sdk-js#225` once available. Bounded interim, not a cross-repo blocker. | default |
+| Q7 | SDK projection timing | Blazor Web Console treats Portal RBAC, share-link, embed, and open-data helpers as behavior references until `honua-sdk-dotnet#166` projects server-owned route/RBAC/content DTOs; JS runtimes use `honua-sdk-js#225` once available. Bounded interim, not a cross-repo blocker. | default |
 | Q8 | Cross-repo scope | This ticket changes only `honua-console`. No bounded child tickets filed beyond the existing external consumer tickets in §11. | confirmed |
 
 ---
@@ -797,7 +801,7 @@ diverge from this map without first updating the map should be sent
 back for revision.
 
 When `honua-sdk-dotnet#166` and `honua-sdk-js#225` land, §4.7 and §11
-update to reflect that Console consumes the shared SDK projections rather
-than treating `honua-portal` helpers as behavior references. The Portal
-source rows in §4 remain as a historical pointer until
-`honua-console#10` retires Portal.
+update to reflect that Console consumes the shared .NET and JS SDK
+projections rather than treating `honua-portal` helpers as behavior
+references. The Portal source rows in §4 remain as a historical pointer
+until `honua-console#10` retires Portal.
