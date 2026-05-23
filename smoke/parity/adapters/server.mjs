@@ -5,8 +5,12 @@
 // the live transport in. Until then the smoke exercises the
 // owning-layer-tagged chain end-to-end against this adapter so failures
 // stay attributable when components are swapped one by one.
+//
+// Wire shapes mirror the canonical schemas at
+// /home/makani/honua-portal/schemas/{content-item,share-access,embed-token,webmap-doc,publish-handoff}-v1.json.
 
 import { findContract } from "../contracts.mjs";
+import { summarizeContentItem } from "./sdk.mjs";
 
 const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -22,12 +26,26 @@ function deterministicUlid(prefix, counter) {
   return (base + tail.join("")).slice(0, 26);
 }
 
-function mapAdminStatusToCatalogStatus(adminStatus) {
-  const v = String(adminStatus).toLowerCase();
-  if (["active", "ok", "ready", "running"].includes(v)) return "available";
-  if (["degraded", "partial", "throttled", "warming", "publishing", "deploying"].includes(v)) return "limited";
-  if (["draft", "unpublished"].includes(v)) return "draft";
-  return "unavailable";
+function portalSelfLink(href) {
+  return {
+    accessURL: href,
+    format: "Honua:Portal:v1",
+    mediaType: "application/json",
+    describedBy: null,
+    describedByType: null,
+    conformsTo: ["https://schemas.honua.io/content-item/v1"],
+  };
+}
+
+// generated-app-lifecycle/v1 enumerates these two source kinds for the
+// dependency role; preserve the spelling so the SDK lifecycle projection
+// can attribute provenance back to the original saved-map or catalog row.
+function dependencyRoleFor(sourceKind) {
+  if (sourceKind === "saved-map") return "saved-map";
+  if (sourceKind === "catalog-item") return "catalog-item";
+  throw new Error(
+    `generated-app source.kind must be "saved-map" or "catalog-item" (got "${sourceKind}"); see generated-app-lifecycle/v1 content-item mapping.`,
+  );
 }
 
 export function createServerAdapter({ originUrl } = {}) {
@@ -43,84 +61,65 @@ export function createServerAdapter({ originUrl } = {}) {
   };
 
   return {
-    /** Apply a publish-handoff event from legacy admin. */
-    publishService(event) {
+    /** Apply a publish-handoff/v1.1.0 payload from legacy admin. */
+    publishService(handoff) {
       const existing = [...items.values()].find(
-        (i) => i.target?.type === "service" && i.source.sourceId === event.sourceServiceId,
+        (i) => i.target?.type === "service" && i.source.sourceId === handoff.source.sourceId,
       );
       const id = existing?.id ?? nextId("svc");
       const now = new Date().toISOString();
+      const selfHref = `${originUrl}/api/v1/items/${id}`;
       const item = {
         id,
-        slug: event.metadata.serviceName ?? null,
-        type: "service",
-        title: event.metadata.title,
-        summary: event.metadata.summary ?? "",
-        description: event.metadata.description ?? "",
-        tags: Array.isArray(event.metadata.tags) ? [...event.metadata.tags] : [],
-        owner: { id: event.owner.id, name: event.owner.displayName ?? event.owner.id, kind: event.owner.kind },
+        slug: handoff.target.serviceName ?? null,
+        type: handoff.type,
+        title: handoff.title,
+        summary: handoff.summary,
+        description: handoff.description ?? "",
+        tags: Array.isArray(handoff.tags) ? [...handoff.tags] : [],
+        owner: handoff.owner,
         timestamps: {
           created: existing?.timestamps.created ?? now,
           modified: now,
           published: now,
-          refreshed: event.lastCheckedAt ?? now,
+          refreshed: handoff.target.lastCheckedAt ?? null,
         },
-        extent: event.metadata.extent ?? null,
-        nativeCrs: event.metadata.nativeCrs ?? null,
-        license: event.metadata.license ?? { spdx: null, name: "All rights reserved", url: null },
-        attribution: event.metadata.attribution ?? null,
+        extent: handoff.extent,
+        nativeCrs: handoff.nativeCrs,
+        license: handoff.license,
+        attribution: handoff.attribution,
         source: {
-          kind: "publish",
-          sourceId: event.sourceServiceId,
-          jobId: event.importJobId ?? null,
-          publishedBy: event.actor,
+          kind: handoff.source.kind,
+          sourceId: handoff.source.sourceId,
+          jobId: handoff.source.jobId,
+          publishedBy: handoff.source.publishedBy,
           history: [
             ...(existing?.source.history ?? []),
-            { at: now, kind: existing ? "publish" : "publish", actor: event.actor },
+            { at: now, kind: handoff.source.kind, actor: handoff.source.publishedBy ?? "system" },
           ],
         },
-        target: {
-          type: "service",
-          serviceName: event.metadata.serviceName ?? event.sourceServiceId,
-          kind: "feature",
-          layerCount: event.metadata.layerCount ?? 1,
-          serviceUrl: event.serviceUrl,
-          serviceType: event.serviceType,
-          importJobId: event.importJobId ?? null,
-          status: mapAdminStatusToCatalogStatus(event.status),
-          statusDetail: event.statusReason ?? null,
-          adminDiagnosticsRef: event.adminDiagnosticsRef ?? null,
-          lastCheckedAt: event.lastCheckedAt ?? now,
-        },
+        target: handoff.target,
         endpoints: {
-          self: { href: `${originUrl}/api/v1/items/${id}`, type: "application/json" },
-          geoservices: { href: event.serviceUrl, type: "application/json" },
-          ogcFeatures: null,
-          stac: null,
-          tiles: null,
+          self: portalSelfLink(selfHref),
+          geoservices: handoff.endpoints.geoservices,
+          ogcFeatures: handoff.endpoints.ogcFeatures,
+          stac: handoff.endpoints.stac,
+          tiles: handoff.endpoints.tiles,
         },
-        preview: { thumbnail: null, image: null },
-        capabilities: event.metadata.capabilities ?? [],
-        dependencies: [],
-        access: { sharing: "private", embeddable: false, openData: false },
-        extensions: {},
+        preview: handoff.preview,
+        capabilities: handoff.capabilities,
+        dependencies: handoff.dependencies,
+        access: handoff.access,
+        extensions: handoff.extensions ?? {},
       };
       items.set(id, item);
       return { item, contract: findContract("content-item") };
     },
 
-    /** List catalog items, mirroring the read shape Console consumes. */
+    /** List catalog items as content-item/v1.1.0 ContentItemSummary[]. */
     listCatalog() {
       return {
-        items: [...items.values()].map((i) => ({
-          id: i.id,
-          slug: i.slug,
-          type: i.type,
-          title: i.title,
-          summary: i.summary,
-          owner: i.owner,
-          status: i.target?.type === "service" ? i.target.status : null,
-        })),
+        items: [...items.values()].map((i) => summarizeContentItem(i)),
         contract: findContract("content-item"),
       };
     },
@@ -132,32 +131,66 @@ export function createServerAdapter({ originUrl } = {}) {
       return { kind: "ok", item, contract: findContract("content-item") };
     },
 
-    /** Persist a saved map document. */
-    saveMap({ id, title, owner, operationalLayers, extent }) {
+    /** Persist a saved map document conforming to webmap-doc/v1. */
+    saveMap({ id, title, owner, sourceItem, extent }) {
       const mapId = id ?? nextId("map");
       const now = new Date().toISOString();
-      const doc = {
-        id: mapId,
-        type: "map",
-        title,
-        owner,
-        document: {
-          schema: "honua-webmap/v1",
-          extent,
-          operationalLayers,
+      const [west, south, east, north] = extent?.bbox ?? [-180, -90, 180, 90];
+      const document = {
+        version: "honua-webmap/v1",
+        authoringApp: "honua-console",
+        operationalLayers: [
+          {
+            id: `${sourceItem.id}-layer`,
+            title: sourceItem.title,
+            layerType: "honua-feature",
+            sourceRef: { itemId: sourceItem.id, subLayerId: null },
+            styleRef: null,
+            visibility: true,
+            opacity: 1,
+            popupInfo: null,
+            minScale: null,
+            maxScale: null,
+          },
+        ],
+        baseMap: {
+          title: "Honua Basemap",
+          baseMapLayers: [
+            {
+              id: "honua-basemap-vector",
+              title: "Honua Vector Basemap",
+              layerType: "honua-vector-tile",
+              sourceRef: null,
+              styleUrl: null,
+              visibility: true,
+              opacity: 1,
+            },
+          ],
         },
-        timestamps: { created: now, modified: now, published: null, refreshed: now },
-        access: { sharing: "private", embeddable: false, openData: false },
+        initialState: {
+          viewpoint: {
+            extent: { xmin: west, ymin: south, xmax: east, ymax: north },
+            rotation: 0,
+          },
+        },
       };
-      savedMaps.set(mapId, doc);
-      return { savedMap: doc, contract: findContract("webmap-doc") };
+      const record = { id: mapId, title, owner, document, createdAt: now, modifiedAt: now };
+      savedMaps.set(mapId, record);
+      return { savedMap: record, contract: findContract("webmap-doc") };
     },
 
-    /** Record a published generated-app content item. */
+    /**
+     * Record a published generated-app content item. Maps to the
+     * generated-app-lifecycle/v1 content-item shape:
+     *   target = { type: "app", framework: "honua", url: <preview URL> }
+     *   source.kind = "manual" (publish acts on a generated artifact, not a service)
+     *   dependencies[] roles are "saved-map" or "catalog-item"
+     */
     publishGeneratedApp({ source, manifestVersion, plan, appPackage, owner, title }) {
       const id = nextId("app");
       const now = new Date().toISOString();
       const revisionId = nextId("rev");
+      const previewUrl = `${originUrl}/apps/${id}/preview?revision=${revisionId}`;
       const item = {
         id,
         slug: null,
@@ -167,23 +200,29 @@ export function createServerAdapter({ originUrl } = {}) {
         description: "",
         tags: [],
         owner,
-        timestamps: { created: now, modified: now, published: now, refreshed: now },
+        timestamps: { created: now, modified: now, published: now, refreshed: null },
         extent: null,
         nativeCrs: null,
         license: { spdx: null, name: "All rights reserved", url: null },
         attribution: null,
         source: {
-          kind: "publish",
+          kind: "manual",
           sourceId: source.itemId,
-          jobId: null,
+          jobId: `apply-${plan.id}`,
           publishedBy: owner.id,
-          history: [{ at: now, kind: "publish", actor: owner.id }],
+          history: [{ at: now, kind: "manual", actor: owner.id }],
         },
-        target: { type: "app", manifestVersion },
-        endpoints: { self: { href: `${originUrl}/api/v1/items/${id}`, type: "application/json" } },
+        target: { type: "app", url: previewUrl, framework: "honua" },
+        endpoints: {
+          self: portalSelfLink(`${originUrl}/api/v1/items/${id}`),
+          geoservices: null,
+          ogcFeatures: null,
+          stac: null,
+          tiles: null,
+        },
         preview: { thumbnail: null, image: null },
         capabilities: [],
-        dependencies: [{ id: source.itemId, type: source.itemType, role: "datasource" }],
+        dependencies: [{ id: source.itemId, type: source.itemType, role: dependencyRoleFor(source.kind) }],
         access: { sharing: "private", embeddable: false, openData: false },
         extensions: {
           "honua-generated-app": {
@@ -203,15 +242,16 @@ export function createServerAdapter({ originUrl } = {}) {
                 appPackageRef: { id: appPackage.id, kind: "app-package", version: appPackage.version ?? "1" },
                 buildSpecRef: { id: `${plan.id}-spec`, kind: "build-spec", version: "1" },
                 manifestArtifact: { id: `${id}-manifest`, kind: "manifest", version: manifestVersion },
-                serverJob: null,
+                serverJob: { id: `apply-${plan.id}`, kind: "apply", status: "succeeded" },
                 provenance: [
                   {
                     kind: "source",
                     itemId: source.itemId,
+                    role: dependencyRoleFor(source.kind),
                     note: `Generated app derives from ${source.kind} ${source.itemId}`,
                   },
                 ],
-                previewUrl: `${originUrl}/studio/preview/${id}`,
+                previewUrl,
                 rollbackOf: null,
               },
             ],
@@ -223,24 +263,35 @@ export function createServerAdapter({ originUrl } = {}) {
       return { item, contract: findContract("generated-app-lifecycle") };
     },
 
-    /** Apply a share-access patch to a catalog item id. */
-    patchAccess({ itemId, tier, embeddable }) {
+    /**
+     * Apply a share-access patch. Returns a share-access/v1 descriptor
+     * (sharing, embeddable, and tier-conditional groupIds/publicLinkToken).
+     * Catalog `access.openData` is updated on the item so the next
+     * summary projection reflects the share-tier change, but the
+     * share-access response itself stays inside its own schema.
+     */
+    patchAccess({ itemId, tier, embeddable, groupIds }) {
       const item = items.get(itemId);
       if (!item) return { kind: "missing" };
-      const next = { sharing: tier, embeddable: !!embeddable, openData: tier === "public" };
-      item.access = next;
-      shareTiers.set(itemId, next);
-      return { kind: "ok", access: next, contract: findContract("share-access") };
+      const openData = tier === "public";
+      item.access = { sharing: tier, embeddable: !!embeddable, openData };
+      const descriptor = { sharing: tier, embeddable: !!embeddable };
+      if (tier === "group") {
+        descriptor.groupIds = [...(groupIds ?? [])];
+      }
+      shareTiers.set(itemId, descriptor);
+      return { kind: "ok", access: descriptor, contract: findContract("share-access") };
     },
 
-    /** Mint a same-origin embed token for an item id. */
+    /** Mint a same-origin embed-token/v1 descriptor for an item id. */
     mintEmbedToken({ itemId, audience }) {
       const item = items.get(itemId);
       if (!item) return { kind: "missing" };
       if (!item.access.embeddable) {
         return { kind: "forbidden", reason: "item is not embeddable" };
       }
-      const token = `embed-${itemId}-${audience}-${counter += 1}`;
+      counter += 1;
+      const token = `embed-${itemId}-${audience}-${counter}`;
       const descriptor = {
         token,
         itemId,

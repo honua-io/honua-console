@@ -15,7 +15,7 @@
 // so a failure points the smoke triage at the right repo:
 //
 //   - devops:        build artifact / single deployable artifact
-//   - legacy-admin:  publish-handoff event producer (transition surface)
+//   - legacy-admin:  publish-handoff producer (transition surface)
 //   - server:        catalog upsert, share, embed mint
 //   - sdk:           browser-safe projections
 //   - console:       Console-side UX / route map / same-origin invariants
@@ -25,8 +25,8 @@
 // taxonomy is closed (see owning-layers.mjs) so a typo here will throw
 // rather than silently widen the smoke surface.
 
-import { loadPublishEvent } from "./adapters/admin.mjs";
-import { buildConsoleUrls, assertSameOrigin } from "./adapters/console.mjs";
+import { loadPublishHandoff } from "./adapters/admin.mjs";
+import { assertEmbedTokenInFragment, assertSameOrigin, buildConsoleUrls } from "./adapters/console.mjs";
 import { loadBuildArtifact } from "./adapters/devops.mjs";
 import { projectAppPackage, projectBuilderPlan, projectCatalogSummary, projectGeneratedAppRecord } from "./adapters/sdk.mjs";
 import { createServerAdapter } from "./adapters/server.mjs";
@@ -61,17 +61,19 @@ export const SCENARIO_STEPS = [
     id: "legacy-admin/operator-publish",
     owningLayer: "legacy-admin",
     description:
-      "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff event into Console catalog.",
+      "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff/v1.1.0 payload into Console catalog.",
     async run(ctx) {
-      const event = await loadPublishEvent({ repoRoot: ctx.repoRoot });
-      ctx.publishEvent = event;
+      const handoff = await loadPublishHandoff({ repoRoot: ctx.repoRoot });
+      ctx.publishHandoff = handoff;
       return {
         evidence: {
-          sourceServiceId: event.sourceServiceId,
-          eventKind: event.eventKind,
-          serviceUrl: event.serviceUrl,
-          actor: event.actor,
-          status: event.status,
+          type: handoff.type,
+          title: handoff.title,
+          sourceKind: handoff.source.kind,
+          sourceId: handoff.source.sourceId,
+          publishedBy: handoff.source.publishedBy,
+          serviceUrl: handoff.target.serviceUrl,
+          status: handoff.target.status,
         },
         contracts: [findContract("publish-handoff")],
       };
@@ -81,10 +83,10 @@ export const SCENARIO_STEPS = [
     id: "server/catalog-upsert",
     owningLayer: "server",
     description:
-      "Server upserts the publish event into the catalog and returns a stable content item id.",
+      "Server upserts the publish-handoff into the catalog and returns a stable content item id.",
     async run(ctx) {
       ctx.server = ctx.server ?? createServerAdapter({ originUrl: ctx.originUrl });
-      const { item, contract } = ctx.server.publishService(ctx.publishEvent);
+      const { item, contract } = ctx.server.publishService(ctx.publishHandoff);
       ctx.serviceItem = item;
       ctx.itemIds.serviceItemId = item.id;
       return {
@@ -103,12 +105,14 @@ export const SCENARIO_STEPS = [
     id: "sdk/catalog-projection",
     owningLayer: "sdk",
     description:
-      "SDK projects the server catalog row into the browser-safe ContentItemSummary Console consumes.",
+      "SDK projects the server catalog row into the canonical content-item/v1.1.0 ContentItemSummary Console consumes.",
     async run(ctx) {
       const summary = projectCatalogSummary(ctx.serviceItem);
       ctx.summary = summary;
-      if (!summary.viewerSupport.supported) {
-        throw new Error(`SDK projection marks the published service as unsupported by the viewer: ${summary.viewerSupport.reason}`);
+      if (summary.viewerSupport?.supported !== true) {
+        throw new Error(
+          `SDK projection marks the published service as unsupported by the viewer: ${summary.viewerSupport?.reason ?? "no reason"}`,
+        );
       }
       return {
         evidence: {
@@ -116,6 +120,9 @@ export const SCENARIO_STEPS = [
           title: summary.title,
           viewerSupported: summary.viewerSupport.supported,
           capabilities: summary.capabilities,
+          formats: summary.formats,
+          sharing: summary.sharing,
+          openData: summary.openData,
         },
         contracts: [summary.contract],
       };
@@ -125,7 +132,7 @@ export const SCENARIO_STEPS = [
     id: "console/catalog-list",
     owningLayer: "console",
     description:
-      "Console catalog browse lists the new item without a per-card detail fetch.",
+      "Console catalog browse lists the new item as content-item/v1.1.0 ContentItemSummary without a per-card detail fetch.",
     async run(ctx) {
       const { items, contract } = ctx.server.listCatalog();
       const match = items.find((i) => i.id === ctx.serviceItem.id);
@@ -134,8 +141,17 @@ export const SCENARIO_STEPS = [
           `Catalog list response did not include published item ${ctx.serviceItem.id}; Console catalog UI would render an empty grid.`,
         );
       }
+      // Sanity: the list response must carry summary-shape fields so the
+      // catalog cards can render format pills without a per-item detail fetch.
+      for (const required of ["tags", "preview", "modified", "formats", "sharing", "openData", "viewerSupport"]) {
+        if (!(required in match)) {
+          throw new Error(
+            `Catalog list response missing ContentItemSummary field "${required}"; cards would need a per-item detail fetch.`,
+          );
+        }
+      }
       return {
-        evidence: { listed: items.length, includesPublished: true, listedItemId: match.id },
+        evidence: { listed: items.length, includesPublished: true, listedItemId: match.id, formats: match.formats },
         contracts: [contract],
       };
     },
@@ -160,15 +176,21 @@ export const SCENARIO_STEPS = [
       const { savedMap, contract } = ctx.server.saveMap({
         title: `${ctx.serviceItem.title} — overview`,
         owner: ctx.serviceItem.owner,
-        operationalLayers: [
-          { id: ctx.serviceItem.id, type: "service", role: "operationalLayer", serviceUrl: ctx.serviceItem.target.serviceUrl },
-        ],
+        sourceItem: ctx.serviceItem,
         extent: ctx.serviceItem.extent,
       });
       ctx.savedMap = savedMap;
       ctx.itemIds.savedMapId = savedMap.id;
+      if (savedMap.document.version !== "honua-webmap/v1") {
+        throw new Error(`saved-map document version ${savedMap.document.version} does not match webmap-doc/v1.`);
+      }
       return {
-        evidence: { savedMapId: savedMap.id, title: savedMap.title, operationalLayerCount: savedMap.document.operationalLayers.length },
+        evidence: {
+          savedMapId: savedMap.id,
+          title: savedMap.title,
+          documentVersion: savedMap.document.version,
+          operationalLayerCount: savedMap.document.operationalLayers.length,
+        },
         contracts: [contract],
       };
     },
@@ -212,7 +234,7 @@ export const SCENARIO_STEPS = [
     id: "server/generated-app-publish",
     owningLayer: "server",
     description:
-      "Server records the generated app as a published content item with provenance back to the source service.",
+      "Server records the generated app as a published content item with target.url/framework and a saved-map/catalog-item dependency back to the source.",
     async run(ctx) {
       const { item, contract } = ctx.server.publishGeneratedApp({
         source: ctx.studioDraft.source,
@@ -224,13 +246,28 @@ export const SCENARIO_STEPS = [
       });
       ctx.generatedApp = item;
       ctx.itemIds.generatedAppId = item.id;
+      // generated-app-lifecycle/v1 content-item mapping: target carries
+      // url + framework; dependency role must be saved-map or catalog-item.
+      if (item.target?.type !== "app" || typeof item.target.url !== "string" || item.target.framework !== "honua") {
+        throw new Error(
+          `Generated app target must be { type: "app", url, framework: "honua" }; got ${JSON.stringify(item.target)}.`,
+        );
+      }
+      const dep = item.dependencies.find((d) => d.id === ctx.studioDraft.source.itemId);
+      if (!dep || !["saved-map", "catalog-item"].includes(dep.role)) {
+        throw new Error(
+          `Generated app missing saved-map/catalog-item dependency back to source ${ctx.studioDraft.source.itemId}; got ${JSON.stringify(item.dependencies)}.`,
+        );
+      }
       const record = projectGeneratedAppRecord(item);
       return {
         evidence: {
           generatedAppId: item.id,
+          targetUrl: item.target.url,
+          targetFramework: item.target.framework,
           activeRevisionId: record.lifecycle.activeRevisionId,
           provenanceCount: record.activeRevision.provenance.length,
-          dependencyIds: item.dependencies.map((d) => d.id),
+          dependencyRoles: item.dependencies.map((d) => ({ id: d.id, role: d.role })),
         },
         contracts: [contract],
       };
@@ -246,6 +283,11 @@ export const SCENARIO_STEPS = [
       if (result.kind !== "ok") {
         throw new Error(`share patch returned ${result.kind} for generated app ${ctx.generatedApp.id}`);
       }
+      // share-access/v1 is { sharing, embeddable, groupIds?, publicLinkToken? }.
+      // openData is a content-item.access field, not a share-access response field.
+      if ("openData" in result.access) {
+        throw new Error("share-access/v1 response must not carry openData; that field lives on content-item.access.");
+      }
       ctx.itemIds.shareTier = result.access.sharing;
       return {
         evidence: { itemId: ctx.generatedApp.id, sharing: result.access.sharing, embeddable: result.access.embeddable },
@@ -257,7 +299,7 @@ export const SCENARIO_STEPS = [
     id: "server/embed-token-mint",
     owningLayer: "server",
     description:
-      "Server mints a same-origin embed token descriptor for the generated app.",
+      "Server mints a same-origin embed-token/v1 descriptor for the generated app.",
     async run(ctx) {
       const result = ctx.server.mintEmbedToken({ itemId: ctx.generatedApp.id, audience: "pilot" });
       if (result.kind !== "ok") {
@@ -280,10 +322,11 @@ export const SCENARIO_STEPS = [
     id: "console/embed-render",
     owningLayer: "console",
     description:
-      "Console assembles the same-origin embed URL using the minted token; URL is reachable from the deployable artifact origin.",
+      "Console assembles the same-origin embed URL using the minted token; URL is reachable from the deployable artifact origin and carries the token in the URL fragment per embed-token/v1.",
     async run(ctx) {
       const urls = buildConsoleUrls({ originUrl: ctx.originUrl, items: ctx.itemIds });
       assertSameOrigin(ctx.originUrl, urls);
+      assertEmbedTokenInFragment(urls.embed);
       ctx.urls = urls;
       return { evidence: { urls } };
     },

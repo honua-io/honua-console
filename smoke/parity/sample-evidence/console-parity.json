@@ -1,6 +1,6 @@
 {
   "scenario": "console-parity-publish-to-embed",
-  "ranAt": "2026-05-23T22:17:29.047Z",
+  "ranAt": "2026-05-23T22:37:59.872Z",
   "originUrl": "https://console.staging.honua.example",
   "repoRoot": "/path/to/honua-console",
   "buildArtifact": {
@@ -88,7 +88,7 @@
     "studio": "https://console.staging.honua.example/studio/drafts?source=saved-map&id=00MPHL0QO2F5XEMWXKBW2AB1SA",
     "generatedApp": "https://console.staging.honua.example/catalog/00MPHL0QO340N28KA6V8ESGC1E",
     "share": "https://console.staging.honua.example/share/items/00MPHL0QO340N28KA6V8ESGC1E",
-    "embed": "https://console.staging.honua.example/embed/items/00MPHL0QO340N28KA6V8ESGC1E?token=embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5"
+    "embed": "https://console.staging.honua.example/embed/items/00MPHL0QO340N28KA6V8ESGC1E#embedToken=embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5"
   },
   "steps": [
     {
@@ -100,7 +100,7 @@
       "description": "Verify the single deployable artifact metadata (dist/version.json) declares name=honua-console, the four areas, and the legacy block.",
       "evidence": {
         "source": "fixture",
-        "path": "/path/to/honua-console/smoke/parity/fixtures/dist-version.json",
+        "path": "/home/makani/worktrees/honua-console/honua-console-9/smoke/parity/fixtures/dist-version.json",
         "version": "0.1.0",
         "commit": "000000000000",
         "ref": "feature/honua-console-9",
@@ -123,13 +123,15 @@
       "owningLayerLabel": "Legacy Admin transition surface",
       "status": "ok",
       "durationMs": 0,
-      "description": "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff event into Console catalog.",
+      "description": "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff/v1.1.0 payload into Console catalog.",
       "evidence": {
-        "sourceServiceId": "honua-server-svc-01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
-        "eventKind": "publish",
+        "type": "service",
+        "title": "City Parcels 2026",
+        "sourceKind": "publish",
+        "sourceId": "honua-server-svc-01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+        "publishedBy": "user-operator-honolulu",
         "serviceUrl": "https://server.smoke.honua.example/api/v1/services/city-parcels-2026",
-        "actor": "user-operator-honolulu",
-        "status": "Active"
+        "status": "available"
       },
       "error": null
     },
@@ -139,7 +141,7 @@
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Server upserts the publish event into the catalog and returns a stable content item id.",
+      "description": "Server upserts the publish-handoff into the catalog and returns a stable content item id.",
       "evidence": {
         "itemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
         "serviceUrl": "https://server.smoke.honua.example/api/v1/services/city-parcels-2026",
@@ -155,16 +157,23 @@
       "owningLayerLabel": "Honua SDK (@honua/sdk-js)",
       "status": "ok",
       "durationMs": 0,
-      "description": "SDK projects the server catalog row into the browser-safe ContentItemSummary Console consumes.",
+      "description": "SDK projects the server catalog row into the canonical content-item/v1.1.0 ContentItemSummary Console consumes.",
       "evidence": {
         "itemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
         "title": "City Parcels 2026",
         "viewerSupported": true,
         "capabilities": [
           "query",
-          "tiles",
-          "render"
-        ]
+          "queryExtent",
+          "render",
+          "tiles"
+        ],
+        "formats": [
+          "GeoServices:FeatureService",
+          "OGC:API:Features"
+        ],
+        "sharing": "private",
+        "openData": false
       },
       "error": null
     },
@@ -174,11 +183,15 @@
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Console catalog browse lists the new item without a per-card detail fetch.",
+      "description": "Console catalog browse lists the new item as content-item/v1.1.0 ContentItemSummary without a per-card detail fetch.",
       "evidence": {
         "listed": 1,
         "includesPublished": true,
-        "listedItemId": "00MPHL0QO1MRXBKM6AFX56RW1F"
+        "listedItemId": "00MPHL0QO1MRXBKM6AFX56RW1F",
+        "formats": [
+          "GeoServices:FeatureService",
+          "OGC:API:Features"
+        ]
       },
       "error": null
     },
@@ -204,6 +217,7 @@
       "evidence": {
         "savedMapId": "00MPHL0QO2F5XEMWXKBW2AB1SA",
         "title": "City Parcels 2026 — overview",
+        "documentVersion": "honua-webmap/v1",
         "operationalLayerCount": 1
       },
       "error": null
@@ -250,13 +264,18 @@
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Server records the generated app as a published content item with provenance back to the source service.",
+      "description": "Server records the generated app as a published content item with target.url/framework and a saved-map/catalog-item dependency back to the source.",
       "evidence": {
         "generatedAppId": "00MPHL0QO340N28KA6V8ESGC1E",
+        "targetUrl": "https://console.staging.honua.example/apps/00MPHL0QO340N28KA6V8ESGC1E/preview?revision=00MPHL0QO4PJD7DY2YSKSAEA5Z",
+        "targetFramework": "honua",
         "activeRevisionId": "00MPHL0QO4PJD7DY2YSKSAEA5Z",
         "provenanceCount": 1,
-        "dependencyIds": [
-          "00MPHL0QO2F5XEMWXKBW2AB1SA"
+        "dependencyRoles": [
+          {
+            "id": "00MPHL0QO2F5XEMWXKBW2AB1SA",
+            "role": "saved-map"
+          }
         ]
       },
       "error": null
@@ -281,12 +300,12 @@
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Server mints a same-origin embed token descriptor for the generated app.",
+      "description": "Server mints a same-origin embed-token/v1 descriptor for the generated app.",
       "evidence": {
         "token": "embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5",
         "audience": "pilot",
         "closureSize": 1,
-        "expiresAt": "2026-05-23T22:47:29.050Z"
+        "expiresAt": "2026-05-23T23:07:59.876Z"
       },
       "error": null
     },
@@ -296,7 +315,7 @@
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Console assembles the same-origin embed URL using the minted token; URL is reachable from the deployable artifact origin.",
+      "description": "Console assembles the same-origin embed URL using the minted token; URL is reachable from the deployable artifact origin and carries the token in the URL fragment per embed-token/v1.",
       "evidence": {
         "urls": {
           "catalog": "https://console.staging.honua.example/catalog/00MPHL0QO1MRXBKM6AFX56RW1F",
@@ -305,7 +324,7 @@
           "studio": "https://console.staging.honua.example/studio/drafts?source=saved-map&id=00MPHL0QO2F5XEMWXKBW2AB1SA",
           "generatedApp": "https://console.staging.honua.example/catalog/00MPHL0QO340N28KA6V8ESGC1E",
           "share": "https://console.staging.honua.example/share/items/00MPHL0QO340N28KA6V8ESGC1E",
-          "embed": "https://console.staging.honua.example/embed/items/00MPHL0QO340N28KA6V8ESGC1E?token=embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5"
+          "embed": "https://console.staging.honua.example/embed/items/00MPHL0QO340N28KA6V8ESGC1E#embedToken=embed-00MPHL0QO340N28KA6V8ESGC1E-pilot-5"
         }
       },
       "error": null

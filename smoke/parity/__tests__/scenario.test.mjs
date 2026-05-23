@@ -29,12 +29,17 @@ describe("parity scenario", () => {
     assert.equal(report.items.shareTier, "org");
 
     // URLs section captures every Console surface in the chain, all
-    // same-origin with the deployable artifact.
+    // same-origin with the deployable artifact. The embed URL keeps the
+    // bearer token in the fragment per embed-token/v1.
     assert.ok(report.urls);
     const expectedOrigin = new URL(ORIGIN).origin;
     for (const value of Object.values(report.urls)) {
       assert.equal(new URL(value).origin, expectedOrigin);
     }
+    const embedUrl = new URL(report.urls.embed);
+    assert.ok(embedUrl.hash.startsWith("#embedToken="), "embed URL must carry token in fragment");
+    assert.ok(!embedUrl.searchParams.has("token"), "embed URL must not carry token in query string");
+    assert.ok(!embedUrl.searchParams.has("embedToken"), "embed URL must not carry embedToken in query string");
 
     // Contract-version table includes the seven Console-parity contracts.
     const contractNames = report.contractVersions.map((c) => c.name).sort();
@@ -58,6 +63,80 @@ describe("parity scenario", () => {
 
     // Sanity check the ctx is consistent with the report.
     assert.equal(ctx.itemIds.serviceItemId, report.items.serviceItemId);
+  });
+
+  test("server upsert produces canonical content-item v1.1.0 shape consumed downstream", async () => {
+    const { ctx } = await runParitySmoke({ originUrl: ORIGIN });
+
+    // Content item carries the publish-handoff fields it received plus
+    // server-filled id/timestamps/endpoints.self/source.history.
+    const svc = ctx.serviceItem;
+    assert.equal(svc.type, "service");
+    assert.equal(svc.target.type, "service");
+    assert.equal(svc.target.serviceUrl, ctx.publishHandoff.target.serviceUrl);
+    assert.equal(svc.source.kind, "publish");
+    assert.ok(svc.source.history.length >= 1, "server must append a history entry on publish");
+    assert.equal(svc.endpoints.self.format, "Honua:Portal:v1");
+    assert.deepEqual(svc.endpoints.geoservices, ctx.publishHandoff.endpoints.geoservices);
+
+    // Summary projection carries every content-item/v1.1.0 ContentItemSummary field.
+    const summary = ctx.summary;
+    for (const required of [
+      "id",
+      "slug",
+      "type",
+      "title",
+      "summary",
+      "owner",
+      "tags",
+      "extent",
+      "preview",
+      "modified",
+      "capabilities",
+      "formats",
+      "sharing",
+      "openData",
+      "viewerSupport",
+    ]) {
+      assert.ok(required in summary, `summary missing required field "${required}"`);
+    }
+    assert.ok(summary.viewerSupport && typeof summary.viewerSupport.supported === "boolean");
+    assert.ok("reason" in summary.viewerSupport, "viewerSupport must carry both supported and reason");
+    // The publish-handoff fixture populates geoservices + ogcFeatures, so
+    // the summary's format pills must list both — proving the catalog card
+    // can render without a per-item detail fetch.
+    assert.deepEqual([...summary.formats].sort(), ["GeoServices:FeatureService", "OGC:API:Features"]);
+  });
+
+  test("generated app publish writes target.url/framework and saved-map provenance", async () => {
+    const { ctx } = await runParitySmoke({ originUrl: ORIGIN });
+    const app = ctx.generatedApp;
+    assert.equal(app.type, "app");
+    assert.equal(app.target.type, "app");
+    assert.equal(app.target.framework, "honua");
+    assert.match(app.target.url, /^https:\/\/console\.smoke\.honua\.example\/apps\//);
+    assert.equal(app.source.kind, "manual");
+    assert.equal(app.source.sourceId, ctx.savedMap.id);
+    const dep = app.dependencies.find((d) => d.id === ctx.savedMap.id);
+    assert.ok(dep, "generated app must carry a dependency back to the source saved map");
+    assert.equal(dep.role, "saved-map", "dependency role must be saved-map per generated-app-lifecycle/v1");
+    // Provenance closure on the active revision references the same source.
+    const ext = app.extensions["honua-generated-app"];
+    const active = ext.revisions.find((r) => r.id === ext.activeRevisionId);
+    const provenance = active.provenance.find((p) => p.itemId === ctx.savedMap.id);
+    assert.ok(provenance, "active revision must record source provenance");
+    assert.equal(provenance.role, "saved-map");
+  });
+
+  test("share-access response stays inside share-access/v1 shape (no openData leak)", async () => {
+    const { ctx } = await runParitySmoke({ originUrl: ORIGIN });
+    // The scenario stores the patched tier on ctx.itemIds; re-issue the
+    // patch through the live adapter to inspect the response shape directly.
+    const result = ctx.server.patchAccess({ itemId: ctx.generatedApp.id, tier: "org", embeddable: true });
+    assert.equal(result.kind, "ok");
+    assert.deepEqual(Object.keys(result.access).sort(), ["embeddable", "sharing"]);
+    assert.equal(result.access.sharing, "org");
+    assert.equal(result.access.embeddable, true);
   });
 
   test("a server failure is attributed to the server layer and short-circuits the chain", async () => {
@@ -128,8 +207,10 @@ describe("parity scenario", () => {
                 type: "scene",
               });
               ctx.summary = summary;
-              if (!summary.viewerSupport.supported) {
-                throw new Error(`SDK projection marks the published service as unsupported by the viewer: ${summary.viewerSupport.reason}`);
+              if (summary.viewerSupport?.supported !== true) {
+                throw new Error(
+                  `SDK projection marks the published service as unsupported by the viewer: ${summary.viewerSupport?.reason ?? "no reason"}`,
+                );
               }
               return { evidence: {} };
             },
@@ -141,14 +222,14 @@ describe("parity scenario", () => {
     assert.equal(report.failure.owningLayer, "sdk");
   });
 
-  test("a legacy-admin malformed publish event is attributed to legacy-admin", async () => {
+  test("a legacy-admin malformed publish-handoff is attributed to legacy-admin", async () => {
     const customSteps = SCENARIO_STEPS.map((s) =>
       s.id === "legacy-admin/operator-publish"
         ? {
             ...s,
             async run() {
-              const { validatePublishEvent } = await import("../adapters/admin.mjs");
-              validatePublishEvent({ eventKind: "publish" }, "test");
+              const { validatePublishHandoff } = await import("../adapters/admin.mjs");
+              validatePublishHandoff({ type: "service" }, "test");
             },
           }
         : s,
@@ -157,5 +238,25 @@ describe("parity scenario", () => {
     assert.equal(report.result, "failed");
     assert.equal(report.failure.owningLayer, "legacy-admin");
     assert.equal(report.failure.owningRepo, "honua-server-admin");
+  });
+
+  test("a query-string embed token is attributed to the console layer", async () => {
+    const customSteps = SCENARIO_STEPS.map((s) =>
+      s.id === "console/embed-render"
+        ? {
+            ...s,
+            async run(ctx) {
+              const { assertEmbedTokenInFragment } = await import("../adapters/console.mjs");
+              // Build a URL that mistakenly carries the token in the query string.
+              const bad = `${ctx.originUrl}/embed/items/${ctx.generatedApp.id}?token=${ctx.embedToken}`;
+              assertEmbedTokenInFragment(bad);
+            },
+          }
+        : s,
+    );
+    const { report } = await runParitySmoke({ originUrl: ORIGIN, steps: customSteps });
+    assert.equal(report.result, "failed");
+    assert.equal(report.failure.owningLayer, "console");
+    assert.match(report.failure.message, /query string|fragment/i);
   });
 });

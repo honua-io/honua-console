@@ -99,6 +99,48 @@ The registry lives in
 contract version changes in its source repo, bump the `version` field
 there in the same PR so the smoke evidence stays truthful.
 
+### Wire shapes the smoke actually exercises
+
+The smoke does not just report contract versions — it materializes the
+canonical wire shapes for each step so a future port of an adapter to a
+real HTTP transport cannot silently accept a drifted payload:
+
+- **`publish-handoff/v1.1.0`** — The fixture at
+  [`smoke/parity/fixtures/publish-handoff.json`](../../smoke/parity/fixtures/publish-handoff.json)
+  matches every top-level required field in
+  [`publish-handoff-v1.json`](https://github.com/honua-io/honua-portal/blob/main/schemas/publish-handoff-v1.json):
+  `type, title, summary, owner, extent, nativeCrs, license, attribution,
+  source, target, endpoints, preview, capabilities, dependencies, access`.
+  `source.kind` is restricted to the enum (`import|publish|admin-job|external`),
+  `target.type` is asserted to match the item `type`, and every populated
+  ServiceLink carries the v1.1 keys
+  (`accessURL/format/mediaType/describedBy/describedByType/conformsTo`).
+- **`content-item/v1.1.0`** — `server.publishService` produces a full
+  `ContentItem` and the SDK projection emits the canonical
+  `ContentItemSummary` (`id, slug, type, title, summary, owner, tags,
+  extent, preview, modified, capabilities, formats, sharing, openData,
+  viewerSupport`). `formats` is derived from the non-`self` endpoint
+  slots so catalog cards render format pills without a per-item detail
+  fetch. `viewerSupport` always carries both `supported` and `reason`.
+- **`generated-app-lifecycle/v1`** — Published generated-app items carry
+  `target = { type: "app", url, framework: "honua" }` and a
+  `saved-map` (or `catalog-item`) dependency back to the source the
+  generator was run against. `source.kind` is `manual` and the active
+  revision records source provenance with the matching role.
+- **`share-access/v1`** — `patchAccess` returns
+  `{ sharing, embeddable, groupIds? }` only; `openData` lives on
+  `content-item.access` and is not echoed in the share-access response.
+- **`embed-token/v1`** — The Console embed URL carries the bearer as
+  `#embedToken=<token>` in the URL fragment so it never reaches access
+  logs. A query-string token is rejected by
+  `assertEmbedTokenInFragment` and attributed to the `console` layer.
+- **`webmap-doc/v1`** — `saveMap` produces a document with
+  `version: "honua-webmap/v1"` plus `operationalLayers[]`, `baseMap`,
+  and `initialState.viewpoint.extent`.
+
+Contract-shape parity is enforced by
+[`smoke/parity/__tests__/contract-shapes.test.mjs`](../../smoke/parity/__tests__/contract-shapes.test.mjs).
+
 ## Evidence format
 
 The runner writes a JSON evidence file (default
