@@ -48,6 +48,14 @@ function dependencyRoleFor(sourceKind) {
   );
 }
 
+// Mirrors share-access/v1 + content-item/v1.1.0 Access.sharing enum
+// (honua-portal/schemas/share-access-v1.json, content-item-v1.json).
+// Tier widening past this enum is a server-layer regression — a smoke that
+// silently accepts "world-readable" or another off-list string ships an
+// evidence file claiming share-access/v1 conformance while exercising a
+// drifted shape.
+const VALID_SHARING_TIERS = Object.freeze(["private", "org", "group", "public-link", "public"]);
+
 export function createServerAdapter({ originUrl } = {}) {
   if (!originUrl) throw new Error("createServerAdapter requires originUrl");
   const items = new Map();
@@ -75,6 +83,30 @@ export function createServerAdapter({ originUrl } = {}) {
       const id = existing?.id ?? nextId("svc");
       const now = new Date().toISOString();
       const selfHref = `${originUrl}/api/v1/items/${id}`;
+      // Re-publish preserves portal-owned state. The publish-handoff is the
+      // operator's view of the service (data, capabilities, license, owner)
+      // and must not clobber fields Console manages after publish: access
+      // (sharing/embed/openData), preview (Console-edited thumbnail),
+      // dependencies (closure edits), extensions (publisher overrides),
+      // endpoints.self (server-authored), and timestamps.created. Canonical
+      // portal mapping does the same — see honua-portal docs around
+      // content-item upsert. First publish (no existing) uses handoff
+      // values for these fields verbatim.
+      const portalOwned = existing
+        ? {
+            access: existing.access,
+            preview: existing.preview,
+            dependencies: existing.dependencies,
+            extensions: existing.extensions,
+            self: existing.endpoints.self,
+          }
+        : {
+            access: handoff.access,
+            preview: handoff.preview,
+            dependencies: handoff.dependencies,
+            extensions: handoff.extensions ?? {},
+            self: portalSelfLink(selfHref),
+          };
       const item = {
         id,
         slug: handoff.target.serviceName ?? null,
@@ -106,17 +138,17 @@ export function createServerAdapter({ originUrl } = {}) {
         },
         target: handoff.target,
         endpoints: {
-          self: portalSelfLink(selfHref),
+          self: portalOwned.self,
           geoservices: handoff.endpoints.geoservices,
           ogcFeatures: handoff.endpoints.ogcFeatures,
           stac: handoff.endpoints.stac,
           tiles: handoff.endpoints.tiles,
         },
-        preview: handoff.preview,
+        preview: portalOwned.preview,
         capabilities: handoff.capabilities,
-        dependencies: handoff.dependencies,
-        access: handoff.access,
-        extensions: handoff.extensions ?? {},
+        dependencies: portalOwned.dependencies,
+        access: portalOwned.access,
+        extensions: portalOwned.extensions,
       };
       items.set(id, item);
       return { item, contract: findContract("content-item") };
@@ -272,15 +304,39 @@ export function createServerAdapter({ originUrl } = {}) {
     /**
      * Apply a share-access patch. Returns a share-access/v1 descriptor
      * (sharing, embeddable, and tier-conditional groupIds/publicLinkToken).
-     * Catalog `access.openData` is updated on the item so the next
-     * summary projection reflects the share-tier change, but the
-     * share-access response itself stays inside its own schema.
+     * The share patch owns sharing+embeddable only; `openData` is a
+     * content-item Access field with its own mutation surface, so this
+     * call must NOT flip it from a share-tier change. The canonical
+     * invariant is `openData=true => sharing="public"`, not the reverse:
+     * sharing publicly does not automatically open the data, and an
+     * already-open-data item cannot be narrowed below `public` without
+     * an explicit open-data toggle elsewhere.
      */
     patchAccess({ itemId, tier, embeddable, groupIds }) {
       const item = items.get(itemId);
       if (!item) return { kind: "missing" };
-      const openData = tier === "public";
-      item.access = { sharing: tier, embeddable: !!embeddable, openData };
+      if (!VALID_SHARING_TIERS.includes(tier)) {
+        return {
+          kind: "invalid-tier",
+          tier,
+          allowed: [...VALID_SHARING_TIERS],
+        };
+      }
+      // Preserve content-item Access.openData across the share patch and
+      // reject patches that would leave the item in a schema-invalid state
+      // (openData=true with non-public sharing).
+      if (item.access.openData === true && tier !== "public") {
+        return {
+          kind: "open-data-locked",
+          tier,
+          reason: "open-data items cannot be narrowed below sharing=public without first toggling openData=false",
+        };
+      }
+      item.access = {
+        ...item.access,
+        sharing: tier,
+        embeddable: !!embeddable,
+      };
       const descriptor = { sharing: tier, embeddable: !!embeddable };
       if (tier === "group") {
         descriptor.groupIds = [...(groupIds ?? [])];

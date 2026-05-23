@@ -216,6 +216,51 @@ describe("server.publishService output", () => {
     assert.equal(external.source.kind, "external");
     assert.equal(external.source.history.length, 1, "external publish gets its own history chain");
   });
+
+  test("re-publish preserves portal-owned access state (sharing/embed/openData survive)", async () => {
+    // Canonical portal mapping: re-publishing the same service via legacy
+    // admin must not reset Console-managed access state. A regression here
+    // would silently drop org/public sharing on every re-publish, which is
+    // not what an operator triggering a metadata refresh expects.
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item: first } = server.publishService(handoff);
+    // Promote to org-tier embeddable via the share surface.
+    server.patchAccess({ itemId: first.id, tier: "org", embeddable: true });
+    const { item: republish } = server.publishService(handoff);
+    assert.equal(republish.id, first.id);
+    assert.equal(republish.access.sharing, "org", "re-publish must not reset sharing tier");
+    assert.equal(republish.access.embeddable, true, "re-publish must not reset embeddable");
+    assert.equal(republish.access.openData, false, "re-publish must not touch openData");
+  });
+
+  test("re-publish preserves portal-owned preview, dependencies, extensions, endpoints.self", async () => {
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item: first } = server.publishService(handoff);
+
+    // Simulate Console-side mutations of portal-owned fields after publish.
+    first.preview = { thumbnail: "https://console.smoke.example/cdn/edited.png", image: null };
+    first.dependencies = [{ id: "dep-edited", type: "layer", role: "datasource" }];
+    first.extensions = { ...first.extensions, "honua-portal-viewer": { supported: false, reason: "tiles" } };
+    const editedSelf = first.endpoints.self;
+
+    const { item: republish } = server.publishService(handoff);
+    assert.deepEqual(republish.preview, first.preview, "re-publish must not reset preview");
+    assert.deepEqual(republish.dependencies, first.dependencies, "re-publish must not reset dependencies");
+    assert.deepEqual(republish.extensions, first.extensions, "re-publish must not reset extensions");
+    assert.equal(republish.endpoints.self, editedSelf, "re-publish must not reset endpoints.self");
+
+    // Handoff-owned fields still flow through on re-publish.
+    assert.equal(republish.title, handoff.title);
+    assert.equal(republish.summary, handoff.summary);
+    assert.deepEqual(republish.endpoints.geoservices, handoff.endpoints.geoservices);
+    // timestamps.created comes from the first publish; timestamps.modified
+    // is bumped to "now" on every publish. We assert created is stable rather
+    // than modified-is-new because two publishes can land in the same ms.
+    assert.equal(republish.timestamps.created, first.timestamps.created);
+    assert.ok(republish.source.history.length >= 2, "source.history must append on re-publish");
+  });
 });
 
 describe("projectCatalogSummary", () => {
@@ -425,6 +470,62 @@ describe("share-access response shape", () => {
     });
     assert.equal(result.kind, "ok");
     assert.deepEqual(result.access.groupIds, ["grp-1", "grp-2"]);
+  });
+
+  test("rejects an invalid sharing tier with kind=invalid-tier", async () => {
+    // A tier outside the canonical enum (private|org|group|public-link|public)
+    // must be rejected rather than written through. Accepting "world-readable"
+    // would emit a share-access/v1 envelope with a schema-invalid sharing
+    // string, exactly the harness-claims-conformance-while-exercising-drift
+    // class of bug the contract-shapes tests pin against.
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item } = server.publishService(handoff);
+    const result = server.patchAccess({ itemId: item.id, tier: "world-readable", embeddable: false });
+    assert.equal(result.kind, "invalid-tier");
+    assert.equal(result.tier, "world-readable");
+    assert.deepEqual(result.allowed, ["private", "org", "group", "public-link", "public"]);
+    // The item's sharing tier must remain unchanged.
+    const { item: re } = server.getItem(item.id);
+    assert.equal(re.access.sharing, "private");
+  });
+
+  test("public sharing does NOT auto-enable openData (invariant runs one way only)", async () => {
+    // The canonical invariant is `openData=true => sharing="public"`, never
+    // the reverse. A patch to public sharing must leave openData alone; the
+    // open-data toggle is a separate content-item mutation.
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item } = server.publishService(handoff);
+    assert.equal(item.access.openData, false, "fixture seeds openData=false");
+    const result = server.patchAccess({ itemId: item.id, tier: "public", embeddable: true });
+    assert.equal(result.kind, "ok");
+    assert.equal(result.access.sharing, "public");
+    // Response stays inside share-access/v1 (no openData echo).
+    assert.ok(!("openData" in result.access));
+    // openData on the content-item is preserved across the share patch.
+    const { item: re } = server.getItem(item.id);
+    assert.equal(re.access.openData, false, "openData ownership belongs to the open-data toggle, not the share patch");
+  });
+
+  test("an open-data item cannot be narrowed below public via the share patch", async () => {
+    // Inverse of the invariant: if openData=true, the share patch must not
+    // leave the item in an openData=true with non-public state. The smoke
+    // surfaces this as `open-data-locked` so a Console reviewer can tell
+    // the rejection from a missing-item or invalid-tier outcome.
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item } = server.publishService(handoff);
+    // Promote to open-data via the canonical path (publish patch to public
+    // first, then the open-data toggle would flip openData; for the smoke
+    // we mutate directly because there is no open-data adapter today).
+    item.access = { sharing: "public", embeddable: true, openData: true };
+    const blocked = server.patchAccess({ itemId: item.id, tier: "org", embeddable: true });
+    assert.equal(blocked.kind, "open-data-locked");
+    // The item must remain in its prior public/open-data state.
+    const { item: re } = server.getItem(item.id);
+    assert.equal(re.access.sharing, "public");
+    assert.equal(re.access.openData, true);
   });
 });
 

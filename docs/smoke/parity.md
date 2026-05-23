@@ -161,6 +161,21 @@ real HTTP transport cannot silently accept a drifted payload:
 - **`share-access/v1`** — `patchAccess` returns
   `{ sharing, embeddable, groupIds? }` only; `openData` lives on
   `content-item.access` and is not echoed in the share-access response.
+  The patch validates `sharing` against the canonical
+  `private|org|group|public-link|public` enum (returns `kind:"invalid-tier"`
+  on a non-enum string), preserves `content-item.access.openData` (the
+  invariant `openData=true ⇒ sharing="public"` runs one way: public sharing
+  does NOT auto-enable openData), and refuses to narrow an open-data item
+  below `sharing="public"` (returns `kind:"open-data-locked"`).
+- **`content-item/v1.1.0` re-publish ownership** — Server `publishService`
+  upserts on `(source.kind, source.sourceId)` and, on re-publish, preserves
+  the portal-owned fields `access`, `preview`, `dependencies`, `extensions`,
+  `endpoints.self`, and `timestamps.created`. Handoff updates flow through
+  for `title`, `summary`, `description`, `tags`, `owner`, `extent`,
+  `license`, `attribution`, `target`, the non-self `endpoints[*]`, and
+  `capabilities`. This matches the canonical portal mapping: legacy admin
+  cannot clobber Console-managed access state or edited previews on a
+  metadata refresh.
 - **`embed-token/v1`** — The Console embed URL carries the bearer as
   `#embedToken=<token>` in the URL fragment so it never reaches access
   logs. A query-string token is rejected by
@@ -215,7 +230,7 @@ same.
 | [`adapters/devops.mjs`](../../smoke/parity/adapters/devops.mjs)   | `fetch('/version.json')` against the deployed origin (devops `#55` / `#56`). |
 | [`adapters/admin.mjs`](../../smoke/parity/adapters/admin.mjs)     | Real publish trigger against `honua-server-admin` (or Console Operate when `#6` ports it). |
 | [`adapters/server.mjs`](../../smoke/parity/adapters/server.mjs)   | HTTP calls to `honua-server` (Console metadata v2 baseline, `#1162`).        |
-| [`adapters/sdk.mjs`](../../smoke/parity/adapters/sdk.mjs)         | Imports from `@honua/sdk-js` (`honua-sdk-js#225` / `#226`).                  |
+| [`adapters/sdk.mjs`](../../smoke/parity/adapters/sdk.mjs)         | Imports from `@honua/sdk-js` (`honua-sdk-js#225` / `#226`). `resolveViewerOpenability` (the type-default openability gate the SDK summary intentionally does not project) is a transitional home here; it moves into the Console viewer module under `honua-console#4` so the canonical `ContentItemSummary.viewerSupport: null` contract is preserved. |
 | [`adapters/console.mjs`](../../smoke/parity/adapters/console.mjs) | Imports from the Console route map module (`honua-console#3` / `#4` / `#5`). |
 
 Each adapter is self-contained and stateless across calls so the swap
