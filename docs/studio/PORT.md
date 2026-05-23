@@ -7,13 +7,14 @@ This note records what the Studio port lands in Console, what is intentionally t
 - React/TypeScript/Vite Console shell (package.json, vite.config.ts, tsconfig.json, index.html, src/main.tsx, src/App.tsx).
 - Auth seam: `src/auth/` with fixture + whoami session drivers, `ProtectedRoute`, permissions.
 - Shell: `src/shell/` with `AppShell`, `EmptyState`, `Forbidden`, `LoadingShell`, `ErrorBoundary`, `UserMenu`, `NavConfig`. Studio appears in the primary nav alongside Catalog, Operate, and Share (ADR-0001).
-- Router: `src/router.tsx` lazy-loads every Studio route via `React.lazy` so the shell, Catalog, and Operate paths do not pay Studio's bundle weight.
+- Router: `src/router.tsx` lazy-loads every Studio route via `React.lazy` so the shell, Catalog, and Operate paths do not pay Studio's bundle weight. The single `CONSOLE_ROUTES` table is the source of truth used by both `AppRoutes` and the nav-invariant unit test (`src/shell/NavConfig.test.ts`).
+- Primary nav targets all resolve to real routes: `/studio` redirects to `/studio/proof`, while `/catalog`, `/operate`, and `/share` render an `AreaPlaceholder` shell that points at the follow-up tickets (honua-console#4 / #6) until those areas port.
 - Studio area:
   - `src/studio/proof/` — `StudioProofPage`, `proofFixture`, `proof.css`, `links`, `telemetry`. Renders the prompt -> clarification -> spec/plan -> apply -> preview -> direct edit flow at `/studio/proof`. All six fixture states (`happy`, `clarification`, `unsupported`, `auth-denied`, `oversized`, `apply-failure`) selectable via the `fixture` query param.
   - `src/studio/generated-apps/` — `types`, `lifecycle`, `client` (`FixtureGeneratedAppLifecycleClient` + `HttpGeneratedAppLifecycleClient`), `default-client`, `GeneratedAppLifecycleContext`, `GeneratedAppPreviewPage`, `telemetry`. Mounted at `/studio/apps/:itemId/preview`.
   - `src/studio/charts/ChartSpecView.tsx` — Vega-Lite chart adapter with CSS-bar fallback. The proof fixture's `incidents-by-type` chart now carries a Vega-Lite spec by default.
 - Smoke / eval harness: `tests/smoke/app-builder-proof.{spec,config}.ts`, `tests/smoke/generated-apps.spec.ts`, and `fixtures/app-builder/operations-dashboard/*` copied verbatim from `honua-portal`. Ticket id retargeted to `honua-console#5`; chart-spec evidence added to the success-path manifest.
-- Vitest unit coverage: `src/studio/proof/proofFixture.test.ts` (fixture normalization + builder-plan shape) and `src/studio/generated-apps/lifecycle.test.ts` (draft -> revision -> publish -> rollback transitions). Run via `npm run test`.
+- Vitest unit coverage: `src/studio/proof/proofFixture.test.ts` (fixture surface), `src/studio/proof/proofFilter.test.ts` (filter helpers + stale-binding invariant), `src/studio/generated-apps/lifecycle.test.ts` (draft -> revision -> publish -> rollback), `src/studio/generated-apps/client.test.ts` (HTTP status → lifecycle-error mapping), and `src/shell/NavConfig.test.ts` (primary-nav targets resolve to registered routes). Run via `npm run test`.
 
 ## Source mapping
 
