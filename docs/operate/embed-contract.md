@@ -28,10 +28,12 @@ Console exposes three kinds of routes under `/operate/*`:
 | Pattern | Component | Purpose |
 | --- | --- | --- |
 | `/operate` and `/operate/<native-section>` | `OperateLanding` and native React views | Operate landing and any native React replacements that have shipped. |
-| `/operate/legacy/*` | `OperateLegacyEmbed` | Single iframe host for any legacy Admin path with disposition `EMBED`. |
+| `/operate/legacy/*` | `OperateLegacyEmbed` | Single iframe host for any legacy Admin path in the embed allowlist (every `EMBED` row in the disposition table plus the duplicate-builder "Legacy reference target (embed)" entries). |
 | `/operate/moved-to-studio/<legacy-segment>` | `MovedToStudioLanding` | Fallback target for `REDIRECT-TO-STUDIO` rows before the Studio port lands. |
 
-In addition, the router registers explicit redirect rules at the legacy paths themselves (`/operator/app-builder`, `/operator/spec`, `/operator/sql`, `/operator/annotations`) so bookmarks and external links resolve correctly. Redirect targets are determined by the disposition table.
+The embed mount preserves legacy paths verbatim: a Blazor `@page "/operator/data-connections"` resolves under base href `/operate/legacy/` to `/operate/legacy/operator/data-connections`. The Console paths in the [disposition table](../migration/legacy-admin-route-disposition.md) reflect this verbatim form.
+
+In addition, the router registers explicit redirect rules at the bare legacy paths themselves (`/operator/app-builder`, `/operator/spec`, `/operator/sql`, `/operator/annotations`) so bookmarks and external links resolve correctly. Redirect targets are determined by the disposition table. The redirect lives at the bare legacy path; the verbatim `/operate/legacy/operator/<duplicate>` location is the reference target reachable via `MovedToStudioLanding` and is NOT redirected back to Studio (otherwise `MovedToStudioLanding`'s "Open the legacy reference" would bounce).
 
 ## Embed Modes
 
@@ -50,7 +52,7 @@ The mode check is centralized; Operate consumers do not branch on it. The contra
 - Sizing the iframe to fill the Console main panel without scroll-wrapping (`width: 100%`, height equals viewport minus shell chrome).
 - A `postMessage` channel for path-sync: the legacy app may emit `{ type: 'honua.legacy.path', path: '<new-path>' }` to update the Console URL via `history.replaceState`, so deep links survive navigation inside the iframe. The channel is one-way (legacy → Console); Console does not push paths into the iframe.
 - A `postMessage` channel for theme/locale broadcast: Console may emit `{ type: 'honua.console.theme', theme: 'light' | 'dark' }` and `{ type: 'honua.console.locale', locale: '<bcp47>' }` on mount and on subsequent changes. The legacy app may ignore these; behavior is best-effort.
-- Listening for an explicit error event on the iframe (`error`, `load` without the expected handshake within 10s) and rendering the Console `EmptyState` with a retry and a "Open in new tab" fallback.
+- Treating the iframe `load` event as sufficient readiness evidence. The `honua.legacy.ready` handshake (see [Postmessage Channel](#postmessage-channel)) is OPTIONAL: if it arrives, Console MAY use it to dismiss any "loading" affordance sooner, but its absence is not an error. A watchdog fires only if the iframe never emits `load` within 30s (true load timeout) or emits an `error` event or a `honua.legacy.error` message; in those cases Console renders the `EmptyState` with retry and "Open in new tab" fallback.
 - An "Open in fullscreen" affordance that hides Console chrome for operators who need uninterrupted Admin. Fullscreen state is local; it does not change the URL.
 
 `OperateLegacyEmbed` is the only component allowed to render an iframe under `/operate/*`. No other surface embeds legacy content directly.
@@ -59,15 +61,15 @@ The mode check is centralized; Operate consumers do not branch on it. The contra
 
 Both directions use `window.postMessage` with `targetOrigin` set to the same origin. Messages are JSON objects with a discriminator on `type`. Console rejects messages whose `event.origin` does not match the current origin.
 
-Defined messages (initial set):
+Defined messages (initial set). All legacy → Console messages are OPTIONAL refinements: Console MUST function correctly when the legacy app emits none of them (the iframe `load` event is the load signal of record; see [Iframe Host Behavior](#iframe-host-behavior)). The contract specifies the message shape so that `honua-server-admin#96` MAY add emission incrementally as a refinement, and so any future Console code that consumes them rejects unknown shapes.
 
 ```
-// legacy -> Console
-{ type: 'honua.legacy.path', path: string }            // URL bar sync
-{ type: 'honua.legacy.ready' }                          // handshake; cancels the load watchdog
+// legacy -> Console (all optional)
+{ type: 'honua.legacy.path', path: string }            // URL bar sync via history.replaceState
+{ type: 'honua.legacy.ready' }                          // optional refinement; allows Console to dismiss its loading affordance sooner than the load event
 { type: 'honua.legacy.error', reason: string }          // surface Console EmptyState
 
-// Console -> legacy
+// Console -> legacy (best-effort; legacy app may ignore)
 { type: 'honua.console.theme', theme: 'light' | 'dark' }
 { type: 'honua.console.locale', locale: string }       // BCP-47
 ```
@@ -85,7 +87,7 @@ The router registers redirect rules for each `REDIRECT-TO-STUDIO` row:
 
 - A short explanation that the legacy path moved into Studio.
 - A link to the Studio target (greyed out if not yet shipped, with the disposition row's replacement ticket inline).
-- A single explicit "Open the legacy reference" affordance that opens `/operate/legacy/<legacy-segment>` in the same tab. This affordance is gated by `canSeeOperate` and is the only way to reach the duplicate-builder legacy paths from inside Console.
+- A single explicit "Open the legacy reference" affordance that opens the disposition row's "Legacy reference target (embed)" path (for example, `/operate/legacy/operator/app-builder`) in the same tab via `OperateLegacyEmbed`. This affordance is gated by `canSeeOperate` and is the only way to reach the duplicate-builder legacy paths from inside Console. The reference-target paths are part of the embed allowlist (see [Route Shape](#route-shape) and the disposition table's "Legacy reference targets" note), so `OperateLegacyEmbed` accepts them without rendering `NotFound`.
 
 Duplicate-builder paths do not appear in Operate navigation. The redirect rule is the only place they are reachable from a typed URL or external link.
 
@@ -107,10 +109,10 @@ The Operate area must render exactly these surfaces in these conditions, using t
 
 | Condition | Surface | Notes |
 | --- | --- | --- |
-| Path under `/operate/legacy/<x>` does not match any disposition `EMBED` row | `NotFound` | URL preserved so disposition-table fixes are reachable by refresh. |
+| Path under `/operate/legacy/<x>` does not match the embed allowlist (every `EMBED` row plus the duplicate-builder "Legacy reference target (embed)" entries in the disposition table) | `NotFound` | URL preserved so disposition-table fixes are reachable by refresh. |
 | Authenticated user lacks Operate scope | `Forbidden` | Single shared component; URL preserved. |
 | Same-origin precondition unmet (`link-out` mode) | `EmptyState` with explanation and "Open in new tab" | Treated as a normal state, not an error. |
-| Iframe `load` event without `honua.legacy.ready` within 10s, or `error`, or `honua.legacy.error` | `EmptyState` with retry and "Open in new tab" fallback | Retry recreates the iframe with a cache-busting query parameter. |
+| Iframe `error` event, `honua.legacy.error` message, or no `load` event within 30s | `EmptyState` with retry and "Open in new tab" fallback | Retry recreates the iframe with a cache-busting query parameter. Missing `honua.legacy.ready` is NOT an error condition (the message is an optional refinement; see Postmessage Channel). |
 | Legacy surface reports unsupported service metadata or unsupported package binding | Owned by legacy inside the iframe; Console does not handle | Mentioned for completeness; aligns with the consistent-error-surface project constraint at the page level, not the embed level. |
 
 ## Performance Posture
@@ -133,12 +135,12 @@ The smoke test specified in the disposition document is the canonical evidence f
 
 This contract is the input for the following Console tickets:
 
-- `honua-console#2` — implements `OperateLandingPage`, `OperateLegacyEmbed`, `OperateRedirect`, `MovedToStudioLanding`, the `canSeeOperate` seam, and the Operate area's lazy loading.
+- `honua-console#2` — implements `OperateLanding`, `OperateLegacyEmbed`, `OperateRedirect`, `MovedToStudioLanding`, the `canSeeOperate` seam, and the Operate area's lazy loading.
 - `honua-console#3` — defines Operate navigation, RBAC predicates, and shared `NotFound` / `Forbidden` / `EmptyState` primitives.
 - `honua-console#5` — replaces `REDIRECT-TO-STUDIO` redirect targets when each Studio port ships.
 - `honua-console#9` — extends the cross-surface smoke with the Operate scenarios listed in the disposition doc.
 
 This contract is the input for the following cross-repo tickets:
 
-- `honua-server-admin#96` — adjusts the legacy bundle's base href, frame-ancestors policy, and CSP so it can be embedded under `/operate/legacy/` same-origin.
+- `honua-server-admin#96` — adjusts the legacy bundle's base href, frame-ancestors policy, and CSP so it can be embedded under `/operate/legacy/` same-origin. The `honua.legacy.*` postMessage emission (path-sync, ready, error) is NOT required for #96 to land; it is an optional refinement that the legacy app MAY add later, and Console MUST function with no legacy-side messages (iframe `load` event is the load signal of record).
 - `honua-devops#55` — builds the single deployable artifact that serves Console and the legacy bundle from one origin.
