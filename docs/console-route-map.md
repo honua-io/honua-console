@@ -64,8 +64,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/analytics             Usage analytics
 /operate/legacy/<path>         Transitional iframe container for legacy Admin pages
 
-/share/public                  Open-data collection page
-/share/public/items/:idOrSlug  Open-data item page (DCAT-US / schema.org JSON-LD)
+/share/public                  Open-data collection page (public + openData service/layer/document items)
+/share/public/items/:idOrSlug  Open-data item page (same eligibility; DCAT-US / schema.org JSON-LD)
 
 /embed/maps/:mapId             Iframe-safe public embed (anonymous-capable, no shell chrome)
 
@@ -185,9 +185,11 @@ Keys cited by the route map below (all verified in `FeatureCatalog.cs`):
 ### 2.5 Anonymous routes
 
 `/auth/signin`, `/auth/callback`, `/auth/signed-out`, `/share/public`,
-`/share/public/items/:idOrSlug`, `/embed/maps/:mapId`, `/maps/:mapId`
-(only when `ShareAccess` authorizes the read — either `sharing = public`
-or `sharing = public-link` with a valid `?token=<value>` query),
+`/share/public/items/:idOrSlug` (only for public open-data
+service/layer/document items per §4.3), `/embed/maps/:mapId`,
+`/maps/:mapId` (only when `ShareAccess` authorizes the read — either
+`sharing = public` or `sharing = public-link` with a valid
+`?token=<value>` query),
 `/catalog/:idOrSlug` (same condition: anonymous read only when
 `ShareAccess` authorizes the item via `?token=<value>` at public-link
 tier, or `sharing = public`), and `*` (NotFound) are anonymous-capable.
@@ -227,8 +229,8 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | 2 | `/auth/signin` | `/auth/signin` | `returnTo=<sanitized>`, `as=<preset>` (dev) | `anonymous` | shell+auth | — |
 | 3 | `/auth/callback` | `/auth/callback` | — | `anonymous` | shell+auth | — |
 | 4 | `/auth/signed-out` | `/auth/signed-out` | — | `anonymous` | shell+auth | — |
-| 5 | `/public` | `/share/public` | — | `anonymous` | share | open-data |
-| 6 | `/public/items/:idOrSlug` | `/share/public/items/:idOrSlug` | preserves DCAT-US / schema.org JSON-LD body | `anonymous` (+ `ShareAccess`) | share | open-data, share |
+| 5 | `/public` | `/share/public` | `q` search only; list includes only `isPublicOpenDataSummary` items (`sharing = public`, `openData = true`, type in `PUBLIC_OPEN_DATA_TYPES`) | `anonymous` | share | open-data |
+| 6 | `/public/items/:idOrSlug` | `/share/public/items/:idOrSlug` | preserves DCAT-US / schema.org JSON-LD body; item must pass `isPublicOpenDataItem` (`access.sharing = public`, `access.openData = true`, type in `PUBLIC_OPEN_DATA_TYPES`) | `anonymous` (+ open-data eligibility) | share | open-data, share |
 | 7 | `/embed/maps/:mapId` | `/embed/maps/:mapId` | `chrome`, `legend`, `zoom`, `extent=W,S,E,N` (WGS84 lon/lat); fragment `#embedToken=` | `anonymous` (+ `resolveEmbedAuthorization`) | embed | embed |
 | 8 | `/catalog` | `/catalog` | `q`, `type`, `tag`, `owner`, `visibility`, `sort`, `cursor` (per `honua-portal:src/catalog/searchParams.ts:38` and `ListItemsRequest` in `honua-portal:src/contracts/content-item.ts:251`; the wire contract sets `additionalProperties: false`, so the Console list page must not invent new query keys) | `auth` | catalog | catalog-list |
 | 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:29` emits this for non-map items) | `auth` (+ `resolvePortalItemRole` for actions) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | catalog | catalog-detail |
@@ -240,14 +242,14 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | 15 | `/groups` | `/groups` | — | `auth` (any scope — member, operator, or admin, per `hasAnyScope(session, ["member", "operator", "admin"])` in `honua-portal:src/routes/Groups.tsx:10`) | shell | — |
 | 16 | `*` | `*` (Console NotFound) | — | `anonymous` | shell | — |
 
-**Redirects.** Old `/public`, `/public/items/:idOrSlug`, `/app-builder/proof`,
-`/maps` (list), `/apps/:itemId/preview`, and `/data` serve a 301 to their
-Console destination once Console is live. `/groups` is **not** redirected
-— the legacy path is preserved at top level (see §1 placement notes and
-§6.1 routing). The exception is `/embed/maps/:mapId` and any
-already-issued `/share/public/items/...` URL with an external crawler
-audience: these are served at the legacy path with a 200 (see §8,
-Frozen URLs).
+**Redirects.** Old `/public`, `/app-builder/proof`, `/maps` (list),
+`/apps/:itemId/preview`, and `/data` serve a 301 to their Console
+destination once Console is live. `/groups` is **not** redirected — the
+legacy path is preserved at top level (see §1 placement notes and §6.1
+routing). The exceptions are `/embed/maps/:mapId` and open-data item
+detail URLs (`/public/items/:idOrSlug` legacy and
+`/share/public/items/:idOrSlug` Console): these are served at both paths
+with a 200 (see §8, Frozen URLs).
 
 ---
 
@@ -287,7 +289,8 @@ Defined in `honua-portal:src/share/rbac.ts`:
 
 ### 4.3 Sharing and embed
 
-Defined in `honua-portal:src/share/` and `honua-portal:src/embed/`:
+Defined in `honua-portal:src/share/`, `honua-portal:src/embed/`, and
+`honua-portal:src/open-data/`:
 
 - `SharingTier = "private" | "org" | "group" | "public-link" | "public"`
   (`share/types.ts:14`).
@@ -297,12 +300,25 @@ Defined in `honua-portal:src/share/` and `honua-portal:src/embed/`:
   with the server 409 closure-violation contract.
 - `resolveEmbedAuthorization(...)` (`embed/permissions.ts:68`) — the
   read decision for `/embed/maps/:mapId`.
+- `PUBLIC_OPEN_DATA_TYPES = ["service", "layer", "document"]`
+  (`open-data/public-items.ts:11`) — the only item types exposed through
+  `/share/public` and `/share/public/items/:idOrSlug`.
+- `isPublicOpenDataSummary(item)` (`open-data/public-items.ts:32`) —
+  collection-row predicate: `item.sharing === "public"`,
+  `item.openData === true`, and `item.type` is in
+  `PUBLIC_OPEN_DATA_TYPES`.
+- `isPublicOpenDataItem(item)` (`open-data/public-items.ts:36`) —
+  detail-route predicate: `item.access.sharing === "public"`,
+  `item.access.openData === true`, and `item.type` is in
+  `PUBLIC_OPEN_DATA_TYPES`.
 - `buildShareLink({ portalHost, itemId, itemKind, publicLinkToken })`
   (`share/snippet.ts:27`) — emits `/maps/:id` for saved-map items and
-  `/maps/:id?token=<value>` for public-link tier. The Console
-  `/maps/:mapId` route must accept the anonymous `?token=` variant so
-  share-link recipients are not bounced to sign-in (§2.5, §6.4). Tests
-  pin the format at `share/__tests__/snippet.test.ts:23`.
+  `/catalog/:id` for other item kinds, adding `?token=<value>` at the
+  public-link tier. The Console `/maps/:mapId` and
+  `/catalog/:idOrSlug` routes must accept the anonymous `?token=`
+  variant so share-link recipients are not bounced to sign-in (§2.5,
+  §6.3, §6.4). Tests pin the map format at
+  `share/__tests__/snippet.test.ts:23`.
 
 ### 4.4 Edition and entitlement
 
@@ -354,6 +370,7 @@ route may have multiple gates; all must pass.
 | `scope:<name>` | `hasScope(session, <name>)`, e.g. `scope:operator`. |
 | `item-role:<min>` | `resolvePortalItemRole(session, item)` ≥ `<min>` per `ROLE_MATRIX`. |
 | `share-tier:<min>` | `ShareAccess.sharing` ≥ `<min>`. |
+| `open-data` | Item passes `isPublicOpenDataSummary` (collection) or `isPublicOpenDataItem` (detail): public sharing, `openData = true`, and type in `PUBLIC_OPEN_DATA_TYPES`. |
 | `entitlement:<key>` | `ILicenseEntitlementService.CheckEntitlement(<key>)` is granted. |
 | `edition:<tier>` | `rank(LicenseInfo.Edition) ≥ rank(<tier>)` per the rank table in §2.3 (`Community = 0`, `Pro = 1`, `Enterprise = 2`); the wire value is a string and must not be compared lexicographically. |
 
@@ -575,8 +592,17 @@ rather than route gates): `alerts.dwell`, `channels.slack`,
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
-| `/share/public` | `anonymous` (+ `ShareAccess.sharing = public` per item) | empty-share | — | share |
-| `/share/public/items/:idOrSlug` | `anonymous` (+ `ShareAccess`) | missing-item | unavailable (anonymous, see §13 Q5) | share |
+| `/share/public` | `anonymous`, `open-data` per item (`isPublicOpenDataSummary`) | empty-share | — | share |
+| `/share/public/items/:idOrSlug` | `anonymous`, `open-data` (`isPublicOpenDataItem`) | missing-item / not-public | unavailable (anonymous, see §13 Q5) | share |
+
+The Share open-data routes are not generic public-item routes. They expose
+only items whose access is public, whose `openData` flag is true, and whose
+type is one of `service`, `layer`, or `document` (`PUBLIC_OPEN_DATA_TYPES`).
+Public maps, apps, dashboards, reports, and public-but-not-open-data items
+must render the same not-public/missing surface as private or unknown items
+so anonymous crawlers and users cannot infer protected titles. This mirrors
+Portal tests at `honua-portal:src/open-data/OpenDataItemPage.test.tsx:109`
+and `:117`.
 
 ### 6.7 Embed
 
@@ -595,13 +621,13 @@ routes do not author bespoke 403/404/empty copy.
 |---|---|---|---|
 | Unauthenticated | redirect | route requires `auth` and session is `UnauthenticatedSession` | `redirect('/auth/signin?returnTo=' + sanitizeReturnTo(location))` (`auth/returnTo.ts:5`) |
 | Forbidden | `<ForbiddenView cause=...>` | gate denial (scope, item-role, share-tier, edition, entitlement) | failed gate token from §4.6; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`) |
-| Missing item | `<MissingItemView kind=...>` | item id resolved → not found | item-kind hint: map, service, layer, app, dashboard, report |
+| Missing item | `<MissingItemView kind=...>` | item id resolved → not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `<UnsupportedServiceView>` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug` and Studio "open from catalog" |
 | Unsupported package binding | `<UnsupportedPackageView>` | generated-app or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview` and `/maps/:mapId` |
 | Empty state | `<EmptyState area=...>` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `<SectionSkeleton>` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
-| Unavailable (anonymous) | `<UnavailableView>` | anonymous viewer on `/share/*` for content that requires entitlement | does not reveal upgrade copy to anonymous users (§13 Q5) |
+| Unavailable (anonymous) | `<UnavailableView>` | anonymous viewer on `/share/*`, `/catalog/:idOrSlug`, or `/maps/:mapId` for content that requires entitlement | does not reveal upgrade copy to anonymous users (§13 Q5) |
 
 These components are seeded by `honua-console#2` (scaffold) and used by
 all downstream port tickets.
@@ -613,16 +639,17 @@ all downstream port tickets.
 External consumers (third-party sites, DCAT-US/data.json crawlers,
 embed iframes inlined into customer pages) have already inlined some
 Honua URLs and cannot be expected to follow redirects. Those URLs must
-be served at both the legacy path and the Console path with a 200.
+resolve with a 200 at the frozen path. When both a legacy path and a
+Console path exist, both paths must serve the same eligible content with
+a 200.
 
 | URL | Reason | Status |
 |---|---|---|
-| `/embed/maps/:mapId` | inlined in third-party iframes | served at both legacy and Console path with a 200; path frozen; embed token stays in `#embedToken=` fragment so it is never sent to the server; `extent=W,S,E,N` is WGS84 lon/lat |
-| Already-issued `/share/public/items/...` URLs in DCAT-US / data.json index | crawler-driven; some may not follow 3xx | served at both legacy and Console path with a 200 (defensive); new issuances point at `/share/public/items/:idOrSlug` only |
-| `/public` (root open-data) | low external embed risk; crawlers follow 3xx | 301 → `/share/public` (§13 Q3 default) |
-| `/public/items/:idOrSlug` | same | 301 → `/share/public/items/:idOrSlug` (§13 Q3 default) |
+| `/embed/maps/:mapId` | inlined in third-party iframes | served with a 200 at the same frozen path; embed token stays in `#embedToken=` fragment so it is never sent to the server; `extent=W,S,E,N` is WGS84 lon/lat |
+| `/public/items/:idOrSlug` and `/share/public/items/:idOrSlug` | item detail URLs are emitted into DCAT-US / data.json / schema.org contexts, and some crawlers may not follow 3xx | served at both legacy and Console paths with a 200; eligibility still requires `open-data` (§6.6); canonical links in newly generated documents point at `/share/public/items/:idOrSlug` |
+| `/public` (root open-data) | collection root has lower external embed risk; crawlers follow 3xx | 301 → `/share/public` (§13 Q3 default) |
 
-Edge config for the 200-at-both-paths behavior is flagged for
+Edge config for the no-3xx frozen URL behavior is flagged for
 `honua-devops#55` and `honua-devops#56`; this document is the source of
 truth for which URLs cannot 3xx.
 
@@ -725,7 +752,7 @@ the human review answers land in
 |---|---|---|---|
 | Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias. Sub-routes (`/studio/maps`, `/studio/dashboards`, `/studio/reports`) added per generator in `#5`. | default |
 | Q2 | Saved-map list: `/catalog?type=map` vs `/studio/maps` vs `/catalog/maps` | `/catalog?type=map` (Catalog filter). Avoids two list surfaces; preserves existing query-param contract. | default |
-| Q3 | `/share/public` vs `/public` redirect semantics | 301 for `/public/*` (DCAT-US crawlers follow 301). 200-at-both-paths only for `/embed/*` and for specific already-issued `/share/public/items/...` URLs. | default |
+| Q3 | `/share/public` vs `/public` redirect semantics | 301 for `/public` collection root. No 3xx for `/embed/maps/:mapId`; 200-at-both-paths for open-data item detail URLs (`/public/items/:idOrSlug` plus `/share/public/items/:idOrSlug`) because item URLs appear in DCAT-US / data.json / schema.org contexts. | default |
 | Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |
 | Q5 | Anonymous user on a gated `/share/*` link | Generic `<UnavailableView>` for anonymous; upgrade tile only when authenticated. | default |
 | Q6 | Admin EMBED container path: `/operate/legacy/<path>` vs `/operate/admin-legacy/<opaque>` | One-to-one `/operate/legacy/<path>` to preserve deep-link history. | default |
