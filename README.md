@@ -14,6 +14,8 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md)
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
+- [GitOps Metadata Publishing Information Model](docs/architecture/gitops-metadata-publishing-information-model.md)
+- [GitOps Metadata Publishing Visualization Design](docs/architecture/gitops-metadata-publishing-visualization-design.md)
 
 ## Current Status
 

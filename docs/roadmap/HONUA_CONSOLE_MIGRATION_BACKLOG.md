@@ -40,6 +40,12 @@ This backlog intentionally separates three decisions:
 - [honua-console#16](https://github.com/honua-io/honua-console/issues/16): Publish maps dashboards reports and apps from Studio.
 - [honua-console#17](https://github.com/honua-io/honua-console/issues/17): Studio unified GP and ETL workflow editor.
 
+### P1 GitOps Metadata Publishing Work
+
+- Define GitOps metadata publishing information model and visualization design:
+  - [GitOps Metadata Publishing Information Model](../architecture/gitops-metadata-publishing-information-model.md)
+  - [GitOps Metadata Publishing Visualization Design](../architecture/gitops-metadata-publishing-visualization-design.md)
+
 ### Cleanup
 
 - [honua-console#10](https://github.com/honua-io/honua-console/issues/10): Freeze and retire `honua-portal` after Console parity.
@@ -57,6 +63,13 @@ This backlog intentionally separates three decisions:
 - [honua-server#682](https://github.com/honua-io/honua-server/issues/682): GeoETL competitor evaluation and product strategy.
 - [honua-server#721](https://github.com/honua-io/honua-server/issues/721): Geoprocessing canonical process contract and result package.
 - [honua-server#724](https://github.com/honua-io/honua-server/issues/724): Geoprocessing orchestration layer for chaining, scheduling, and workflow DAGs.
+- [honua-server#351](https://github.com/honua-io/honua-server/issues/351): GitOps manifest apply, dry run, prune, drift, and approval workflows.
+- [honua-server#515](https://github.com/honua-io/honua-server/issues/515): GitOps drift detection and manifest rollback.
+- [honua-server#992](https://github.com/honua-io/honua-server/issues/992): GitOps config promotion and production rollback gaps.
+- [honua-devops#13](https://github.com/honua-io/honua-devops/issues/13): Desired-state schemas.
+- [honua-devops#14](https://github.com/honua-io/honua-devops/issues/14): `honua-gitops` engine.
+- [honua-devops#17](https://github.com/honua-io/honua-devops/issues/17): Safe release orchestration.
+- [honua-devops#18](https://github.com/honua-io/honua-devops/issues/18): ServiceBundle reconciliation.
 
 ## Order Of Operations
 
@@ -67,10 +80,11 @@ This backlog intentionally separates three decisions:
 5. Define the Studio information model for NL GIS artifacts and publishing.
 6. Add Studio publishing for maps, dashboards, reports, and apps.
 7. Add the unified GP/ETL editor that publishes workflow definitions to Honua batch/job-runner execution and eligible GP/process service endpoints.
-8. Make legacy Admin available as a transitional Operate surface and hide duplicate builder routes.
-9. Build the single deployable artifact and preview/release pipeline.
-10. Pass the cross-surface smoke: publish service -> catalog item -> Studio generated artifact -> share/embed.
-11. Freeze and retire old Portal deployment paths.
+8. Add GitOps metadata publishing round trip: semantic environment bindings, compatibility prevalidation, Git PR operation, CI/GitOps status, and rollback visualization.
+9. Make legacy Admin available as a transitional Operate surface and hide duplicate builder routes.
+10. Build the single deployable artifact and preview/release pipeline.
+11. Pass the cross-surface smoke: publish service -> catalog item -> Studio generated artifact -> share/embed.
+12. Freeze and retire old Portal deployment paths.
 
 ## Parity Gate
 
@@ -80,6 +94,7 @@ Do not retire `honua-portal` or separate Admin deployment paths until:
 - Console can run the Studio prompt -> clarification -> spec/plan -> apply -> preview -> edit -> publish/reopen proof path.
 - Console can publish maps, dashboards, reports, apps, batch workflows, and eligible GP/process services from Studio using shared server/SDK contracts.
 - The unified GP/ETL editor can dry-run and publish definitions to the existing Honua job runner with execution history, logs, artifacts, and provenance.
+- Console can propose, prevalidate, commit, monitor, promote, and roll back metadata/service/layer releases through GitOps using semantic resource identities across environments.
 - The single deployable artifact serves `/studio`, `/catalog`, `/share`, and `/operate` from one origin.
 - Server-authored RBAC/entitlement checks gate route and item actions.
 - Metadata v2/content item/provenance data is shared across operator and builder workflows.
