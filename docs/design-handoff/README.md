@@ -21,6 +21,8 @@ The goal is to give design enough structure to create flows, screen maps, and in
 - [Information Model Summary](information-model-summary.md)
 - [Workflow Catalog](workflow-catalog.md)
 - [UI Surface Briefs](ui-surface-briefs.md)
+- [Console Canvas Handoff](console-canvas/README.md)
+- [Console Canvas Model Decisions](console-canvas/decisions.md)
 
 ## Source Architecture
 
@@ -71,4 +73,3 @@ The default web Console is Blazor Web with shared Razor components. An optional 
 5. Operate observability workspace for servers, event viewer, alerts, jobs, logs, and investigations.
 6. Temporal data viewer and sync conflict review surface.
 7. Native Console environment switcher and trust/profile state.
-

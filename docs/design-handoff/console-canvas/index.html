@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Honua Admin · wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kalam:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="wireframe.css" />
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="shell.jsx"></script>
+<script type="text/babel" src="field-state.jsx"></script>
+<script type="text/babel" src="map-preview.jsx"></script>
+<script type="text/babel" src="screens-overview.jsx"></script>
+<script type="text/babel" src="screens-connections.jsx"></script>
+<script type="text/babel" src="screens-resources.jsx"></script>
+<script type="text/babel" src="screens-wizards.jsx"></script>
+<script type="text/babel" src="screens-services.jsx"></script>
+<script type="text/babel" src="screens-publish-flow.jsx"></script>
+<script type="text/babel" src="screens-quick-publish.jsx"></script>
+<script type="text/babel" src="screens-activity.jsx"></script>
+<script type="text/babel" src="screens-settings-states.jsx"></script>
+<script type="text/babel" src="screens-styling.jsx"></script>
+<script type="text/babel" src="screens-styling-more.jsx"></script>
+<script type="text/babel" src="screens-fields-hifi.jsx"></script>
+<script type="text/babel" src="screens-catalogs.jsx"></script>
+<script type="text/babel" src="screens-environments.jsx"></script>
+<script type="text/babel" src="screens-studio.jsx"></script>
+<script type="text/babel" src="screens-catalog-console.jsx"></script>
+<script type="text/babel" src="screens-event-viewer.jsx"></script>
+<script type="text/babel" src="screens-gitops-temporal-sync.jsx"></script>
+<script type="text/babel" src="screens-share.jsx"></script>
+<script type="text/babel" src="screens-native-aidevops.jsx"></script>
+<script type="text/babel" src="screens-studio-form-workflow.jsx"></script>
+<script type="text/babel" src="screens-studio-rest.jsx"></script>
+<script type="text/babel" src="screens-collab-rbac.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const W = 1280, H = 800;
+const WIDE = 1480, TALL = 900;
+
+function App() {
+  return (
+    <DesignCanvas>
+      <DCSection id="collab-rbac" title="⓪·a Collaboration & RBAC" subtitle="Felt-style multiplayer on the Studio Map (presence, cursors, drawing markup, feature-pinned comments, activity sidebar, follow mode) plus hierarchical RBAC across Workspace → Environment → Content → Publication → Resource field.">
+        <DCArtboard id="studio-map-collab" label="Studio Map · multiplayer (3 users · cursors · sticky note · arrow · 2 comment pins · follow mode · live activity)" width={WIDE} height={H}>
+          <StudioMapCollab />
+        </DCArtboard>
+        <DCArtboard id="map-comment-thread" label="Feature-pinned comment thread (anchored to parcel + layer · @mention · linked job · reactions · resolve)" width={W} height={H}>
+          <MapCommentThread />
+        </DCArtboard>
+        <DCArtboard id="rbac-overview" label="RBAC · scope hierarchy + role × permission matrix (8 built-in + 2 custom roles · scoped grants)" width={WIDE} height={H}>
+          <RBACOverview />
+        </DCArtboard>
+        <DCArtboard id="team-members" label="Members & scoped invite (14 active · groups · API keys · env-scoped, content-scoped, time-limited)" width={WIDE} height={H}>
+          <TeamMembers />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="studio" title="① Studio · AI GIS creation surface" subtitle="One product surface for prompt → clarify → package → preview → edit → publish. Maps, dashboards, reports, forms, apps, queries, analyses, workflows. Anchored here: AI Map and AI Dashboard end-to-end.">
+        <DCArtboard id="studio-home" label="Studio · home (workflow picker + recent projects)" width={W} height={H}>
+          <StudioHome />
+        </DCArtboard>
+        <DCArtboard id="studio-map-ai" label="Studio · AI map — prompt + clarification + package + preview" width={WIDE} height={H}>
+          <StudioMapAI />
+        </DCArtboard>
+        <DCArtboard id="studio-map-editor" label="Studio · map editor (layers · live preview · paint inspector)" width={WIDE} height={H}>
+          <StudioMapEditor />
+        </DCArtboard>
+        <DCArtboard id="studio-map-publish" label="Studio · map publish review (visibility + dependencies)" width={W} height={H}>
+          <StudioMapPublish />
+        </DCArtboard>
+        <DCArtboard id="studio-dash-ai" label="Studio · AI dashboard — prompt + 4-panel preview" width={WIDE} height={H}>
+          <StudioDashboardAI />
+        </DCArtboard>
+        <DCArtboard id="studio-dash-editor" label="Studio · dashboard editor (panels · canvas · Vega-Lite inspector)" width={WIDE} height={H}>
+          <StudioDashboardEditor />
+        </DCArtboard>
+        <DCArtboard id="studio-dash-publish" label="Studio · dashboard publish confirm" width={W} height={H}>
+          <StudioDashboardPublish />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="catalog-console" title="② Catalog · unified content surface" subtitle="Every content type — data, maps, dashboards, forms, apps, workflows, analyses — handled uniformly. Versioned, governed, lineage-aware.">
+        <DCArtboard id="catalog-list" label="Catalog · unified browse (13 content types)" width={W} height={H}>
+          <CatalogList />
+        </DCArtboard>
+        <DCArtboard id="content-item-detail" label="Content item · map (preview / versions / lineage / publication)" width={W} height={H}>
+          <ContentItemDetail />
+        </DCArtboard>
+        <DCArtboard id="content-item-usage" label="Content item · 'where used' lineage (impact preview before edits)" width={W} height={H}>
+          <ContentItemUsage />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="event-viewer" title="③ Operate · Event viewer + Investigations" subtitle="Unified evidence timeline · logs · audit · jobs · alerts · releases · sync · data changes. Drawer detail with raw evidence + related objects. Investigations preserve evidence for postmortem.">
+        <DCArtboard id="event-list" label="Event viewer · dense filterable timeline (13 dimensions)" width={W} height={H}>
+          <EventViewerList />
+        </DCArtboard>
+        <DCArtboard id="event-detail" label="Event detail · drawer with related objects + AI DevOps advisory + raw evidence" width={W} height={H}>
+          <EventDetailDrawer />
+        </DCArtboard>
+        <DCArtboard id="investigation" label="Investigation · pinned events + notes + AI suggested next steps" width={W} height={H}>
+          <Investigation />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="studio-rest" title="①·c Studio · Report, App, Query, Analysis" subtitle="Remaining 4 content types completing all 8 Studio surfaces. Same prompt→clarify→package→edit→publish shape; per-type editor shapes vary.">
+        <DCArtboard id="studio-report" label="Studio · Report editor — outline · long-form page · embedded item inspector with version pinning" width={WIDE} height={H}>
+          <StudioReportEditor />
+        </DCArtboard>
+        <DCArtboard id="studio-app" label="Studio · App editor — page tree · responsive canvas · component binding inspector" width={WIDE} height={H}>
+          <StudioAppEditor />
+        </DCArtboard>
+        <DCArtboard id="studio-query" label="Studio · Query builder — visual predicates · generated SQL · live preview with parameters" width={WIDE} height={H}>
+          <StudioQueryBuilder />
+        </DCArtboard>
+        <DCArtboard id="studio-analysis" label="Studio · Analysis editor — pipeline DAG · step parameter inspector · publishable as GP service" width={WIDE} height={H}>
+          <StudioAnalysisEditor />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="studio-more" title="①·b Studio · Form + Workflow" subtitle="Two more content types completing the data-capture and orchestration patterns. Same prompt→clarify→package→edit→publish shape as Map and Dashboard.">
+        <DCArtboard id="studio-form-ai" label="Studio · AI form — hydrant inspection · resource-bound · offline-ready" width={WIDE} height={H}>
+          <StudioFormAI />
+        </DCArtboard>
+        <DCArtboard id="studio-form-builder" label="Studio · form builder — fields · tablet preview · field inspector with privacy controls" width={WIDE} height={H}>
+          <StudioFormBuilder />
+        </DCArtboard>
+        <DCArtboard id="studio-workflow-ai" label="Studio · AI workflow — nightly parcels DAG with failure edge + step durations" width={WIDE} height={H}>
+          <StudioWorkflowAI />
+        </DCArtboard>
+        <DCArtboard id="studio-workflow-editor" label="Studio · workflow editor — palette · DAG canvas · step inspector (SFTP pull)" width={WIDE} height={H}>
+          <StudioWorkflowEditor />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="native" title="⑧ Native Console host" subtitle="Desktop shell wrapping the web app. mTLS, server-cert pinning, encrypted profiles, offline cache. Specifically aimed at gov/regulated deployments.">
+        <DCArtboard id="native-firstrun" label="Native · first-run profile setup (mTLS + cert pinning + probe)" width={W} height={H}>
+          <NativeHostFirstRun />
+        </DCArtboard>
+        <DCArtboard id="native-profiles" label="Native · profile manager (5 envs · 1 cert warning · 1 expired)" width={W} height={H}>
+          <NativeHostProfiles />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="aidevops" title="⑨ AI DevOps · advisory home" subtitle="Cross-system patterns surfaced as briefs. Advisory only · evidence-linked · operator approval for every action.">
+        <DCArtboard id="aidevops-home" label="AI DevOps · console (4 open briefs · KPI strip · counterfactual)" width={W} height={H}>
+          <AIDevopsConsole />
+        </DCArtboard>
+        <DCArtboard id="aidevops-brief" label="AI DevOps · single brief (evidence + 3 suggested actions + reasoning trace)" width={WIDE} height={H}>
+          <AIDevopsBrief />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="share" title="⑦ Share · outside-world surface" subtitle="Public links, embeds, open-data pages, scheduled exports. Governed: every change emits an audit event.">
+        <DCArtboard id="share-home" label="Share · home (KPI strip + everything shared)" width={W} height={H}>
+          <ShareHome />
+        </DCArtboard>
+        <DCArtboard id="share-link" label="Share · public link + embed config (per item)" width={W} height={H}>
+          <ShareLinkConfig />
+        </DCArtboard>
+        <DCArtboard id="share-opendata" label="Share · open-data page editor + live preview (DCAT + JSON-LD)" width={W} height={H}>
+          <ShareOpenDataPage />
+        </DCArtboard>
+        <DCArtboard id="share-exports" label="Share · scheduled exports (S3 · SFTP · partner webhook · audit snapshots)" width={W} height={H}>
+          <ShareExports />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="gitops" title="④ Operate · GitOps Release" subtitle="Promote canonical changes through environments with semantic diff, compatibility preflight, data-script coverage, Git PR preview, and CI timeline. Replaces the earlier Promote wizard.">
+        <DCArtboard id="gitops-release" label="GitOps · semantic diff + env matrix + compatibility preflight" width={WIDE} height={H}>
+          <GitOpsRelease />
+        </DCArtboard>
+        <DCArtboard id="gitops-ci" label="GitOps · CI timeline for applied release (rollback within 14d)" width={W} height={H}>
+          <GitOpsCITimeline />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="temporal" title="⑤ Operate · Temporal viewer" subtitle="As-of slider with side-by-side comparison and selective rollback. For temporal-enabled resources.">
+        <DCArtboard id="temporal-viewer" label="Temporal · as-of slider + diff + rollback (parcels_2024)" width={WIDE} height={H}>
+          <TemporalViewer />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="sync" title="⑥ Operate · Sync conflicts" subtitle="Disconnected replicas reconnecting. Auto-resolution rules + manual 3-way merge for conflicted rows.">
+        <DCArtboard id="sync-list" label="Sync conflicts · 4 replicas needing review" width={W} height={H}>
+          <SyncConflictsList />
+        </DCArtboard>
+        <DCArtboard id="sync-review" label="Sync conflict · 3-way merge (base · client · server) with AI advisory" width={WIDE} height={H}>
+          <SyncConflictReview />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="env" title="⓪ Environments & Fleet" subtitle="Multi-environment management. Canonical definitions (resources, styles, metadata) live above environments; per-env state = connections credentials, runtime config, fleet of compute (pods/ECS tasks/batch workers). Promotion is dev → staging → prod with diff + dry-run.">
+        <DCArtboard id="envs-list" label="Environments overview — fleet health + drift across envs" width={W} height={H}>
+          <EnvironmentsList />
+        </DCArtboard>
+        <DCArtboard id="env-detail" label="Environment detail · prod — Fleet sub-tab (8 tasks, 1 unhealthy)" width={W} height={H}>
+          <EnvironmentDetail />
+        </DCArtboard>
+        <DCArtboard id="deploy-promote" label="Promote staging → prod — dry-run results + per-item options" width={W} height={H}>
+          <DeployPromote />
+        </DCArtboard>
+        <DCArtboard id="alerts-list" label="Alerts — three scopes (env / runtime / definition) unified feed" width={W} height={H}>
+          <AlertsList />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="ia" title="① Information architecture" subtitle="One operator path: connect → describe once → publish many → operate.">
+        <DCArtboard id="ia-map" label="IA · operator flow" width={WIDE} height={760}>
+          <IAMap />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="dash" title="② Dashboard" subtitle="A: operator-led ('here's what to look at'). B: operations-room ('what's running').">
+        <DCArtboard id="dash-a" label="Dashboard · A — 'needs your attention'" width={W} height={H}>
+          <DashboardA />
+        </DCArtboard>
+        <DCArtboard id="dash-b" label="Dashboard · B — live system overview" width={W} height={H}>
+          <DashboardB />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="conn" title="③ Connections" subtitle="List + drill-in + wizard. Sources, not destinations.">
+        <DCArtboard id="conn-list" label="Connections · list (persistent data stores only)" width={W} height={H}>
+          <ConnectionsList />
+        </DCArtboard>
+        <DCArtboard id="conn-detail" label="Connection · Postgres detail (tables)" width={W} height={H}>
+          <ConnectionDetail />
+        </DCArtboard>
+        <DCArtboard id="conn-wiz" label="Add connection · wizard (step 3 of 5)" width={W} height={H}>
+          <ConnectionWizard />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="res" title="④ Data Resources" subtitle="The catalog. A: flat table (Linear-tight, default). B: grouped by source (denser browsing).">
+        <DCArtboard id="res-a" label="Resources · list A (table)" width={W} height={H}>
+          <ResourcesListA />
+        </DCArtboard>
+        <DCArtboard id="res-b" label="Resources · list B (grouped)" width={W} height={H}>
+          <ResourcesListB />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="field-state" title="⑤·a Field-state vocabulary (high-fi)" subtitle="One visual language across all forms. ✏️ input · 🔍 discovered · 🧮 calculated · ⚙️ system · 🔒 admin. Plus scope chips (resource-wide / publication-local / service-wide / server-wide) so operators know how far an edit reaches.">
+        <DCArtboard id="field-state-guide" label="Field-state guide (teaching screen)" width={W} height={H}>
+          <FieldStateGuide />
+        </DCArtboard>
+        <DCArtboard id="res-source-hi" label="Resource → Source · auto-discovery panel + override semantics" width={W} height={H}>
+          <ResSourceHi />
+        </DCArtboard>
+        <DCArtboard id="res-fields-hi" label="Resource → Fields · full grid with every state inline" width={WIDE} height={H}>
+          <ResFieldsHi />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="res-detail" title="⑤ Resource detail · 9 tabs (grouped Define / Publish / Operate)"
+        subtitle="One canonical resource. Sub-tabs organised so the most-used ones are first.">
+        <DCArtboard id="res-overview" label="Resource → Overview" width={W} height={H}>
+          <ResOverview />
+        </DCArtboard>
+        <DCArtboard id="res-source" label="Resource → Source · live DB table (refreshes nightly)" width={W} height={H}>
+          <ResSource />
+        </DCArtboard>
+        <DCArtboard id="res-source-imported" label="Resource → Source · migrated from remote service (no refresh, no proxy)" width={W} height={H}>
+          <ResSourceImported />
+        </DCArtboard>
+        <DCArtboard id="res-fields" label="Resource → Fields (with issue)" width={W} height={H}>
+          <ResFields />
+        </DCArtboard>
+        <DCArtboard id="res-metadata" label="Resource → Metadata" width={W} height={H}>
+          <ResMetadata />
+        </DCArtboard>
+        <DCArtboard id="res-publish" label="Resource → Publish" width={W} height={H}>
+          <ResPublish />
+        </DCArtboard>
+        <DCArtboard id="res-access" label="Resource → Access" width={W} height={H}>
+          <ResAccess />
+        </DCArtboard>
+        <DCArtboard id="res-validation" label="Resource → Validation (blocked)" width={W} height={H}>
+          <ResValidation />
+        </DCArtboard>
+        <DCArtboard id="res-presentation" label="Resource → Presentation · Styles (Maputnik · MapLibre canonical)" width={W} height={H}>
+          <ResPresentation />
+        </DCArtboard>
+        <DCArtboard id="res-style-endpoint" label="Resource → Presentation · Style endpoint (OGC API Styles · MapLibre canonical · SLD/Esri auto-generated)" width={W} height={H}>
+          <ResStyleEndpoint />
+        </DCArtboard>
+        <DCArtboard id="slot-style-override" label="Service slot → Styling · per-slot Esri Renderer override (arcade + dotDensity, can't round-trip)" width={W} height={H}>
+          <SlotStylingOverride />
+        </DCArtboard>
+        <DCArtboard id="slot-style-wms" label="Service slot → Styling · WMS SLD override (raster ColorMap, can't round-trip)" width={W} height={H}>
+          <SlotStylingWMS />
+        </DCArtboard>
+        <DCArtboard id="style-version-history" label="Resource → Presentation · Style version history (timeline + diff + unsync warning)" width={W} height={H}>
+          <StyleVersionHistory />
+        </DCArtboard>
+        <DCArtboard id="resync-confirm" label="Resync confirm dialog · 'this will discard your override' with side-by-side preview" width={W} height={H}>
+          <ResyncConfirm />
+        </DCArtboard>
+        <DCArtboard id="res-popups" label="Resource → Presentation · Popups (template editor)" width={W} height={H}>
+          <ResPresentationPopups />
+        </DCArtboard>
+        <DCArtboard id="res-advanced" label="Resource → Advanced (escape hatch)" width={W} height={H}>
+          <ResAdvanced />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="wiz" title="⑥ Creation wizards" subtitle="Three flows · top stepper. Validation distinguishes blockers vs warnings vs missing-optional.">
+        <DCArtboard id="wiz-table" label="Create resource · from table" width={W} height={H}>
+          <WizFromTable />
+        </DCArtboard>
+        <DCArtboard id="wiz-file" label="Create resource · from file (FileGDB)" width={W} height={H}>
+          <WizFromFile />
+        </DCArtboard>
+        <DCArtboard id="wiz-esri" label="Import remote service (Esri / OGC / WMS / WFS)" width={W} height={H}>
+          <WizImportEsri />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="svc" title="⑦ Services & Layers" subtitle="Endpoints (FeatureServer, MapServer, OGC API, WMS, WMTS, OData…) with their layer slots. Catalogs (Esri catalog, OGC Records) auto-appear when you publish services. DCAT/STAC publishing lives in the separate Portal product.">
+        <DCArtboard id="svc-list" label="Services & layers · flat list" width={W} height={H}>
+          <ServicesList />
+        </DCArtboard>
+        <DCArtboard id="svc-explorer" label="Services & layers · explorer (folders → services → layers)" width={W} height={H}>
+          <ServicesExplorer />
+        </DCArtboard>
+        <DCArtboard id="svc-detail" label="Service detail · Layers tab (publication slots)" width={W} height={H}>
+          <ServiceDetail />
+        </DCArtboard>
+        <DCArtboard id="svc-runtime" label="Service detail · Runtime settings (CRS, capabilities, output formats, cache, CORS, rate limits…)" width={W} height={H}>
+          <ServiceRuntimeSettings />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="catalogs" title="⑦·b Catalogs" subtitle="Discovery endpoints — Esri catalog, OGC API Records, OData catalog (auto-mirror from services); STAC + DCAT (stubs into the Portal product).">
+        <DCArtboard id="catalogs-list" label="Catalogs · all five (3 live + 2 Portal stubs)" width={W} height={H}>
+          <CatalogsList />
+        </DCArtboard>
+        <DCArtboard id="catalog-esri" label="Esri catalog · items grid (auto-mirrored from services)" width={W} height={H}>
+          <EsriCatalogDetail />
+        </DCArtboard>
+        <DCArtboard id="catalog-item" label="Catalog item editor · auto-mirror with thin catalog-only presentation layer" width={W} height={H}>
+          <CatalogItemEditor />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="pub" title="⑧ Publishing" subtitle="Quick publish (3 steps: Service → Layer → Review) is the common case. Author-resource-first is the power case. The shared model is Folder → Service → Layer, with the Layer step binding a Data Resource — existing or new.">
+        <DCArtboard id="quick-pub-step1" label="Quick publish · step 1 — Service (use existing)" width={W} height={H}>
+          <WizQuickPublishService />
+        </DCArtboard>
+        <DCArtboard id="quick-pub-step1b" label="Quick publish · step 1 — Service (create new, with CRS + capabilities + cache + formats)" width={W} height={H}>
+          <WizQuickPublishNewService />
+        </DCArtboard>
+        <DCArtboard id="quick-pub-step2" label="Quick publish · step 2 — Layer (bind existing Data Resource)" width={W} height={H}>
+          <WizQuickPublishLayer />
+        </DCArtboard>
+        <DCArtboard id="quick-pub-step2b" label="Quick publish · step 2 — Layer (create new Data Resource inline)" width={W} height={H}>
+          <WizQuickPublishLayerNew />
+        </DCArtboard>
+        <DCArtboard id="quick-pub-review" label="Quick publish · step 3 — Review (resource + slot + auto-catalog)" width={W} height={H}>
+          <WizQuickPublishReview />
+        </DCArtboard>
+        <DCArtboard id="pub-flow" label="Conceptual · resource → many slots (power-user view)" width={WIDE} height={H}>
+          <PublishFlowMap />
+        </DCArtboard>
+        <DCArtboard id="pub-wiz-1" label="Author-first publish · step 1a (pick existing service)" width={W} height={H}>
+          <WizPublishTarget />
+        </DCArtboard>
+        <DCArtboard id="pub-wiz-1b" label="Author-first publish · step 1b (create service inline)" width={W} height={H}>
+          <WizPublishTargetNew />
+        </DCArtboard>
+        <DCArtboard id="pub-wiz-5" label="Author-first publish · step 5 (projection preview — map-led)" width={W} height={H}>
+          <WizPublish />
+        </DCArtboard>
+        <DCArtboard id="pub-a" label="Publishing matrix · grid (all resources × all formats)" width={WIDE} height={H}>
+          <PublishMatrixA />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="ops" title="⑨ Activity & Validation" subtitle="Unified activity (jobs+events+webhooks); validation center for cross-resource readiness.">
+        <DCArtboard id="act-list" label="Activity · unified feed (running, failed, partial…)" width={W} height={H}>
+          <Activity />
+        </DCArtboard>
+        <DCArtboard id="act-job" label="Activity · job detail (import running)" width={W} height={H}>
+          <ActivityJob />
+        </DCArtboard>
+        <DCArtboard id="val-center" label="Validation center · cross-resource readiness" width={W} height={H}>
+          <ValidationCenter />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="gov" title="⑩ Settings · Access, Auth, CORS, License, Catalog endpoints, About"
+        subtitle="Server admin lives here, separated from authoring screens.">
+        <DCArtboard id="settings" label="Settings · Auth providers + API keys + CORS + License" width={W} height={H}>
+          <Settings />
+        </DCArtboard>
+        <DCArtboard id="settings-catalogs" label="Settings · Catalog endpoints (Esri / OGC Records / STAC — top-level on/off)" width={W} height={H}>
+          <SettingsCatalogs />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="states" title="⑪ States gallery" subtitle="Every list / detail / wizard surface needs all of these.">
+        <DCArtboard id="states-gallery" label="Empty · Loading · Warning · Blocked · Partial · Success · Error · Permission · Filtered-empty" width={W} height={H}>
+          <StatesGallery />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="notes" title="Designer notes" subtitle="Decisions worth re-reading before the next round.">
+        <DCArtboard id="rationale" label="Rationale" width={760} height={520}>
+          <div style={{padding:'18px 22px', height:'100%', overflow:'auto', background:'#fffdf3', fontSize: 12, lineHeight: 1.55, fontFamily:'Inter, system-ui, sans-serif'}}>
+            <div style={{font:'600 14px var(--ui)', marginBottom:8}}>Design decisions, grounded in the docs you sent.</div>
+            <ol style={{paddingLeft:18, margin:0}}>
+              <li><b>Semantic center is the Data Resource.</b> Everything else (services, publishing, access, validation) hangs off it. The brief and Metadata-v2 doc both emphasise this — services are <i>targets</i>, not owners.</li>
+              <li><b>9 resource tabs, grouped Define / Publish / Operate.</b> The doc lists 8 tabs + we added Presentation (Styles/Labels/Popups/Relationships/Events/History — pulled from the BSCore workflow evidence). 9 tabs flat is unscannable; super-tabs keep the most-used 6 in Define and quarantine power-user surfaces.</li>
+              <li><b>Forbidden labels live only in Advanced.</b> "storageBinding", "projectionProfile", "ABAC", "canonical graph", "distribution object", "policy condition", "runtime snapshot" — never on a primary surface. Advanced has them, badged.</li>
+              <li><b>Two publishing views.</b> A) the matrix lets one operator scan the whole catalog × every format at once. B) the per-resource panel + projection preview drawer is the work surface — preview the exact GetCapabilities / STAC JSON / DCAT XML before commit, side-by-side with the canonical metadata.</li>
+              <li><b>Unified Activity center.</b> Imports, publishes, refreshes, tile builds, validation runs, webhooks all live in one filterable feed. Jobs still have their own detail page (steps + logs + inputs/outputs).</li>
+              <li><b>Validation is both global and per-resource.</b> Global center groups by severity + target + area. Each row deep-links to the fix location. Targets: OGC Records, DCAT, STAC, ISO 19115, Esri item, GeoServices REST, OGC API, OData.</li>
+              <li><b>No tenant / org switching.</b> First-release constraint honoured everywhere.</li>
+              <li><b>Drafts are first-class.</b> Every wizard saves drafts; every list shows them as their own state alongside Live/Stale/Blocked.</li>
+              <li><b>Partial success matters.</b> Esri import + file import surface "2 of 3 layers OK" prominently rather than swallowing the wins because one row failed.</li>
+            </ol>
+            <div className="hand" style={{marginTop:14, fontFamily:'Kalam, cursive', color:'var(--pencil)', fontSize:14}}>
+              next round: (a) tighten copy on every empty state, (b) try a "publish basket" pattern as a C variant on publishing, (c) wireframe the projection-preview drawer for STAC and DCAT (not just WMS).
+            </div>
+          </div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
