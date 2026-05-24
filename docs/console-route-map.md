@@ -270,7 +270,7 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | 4 | `/auth/signed-out` | `/auth/signed-out` | — | `anonymous` | shell+auth | — |
 | 5 | `/public` | `/share/public` (`/public` is accepted as a compatibility alias in the Blazor route slice) | collection includes only `isPublicOpenDataSummary` items (`sharing = public`, `openData = true`, type in `PUBLIC_OPEN_DATA_TYPES`); newly generated links use `/share/public` | `anonymous` | share | open-data |
 | 6 | `/public/items/:idOrSlug` | `/share/public/items/:idOrSlug` (`/public/items/:idOrSlug` is accepted as a compatibility alias) | item must pass `isPublicOpenDataItem` (`access.sharing = public`, `access.openData = true`, type in `PUBLIC_OPEN_DATA_TYPES`); DCAT-US / schema.org JSON-LD remains part of full open-data parity | `anonymous` (+ open-data eligibility) | share | open-data, share |
-| 7 | `/embed/maps/:mapId` | `/embed/maps/:mapId` | `chrome`, `legend`, `zoom`, `extent=W,S,E,N` (WGS84 lon/lat); bearer in fragment `#embedToken=` only; query-string `token` / `embedToken` is rejected | `anonymous` (+ `resolveEmbedAuthorization`) | embed | embed |
+| 7 | `/embed/maps/:mapId` | `/embed/maps/:mapId` | `chrome`, `legend`, `zoom`, `extent=W,S,E,N` (WGS84 lon/lat); public embeddable maps may render tokenless, token-authorized embeds carry the bearer in fragment `#embedToken=` only, and query-string `token` / `embedToken` is rejected | `anonymous` (+ `resolveEmbedAuthorization`) | embed | embed |
 | 8 | `/catalog` | `/catalog` | `q`, `type`, `tag`, `owner`, `visibility`, `sort`, `cursor` (per `honua-portal:src/catalog/searchParams.ts:38` and `ListItemsRequest` in `honua-portal:src/contracts/content-item.ts:251`; the wire contract sets `additionalProperties: false`, so the Console list page must not invent new query keys) | `auth` | catalog | catalog-list |
 | 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:29` emits this for non-map items) | `auth` (+ server item read; `resolvePortalItemRole` only gates actions) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | catalog | catalog-detail |
 | 10 | `/maps` | `/catalog?type=map` (list) + `/studio` (create CTA) | preserves `from=:itemId` on the create path | `auth` | catalog (list), studio (create) | — |
@@ -784,7 +784,8 @@ and `extent=W,S,E,N`. `chrome` accepts Portal snippet profiles
 `full`, `minimal`, and `none`; `legend` and `zoom` accept
 `on/off` plus `true/false`, `yes/no`, and `1/0`. Extents must be valid,
 non-degenerate WGS84 bounds before they override the saved map extent.
-The bearer token must be supplied in the fragment as
+Public embeddable maps may render without a token. When an embed bearer
+is required or supplied, it must be in the fragment as
 `#embedToken=<value>`. A query-string `token` or `embedToken` is treated
 as an unavailable embed because it would leak the bearer to server,
 proxy, or CDN logs.
@@ -831,7 +832,7 @@ a 200.
 
 | URL | Reason | Status |
 |---|---|---|
-| `/embed/maps/:mapId` | inlined in third-party iframes | served with a 200 at the same frozen path; embed token stays in `#embedToken=` fragment so it is never sent to the server; `extent=W,S,E,N` is WGS84 lon/lat |
+| `/embed/maps/:mapId` | inlined in third-party iframes | served with a 200 at the same frozen path; public embeddable maps may render tokenless, token-authorized embeds keep the bearer in `#embedToken=` so it is never sent to the server, and `extent=W,S,E,N` is WGS84 lon/lat |
 | `/public/items/:idOrSlug` and `/share/public/items/:idOrSlug` | item detail URLs are emitted into DCAT-US / data.json / schema.org contexts, and some crawlers may not follow 3xx | served at both legacy and Console paths with a 200; eligibility still requires `open-data` (§6.6); canonical links in newly generated documents point at `/share/public/items/:idOrSlug` |
 | `/public` (root open-data) | legacy Portal collection root; newly generated links use `/share/public` | served as a compatibility alias by the `honua-console#34` Blazor route slice; edge-level 301 may replace the alias only after the compatibility window is closed |
 
@@ -904,8 +905,9 @@ eligible for `/share/public/items/:idOrSlug` per §6.6).
      path; anonymous-via-token path uses `?token=<value>` per §2.5 /
      §6.4). Smoke label: `viewer` (row 11).
    - **`/embed/maps/:mapId`** — anonymous embed of the generated
-     saved map (`resolveEmbedAuthorization`; token in `#embedToken=`
-     fragment per §8). Smoke label: `embed` (row 7).
+     saved map (`resolveEmbedAuthorization`; token-authorized embeds
+     keep the bearer in the `#embedToken=` fragment per §8). Smoke
+     label: `embed` (row 7).
 
 Route rows in §3 carry smoke labels matching this pipeline:
 `catalog-list`, `catalog-detail`, `viewer`, `studio-generation`,

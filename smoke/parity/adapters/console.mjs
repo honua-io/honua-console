@@ -18,7 +18,7 @@ export const CONSOLE_ROUTES = Object.freeze({
   viewerNewFrom: (sourceId) => `/maps/new?from=${sourceId}`,
   viewerMap: (mapId) => `/maps/${mapId}`,
   viewerPublicLink: (mapId, token) => `/maps/${mapId}?token=${encodeURIComponent(token)}`,
-  studioDraftForMap: (mapId) => `/studio/drafts?source=saved-map&id=${mapId}`,
+  studioDraftForMap: (mapId) => `/studio?source=map&itemId=${encodeURIComponent(mapId)}`,
   generatedAppDetail: (appId) => `/catalog/${appId}`,
   sharePublication: (appId) => `/catalog/${appId}?tab=publication`,
   embed: (mapId, token) => `/embed/maps/${mapId}#embedToken=${encodeURIComponent(token)}`,

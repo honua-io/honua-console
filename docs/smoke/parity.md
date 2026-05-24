@@ -146,11 +146,12 @@ Response-contract notes worth keeping in sync with the registry:
   from embed reads: `/catalog/:id?token=<token>` and
   `/maps/:mapId?token=<token>` use the query token emitted by Portal
   share links. Tokenless public reads use `/catalog/:id` and
-  `/maps/:mapId`, while `/embed/maps/:mapId#embedToken=<token>` keeps the
-  iframe bearer in the fragment and rejects query-string bearer tokens.
-  Embed controls preserve Portal snippet spellings such as
-  `chrome=none`, `legend=off`, and `zoom=off`; invalid WGS84 extents fall
-  back to the saved map extent.
+  `/maps/:mapId`; public embeddable maps may also render at
+  `/embed/maps/:mapId` without a token. Token-authorized embeds use
+  `/embed/maps/:mapId#embedToken=<token>` so the iframe bearer stays in
+  the fragment and query-string bearer tokens are rejected. Embed controls
+  preserve Portal snippet spellings such as `chrome=none`, `legend=off`,
+  and `zoom=off`; invalid WGS84 extents fall back to the saved map extent.
 
 The `Version` column is the exact string the registry emits into
 evidence. Some contracts intentionally report only the major family

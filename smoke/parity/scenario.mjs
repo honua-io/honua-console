@@ -27,6 +27,7 @@
 
 import { loadPublishHandoff } from "./adapters/admin.mjs";
 import {
+  CONSOLE_ROUTES,
   assertEmbedTokenInFragment,
   assertSameOrigin,
   buildConsoleUrls,
@@ -225,7 +226,7 @@ export const SCENARIO_STEPS = [
     description:
       "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
     async run(ctx) {
-      const draftUrl = `${ctx.originUrl}/studio/drafts?source=saved-map&id=${ctx.savedMap.id}`;
+      const draftUrl = `${ctx.originUrl}${CONSOLE_ROUTES.studioDraftForMap(ctx.savedMap.id)}`;
       assertSameOrigin(ctx.originUrl, { draft: draftUrl });
       const sourceContext = { kind: "saved-map", itemId: ctx.savedMap.id, itemType: "map", title: ctx.savedMap.title };
       const authoringPackage = {

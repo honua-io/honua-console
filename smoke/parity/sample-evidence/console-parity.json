@@ -1,6 +1,6 @@
 {
   "scenario": "console-parity-publish-to-embed",
-  "ranAt": "2026-05-24T20:47:27.489Z",
+  "ranAt": "2026-05-24T21:52:01.210Z",
   "originUrl": "http://127.0.0.1:4174",
   "repoRoot": "/home/makani/worktrees/honua-console/honua-console-34",
   "buildArtifact": {
@@ -92,7 +92,7 @@
     "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
     "viewerHydration": "http://127.0.0.1:4174/maps/new?from=01KS923C01MRXBKM6AFX56RW1F",
     "viewer": "http://127.0.0.1:4174/maps/01KS923C02F5XEMWXKBW2AB1SA",
-    "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+    "studio": "http://127.0.0.1:4174/studio?source=map&itemId=01KS923C02F5XEMWXKBW2AB1SA",
     "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
     "share": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E?tab=publication",
     "embed": "http://127.0.0.1:4174/embed/maps/01KS923C02F5XEMWXKBW2AB1SA#embedToken=sha256:65379c3a5d379805d03d1cbf4a4c4a3d8042d01684dd208678f5bd5035d504eb"
@@ -129,7 +129,7 @@
       "owningLayer": "legacy-admin",
       "owningLayerLabel": "Legacy Admin transition surface",
       "status": "ok",
-      "durationMs": 2,
+      "durationMs": 3,
       "description": "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff/v1.1.0 payload into Console catalog.",
       "evidence": {
         "type": "service",
@@ -147,7 +147,7 @@
       "owningLayer": "server",
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
-      "durationMs": 1,
+      "durationMs": 2,
       "description": "Server upserts the publish-handoff into the catalog and returns a stable content item id.",
       "evidence": {
         "itemId": "01KS923C01MRXBKM6AFX56RW1F",
@@ -163,7 +163,7 @@
       "owningLayer": "sdk",
       "owningLayerLabel": "Honua SDK (@honua/sdk-js)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "SDK projects the server catalog row into the canonical content-item/v1.1.0 ContentItemSummary Console consumes.",
       "evidence": {
         "itemId": "01KS923C01MRXBKM6AFX56RW1F",
@@ -241,7 +241,7 @@
       "durationMs": 0,
       "description": "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
       "evidence": {
-        "draftUrl": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+        "draftUrl": "http://127.0.0.1:4174/studio?source=map&itemId=01KS923C02F5XEMWXKBW2AB1SA",
         "routeCompatibility": {
           "sourceKind": "saved-map",
           "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
@@ -343,7 +343,7 @@
       "owningLayer": "console",
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
-      "durationMs": 1,
+      "durationMs": 2,
       "description": "Console share dialog promotes the saved map for embed and the generated app for catalog publication.",
       "evidence": {
         "itemId": "01KS923C0340N28KA6V8ESGC1E",
@@ -380,7 +380,7 @@
         "closure": [
           "01KS923C01MRXBKM6AFX56RW1F"
         ],
-        "expiresAt": "2026-05-24T21:17:27.533Z"
+        "expiresAt": "2026-05-24T22:22:01.282Z"
       },
       "error": null
     },
@@ -389,14 +389,14 @@
       "owningLayer": "console",
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
-      "durationMs": 18,
+      "durationMs": 3,
       "description": "Console assembles the same-origin embed URL using the minted token; evidence keeps the same-origin route while redacting the bearer fragment.",
       "evidence": {
         "urls": {
           "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
           "viewerHydration": "http://127.0.0.1:4174/maps/new?from=01KS923C01MRXBKM6AFX56RW1F",
           "viewer": "http://127.0.0.1:4174/maps/01KS923C02F5XEMWXKBW2AB1SA",
-          "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+          "studio": "http://127.0.0.1:4174/studio?source=map&itemId=01KS923C02F5XEMWXKBW2AB1SA",
           "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
           "share": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E?tab=publication",
           "embed": "http://127.0.0.1:4174/embed/maps/01KS923C02F5XEMWXKBW2AB1SA#embedToken=sha256:65379c3a5d379805d03d1cbf4a4c4a3d8042d01684dd208678f5bd5035d504eb"

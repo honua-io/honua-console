@@ -129,8 +129,9 @@ The Blazor shell includes the catalog/share parity route slice for
   `/public/items/{idOrSlug}` serve the eligible item detail page.
 - `/embed/maps/{mapId}` uses the shellless embed layout. It accepts
   Portal-compatible `chrome`, `legend`, `zoom`, and `extent=W,S,E,N`
-  query options, but the bearer must be in `#embedToken=<value>`;
-  query-string `token` or `embedToken` is rejected by the route contract.
+  query options. Public embeddable maps may render without a token;
+  token-authorized embeds must put the bearer in `#embedToken=<value>`.
+  Query-string `token` or `embedToken` is rejected by the route contract.
 
 The optional native host targets Windows and macOS desktop builds. See [Optional MAUI Blazor Hybrid Host](docs/native/MAUI_BLAZOR_HOST.md) for workload, publish, profile, mTLS, and streaming-proof details.
 

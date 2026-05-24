@@ -115,10 +115,11 @@ The catalog shim preserves the Portal URL contract at the route edge:
 maps that value to the SDK/server request field `sharing`, and
 `ToSdkParameters()` must not emit `visibility`. Embed bearer placement is
 also pinned here until the SDK projections land: `EmbedRouteOptions`
-reads `#embedToken=` from the URL fragment and flags query-string
-`token` or `embedToken` as an unavailable-route regression. Its query
-parser accepts Portal snippet `chrome` profiles (`full`, `minimal`,
-`none`), `legend`/`zoom` `on/off` controls, and only valid,
+reads `#embedToken=` from the URL fragment for token-authorized embeds
+and flags query-string `token` or `embedToken` as an unavailable-route
+regression. Public embeddable maps may still authorize without a token.
+Its query parser accepts Portal snippet `chrome` profiles (`full`,
+`minimal`, `none`), `legend`/`zoom` `on/off` controls, and only valid,
 non-degenerate WGS84 `extent=W,S,E,N` bounds.
 
 ## Why This Boundary, Not "Whatever Works"

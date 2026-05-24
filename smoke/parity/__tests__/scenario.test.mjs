@@ -134,6 +134,7 @@ describe("parity scenario", () => {
       CONSOLE_ROUTES.viewerPublicLink("map-1", "abc 123"),
       "/maps/map-1?token=abc%20123",
     );
+    assert.equal(CONSOLE_ROUTES.studioDraftForMap("map-1"), "/studio?source=map&itemId=map-1");
     assert.equal(
       CONSOLE_ROUTES.embed("map-1", "embed 123"),
       "/embed/maps/map-1#embedToken=embed%20123",
@@ -190,7 +191,7 @@ describe("parity scenario", () => {
     );
     assert.equal(
       report.steps.find((step) => step.id === "console/studio-draft").evidence.draftUrl,
-      `${REMOTE_ORIGIN}/studio/drafts?source=saved-map&id=${report.items.savedMapId}`,
+      `${REMOTE_ORIGIN}/studio?source=map&itemId=${report.items.savedMapId}`,
     );
   });
 
@@ -325,7 +326,7 @@ describe("parity scenario", () => {
             async run(ctx) {
               // Same shape as the real step but with an off-origin URL.
               const { assertSameOrigin } = await import("../adapters/console.mjs");
-              const draftUrl = `https://studio.other.example/drafts/${ctx.savedMap.id}`;
+              const draftUrl = `https://studio.other.example/studio?source=map&itemId=${ctx.savedMap.id}`;
               assertSameOrigin(ctx.originUrl, { draft: draftUrl });
               return { evidence: { draftUrl } };
             },
