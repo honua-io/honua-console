@@ -946,21 +946,23 @@ Acceptance:
 - Web Console renders native-only capabilities as unsupported without taking a native dependency.
 - Certificate changes block connection until acknowledged or revalidated.
 
-## Issue Filing Plan
+## Filed GitHub Issues
 
-Recommended child issue order after this planning PR is accepted:
+These child issues are projected from Specifica items under `agent-delivery-spec/.specifica/`.
 
-1. `UI: Console shell navigation route guards and state primitives` -> `honua-console#2/#3`.
-2. `UI: Catalog search detail viewer and share-link parity` -> `honua-console#4`.
-3. `UI: Share public links embeds open data STAC DCAT and exports` -> `honua-console#4`.
-4. `UI: Operate connections resources services settings transition` -> `honua-console#6`.
-5. `UI: Publishing workspace quick publish author-first publish and matrix` -> `honua-console#16`.
-6. `UI: Studio package shell prompt clarification inspector` -> `honua-console#5`.
-7. `UI: Studio query analysis map dashboard report form app editors` -> split into `honua-console#16` children once backend package tickets exist.
-8. `UI: Studio unified GP/ETL workflow editor` -> `honua-console#17`.
-9. `UI: Operate event viewer alerts realtime rules jobs investigations` -> `honua-console#24`.
-10. `UI: GitOps metadata release visualization and rollback` -> `honua-console#22`.
-11. `UI: Temporal viewer and disconnected sync conflict review` -> `honua-console#23`.
-12. `UI: Native Console profiles trust diagnostics and mTLS` -> `honua-console#26`.
+| Issue | Parent | Specifica slug |
+| --- | --- | --- |
+| [honua-console#33](https://github.com/honua-io/honua-console/issues/33) | `#2`, `#3`, `#7` | `console-shell-navigation-route-guards-and-state-primitives` |
+| [honua-console#34](https://github.com/honua-io/honua-console/issues/34) | `#4`, `#9` | `console-catalog-search-detail-viewer-and-share-link-parity` |
+| [honua-console#35](https://github.com/honua-io/honua-console/issues/35) | `#4`, `#16` | `console-share-public-links-embeds-open-data-stac-dcat-and-exports` |
+| [honua-console#36](https://github.com/honua-io/honua-console/issues/36) | `#6` | `console-operate-connections-resources-services-settings-transition` |
+| [honua-console#37](https://github.com/honua-io/honua-console/issues/37) | `#16` | `console-publishing-workspace-quick-publish-author-first-publish-and-matrix` |
+| [honua-console#38](https://github.com/honua-io/honua-console/issues/38) | `#5` | `console-studio-package-shell-prompt-clarification-inspector` |
+| [honua-console#39](https://github.com/honua-io/honua-console/issues/39) | `#16` | `console-studio-query-analysis-map-dashboard-report-form-app-editors` |
+| [honua-console#40](https://github.com/honua-io/honua-console/issues/40) | `#17` | `console-studio-unified-gp-etl-workflow-editor` |
+| [honua-console#41](https://github.com/honua-io/honua-console/issues/41) | `#24` | `console-operate-event-viewer-alerts-realtime-rules-jobs-investigations` |
+| [honua-console#42](https://github.com/honua-io/honua-console/issues/42) | `#22` | `console-gitops-metadata-release-visualization-and-rollback` |
+| [honua-console#43](https://github.com/honua-io/honua-console/issues/43) | `#23` | `console-temporal-viewer-and-disconnected-sync-conflict-review` |
+| [honua-console#44](https://github.com/honua-io/honua-console/issues/44) | `#26` | `console-native-profiles-trust-diagnostics-and-mtls` |
 
 Do not start child implementation that requires package, temporal, sync, GitOps, event, alert, job, or native contracts until its backend dependency is either landed or represented by a stable mock contract checked into the repo.

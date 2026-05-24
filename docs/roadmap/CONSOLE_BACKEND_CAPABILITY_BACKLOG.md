@@ -44,21 +44,22 @@ The central product constraint is simple: **there is one Honua Console deployabl
 | Native Console multi-environment/mTLS | Environment profile, advertised transport capabilities, native gRPC streaming, client certificate trust profile | `honua-server#1171`; `honua-console#26` | Web Console must render native-only capability states without depending on MAUI. |
 | MCP/QGIS parity | Same package contracts, capability discovery, validation responses, preview/publish operations exposed through SDK/MCP | `honua-sdk-js#226`, `#227`, `#228`, `#229` | Do not fork artifact schemas for Console, MCP, QGIS, or generated apps. |
 
-## Missing Or Under-Specified Backend Tickets
+## Filed Backend And SDK Issues
 
-These should become server/devops/sdk tickets or be explicitly folded into existing issues before Console implementation starts.
+These were filed as GitHub issues and projected from Specifica items under `agent-delivery-spec/.specifica/`.
 
-| Priority | Owner repo | Proposed ticket | Why it matters |
+| Priority | Issue | Specifica slug | Why it matters |
 | --- | --- | --- | --- |
-| P0 | `honua-server` | Studio package lifecycle API for query, analysis, map, dashboard, report, form, app, workflow, GP, and ETL packages | Console needs one server-owned way to save drafts, validate packages, create content versions, publish, reopen, and roll back generated artifacts. |
-| P0 | `honua-server` | Package validation and preview planning API | Studio, MCP, and QGIS need the same validation output for data bindings, permissions, schema, CRS, capability support, estimated cost, and publish blockers. |
-| P1 | `honua-server` | Saved query and analysis content versions with job-runner result artifacts | Natural-language query/analysis should produce durable content and reusable outputs, not one-off preview state. |
-| P1 | `honua-server` | Map/dashboard/report/app publication registry and embed/share route contract | Publishing needs durable route, visibility, embed policy, dependency, provenance, and rollback records across generated artifacts. |
-| P1 | `honua-server` | Form package, submission, attachment, and offline policy API | Survey-style form workflows need field rules, conditional visibility, domains, attachments, target writes, and offline behavior governed by the server. |
-| P1 | `honua-server` | Unified workflow package and node registry for GP/ETL | The GP/ETL editor needs a shared node/parameter/runtime contract before UI graph editing can be meaningful. |
-| P1 | `honua-server` | Console capability manifest endpoint | Console, MCP, QGIS, and native hosts need one way to discover supported package families, temporal support, sync support, realtime support, transports, and policy limits per environment. |
-| P1 | `honua-sdk-js` / `honua-sdk-dotnet` | Generated projections for Studio package families and validation responses | Blazor Console, browser interop, MCP, QGIS, and generated apps need typed contracts from the same source. |
-| P1 | `honua-devops` | Console-facing AI DevOps operation bridge | Console needs a stable API for AI DevOps to create GitOps proposals, show evidence, and monitor PR/promotion/rollback state without scraping CI or Git. |
+| P0 | [honua-server#1180](https://github.com/honua-io/honua-server/issues/1180) | `studio-package-lifecycle-api-for-console-authoring` | Console needs one server-owned way to save drafts, validate packages, create content versions, publish, reopen, and roll back generated artifacts. |
+| P0 | [honua-server#1181](https://github.com/honua-io/honua-server/issues/1181) | `package-validation-and-preview-planning-api` | Studio, MCP, QGIS, and SDK clients need the same validation output for data bindings, permissions, schema, CRS, capability support, estimated cost, and publish blockers. |
+| P1 | [honua-server#1182](https://github.com/honua-io/honua-server/issues/1182) | `saved-query-and-analysis-content-versions-with-job-artifacts` | Natural-language query/analysis should produce durable content and reusable outputs, not one-off preview state. |
+| P1 | [honua-server#1183](https://github.com/honua-io/honua-server/issues/1183) | `map-dashboard-report-and-app-publication-registry` | Publishing needs durable route, visibility, embed policy, dependency, provenance, and rollback records across generated artifacts. |
+| P1 | [honua-server#1184](https://github.com/honua-io/honua-server/issues/1184) | `form-package-submission-attachments-and-offline-policy-api` | Survey-style form workflows need field rules, conditional visibility, domains, attachments, target writes, and offline behavior governed by the server. |
+| P1 | [honua-server#1185](https://github.com/honua-io/honua-server/issues/1185) | `unified-gp-etl-workflow-package-and-node-registry` | The GP/ETL editor needs a shared node/parameter/runtime contract before UI graph editing can be meaningful. |
+| P1 | [honua-server#1186](https://github.com/honua-io/honua-server/issues/1186) | `console-capability-manifest-endpoint` | Console, MCP, QGIS, and native hosts need one way to discover supported package families, temporal support, sync support, realtime support, transports, and policy limits per environment. |
+| P1 | [honua-sdk-js#230](https://github.com/honua-io/honua-sdk-js/issues/230) | `sdk-js-studio-package-family-projections-and-validation-responses` | Browser interop, MCP, QGIS, generated apps, and embeds need typed contracts from the same source. |
+| P1 | [honua-sdk-dotnet#169](https://github.com/honua-io/honua-sdk-dotnet/issues/169) | `sdk-dotnet-console-studio-package-clients-and-validation-responses` | Blazor Console and optional MAUI host need typed .NET clients without duplicating server DTOs. |
+| P1 | [honua-devops#59](https://github.com/honua-io/honua-devops/issues/59) | `console-facing-ai-devops-operation-bridge` | Console needs a stable API for AI DevOps to create GitOps proposals, show evidence, and monitor PR/promotion/rollback state without scraping CI or Git. |
 
 ## Execution Order
 
