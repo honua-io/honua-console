@@ -14,6 +14,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md)
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
+- [Studio Publishing Contract And Usage](docs/architecture/studio-publishing-contract-and-usage.md)
 - [GitOps Metadata Publishing Information Model](docs/architecture/gitops-metadata-publishing-information-model.md)
 - [GitOps Metadata Publishing Visualization Design](docs/architecture/gitops-metadata-publishing-visualization-design.md)
 - [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
@@ -24,7 +25,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
 
-The Studio publishing scaffold for [honua-console#16](https://github.com/honua-io/honua-console/issues/16) is implemented with fixture-backed Console routes for map, dashboard, report, and generated-app publish review. It proves the builder flow from Studio draft or generated preview to a versioned Catalog item, canonical route, type-specific preview route, Share/embed route, and Edit in Studio reopen route while the server and SDK publish contracts are still landing.
+The Studio publishing scaffold for [honua-console#16](https://github.com/honua-io/honua-console/issues/16) is implemented with fixture-backed Console routes for map, dashboard, report, and generated-app publish review. It proves the builder flow from Studio draft or generated preview to a versioned Catalog item, canonical `/catalog/:itemId` route, type-specific preview route, Share/embed route, and Edit in Studio reopen route while the server and SDK publish contracts are still landing. See the [Studio Publishing Contract And Usage](docs/architecture/studio-publishing-contract-and-usage.md) note for the current response shape, route contract, share/embed behavior, telemetry events, and deferred production API work.
 
 Until parity is accepted, source behavior remains in:
 

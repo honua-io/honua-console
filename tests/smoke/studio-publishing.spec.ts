@@ -120,6 +120,14 @@ test.describe("Studio publishing smoke", () => {
       await page.goBack();
       await expect(page.getByTestId("route-catalog")).toBeVisible();
 
+      if (publishCase.target === "dashboard") {
+        await page.goto(`/maps/${publishCase.itemId}`);
+        await expect(page.getByTestId("unsupported-state")).toContainText("Preview route does not match this item");
+        await expect(page.getByTestId("unsupported-state")).toContainText("/dashboards/console-dashboard-operations");
+        await page.goto(`/catalog/${publishCase.itemId}`);
+        await expect(page.getByTestId("route-catalog")).toBeVisible();
+      }
+
       await catalogSurface.getByRole("link", { name: "Share" }).click();
       await expect(page.getByTestId("share-settings")).toContainText("workspace");
       await expect(page.getByTestId("share-settings")).toContainText("Public link: Disabled");
@@ -145,5 +153,17 @@ test.describe("Studio publishing smoke", () => {
     await page.getByTestId("publish-submit").click();
 
     await expect(page.getByTestId("publish-error")).toContainText("Private incident layer cannot be widened");
+  });
+
+  test("requires group ids before submitting group visibility", async ({ page }) => {
+    await page.goto("/studio/drafts/draft-map-operations/publish");
+    await expect(page.getByTestId("publish-review")).toBeVisible();
+
+    await page.getByLabel("Visibility", { exact: true }).selectOption("group");
+    await page.getByLabel("Group ids").fill("   ");
+    await page.getByTestId("publish-submit").click();
+
+    await expect(page.getByTestId("publish-error")).toContainText("Choose at least one group");
+    await expect(page.getByTestId("publish-result")).toHaveCount(0);
   });
 });

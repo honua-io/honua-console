@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "../shell/EmptyState.js";
 import { studioPublishingClient } from "../studio/publishing/fixtureClient.js";
-import type { PublishedContentItem } from "../studio/publishing/types.js";
+import type { PublishedContentItem, StudioPublishTarget } from "../studio/publishing/types.js";
 import { isStudioPublishingError } from "../studio/publishing/types.js";
 
 type Surface =
@@ -19,6 +19,13 @@ type Surface =
 interface PublishedItemRoutePageProps {
   readonly surface: Surface;
 }
+
+const PREVIEW_SURFACE_TARGETS: Partial<Record<Surface, StudioPublishTarget>> = {
+  "map-preview": "map",
+  "dashboard-preview": "dashboard",
+  "report-preview": "report",
+  "app-preview": "app"
+};
 
 export function PublishedItemRoutePage({ surface }: PublishedItemRoutePageProps): JSX.Element {
   const { itemId = "" } = useParams();
@@ -55,6 +62,17 @@ export function PublishedItemRoutePage({ surface }: PublishedItemRoutePageProps)
 
   if (!item) {
     return <EmptyState kind="missing" title="Loading published item" description="Resolving active version metadata." />;
+  }
+
+  const expectedTarget = PREVIEW_SURFACE_TARGETS[surface];
+  if (expectedTarget && item.type !== expectedTarget) {
+    return (
+      <EmptyState
+        kind="unsupported"
+        title="Preview route does not match this item"
+        description={`Open this ${item.type} item through ${item.routes.preview}.`}
+      />
+    );
   }
 
   return (

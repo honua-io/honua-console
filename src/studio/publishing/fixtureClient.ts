@@ -27,8 +27,8 @@ const ITEM_IDS: Record<StudioPublishDraft["draftId"], string> = {
 
 const VISIBILITY_RANK: Record<ShareVisibility, number> = {
   private: 0,
-  group: 1,
-  workspace: 2,
+  workspace: 1,
+  group: 2,
   "public-link": 3,
   public: 4
 };
@@ -136,6 +136,10 @@ export class FixtureStudioPublishingClient implements StudioPublishingClient {
       throw new StudioPublishingError("invalid", "A title is required before publishing.");
     }
 
+    if (share.visibility === "group" && normalizedGroupIds(share.groupIds).length === 0) {
+      throw new StudioPublishingError("invalid", "Choose at least one group before publishing with group visibility.");
+    }
+
     const blockingWarning = draft.warnings.find((warning) => warning.severity === "blocking");
     if (blockingWarning) {
       throw new StudioPublishingError("conflict", blockingWarning.message);
@@ -205,11 +209,15 @@ function normalizeShareSettings(share: ShareEmbedSettings): ShareEmbedSettings {
 
   return {
     visibility: share.visibility,
-    groupIds: share.visibility === "group" ? share.groupIds : [],
+    groupIds: share.visibility === "group" ? normalizedGroupIds(share.groupIds) : [],
     publicLinkEnabled: share.visibility === "public-link" || share.publicLinkEnabled,
     embedEnabled: share.embedEnabled,
     embedPolicy: share.embedEnabled ? (share.visibility === "public" || share.visibility === "public-link" ? "public" : "same-origin") : "disabled"
   };
+}
+
+function normalizedGroupIds(groupIds: readonly string[]): readonly string[] {
+  return groupIds.map((groupId) => groupId.trim()).filter(Boolean);
 }
 
 export const studioPublishingClient = new FixtureStudioPublishingClient();

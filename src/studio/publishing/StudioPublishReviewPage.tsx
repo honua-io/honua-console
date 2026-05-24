@@ -115,6 +115,19 @@ export function StudioPublishReviewPage(): JSX.Element {
     event.preventDefault();
     setSubmitting(true);
     setSubmitError(null);
+
+    if (currentShareSettings.visibility === "group" && currentShareSettings.groupIds.length === 0) {
+      setSubmitError("Choose at least one group before publishing with group visibility.");
+      emitStudioPublishTelemetry({
+        name: "publish.failed",
+        draftId: draft.draftId,
+        target: draft.target,
+        problemKind: "invalid"
+      });
+      setSubmitting(false);
+      return;
+    }
+
     emitStudioPublishTelemetry({
       name: "publish.submitted",
       draftId: draft.draftId,
@@ -216,6 +229,7 @@ export function StudioPublishReviewPage(): JSX.Element {
                 value={form.groupIds}
                 onChange={(event) => setForm({ ...form, groupIds: event.target.value })}
                 placeholder="group-emergency-ops"
+                required
               />
             </div>
           ) : null}

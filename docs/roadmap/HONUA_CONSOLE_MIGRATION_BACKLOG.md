@@ -37,7 +37,7 @@ This backlog intentionally separates three decisions:
 ### P1 AI GIS Studio Work
 
 - [honua-console#19](https://github.com/honua-io/honua-console/issues/19): Define Studio information model for NL GIS artifacts and publishing.
-- [honua-console#16](https://github.com/honua-io/honua-console/issues/16): Publish maps dashboards reports and apps from Studio.
+- [honua-console#16](https://github.com/honua-io/honua-console/issues/16): Publish maps dashboards reports and apps from Studio. Console fixture milestone landed for map, dashboard, report, and app publish review; server/SDK persistence, RBAC, and dashboard/report package contracts remain external follow-ons.
 - [honua-console#17](https://github.com/honua-io/honua-console/issues/17): Studio unified GP and ETL workflow editor.
 
 ### P1 GitOps Metadata Publishing Work

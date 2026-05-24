@@ -12,6 +12,10 @@ Related backlog:
 - [honua-console#16](https://github.com/honua-io/honua-console/issues/16): Studio publishing.
 - [honua-console#17](https://github.com/honua-io/honua-console/issues/17): Unified GP/ETL editor.
 
+Related implementation notes:
+
+- [Studio Publishing Contract And Usage](studio-publishing-contract-and-usage.md)
+
 ## Purpose
 
 Honua Studio needs one information model for natural-language GIS development across maps, dashboards, reports, forms, apps, spatial analysis, and GP/ETL workflows.
@@ -499,7 +503,7 @@ Publish review should show:
 - version note
 - rollback target
 
-Console ticket [honua-console#16](https://github.com/honua-io/honua-console/issues/16) implements the first Console-scoped publish path with a fixture `StudioPublishingClient` boundary. The fixture path is intentionally limited to the Console worktree: maps use the SDK `HonuaMapPackage` type, generated apps use the SDK `AppPackage` projection, and dashboard/report package shapes remain fixture projections until the shared SDK/server contracts land. The UI and smoke coverage exercise Studio draft or preview -> publish review -> versioned Catalog item -> preview -> Share/embed -> reopen in Studio without a generation call. Production persistence, RBAC enforcement, dependency closure, rollback semantics, and dashboard/report wire DTOs remain server/SDK-owned follow-ons rather than Console-local protocol copies.
+Console ticket [honua-console#16](https://github.com/honua-io/honua-console/issues/16) implements the first Console-scoped publish path with a fixture `StudioPublishingClient` boundary. The fixture path is intentionally limited to the Console worktree: maps use the SDK `HonuaMapPackage` type, generated apps use the SDK `AppPackage` projection, and dashboard/report package shapes remain fixture projections until the shared SDK/server contracts land. The current route and response contract is documented in [Studio Publishing Contract And Usage](studio-publishing-contract-and-usage.md). The UI and smoke coverage exercise Studio draft or preview -> publish review -> versioned Catalog item -> preview -> Share/embed -> reopen in Studio without a generation call. Production persistence, RBAC enforcement, dependency closure, rollback semantics, and dashboard/report wire DTOs remain server/SDK-owned follow-ons rather than Console-local protocol copies.
 
 ### 9. Operate
 

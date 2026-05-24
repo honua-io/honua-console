@@ -142,4 +142,52 @@ describe("FixtureStudioPublishingClient", () => {
     expect((conflict as StudioPublishingError).kind).toBe("conflict");
     expect((conflict as Error).message).toContain("publish with narrower access");
   });
+
+  it("requires at least one group id for group visibility", async () => {
+    const client = new FixtureStudioPublishingClient();
+
+    let invalid: unknown;
+    try {
+      await client.publishDraft({
+        ...publishInput("draft-map-operations"),
+        share: {
+          visibility: "group",
+          groupIds: ["   "],
+          publicLinkEnabled: false,
+          embedEnabled: false,
+          embedPolicy: "disabled"
+        }
+      });
+    } catch (error) {
+      invalid = error;
+    }
+
+    expect(invalid).toBeInstanceOf(StudioPublishingError);
+    expect((invalid as StudioPublishingError).kind).toBe("invalid");
+    expect((invalid as Error).message).toContain("Choose at least one group");
+  });
+
+  it("treats group sharing as wider than workspace dependencies", async () => {
+    const client = new FixtureStudioPublishingClient();
+
+    let conflict: unknown;
+    try {
+      await client.publishDraft({
+        ...publishInput("draft-map-operations"),
+        share: {
+          visibility: "group",
+          groupIds: ["group-emergency-ops"],
+          publicLinkEnabled: false,
+          embedEnabled: false,
+          embedPolicy: "disabled"
+        }
+      });
+    } catch (error) {
+      conflict = error;
+    }
+
+    expect(conflict).toBeInstanceOf(StudioPublishingError);
+    expect((conflict as StudioPublishingError).kind).toBe("conflict");
+    expect((conflict as Error).message).toContain("Incident response layer is workspace");
+  });
 });
