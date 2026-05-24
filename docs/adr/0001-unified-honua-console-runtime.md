@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted, amended 2026-05-23
 
 ## Date
 
@@ -57,15 +57,31 @@ The deployment boundary changes:
 
 ## UI Framework Direction
 
-Net-new and redesigned web surfaces should converge on one frontend shell.
+Net-new and redesigned Console surfaces should converge on a .NET-first UI architecture:
 
-Because Studio already depends on rich browser-native interaction patterns such as MapLibre maps, Vega-Lite charts, linked dashboard state, inspectors, drag/drop, live previews, and AI tool integration, the preferred long-term shell is React/TypeScript.
+- **Blazor Web App** is the default web Console shell.
+- Shared Razor components should live in a reusable component library that can be hosted by both the web Console and a native host.
+- A **.NET MAUI Blazor Hybrid** host is an optional operator/power-user Console surface, not a replacement for the web Console.
+- The native Console host should support multiple saved Honua environment profiles and optional per-environment mTLS/client-certificate configuration.
+- JavaScript should be used as contained interop for specialized rendering engines where the ecosystem is clearly stronger: maps, 3D scenes, Vega-Lite/Vega chart rendering, Monaco-style editors, and other standards-based browser engines.
 
-The existing Blazor Admin can remain as a transitional legacy route while operator workflows are redesigned. We should not invest in making the current Blazor/MudBlazor Admin the long-term center of gravity unless that decision is explicitly revisited.
+This keeps the long-term product direction aligned with Honua Server's .NET-owned API and contract model while preserving browser access and the strongest GIS/dashboard rendering engines.
+
+The existing Blazor Admin can remain as a transitional legacy route while operator workflows are redesigned. Redesigned Admin/Operate workflows should move toward the shared Blazor Web/Razor component architecture rather than a separate MudBlazor-only center of gravity.
 
 ## Contract Direction
 
-The non-negotiable unifier is shared contracts, not duplicated UI code.
+The non-negotiable unifier is shared .NET-owned contracts, not duplicated UI code.
+
+Honua Server remains the authoritative contract owner for metadata, content, RBAC, publishing, jobs, observability, temporal data history, disconnected sync, GitOps, GP/ETL, and AI-generated artifact workflows.
+
+Transport guidance:
+
+- Browser Console uses HTTP/OpenAPI and SignalR/SSE for browser-compatible realtime flows.
+- Native MAUI Console and internal services can use full gRPC, including streaming, for jobs, telemetry, logs, realtime events, GP/ETL execution, AI DevOps, and high-throughput data flows.
+- Native MAUI Console can optionally use mutual TLS/client certificates per environment when a server requires stronger operator trust.
+- gRPC-Web may be used selectively, but it is not the default browser contract because browser gRPC has streaming limitations.
+- JavaScript SDK contracts remain important for generated apps, browser embeds, MCP/QGIS/browser integrations, and map/chart/editor runtimes. They should be generated or validated from the same server-owned contracts rather than becoming a separate source of truth.
 
 The following contracts must be shared across Studio, Catalog, Operate, Share, MCP clients, QGIS plugin flows, and generated apps:
 
@@ -77,6 +93,8 @@ The following contracts must be shared across Studio, Catalog, Operate, Share, M
 - Build/spec/plan/apply contracts for AI-generated spatial outputs.
 - Sharing, embed, and authorization contracts.
 - Audit, lineage, and generated-output provenance.
+- Jobs, telemetry, alerting, realtime, temporal data history, disconnected sync, and rollback contracts.
+- Multi-environment Console connection profiles, transport capabilities, certificate trust state, and native mTLS policy.
 
 UI implementation may transition over time. Contract divergence is not acceptable.
 
@@ -89,6 +107,9 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 - AI-generated maps, dashboards, reports, and apps can move naturally from prompt to preview to saved content to published artifact.
 - Metadata v2 becomes the shared information model instead of an Admin-only or Portal-only schema.
 - The QGIS plugin, MCP clients, and Studio can target the same content/package contracts.
+- Blazor Web and MAUI Blazor Hybrid can share Razor components, .NET clients, validation, auth helpers, and workflow models.
+- Native operator workflows can use full gRPC streaming without forcing browser gRPC complexity onto the web Console.
+- Native operator workflows can use per-environment mTLS without imposing client-certificate complexity on browser users.
 
 ### Negative
 
@@ -96,10 +117,15 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 - The current UI framework split remains during transition.
 - Some existing Admin routes may need temporary embedding, redirecting, or reimplementation.
 - A single shell raises the bar for IA, RBAC, feature flags, and route-level permission handling.
+- Rich map/chart/editor components still require careful JavaScript interop boundaries.
+- A native MAUI host adds release/signing/update work if it becomes a supported product surface.
+- mTLS adds certificate lifecycle, trust-profile, revocation, and environment-mapping complexity that must be explicit in server and SDK contracts.
 
 ### Neutral
 
-- `honua-console` is the target web shell repo.
+- `honua-console` is the target Console repo and should contain the Blazor Web shell plus shared Razor component architecture.
+- A future MAUI host can live in `honua-console` or a dedicated companion repo if release engineering requires separation.
+- Multi-environment connection profile metadata belongs in shared Console/.NET SDK contracts; server-side mTLS enforcement belongs in `honua-server`.
 - `honua-portal` remains the short-term source repo for current Studio/Catalog/Share behavior until parity is accepted.
 - `honua-server-admin` remains the short-term source repo for legacy operator surfaces.
 - Physical monorepo consolidation is optional and should not block deployment/runtime consolidation.
@@ -107,18 +133,27 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 ## Implementation Guidance
 
 1. Define the Honua Console IA and route map with `Studio`, `Catalog`, `Operate`, and `Share` as first-class areas.
-2. Use Metadata v2 as the shared model consumed by both operator and builder workflows.
-3. Bundle current Studio/Portal and Admin outputs into one deployed runtime as an interim step.
-4. Put both surfaces behind the same auth/session/RBAC path.
-5. Hide or redirect duplicate builder/app-builder routes from legacy Admin.
-6. Rebuild redesigned Admin workflows inside the unified shell as the new metadata contract and mockups land.
-7. Add end-to-end smoke for publish service -> catalog item -> Studio map/dashboard/app -> share/embed.
+2. Scaffold the Blazor Web Console shell and a shared Razor component library before porting major workflows.
+3. Use Metadata v2 as the shared model consumed by both operator and builder workflows.
+4. Generate or validate .NET and JavaScript client contracts from server-owned OpenAPI/JSON Schema/proto sources.
+5. Use SignalR/SSE for browser realtime and full gRPC streaming for native/internal clients.
+6. Model saved environment profiles for Console, including server URL, tenant/environment identity, transport capability, auth mode, and optional native mTLS trust state.
+7. Bundle current Studio/Portal and Admin outputs into one deployed runtime as an interim step.
+8. Put both surfaces behind the same auth/session/RBAC path.
+9. Hide or redirect duplicate builder/app-builder routes from legacy Admin.
+10. Rebuild redesigned Admin workflows inside the unified Blazor shell as the new metadata contract and mockups land.
+11. Add an optional MAUI Blazor Hybrid host once the shared Razor component library and .NET client contracts are stable.
+12. Add end-to-end smoke for publish service -> catalog item -> Studio map/dashboard/app -> share/embed.
 
 ## Backlog Implications
 
 Create or update backlog items for:
 
 - Honua Console IA and route taxonomy.
+- Blazor Web Console shell and shared Razor component library.
+- .NET Console client contracts for server-owned metadata, content, jobs, telemetry, GitOps, temporal, sync, and publishing APIs.
+- Optional MAUI Blazor Hybrid native Console host.
+- Optional mTLS/client-certificate auth for native Console connections to one or more Honua Server environments.
 - Single-runtime deployment bundle for Studio/Catalog/Share/Operate.
 - Shared auth/session/RBAC wiring across all web areas.
 - Metadata v2 adoption by both Admin and Studio.
@@ -133,4 +168,3 @@ Create or update backlog items for:
 This ADR supersedes earlier wording that treated Portal as a separate deployed product from Admin.
 
 Older docs may still use `portal` and `admin` as repo names or workflow shorthand. That is acceptable. They should not be interpreted as a requirement for separate product surfaces, separate deployment runtimes, separate auth models, separate metadata models, or separate design systems.
-

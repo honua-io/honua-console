@@ -16,15 +16,18 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
 - [GitOps Metadata Publishing Information Model](docs/architecture/gitops-metadata-publishing-information-model.md)
 - [GitOps Metadata Publishing Visualization Design](docs/architecture/gitops-metadata-publishing-visualization-design.md)
+- [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
+- [Operate Observability Information Model](docs/architecture/operate-observability-information-model.md)
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the React/TypeScript Console shell.
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
 
 Until parity is accepted, source behavior remains in:
 
 - `honua-portal` for current Portal, Catalog, Share, and Studio proof work.
 - `honua-server-admin` for current legacy Admin and operator workflows.
+- `honua-sdk-dotnet` for Console .NET clients, native gRPC paths, and shared contract packages.
 - `honua-sdk-js` for browser-safe SDK contracts and generated app runtime.
 - `honua-server` for server-owned metadata, content, RBAC, provenance, and package APIs.
 - `honua-devops` for the single deployable artifact and release pipeline.
