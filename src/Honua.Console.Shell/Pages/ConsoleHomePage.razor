@@ -1,0 +1,40 @@
+@page "/"
+@inject IConsoleEnvironmentProfileStore Profiles
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Shared Console shell</p>
+        <h1>Honua Console</h1>
+        <p>Studio, Catalog, Operate, and Share run in one route surface while preserving builder and operator workflow boundaries.</p>
+    </div>
+
+    <div class="console-panel-grid console-panel-grid-wide">
+        @foreach (var area in ConsoleRouteMap.Areas)
+        {
+            <a class="console-panel console-area-link" href="@area.Path">
+                <span class="console-kicker">@area.WorkflowBoundary</span>
+                <h2>@area.Name</h2>
+                <p>@area.Description</p>
+            </a>
+        }
+    </div>
+
+    <section class="console-panel console-environment-summary" aria-labelledby="home-environments">
+        <div>
+            <p class="console-kicker">Environment profiles</p>
+            <h2 id="home-environments">Native-ready profile state</h2>
+            <p class="console-muted">The same shell can bind to browser HTTP flows or native gRPC and mTLS-capable environments.</p>
+        </div>
+        <div class="console-profile-count">@_profiles.Count</div>
+        <a class="console-button-link" href="/environments">Manage</a>
+    </section>
+</section>
+
+@code {
+    private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profiles = await Profiles.ListProfilesAsync();
+    }
+}

@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+
+<div class="console-shell">
+    <aside class="console-sidebar" aria-label="Honua Console navigation">
+        <a class="console-brand" href="/">
+            <span class="console-brand-mark">H</span>
+            <span>
+                <strong>Honua Console</strong>
+                <small>Unified surface</small>
+            </span>
+        </a>
+
+        <nav class="console-nav" aria-label="Primary">
+            @foreach (var area in ConsoleRouteMap.Areas)
+            {
+                <NavLink href="@area.Path" Match="NavLinkMatch.Prefix">
+                    <span>@area.Name</span>
+                    <small>@area.WorkflowBoundary</small>
+                </NavLink>
+            }
+        </nav>
+
+        <nav class="console-nav console-nav-secondary" aria-label="Native host">
+            <NavLink href="/environments" Match="NavLinkMatch.Prefix">Environments</NavLink>
+            <NavLink href="/operate/native-stream" Match="NavLinkMatch.Prefix">Native Stream</NavLink>
+        </nav>
+    </aside>
+
+    <main class="console-main">
+        @Body
+    </main>
+</div>
