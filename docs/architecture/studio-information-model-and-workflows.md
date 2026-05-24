@@ -613,7 +613,11 @@ Validate, preview, publish, and run responses should consistently return:
 ## Current Console Package Shell Slice
 
 The first Console implementation uses the shared Razor component library
-for both the Blazor Web host and MAUI Blazor Hybrid host. The
+for both the Blazor Web host and MAUI Blazor Hybrid host. The shell is
+mounted at `/studio`, `/studio/proof`,
+`/studio/drafts?source=<kind>&id=<itemId>`, and
+`/studio/apps/:itemId/preview` so entry, legacy proof, source-scoped
+draft, and generated-app preview paths share one authoring surface. The
 Console-owned `studio-authoring-shell/v1` projection is intentionally a
 stable mock until the server package lifecycle API and SDK helpers are
 connected.

@@ -1,4 +1,7 @@
 @page "/studio"
+@page "/studio/proof"
+@page "/studio/drafts"
+@page "/studio/apps/{ItemId}/preview"
 @inject IStudioAuthoringShell AuthoringShell
 
 <section class="console-page studio-page">
@@ -172,6 +175,15 @@
 @code {
     private StudioAuthoringSession _session = default!;
     private string _prompt = "Create a map of permit activity near schools.";
+
+    [Parameter]
+    public string? ItemId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "source")]
+    public string? SourceKind { get; set; }
+
+    [SupplyParameterFromQuery(Name = "id")]
+    public string? SourceItemId { get; set; }
 
     private StudioWorkflowOption SelectedWorkflow =>
         _session.Workflows.First(workflow => string.Equals(workflow.Id, _session.SelectedWorkflowId, StringComparison.Ordinal));
