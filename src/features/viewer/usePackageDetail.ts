@@ -1,0 +1,51 @@
+import { useEffect, useState } from "react";
+
+import { HonuaMapPackagesClient, type HonuaControlPlaneClient } from "../../sdk/control-plane";
+import type { HonuaMapPackage } from "../../sdk/packages";
+import { adaptControlPlaneResult, adaptSdkThrown } from "../../surfaces/adapt";
+import { type LoadSurface } from "../../surfaces/LoadSurface";
+import { emitConsoleSmoke, type SmokeStatus } from "../../telemetry/smoke";
+
+const PENDING_WAITING: ReadonlyArray<string> = Object.freeze(["honua-control-plane"]);
+
+export function usePackageDetail(
+  controlPlane: HonuaControlPlaneClient | undefined,
+  packageId: string | undefined,
+): LoadSurface<HonuaMapPackage> {
+  const [surface, setSurface] = useState<LoadSurface<HonuaMapPackage>>({
+    status: "pending-binding",
+    waitingFor: PENDING_WAITING,
+  });
+
+  useEffect(() => {
+    if (!controlPlane || !packageId) return;
+    let cancelled = false;
+    const started = performance.now();
+    const client = new HonuaMapPackagesClient(controlPlane);
+    void (async () => {
+      let next: LoadSurface<HonuaMapPackage>;
+      try {
+        const result = await client.get(packageId);
+        next = result.supported
+          ? { status: "ok", value: result.value }
+          : (adaptControlPlaneResult(result) as LoadSurface<HonuaMapPackage>);
+      } catch (error) {
+        next = adaptSdkThrown<HonuaMapPackage>(error);
+      }
+      if (cancelled) return;
+      setSurface(next);
+      emitConsoleSmoke({
+        surface: "viewer.map-package.detail",
+        sdkSubpath: "control-plane",
+        status: next.status as SmokeStatus,
+        durationMs: Math.round(performance.now() - started),
+        detail: { packageId },
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [controlPlane, packageId]);
+
+  return surface;
+}

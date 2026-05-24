@@ -32,6 +32,28 @@ The Console migration spans the in-repo child-ticket backlog and external owner 
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
 
+[honua-console#7](https://github.com/honua-io/honua-console/issues/7) wires this shell to shared SDK contracts:
+
+- `src/sdk/` is the only place allowed to import from `@honua/sdk-js` (enforced by `eslint.config.js`).
+- `src/session/` carries the `SessionClient` facade, `SessionProvider`, `useCapability`, `useEntitlement`, and `<RequireCapability />` guard. Capability/entitlement gates derive from the server bundle; there is no Console-local role matrix.
+- `src/surfaces/LoadSurface.ts` and `src/surfaces/ResourceState.tsx` are the shared loader contract and empty/error surface used by Catalog, Studio, Operate, and Share.
+- `src/telemetry/smoke.ts` emits one `{ surface, sdkSubpath, status, durationMs }` event per loader resolution; Portal-style listeners on `window` keep dashboard parity.
+
+Gaps from upstream contracts (still in flight) are tracked in [docs/server-sdk-gap-log.md](docs/server-sdk-gap-log.md). Console surfaces those gaps as `<ResourceState kind="pending-binding" />` instead of inventing local DTOs.
+
+## Local Development
+
+```bash
+npm install
+npm run dev         # vite dev server on http://127.0.0.1:5173
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint (includes SDK barrel + DTO guards)
+npm test            # vitest
+npm run build       # tsc + vite build
+```
+
+`VITE_HONUA_BASE_URL` selects the Honua server origin; if unset, the current page origin is used.
+
 Until parity is accepted, source behavior remains in:
 
 - `honua-portal` for current Portal, Catalog, Share, and Studio proof work.
