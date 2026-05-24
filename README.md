@@ -36,8 +36,10 @@ This repo is the target home for porting current `honua-portal` logic and conver
 
 - `src/sdk/` is the only place allowed to import from `@honua/sdk-js` (enforced by `eslint.config.js`).
 - `src/session/` carries the `SessionClient` facade, `SessionProvider`, `useCapability`, `useEntitlement`, and `<RequireCapability />` guard. Capability/entitlement gates derive from the server bundle and configured Honua server origin; there is no Console-local role matrix.
-- `src/surfaces/LoadSurface.ts` and `src/surfaces/ResourceState.tsx` are the shared loader contract and empty/error surface used by Catalog, Studio, Operate, and Share.
-- `src/telemetry/smoke.ts` emits one `{ surface, sdkSubpath, status, durationMs }` event per loader resolution; Portal-style listeners on `window` keep dashboard parity.
+- `src/shell/ControlPlaneProvider.tsx` constructs the SDK `HonuaClient` with a `fetchFn` that defaults `credentials: "include"` so cookie-backed auth flows to the configured Honua server origin without consumers re-wiring fetch.
+- `src/surfaces/LoadSurface.ts` and `src/surfaces/ResourceState.tsx` are the shared loader contract and empty/error surface used by Catalog, Studio, Operate, and Share. Hooks reset to `pending-binding` (and re-emit smoke) when their SDK inputs disappear, so navigation away from a wired binding does not leave a stale `ok` surface visible.
+- `src/telemetry/smoke.ts` emits one `{ surface, sdkSubpath, status, durationMs }` event per loader resolution; Portal-style listeners on `window` keep dashboard parity. `emitPendingBindingSmoke` is the shared helper for the pending-binding case and stamps `detail.waitingFor` with the upstream contract list.
+- `/studio/preview` is code-split via `React.lazy` + `Suspense` so the Studio chunk does not block Catalog/Operate/Share startup paths.
 
 Gaps from upstream contracts (still in flight) are tracked in [docs/server-sdk-gap-log.md](docs/server-sdk-gap-log.md). Console surfaces those gaps as `<ResourceState kind="pending-binding" />` instead of inventing local DTOs.
 

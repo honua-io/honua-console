@@ -4,7 +4,7 @@ import { HonuaMapPackagesClient, type HonuaControlPlaneClient } from "../../sdk/
 import type { HonuaMapPackage } from "../../sdk/packages";
 import { adaptControlPlaneResult, adaptSdkThrown } from "../../surfaces/adapt";
 import { pendingBinding, type LoadSurface } from "../../surfaces/LoadSurface";
-import { emitConsoleSmoke, type SmokeStatus } from "../../telemetry/smoke";
+import { emitConsoleSmoke, emitPendingBindingSmoke, type SmokeStatus } from "../../telemetry/smoke";
 
 const PENDING_WAITING: ReadonlyArray<string> = Object.freeze(["honua-control-plane"]);
 
@@ -20,6 +20,12 @@ export function usePackageDetail(
   useEffect(() => {
     if (!controlPlane || !packageId) {
       setSurface(pendingBinding(PENDING_WAITING));
+      emitPendingBindingSmoke({
+        surface: "viewer.map-package.detail",
+        sdkSubpath: "control-plane",
+        waitingFor: PENDING_WAITING,
+        detail: packageId ? { packageId } : undefined,
+      });
       return;
     }
     let cancelled = false;

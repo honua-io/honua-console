@@ -27,12 +27,15 @@ data, and embed projections are pending upstream publishes and are tracked in
   Synthesizes a bundle from three admin endpoints today; collapses to one
   call when `honua-server#1162` ships the non-admin capability endpoint. Its
   public bootstrap result is `{ status, fellBackEndpoints }`, where 401 on the
-  session endpoint becomes `anonymous` and 401/403 on secondary bundle endpoints
-  are reported through `fellBackEndpoints`. The transitional permissions adapter
-  reads server `PermissionGrantResponse` grants (`service`, `layer`,
-  `operation`) from the user-id based endpoint and bridges wildcard grants to
-  the current Console route gate labels. Entitlements are read from the flat
-  active entitlement list returned by `/admin/license/entitlements`.
+  session endpoint becomes `anonymous` and any failure of a secondary bundle
+  endpoint (401/403, non-auth non-ok responses such as 5xx, or
+  network/CORS rejection) is reported through `fellBackEndpoints` while the
+  authenticated session keeps rendering with the surviving data. The
+  transitional permissions adapter reads server `PermissionGrantResponse`
+  grants (`service`, `layer`, `operation`) from the user-id based endpoint
+  and bridges wildcard grants to the current Console route gate labels.
+  Entitlements are read from the flat active entitlement list returned by
+  `/admin/license/entitlements`.
 - `content.ts` — content item / metadata v2 / provenance projections.
   Currently exports `MetadataV2Pending` markers; `honua-sdk-js#225` will
   publish the real `ContentItem`, `SavedMapItem`, `ContentOwner`,
@@ -62,6 +65,20 @@ Feature hooks adapt SDK calls into `LoadSurface<T>` from
 
 Render non-`ok` states with `ResourceState` or `ResourceStateFor`; do not throw
 SDK errors into React render paths.
+
+When a hook's SDK input becomes `undefined` (control-plane client cleared,
+package id removed, generated-app preview input withdrawn, provenance loader
+unset, collaboration options dropped), the hook re-publishes a `pending-binding`
+surface so the previous `ok` payload does not survive past its binding. Use
+`emitPendingBindingSmoke` from `src/telemetry/smoke.ts` for the matching smoke
+event so the parity dashboards see the transition.
+
+## Cookie-backed origin requests
+
+`ControlPlaneProvider` wires the SDK `HonuaClient` with a `fetchFn` that
+defaults `credentials: "include"` (override per-call by passing an explicit
+`credentials` value). This keeps cookie auth flowing to the configured Honua
+server origin without each feature hook re-implementing the fetch boundary.
 
 ## Adding a new SDK surface
 

@@ -100,4 +100,35 @@ describe("SessionClient", () => {
       "/api/v1/admin/license/entitlements",
     ]);
   });
+
+  it("records secondary network errors and non-auth failures in fellBackEndpoints", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/session")) {
+        return jsonResponse({
+          isAuthenticated: true,
+          providerKey: "oidc",
+          claims: [{ type: "sub", value: "user-1" }],
+        });
+      }
+      if (url.endsWith("/effective-permissions")) return new Response("", { status: 500 });
+      throw new TypeError("network down");
+    });
+
+    const result = await new SessionClient({
+      fetchImpl: fetchImpl as typeof fetch,
+    }).bootstrap();
+
+    expect(result.status.kind).toBe("authenticated");
+    if (result.status.kind !== "authenticated") return;
+    expect(result.status.bundle.capabilities.size).toBe(0);
+    expect(result.status.bundle.entitlements.size).toBe(0);
+    expect(result.fellBackEndpoints).toEqual(
+      expect.arrayContaining([
+        "/api/v1/admin/users/user-1/effective-permissions",
+        "/api/v1/admin/license/entitlements",
+      ]),
+    );
+    expect(result.fellBackEndpoints).toHaveLength(2);
+  });
 });

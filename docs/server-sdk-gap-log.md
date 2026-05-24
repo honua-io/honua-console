@@ -15,7 +15,10 @@ The current Console shell has the shared response and guard contract in place:
 - Non-`ok` loader states render through `ResourceState`:
   `missing`, `unauthorized`, `unsupported`, and `pending-binding`.
 - `pending-binding` must include a `waitingFor` list with upstream issue or
-  contract names; this file tracks those values.
+  contract names; this file tracks those values. Pending-binding renders also
+  emit one smoke event through `emitPendingBindingSmoke`
+  (`src/telemetry/smoke.ts`) so dashboards see the wait surfaces, not only
+  resolved loads.
 - `unsupported` preserves a human-readable `reason` and optional SDK `code`.
 - `adaptControlPlaneResult` maps supported control-plane results to `ok`, 404
   to `missing`, and other unsupported SDK responses to `unsupported`.
@@ -23,9 +26,14 @@ The current Console shell has the shared response and guard contract in place:
   `missing`, and all other errors to `unsupported`.
 - `RequireCapability` gates routes and actions from the server-authored
   capability and entitlement bundle only. Console does not define a local role
-  matrix.
+  matrix. Route entitlements are passed only when the route truly requires a
+  license check; `/share` currently gates on `sharing:read` alone until the
+  saved-map projection lands.
 - Smoke events use the `honua:console-smoke` window event with detail
   `{ surface, sdkSubpath, status, durationMs, at, detail? }`.
+- Cookie-backed requests flow through `ControlPlaneProvider`'s
+  `credentials: "include"` fetch wrapper, so SDK calls reach the configured
+  Honua server origin with the active session cookie.
 
 When a row is resolved, the wiring update is mechanical:
 
@@ -42,7 +50,7 @@ When a row is resolved, the wiring update is mechanical:
 | Dashboard package client | (no hook yet — render through `DASHBOARD_PACKAGE_PENDING`) | [honua-sdk-js#225](https://github.com/honua-io/honua-sdk-js/issues/225) | Add `HonuaDashboardPackagesClient` re-export to `src/sdk/packages.ts` when published; mirror `usePackageList` for dashboards. |
 | Report package client | (no hook yet — render through `REPORT_PACKAGE_PENDING`) | [honua-sdk-js#225](https://github.com/honua-io/honua-sdk-js/issues/225) | Same wiring pattern as dashboard packages. |
 | App package client | (covered by `previewGeneratedApp` for the proof slice) | [honua-sdk-js#225](https://github.com/honua-io/honua-sdk-js/issues/225) and [honua-sdk-js#226](https://github.com/honua-io/honua-sdk-js/issues/226) | Generated-app preview already wires through `src/sdk/generated-app.ts`. App package list/CRUD waits on #225. |
-| Non-admin capability bundle endpoint | `SessionClient.bootstrap` (`src/sdk/session.ts`) | [honua-server#1162](https://github.com/honua-io/honua-server/issues/1162) | Today Console fans out three admin endpoints (`auth/session`, `users/{id}/effective-permissions`, `license/entitlements`) against the configured Honua server origin. Permissions are requested with a user-id claim, parsed from server `PermissionGrantResponse` grants (`service`, `layer`, `operation`), and wildcard grants bridge to the current Console gate labels until the unified endpoint publishes first-class capabilities. Entitlements parse the flat active entitlement list from `/license/entitlements`. A 401 from the session endpoint becomes `anonymous`; 401/403 responses from permissions or entitlements are recorded in `fellBackEndpoints` while the authenticated session keeps rendering with the available bundle. When the unified endpoint lands, replace the fan-out in `SessionClient.bootstrap`; consumers stay put. |
+| Non-admin capability bundle endpoint | `SessionClient.bootstrap` (`src/sdk/session.ts`) | [honua-server#1162](https://github.com/honua-io/honua-server/issues/1162) | Today Console fans out three admin endpoints (`auth/session`, `users/{id}/effective-permissions`, `license/entitlements`) against the configured Honua server origin. Permissions are requested with a user-id claim, parsed from server `PermissionGrantResponse` grants (`service`, `layer`, `operation`), and wildcard grants bridge to the current Console gate labels until the unified endpoint publishes first-class capabilities. Entitlements parse the flat active entitlement list from `/license/entitlements`. A 401 from the session endpoint becomes `anonymous`; for the permissions and entitlements endpoints, any 401/403, non-auth non-ok response (e.g. 5xx), or network/CORS failure is recorded in `fellBackEndpoints` while the authenticated session keeps rendering with whatever the surviving endpoints returned. When the unified endpoint lands, replace the fan-out in `SessionClient.bootstrap`; consumers stay put. |
 | Saved-map list/detail projection | `usePackageList` (`src/features/catalog/usePackageList.ts`) covers map packages; saved-map item projection still pending | [honua-sdk-js#225](https://github.com/honua-io/honua-sdk-js/issues/225) | The `SavedMapItem` shape used by Portal isn't published yet. Once exposed, add re-exports to `src/sdk/content.ts` and wire a `useSavedMapList`. |
 | Provenance read API | `useProvenance` (`src/features/operate/useProvenance.ts`) accepts a loader callback | [honua-server#1162](https://github.com/honua-io/honua-server/issues/1162) | The hook uses the SDK-owned `ProvenanceRecord` type today; the caller currently passes `undefined`, so the surface renders `pending-binding`. When the server provenance read endpoint lands, pass an `async` loader that yields `ReadonlyArray<ProvenanceRecord>`. |
 | Sharing list view | `SharePage` (`src/pages/SharePage.tsx`) | [honua-sdk-js#225](https://github.com/honua-io/honua-sdk-js/issues/225) | `useShareMutate` is wired today. The list view waits on the saved-map projection so we can render a "who has access" list. |

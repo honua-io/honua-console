@@ -264,11 +264,18 @@ export class SessionClient {
       (headers as Record<string, string>).authorization = `Bearer ${this.accessToken}`;
     }
 
-    const fetchEndpoint = (endpoint: string): Promise<Response | undefined> =>
+    type SecondaryFetchOutcome =
+      | { readonly kind: "response"; readonly response: Response }
+      | { readonly kind: "network-error" };
+
+    const fetchEndpoint = (endpoint: string): Promise<SecondaryFetchOutcome> =>
       this.fetchImpl(joinUrl(this.baseUrl, endpoint), {
         headers,
         credentials: "include",
-      }).catch(() => undefined);
+      }).then(
+        (response): SecondaryFetchOutcome => ({ kind: "response", response }),
+        (): SecondaryFetchOutcome => ({ kind: "network-error" }),
+      );
 
     const sessionPromise = this.fetchImpl(joinUrl(this.baseUrl, SESSION_ENDPOINT), {
       headers,
@@ -288,12 +295,27 @@ export class SessionClient {
 
     const fellBack: string[] = [];
 
+    const recordSecondary = (
+      outcome: SecondaryFetchOutcome,
+      endpoint: string,
+    ): Response | undefined => {
+      if (outcome.kind === "network-error") {
+        fellBack.push(endpoint);
+        return undefined;
+      }
+      const { response } = outcome;
+      if (response.ok) return response;
+      fellBack.push(endpoint);
+      return isAuthFallbackStatus(response.status) ? undefined : response;
+    };
+
     if (sessionResponse.status === 401) {
-      await entitlementsPromise.catch(() => undefined);
+      await entitlementsPromise.then((outcome) => recordSecondary(outcome, ENTITLEMENTS_ENDPOINT));
       fellBack.push(SESSION_ENDPOINT);
       return { status: { kind: "anonymous" }, fellBackEndpoints: fellBack };
     }
     if (!sessionResponse.ok) {
+      await entitlementsPromise.then((outcome) => recordSecondary(outcome, ENTITLEMENTS_ENDPOINT));
       return {
         status: { kind: "error", message: `session bootstrap returned ${sessionResponse.status}` },
         fellBackEndpoints: fellBack,
@@ -304,48 +326,43 @@ export class SessionClient {
       await readJson<ApiEnvelope<AdminAuthSessionResponse> | AdminAuthSessionResponse>(sessionResponse),
     );
     if (!sessionPayload || !sessionPayload.isAuthenticated) {
-      await entitlementsPromise.catch(() => undefined);
+      await entitlementsPromise.then((outcome) => recordSecondary(outcome, ENTITLEMENTS_ENDPOINT));
       return { status: { kind: "anonymous" }, fellBackEndpoints: fellBack };
     }
 
     const userId = pickFirstClaim(sessionPayload.claims, USER_ID_CLAIMS) ?? undefined;
+    const permissionsEndpoint = userId
+      ? PERMISSIONS_ENDPOINT(userId)
+      : PERMISSIONS_ENDPOINT("(unknown)");
 
-    const permissionsPromise = userId
-      ? fetchEndpoint(PERMISSIONS_ENDPOINT(userId))
-      : Promise.resolve(undefined);
-
-    const [entitlementsResponse, permissionsResponse] = await Promise.all([
-      entitlementsPromise,
-      permissionsPromise,
-    ]);
+    const permissionsOutcome: SecondaryFetchOutcome | undefined = userId
+      ? await fetchEndpoint(permissionsEndpoint)
+      : undefined;
+    const entitlementsOutcome = await entitlementsPromise;
 
     const capabilities = new Set<CapabilityName>();
-    if (permissionsResponse) {
-      if (isAuthFallbackStatus(permissionsResponse.status)) {
-        fellBack.push(userId ? PERMISSIONS_ENDPOINT(userId) : PERMISSIONS_ENDPOINT("(unknown)"));
-      } else if (permissionsResponse.ok) {
-        const payload = unwrap<EffectivePermissionsResponse>(
-          await readJson<ApiEnvelope<EffectivePermissionsResponse> | EffectivePermissionsResponse>(
-            permissionsResponse,
-          ),
-        );
-        for (const cap of permissionsToCapabilities(payload?.permissions)) capabilities.add(cap);
-        if (payload?.roles) for (const role of payload.roles) capabilities.add(`role:${role}` as CapabilityName);
-      }
+    const usablePermissions = permissionsOutcome
+      ? recordSecondary(permissionsOutcome, permissionsEndpoint)
+      : undefined;
+    if (usablePermissions) {
+      const payload = unwrap<EffectivePermissionsResponse>(
+        await readJson<ApiEnvelope<EffectivePermissionsResponse> | EffectivePermissionsResponse>(
+          usablePermissions,
+        ),
+      );
+      for (const cap of permissionsToCapabilities(payload?.permissions)) capabilities.add(cap);
+      if (payload?.roles) for (const role of payload.roles) capabilities.add(`role:${role}` as CapabilityName);
     }
 
     const entitlements = new Set<EntitlementName>();
-    if (entitlementsResponse) {
-      if (isAuthFallbackStatus(entitlementsResponse.status)) {
-        fellBack.push(ENTITLEMENTS_ENDPOINT);
-      } else if (entitlementsResponse.ok) {
-        const payload = unwrap<LicenseEntitlementsResponse>(
-          await readJson<ApiEnvelope<LicenseEntitlementsResponse> | LicenseEntitlementsResponse>(
-            entitlementsResponse,
-          ),
-        );
-        for (const ent of featuresToEntitlements(payload)) entitlements.add(ent);
-      }
+    const usableEntitlements = recordSecondary(entitlementsOutcome, ENTITLEMENTS_ENDPOINT);
+    if (usableEntitlements) {
+      const payload = unwrap<LicenseEntitlementsResponse>(
+        await readJson<ApiEnvelope<LicenseEntitlementsResponse> | LicenseEntitlementsResponse>(
+          usableEntitlements,
+        ),
+      );
+      for (const ent of featuresToEntitlements(payload)) entitlements.add(ent);
     }
 
     const identity: SessionIdentity = {

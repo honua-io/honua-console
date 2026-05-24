@@ -8,7 +8,7 @@ import {
 } from "../../sdk/collaboration";
 import { adaptSdkThrown } from "../../surfaces/adapt";
 import { pendingBinding, type LoadSurface } from "../../surfaces/LoadSurface";
-import { emitConsoleSmoke, type SmokeStatus } from "../../telemetry/smoke";
+import { emitConsoleSmoke, emitPendingBindingSmoke, type SmokeStatus } from "../../telemetry/smoke";
 
 const PENDING_WAITING: ReadonlyArray<string> = Object.freeze(["collaboration-transport"]);
 
@@ -24,6 +24,11 @@ export function useCollaborationSession<TPayload = unknown>(
   useEffect(() => {
     if (!options || !join) {
       setSurface(pendingBinding(PENDING_WAITING));
+      emitPendingBindingSmoke({
+        surface: "collaboration.session.join",
+        sdkSubpath: "collaboration",
+        waitingFor: PENDING_WAITING,
+      });
       return;
     }
     let cancelled = false;

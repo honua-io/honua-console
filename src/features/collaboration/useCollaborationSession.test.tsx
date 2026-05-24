@@ -1,11 +1,12 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { createFixtureSavedMapCollaborationTransport } from "@honua/sdk-js/collaboration";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type {
   HonuaSavedMapCollaborationClientOptions,
   SavedMapCollaborationJoinRequest,
 } from "../../sdk/collaboration";
+import { addConsoleSmokeListener, type ConsoleSmokeEvent } from "../../telemetry/smoke";
 import { useCollaborationSession } from "./useCollaborationSession";
 
 interface HookProps {
@@ -13,8 +14,14 @@ interface HookProps {
   readonly join: SavedMapCollaborationJoinRequest | undefined;
 }
 
+const cleanups: Array<() => void> = [];
+
+afterEach(() => {
+  while (cleanups.length) cleanups.pop()?.();
+});
+
 describe("useCollaborationSession", () => {
-  it("resets to pending-binding when collaboration inputs disappear", async () => {
+  it("resets to pending-binding and emits smoke when collaboration inputs disappear", async () => {
     const options: HonuaSavedMapCollaborationClientOptions = {
       transport: createFixtureSavedMapCollaborationTransport(),
     };
@@ -22,6 +29,9 @@ describe("useCollaborationSession", () => {
       mapId: "map-1",
       participantId: "participant-1",
     };
+
+    const events: ConsoleSmokeEvent[] = [];
+    cleanups.push(addConsoleSmokeListener((event) => events.push(event)));
 
     const initialProps: HookProps = { options, join };
     const { result, rerender } = renderHook(
@@ -39,5 +49,15 @@ describe("useCollaborationSession", () => {
     await waitFor(() => {
       expect(result.current.status).toBe("pending-binding");
     });
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: "collaboration.session.join",
+          sdkSubpath: "collaboration",
+          status: "pending-binding",
+          detail: expect.objectContaining({ waitingFor: ["collaboration-transport"] }),
+        }),
+      ]),
+    );
   });
 });

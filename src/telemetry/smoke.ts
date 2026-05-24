@@ -10,6 +10,10 @@
  * bus ships. The detail object is intentionally narrow so dashboard parity
  * with Portal stays mechanical.
  *
+ * Pending-binding callsites should use `emitPendingBindingSmoke`, which stamps
+ * `status: "pending-binding"`, `durationMs: 0`, and `detail.waitingFor` with
+ * the upstream contract names from the matching `<ResourceState />` render.
+ *
  * Tracked surfaces (smoke coverage required by the project constraint):
  *   - session.bootstrap
  *   - catalog.content-item.{list, detail}
