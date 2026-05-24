@@ -20,6 +20,14 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Operate Observability Information Model](docs/architecture/operate-observability-information-model.md)
 - [Honua Console Design Handoff](docs/design-handoff/README.md)
 
+## Migration Coordination
+
+The Console migration spans nine in-repo child tickets and six external owner tickets. Cross-cutting decisions are made once and reused; do not re-decide them per ticket.
+
+- [Console Patterns Charter](docs/migration/CONSOLE_PATTERNS_CHARTER.md) - binding patterns (routing, RBAC, error/empty/loading surfaces, perf budgets, smoke conventions, file layout) for every porting and integration ticket.
+- [`honua-portal` Freeze And Retirement Policy](docs/migration/PORTAL_FREEZE_POLICY.md) - soft/hard freeze gates and retirement trigger for `honua-portal`.
+- [SDK Shim Policy](docs/migration/SDK_SHIM_POLICY.md) - when and how a temporary SDK shim is acceptable while `honua-sdk-js#225` lands.
+
 ## Current Status
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
