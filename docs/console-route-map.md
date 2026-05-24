@@ -632,7 +632,9 @@ the Portal keys `q`, `type`, `tag`, `owner`, `visibility`, `sort`, and
 forwarded. `visibility` is the route/query spelling; it maps to the SDK
 request field `sharing`. The public URL must not accept a `sharing` query
 key. Invalid `type`, `visibility`, and `sort` enum values normalize to no
-type filter, no sharing filter, and `relevance`, respectively.
+type filter, no sharing filter, and `relevance`, respectively. The list
+surface requires an authenticated workspace session; public/open-data
+collection reads live under `/share`, `/share/public`, and `/public`.
 
 The route slice exposes the unified content strip for `dataset`,
 `service`, `layer`, `document`, `map`, `dashboard`, `report`, `form`,
@@ -650,6 +652,9 @@ server-read denials render `ConsoleStateView Kind="forbidden"`. Action
 gates (editMetadata, updateSharing, etc.) still require authenticated
 `item-role` per
 `ROLE_MATRIX` (§4.2) and are hidden from the anonymous read surface.
+Anonymous public-link detail and map actions preserve the validated
+`?token=<value>` on followable `/catalog/:idOrSlug` and `/maps/:mapId`
+links; non-map draft hydration remains authenticated-only.
 
 ### 6.4 Maps (viewer)
 
@@ -670,9 +675,12 @@ anonymous denials so upgrade copy is not leaked to anonymous users
 (§13 Q5).
 
 `/maps/new?from=<itemId>` hydrates an unsaved draft map from a supported
-catalog service or layer and keeps the Studio continuation as
-`/studio?source=catalog&itemId=<itemId>`. Unsupported source metadata uses
-the same unsupported-service surface as catalog detail.
+catalog service or layer only after an authenticated workspace session is
+resolved, and keeps the Studio continuation as
+`/studio?source=catalog&itemId=<itemId>`. Anonymous or public-link
+contexts render an unauthenticated/sign-in surface before hydration.
+Unsupported source metadata uses the same unsupported-service surface as
+catalog detail.
 
 ### 6.5 Operate
 
@@ -794,14 +802,14 @@ read contract.
 | Surface | Component | When | Source / contract |
 |---|---|---|---|
 | Unauthenticated | redirect | route requires `auth` and session is `UnauthenticatedSession` | `redirect('/auth/signin?returnTo=' + sanitizeReturnTo(location))` (`auth/returnTo.ts:5`) |
-| Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Catalog/Maps routes use `Kind="unavailable"` |
+| Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
 | Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
-| Unavailable (anonymous) | `ConsoleStateView Kind="unavailable"` | anonymous read or authorization denial on `/share/*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
+| Unavailable (anonymous) | `ConsoleStateView Kind="unavailable"` | anonymous read or authorization denial on `/share/*`, `/public*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
 
 The catalog/share route-slice client returns `CatalogItemReadResult` or
 `MapPackageReadResult` with `Status` values `Allowed`, `Missing`,
@@ -843,10 +851,10 @@ constraint).
 
 | Chunk | Routes |
 |---|---|
-| shell + auth | `/`, `/auth/*`, `/groups`, `/maps/new`, `*` |
+| shell + auth | `/`, `/auth/*`, `/groups`, `*` |
 | studio | `/studio`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/studio/proof`, `/studio/apps/:itemId/preview` |
 | catalog | `/catalog`, `/catalog/:idOrSlug` |
-| viewer | `/maps/:mapId` |
+| viewer | `/maps/:mapId`, `/maps/new` |
 | operate | all `/operate/*` |
 | share | `/share`, `/share/public`, `/public`, `/share/public/items/:idOrSlug`, `/public/items/:idOrSlug` |
 | embed | `/embed/maps/:mapId` |

@@ -129,6 +129,39 @@ public sealed class ConsoleCatalogClientTests
     }
 
     [Fact]
+    public async Task ActiveSessionTokenizedCatalogAndMapReadsUseAuthenticatedContext()
+    {
+        var profiles = InMemoryConsoleEnvironmentProfileStore.CreateSeeded();
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = ConsoleEnvironmentProfileDefaults.DevelopmentProfileId,
+            AccountId = "operator.dev",
+            TenantId = "honua-dev",
+            AccessToken = "dev-session-token"
+        });
+        var resolver = new ConsoleCatalogReadContextResolver(profiles, sessions);
+        var catalog = new InMemoryConsoleCatalogClient();
+
+        var context = await resolver.ResolveAsync(publicLinkToken: "stale-token");
+        var linkItem = await catalog.GetCatalogItemAsync("utilities-layer", context);
+        var linkMap = await catalog.GetMapPackageAsync("storm-response-map", context);
+        var actions = ConsoleCatalogActionPolicy.Resolve(
+            linkItem.Item!.Summary,
+            isAuthenticated: !linkItem.AnonymousRead,
+            publicLinkToken: "stale-token");
+
+        Assert.False(context.Anonymous);
+        Assert.Equal(CatalogReadStatus.Allowed, linkItem.Status);
+        Assert.False(linkItem.AnonymousRead);
+        Assert.Equal(CatalogReadStatus.Allowed, linkMap.Status);
+        Assert.False(linkMap.AnonymousRead);
+        Assert.Contains(actions, action => action.Id == "studio");
+        Assert.Contains(actions, action => action.Id == "share");
+        Assert.DoesNotContain(actions, action => action.Href.Contains("token=", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task EmbedAuthorizationRequiresFragmentTokenAndRejectsQueryBearer()
     {
         var catalog = new InMemoryConsoleCatalogClient();

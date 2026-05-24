@@ -114,15 +114,16 @@ The Blazor shell includes the catalog/share parity route slice for
 `honua-console#34` behind the temporary .NET SDK shim boundary in
 `src/Honua.Console.Contracts`.
 
-- `/catalog` accepts the Portal-compatible query keys `q`, `type`, `tag`,
-  `owner`, `visibility`, `sort`, and `cursor`. `visibility` is mapped to the
-  SDK request field `sharing`; do not add `sharing` to the public URL query.
+- `/catalog` requires a signed-in workspace session and accepts the
+  Portal-compatible query keys `q`, `type`, `tag`, `owner`, `visibility`,
+  `sort`, and `cursor`. `visibility` is mapped to the SDK request field
+  `sharing`; do not add `sharing` to the public URL query.
 - `/catalog/{idOrSlug}` and `/maps/{mapId}` accept anonymous public reads
   without a token and public-link reads with `?token=<value>`.
   Authenticated reads continue to expose Studio and Share actions according
   to item policy; anonymous reads hide those actions.
-- `/maps/new?from=<itemId>` hydrates an unsaved draft map from a supported
-  catalog item.
+- `/maps/new?from=<itemId>` requires a signed-in workspace session and
+  hydrates an unsaved draft map from a supported catalog item.
 - `/share`, `/share/public`, and `/public` list public open-data service,
   layer, and document items. `/share/public/items/{idOrSlug}` and
   `/public/items/{idOrSlug}` serve the eligible item detail page.

@@ -26,14 +26,17 @@ public sealed class ConsoleCatalogReadContextResolver : IConsoleCatalogReadConte
         string? publicLinkToken,
         CancellationToken cancellationToken = default)
     {
+        if (await HasSignedInSessionAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return CatalogReadContext.Authenticated;
+        }
+
         if (!string.IsNullOrWhiteSpace(publicLinkToken))
         {
             return CatalogReadContext.AnonymousPublicLink(publicLinkToken);
         }
 
-        return await HasSignedInSessionAsync(cancellationToken).ConfigureAwait(false)
-            ? CatalogReadContext.Authenticated
-            : CatalogReadContext.AnonymousPublicLink(null);
+        return CatalogReadContext.AnonymousPublicLink(null);
     }
 
     private async Task<bool> HasSignedInSessionAsync(CancellationToken cancellationToken)
