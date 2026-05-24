@@ -2,7 +2,7 @@
 
 Status: filed 2026-05-23.
 
-Portal freeze state: **none** (soft freeze begins when `honua-console#4` opens; hard freeze when `honua-console#9` enters review - see [`PORTAL_FREEZE_POLICY.md`](../migration/PORTAL_FREEZE_POLICY.md)).
+Portal freeze state: **none** (soft freeze begins when the first `honua-console#4` implementation PR opens after owner acknowledgement; hard freeze when `honua-console#9` enters review - see [`PORTAL_FREEZE_POLICY.md`](../migration/PORTAL_FREEZE_POLICY.md)).
 
 Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
 
@@ -10,7 +10,7 @@ Coordination contracts (binding on all child tickets):
 
 - [Console Patterns Charter](../migration/CONSOLE_PATTERNS_CHARTER.md) - routing, RBAC, error/empty/loading surfaces, perf budgets, smoke conventions, file layout.
 - [`honua-portal` Freeze And Retirement Policy](../migration/PORTAL_FREEZE_POLICY.md) - soft/hard freeze gates, exception path, retirement trigger.
-- [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md) - single-boundary shim file while `honua-sdk-js#225` lands; removed under `honua-console#7`.
+- [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md) - per-language .NET and browser shim boundaries while `honua-sdk-dotnet#166` and `honua-sdk-js#225` land; removed under `honua-console#7`.
 
 ## Objective
 
@@ -162,7 +162,7 @@ Do not retire `honua-portal` or separate Admin deployment paths until:
 
 Two-gate policy lives in [`PORTAL_FREEZE_POLICY.md`](../migration/PORTAL_FREEZE_POLICY.md). Summary:
 
-- **Soft freeze** (bug-fix-only on `honua-portal`) starts when [`honua-console#4`](https://github.com/honua-io/honua-console/issues/4) opens. Bug fixes during soft freeze are paired with a Console follow-up against the matching child ticket.
+- **Soft freeze** (bug-fix-only on `honua-portal`) starts when the first [`honua-console#4`](https://github.com/honua-io/honua-console/issues/4) implementation PR opens after owner acknowledgement. Bug fixes during soft freeze are paired with a Console follow-up against the matching child ticket.
 - **Hard freeze** (no commits on `honua-portal`) starts when [`honua-console#9`](https://github.com/honua-io/honua-console/issues/9) enters review.
 - **Retirement** of `honua-portal` is owned by [`honua-console#10`](https://github.com/honua-io/honua-console/issues/10) and gated on `#4`, `#5`, `#7`, `#8`, `#9`, and the parity gate above.
 

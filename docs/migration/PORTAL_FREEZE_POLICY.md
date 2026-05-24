@@ -16,7 +16,7 @@ This policy declares the two freeze gates, the exception path, and the retiremen
 
 ### Soft freeze: bug-fix-only
 
-The portal enters **soft freeze** when [`honua-console#4`](https://github.com/honua-io/honua-console/issues/4) (Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data) opens.
+The portal enters **soft freeze** when the first implementation PR for [`honua-console#4`](https://github.com/honua-io/honua-console/issues/4) (Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data) opens after the owner acknowledgement below. The tracking issue being open does not itself trigger soft freeze.
 
 During soft freeze:
 
@@ -59,12 +59,12 @@ The mechanics of repo archival, deployment removal, redirect plan, and removal o
 
 ## Owner Sign-off Required Before Soft Freeze
 
-Before soft freeze begins (i.e., when `#4` opens), explicit acknowledgement is required from:
+Before soft freeze begins (i.e., before the first `#4` implementation PR opens), explicit acknowledgement is required from:
 
 - Portal contributors who currently land work on `honua-portal`.
 - The Console epic owner.
 
-Without that acknowledgement, soft freeze is announced on the merge of `#4`'s opening PR rather than retroactively enforced. The intent is to avoid surprising portal contributors mid-PR.
+Without that acknowledgement, soft freeze is announced on the merge of the first `#4` implementation PR rather than retroactively enforced. The intent is to avoid surprising portal contributors mid-PR.
 
 ## Why Two Gates
 
