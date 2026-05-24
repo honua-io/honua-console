@@ -1,0 +1,101 @@
+@page "/environments"
+@inject IConsoleEnvironmentProfileStore Profiles
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Native host configuration</p>
+        <h1>Environment Profiles</h1>
+        <p>Saved Honua Server environments keep server URL, account/RBAC binding, transport capability, mTLS certificate reference, and per-environment resume state separate.</p>
+    </div>
+
+    <div class="console-panel-grid">
+        @foreach (var profile in _profiles)
+        {
+            var isActive = string.Equals(profile.Id, _activeProfile?.Id, StringComparison.Ordinal);
+            var state = _states.GetValueOrDefault(profile.Id);
+
+            <article class="console-panel @(isActive ? "console-panel-active" : string.Empty)">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">@profile.EnvironmentKind</p>
+                        <h2>@profile.DisplayName</h2>
+                    </div>
+                    @if (isActive)
+                    {
+                        <span class="console-status">Active</span>
+                    }
+                </div>
+
+                <dl class="console-definition-list">
+                    <dt>Server</dt>
+                    <dd>@profile.ServerBaseUri</dd>
+                    <dt>Tenant</dt>
+                    <dd>@profile.TenantId</dd>
+                    <dt>Account model</dt>
+                    <dd>@profile.Account.AuthMode</dd>
+                    <dt>Native gRPC</dt>
+                    <dd>@FormatEnabled(profile.TransportCapabilities.NativeGrpc)</dd>
+                    <dt>mTLS</dt>
+                    <dd>@FormatCertificate(profile)</dd>
+                    <dt>Last route</dt>
+                    <dd>@(state?.LastRoute ?? "none")</dd>
+                    <dt>Resume token</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(state?.LastStreamingResumeToken) ? "none" : state.LastStreamingResumeToken)</dd>
+                </dl>
+
+                <button class="console-button" type="button" disabled="@isActive" @onclick="() => ActivateAsync(profile.Id)">
+                    Use Environment
+                </button>
+            </article>
+        }
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
+    private ConsoleEnvironmentProfile? _activeProfile;
+    private readonly Dictionary<string, ConsoleEnvironmentState?> _states = new(StringComparer.Ordinal);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task ActivateAsync(string profileId)
+    {
+        await Profiles.ActivateProfileAsync(profileId);
+        await Profiles.SaveStateAsync(new ConsoleEnvironmentState
+        {
+            ProfileId = profileId,
+            LastRoute = "/environments",
+            LastConnectedAt = DateTimeOffset.UtcNow,
+            LastStreamingResumeToken = _states.GetValueOrDefault(profileId)?.LastStreamingResumeToken ?? string.Empty
+        });
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _profiles = await Profiles.ListProfilesAsync();
+        _activeProfile = await Profiles.GetActiveProfileAsync();
+        _states.Clear();
+
+        foreach (var profile in _profiles)
+        {
+            _states[profile.Id] = await Profiles.GetStateAsync(profile.Id);
+        }
+    }
+
+    private static string FormatEnabled(bool enabled) => enabled ? "Enabled" : "Disabled";
+
+    private static string FormatCertificate(ConsoleEnvironmentProfile profile)
+    {
+        if (!profile.ClientCertificate.Enabled)
+        {
+            return "Disabled";
+        }
+
+        var reference = profile.ClientCertificate.Reference;
+        return reference is null ? "Enabled" : $"{reference.Kind}: {reference.Value}";
+    }
+}

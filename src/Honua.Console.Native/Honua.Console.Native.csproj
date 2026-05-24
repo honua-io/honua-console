@@ -1,0 +1,87 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <HonuaConsoleNativeMauiBuild>false</HonuaConsoleNativeMauiBuild>
+        <HonuaConsoleNativeMauiBuild Condition="$([MSBuild]::IsOSPlatform('windows')) or $([MSBuild]::IsOSPlatform('osx')) or ($([MSBuild]::IsOSPlatform('linux')) and '$(EnableHonuaConsoleAndroidTarget)' == 'true')">true</HonuaConsoleNativeMauiBuild>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">net10.0-windows10.0.19041.0</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-maccatalyst</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('linux')) and '$(EnableHonuaConsoleAndroidTarget)' == 'true'">net10.0-android</TargetFrameworks>
+        <TargetFramework Condition="'$(HonuaConsoleNativeMauiBuild)' != 'true'">net10.0</TargetFramework>
+
+        <!-- Note for MacCatalyst:
+            The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
+            When specifying both architectures, use the plural <RuntimeIdentifiers> instead of the singular <RuntimeIdentifier>.
+            The Mac App Store will NOT accept apps with ONLY maccatalyst-arm64 indicated;
+            either BOTH runtimes must be indicated or ONLY macatalyst-x64. -->
+        <!-- For example: <RuntimeIdentifiers>maccatalyst-x64;maccatalyst-arm64</RuntimeIdentifiers> -->
+
+        <OutputType Condition="'$(HonuaConsoleNativeMauiBuild)' == 'true'">Exe</OutputType>
+        <OutputType Condition="'$(HonuaConsoleNativeMauiBuild)' != 'true'">Library</OutputType>
+        <RootNamespace>Honua.Console.Native</RootNamespace>
+        <UseMaui Condition="'$(HonuaConsoleNativeMauiBuild)' == 'true'">true</UseMaui>
+        <SingleProject>true</SingleProject>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <EnableDefaultItems Condition="'$(HonuaConsoleNativeMauiBuild)' != 'true'">false</EnableDefaultItems>
+        <EnableDefaultCssItems>false</EnableDefaultCssItems>
+        <Nullable>enable</Nullable>
+
+        <!-- Enable XAML source generation for faster build times and improved performance.
+             This generates C# code from XAML at compile time instead of runtime inflation.
+             To disable, remove this line.
+             For individual files, you can override by setting Inflator metadata:
+               <MauiXaml Update="MyPage.xaml" Inflator="Default" /> (reverts to defaults: Runtime for Debug, XamlC for Release)
+               <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
+        <MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+        <!-- Display name -->
+        <ApplicationTitle>Honua Console</ApplicationTitle>
+
+        <!-- App Identifier -->
+        <ApplicationId>io.honua.console.native</ApplicationId>
+
+        <!-- Versions -->
+        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>1</ApplicationVersion>
+
+        <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
+        <WindowsPackageType>None</WindowsPackageType>
+
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+        <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(HonuaConsoleNativeMauiBuild)' == 'true'">
+        <!-- App Icon -->
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0F766E" />
+
+        <!-- Splash Screen -->
+        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#F7F9F8" BaseSize="128,128" />
+
+        <!-- Images -->
+        <MauiImage Include="Resources\Images\*" />
+
+        <!-- Custom Fonts -->
+        <MauiFont Include="Resources\Fonts\*" />
+
+        <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
+        <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(HonuaConsoleNativeMauiBuild)' == 'true'">
+        <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(HonuaConsoleNativeMauiBuild)' == 'true'">
+      <ProjectReference Include="..\Honua.Console.Shell\Honua.Console.Shell.csproj" />
+      <ProjectReference Include="..\Honua.Console.Native.Core\Honua.Console.Native.Core.csproj" />
+    </ItemGroup>
+
+    <Target Name="HonuaConsoleNativeSkippedOnUnsupportedHost" BeforeTargets="Build" Condition="'$(HonuaConsoleNativeMauiBuild)' != 'true'">
+        <Message Importance="high" Text="Skipping Honua.Console.Native MAUI app build on this host. Build on Windows/macOS, or set EnableHonuaConsoleAndroidTarget=true with an Android SDK installed for Linux source validation." />
+    </Target>
+
+</Project>

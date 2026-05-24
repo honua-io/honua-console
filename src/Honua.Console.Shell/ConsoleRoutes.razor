@@ -1,0 +1,6 @@
+<Router AppAssembly="@typeof(ConsoleRoutes).Assembly" NotFoundPage="@typeof(NotFoundPage)">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(ConsoleLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+</Router>

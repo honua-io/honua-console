@@ -12,6 +12,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 ## Decision Source
 
 - [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md)
+- [Optional MAUI Blazor Hybrid Host](docs/native/MAUI_BLAZOR_HOST.md)
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 - [Honua Console Route Map, RBAC, and Navigation](docs/console-route-map.md) — IA source of truth for Studio, Catalog, Operate, Share routes, gates, and exception surfaces. Migration tickets cite this map for URL shapes, gates, empty states, and smoke evidence.
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
@@ -73,7 +74,38 @@ scenario, owning-layer triage taxonomy, and evidence format.
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The Console IA is fixed in [docs/console-route-map.md](docs/console-route-map.md) ([honua-console#3](https://github.com/honua-io/honua-console/issues/3)); the Blazor Web Console shell and shared Razor component library scaffold lands under [honua-console#2](https://github.com/honua-io/honua-console/issues/2).
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The Console IA is fixed in [docs/console-route-map.md](docs/console-route-map.md) ([honua-console#3](https://github.com/honua-io/honua-console/issues/3)); the Blazor Web Console shell and shared Razor component library scaffold lands under [honua-console#2](https://github.com/honua-io/honua-console/issues/2). The scaffold now also includes an independently deployable Blazor web host and an optional .NET MAUI Blazor Hybrid native host ([honua-console#26](https://github.com/honua-io/honua-console/issues/26)) for operator/power-user workflows.
+
+## Project Layout
+
+- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, and native streaming proof interface.
+- `src/Honua.Console.Web`: default browser Console host. It references the shared shell and stays independently buildable/deployable without MAUI or native services.
+- `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation, and the deterministic telemetry streaming proof.
+- `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.
+- `tests/Honua.Console.Native.Core.Tests`: host-independent coverage for route boundaries, profile persistence, native connection setup, and the streaming proof contract.
+
+## Local Usage
+
+Run the browser Console:
+
+```bash
+dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj
+```
+
+Validate the shared shell and native-core behavior without a desktop MAUI toolchain:
+
+```bash
+./scripts/fast-local-check.sh
+```
+
+That script runs the same host-independent checks directly:
+
+```bash
+dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj
+dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj
+```
+
+The optional native host targets Windows and macOS desktop builds. See [Optional MAUI Blazor Hybrid Host](docs/native/MAUI_BLAZOR_HOST.md) for workload, publish, profile, mTLS, and streaming-proof details.
 
 Until parity is accepted, source behavior remains in:
 

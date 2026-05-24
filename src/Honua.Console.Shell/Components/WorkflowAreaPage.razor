@@ -1,0 +1,59 @@
+@if (_area is null)
+{
+    <section class="console-page">
+        <div class="console-page-heading">
+            <p class="console-kicker">Missing route</p>
+            <h1>Unsupported Console Area</h1>
+        </div>
+        <p class="console-muted">This Console area is not registered in the shared route map.</p>
+    </section>
+}
+else
+{
+    <section class="console-page">
+        <div class="console-page-heading">
+            <p class="console-kicker">@_area.WorkflowBoundary workflow</p>
+            <h1>@_area.Name</h1>
+            <p>@_area.Description</p>
+        </div>
+
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <h2>Shared Shell Route</h2>
+                <p class="console-muted">
+                    This route is owned by the shared Razor component library and is rendered by both the web Console host and the native Blazor Hybrid host.
+                </p>
+                <dl class="console-definition-list">
+                    <dt>Path</dt>
+                    <dd>@_area.Path</dd>
+                    <dt>Boundary</dt>
+                    <dd>@_area.WorkflowBoundary</dd>
+                </dl>
+            </article>
+
+            <article class="console-panel">
+                <h2>Migration Surface</h2>
+                <p class="console-muted">
+                    Ported workflows plug into this area without creating separate operator and builder products.
+                </p>
+                <div class="console-chip-row">
+                    <span>RBAC aware</span>
+                    <span>Shared metadata</span>
+                    <span>One runtime</span>
+                </div>
+            </article>
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string AreaId { get; set; } = string.Empty;
+
+    private ConsoleWorkflowArea? _area;
+
+    protected override void OnParametersSet()
+    {
+        _area = ConsoleRouteMap.FindArea(AreaId);
+    }
+}

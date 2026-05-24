@@ -1,0 +1,87 @@
+@page "/operate/native-stream"
+@inject IServiceProvider Services
+@inject IConsoleEnvironmentProfileStore Profiles
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Native gRPC proof</p>
+        <h1>Telemetry Stream</h1>
+        <p>A native host can register a gRPC-backed streaming proof while the browser Console keeps rendering the same shared route without taking a native dependency.</p>
+    </div>
+
+    @if (_proof is null)
+    {
+        <article class="console-panel">
+            <h2>Native proof unavailable</h2>
+            <p class="console-muted">The web Console host does not register native gRPC services. This route is still shared and independently deployable.</p>
+        </article>
+    }
+    else if (_activeProfile is null)
+    {
+        <article class="console-panel">
+            <h2>No active environment</h2>
+            <p class="console-muted">Create or activate an environment profile before opening a native stream.</p>
+        </article>
+    }
+    else
+    {
+        <article class="console-panel">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">@_proof.ProofName</p>
+                    <h2>@_activeProfile.DisplayName</h2>
+                </div>
+                <span class="console-status">@_events.Count events</span>
+            </div>
+
+            <ol class="console-event-list">
+                @foreach (var item in _events)
+                {
+                    <li>
+                        <span>@item.EventKind</span>
+                        <strong>@item.Message</strong>
+                        <small>@item.Transport resume=@item.ResumeToken</small>
+                    </li>
+                }
+            </ol>
+        </article>
+    }
+</section>
+
+@code {
+    private IConsoleNativeStreamingProof? _proof;
+    private ConsoleEnvironmentProfile? _activeProfile;
+    private readonly List<ConsoleStreamingEvent> _events = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proof = Services.GetService<IConsoleNativeStreamingProof>();
+        _activeProfile = await Profiles.GetActiveProfileAsync();
+
+        if (_proof is null || _activeProfile is null)
+        {
+            return;
+        }
+
+        await foreach (var streamEvent in _proof.StreamAsync(_activeProfile))
+        {
+            _events.Add(streamEvent);
+        }
+
+        if (_events.Count > 0)
+        {
+            await Profiles.SaveStateAsync(new ConsoleEnvironmentState
+            {
+                ProfileId = _activeProfile.Id,
+                LastRoute = "/operate/native-stream",
+                LastConnectedAt = DateTimeOffset.UtcNow,
+                LastStreamingResumeToken = _events[^1].ResumeToken,
+                Diagnostics = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["streamProof"] = _proof.ProofName,
+                    ["transport"] = _events[^1].Transport
+                }
+            });
+        }
+    }
+}

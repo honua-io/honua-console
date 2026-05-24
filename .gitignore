@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+bin/
+obj/
 .DS_Store
 .env
 .env.local
@@ -8,4 +10,3 @@ coverage/
 
 # Smoke evidence output (committed samples live under smoke/parity/sample-evidence/).
 smoke-evidence/
-
