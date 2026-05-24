@@ -3,8 +3,8 @@ import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "../shell/EmptyState.js";
 import { studioPublishingClient } from "../studio/publishing/fixtureClient.js";
-import type { PublishedContentItem, StudioPublishTarget } from "../studio/publishing/types.js";
-import { isStudioPublishingError } from "../studio/publishing/types.js";
+import type { PublishedContentItem, StudioPublishTarget, StudioPublishingProblem } from "../studio/publishing/types.js";
+import { studioPublishingProblemFromError } from "../studio/publishing/types.js";
 
 type Surface =
   | "catalog"
@@ -30,7 +30,7 @@ const PREVIEW_SURFACE_TARGETS: Partial<Record<Surface, StudioPublishTarget>> = {
 export function PublishedItemRoutePage({ surface }: PublishedItemRoutePageProps): JSX.Element {
   const { itemId = "" } = useParams();
   const [item, setItem] = useState<PublishedContentItem | null>(null);
-  const [error, setError] = useState<{ readonly kind: "missing" | "server"; readonly message: string } | null>(null);
+  const [error, setError] = useState<StudioPublishingProblem | null>(null);
 
   useEffect(() => {
     setItem(null);
@@ -47,10 +47,7 @@ export function PublishedItemRoutePage({ surface }: PublishedItemRoutePageProps)
       .catch((reason: unknown) => {
         if (cancelled) return;
         setItem(null);
-        setError({
-          kind: isStudioPublishingError(reason) && reason.kind === "missing" ? "missing" : "server",
-          message: reason instanceof Error ? reason.message : "Published item could not load."
-        });
+        setError(studioPublishingProblemFromError(reason, "Published item could not load."));
       });
     return () => {
       cancelled = true;

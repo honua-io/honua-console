@@ -4,12 +4,13 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "../shell/EmptyState.js";
 import { studioPublishingClient } from "../studio/publishing/fixtureClient.js";
 import { publishReviewRoute, studioDraftRoute } from "../studio/publishing/routes.js";
-import type { StudioPublishDraft } from "../studio/publishing/types.js";
+import type { StudioPublishDraft, StudioPublishingProblem } from "../studio/publishing/types.js";
+import { studioPublishingProblemFromError } from "../studio/publishing/types.js";
 
 export function StudioPreviewPage(): JSX.Element {
   const { draftId = "" } = useParams();
   const [draft, setDraft] = useState<StudioPublishDraft | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioPublishingProblem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,7 +26,7 @@ export function StudioPreviewPage(): JSX.Element {
       .catch((reason: unknown) => {
         if (cancelled) return;
         setDraft(null);
-        setError(reason instanceof Error ? reason.message : "Preview could not load.");
+        setError(studioPublishingProblemFromError(reason, "Preview could not load."));
       });
     return () => {
       cancelled = true;
@@ -33,7 +34,7 @@ export function StudioPreviewPage(): JSX.Element {
   }, [draftId]);
 
   if (error) {
-    return <EmptyState kind="missing" title="Preview not found" description={error} />;
+    return <EmptyState kind={error.kind} title="Preview unavailable" description={error.message} />;
   }
 
   if (!draft) {

@@ -161,6 +161,11 @@ export interface StudioPublishingClient {
   reopenPublishedItem(itemId: string): Promise<ReopenedStudioArtifact>;
 }
 
+export interface StudioPublishingProblem {
+  readonly kind: PublishProblemKind;
+  readonly message: string;
+}
+
 export class StudioPublishingError extends Error {
   readonly kind: PublishProblemKind;
 
@@ -173,4 +178,12 @@ export class StudioPublishingError extends Error {
 
 export function isStudioPublishingError(error: unknown): error is StudioPublishingError {
   return error instanceof StudioPublishingError;
+}
+
+export function studioPublishingProblemFromError(error: unknown, fallbackMessage: string): StudioPublishingProblem {
+  if (isStudioPublishingError(error)) {
+    return { kind: error.kind, message: error.message };
+  }
+
+  return { kind: "server", message: fallbackMessage };
 }

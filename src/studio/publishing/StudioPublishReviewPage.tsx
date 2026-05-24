@@ -11,14 +11,15 @@ import type {
   PublishedContentItem,
   ShareEmbedSettings,
   ShareVisibility,
-  StudioPublishDraft
+  StudioPublishDraft,
+  StudioPublishingProblem
 } from "./types.js";
-import { isStudioPublishingError } from "./types.js";
+import { studioPublishingProblemFromError } from "./types.js";
 
 type ReviewState =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly draft: StudioPublishDraft }
-  | { readonly kind: "error"; readonly problemKind: "missing" | "unauthorized" | "unsupported" | "invalid" | "conflict" | "server"; readonly message: string };
+  | { readonly kind: "error"; readonly problemKind: StudioPublishingProblem["kind"]; readonly message: string };
 
 interface FormState {
   readonly title: string;
@@ -74,11 +75,8 @@ export function StudioPublishReviewPage(): JSX.Element {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        if (isStudioPublishingError(error)) {
-          setState({ kind: "error", problemKind: error.kind, message: error.message });
-        } else {
-          setState({ kind: "error", problemKind: "server", message: "Publish review could not load." });
-        }
+        const problem = studioPublishingProblemFromError(error, "Publish review could not load.");
+        setState({ kind: "error", problemKind: problem.kind, message: problem.message });
       });
     return () => {
       cancelled = true;
@@ -152,14 +150,13 @@ export function StudioPublishReviewPage(): JSX.Element {
         target: item.type
       });
     } catch (error) {
-      const problemKind = isStudioPublishingError(error) ? error.kind : "server";
-      const message = error instanceof Error ? error.message : "Publish failed.";
-      setSubmitError(message);
+      const problem = studioPublishingProblemFromError(error, "Publish failed.");
+      setSubmitError(problem.message);
       emitStudioPublishTelemetry({
         name: "publish.failed",
         draftId: draft.draftId,
         target: draft.target,
-        problemKind
+        problemKind: problem.kind
       });
     } finally {
       setSubmitting(false);

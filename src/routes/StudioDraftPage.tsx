@@ -4,13 +4,13 @@ import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "../shell/EmptyState.js";
 import { studioPublishingClient } from "../studio/publishing/fixtureClient.js";
 import { publishReviewRoute, studioPreviewRoute } from "../studio/publishing/routes.js";
-import type { StudioPublishDraft } from "../studio/publishing/types.js";
-import { isStudioPublishingError } from "../studio/publishing/types.js";
+import type { StudioPublishDraft, StudioPublishingProblem } from "../studio/publishing/types.js";
+import { studioPublishingProblemFromError } from "../studio/publishing/types.js";
 
 export function StudioDraftPage(): JSX.Element {
   const { draftId = "" } = useParams();
   const [draft, setDraft] = useState<StudioPublishDraft | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioPublishingProblem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,7 +26,7 @@ export function StudioDraftPage(): JSX.Element {
       .catch((reason: unknown) => {
         if (cancelled) return;
         setDraft(null);
-        setError(reason instanceof Error ? reason.message : "Draft could not load.");
+        setError(studioPublishingProblemFromError(reason, "Draft could not load."));
       });
     return () => {
       cancelled = true;
@@ -34,7 +34,7 @@ export function StudioDraftPage(): JSX.Element {
   }, [draftId]);
 
   if (error) {
-    return <EmptyState kind="missing" title="Draft not found" description={error} />;
+    return <EmptyState kind={error.kind} title="Draft unavailable" description={error.message} />;
   }
 
   if (!draft) {
@@ -80,6 +80,6 @@ export function StudioDraftPage(): JSX.Element {
   );
 }
 
-export function errorKindForDraft(error: unknown): "missing" | "server" {
-  return isStudioPublishingError(error) ? error.kind === "missing" ? "missing" : "server" : "server";
+export function errorKindForDraft(error: unknown): StudioPublishingProblem["kind"] {
+  return studioPublishingProblemFromError(error, "Draft could not load.").kind;
 }

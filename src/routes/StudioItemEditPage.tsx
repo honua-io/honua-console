@@ -5,13 +5,13 @@ import { EmptyState } from "../shell/EmptyState.js";
 import { studioPublishingClient } from "../studio/publishing/fixtureClient.js";
 import { publishReviewRoute } from "../studio/publishing/routes.js";
 import { emitStudioPublishTelemetry } from "../studio/publishing/telemetry.js";
-import type { ReopenedStudioArtifact } from "../studio/publishing/types.js";
-import { isStudioPublishingError } from "../studio/publishing/types.js";
+import type { ReopenedStudioArtifact, StudioPublishingProblem } from "../studio/publishing/types.js";
+import { studioPublishingProblemFromError } from "../studio/publishing/types.js";
 
 export function StudioItemEditPage(): JSX.Element {
   const { itemId = "" } = useParams();
   const [artifact, setArtifact] = useState<ReopenedStudioArtifact | null>(null);
-  const [error, setError] = useState<{ readonly kind: "missing" | "server"; readonly message: string } | null>(null);
+  const [error, setError] = useState<StudioPublishingProblem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,10 +32,7 @@ export function StudioItemEditPage(): JSX.Element {
       .catch((reason: unknown) => {
         if (cancelled) return;
         setArtifact(null);
-        setError({
-          kind: isStudioPublishingError(reason) && reason.kind === "missing" ? "missing" : "server",
-          message: reason instanceof Error ? reason.message : "Published item could not reopen."
-        });
+        setError(studioPublishingProblemFromError(reason, "Published item could not reopen."));
       });
     return () => {
       cancelled = true;
