@@ -1,9 +1,18 @@
 @page "/maps/new"
 @inject IConsoleCatalogClient Catalog
+@inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
 
 <section class="console-page console-viewer-page">
-    @if (string.IsNullOrWhiteSpace(_sourceItemId))
+    @if (!_accessResolved)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking map access" Message="The workspace session is being checked before draft map hydration starts." />
+    }
+    else if (_requiresAuthentication)
+    {
+        <ConsoleStateView Kind="unauthenticated" Kicker="Sign in required" Title="Sign in to create a map" Message="Draft map hydration requires a signed-in workspace session." ActionHref="@BuildSignInHref()" ActionLabel="Sign In" />
+    }
+    else if (string.IsNullOrWhiteSpace(_sourceItemId))
     {
         <ConsoleStateView Kind="empty" Kicker="New map" Title="Choose a catalog item" Message="Start a draft map from a supported catalog service or layer." ActionHref="/catalog?type=service" ActionLabel="Browse Catalog" />
     }
@@ -50,12 +59,32 @@
 @code {
     private string _sourceItemId = string.Empty;
     private MapPackageReadResult? _result;
+    private bool _accessResolved;
+    private bool _requiresAuthentication;
 
     protected override async Task OnParametersSetAsync()
     {
         _sourceItemId = ConsoleUrlQuery.GetValue(Navigation.Uri, "from") ?? string.Empty;
+        _accessResolved = false;
+        _requiresAuthentication = false;
+        _result = null;
+
+        var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
+        _accessResolved = true;
+        if (context.Anonymous)
+        {
+            _requiresAuthentication = true;
+            return;
+        }
+
         _result = string.IsNullOrWhiteSpace(_sourceItemId)
             ? null
-            : await Catalog.GetDraftMapAsync(_sourceItemId);
+            : await Catalog.GetDraftMapAsync(_sourceItemId, context);
+    }
+
+    private string BuildSignInHref()
+    {
+        var returnTo = $"/{Navigation.ToBaseRelativePath(Navigation.Uri)}";
+        return $"/auth/signin?returnTo={Uri.EscapeDataString(returnTo)}";
     }
 }

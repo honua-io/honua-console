@@ -36,7 +36,7 @@
                 </div>
             </div>
             <div class="console-detail-actions">
-                @foreach (var action in ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: !_result.AnonymousRead))
+                @foreach (var action in ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: !_result.AnonymousRead, publicLinkToken: _token))
                 {
                     <a class="console-button-link" href="@action.Href">@action.Label</a>
                 }

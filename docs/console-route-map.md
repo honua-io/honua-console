@@ -82,6 +82,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/analytics             Usage analytics
 /operate/legacy/<path>         Transitional iframe container for legacy Admin pages
 
+/share                         Share area entry; current slice renders the public open-data collection
 /share/public                  Open-data collection page (public + openData service/layer/document items)
 /public                        Legacy open-data collection alias; newly generated links use /share/public
 /share/public/items/:idOrSlug  Open-data item page (same eligibility)
@@ -99,7 +100,7 @@ Top-level placement notes:
   URL is the contract surface that external sites already use. Forcing
   them under `/catalog` or `/studio` would either invent two list
   surfaces or break embed deep-links. `/maps/:mapId` is additionally the
-  share-link target emitted by `honua-portal:src/share/snippet.ts:29` for
+  share-link target emitted by `honua-portal:src/share/snippet.ts:27` for
   saved-map items (`/maps/:id` plus `?token=<value>` for public-link tier),
   so the route must accept anonymous reads when `ShareAccess` authorizes
   them; see §2.5 and §6.4.
@@ -160,8 +161,9 @@ Edition gates render as a per-route badge or upgrade tile for
 authenticated sessions that can otherwise reach the route (not a hidden
 route). Anonymous users still follow the route's base response contract:
 `auth` routes redirect to sign-in, while anonymous-capable
-Share/Catalog/Maps denials render `<UnavailableView>` without upgrade
-copy (§7, §13 Q5). Edition is sourced from `LicenseInfo.Edition`
+Share/Catalog/Maps denials render `ConsoleStateView Kind="unavailable"`
+without upgrade copy (§7, §13 Q5). Edition is sourced from
+`LicenseInfo.Edition`
 (`honua-server:src/Honua.Core/Features/Licensing/Domain/LicenseInfo.cs:14`).
 On the wire, `LicenseInfo.Edition` is a `string` populated from
 `HonuaEdition.ToString()` (e.g. server mappers at
@@ -219,9 +221,10 @@ Keys cited by the route map below (all verified in `FeatureCatalog.cs`):
 
 ### 2.5 Anonymous routes
 
-`/auth/signin`, `/auth/callback`, `/auth/signed-out`, `/share/public`,
-`/public`, `/share/public/items/:idOrSlug`, `/public/items/:idOrSlug`
-(only for public open-data service/layer/document items per §4.3),
+`/auth/signin`, `/auth/callback`, `/auth/signed-out`, `/share`,
+`/share/public`, `/public`, `/share/public/items/:idOrSlug`,
+`/public/items/:idOrSlug` (only for public open-data service/layer/document
+items per §4.3),
 `/embed/maps/:mapId`,
 `/maps/:mapId` (only when `ShareAccess` authorizes the read — either
 `sharing = public` or `sharing = public-link` with a valid
@@ -570,7 +573,7 @@ is a member-accessible workspace surface and is a placeholder pending a
 dedicated Groups feature ticket. Empty-state copy mirrors current Portal
 ("You're not a member of any groups yet" — `honua-portal:src/routes/Groups.tsx:27`).
 Authenticated sessions without `member`, `operator`, or `admin` render
-`<ForbiddenView>` rather than redirecting.
+`ConsoleStateView Kind="forbidden"` rather than redirecting.
 
 ### 6.2 Studio
 
@@ -641,10 +644,11 @@ risk surface.
 
 `/catalog/:idOrSlug` is anonymous-capable on the same `ShareAccess` +
 `?token=` contract as `/maps/:mapId` (§6.4, §2.5). Anonymous denials
-render `<UnavailableView>` (not the upgrade tile) so upgrade copy is
-not leaked to anonymous users (§13 Q5). Authenticated server-read
-denials render `<ForbiddenView>`. Action gates (editMetadata,
-updateSharing, etc.) still require authenticated `item-role` per
+render `ConsoleStateView Kind="unavailable"` (not the upgrade tile) so
+upgrade copy is not leaked to anonymous users (§13 Q5). Authenticated
+server-read denials render `ConsoleStateView Kind="forbidden"`. Action
+gates (editMetadata, updateSharing, etc.) still require authenticated
+`item-role` per
 `ROLE_MATRIX` (§4.2) and are hidden from the anonymous read surface.
 
 ### 6.4 Maps (viewer)
@@ -745,6 +749,7 @@ loaded; Console must not evaluate wildcard entitlement tokens.
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
+| `/share` | `anonymous`, Console Share area entry; current slice renders `/share/public` content | empty-share | — | share |
 | `/share/public` | `anonymous`, `open-data` per item (`isPublicOpenDataSummary`) | empty-share | — | share |
 | `/public` | `anonymous`, compatibility alias for `/share/public` | empty-share | — | share |
 | `/share/public/items/:idOrSlug` | `anonymous`, `open-data` (`isPublicOpenDataItem`) | missing-item / not-public | unavailable (anonymous, see §13 Q5) | share |
@@ -780,23 +785,30 @@ proxy, or CDN logs.
 
 ## 7. Exception Surfaces
 
-One canonical component per category, referenced by route. Console
-routes do not author bespoke 403/404/empty copy.
+One canonical surface per category is referenced by route. Console routes
+do not author bespoke 403/404/empty copy. The `honua-console#34` Blazor
+slice renders these through `ConsoleStateView` with a stable `Kind`
+value; future component names can wrap that surface without changing the
+read contract.
 
 | Surface | Component | When | Source / contract |
 |---|---|---|---|
 | Unauthenticated | redirect | route requires `auth` and session is `UnauthenticatedSession` | `redirect('/auth/signin?returnTo=' + sanitizeReturnTo(location))` (`auth/returnTo.ts:5`) |
-| Forbidden | `<ForbiddenView cause=...>` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Catalog/Maps routes use `<UnavailableView>` |
-| Missing item | `<MissingItemView kind=...>` | item id resolved → not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
-| Unsupported service metadata | `<UnsupportedServiceView>` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug` and Studio "open from catalog" |
-| Unsupported package binding | `<UnsupportedPackageView>` | generated-app, saved-map, or generated Studio package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, and `/maps/:mapId` |
-| Empty state | `<EmptyState area=...>` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
-| Loading | `<SectionSkeleton>` | route mounted, content pending | never blocks shell paint |
+| Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Catalog/Maps routes use `Kind="unavailable"` |
+| Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
+| Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
+| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` |
+| Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
+| Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
-| Unavailable (anonymous) | `<UnavailableView>` | anonymous read or authorization denial on `/share/*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
+| Unavailable (anonymous) | `ConsoleStateView Kind="unavailable"` | anonymous read or authorization denial on `/share/*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
 
-These components are seeded by `honua-console#2` (scaffold) and used by
-all downstream port tickets.
+The catalog/share route-slice client returns `CatalogItemReadResult` or
+`MapPackageReadResult` with `Status` values `Allowed`, `Missing`,
+`Forbidden`, `Unavailable`, `UnsupportedServiceMetadata`, and
+`UnsupportedPackageBinding`. `AnonymousRead` controls whether Studio,
+Share, and permission details are hidden after an otherwise allowed
+public or public-link read.
 
 ---
 
@@ -836,7 +848,7 @@ constraint).
 | catalog | `/catalog`, `/catalog/:idOrSlug` |
 | viewer | `/maps/:mapId` |
 | operate | all `/operate/*` |
-| share | `/share/public`, `/public`, `/share/public/items/:idOrSlug`, `/public/items/:idOrSlug` |
+| share | `/share`, `/share/public`, `/public`, `/share/public/items/:idOrSlug`, `/public/items/:idOrSlug` |
 | embed | `/embed/maps/:mapId` |
 
 The embed chunk explicitly excludes shell chrome, Studio prompt UI,
@@ -921,8 +933,8 @@ PRs that touch each ticket should link to its section number(s).
 
 | Ticket | Cites |
 |---|---|
-| `honua-console#4` — Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data | §1 (taxonomy: `/catalog`, `/maps`, `/share`, `/embed`), §3 rows 5–11 and row 14 (`/data` → `/catalog`; no dedicated dataset filter today — `ListItemsRequest` has no `kind` field and `ItemType` has no `dataset` member), §5.4 REDIRECTs (`/layers`, `/services`, `/layers/{id}/preview`), §6.3 / §6.4 / §6.6 / §6.7 (route catalogue), §7 (exception surfaces), §8 (frozen URLs), §9 (chunks), §10 (smoke). |
-| `honua-console#5` — Port Studio app-builder and generated-app lifecycle | §1 (`/studio*`), §3 rows 12–13, §5.2 RETIRE (`/operator/app-builder`), §6.2 (route catalogue), §7 (`<UnsupportedPackageView>`), §9 (studio chunk), §10 (studio-generation smoke). |
+| `honua-console#4` — Port Catalog, Viewer, Saved Maps, Share, Embed, Open Data | §1 (taxonomy: `/catalog`, `/maps`, `/share`, `/embed`), §3 rows 5–11 and row 14 (`/data` → `/catalog`; the #34 route slice now includes `type=dataset` while broader dataset-like multi-type filtering remains deferred), §5.4 REDIRECTs (`/layers`, `/services`, `/layers/{id}/preview`), §6.3 / §6.4 / §6.6 / §6.7 (route catalogue), §7 (exception surfaces), §8 (frozen URLs), §9 (chunks), §10 (smoke). |
+| `honua-console#5` — Port Studio app-builder and generated-app lifecycle | §1 (`/studio*`), §3 rows 12–13, §5.2 RETIRE (`/operator/app-builder`), §6.2 (route catalogue), §7 (`ConsoleStateView Kind="unsupported-package"`), §9 (studio chunk), §10 (studio-generation smoke). |
 | `honua-console#6` — Integrate legacy Admin as transitional Operate surface | §1 (`/operate/*`, `/operate/legacy/<path>`), all of §5 (Admin disposition map), §6.5 (Operate gates and surfaces), §11 (`honua-server-admin#96` consumer notes). |
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
 | `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 rows carrying smoke labels. |
@@ -949,7 +961,7 @@ the human review answers land in
 | Q2 | Saved-map list: `/catalog?type=map` vs `/studio/maps` vs `/catalog/maps` | `/catalog?type=map` (Catalog filter). Avoids two list surfaces; preserves existing query-param contract. | default |
 | Q3 | `/share/public` vs `/public` redirect semantics | `honua-console#34` serves `/public` as a compatibility alias for `/share/public` in the Blazor route slice. No 3xx for `/embed/maps/:mapId`; 200-at-both-paths for open-data item detail URLs (`/public/items/:idOrSlug` plus `/share/public/items/:idOrSlug`) because item URLs appear in DCAT-US / data.json / schema.org contexts. | default updated by #34 |
 | Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |
-| Q5 | Anonymous user on a gated `/share/*` link | Generic `<UnavailableView>` for anonymous; upgrade tile only when authenticated. | default |
+| Q5 | Anonymous user on a gated `/share/*` link | Generic `ConsoleStateView Kind="unavailable"` for anonymous; upgrade tile only when authenticated. | default updated by #34 |
 | Q6 | Admin EMBED container path: `/operate/legacy/<path>` vs `/operate/admin-legacy/<opaque>` | One-to-one `/operate/legacy/<path>` to preserve deep-link history. | default |
 | Q7 | SDK projection timing | Blazor Web Console treats Portal RBAC, share-link, embed, and open-data helpers as behavior references until `honua-sdk-dotnet#166` projects server-owned route/RBAC/content DTOs; JS runtimes use `honua-sdk-js#225` once available. Bounded interim, not a cross-repo blocker. | default |
 | Q8 | Cross-repo scope | This ticket changes only `honua-console`. No bounded child tickets filed beyond the existing external consumer tickets in §11. | confirmed |

@@ -4,22 +4,34 @@ namespace Honua.Console.Shell.Models;
 
 public static class ConsoleCatalogActionPolicy
 {
-    public static IReadOnlyList<ConsoleCatalogAction> Resolve(ConsoleContentSummary item, bool isAuthenticated)
+    public static IReadOnlyList<ConsoleCatalogAction> Resolve(
+        ConsoleContentSummary item,
+        bool isAuthenticated,
+        string publicLinkToken = "")
     {
         ArgumentNullException.ThrowIfNull(item);
 
         var actions = new List<ConsoleCatalogAction>
         {
-            new("detail", "Open Detail", $"/catalog/{item.SlugOrId()}", true)
+            new(
+                "detail",
+                "Open Detail",
+                WithPublicLinkToken($"/catalog/{item.SlugOrId()}", item, isAuthenticated, publicLinkToken),
+                true)
         };
 
         if (item.ViewerSupport.CanOpenInViewer
             && item.ViewerSupport.SupportState == ConsoleContentSupportState.Supported)
         {
-            var href = string.Equals(item.Type, "map", StringComparison.Ordinal)
-                ? $"/maps/{item.SlugOrId()}"
-                : $"/maps/new?from={Uri.EscapeDataString(item.Id)}";
-            actions.Add(new("viewer", "Open Map", href, true));
+            if (string.Equals(item.Type, "map", StringComparison.Ordinal))
+            {
+                var href = WithPublicLinkToken($"/maps/{item.SlugOrId()}", item, isAuthenticated, publicLinkToken);
+                actions.Add(new("viewer", "Open Map", href, true));
+            }
+            else if (isAuthenticated)
+            {
+                actions.Add(new("viewer", "Open Map", $"/maps/new?from={Uri.EscapeDataString(item.Id)}", true));
+            }
         }
 
         if (!isAuthenticated)
@@ -55,6 +67,24 @@ public static class ConsoleCatalogActionPolicy
     private static bool IsOwnerOrEditor(string role) =>
         string.Equals(role, "owner", StringComparison.Ordinal)
         || string.Equals(role, "editor", StringComparison.Ordinal);
+
+    private static string WithPublicLinkToken(
+        string href,
+        ConsoleContentSummary item,
+        bool isAuthenticated,
+        string publicLinkToken)
+    {
+        if (isAuthenticated
+            || string.IsNullOrWhiteSpace(publicLinkToken)
+            || !string.Equals(item.Access.Sharing, CatalogSharingTiers.PublicLink, StringComparison.Ordinal)
+            || !string.Equals(publicLinkToken, item.Access.PublicLinkToken, StringComparison.Ordinal))
+        {
+            return href;
+        }
+
+        var separator = href.Contains("?", StringComparison.Ordinal) ? '&' : '?';
+        return $"{href}{separator}token={Uri.EscapeDataString(publicLinkToken)}";
+    }
 
     private static string SlugOrId(this ConsoleContentSummary item) =>
         string.IsNullOrWhiteSpace(item.Slug) ? item.Id : item.Slug;

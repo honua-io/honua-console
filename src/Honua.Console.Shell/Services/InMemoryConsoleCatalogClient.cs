@@ -10,12 +10,17 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 
     public Task<CatalogSearchResult> SearchAsync(
         CatalogListRequest request,
+        CatalogReadContext context,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var filtered = _items.Select(item => item.Summary);
+        var visibleSummaries = _items
+            .Select(item => item.Summary)
+            .Where(item => IsVisibleToContext(item, context));
+        var filtered = visibleSummaries;
 
         if (!string.IsNullOrWhiteSpace(request.Query))
         {
@@ -54,8 +59,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         };
 
         var items = filtered.ToArray();
-        var typeCounts = _items
-            .Select(item => item.Summary)
+        var typeCounts = visibleSummaries
             .GroupBy(item => item.Type, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
 
@@ -160,10 +164,19 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 
     public Task<MapPackageReadResult> GetDraftMapAsync(
         string sourceItemId,
+        CatalogReadContext context,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceItemId);
+        ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (context.Anonymous)
+        {
+            return Task.FromResult(MapPackageReadResult.Denied(
+                CatalogReadStatus.Unavailable,
+                "Sign in to hydrate a draft map from catalog content."));
+        }
 
         var item = FindItem(sourceItemId);
         if (item is null)
@@ -259,21 +272,26 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 
     private static CatalogReadStatus AuthorizeItem(ConsoleContentSummary item, CatalogReadContext context)
     {
+        return IsVisibleToContext(item, context)
+            ? CatalogReadStatus.Allowed
+            : CatalogReadStatus.Unavailable;
+    }
+
+    private static bool IsVisibleToContext(ConsoleContentSummary item, CatalogReadContext context)
+    {
         if (!context.Anonymous)
         {
-            return CatalogReadStatus.Allowed;
+            return true;
         }
 
         if (string.Equals(item.Access.Sharing, CatalogSharingTiers.Public, StringComparison.Ordinal))
         {
-            return CatalogReadStatus.Allowed;
+            return true;
         }
 
-        var publicLinkMatches = string.Equals(item.Access.Sharing, CatalogSharingTiers.PublicLink, StringComparison.Ordinal)
+        return string.Equals(item.Access.Sharing, CatalogSharingTiers.PublicLink, StringComparison.Ordinal)
             && !string.IsNullOrWhiteSpace(context.PublicLinkToken)
             && string.Equals(context.PublicLinkToken, item.Access.PublicLinkToken, StringComparison.Ordinal);
-
-        return publicLinkMatches ? CatalogReadStatus.Allowed : CatalogReadStatus.Unavailable;
     }
 
     private static bool IsOpenDataItem(ConsoleContentSummary item) =>

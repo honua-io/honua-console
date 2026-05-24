@@ -123,8 +123,8 @@ The Blazor shell includes the catalog/share parity route slice for
   to item policy; anonymous reads hide those actions.
 - `/maps/new?from=<itemId>` hydrates an unsaved draft map from a supported
   catalog item.
-- `/share/public` and `/public` list public open-data service, layer, and
-  document items. `/share/public/items/{idOrSlug}` and
+- `/share`, `/share/public`, and `/public` list public open-data service,
+  layer, and document items. `/share/public/items/{idOrSlug}` and
   `/public/items/{idOrSlug}` serve the eligible item detail page.
 - `/embed/maps/{mapId}` uses the shellless embed layout. It accepts
   Portal-compatible `chrome`, `legend`, `zoom`, and `extent=W,S,E,N`

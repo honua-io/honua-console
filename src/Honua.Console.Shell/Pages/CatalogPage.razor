@@ -1,5 +1,6 @@
 @page "/catalog"
 @inject IConsoleCatalogClient Catalog
+@inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
 
 <section class="console-page">
@@ -9,74 +10,85 @@
         <p>Workspace content, publication state, provenance, and viewer readiness.</p>
     </div>
 
-    <form class="console-filter-bar" method="get" action="/catalog">
-        <label>
-            <span>Search</span>
-            <input name="q" value="@_search.Query" placeholder="Search title, summary, or tag" />
-        </label>
-        <label>
-            <span>Type</span>
-            <select name="type">
-                <option value="" selected="@string.IsNullOrWhiteSpace(_search.Type)">All types</option>
-                @foreach (var type in CatalogContentTypes.All)
-                {
-                    <option value="@type.Key" selected="@string.Equals(type.Key, _search.Type, StringComparison.Ordinal)">
-                        @type.Label
-                    </option>
-                }
-            </select>
-        </label>
-        <label>
-            <span>Tag</span>
-            <input name="tag" value="@_search.Tag" />
-        </label>
-        <label>
-            <span>Owner</span>
-            <input name="owner" value="@_search.Owner" />
-        </label>
-        <label>
-            <span>Visibility</span>
-            <select name="visibility">
-                <option value="" selected="@string.IsNullOrWhiteSpace(_search.Visibility)">Any</option>
-                <option value="private" selected="@IsVisibility(CatalogSharingTiers.Private)">Private</option>
-                <option value="org" selected="@IsVisibility(CatalogSharingTiers.Organization)">Organization</option>
-                <option value="group" selected="@IsVisibility(CatalogSharingTiers.Group)">Group</option>
-                <option value="public-link" selected="@IsVisibility(CatalogSharingTiers.PublicLink)">Public link</option>
-                <option value="public" selected="@IsVisibility(CatalogSharingTiers.Public)">Public</option>
-            </select>
-        </label>
-        <label>
-            <span>Sort</span>
-            <select name="sort">
-                <option value="relevance" selected="@IsSort(CatalogSortOptions.Relevance)">Relevance</option>
-                <option value="modified-desc" selected="@IsSort(CatalogSortOptions.ModifiedDesc)">Modified</option>
-                <option value="modified-asc" selected="@IsSort(CatalogSortOptions.ModifiedAsc)">Oldest</option>
-                <option value="title-asc" selected="@IsSort(CatalogSortOptions.TitleAsc)">Title A-Z</option>
-                <option value="title-desc" selected="@IsSort(CatalogSortOptions.TitleDesc)">Title Z-A</option>
-            </select>
-        </label>
-        @if (!string.IsNullOrWhiteSpace(_search.Cursor))
-        {
-            <input type="hidden" name="cursor" value="@_search.Cursor" />
-        }
-        <button class="console-button" type="submit">Search</button>
-    </form>
+    @if (_accessResolved && !_requiresAuthentication)
+    {
+        <form class="console-filter-bar" method="get" action="/catalog">
+            <label>
+                <span>Search</span>
+                <input name="q" value="@_search.Query" placeholder="Search title, summary, or tag" />
+            </label>
+            <label>
+                <span>Type</span>
+                <select name="type">
+                    <option value="" selected="@string.IsNullOrWhiteSpace(_search.Type)">All types</option>
+                    @foreach (var type in CatalogContentTypes.All)
+                    {
+                        <option value="@type.Key" selected="@string.Equals(type.Key, _search.Type, StringComparison.Ordinal)">
+                            @type.Label
+                        </option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Tag</span>
+                <input name="tag" value="@_search.Tag" />
+            </label>
+            <label>
+                <span>Owner</span>
+                <input name="owner" value="@_search.Owner" />
+            </label>
+            <label>
+                <span>Visibility</span>
+                <select name="visibility">
+                    <option value="" selected="@string.IsNullOrWhiteSpace(_search.Visibility)">Any</option>
+                    <option value="private" selected="@IsVisibility(CatalogSharingTiers.Private)">Private</option>
+                    <option value="org" selected="@IsVisibility(CatalogSharingTiers.Organization)">Organization</option>
+                    <option value="group" selected="@IsVisibility(CatalogSharingTiers.Group)">Group</option>
+                    <option value="public-link" selected="@IsVisibility(CatalogSharingTiers.PublicLink)">Public link</option>
+                    <option value="public" selected="@IsVisibility(CatalogSharingTiers.Public)">Public</option>
+                </select>
+            </label>
+            <label>
+                <span>Sort</span>
+                <select name="sort">
+                    <option value="relevance" selected="@IsSort(CatalogSortOptions.Relevance)">Relevance</option>
+                    <option value="modified-desc" selected="@IsSort(CatalogSortOptions.ModifiedDesc)">Modified</option>
+                    <option value="modified-asc" selected="@IsSort(CatalogSortOptions.ModifiedAsc)">Oldest</option>
+                    <option value="title-asc" selected="@IsSort(CatalogSortOptions.TitleAsc)">Title A-Z</option>
+                    <option value="title-desc" selected="@IsSort(CatalogSortOptions.TitleDesc)">Title Z-A</option>
+                </select>
+            </label>
+            @if (!string.IsNullOrWhiteSpace(_search.Cursor))
+            {
+                <input type="hidden" name="cursor" value="@_search.Cursor" />
+            }
+            <button class="console-button" type="submit">Search</button>
+        </form>
 
-    <nav class="console-type-strip" aria-label="Catalog content types">
-        <a class="@TypeStripClass(string.Empty)" href="@BuildTypeHref(string.Empty)">
-            <span>All</span>
-            <small>@(_result?.Items.Count ?? 0)</small>
-        </a>
-        @foreach (var type in CatalogContentTypes.All)
-        {
-            <a class="@TypeStripClass(type.Key)" href="@BuildTypeHref(type.Key)" title="@type.Description">
-                <span>@type.Label</span>
-                <small>@TypeCount(type.Key)</small>
+        <nav class="console-type-strip" aria-label="Catalog content types">
+            <a class="@TypeStripClass(string.Empty)" href="@BuildTypeHref(string.Empty)">
+                <span>All</span>
+                <small>@(_result?.Items.Count ?? 0)</small>
             </a>
-        }
-    </nav>
+            @foreach (var type in CatalogContentTypes.All)
+            {
+                <a class="@TypeStripClass(type.Key)" href="@BuildTypeHref(type.Key)" title="@type.Description">
+                    <span>@type.Label</span>
+                    <small>@TypeCount(type.Key)</small>
+                </a>
+            }
+        </nav>
+    }
 
-    @if (_result is null)
+    @if (!_accessResolved)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="The workspace session is being checked before catalog summaries load." />
+    }
+    else if (_requiresAuthentication)
+    {
+        <ConsoleStateView Kind="unauthenticated" Kicker="Sign in required" Title="Sign in to browse catalog" Message="Catalog search requires a signed-in workspace session." ActionHref="@BuildSignInHref()" ActionLabel="Sign In" />
+    }
+    else if (_result is null)
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
     }
@@ -141,11 +153,25 @@
 @code {
     private CatalogSearchState _search = new();
     private CatalogSearchResult? _result;
+    private bool _accessResolved;
+    private bool _requiresAuthentication;
 
     protected override async Task OnParametersSetAsync()
     {
         _search = CatalogSearchState.FromUri(Navigation.Uri);
-        _result = await Catalog.SearchAsync(_search.ToListRequest());
+        _accessResolved = false;
+        _requiresAuthentication = false;
+        _result = null;
+
+        var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
+        _accessResolved = true;
+        if (context.Anonymous)
+        {
+            _requiresAuthentication = true;
+            return;
+        }
+
+        _result = await Catalog.SearchAsync(_search.ToListRequest(), context);
     }
 
     private bool IsVisibility(string value) => string.Equals(_search.Visibility, value, StringComparison.Ordinal);
@@ -171,6 +197,12 @@
 
     private int TypeCount(string type) =>
         _result?.TypeCounts.GetValueOrDefault(type) ?? 0;
+
+    private string BuildSignInHref()
+    {
+        var returnTo = $"/{Navigation.ToBaseRelativePath(Navigation.Uri)}";
+        return $"/auth/signin?returnTo={Uri.EscapeDataString(returnTo)}";
+    }
 
     private static string SlugOrId(ConsoleContentSummary item) =>
         string.IsNullOrWhiteSpace(item.Slug) ? item.Id : item.Slug;

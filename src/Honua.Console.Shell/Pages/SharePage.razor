@@ -50,7 +50,7 @@
         {
             Sharing = CatalogSharingTiers.Public,
             Sort = CatalogSortOptions.ModifiedDesc
-        });
+        }, CatalogReadContext.AnonymousPublicLink(token: null));
         _items = result.Items
             .Where(item => item.Access.OpenData
                 && (string.Equals(item.Type, "service", StringComparison.Ordinal)

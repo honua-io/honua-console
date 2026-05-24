@@ -7,6 +7,25 @@ namespace Honua.Console.Native.Core.Tests;
 public sealed class ConsoleCatalogClientTests
 {
     [Fact]
+    public async Task CatalogSearchFiltersProtectedSummariesForAnonymousContext()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+
+        var anonymous = await catalog.SearchAsync(
+            new CatalogListRequest(),
+            CatalogReadContext.AnonymousPublicLink(token: null));
+        var authenticated = await catalog.SearchAsync(
+            new CatalogListRequest(),
+            CatalogReadContext.Authenticated);
+
+        Assert.Contains(anonymous.Items, item => item.Id == "svc-coastal-flood");
+        Assert.DoesNotContain(anonymous.Items, item => item.Id == "lyr-utilities");
+        Assert.DoesNotContain(anonymous.Items, item => item.Id == "dash-capital-projects");
+        Assert.Contains(authenticated.Items, item => item.Id == "lyr-utilities");
+        Assert.Contains(authenticated.Items, item => item.Id == "dash-capital-projects");
+    }
+
+    [Fact]
     public async Task PublicLinkCatalogReadRequiresMatchingToken()
     {
         var catalog = new InMemoryConsoleCatalogClient();
@@ -22,6 +41,27 @@ public sealed class ConsoleCatalogClientTests
         Assert.Equal(CatalogReadStatus.Allowed, allowed.Status);
         Assert.True(allowed.AnonymousRead);
         Assert.Equal("Utilities Critical Layer", allowed.Item?.Summary.Title);
+    }
+
+    [Fact]
+    public async Task DraftMapHydrationRequiresAuthenticatedContext()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+
+        var noSession = await catalog.GetDraftMapAsync(
+            "utilities-layer",
+            CatalogReadContext.AnonymousPublicLink(token: null));
+        var publicLink = await catalog.GetDraftMapAsync(
+            "utilities-layer",
+            CatalogReadContext.AnonymousPublicLink("pl-utilities"));
+        var authenticated = await catalog.GetDraftMapAsync(
+            "utilities-layer",
+            CatalogReadContext.Authenticated);
+
+        Assert.Equal(CatalogReadStatus.Unavailable, noSession.Status);
+        Assert.Equal(CatalogReadStatus.Unavailable, publicLink.Status);
+        Assert.Equal(CatalogReadStatus.Allowed, authenticated.Status);
+        Assert.Equal("Utilities Critical Layer draft map", authenticated.MapPackage?.Summary.Title);
     }
 
     [Fact]
@@ -171,5 +211,33 @@ public sealed class ConsoleCatalogClientTests
         Assert.Contains(authenticatedActions, action => action.Id == "studio");
         Assert.Contains(authenticatedActions, action => action.Id == "share");
         Assert.Contains(authenticatedActions, action => action.Id == "viewer" && action.Href == "/maps/storm-response-map");
+    }
+
+    [Fact]
+    public async Task PublicLinkAnonymousActionsPreserveTokenForFollowableRoutes()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+        var map = await catalog.GetCatalogItemAsync(
+            "storm-response-map",
+            CatalogReadContext.AnonymousPublicLink("pl-storm-map"));
+        var layer = await catalog.GetCatalogItemAsync(
+            "utilities-layer",
+            CatalogReadContext.AnonymousPublicLink("pl-utilities"));
+
+        var mapActions = ConsoleCatalogActionPolicy.Resolve(
+            map.Item!.Summary,
+            isAuthenticated: false,
+            publicLinkToken: "pl-storm-map");
+        var layerActions = ConsoleCatalogActionPolicy.Resolve(
+            layer.Item!.Summary,
+            isAuthenticated: false,
+            publicLinkToken: "pl-utilities");
+
+        Assert.Contains(mapActions, action => action.Id == "detail" && action.Href == "/catalog/storm-response-map?token=pl-storm-map");
+        Assert.Contains(mapActions, action => action.Id == "viewer" && action.Href == "/maps/storm-response-map?token=pl-storm-map");
+        Assert.Contains(layerActions, action => action.Id == "detail" && action.Href == "/catalog/utilities-layer?token=pl-utilities");
+        Assert.DoesNotContain(layerActions, action => action.Id == "viewer");
+        Assert.DoesNotContain(mapActions, action => action.Id is "studio" or "share");
+        Assert.DoesNotContain(layerActions, action => action.Id is "studio" or "share");
     }
 }

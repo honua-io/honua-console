@@ -4,7 +4,10 @@ namespace Honua.Console.Shell.Services;
 
 public interface IConsoleCatalogClient
 {
-    Task<CatalogSearchResult> SearchAsync(CatalogListRequest request, CancellationToken cancellationToken = default);
+    Task<CatalogSearchResult> SearchAsync(
+        CatalogListRequest request,
+        CatalogReadContext context,
+        CancellationToken cancellationToken = default);
 
     Task<CatalogItemReadResult> GetCatalogItemAsync(
         string idOrSlug,
@@ -22,6 +25,7 @@ public interface IConsoleCatalogClient
 
     Task<MapPackageReadResult> GetDraftMapAsync(
         string sourceItemId,
+        CatalogReadContext context,
         CancellationToken cancellationToken = default);
 
     Task<MapPackageReadResult> AuthorizeEmbedAsync(
