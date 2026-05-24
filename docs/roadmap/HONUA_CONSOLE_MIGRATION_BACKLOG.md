@@ -2,7 +2,15 @@
 
 Status: filed 2026-05-23.
 
+Portal freeze state: **none** (soft freeze begins when the first `honua-console#4` implementation PR opens after owner acknowledgement; hard freeze when `honua-console#9` enters review - see [`PORTAL_FREEZE_POLICY.md`](../migration/PORTAL_FREEZE_POLICY.md)).
+
 Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
+
+Coordination contracts (binding on all child tickets):
+
+- [Console Patterns Charter](../migration/CONSOLE_PATTERNS_CHARTER.md) - routing, RBAC, error/empty/loading surfaces, perf budgets, smoke conventions, file layout.
+- [`honua-portal` Freeze And Retirement Policy](../migration/PORTAL_FREEZE_POLICY.md) - soft/hard freeze gates, exception path, retirement trigger.
+- [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md) - per-language .NET and browser shim boundaries while `honua-sdk-dotnet#166` and `honua-sdk-js#225` land; removed under `honua-console#7`.
 
 ## Objective
 
@@ -148,4 +156,24 @@ Do not retire `honua-portal` or separate Admin deployment paths until:
 - The single deployable artifact serves `/studio`, `/catalog`, `/share`, and `/operate` from one origin.
 - Server-authored RBAC/entitlement checks gate route and item actions.
 - Metadata v2/content item/provenance data is shared across operator and builder workflows.
-- Cross-surface smoke evidence is captured in CI or release promotion.
+- Cross-surface smoke evidence is captured in CI or release promotion, covering: publish service -> catalog item -> Studio artifact -> share/embed, **plus** open-data publication and unauthenticated embed rendering. (Scope clarification: the current portal exercises both; `honua-console#9` must too, or regressions in those paths only surface after portal retirement.)
+
+## Portal Freeze And Retirement
+
+Two-gate policy lives in [`PORTAL_FREEZE_POLICY.md`](../migration/PORTAL_FREEZE_POLICY.md). Summary:
+
+- **Soft freeze** (bug-fix-only on `honua-portal`) starts when the first [`honua-console#4`](https://github.com/honua-io/honua-console/issues/4) implementation PR opens after owner acknowledgement. Bug fixes during soft freeze are paired with a Console follow-up against the matching child ticket.
+- **Hard freeze** (no commits on `honua-portal`) starts when [`honua-console#9`](https://github.com/honua-io/honua-console/issues/9) enters review.
+- **Retirement** of `honua-portal` is owned by [`honua-console#10`](https://github.com/honua-io/honua-console/issues/10) and gated on `#4`, `#5`, `#7`, `#8`, `#9`, and the parity gate above.
+
+Update the freeze-state line at the top of this file when a gate flips.
+
+## Open Coordination Decisions (Assigned)
+
+Surfaced during the epic design pass; decisions are folded into the listed owner tickets so no parallel decision happens at port time:
+
+- **Design system / token layer.** Decision deferred to [`honua-console#2`](https://github.com/honua-io/honua-console/issues/2): build a fresh Razor token/component layer in `Honua.Console.Components` (matches the .NET-first direction) vs. adopt an existing Razor component library to accelerate scaffolding. Visual reference is `honua-portal/src/ui`, but that codebase is not the long-term token source. If `#2` chooses "new token layer," file `honua-console#11` ahead of `#4`/`#5`.
+- **Auth bridging for transitional legacy Admin.** Folded into [`honua-console#6`](https://github.com/honua-io/honua-console/issues/6). Strong preference for server-owned session (no Console-side bridge), conditional on [`honua-server#1162`](https://github.com/honua-io/honua-server/issues/1162) sizing it. Fallback is Console-issued token, which requires [`honua-server-admin#96`](https://github.com/honua-io/honua-server-admin/issues/96) to accept it.
+- **`/operate` route ownership during transition.** Decided in [`honua-console#6`](https://github.com/honua-io/honua-console/issues/6): legacy Admin URLs redirect into `/operate/legacy/*`. Whether the implementation is edge reverse-proxy or in-Console host iframe is left to `#6`, but deep links from the legacy surface must continue to resolve under the Console origin.
+- **SDK shim policy.** Resolved by [`SDK_SHIM_POLICY.md`](../migration/SDK_SHIM_POLICY.md). Per-language single-boundary shims: `.NET` shims live in `src/Honua.Console.Contracts/SdkShims.cs`; browser/embed shims live in `src/Honua.Console.Web/wwwroot/interop/sdk-shims.ts`. This document's "Active Shims" ledger is updated in the same PR. Cleanup is owned by [`honua-console#7`](https://github.com/honua-io/honua-console/issues/7).
+- **Parity smoke scope.** Clarified above: [`honua-console#9`](https://github.com/honua-io/honua-console/issues/9) covers open-data publication and unauthenticated embed rendering in addition to the publish -> catalog -> Studio -> share/embed loop.
