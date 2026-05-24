@@ -146,7 +146,7 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 9. Hide or redirect duplicate builder/app-builder routes from legacy Admin.
 10. Rebuild redesigned Admin workflows inside the unified Blazor shell as the new metadata contract and mockups land.
 11. Add an optional MAUI Blazor Hybrid host once the shared Razor component library and .NET client contracts are stable.
-12. Add end-to-end smoke for publish service -> catalog item -> Studio generated artifact -> share/embed, with job-run evidence for workflow-backed artifacts.
+12. Add end-to-end smoke for publish service -> catalog item -> Studio map/dashboard/app/generated artifact -> share/embed, with job-run evidence for workflow-backed artifacts. See [`docs/smoke/parity.md`](../smoke/parity.md) for the scenario, owning-layer taxonomy, and evidence contract owned by [honua-console#9](https://github.com/honua-io/honua-console/issues/9).
 
 ## Backlog Implications
 

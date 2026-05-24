@@ -47,6 +47,30 @@ npm run preview    # Serves the built bundle on 127.0.0.1:4174
 
 `/studio`, `/catalog`, `/operate`, and `/share` all resolve from the same origin via the SPA fallback. See [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md) for the same-origin proxy contract and the `version.json` schema used by release notes.
 
+## Parity Smoke
+
+The Console parity smoke ([honua-console#9](https://github.com/honua-io/honua-console/issues/9))
+is the one automated command that proves Console replaces the split
+Portal/Admin path for the core buyer journey:
+
+```sh
+npm run smoke:parity
+npm run smoke:parity -- --origin https://console.staging.honua.example
+npm run smoke:parity:test
+```
+
+Local and loopback runs (`127.0.0.1`, `localhost`, `[::1]`, or
+`0.0.0.0`) read `dist/version.json` when present and otherwise use the
+committed fixture. Deployed-origin runs normalize `--origin` to its URL
+origin, verify `<origin>/version.json`, and fail the
+`devops/build-artifact` step if the artifact metadata is missing or
+invalid. Evidence records `buildArtifact.source` as
+`"origin"`, `"dist"`, or `"fixture"` so release promotion can distinguish
+a deployed artifact check from a local harness run.
+
+See [docs/smoke/parity.md](docs/smoke/parity.md) for the CLI options,
+scenario, owning-layer triage taxonomy, and evidence format.
+
 ## Current Status
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The Console IA is fixed in [docs/console-route-map.md](docs/console-route-map.md) ([honua-console#3](https://github.com/honua-io/honua-console/issues/3)); the Blazor Web Console shell and shared Razor component library scaffold lands under [honua-console#2](https://github.com/honua-io/honua-console/issues/2).
