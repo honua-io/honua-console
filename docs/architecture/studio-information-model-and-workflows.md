@@ -627,6 +627,28 @@ Published states are represented as distinct lifecycle descriptors so
 the UI and smoke evidence can assert the state transition path without
 creating server-owned content versions prematurely.
 
+Current projection shape:
+
+- `StudioAuthoringContract.Name = "studio-authoring-shell"`.
+- `StudioAuthoringContract.Version = "v1"`.
+- `StudioAuthoringContract.PackageSchemaVersion = "package-shell/v1"`.
+- `StudioAuthoringSession` carries workflow options, the selected
+  workflow id, the current prompt, open clarification questions, the
+  active package snapshot, and recent projects.
+- `StudioPackageSnapshot` carries the contract name/version, package ref,
+  package type, schema version, title, summary, lifecycle state,
+  assumptions, data binding summaries, warnings, validation items, and
+  provenance events.
+- `StudioClarificationQuestion` and `StudioClarificationChoice` are the
+  structured response surface for ambiguous prompts. Preview, Save
+  Version, and Publish controls stay blocked while clarification remains
+  open.
+
+This projection is a Console-owned authoring shell response contract, not
+the canonical server package schema. When the server lifecycle API and
+`honua-sdk-dotnet` package projections land, Console should map this
+shell state onto the SDK types rather than keeping parallel DTOs.
+
 Console surfaces should use the same error and empty-state patterns for missing items, missing permissions, unsupported service metadata, and unsupported package bindings across Studio, Catalog, Share, and Operate.
 
 ## Required User Journeys

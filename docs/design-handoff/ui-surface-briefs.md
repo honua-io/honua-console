@@ -44,6 +44,7 @@ Major views:
 - source context and data binding picker
 - package/spec inspector
 - preview canvas
+- lifecycle rail for Draft, Preview, Saved version, and Published states
 - editors for map, dashboard, report, form, app, workflow
 - validation and warnings
 - publish review
@@ -63,8 +64,16 @@ Design challenges:
 
 - Keep AI generation inspectable.
 - Let users edit package outputs without needing raw JSON.
-- Make preview, saved draft, and published state visually distinct.
+- Route ambiguous prompts to structured clarification instead of hidden assumptions.
+- Make draft, preview, saved version, and published state visually distinct.
 - Show validation before execution or publish.
+
+Current Console slice:
+
+- `/studio` starts with a shared Razor package shell used by the Blazor Web host and optional MAUI Blazor Hybrid host.
+- Workflow selection covers map, dashboard, report, form, app, query, analysis, workflow, GP service, and ETL package families.
+- The `studio-authoring-shell/v1` projection is a stable mock until the server package lifecycle API and SDK package helpers are connected.
+- The package inspector must show assumptions, data bindings, warnings, validation, and provenance for the active draft.
 
 ## Catalog
 
@@ -373,4 +382,3 @@ Rules:
 - AI summaries are advisory.
 - AI output must link to evidence.
 - AI cannot resolve/suppress alerts, approve releases, or execute rollback without explicit user action.
-

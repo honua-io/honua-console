@@ -551,6 +551,22 @@ Authenticated sessions without `member`, `operator`, or `admin` render
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
 | `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
 
+The current `/studio` implementation is the first package-first Studio
+shell slice. It runs in the shared Razor component library and exposes
+the Console-owned `studio-authoring-shell/v1` projection for prompt
+clarification, package inspection, preview state, saved-version state,
+and publish state. Workflow choices cover map, dashboard, report, form,
+app, query, analysis, workflow, GP service, and ETL. Ambiguous prompts
+produce structured clarification questions; while any question remains
+open, Preview, Save Version, and Publish controls are disabled. The
+inspector remains visible for the active package and must include
+assumptions, data bindings, warnings, validation, and provenance.
+
+`/studio/proof` and `/studio/apps/:itemId/preview` remain route-map
+targets for the generated-app lifecycle port. The package shell mounted
+at `/studio` does not create server-owned content versions or publication
+records by itself.
+
 ### 6.3 Catalog
 
 | Route | Gates | Empty | Forbidden | Chunk |

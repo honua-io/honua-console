@@ -72,4 +72,18 @@ public sealed class StudioAuthoringShellTests
         Assert.Equal(StudioPackageLifecycleState.Published, published.ActivePackage.LifecycleState);
         Assert.Contains(published.ActivePackage.Provenance, item => item.Evidence == "Published");
     }
+
+    [Fact]
+    public void OpenClarificationsBlockLifecycleTransition()
+    {
+        IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
+        var session = shell.SubmitPrompt(shell.CreateInitialSession(), "map", "Make a map");
+
+        var blocked = shell.TransitionPackage(session, StudioPackageLifecycleState.Preview);
+
+        Assert.Equal(StudioPackageLifecycleState.Draft, blocked.ActivePackage.LifecycleState);
+        Assert.NotEmpty(blocked.Clarifications);
+        Assert.Contains(blocked.ActivePackage.ValidationItems, item => item.Severity == StudioValidationSeverity.Blocker);
+        Assert.DoesNotContain(blocked.ActivePackage.Provenance, item => item.Action == "Lifecycle state changed");
+    }
 }

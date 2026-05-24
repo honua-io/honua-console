@@ -129,6 +129,11 @@ Response-contract notes worth keeping in sync with the registry:
   `shortCommit`, `ref`, `builtAt`, `legacy.portal`, `legacy.admin`, and
   an `areas[]` list containing `studio`, `catalog`, `share`, and
   `operate`.
+- `studio-authoring-shell/v1` evidence records the Console-owned package
+  shell projection before SDK app package construction: ambiguous prompt
+  clarification, the inspectable package snapshot, inspector section
+  names, and lifecycle labels for Draft, Preview, Saved version, and
+  Published.
 - `share-access/v1` patch responses contain `sharing`, `embeddable`,
   `groupIds` for group-tier shares, and `publicLinkToken` for
   public-link shares. They do not echo `openData`; that field is owned by

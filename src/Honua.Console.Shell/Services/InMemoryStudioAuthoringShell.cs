@@ -137,6 +137,11 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
     {
         ArgumentNullException.ThrowIfNull(session);
 
+        if (session.Clarifications.Count > 0 && state != StudioPackageLifecycleState.Draft)
+        {
+            return session;
+        }
+
         return session with
         {
             ActivePackage = session.ActivePackage with
