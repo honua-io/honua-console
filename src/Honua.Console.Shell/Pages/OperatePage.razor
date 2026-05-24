@@ -69,7 +69,7 @@
             <ul class="console-event-list">
                 @foreach (var connection in _workspace.Connections.Where(connection => connection.LastDiagnostic is not null))
                 {
-                    var diagnostic = connection.LastDiagnostic!.ToSafeDiagnostic();
+                    var diagnostic = connection.LastDiagnostic!;
                     <li>
                         <strong>@connection.Name</strong>
                         <span>@diagnostic.FailureCode</span>

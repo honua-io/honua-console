@@ -12,7 +12,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
     }
 
     public static InMemoryOperateTransitionDataSource CreateSeeded() =>
-        new(CreateWorkspace());
+        new(CreateSafeWorkspace());
 
     public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(_workspace);
@@ -34,6 +34,21 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
         CancellationToken cancellationToken = default) =>
         Task.FromResult(_workspace.Services.FirstOrDefault(
             service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase)));
+
+    private static OperateTransitionWorkspace CreateSafeWorkspace()
+    {
+        var workspace = CreateWorkspace();
+
+        return workspace with
+        {
+            Connections = workspace.Connections
+                .Select(connection => connection with
+                {
+                    LastDiagnostic = connection.LastDiagnostic?.ToSafeDiagnostic()
+                })
+                .ToArray()
+        };
+    }
 
     private static OperateTransitionWorkspace CreateWorkspace() =>
         new(

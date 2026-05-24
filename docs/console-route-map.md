@@ -137,6 +137,12 @@ Connections, Resources, Publishing, Identity, License, Observability,
 Operations, Control Center, Services, Layers, Settings, Deploy, Server
 Info, Analytics, Legacy.
 
+`honua-console#36` implements the first native Blazor transition group:
+Connections, Resources, Services, Layers, and Settings. These entries use
+the non-legacy `/operate/...` routes listed in §1. The Legacy submenu
+continues to expose remaining `/operate/legacy/...` Admin paths until
+their native replacements have parity evidence and retirement gates.
+
 The Legacy submenu contains the transitional iframe-embedded pages from
 §5 (EMBED rows) and disappears when those pages are retired.
 

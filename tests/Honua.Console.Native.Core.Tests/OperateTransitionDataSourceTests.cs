@@ -34,7 +34,7 @@ public sealed class OperateTransitionDataSourceTests
         var dataSource = InMemoryOperateTransitionDataSource.CreateSeeded();
         var connection = await dataSource.FindConnectionAsync("prod-postgres");
 
-        var diagnostic = connection?.LastDiagnostic?.ToSafeDiagnostic();
+        var diagnostic = connection?.LastDiagnostic;
 
         Assert.NotNull(diagnostic);
         Assert.Equal("AUTH_INVALID_CREDENTIAL", diagnostic.FailureCode);
@@ -57,6 +57,19 @@ public sealed class OperateTransitionDataSourceTests
         Assert.DoesNotContain("Host=pg-prod.internal.honua", renderedText, StringComparison.Ordinal);
         Assert.DoesNotContain("vault-material", renderedText, StringComparison.Ordinal);
         Assert.Contains("secret://connections/prod-postgres/[redacted]", renderedText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DataSourceReturnsOnlySafeDiagnostics()
+    {
+        var dataSource = InMemoryOperateTransitionDataSource.CreateSeeded();
+
+        var workspace = await dataSource.GetWorkspaceAsync();
+        var connection = await dataSource.FindConnectionAsync("prod-postgres");
+
+        Assert.NotNull(connection);
+        Assert.Same(connection, workspace.Connections.Single(candidate => candidate.Id == "prod-postgres"));
+        AssertDiagnosticIsSafe(connection.LastDiagnostic);
     }
 
     [Fact]
@@ -107,5 +120,26 @@ public sealed class OperateTransitionDataSourceTests
             Assert.False(string.IsNullOrWhiteSpace(change.PolicyState));
         });
         Assert.Contains(workspace.SettingsChanges, change => change.Id == "cors" && change.RequiresRestart);
+    }
+
+    private static void AssertDiagnosticIsSafe(OperateConnectionDiagnostic? diagnostic)
+    {
+        Assert.NotNull(diagnostic);
+
+        var renderedText = string.Join(
+            " ",
+            new[]
+            {
+                diagnostic.Summary,
+                string.Join(" ", diagnostic.Signals.Select(signal => signal.Message)),
+                string.Join(" ", diagnostic.OperatorActions),
+                string.Join(" ", diagnostic.Evidence.Select(entry => $"{entry.Key}={entry.Value}"))
+            });
+
+        Assert.DoesNotContain("wrong-value", renderedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("eyJhbGciOiJIUzI1NiJ9", renderedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Host=pg-prod.internal.honua", renderedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("vault-material", renderedText, StringComparison.Ordinal);
+        Assert.Contains("secret://connections/prod-postgres/[redacted]", renderedText, StringComparison.Ordinal);
     }
 }

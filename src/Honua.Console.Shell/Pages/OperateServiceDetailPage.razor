@@ -4,11 +4,7 @@
 <section class="console-page">
     @if (_service is null)
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Services</p>
-            <h1>Service Not Found</h1>
-            <p class="console-muted">The requested service is not registered for this environment.</p>
-        </div>
+        <MissingItemView Kind="service" AreaLabel="Operate / Services" />
     }
     else
     {

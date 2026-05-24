@@ -48,15 +48,17 @@ Legacy paths are taken from `honua-server-admin/src/Honua.Admin/Pages/**/@page` 
 
 Parameterized rows preserve the Blazor route constraint in the legacy-path column. The Console path column uses colon-prefixed `:param` names for readability, but the generated route projection and `OperateLegacyEmbed` allowlist MUST validate the inherited Blazor constraint before embedding: `{id:guid}` and `{ConnectionId:guid}` accept only GUID segments; `{LayerId:int}` accepts only integer segments.
 
+`honua-console#36` adds native Blazor successors for the connection, resource, service, layer, and settings transition group. The rows below keep their legacy `/operate/legacy/...` paths until SDK-backed parity and smoke evidence retire them, but Operate navigation should prefer the native `/operate/...` routes documented in [Native Operate Transition Surface](../operate/native-transition-surface.md).
+
 ### Operator workflows kept in Operate
 
 | Legacy path | Console path | Disposition | Replacement ticket | Owner | Retirement gate |
 | --- | --- | --- | --- | --- | --- |
 | `/` | `/operate` | `KEEP` | honua-console#3 (landing scaffold), follow-on | Console | Native `/operate` landing renders without the iframe and the Operate parity smoke passes. |
-| `/operator/data-connections` | `/operate/legacy/operator/data-connections` | `EMBED` | TBD (operator data-connections redesign) | Operate | Native replacement ships and connector smoke passes. |
-| `/operator/data-connections/new` | `/operate/legacy/operator/data-connections/new` | `EMBED` | TBD | Operate | Same as parent. |
-| `/operator/data-connections/{id:guid}` | `/operate/legacy/operator/data-connections/:id` | `EMBED` | TBD | Operate | Same as parent. |
-| `/operator/data-connections/{id:guid}/diagnostics` | `/operate/legacy/operator/data-connections/:id/diagnostics` | `EMBED` | TBD | Operate | Same as parent. |
+| `/operator/data-connections` | `/operate/legacy/operator/data-connections` | `EMBED` | honua-console#36 successor: `/operate/connections` | Operate | SDK-backed native connection list and connector smoke pass. |
+| `/operator/data-connections/new` | `/operate/legacy/operator/data-connections/new` | `EMBED` | honua-console#36 successor: `/operate/connections/new` | Operate | Same as parent. |
+| `/operator/data-connections/{id:guid}` | `/operate/legacy/operator/data-connections/:id` | `EMBED` | honua-console#36 successor: `/operate/connections/:id` | Operate | Same as parent, including legacy GUID deep-link handling. |
+| `/operator/data-connections/{id:guid}/diagnostics` | `/operate/legacy/operator/data-connections/:id/diagnostics` | `EMBED` | honua-console#36 successor: `/operate/connections/:id/diagnostics` | Operate | Same as parent, with non-secret diagnostic evidence verified. |
 | `/operator/publishing` | `/operate/legacy/operator/publishing` | `EMBED` | TBD (Publishing v2) | Operate | Native Publishing ships and publish smoke passes. |
 | `/operator/operations` | `/operate/legacy/operator/operations` | `EMBED` | TBD | Operate | Native Operations view ships. |
 | `/operator/control-center` | `/operate/legacy/operator/control-center` | `EMBED` | TBD | Operate | Native Control Center ships. |
@@ -69,22 +71,22 @@ Parameterized rows preserve the Blazor route constraint in the legacy-path colum
 
 | Legacy path | Console path | Disposition | Replacement ticket | Owner | Retirement gate |
 | --- | --- | --- | --- | --- | --- |
-| `/services` | `/operate/legacy/services` | `EMBED` | TBD (service catalog v2) | Operate | Native service catalog ships and publish smoke passes. |
-| `/services/{ServiceName}/settings` | `/operate/legacy/services/:serviceName/settings` | `EMBED` | TBD | Operate | Same as parent. |
-| `/layers` | `/operate/legacy/layers` | `EMBED` | TBD | Operate | Native layers view ships. |
-| `/layers/{LayerId:int}` | `/operate/legacy/layers/:layerId` | `EMBED` | TBD | Operate | Same as parent. |
+| `/services` | `/operate/legacy/services` | `EMBED` | honua-console#36 successor: `/operate/services` | Operate | SDK-backed native services list and publish/service smoke pass. |
+| `/services/{ServiceName}/settings` | `/operate/legacy/services/:serviceName/settings` | `EMBED` | honua-console#36 successor: `/operate/services/:name/settings` | Operate | Same as parent, including runtime settings and publication slots. |
+| `/layers` | `/operate/legacy/layers` | `EMBED` | honua-console#36 successor: `/operate/layers` | Operate | SDK-backed native layer list and service-layer smoke pass. |
+| `/layers/{LayerId:int}` | `/operate/legacy/layers/:layerId` | `EMBED` | honua-console#36 successor: `/operate/layers/:id` | Operate | Same as parent, with canonical resource ownership links. |
 | `/layers/{LayerId:int}/configure` | `/operate/legacy/layers/:layerId/configure` | `EMBED` | TBD | Operate | Same as parent. |
 | `/layers/{LayerId:int}/preview` | `/operate/legacy/layers/:layerId/preview` | `EMBED` | TBD | Operate | Same as parent. |
 | `/services/{ServiceName}/layers/{LayerId:int}/preview` | `/operate/legacy/services/:serviceName/layers/:layerId/preview` | `EMBED` | TBD | Operate | Same as parent. |
 | `/layers/{LayerId:int}/style` | `/operate/legacy/layers/:layerId/style` | `EMBED` | TBD | Operate | Same as parent. |
-| `/connections` | `/operate/legacy/connections` | `EMBED` (legacy already redirects) | TBD | Operate | Same as parent. |
-| `/connections/new` | `/operate/legacy/connections/new` | `EMBED` | TBD | Operate | Same as parent. |
-| `/connections/{ConnectionId:guid}` | `/operate/legacy/connections/:connectionId` | `EMBED` | TBD | Operate | Same as parent. |
+| `/connections` | `/operate/legacy/connections` | `EMBED` (legacy already redirects) | honua-console#36 successor: `/operate/connections` | Operate | SDK-backed native connection list and connector smoke pass. |
+| `/connections/new` | `/operate/legacy/connections/new` | `EMBED` | honua-console#36 successor: `/operate/connections/new` | Operate | Same as parent. |
+| `/connections/{ConnectionId:guid}` | `/operate/legacy/connections/:connectionId` | `EMBED` | honua-console#36 successor: `/operate/connections/:id` | Operate | Same as parent, including legacy GUID deep-link handling. |
 | `/connections/{ConnectionId}/layers` | `/operate/legacy/connections/:connectionId/layers` | `EMBED` | TBD | Operate | Same as parent. |
 | `/connections/{ConnectionId}/publish` | `/operate/legacy/connections/:connectionId/publish` | `EMBED` | TBD | Operate | Native publish flow ships. |
-| `/admin/connection-registry` | `/operate/legacy/admin/connection-registry` | `EMBED` | TBD | Operate | Native connection-registry view ships. |
-| `/admin/connection-registry/new` | `/operate/legacy/admin/connection-registry/new` | `EMBED` | TBD | Operate | Same as parent. |
-| `/admin/connection-registry/{ConnectionId}` | `/operate/legacy/admin/connection-registry/:connectionId` | `EMBED` | TBD | Operate | Same as parent. |
+| `/admin/connection-registry` | `/operate/legacy/admin/connection-registry` | `EMBED` | honua-console#36 successor: `/operate/connections` | Operate | SDK-backed native connection registry semantics and connector smoke pass. |
+| `/admin/connection-registry/new` | `/operate/legacy/admin/connection-registry/new` | `EMBED` | honua-console#36 successor: `/operate/connections/new` | Operate | Same as parent. |
+| `/admin/connection-registry/{ConnectionId}` | `/operate/legacy/admin/connection-registry/:connectionId` | `EMBED` | honua-console#36 successor: `/operate/connections/:id` | Operate | Same as parent, including legacy ID mapping. |
 | `/admin/gitops` | `/operate/legacy/admin/gitops` | `EMBED` | TBD | Operate | Native GitOps view ships. |
 | `/admin/identity/api-keys` | `/operate/legacy/admin/identity/api-keys` | `EMBED` | TBD (identity v2) | Operate | Native identity surface ships. |
 | `/admin/identity/status` | `/operate/legacy/admin/identity/status` | `EMBED` | TBD | Operate | Same as parent. |
@@ -143,12 +145,17 @@ All four surfaces are required and must use the shared Console primitives that `
 
 ## Operate Navigation Contract
 
-`honua-console#3` owns the navigation definition. This ticket commits to the section taxonomy it must expose (paths preserve the legacy prefix verbatim under `/operate/legacy/`):
+`honua-console#3` owns the navigation definition. `honua-console#36` moves the first transition group to native Blazor routes. Current navigation should expose:
+
+- **Connections** → `/operate/connections` (plus `/operate/connections/new`, `/operate/connections/:id`, and `/operate/connections/:id/diagnostics`)
+- **Resources** → `/operate/resources` (plus `/operate/resources/new` and `/operate/resources/:id`)
+- **Services** → `/operate/services` (plus `/operate/services/:name/settings`)
+- **Layers** → `/operate/layers` (plus `/operate/layers/:id`)
+- **Settings** → `/operate/settings`
+
+Remaining legacy-only sections preserve the legacy prefix verbatim under `/operate/legacy/`:
 
 - **Publishing** → `/operate/legacy/operator/publishing`
-- **Services & Layers** → `/operate/legacy/services` (plus children: `/operate/legacy/services/:serviceName/settings`, `/operate/legacy/layers`, `/operate/legacy/layers/:layerId/*`)
-- **Connections** → `/operate/legacy/connections` and `/operate/legacy/admin/connection-registry`
-- **Data connections** → `/operate/legacy/operator/data-connections`
 - **Identity** → `/operate/legacy/admin/identity/*`
 - **Observability** → `/operate/legacy/observability`
 - **Deploy** → `/operate/legacy/deploy`
@@ -158,6 +165,8 @@ All four surfaces are required and must use the shared Console primitives that `
 - **License** → `/operate/legacy/operator/license`
 - **Print** → `/operate/legacy/operator/print`
 - **Analytics** → `/operate/legacy/operator/analytics`
+
+Legacy connection, service, and layer URLs remain valid direct paths through the embed while parity gates are open; they should not be the primary navigation target once the native transition routes are available.
 
 Duplicate-builder routes (`app-builder`, `spec`, `sql`, `annotations`) are not exposed in Operate navigation.
 

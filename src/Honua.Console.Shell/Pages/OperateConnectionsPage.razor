@@ -14,10 +14,7 @@
 
     @if (_connections.Count == 0)
     {
-        <article class="console-panel">
-            <h2>No connections</h2>
-            <p class="console-muted">Create a connection before publishing data resources.</p>
-        </article>
+        <EmptyState Area="operate" Subject="connections" ActionHref="/operate/connections/new" ActionText="Add Connection" />
     }
     else
     {
@@ -52,8 +49,7 @@
                                 }
                                 else
                                 {
-                                    var diagnostic = connection.LastDiagnostic.ToSafeDiagnostic();
-                                    <a href="@($"/operate/connections/{connection.Id}/diagnostics")">@diagnostic.FailureCode</a>
+                                    <a href="@($"/operate/connections/{connection.Id}/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
                                 }
                             </td>
                         </tr>

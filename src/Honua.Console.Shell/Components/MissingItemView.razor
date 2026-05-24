@@ -1,0 +1,29 @@
+<div class="console-page-heading">
+    @if (!string.IsNullOrWhiteSpace(AreaLabel))
+    {
+        <p class="console-kicker">@AreaLabel</p>
+    }
+    <h1>@FormatKind(Kind) Not Found</h1>
+    <p class="console-muted">The requested @Kind is not available.</p>
+</div>
+
+@code {
+    [Parameter]
+    public string Kind { get; set; } = "item";
+
+    [Parameter]
+    public string? AreaLabel { get; set; }
+
+    private static string FormatKind(string kind)
+    {
+        if (string.IsNullOrWhiteSpace(kind))
+        {
+            return "Item";
+        }
+
+        return string.Join(
+            " ",
+            kind.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
+    }
+}

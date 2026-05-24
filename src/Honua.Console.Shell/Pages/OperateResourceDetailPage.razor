@@ -4,11 +4,7 @@
 <section class="console-page">
     @if (_resource is null)
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Resources</p>
-            <h1>Resource Not Found</h1>
-            <p class="console-muted">The requested data resource is not registered for this environment.</p>
-        </div>
+        <MissingItemView Kind="resource" AreaLabel="Operate / Resources" />
     }
     else
     {

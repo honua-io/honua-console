@@ -5,11 +5,7 @@
 <section class="console-page">
     @if (_connection is null)
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Connections</p>
-            <h1>Connection Not Found</h1>
-            <p class="console-muted">The requested data connection is not registered for this environment.</p>
-        </div>
+        <MissingItemView Kind="connection" AreaLabel="Operate / Connections" />
     }
     else
     {
@@ -120,7 +116,7 @@
     protected override async Task OnParametersSetAsync()
     {
         _connection = await OperateData.FindConnectionAsync(ConnectionId);
-        _safeDiagnostic = _connection?.LastDiagnostic?.ToSafeDiagnostic();
+        _safeDiagnostic = _connection?.LastDiagnostic;
     }
 
     private static string StatusClass(string status) =>

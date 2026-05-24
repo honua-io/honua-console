@@ -4,11 +4,7 @@
 <section class="console-page">
     @if (_layerRow is null)
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Layers</p>
-            <h1>Layer Not Found</h1>
-            <p class="console-muted">The requested layer is not registered for this environment.</p>
-        </div>
+        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
     else
     {

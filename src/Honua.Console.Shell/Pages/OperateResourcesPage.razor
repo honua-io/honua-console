@@ -12,31 +12,38 @@
         <a class="console-button-link" href="/operate/resources/new">Create Resource</a>
     </div>
 
-    <div class="console-panel-grid">
-        @foreach (var resource in _resources)
-        {
-            <article class="console-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">@resource.Source</p>
-                        <h2><a href="@($"/operate/resources/{resource.ResourceId}")">@resource.Name</a></h2>
+    @if (_resources.Count == 0)
+    {
+        <EmptyState Area="operate" Subject="resources" ActionHref="/operate/resources/new" ActionText="Create Resource" />
+    }
+    else
+    {
+        <div class="console-panel-grid">
+            @foreach (var resource in _resources)
+            {
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@resource.Source</p>
+                            <h2><a href="@($"/operate/resources/{resource.ResourceId}")">@resource.Name</a></h2>
+                        </div>
+                        <span class="console-status console-status-warning">@resource.ValidationState</span>
                     </div>
-                    <span class="console-status console-status-warning">@resource.ValidationState</span>
-                </div>
-                <p class="console-muted">@resource.DraftChange</p>
-                <dl class="console-definition-list">
-                    <dt>Services</dt>
-                    <dd>@FormatCount(resource.BlastRadius.Services)</dd>
-                    <dt>Layers</dt>
-                    <dd>@FormatCount(resource.BlastRadius.Layers)</dd>
-                    <dt>Saved maps</dt>
-                    <dd>@FormatCount(resource.BlastRadius.SavedMaps)</dd>
-                    <dt>Share links</dt>
-                    <dd>@FormatCount(resource.BlastRadius.ShareLinks)</dd>
-                </dl>
-            </article>
-        }
-    </div>
+                    <p class="console-muted">@resource.DraftChange</p>
+                    <dl class="console-definition-list">
+                        <dt>Services</dt>
+                        <dd>@FormatCount(resource.BlastRadius.Services)</dd>
+                        <dt>Layers</dt>
+                        <dd>@FormatCount(resource.BlastRadius.Layers)</dd>
+                        <dt>Saved maps</dt>
+                        <dd>@FormatCount(resource.BlastRadius.SavedMaps)</dd>
+                        <dt>Share links</dt>
+                        <dd>@FormatCount(resource.BlastRadius.ShareLinks)</dd>
+                    </dl>
+                </article>
+            }
+        </div>
+    }
 </section>
 
 @code {
