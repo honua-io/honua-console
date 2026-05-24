@@ -24,6 +24,8 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
 
+The Studio publishing scaffold for [honua-console#16](https://github.com/honua-io/honua-console/issues/16) is implemented with fixture-backed Console routes for map, dashboard, report, and generated-app publish review. It proves the builder flow from Studio draft or generated preview to a versioned Catalog item, canonical route, type-specific preview route, Share/embed route, and Edit in Studio reopen route while the server and SDK publish contracts are still landing.
+
 Until parity is accepted, source behavior remains in:
 
 - `honua-portal` for current Portal, Catalog, Share, and Studio proof work.

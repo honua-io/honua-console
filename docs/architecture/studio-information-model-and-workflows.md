@@ -499,6 +499,8 @@ Publish review should show:
 - version note
 - rollback target
 
+Console ticket [honua-console#16](https://github.com/honua-io/honua-console/issues/16) implements the first Console-scoped publish path with a fixture `StudioPublishingClient` boundary. The fixture path is intentionally limited to the Console worktree: maps use the SDK `HonuaMapPackage` type, generated apps use the SDK `AppPackage` projection, and dashboard/report package shapes remain fixture projections until the shared SDK/server contracts land. The UI and smoke coverage exercise Studio draft or preview -> publish review -> versioned Catalog item -> preview -> Share/embed -> reopen in Studio without a generation call. Production persistence, RBAC enforcement, dependency closure, rollback semantics, and dashboard/report wire DTOs remain server/SDK-owned follow-ons rather than Console-local protocol copies.
+
 ### 9. Operate
 
 After publication, Console links the artifact to operational state:
