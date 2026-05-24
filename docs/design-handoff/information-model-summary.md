@@ -246,9 +246,11 @@ Saved connection profile for web/native Console, especially native MAUI host.
 
 Key fields:
 
-- environment id, display name, server URL, tenant/workspace, auth mode, transport capabilities, trust state, optional certificate reference.
+- profile id, display name, server base URI, environment kind, tenant id, transport capabilities, account/RBAC binding, optional client certificate reference, and profile-scoped state.
+- transport capability flags include browser HTTP, browser realtime, native gRPC, and native mTLS.
+- profile-scoped state includes last route, last streaming resume token, last connected timestamp, and diagnostics.
 
 Design implications:
 
 - Native Console needs environment switcher, trust status, certificate warnings, and connection diagnostics.
-
+- Web Console should render unsupported native capability states without taking a native dependency.
