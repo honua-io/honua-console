@@ -239,10 +239,15 @@
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Studio clarifies an ambiguous prompt, keeps the generated output inspectable as a package, and moves the draft to preview state on the same origin.",
+      "description": "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
       "evidence": {
         "draftUrl": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
-        "source": {
+        "routeCompatibility": {
+          "sourceKind": "saved-map",
+          "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
+          "sourceHydrated": false
+        },
+        "sourceContext": {
           "kind": "saved-map",
           "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
           "itemType": "map",
@@ -257,10 +262,11 @@
         "package": {
           "contractName": "studio-authoring-shell",
           "contractVersion": "v1",
-          "packageRef": "draft-app-01KS923C02F5XEMWXKBW2AB1SA",
+          "packageRef": "draft-app-clarify",
           "packageType": "app.package",
           "schemaVersion": "package-shell/v1",
-          "lifecycleState": "Preview",
+          "lifecycleState": "Draft",
+          "sourceHydrated": false,
           "inspectorSections": [
             "assumptions",
             "dataBindings",
@@ -271,8 +277,8 @@
           "dataBindings": [
             {
               "id": "source-binding",
-              "sourceRef": "01KS923C02F5XEMWXKBW2AB1SA",
-              "status": "Bound after clarification"
+              "sourceRef": "catalog:item/demo-city-observations",
+              "status": "Ready for validation"
             }
           ]
         },

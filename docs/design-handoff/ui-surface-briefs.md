@@ -73,7 +73,7 @@ Current Console slice:
 - `/studio` starts with a shared Razor package shell used by the Blazor Web host and optional MAUI Blazor Hybrid host.
 - Workflow selection covers map, dashboard, report, form, app, query, analysis, workflow, GP service, and ETL package families.
 - The `studio-authoring-shell/v1` projection is a stable mock until the server package lifecycle API and SDK package helpers are connected.
-- The package inspector must show assumptions, data bindings, warnings, validation, and provenance for the active draft.
+- The package inspector must show assumptions, data bindings, warnings, validation, and provenance for the active draft, including partially answered clarification state.
 
 ## Catalog
 

@@ -223,22 +223,31 @@ export const SCENARIO_STEPS = [
     id: "console/studio-draft",
     owningLayer: "console",
     description:
-      "Studio clarifies an ambiguous prompt, keeps the generated output inspectable as a package, and moves the draft to preview state on the same origin.",
+      "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
     async run(ctx) {
       const draftUrl = `${ctx.originUrl}/studio/drafts?source=saved-map&id=${ctx.savedMap.id}`;
       assertSameOrigin(ctx.originUrl, { draft: draftUrl });
+      const sourceContext = { kind: "saved-map", itemId: ctx.savedMap.id, itemType: "map", title: ctx.savedMap.title };
       const authoringPackage = {
         contractName: "studio-authoring-shell",
         contractVersion: "v1",
-        packageRef: `draft-app-${ctx.savedMap.id}`,
+        packageRef: "draft-app-clarify",
         packageType: "app.package",
         schemaVersion: "package-shell/v1",
-        lifecycleState: "Preview",
+        lifecycleState: "Draft",
+        sourceHydrated: false,
         inspectorSections: ["assumptions", "dataBindings", "warnings", "validation", "provenance"],
-        dataBindings: [{ id: "source-binding", sourceRef: ctx.savedMap.id, status: "Bound after clarification" }],
+        dataBindings: [
+          { id: "source-binding", sourceRef: "catalog:item/demo-city-observations", status: "Ready for validation" },
+        ],
       };
       ctx.studioDraft = {
-        source: { kind: "saved-map", itemId: ctx.savedMap.id, itemType: "map", title: ctx.savedMap.title },
+        sourceContext,
+        routeCompatibility: {
+          sourceKind: sourceContext.kind,
+          itemId: sourceContext.itemId,
+          sourceHydrated: false,
+        },
         url: draftUrl,
         prompt: "Build a field app from this",
         clarification: {
@@ -251,7 +260,8 @@ export const SCENARIO_STEPS = [
       return {
         evidence: {
           draftUrl,
-          source: ctx.studioDraft.source,
+          routeCompatibility: ctx.studioDraft.routeCompatibility,
+          sourceContext,
           prompt: ctx.studioDraft.prompt,
           clarification: ctx.studioDraft.clarification,
           package: authoringPackage,
@@ -267,7 +277,7 @@ export const SCENARIO_STEPS = [
     description:
       "SDK builds the BuilderPlan and AppPackage from the draft using shared contracts.",
     async run(ctx) {
-      const plan = projectBuilderPlan({ source: ctx.studioDraft.source, savedMap: ctx.savedMap });
+      const plan = projectBuilderPlan({ source: ctx.studioDraft.sourceContext, savedMap: ctx.savedMap });
       const appPackage = projectAppPackage({ plan });
       ctx.builderPlan = plan;
       ctx.appPackage = appPackage;
@@ -311,7 +321,7 @@ export const SCENARIO_STEPS = [
       "Server records the generated app as a published content item with target.url/framework and a saved-map/catalog-item dependency back to the source.",
     async run(ctx) {
       const { item, contract } = ctx.server.publishGeneratedApp({
-        source: ctx.studioDraft.source,
+        source: ctx.studioDraft.sourceContext,
         manifestVersion: "1.0.0",
         plan: ctx.builderPlan,
         appPackage: ctx.appPackage,
@@ -327,10 +337,10 @@ export const SCENARIO_STEPS = [
           `Generated app target must be { type: "app", url, framework: "honua" }; got ${JSON.stringify(item.target)}.`,
         );
       }
-      const dep = item.dependencies.find((d) => d.id === ctx.studioDraft.source.itemId);
+      const dep = item.dependencies.find((d) => d.id === ctx.studioDraft.sourceContext.itemId);
       if (!dep || !["saved-map", "catalog-item"].includes(dep.role)) {
         throw new Error(
-          `Generated app missing saved-map/catalog-item dependency back to source ${ctx.studioDraft.source.itemId}; got ${JSON.stringify(item.dependencies)}.`,
+          `Generated app missing saved-map/catalog-item dependency back to source ${ctx.studioDraft.sourceContext.itemId}; got ${JSON.stringify(item.dependencies)}.`,
         );
       }
       const record = projectGeneratedAppRecord(item);

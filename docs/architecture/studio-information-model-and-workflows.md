@@ -617,10 +617,12 @@ for both the Blazor Web host and MAUI Blazor Hybrid host. The shell is
 mounted at `/studio`, `/studio/proof`,
 `/studio/drafts?source=<kind>&id=<itemId>`, and
 `/studio/apps/:itemId/preview` so entry, legacy proof, source-scoped
-draft, and generated-app preview paths share one authoring surface. The
-Console-owned `studio-authoring-shell/v1` projection is intentionally a
-stable mock until the server package lifecycle API and SDK helpers are
-connected.
+draft, and generated-app preview paths resolve to one authoring surface.
+Those route parameters are accepted for compatibility, but the current
+slice does not yet hydrate a server-backed source package or create
+content versions. The Console-owned `studio-authoring-shell/v1`
+projection is intentionally a stable in-memory mock until the server
+package lifecycle API and SDK helpers are connected.
 
 The shell keeps the generated output visible as a package at all times:
 workflow selection produces a typed package draft, ambiguous prompts add
@@ -639,14 +641,26 @@ Current projection shape:
 - `StudioAuthoringSession` carries workflow options, the selected
   workflow id, the current prompt, open clarification questions, the
   active package snapshot, and recent projects.
+- Workflow options currently cover `map.package`, `dashboard.package`,
+  `report.package`, `form.package`, `app.package`, `query.package`,
+  `analysis.package`, and `workflow.package` slices for workflow, GP
+  service, and ETL authoring.
 - `StudioPackageSnapshot` carries the contract name/version, package ref,
   package type, schema version, title, summary, lifecycle state,
   assumptions, data binding summaries, warnings, validation items, and
   provenance events.
 - `StudioClarificationQuestion` and `StudioClarificationChoice` are the
-  structured response surface for ambiguous prompts. Preview, Save
-  Version, and Publish controls stay blocked while clarification remains
-  open.
+  structured response surface for ambiguous prompts. Accepting one
+  answer removes that pending assumption, updates bindings and
+  provenance, and keeps any remaining clarification as a validation
+  blocker.
+- Preview, Save Version, and Publish controls stay blocked while any
+  clarification remains open. The service transition method also returns
+  the draft unchanged in that case, so tests cover the UI affordance and
+  the response contract.
+- Lifecycle transitions preserve the `PackageRef` and append provenance;
+  they do not create server-owned content versions or publication
+  records in this slice.
 
 This projection is a Console-owned authoring shell response contract, not
 the canonical server package schema. When the server lifecycle API and

@@ -53,6 +53,26 @@ public sealed class StudioAuthoringShellTests
         Assert.Contains(clarified.ActivePackage.Assumptions, assumption => assumption == sourceQuestion.Choices[0].Effect);
         Assert.Contains(clarified.Clarifications, question => question.Id == "publish-intent");
         Assert.Contains(clarified.ActivePackage.ValidationItems, item => item.Severity == StudioValidationSeverity.Blocker);
+        Assert.DoesNotContain(clarified.ActivePackage.Warnings, warning => warning.Id == "source-ambiguous");
+        Assert.Contains(clarified.ActivePackage.Warnings, warning => warning.Id == "publish-intent-ambiguous");
+    }
+
+    [Fact]
+    public void PublishIntentClarificationUsesPublicationWarning()
+    {
+        IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
+
+        var session = shell.SubmitPrompt(
+            shell.CreateInitialSession(),
+            "app",
+            "Build an app using the permits layer");
+
+        Assert.Single(session.Clarifications);
+        Assert.Contains(session.Clarifications, question => question.Id == "publish-intent");
+        Assert.DoesNotContain(session.ActivePackage.Warnings, warning => warning.Id == "source-ambiguous");
+        Assert.Contains(
+            session.ActivePackage.Warnings,
+            warning => warning.Id == "publish-intent-ambiguous" && warning.Target == "publication_intent");
     }
 
     [Fact]

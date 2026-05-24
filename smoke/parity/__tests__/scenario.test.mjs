@@ -80,9 +80,14 @@ describe("parity scenario", () => {
 
     const studioStep = report.steps.find((step) => step.id === "console/studio-draft");
     assert.equal(studioStep.evidence.clarification.routed, true);
+    assert.equal(studioStep.evidence.routeCompatibility.sourceHydrated, false);
+    assert.equal(studioStep.evidence.routeCompatibility.itemId, report.items.savedMapId);
     assert.equal(studioStep.evidence.package.contractName, "studio-authoring-shell");
     assert.equal(studioStep.evidence.package.packageType, "app.package");
-    assert.equal(studioStep.evidence.package.lifecycleState, "Preview");
+    assert.equal(studioStep.evidence.package.packageRef, "draft-app-clarify");
+    assert.equal(studioStep.evidence.package.lifecycleState, "Draft");
+    assert.equal(studioStep.evidence.package.sourceHydrated, false);
+    assert.notEqual(studioStep.evidence.package.dataBindings[0].sourceRef, report.items.savedMapId);
     assert.deepEqual(studioStep.evidence.package.inspectorSections, [
       "assumptions",
       "dataBindings",

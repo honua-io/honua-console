@@ -103,10 +103,8 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
             .ToArray();
 
         var warnings = remainingClarifications.Length == 0
-            ? package.Warnings
-                .Where(warning => !string.Equals(warning.Id, "source-ambiguous", StringComparison.Ordinal))
-                .ToArray()
-            : package.Warnings;
+            ? []
+            : CreateClarificationWarnings(remainingClarifications);
 
         var validationItems = remainingClarifications.Length == 0
             ? CreateReadyValidation()
@@ -193,13 +191,7 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
             };
 
         var warnings = needsClarification
-            ? new[]
-            {
-                new StudioPackageWarning(
-                    "source-ambiguous",
-                    "Source layer, field, or publish intent is ambiguous. Studio is waiting for structured clarification before applying assumptions.",
-                    "data_bindings")
-            }
+            ? CreateClarificationWarnings(clarifications)
             : new[]
             {
                 new StudioPackageWarning(
@@ -276,6 +268,24 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
         new(StudioValidationSeverity.Passed, "Inspector coverage", "Assumptions, bindings, warnings, validation, and provenance are inspectable."),
         new(StudioValidationSeverity.Info, "Server lifecycle", "Persistence and publish calls remain server-owned follow-up work.")
     ];
+
+    private static IReadOnlyList<StudioPackageWarning> CreateClarificationWarnings(
+        IReadOnlyList<StudioClarificationQuestion> clarifications) =>
+        clarifications.Select(question => question.Id switch
+        {
+            "source-binding" => new StudioPackageWarning(
+                "source-ambiguous",
+                "Source layer or field binding is ambiguous. Studio is waiting for structured clarification before applying data assumptions.",
+                "data_bindings"),
+            "publish-intent" => new StudioPackageWarning(
+                "publish-intent-ambiguous",
+                "Publication intent is unresolved. Preview, Save Version, and Publish stay blocked until the builder chooses an intent.",
+                "publication_intent"),
+            _ => new StudioPackageWarning(
+                $"{question.Id}-ambiguous",
+                $"{question.Label} is unresolved. Studio is waiting for structured clarification before applying assumptions.",
+                "clarifications")
+        }).ToArray();
 
     private static IReadOnlyList<StudioValidationItem> CreateBlockedValidation(
         IReadOnlyList<StudioClarificationQuestion> clarifications) =>

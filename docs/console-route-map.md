@@ -568,8 +568,9 @@ assumptions, data bindings, warnings, validation, and provenance.
 `/studio/apps/:itemId/preview` are mounted to the same package shell for
 the current Console slice so smoke evidence, legacy proof links, and
 generated-app reopen paths resolve through an implemented Studio route.
-The package shell does not create server-owned content versions or
-publication records by itself.
+The route parameters are accepted but not yet used to hydrate a
+server-backed package. The package shell does not create server-owned
+content versions or publication records by itself.
 
 ### 6.3 Catalog
 
