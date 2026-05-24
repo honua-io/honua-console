@@ -1,0 +1,68 @@
+@page "/share/public/items/{IdOrSlug}"
+@page "/public/items/{IdOrSlug}"
+@inject IConsoleCatalogClient Catalog
+
+<section class="console-page">
+    @if (_result is null)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading public item" Message="The open-data item is loading." />
+    }
+    else if (_result.Status != CatalogReadStatus.Allowed || _result.Item is null)
+    {
+        <ConsoleStateView Kind="missing" Kicker="Not public" Title="Public item not found" Message="This item is not available as public open data." ActionHref="/share/public" ActionLabel="Back To Open Data" />
+    }
+    else
+    {
+        var item = _result.Item;
+        <div class="console-page-heading">
+            <p class="console-kicker">@CatalogContentTypes.LabelFor(item.Summary.Type)</p>
+            <h1>@item.Summary.Title</h1>
+            <p>@item.Summary.Summary</p>
+            <div class="console-chip-row">
+                <span>@item.Summary.Owner</span>
+                <span>Public</span>
+                <span>Open data</span>
+            </div>
+        </div>
+
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <h2>Distribution</h2>
+                <dl class="console-definition-list">
+                    @foreach (var format in item.Summary.Formats)
+                    {
+                        <dt>Format</dt>
+                        <dd>@format</dd>
+                    }
+                    @foreach (var publication in item.Publications)
+                    {
+                        <dt>Route</dt>
+                        <dd>@publication.Route</dd>
+                    }
+                </dl>
+            </article>
+            <article class="console-panel">
+                <h2>Metadata</h2>
+                <p>@item.Description</p>
+                <div class="console-chip-row">
+                    @foreach (var tag in item.Summary.Tags)
+                    {
+                        <span>@tag</span>
+                    }
+                </div>
+            </article>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string IdOrSlug { get; set; } = string.Empty;
+
+    private CatalogItemReadResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _result = await Catalog.GetOpenDataItemAsync(IdOrSlug);
+    }
+}

@@ -1,3 +1,186 @@
 @page "/catalog"
+@inject IConsoleCatalogClient Catalog
+@inject NavigationManager Navigation
 
-<WorkflowAreaPage AreaId="catalog" />
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Builder workflow</p>
+        <h1>Catalog</h1>
+        <p>Workspace content, publication state, provenance, and viewer readiness.</p>
+    </div>
+
+    <form class="console-filter-bar" method="get" action="/catalog">
+        <label>
+            <span>Search</span>
+            <input name="q" value="@_search.Query" placeholder="Search title, summary, or tag" />
+        </label>
+        <label>
+            <span>Type</span>
+            <select name="type">
+                <option value="" selected="@string.IsNullOrWhiteSpace(_search.Type)">All types</option>
+                @foreach (var type in CatalogContentTypes.All)
+                {
+                    <option value="@type.Key" selected="@string.Equals(type.Key, _search.Type, StringComparison.Ordinal)">
+                        @type.Label
+                    </option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Tag</span>
+            <input name="tag" value="@_search.Tag" />
+        </label>
+        <label>
+            <span>Owner</span>
+            <input name="owner" value="@_search.Owner" />
+        </label>
+        <label>
+            <span>Visibility</span>
+            <select name="visibility">
+                <option value="" selected="@string.IsNullOrWhiteSpace(_search.Visibility)">Any</option>
+                <option value="private" selected="@IsVisibility(CatalogSharingTiers.Private)">Private</option>
+                <option value="org" selected="@IsVisibility(CatalogSharingTiers.Organization)">Organization</option>
+                <option value="group" selected="@IsVisibility(CatalogSharingTiers.Group)">Group</option>
+                <option value="public-link" selected="@IsVisibility(CatalogSharingTiers.PublicLink)">Public link</option>
+                <option value="public" selected="@IsVisibility(CatalogSharingTiers.Public)">Public</option>
+            </select>
+        </label>
+        <label>
+            <span>Sort</span>
+            <select name="sort">
+                <option value="relevance" selected="@IsSort(CatalogSortOptions.Relevance)">Relevance</option>
+                <option value="modified-desc" selected="@IsSort(CatalogSortOptions.ModifiedDesc)">Modified</option>
+                <option value="modified-asc" selected="@IsSort(CatalogSortOptions.ModifiedAsc)">Oldest</option>
+                <option value="title-asc" selected="@IsSort(CatalogSortOptions.TitleAsc)">Title A-Z</option>
+                <option value="title-desc" selected="@IsSort(CatalogSortOptions.TitleDesc)">Title Z-A</option>
+            </select>
+        </label>
+        @if (!string.IsNullOrWhiteSpace(_search.Cursor))
+        {
+            <input type="hidden" name="cursor" value="@_search.Cursor" />
+        }
+        <button class="console-button" type="submit">Search</button>
+    </form>
+
+    <nav class="console-type-strip" aria-label="Catalog content types">
+        <a class="@TypeStripClass(string.Empty)" href="@BuildTypeHref(string.Empty)">
+            <span>All</span>
+            <small>@(_result?.Items.Count ?? 0)</small>
+        </a>
+        @foreach (var type in CatalogContentTypes.All)
+        {
+            <a class="@TypeStripClass(type.Key)" href="@BuildTypeHref(type.Key)" title="@type.Description">
+                <span>@type.Label</span>
+                <small>@TypeCount(type.Key)</small>
+            </a>
+        }
+    </nav>
+
+    @if (_result is null)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
+    }
+    else if (_result.Items.Count == 0)
+    {
+        <ConsoleStateView Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item into this workspace." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+    }
+    else
+    {
+        <div class="console-table-wrap">
+            <table class="console-content-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Item</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Owner</th>
+                        <th scope="col">Visibility</th>
+                        <th scope="col">Modified</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _result.Items)
+                    {
+                        <tr>
+                            <th scope="row">
+                                <a href="/catalog/@SlugOrId(item)">@item.Title</a>
+                                <small>@item.Summary</small>
+                                <span class="console-inline-tags">
+                                    @foreach (var tag in item.Tags)
+                                    {
+                                        <span>@tag</span>
+                                    }
+                                </span>
+                            </th>
+                            <td>@CatalogContentTypes.LabelFor(item.Type)</td>
+                            <td>@item.Owner</td>
+                            <td>
+                                <span class="console-status">@VisibilityLabel(item.Access.Sharing)</span>
+                                @if (item.Access.OpenData)
+                                {
+                                    <span class="console-status">Open data</span>
+                                }
+                            </td>
+                            <td>@item.Modified.ToLocalTime().ToString("MMM d, yyyy")</td>
+                            <td>
+                                <div class="console-action-row">
+                                    @foreach (var action in ConsoleCatalogActionPolicy.Resolve(item, isAuthenticated: true))
+                                    {
+                                        <a href="@action.Href">@action.Label</a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private CatalogSearchState _search = new();
+    private CatalogSearchResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _search = CatalogSearchState.FromUri(Navigation.Uri);
+        _result = await Catalog.SearchAsync(_search.ToListRequest());
+    }
+
+    private bool IsVisibility(string value) => string.Equals(_search.Visibility, value, StringComparison.Ordinal);
+
+    private bool IsSort(string value) => string.Equals(_search.Sort, value, StringComparison.Ordinal);
+
+    private string BuildTypeHref(string type)
+    {
+        var state = _search with
+        {
+            Type = type,
+            Cursor = string.Empty
+        };
+
+        return $"/catalog{state.ToPortalQueryString()}";
+    }
+
+    private string TypeStripClass(string type) =>
+        string.Equals(_search.Type, type, StringComparison.Ordinal)
+            || (string.IsNullOrWhiteSpace(type) && string.IsNullOrWhiteSpace(_search.Type))
+            ? "active"
+            : string.Empty;
+
+    private int TypeCount(string type) =>
+        _result?.TypeCounts.GetValueOrDefault(type) ?? 0;
+
+    private static string SlugOrId(ConsoleContentSummary item) =>
+        string.IsNullOrWhiteSpace(item.Slug) ? item.Id : item.Slug;
+
+    private static string VisibilityLabel(string sharing) => sharing switch
+    {
+        CatalogSharingTiers.Organization => "Org",
+        CatalogSharingTiers.PublicLink => "Public link",
+        CatalogSharingTiers.Public => "Public",
+        CatalogSharingTiers.Group => "Group",
+        _ => "Private"
+    };
+}

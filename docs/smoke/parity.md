@@ -101,7 +101,7 @@ failure short-circuits and the remaining steps are recorded as
 | 8     | `console/studio-draft`           | `console`      | Studio accepts the source-scoped draft route, records prompt clarification, and exposes a route-compatible package snapshot. |
 | 9     | `sdk/app-package-build`          | `sdk`          | SDK builds the BuilderPlan and AppPackage from the draft.                                       |
 | 10    | `server/generated-app-publish`   | `server`       | Server records the generated app as a content item with provenance back to the source saved map or catalog item. |
-| 11    | `console/share-publish`          | `console`      | Share dialog promotes the generated app to org-tier and marks it embeddable.                    |
+| 11    | `console/share-publish`          | `console`      | Share dialog promotes the saved map for embed and the generated app for catalog publication.    |
 | 12    | `server/embed-token-mint`        | `server`       | Server mints a same-origin embed token descriptor.                                              |
 | 13    | `console/embed-render`           | `console`      | Console assembles the same-origin embed URL using the minted token.                             |
 
@@ -231,8 +231,8 @@ real HTTP transport cannot silently accept a drifted payload:
   `kind:"closureBlocked"` when any resolved dependency is narrower than
   the proposed tier, when a dependency is missing, or when traversal is
   truncated. The generated-app smoke path therefore promotes the source
-  service and saved map to `org` before promoting the generated app to
-  `org`.
+  service and saved map to `org`, marks the saved map embeddable for
+  `/embed/maps/:mapId`, then promotes the generated app to `org`.
 - **`content-item/v1.1.0` re-publish ownership** — Server `publishService`
   upserts on `(source.kind, source.sourceId)` and, on re-publish, preserves
   the portal-owned fields `access`, `preview`, `dependencies`, `extensions`,
@@ -249,8 +249,8 @@ real HTTP transport cannot silently accept a drifted payload:
   runner keeps the raw token only in memory while assembling the route;
   JSON evidence and text summaries write `embedTokenHash` plus a redacted
   embed URL fragment. Minting snapshots the transitive dependency closure
-  at token time; for the generated-app path the closure evidence includes
-  both the saved map and the underlying service item.
+  at token time; for the saved-map embed path the closure evidence includes
+  the underlying service item.
 - **`webmap-doc/v1`** — `saveMap` produces a document with
   `version: "honua-webmap/v1"` plus `operationalLayers[]`, `baseMap`,
   and `initialState.viewpoint.extent`. The adapter also records the saved

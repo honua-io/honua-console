@@ -1,0 +1,262 @@
+@page "/catalog/{IdOrSlug}"
+@inject IConsoleCatalogClient Catalog
+@inject NavigationManager Navigation
+
+<section class="console-page">
+    @if (_result is null)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading item" Message="Catalog detail is loading." />
+    }
+    else if (_result.Status != CatalogReadStatus.Allowed || _result.Item is null)
+    {
+        @RenderReadState(_result.Status, _result.Message)
+    }
+    else
+    {
+        var item = _result.Item;
+        var summary = item.Summary;
+
+        <div class="console-page-heading console-detail-heading">
+            <div>
+                <p class="console-kicker">@CatalogContentTypes.LabelFor(summary.Type)</p>
+                <h1>@summary.Title</h1>
+                <p>@summary.Summary</p>
+                <div class="console-chip-row">
+                    <span>@summary.Owner</span>
+                    <span>@VisibilityLabel(summary.Access.Sharing)</span>
+                    @if (_result.AnonymousRead)
+                    {
+                        <span>Public-link read</span>
+                    }
+                    @foreach (var format in summary.Formats)
+                    {
+                        <span>@format</span>
+                    }
+                </div>
+            </div>
+            <div class="console-detail-actions">
+                @foreach (var action in ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: !_result.AnonymousRead))
+                {
+                    <a class="console-button-link" href="@action.Href">@action.Label</a>
+                }
+            </div>
+        </div>
+
+        <nav class="console-tab-row" aria-label="Catalog item detail tabs">
+            @foreach (var tab in Tabs)
+            {
+                <a class="@TabClass(tab.Id)" href="@BuildTabHref(tab.Id)">@tab.Label</a>
+            }
+        </nav>
+
+        <section class="console-panel console-detail-panel">
+            @switch (_tab)
+            {
+                case "versions":
+                    <h2>Versions</h2>
+                    <ul class="console-event-list">
+                        @foreach (var version in item.Versions)
+                        {
+                            <li>
+                                <strong>@version.Label</strong>
+                                <span>@version.CreatedBy</span>
+                                <small>@version.CreatedAt.ToLocalTime().ToString("MMM d, yyyy") · @version.VersionId</small>
+                            </li>
+                        }
+                    </ul>
+                    break;
+                case "lineage":
+                    <h2>Lineage</h2>
+                    <ul class="console-event-list">
+                        @foreach (var link in item.Lineage)
+                        {
+                            <li>
+                                <strong>@link.Title</strong>
+                                <span>@link.Relationship</span>
+                                <small>@link.Direction · @link.ItemId</small>
+                            </li>
+                        }
+                    </ul>
+                    break;
+                case "bindings":
+                    <h2>Bindings</h2>
+                    <dl class="console-definition-list">
+                        @foreach (var binding in item.Bindings)
+                        {
+                            <dt>@binding.Name</dt>
+                            <dd>@binding.Kind · @binding.Target · @binding.Status</dd>
+                        }
+                    </dl>
+                    break;
+                case "publication":
+                    <h2>Publication And Share</h2>
+                    <dl class="console-definition-list">
+                        <dt>Canonical share link</dt>
+                        <dd>@ConsoleShareLinkBuilder.BuildRelativeShareLink(summary)</dd>
+                        <dt>Embeddable</dt>
+                        <dd>@(summary.Access.Embeddable ? "Allowed" : "Not allowed")</dd>
+                        @foreach (var publication in item.Publications)
+                        {
+                            <dt>@publication.Status</dt>
+                            <dd>@publication.Route · @publication.Visibility · @(publication.Embeddable ? "embed enabled" : "embed disabled")</dd>
+                        }
+                    </dl>
+                    <div class="console-usage-callout">
+                        Share widening reviews the dependency closure before changing visibility.
+                    </div>
+                    break;
+                case "permissions":
+                    <h2>Permissions</h2>
+                    @if (_result.AnonymousRead)
+                    {
+                        <ConsoleStateView Kind="unavailable" Kicker="Unavailable" Title="Permissions are hidden" Message="Anonymous public-link reads do not expose workspace permission details." />
+                    }
+                    else
+                    {
+                        <dl class="console-definition-list">
+                            @foreach (var permission in item.Permissions)
+                            {
+                                <dt>@permission.Principal</dt>
+                                <dd>@permission.Role · @permission.Source</dd>
+                            }
+                        </dl>
+                    }
+                    break;
+                case "activity":
+                    <h2>Activity</h2>
+                    <ul class="console-event-list">
+                        @foreach (var activity in item.Activity)
+                        {
+                            <li>
+                                <strong>@activity.Actor</strong>
+                                <span>@activity.Event</span>
+                                <small>@activity.OccurredAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</small>
+                            </li>
+                        }
+                    </ul>
+                    break;
+                case "usage":
+                    <h2>Usage And Risk</h2>
+                    @if (item.Usage.Length == 0)
+                    {
+                        <ConsoleStateView Kind="empty" Kicker="No usage" Title="No downstream consumers" Message="No saved maps, apps, dashboards, reports, or workflows currently depend on this item." />
+                    }
+                    else
+                    {
+                        <ul class="console-event-list">
+                            @foreach (var usage in item.Usage)
+                            {
+                                <li>
+                                    <strong>@usage.ConsumerTitle</strong>
+                                    <span>@usage.Risk</span>
+                                    <small>@usage.ConsumerType · @usage.ConsumerId</small>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    break;
+                default:
+                    <h2>Overview</h2>
+                    <p>@item.Description</p>
+                    <dl class="console-definition-list">
+                        <dt>Item ID</dt>
+                        <dd>@summary.Id</dd>
+                        <dt>Slug</dt>
+                        <dd>@summary.Slug</dd>
+                        <dt>Role</dt>
+                        <dd>@summary.ResolvedRole</dd>
+                        <dt>Capabilities</dt>
+                        <dd>@string.Join(", ", item.Capabilities)</dd>
+                    </dl>
+                    break;
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string IdOrSlug { get; set; } = string.Empty;
+
+    private static readonly CatalogTab[] Tabs =
+    [
+        new("overview", "Overview"),
+        new("versions", "Versions"),
+        new("lineage", "Lineage"),
+        new("bindings", "Bindings"),
+        new("publication", "Publication"),
+        new("permissions", "Permissions"),
+        new("activity", "Activity"),
+        new("usage", "Usage")
+    ];
+
+    private CatalogItemReadResult? _result;
+    private string _tab = "overview";
+    private string _token = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _token = ConsoleUrlQuery.GetValue(Navigation.Uri, "token") ?? string.Empty;
+        _tab = NormalizeTab(ConsoleUrlQuery.GetValue(Navigation.Uri, "tab"));
+        var context = string.IsNullOrWhiteSpace(_token)
+            ? CatalogReadContext.Authenticated
+            : CatalogReadContext.AnonymousPublicLink(_token);
+        _result = await Catalog.GetCatalogItemAsync(IdOrSlug, context);
+    }
+
+    private RenderFragment RenderReadState(CatalogReadStatus status, string message) => builder =>
+    {
+        var (kind, kicker, title, body) = status switch
+        {
+            CatalogReadStatus.Missing => ("missing", "Missing item", "Catalog item not found", "The requested item does not exist or is not eligible for this route."),
+            CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated read was denied by item policy."),
+            CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported service", "Unsupported service metadata", message),
+            CatalogReadStatus.UnsupportedPackageBinding => ("unsupported-package", "Unsupported package", "Unsupported package binding", message),
+            _ => ("unavailable", "Unavailable", "This link is unavailable", "This anonymous link is missing, expired, or not allowed to reveal protected content.")
+        };
+
+        builder.OpenComponent<ConsoleStateView>(0);
+        builder.AddAttribute(1, "Kind", kind);
+        builder.AddAttribute(2, "Kicker", kicker);
+        builder.AddAttribute(3, "Title", title);
+        builder.AddAttribute(4, "Message", body);
+        builder.AddAttribute(5, "ActionHref", "/catalog");
+        builder.AddAttribute(6, "ActionLabel", "Back To Catalog");
+        builder.CloseComponent();
+    };
+
+    private string BuildTabHref(string tab)
+    {
+        var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(_token))
+        {
+            parameters["token"] = _token;
+        }
+
+        if (!string.Equals(tab, "overview", StringComparison.Ordinal))
+        {
+            parameters["tab"] = tab;
+        }
+
+        return $"/catalog/{IdOrSlug}{ConsoleUrlQuery.ToQueryString(parameters)}";
+    }
+
+    private string TabClass(string tab) =>
+        string.Equals(_tab, tab, StringComparison.Ordinal) ? "active" : string.Empty;
+
+    private static string NormalizeTab(string? value) =>
+        Tabs.Any(tab => string.Equals(tab.Id, value, StringComparison.Ordinal))
+            ? value!
+            : "overview";
+
+    private static string VisibilityLabel(string sharing) => sharing switch
+    {
+        CatalogSharingTiers.Organization => "Organization",
+        CatalogSharingTiers.PublicLink => "Public link",
+        CatalogSharingTiers.Public => "Public",
+        CatalogSharingTiers.Group => "Group",
+        _ => "Private"
+    };
+
+    private sealed record CatalogTab(string Id, string Label);
+}

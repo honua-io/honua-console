@@ -80,7 +80,8 @@ Native Operate transition routes for connections, resources, services, layers, a
 
 ## Project Layout
 
-- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, native Operate transition surfaces, and native streaming proof interface.
+- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, native Operate transition surfaces, catalog/share route-slice surfaces, and native streaming proof interface.
+- `src/Honua.Console.Contracts`: temporary SDK shim boundary for Console-side contracts until the shared .NET SDK projections replace them.
 - `src/Honua.Console.Web`: default browser Console host. It references the shared shell and stays independently buildable/deployable without MAUI or native services.
 - `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation, and the deterministic telemetry streaming proof.
 - `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.

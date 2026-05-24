@@ -1,0 +1,61 @@
+@page "/maps/new"
+@inject IConsoleCatalogClient Catalog
+@inject NavigationManager Navigation
+
+<section class="console-page console-viewer-page">
+    @if (string.IsNullOrWhiteSpace(_sourceItemId))
+    {
+        <ConsoleStateView Kind="empty" Kicker="New map" Title="Choose a catalog item" Message="Start a draft map from a supported catalog service or layer." ActionHref="/catalog?type=service" ActionLabel="Browse Catalog" />
+    }
+    else if (_result is null)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading draft map" Message="The draft map is hydrating from the catalog item." />
+    }
+    else if (_result.Status != CatalogReadStatus.Allowed || _result.MapPackage is null)
+    {
+        <ConsoleStateView Kind="unsupported-service" Kicker="Unsupported source" Title="Cannot hydrate map draft" Message="@_result.Message" ActionHref="/catalog" ActionLabel="Back To Catalog" />
+    }
+    else
+    {
+        var map = _result.MapPackage;
+        <div class="console-page-heading console-detail-heading">
+            <div>
+                <p class="console-kicker">Draft map</p>
+                <h1>@map.Summary.Title</h1>
+                <p>@map.Summary.Summary</p>
+            </div>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="/studio?source=catalog&itemId=@_sourceItemId">Continue In Studio</a>
+            </div>
+        </div>
+
+        <div class="console-map-surface" aria-label="Draft map preview">
+            <div class="console-map-canvas">
+                <span>@map.Summary.Title</span>
+                <small>Unsaved draft · Extent @map.InitialExtent</small>
+            </div>
+            <aside class="console-map-panel" aria-label="Draft map layers">
+                <h2>Layers</h2>
+                <ul>
+                    @foreach (var layer in map.Layers)
+                    {
+                        <li>@layer</li>
+                    }
+                </ul>
+            </aside>
+        </div>
+    }
+</section>
+
+@code {
+    private string _sourceItemId = string.Empty;
+    private MapPackageReadResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _sourceItemId = ConsoleUrlQuery.GetValue(Navigation.Uri, "from") ?? string.Empty;
+        _result = string.IsNullOrWhiteSpace(_sourceItemId)
+            ? null
+            : await Catalog.GetDraftMapAsync(_sourceItemId);
+    }
+}

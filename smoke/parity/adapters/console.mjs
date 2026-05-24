@@ -14,12 +14,14 @@ import { createHash } from "node:crypto";
 
 export const CONSOLE_ROUTES = Object.freeze({
   catalogItem: (id) => `/catalog/${id}`,
+  catalogPublicLink: (id, token) => `/catalog/${id}?token=${encodeURIComponent(token)}`,
   viewerNewFrom: (sourceId) => `/maps/new?from=${sourceId}`,
   viewerMap: (mapId) => `/maps/${mapId}`,
+  viewerPublicLink: (mapId, token) => `/maps/${mapId}?token=${encodeURIComponent(token)}`,
   studioDraftForMap: (mapId) => `/studio/drafts?source=saved-map&id=${mapId}`,
   generatedAppDetail: (appId) => `/catalog/${appId}`,
-  share: (appId) => `/share/items/${appId}`,
-  embed: (appId, token) => `/embed/items/${appId}#embedToken=${encodeURIComponent(token)}`,
+  sharePublication: (appId) => `/catalog/${appId}?tab=publication`,
+  embed: (mapId, token) => `/embed/maps/${mapId}#embedToken=${encodeURIComponent(token)}`,
 });
 
 export function buildConsoleUrls({ originUrl, items }) {
@@ -30,8 +32,8 @@ export function buildConsoleUrls({ originUrl, items }) {
     viewer: `${originUrl}${CONSOLE_ROUTES.viewerMap(items.savedMapId)}`,
     studio: `${originUrl}${CONSOLE_ROUTES.studioDraftForMap(items.savedMapId)}`,
     generatedApp: `${originUrl}${CONSOLE_ROUTES.generatedAppDetail(items.generatedAppId)}`,
-    share: `${originUrl}${CONSOLE_ROUTES.share(items.generatedAppId)}`,
-    embed: `${originUrl}${CONSOLE_ROUTES.embed(items.generatedAppId, items.embedToken)}`,
+    share: `${originUrl}${CONSOLE_ROUTES.sharePublication(items.generatedAppId)}`,
+    embed: `${originUrl}${CONSOLE_ROUTES.embed(items.savedMapId, items.embedToken)}`,
   };
 }
 

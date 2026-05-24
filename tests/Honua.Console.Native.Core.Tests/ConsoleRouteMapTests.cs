@@ -15,7 +15,7 @@ public sealed class ConsoleRouteMapTests
         Assert.Contains(areas, area => area.Id == "studio" && area.WorkflowBoundary == "Builder");
         Assert.Contains(areas, area => area.Id == "catalog" && area.WorkflowBoundary == "Builder");
         Assert.Contains(areas, area => area.Id == "operate" && area.WorkflowBoundary == "Operator");
-        Assert.Contains(areas, area => area.Id == "share" && area.WorkflowBoundary == "Builder");
+        Assert.Contains(areas, area => area.Id == "share" && area.Path == "/share/public" && area.WorkflowBoundary == "Builder");
         Assert.Equal(4, areas.Select(area => area.Path).Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -64,5 +64,20 @@ public sealed class ConsoleRouteMapTests
     public void BuilderAndNativeHostRoutesDoNotReceiveOperateNavigation(string relativePath)
     {
         Assert.False(ConsoleRouteMap.IsOperateRoute(relativePath));
+    }
+
+    [Fact]
+    public void RouteMapPinsCatalogViewerShareAndEmbedParityRoutes()
+    {
+        var routes = ConsoleRouteMap.PortalParityRoutes;
+
+        Assert.Contains("/catalog", routes);
+        Assert.Contains("/catalog/{idOrSlug}", routes);
+        Assert.Contains("/maps/{mapId}", routes);
+        Assert.Contains("/maps/new", routes);
+        Assert.Contains("/share/public", routes);
+        Assert.Contains("/share/public/items/{idOrSlug}", routes);
+        Assert.Contains("/public/items/{idOrSlug}", routes);
+        Assert.Contains("/embed/maps/{mapId}", routes);
     }
 }

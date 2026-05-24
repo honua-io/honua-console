@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 
 import { OWNING_LAYER_IDS } from "../owning-layers.mjs";
 import { SCENARIO_STEPS } from "../scenario.mjs";
+import { CONSOLE_ROUTES } from "../adapters/console.mjs";
 import { formatTextSummary } from "../evidence.mjs";
 import { runParitySmoke } from "../run.mjs";
 
@@ -51,6 +52,7 @@ describe("parity scenario", () => {
       assert.equal(new URL(value).origin, expectedOrigin);
     }
     const embedUrl = new URL(report.urls.embed);
+    assert.equal(embedUrl.pathname, `/embed/maps/${report.items.savedMapId}`);
     assert.ok(embedUrl.hash.startsWith("#embedToken="), "embed URL must carry token in fragment");
     assert.equal(decodeURIComponent(embedUrl.hash.replace("#embedToken=", "")), report.items.embedTokenHash);
     assert.ok(!embedUrl.searchParams.has("token"), "embed URL must not carry token in query string");
@@ -62,8 +64,8 @@ describe("parity scenario", () => {
     const tokenStep = report.steps.find((step) => step.id === "server/embed-token-mint");
     assert.equal(tokenStep.evidence.tokenHash, report.items.embedTokenHash);
     assert.equal(tokenStep.evidence.token, undefined);
-    assert.equal(tokenStep.evidence.closureSize, 2);
-    assert.deepEqual(tokenStep.evidence.closure, [report.items.savedMapId, report.items.serviceItemId]);
+    assert.equal(tokenStep.evidence.closureSize, 1);
+    assert.deepEqual(tokenStep.evidence.closure, [report.items.serviceItemId]);
 
     const shareStep = report.steps.find((step) => step.id === "console/share-publish");
     assert.deepEqual(
@@ -121,6 +123,21 @@ describe("parity scenario", () => {
 
     // Sanity check the ctx is consistent with the report.
     assert.equal(ctx.itemIds.serviceItemId, report.items.serviceItemId);
+  });
+
+  test("Console route builders preserve Portal-compatible public-link and embed contracts", () => {
+    assert.equal(
+      CONSOLE_ROUTES.catalogPublicLink("svc-1", "abc 123"),
+      "/catalog/svc-1?token=abc%20123",
+    );
+    assert.equal(
+      CONSOLE_ROUTES.viewerPublicLink("map-1", "abc 123"),
+      "/maps/map-1?token=abc%20123",
+    );
+    assert.equal(
+      CONSOLE_ROUTES.embed("map-1", "embed 123"),
+      "/embed/maps/map-1#embedToken=embed%20123",
+    );
   });
 
   test("deployed-origin build artifact is fetched from the origin", async () => {
@@ -379,7 +396,7 @@ describe("parity scenario", () => {
             async run(ctx) {
               const { assertEmbedTokenInFragment } = await import("../adapters/console.mjs");
               // Build a URL that mistakenly carries the token in the query string.
-              const bad = `${ctx.originUrl}/embed/items/${ctx.generatedApp.id}?token=${ctx.embedToken}`;
+              const bad = `${ctx.originUrl}/embed/maps/${ctx.savedMap.id}?token=${ctx.embedToken}`;
               assertEmbedTokenInFragment(bad);
             },
           }

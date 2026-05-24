@@ -7,7 +7,19 @@ public static class ConsoleRouteMap
         new("studio", "Studio", "/studio", "Builder", "AI-assisted map, dashboard, report, and app creation."),
         new("catalog", "Catalog", "/catalog", "Builder", "Data, services, maps, dashboards, apps, metadata, and provenance."),
         new("operate", "Operate", "/operate", "Operator", "Publishing, jobs, service configuration, identity, observability, and runtime administration."),
-        new("share", "Share", "/share", "Builder", "Public links, embeds, open-data pages, exports, and external publishing flows.")
+        new("share", "Share", "/share/public", "Builder", "Public links, embeds, open-data pages, exports, and external publishing flows.")
+    ];
+
+    public static IReadOnlyList<string> PortalParityRoutes { get; } =
+    [
+        "/catalog",
+        "/catalog/{idOrSlug}",
+        "/maps/{mapId}",
+        "/maps/new",
+        "/share/public",
+        "/share/public/items/{idOrSlug}",
+        "/public/items/{idOrSlug}",
+        "/embed/maps/{mapId}"
     ];
 
     public static ConsoleWorkflowArea? FindArea(string areaId) =>
