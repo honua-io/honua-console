@@ -34,7 +34,7 @@ This backlog intentionally separates three decisions:
 
 - [honua-console#2](https://github.com/honua-io/honua-console/issues/2): Scaffold Blazor Web Console shell and shared Razor component library.
 - [honua-console#3](https://github.com/honua-io/honua-console/issues/3): Define Console IA route map RBAC and navigation. Artifact: [docs/console-route-map.md](../console-route-map.md).
-- [honua-console#6](https://github.com/honua-io/honua-console/issues/6): Integrate legacy Admin as transitional Operate surface. IA: route-map §1, §5 (Admin disposition map), §6.5, §11.
+- [honua-console#6](https://github.com/honua-io/honua-console/issues/6): Integrate legacy Admin as transitional Operate surface. IA: route-map §1, §5 (Admin disposition map), §6.5, §11. See the [Legacy Admin Route Disposition](../migration/legacy-admin-route-disposition.md) and [Operate Embed Contract](../operate/embed-contract.md) landed for #6.
 
 ### P1 Migration And Runtime Work
 
@@ -163,6 +163,7 @@ Do not retire `honua-portal` or separate Admin deployment paths until:
 - Server-authored RBAC/entitlement checks gate route and item actions.
 - Metadata v2/content item/provenance data is shared across operator and builder workflows.
 - Cross-surface smoke evidence is captured in CI or release promotion, covering: publish service -> catalog item -> Studio artifact -> share/embed, **plus** open-data publication and unauthenticated embed rendering. (Scope clarification: the current portal exercises both; `honua-console#9` must too, or regressions in those paths only surface after portal retirement.)
+- Every `EMBED` row in the [Legacy Admin Route Disposition](../migration/legacy-admin-route-disposition.md) has been replaced or formally retired per its retirement gate.
 
 ## Portal Freeze And Retirement
 
