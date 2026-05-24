@@ -150,9 +150,10 @@ test.describe("Studio publishing smoke", () => {
     await page.goto("/studio/drafts/draft-map-conflict/publish");
     await expect(page.getByTestId("publish-review")).toBeVisible();
 
+    await page.getByLabel("Visibility", { exact: true }).selectOption("public-link");
     await page.getByTestId("publish-submit").click();
 
-    await expect(page.getByTestId("publish-error")).toContainText("Private incident layer cannot be widened");
+    await expect(page.getByTestId("publish-error")).toContainText("Private incident layer is private");
   });
 
   test("requires group ids before submitting group visibility", async ({ page }) => {

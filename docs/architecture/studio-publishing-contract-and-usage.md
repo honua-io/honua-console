@@ -22,8 +22,8 @@ The fixture contract lives behind `StudioPublishingClient` in `src/studio/publis
 | Target | Draft or preview entry | Preview route after publish | Package source |
 | --- | --- | --- | --- |
 | Map | `/studio/previews/:draftId` or `/studio/drafts/:draftId` | `/maps/:itemId` | SDK `HonuaMapPackage` |
-| Dashboard | `/studio/drafts/:draftId` | `/dashboards/:itemId` | Fixture dashboard projection with Vega-Lite specs |
-| Report | `/studio/drafts/:draftId` | `/reports/:itemId` | Fixture report projection |
+| Dashboard | `/studio/previews/:draftId` or `/studio/drafts/:draftId` | `/dashboards/:itemId` | Fixture dashboard projection with Vega-Lite specs |
+| Report | `/studio/previews/:draftId` or `/studio/drafts/:draftId` | `/reports/:itemId` | Fixture report projection |
 | App | `/studio/previews/:draftId` or `/studio/drafts/:draftId` | `/apps/:itemId/preview` | SDK `AppPackage` projection |
 
 All targets publish through the same review route:
@@ -101,7 +101,7 @@ Reopen loads the active published package revision and does not call generation 
 
 ## Errors And Empty States
 
-Console uses the shared publish problem taxonomy for review, publish, route, and reopen failures:
+Console uses the shared publish problem taxonomy for Studio draft list, draft, preview, review, publish, published route, and reopen failures:
 
 - `missing`
 - `unauthorized`
@@ -110,7 +110,7 @@ Console uses the shared publish problem taxonomy for review, publish, route, and
 - `conflict`
 - `server`
 
-The fixture currently exercises missing published items, invalid group share requests, unsupported preview route mismatches, and dependency-closure conflicts. A publish is blocked when a blocking warning exists or requested visibility would widen a dependency beyond its required visibility. Visibility is ordered narrowest to widest as private, workspace, group, public-link, public, so group sharing is treated as wider than workspace dependencies. These errors render through the same Console empty-state or inline warning surfaces used by the publish route.
+The fixture currently exercises missing published items, unauthorized Studio loaders, invalid group share requests, unsupported preview or package-binding failures, unsupported preview route mismatches, and dependency-closure conflicts. A publish is blocked when a blocking warning exists or requested visibility would widen a dependency beyond its required visibility. Visibility is ordered narrowest to widest as private, workspace, group, public-link, public, so group sharing is treated as wider than workspace dependencies. These errors render through the same Console empty-state or inline warning surfaces used by the publish route.
 
 Route components clear stale item, error, submit, and result state when route params change. A missing `/catalog/:itemId`, unsupported loader failure, or invalid publish attempt must not leak into the next valid item or draft after navigation. The same rule applies inside publish review: changing drafts resets prior submit errors, disables stale success cards before the next draft is resolved, and ignores in-flight publish completions unless they still belong to the active draft and latest submit request.
 
@@ -124,7 +124,7 @@ Studio publish emits browser events on `honua:studio-publish`:
 - `publish.failed`
 - `publish.reopen.completed`
 
-Review, submit, success, and failure events carry the draft and target context when available; success also carries the published item id. Reopen completion carries the published item id and target, and the edit route verifies the package was loaded without a generation call.
+Every telemetry event carries an ISO `at` timestamp. Review, submit, success, and failure events carry the draft and target context when available; success also carries the published item id. Reopen completion carries the published item id and target, and the edit route verifies the package was loaded without a generation call.
 
 Smoke coverage in `tests/smoke/studio-publishing.spec.ts` verifies every supported target from Studio entry to publish review, Catalog canonical route, target preview route, Share route, Embed route, and Edit in Studio reopen without generation. It also covers group visibility validation, dependency-closure conflict rendering, and unsupported preview route mismatches. Unit coverage verifies stale publish results and route loader errors are cleared when a later submit or navigation changes the active draft or item.
 

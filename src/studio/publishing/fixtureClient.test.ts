@@ -22,6 +22,14 @@ const WORKSPACE_EMBED_SHARE: ShareEmbedSettings = {
   embedPolicy: "same-origin"
 };
 
+const PRIVATE_SHARE: ShareEmbedSettings = {
+  visibility: "private",
+  groupIds: [],
+  publicLinkEnabled: false,
+  embedEnabled: false,
+  embedPolicy: "disabled"
+};
+
 function publishInput(draftId: string) {
   return {
     draftId,
@@ -164,7 +172,7 @@ describe("FixtureStudioPublishingClient", () => {
     let conflict: unknown;
     try {
       await client.publishDraft({
-        ...publishInput("draft-map-operations"),
+        ...publishInput("draft-map-conflict"),
         share: {
           visibility: "public-link",
           groupIds: [],
@@ -179,7 +187,25 @@ describe("FixtureStudioPublishingClient", () => {
 
     expect(conflict).toBeInstanceOf(StudioPublishingError);
     expect((conflict as StudioPublishingError).kind).toBe("conflict");
-    expect((conflict as Error).message).toContain("publish with narrower access");
+    expect((conflict as Error).message).toContain("Private incident layer is private");
+  });
+
+  it("allows private publishes when dependencies require private visibility", async () => {
+    const client = new FixtureStudioPublishingClient();
+
+    const item = await client.publishDraft({
+      ...publishInput("draft-map-conflict"),
+      share: PRIVATE_SHARE
+    });
+
+    expect(item).toMatchObject({
+      itemId: "console-map-conflict",
+      share: {
+        visibility: "private",
+        embedEnabled: false,
+        embedPolicy: "disabled"
+      }
+    });
   });
 
   it("requires at least one group id for group visibility", async () => {

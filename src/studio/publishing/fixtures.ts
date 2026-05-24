@@ -287,8 +287,8 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
     warnings: [
       {
         code: "dependency-private",
-        message: "Private incident layer cannot be widened to public access.",
-        severity: "blocking"
+        message: "Private incident layer requires private visibility; wider sharing will be blocked.",
+        severity: "warning"
       }
     ],
     provenance: provenance("map", "map-package-conflict-v1")
