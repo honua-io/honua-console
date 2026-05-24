@@ -656,6 +656,9 @@ or entitlement requirements on top.
 | `/operate/connections/new` | — | — | forbidden | operate |
 | `/operate/connections/:id` | — | missing-item | forbidden | operate |
 | `/operate/connections/:id/diagnostics` | — | missing-item | forbidden | operate |
+| `/operate/resources` | — | empty-operate (no resources) | forbidden | operate |
+| `/operate/resources/new` | — | — | forbidden | operate |
+| `/operate/resources/:id` | — | missing-item | forbidden | operate |
 | `/operate/publishing` | — | empty-operate | forbidden | operate |
 | `/operate/identity/providers` | `entitlement:identity.oidc` (gate the OIDC provider) | empty-operate | forbidden / upgrade | operate |
 | `/operate/identity/status` | — | empty-operate | forbidden | operate |
@@ -667,9 +670,12 @@ or entitlement requirements on top.
 | `/operate/jobs/:jobRunId` | — | fixture job fallback | forbidden | operate |
 | `/operate/operations` | — | empty-operate | forbidden | operate |
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
+| `/operate/services` | — | empty-operate (no services) | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
+| `/operate/layers` | — | empty-operate (no layers) | forbidden | operate |
 | `/operate/layers/:id` | — | missing-item | forbidden | operate |
 | `/operate/layers/:id/style` | — | missing-item | forbidden | operate |
+| `/operate/settings` | — | — | forbidden | operate |
 | `/operate/deploy` | — | empty-operate | forbidden | operate |
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |

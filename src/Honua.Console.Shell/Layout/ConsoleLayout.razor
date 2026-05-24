@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Navigation
 
 <div class="console-shell">
     <aside class="console-sidebar" aria-label="Honua Console navigation">
@@ -20,14 +21,17 @@
             }
         </nav>
 
-        <nav class="console-nav console-nav-secondary" aria-label="Operate sections">
-            <NavLink href="/operate/connections" Match="NavLinkMatch.Prefix">Connections</NavLink>
-            <NavLink href="/operate/resources" Match="NavLinkMatch.Prefix">Resources</NavLink>
-            <NavLink href="/operate/services" Match="NavLinkMatch.Prefix">Services</NavLink>
-            <NavLink href="/operate/layers" Match="NavLinkMatch.Prefix">Layers</NavLink>
-            <NavLink href="/operate/settings" Match="NavLinkMatch.Prefix">Settings</NavLink>
-            <NavLink href="/operate/observability" Match="NavLinkMatch.Prefix">Observability</NavLink>
-        </nav>
+        @if (ShowOperateNavigation)
+        {
+            <nav class="console-nav console-nav-secondary" aria-label="Operate sections">
+                <NavLink href="/operate/connections" Match="NavLinkMatch.Prefix">Connections</NavLink>
+                <NavLink href="/operate/resources" Match="NavLinkMatch.Prefix">Resources</NavLink>
+                <NavLink href="/operate/services" Match="NavLinkMatch.Prefix">Services</NavLink>
+                <NavLink href="/operate/layers" Match="NavLinkMatch.Prefix">Layers</NavLink>
+                <NavLink href="/operate/settings" Match="NavLinkMatch.Prefix">Settings</NavLink>
+                <NavLink href="/operate/observability" Match="NavLinkMatch.Prefix">Observability</NavLink>
+            </nav>
+        }
 
         <nav class="console-nav console-nav-secondary" aria-label="Native host">
             <NavLink href="/environments" Match="NavLinkMatch.Prefix">Environments</NavLink>
@@ -39,3 +43,8 @@
         @Body
     </main>
 </div>
+
+@code {
+    private bool ShowOperateNavigation =>
+        ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
+}

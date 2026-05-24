@@ -19,7 +19,7 @@ The native routes are the preferred Console navigation for connections, data res
 - `/operate/services`
 - `/operate/services/{serviceName}/settings`
 - `/operate/layers`
-- `/operate/layers/{layerId}`
+- `/operate/layers/{layerId:int}`
 - `/operate/settings`
 
 ## Response Contract
@@ -28,8 +28,9 @@ These are Console transition view models, not server protocol DTOs:
 
 | Surface | Contract fields rendered |
 | --- | --- |
+| Operate workspace | Four bounded collections: `connections`, `resourceEdits`, `services`, and `settingsChanges`. The landing page renders counts and current actionable items from those collections. |
 | Connections | `id`, `name`, `provider`, `target`, `principal`, `status`, `lastTested`, optional safe diagnostic. |
-| Connection diagnostics | `outcome`, `failureCode`, redacted `summary`, structured `signals`, redacted `operatorActions`, and redacted evidence key/value rows. |
+| Connection diagnostics | The detail and `/diagnostics` routes share the same component and render `outcome`, `failureCode`, redacted `summary`, structured `signals`, redacted `operatorActions`, and redacted evidence key/value rows. |
 | Resource edits | `resourceId`, `name`, `source`, `draftChange`, `validationState`, `validationIssues`, `editTabs`, and blast-radius lists for catalog items, services, layers, saved maps, share links, and generated apps. |
 | Services | `name`, `displayName`, `serviceType`, `runtimeStatus`, `metadataOwnership`, layer projections, runtime settings, and publication slots. |
 | Layers | Flattened service-layer projections with `layerId`, `name`, `geometry`, service link, and canonical resource link. |
