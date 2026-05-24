@@ -26,6 +26,15 @@ const FACILITY_DEPENDENCY: StudioDependencyRef = {
   requiredVisibility: WORKSPACE_LAYER_VISIBILITY
 };
 
+const PRIVATE_INCIDENT_DEPENDENCY: StudioDependencyRef = {
+  itemId: "layer-private-incidents",
+  title: "Private incident layer",
+  versionId: "layer-private-incidents-v1",
+  requiredVisibility: "private"
+};
+
+const OPERATIONS_DEPENDENCIES: readonly StudioDependencyRef[] = [INCIDENT_DEPENDENCY, FACILITY_DEPENDENCY];
+
 function packageRef(target: StudioPublishTarget, packageId: string): StudioPackageRef {
   return {
     packageId,
@@ -35,7 +44,11 @@ function packageRef(target: StudioPublishTarget, packageId: string): StudioPacka
   };
 }
 
-function provenance(target: StudioPublishTarget, packageId: string): StudioProvenanceRefs {
+function provenance(
+  target: StudioPublishTarget,
+  packageId: string,
+  sourceItemDependencyRefs: readonly StudioDependencyRef[] = OPERATIONS_DEPENDENCIES
+): StudioProvenanceRefs {
   return {
     promptRef: `prompt://${target}/operations-dashboard`,
     specRef: `spec://${target}/operations-dashboard`,
@@ -48,7 +61,7 @@ function provenance(target: StudioPublishTarget, packageId: string): StudioProve
         url: `honua://studio/${target}/${packageId}`
       }
     ],
-    sourceItemDependencyRefs: [INCIDENT_DEPENDENCY, FACILITY_DEPENDENCY],
+    sourceItemDependencyRefs,
     modelRunRefs: ["model-run://studio-fixture-operations-dashboard"],
     actor: "builder@honua.test",
     createdAt: CREATED_AT
@@ -117,7 +130,7 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
         boundArtifacts: ["artifact://map-package-operations-v1"]
       }
     },
-    dependencies: [INCIDENT_DEPENDENCY, FACILITY_DEPENDENCY],
+    dependencies: OPERATIONS_DEPENDENCIES,
     warnings: [
       {
         code: "shared-layer-refresh",
@@ -166,7 +179,7 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
         dataBindings: [INCIDENT_DEPENDENCY.itemId, FACILITY_DEPENDENCY.itemId]
       }
     },
-    dependencies: [INCIDENT_DEPENDENCY, FACILITY_DEPENDENCY],
+    dependencies: OPERATIONS_DEPENDENCIES,
     warnings: [],
     provenance: provenance("dashboard", "dashboard-package-operations-v1")
   },
@@ -200,7 +213,7 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
         chartRefs: ["dashboard-package-operations-v1#incidents-by-priority"]
       }
     },
-    dependencies: [INCIDENT_DEPENDENCY, FACILITY_DEPENDENCY],
+    dependencies: OPERATIONS_DEPENDENCIES,
     warnings: [
       {
         code: "report-contract-fixture",
@@ -237,7 +250,7 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
         }
       }
     },
-    dependencies: [INCIDENT_DEPENDENCY, FACILITY_DEPENDENCY],
+    dependencies: OPERATIONS_DEPENDENCIES,
     warnings: [],
     provenance: provenance("app", "app-package-operations-v1"),
     rollbackTargetVersionId: "app-package-operations-v0"
@@ -261,11 +274,11 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
             sourceId: "incidents",
             protocol: "workspace_artifact",
             locator: {
-              serviceId: "layer-private-incidents",
+              serviceId: PRIVATE_INCIDENT_DEPENDENCY.itemId,
               layerId: "incidents-private"
             },
             metadata: {
-              title: "Private incident layer"
+              title: PRIVATE_INCIDENT_DEPENDENCY.title
             }
           }
         ],
@@ -276,14 +289,7 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
         }
       }
     },
-    dependencies: [
-      {
-        itemId: "layer-private-incidents",
-        title: "Private incident layer",
-        versionId: "layer-private-incidents-v1",
-        requiredVisibility: "private"
-      }
-    ],
+    dependencies: [PRIVATE_INCIDENT_DEPENDENCY],
     warnings: [
       {
         code: "dependency-private",
@@ -291,6 +297,6 @@ export const STUDIO_PUBLISH_DRAFTS: readonly StudioPublishDraft[] = [
         severity: "warning"
       }
     ],
-    provenance: provenance("map", "map-package-conflict-v1")
+    provenance: provenance("map", "map-package-conflict-v1", [PRIVATE_INCIDENT_DEPENDENCY])
   }
 ];

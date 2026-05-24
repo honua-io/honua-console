@@ -1,4 +1,5 @@
 import { FixtureStudioPublishingClient } from "./fixtureClient.js";
+import { STUDIO_PUBLISH_DRAFTS } from "./fixtures.js";
 import { previewRoute } from "./routes.js";
 import { StudioPublishingError } from "./types.js";
 import type { ShareEmbedSettings, StudioPublishTarget } from "./types.js";
@@ -45,6 +46,12 @@ function publishInput(draftId: string) {
 describe("FixtureStudioPublishingClient", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+  });
+
+  it("keeps fixture provenance source refs aligned with draft dependencies", () => {
+    for (const draft of STUDIO_PUBLISH_DRAFTS) {
+      expect(draft.provenance.sourceItemDependencyRefs).toEqual(draft.dependencies);
+    }
   });
 
   it.each(PUBLISH_CASES)(
