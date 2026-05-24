@@ -107,4 +107,24 @@ describe("Maps workspace", () => {
       }),
     );
   });
+
+  it("opens catalog map items through the /maps/new source route", async () => {
+    render(
+      <MemoryRouter initialEntries={["/maps/new?from=01HXY3ZK7N1J2Q9V8M0FQ2PWAD"]}>
+        <Routes>
+          <Route path="/maps/:mapId" element={<Maps />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(initMapViewerMock).toHaveBeenCalled());
+    expect(initMapViewerMock).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        itemId: "01HXY3ZK7N1J2Q9V8M0FQ2PWAD",
+        savedMapId: undefined,
+        mode: "viewer",
+      }),
+    );
+  });
 });

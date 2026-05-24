@@ -15,6 +15,8 @@ import {
   roleMatrixEntry,
 } from "./rbac.js";
 import { type ShareReviewBlocker, reviewShareChange } from "./review.js";
+import { buildEmbedSnippet } from "./snippet.js";
+import { defaultEmbedToken, defaultPublicLinkToken } from "./tokens.js";
 import type { PatchAccessResult, ShareAccess, SharingTier } from "./types.js";
 
 interface SharePanelProps {
@@ -71,6 +73,7 @@ export function SharePanel({ item, session, loadClosure, patchAccess, onAccessCh
   }, [inviteRole, role]);
 
   const shareUrl = useMemo(() => buildShareUrl(item, access), [item, access]);
+  const embedSnippet = useMemo(() => buildShareEmbedSnippet(item, access), [item, access]);
   const canSubmitInvite = canInviteRole(role, inviteRole);
 
   async function handleApply(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -275,6 +278,13 @@ export function SharePanel({ item, session, loadClosure, patchAccess, onAccessCh
             value={shareUrl}
             description={`Visible to ${visibilityLabel(access.sharing).toLowerCase()} audiences.`}
           />
+          {embedSnippet ? (
+            <CopyRow
+              label="Embed snippet"
+              value={embedSnippet}
+              description="Iframe snippet for pages that accept embedded maps."
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -375,7 +385,7 @@ function normalizeAccess(access: ShareAccess, groupId: string): ShareAccess {
 function buildShareUrl(item: ContentItem, access: ShareAccess): string | null {
   if (access.sharing !== "public" && access.sharing !== "public-link") return null;
   const path = `/catalog/${encodeURIComponent(item.slug ?? item.id)}`;
-  const origin = typeof window === "undefined" ? "https://portal.honua.example" : window.location.origin;
+  const origin = currentOrigin();
   if (access.sharing === "public-link") {
     const token = access.publicLinkToken ?? defaultPublicLinkToken(item.id);
     return `${origin}${path}?share=${encodeURIComponent(token)}`;
@@ -383,8 +393,18 @@ function buildShareUrl(item: ContentItem, access: ShareAccess): string | null {
   return `${origin}${path}`;
 }
 
-function defaultPublicLinkToken(itemId: string): string {
-  return `fixture-${itemId.slice(-8).toLowerCase()}`;
+function buildShareEmbedSnippet(item: ContentItem, access: ShareAccess): string | null {
+  if (item.type !== "map" || !access.embeddable) return null;
+  if (access.sharing !== "public" && access.sharing !== "public-link") return null;
+  return buildEmbedSnippet({
+    portalHost: currentOrigin(),
+    itemId: item.id,
+    embedToken: defaultEmbedToken(item.id),
+  });
+}
+
+function currentOrigin(): string {
+  return typeof window === "undefined" ? "https://portal.honua.example" : window.location.origin;
 }
 
 function blockerLabel(blocker: ShareReviewBlocker): string {

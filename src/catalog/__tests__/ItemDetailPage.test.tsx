@@ -124,10 +124,10 @@ describe("ItemDetailPage — section coverage by type", () => {
     expect(within(deps).getByText("01HXY3ZK7N1J2Q9V8M0FQ2PWAB")).toBeInTheDocument();
   });
 
-  it("renders a saved web map detail and points the action at the webmap ref", async () => {
+  it("renders a saved web map detail and points the action at the source item route", async () => {
     renderDetail("01HXY3ZK7N1J2Q9V8M0FQ2PWAD");
     const action = await screen.findByRole("link", { name: /Open in map/i });
-    expect(action).toHaveAttribute("href", expect.stringMatching(/^\/maps\//));
+    expect(action).toHaveAttribute("href", "/maps/new?from=01HXY3ZK7N1J2Q9V8M0FQ2PWAD");
   });
 
   it("disables Open in map for scenes with an explicit unsupported reason", async () => {
@@ -242,6 +242,26 @@ describe("ItemDetailPage — sharing and RBAC", () => {
     expect(within(panel).getByText(/only owners and editors/i)).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: /apply sharing/i })).toBeDisabled();
     expect(within(panel).getByRole("button", { name: /add invite/i })).toBeDisabled();
+  });
+
+  it("exposes a copyable embed snippet for embeddable public maps", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    renderDetail("city-parcels-overview-map");
+
+    await screen.findByRole("heading", { name: "City Parcels Overview Map" });
+    const panel = await screen.findByTestId("share-panel");
+    expect(within(panel).getByText(/<iframe/)).toHaveTextContent("/embed/maps/01HXY3ZK7N1J2Q9V8M0FQ2PWAD");
+    expect(within(panel).getByText(/<iframe/)).toHaveTextContent("#embedToken=");
+
+    await user.click(within(panel).getByRole("button", { name: /copy embed snippet/i }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("<iframe"));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("#embedToken="));
   });
 
   it("lets an owner apply a permitted sharing change through dependency review", async () => {

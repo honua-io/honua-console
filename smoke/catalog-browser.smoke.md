@@ -45,7 +45,7 @@ These remain bounded into other tickets and are not exercised here:
 - **MapLibre-backed extent preview.** Catalog ships an SVG bbox overlay only; full basemap rendering rides with the viewer port.
 - **Markdown rendering of `description`.** Plain-text paragraph rendering only; markdown moves to a later quality-baseline ticket.
 - **DCAT-US 3.0 / `data.json` export from detail.** Public pages render API/download affordances and Schema.org JSON-LD but do not generate DCAT/data.json.
-- **Viewer route shape.** `getOpenAction` stages `/maps/new?from=<itemId>` for service/layer and `/maps/<webmapJsonRef>` for map; Console serves both `/maps/...` (legacy) and `/catalog/maps/...` (Console IA) so emitters and tests do not need a synchronized swap.
+- **Viewer route shape.** `getOpenAction` stages `/maps/new?from=<itemId>` for service, layer, and map catalog items; Console serves both `/maps/...` (legacy) and `/catalog/maps/...` (Console IA) so emitters and tests do not need a synchronized swap.
 - **SDK swap.** Active clients are `FixtureCatalogClient`, `FixtureSavedMapClient`, `FixtureShareClient`. Replacement of these with server-backed clients is a follow-up to `honua-sdk-js#225` and `honua-server#1162` — tracked outside `honua-console#4`.
 
 ### Empty / Error Surface Coverage

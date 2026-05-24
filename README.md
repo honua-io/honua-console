@@ -25,15 +25,16 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface.
 
-[honua-console#4](https://github.com/honua-io/honua-console/issues/4) ports Catalog browse + item detail, the MapLibre map viewer, saved maps, sharing + embed, and the public open-data surface from `honua-portal` into Console. The Console worktree now contains the React/TypeScript shell, route IA (Home, Catalog, Share groups), `AppShell`/`EmptyState`/`LoadingShell` primitives, `FixtureCatalogClient` / `FixtureSavedMapClient` / `FixtureShareClient`, the viewer module (MapLibre dynamic import), the embed route (token-mode, no shell), and the anonymous `/share/public` open-data pages. Legacy Portal URLs (`/maps/...`, `/embed/maps/...`, `/public/...`) keep working as compatibility aliases at the router level so embed snippets in the wild do not break.
+[honua-console#4](https://github.com/honua-io/honua-console/issues/4) ports Catalog browse + item detail, the MapLibre map viewer, saved maps, sharing + embed, and the public open-data surface from `honua-portal` into Console. The Console worktree now contains the React/TypeScript shell, route IA (Home, Catalog, Share groups), `AppShell`/`EmptyState`/`LoadingShell` primitives, `FixtureCatalogClient` / `FixtureSavedMapClient` / `FixtureShareClient`, the lazy-loaded maps route that contains the MapLibre viewer, the no-shell embed route, and the anonymous `/share/public` open-data pages. Legacy Portal URLs (`/maps/...`, `/embed/maps/...`, `/public/...`) keep working as compatibility aliases at the router level so embed snippets in the wild do not break.
 
-For this port, catalog `map` item open actions route by the catalog item id (`/maps/:itemId`); `target.webmapJsonRef` remains the saved WebMap document pointer, not a route id. Embed authorization resolves before MapLibre mounts: anonymous iframe loads can read public roots only, while public-link roots require a valid `#embedToken=...` fragment and otherwise render the `unauthorized` empty state.
+For this port, service, layer, and map catalog actions open the viewer through `/maps/new?from=:itemId`. Saved-map workspace cards open the saved map's self URL, currently `/maps/:id`. Embed URLs preserve `#embedToken=...` fragments, parse chrome / legend / zoom / extent defensively, and resolve fixture token/root authorization before MapLibre mounts. Production share/embed token mint and server-backed verification remain in the SDK/server follow-up.
 
 Still outside `honua-console#4`:
 
 - Studio app-builder + generated-app preview — `honua-console#5`.
 - Operate / Admin transitional surface — `honua-console#6`.
 - Server-owned metadata/RBAC wiring — `honua-server#1162` via `honua-console#7`.
+- Production share/embed token mint, redeem, and closure enforcement — `honua-server#1162` / `honua-sdk-js#225`.
 - Single deployable artifact — `honua-devops#55/#56` via `honua-console#8`.
 - Cross-surface parity smoke (publish → catalog → Studio → share/embed) — `honua-console#9`.
 - Retiring `honua-portal` — `honua-console#10`.

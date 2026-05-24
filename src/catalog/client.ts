@@ -138,7 +138,7 @@ export class FixtureCatalogClient implements CatalogClient {
   }
 }
 
-function contentItemToClosureItem(item: ContentItem): ClosureItem {
+export function contentItemToClosureItem(item: ContentItem): ClosureItem {
   return {
     id: item.id,
     type: item.type as DependencyType,

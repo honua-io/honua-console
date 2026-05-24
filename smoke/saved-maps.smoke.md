@@ -32,6 +32,11 @@ npm test
 | Metadata validation | content-item/v1 invariants on title (1–280), summary (≤ 280), tags (unique non-empty ≤ 64), schema-valid ULID ids, and absolute http(s) metadata URLs. | `src/saved-maps/__tests__/client.test.ts` → "FixtureSavedMapClient metadata validation" |
 | Schema parity | Emitted ContentItem and WebMapDoc validate against the JSON Schemas with Ajv pattern/format enforcement; `type='map'` requires the map target shape. | `src/saved-maps/__tests__/schema-parity.test.ts` |
 
+Saved-map read permission is the fixture client data-plane policy. The
+iframe route gates the public-link demo saved map through fixture embed auth
+before MapLibre mounts; production token verification is tracked with the
+share/embed SDK and server follow-ups.
+
 ## Cross-repo coordination
 
 The Console slice lands behind `FixtureSavedMapClient`. Production wiring

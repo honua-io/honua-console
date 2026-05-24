@@ -49,11 +49,11 @@ Viewer routes accept both Console IA and legacy Portal paths:
 
 - `/catalog/maps` and `/maps` list saved maps.
 - `/catalog/maps/:mapId` and `/maps/:mapId` open a saved map.
-- `/catalog/maps/new?from=:itemId` and `/maps/new?from=:itemId` open a catalog service/layer source in the viewer.
+- `/catalog/maps/new?from=:itemId` and `/maps/new?from=:itemId` open a catalog service, layer, or map source in the viewer.
 
-For catalog `type="map"` items, open actions route by the catalog item id.
-`target.webmapJsonRef` stays a WebMap document URL owned by the saved-map
-loader and must not be encoded into `/maps/:mapId`.
+`getOpenAction()` emits `/maps/new?from=:itemId` for catalog service, layer,
+and map sources. `target.webmapJsonRef` stays a WebMap document URL owned by
+the saved-map loader and must not be encoded into `/maps/:mapId`.
 
 WebMap extents are normalized to WGS84 before catalog publication and viewer
 initial-view hydration. Extent-level `spatialReference` wins over document-level
@@ -79,13 +79,17 @@ service URLs on update leave the stored item unchanged.
 and `public`. The `embeddable` flag is independent of tier: public items are
 not iframe-renderable unless the owner explicitly allows embeds.
 
-Copied share URLs are centralized in `buildShareUrl()`:
+There are two copied-link surfaces in the fixture port:
 
-- tiers narrower than `public-link` are not URL-shareable.
-- public open-data service/layer/document items emit `/public/items/:slug`.
-- public-link service/layer/document items emit `/public/items/:slug?token=...`.
-- public/public-link maps emit `/maps/:id`, with `?token=...` for public-link.
-- other public/public-link items emit `/catalog/:slug`, with `?token=...` for public-link.
+- `src/share/snippet.ts` builds standalone copy links for tests and snippets:
+  maps emit `/maps/:id`, other item kinds emit `/catalog/:id`, and
+  public-link URLs append `?token=...`.
+- `SharePanel` on catalog detail emits the current origin plus
+  `/catalog/:slugOrId`; public-link URLs append `?share=...`. Tiers narrower
+  than `public-link` do not produce a copied URL.
+- `SharePanel` also emits an iframe snippet for embeddable public/public-link
+  map items. The snippet targets `/embed/maps/:id` and carries the fixture
+  embed token in the URL fragment.
 
 Embed snippets target the legacy iframe-compatible route:
 
@@ -94,8 +98,11 @@ Embed snippets target the legacy iframe-compatible route:
 ```
 
 Embed tokens live in the URL fragment as `#embedToken=...` so they do not reach
-access logs or referer headers. The embed route resolves auth before mounting
-MapLibre.
+access logs or referer headers. The route parser preserves opaque tokens,
+including tokens containing literal `%`, and `prepareEmbedAuth()` maps valid,
+expired, invalid, missing-redemption, and network-error outcomes onto the
+standard empty-state vocabulary. The React embed route resolves fixture token
+redemption and root embeddable/tier posture before MapLibre mounts.
 
 ## Public Open Data
 
@@ -106,14 +113,17 @@ Anonymous open-data routes are available at both Console IA and legacy paths:
 
 The public collection lists only `ContentItemSummary` rows where
 `sharing === "public"`, `openData === true`, and `type` is `service`, `layer`,
-or `document`. Item pages render when the item is public open data or when a
-public-link item is requested with the matching `?token=` value.
+or `document`. Item pages render only for public open-data items. Private,
+missing, unauthorized, and public-but-not-open-data items share the generic
+"Public item not found" surface so titles do not leak.
 
 ## Deferred Contract Work
 
 - Swap fixture clients and token redemption for `honua-sdk-js#225` /
   `honua-server#1162`.
 - Canonicalize emitted URLs to Console IA paths while retaining legacy aliases.
+- Unify public-link copied URL query keys and decide whether public-link
+  open-data links resolve through `/public/items` or `/catalog`.
 - Add DCAT-US 3.0 / `data.json` generation and validation.
 - Document deployment-owned headers/metadata for embed routes, including
   `noindex,nofollow` and frame policy.

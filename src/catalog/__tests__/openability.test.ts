@@ -30,14 +30,11 @@ describe("getOpenAction — full item type matrix", () => {
     expect(action.href).toBe("/maps/new?from=01HXY3ZK7N1J2Q9V8M0FQ2PWAC");
   });
 
-  it("opens a saved web map at its webmapJsonRef", () => {
+  it("opens a saved web map through the source item route", () => {
     const map = byId("01HXY3ZK7N1J2Q9V8M0FQ2PWAD");
     const action = getOpenAction(map);
     expect(action.kind).toBe("open-in-map");
-    expect(action.href).toContain("/maps/");
-    if (map.target.type === "map") {
-      expect(action.href).toBe(`/maps/${encodeURIComponent(map.target.webmapJsonRef)}`);
-    }
+    expect(action.href).toBe(`/maps/new?from=${encodeURIComponent(map.id)}`);
   });
 
   it("marks scenes as unsupported in the Beta viewer", () => {

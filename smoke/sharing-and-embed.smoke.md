@@ -24,7 +24,7 @@ npm test
 | --- | --- | --- |
 | **AC1** | Private, organization, and public-link access behave differently in tests or smoke validation. | `src/share/__tests__/policy.test.ts` → tier-ordering, escalation matrix, blocker-order parity. `src/share/__tests__/client.test.ts` → per-tier `patchAccess` round-trip + 403 forbidden + 409 closureBlocked + network-error. |
 | **AC2** | Public embeds work only when map dependencies are shareable by the embed audience. | `src/share/__tests__/policy.test.ts` → `canEmbedAudienceAccess` matrix. `src/embed/__tests__/permissions.test.ts` → public-embed-of-public-deps OK; public-embed-of-private-dep renders the per-layer `unauthorized` cell while the rest of the map still loads. |
-| **AC3** | A user can copy an embed snippet and load the map in an iframe-compatible route. | `src/share/__tests__/snippet.test.ts` → snippet shape (iframe, `loading="lazy"`, `allow="fullscreen"`, `referrerpolicy`), default `chrome=minimal&legend=on&zoom=on`, custom chrome variants, fragment-only embed token. `src/embed/__tests__/route.test.ts` → defensive parsing for `chrome`, `legend`, `zoom`, `extent`, fragment token. `src/routes/Maps.test.tsx` and `src/viewer/init.test.ts` → parsed params are threaded into `/embed/maps/:id`, `zoom=off` suppresses navigation controls, query extent overrides persisted extent, invalid extents fall back, and `#embedToken` is not overwritten by viewer hash state. |
+| **AC3** | A user can copy an embed snippet and load the map in an iframe-compatible route. | `src/share/__tests__/snippet.test.ts` → snippet shape (iframe, `loading="lazy"`, `allow="fullscreen"`, `referrerpolicy`), default `chrome=minimal&legend=on&zoom=on`, custom chrome variants, fragment-only embed token. `src/catalog/__tests__/ItemDetailPage.test.tsx` → SharePanel renders and copies the iframe snippet for embeddable public maps. `src/embed/__tests__/route.test.ts` → defensive parsing for `chrome`, `legend`, `zoom`, `extent`, fragment token. `src/routes/EmbedMap.test.tsx`, `src/routes/Maps.test.tsx`, and `src/viewer/init.test.ts` → embed auth gates before mount, parsed params are threaded into `/embed/maps/:id`, `zoom=off` suppresses navigation controls, query extent overrides persisted extent, invalid extents fall back, and `#embedToken` is not overwritten by viewer hash state. |
 
 ## Design AC → Evidence (extends issue ACs)
 
@@ -34,48 +34,42 @@ npm test
 | Same dialog backs non-map content items | `snippet.test.ts` "/maps vs /catalog" — share-link resolves both surfaces; the dialog itself reuses a single client API. |
 | Dependency review surfaces blockers; widening blocked at UI | `policy.test.ts` "dependency-closure block when escalating to public with a private dep" + `client.test.ts` "public escalation with private dep returns 409". |
 | Group sharing falls back to `unsupported` when groups API absent | `client.test.ts` "falls back to unsupported when no groups surface". |
-| Copy link / copy embed produce the documented strings | `snippet.test.ts` covers the default snippet shape and the URL-fragment token rule. |
+| Copy link / copy embed produce the documented strings | `snippet.test.ts` covers the default snippet shape and the URL-fragment token rule. `ItemDetailPage.test.tsx` covers the SharePanel `CopyRow` surface. |
 | Embed route renders with chrome variants | `route.test.ts` "parses chrome=minimal\|none\|full" + `Maps.test.tsx` route-param threading. |
 | `extent` fallback to persisted on garbage / malformed | `route.test.ts` `parseExtent` fallbacks + `resolveEffectiveExtent`; `init.test.ts` verifies the embed mount uses a valid query extent and falls back to the persisted saved-map extent otherwise. |
 | Public embed with a private dep → per-layer `unauthorized` cell | `permissions.test.ts` "per-layer unauthorized cell". |
 | `embeddable=false` blocks the iframe surface independently of `sharing` | `permissions.test.ts` "public + embeddable:false blocks the iframe surface" + "public-link + embeddable:false". The result reports `rootBlockedBy: "embeddable"` so the embed page can render the `unsupported` empty-state instead of `unauthorized`. |
 | Root authorization distinguishes tier denial from embeddable / unsupported | `permissions.test.ts` "tier denial" + "unsupported root" cases assert `rootBlockedBy ∈ {tier, embeddable, unsupported}`. |
-| Embed route refuses an expired/invalid token | `auth.test.ts` "expired token surfaces as `unauthorized`" + "invalid token …". |
+| Embed auth helper refuses an expired/invalid token | `auth.test.ts` "expired token surfaces as `unauthorized`" + "invalid token ...". `EmbedMap.test.tsx` verifies an expired token renders the shared empty state before the viewer mounts. |
 | Token in URL fragment, not query | `snippet.test.ts` "places the embed token in the URL fragment, not the query" + `route.test.ts` `parseEmbedTokenFragment` + `init.test.ts` token-fragment preservation in embed mode. |
 | Token fragment parser never throws on opaque tokens (incl. literal `%`) | `route.test.ts` "handles tokens containing literal '%' without throwing" + "never throws on malformed percent-encoded fragments" + `snippet.test.ts` "round-trips tokens with literal '%' through build → parse". |
 | Schema parity with #10 wire shape | `schema-parity.test.ts` confirms `share-access-v1` enum and required fields stay in sync with `SHARING_TIER_ORDER`. |
 | Closure walker capped at depth ≤ 5 / ≤ 200 nodes (per #10) | `closure.test.ts` `maxDepth` and `maxNodes` cases. |
 
-## Manual Demo Path
+## Fixture Walkthrough
 
-This is the manual smoke a reviewer can walk against the fixture client
-once #14 + #9 land on trunk and the React surfaces wire up:
+This is the share/embed path represented by fixture client and route-parser
+tests. The `map-clean`, `map-1`, and `map-public` ids below are share/embed
+fixture ids, not browser-routable saved-map fixtures.
 
-1. Sign in as `user-1`. Open `/maps/map-clean` (a saved map whose only
-   dep is the org-tier `service-a`).
-2. Click **Share**. Pick `Organization` → save → confirm the pill flips
-   to "Org" and the dependency review is empty (the only dep is already
-   org-tier).
-3. Open `/maps/map-1` (the mixed-deps fixture). Click **Share** and pick
-   `Public link` → save. The dialog runs the closure check and surfaces
-   every typed dep narrower than public-link as a blocker — `layer-a`
-   (org), `layer-b` (private), `service-a` (org), and `service-b`
-   (private). `style-1` renders as the `unsupported` cell and never
-   blocks.
-4. Inline-escalate each blocker to `Public link` (layer-a, layer-b,
-   service-a, service-b). Re-issue the map patch → success; the share
-   link is copyable.
-5. Toggle the **Embeddable** checkbox. Copy the embed snippet. Paste it
-   into a fresh HTML page.
-6. Open the page; the iframe loads `/embed/maps/map-1` with
-   `chrome=minimal&legend=on&zoom=on` and the persisted default extent.
-7. Hand-edit `?extent=foo` in the snippet — the embed page falls back to
-   the persisted extent without throwing.
-8. Open a public embed of `map-public` (which keeps a private layer in
-   its closure). The map loads; the private layer renders as the
-   per-layer `unauthorized` cell in the legend slot.
-9. Open `/embed/maps/map-1#embedToken=expired-token`. The page shows the
-   `unauthorized` empty-state — no chrome leak, no localStorage write.
+1. Patch `map-clean` from `private` to `org`. The fixture client accepts
+   the update because its only dependency is already org-tier.
+2. Patch `map-1` from `private` to `public-link`. The fixture client returns
+   `closureBlocked` for every typed dependency narrower than public-link:
+   `layer-a`, `layer-b`, `service-a`, and `service-b`. `style-1` is
+   `unsupported` and does not block.
+3. Build an embed snippet for `map-1`. It targets `/embed/maps/map-1` with
+   `chrome=minimal&legend=on&zoom=on`; custom chrome and extent overrides are
+   parser-tested.
+4. Parse `?extent=foo`. The route parser returns `null` and the viewer falls
+   back to the persisted saved-map extent.
+5. Resolve a public embed of `map-public` with a private layer dependency.
+   The root remains readable and the private layer is returned as a
+   per-layer `unauthorized` cell.
+6. Exercise `prepareEmbedAuth` with an expired token in unit coverage. It
+   returns the `unauthorized` empty-state posture without writing
+   localStorage. The fixture React route redeems fixture tokens before viewer
+   mount and renders the same empty state for expired fragments.
 
 ## Cross-repo Coordination
 
@@ -107,10 +101,10 @@ wiring requires these recorded bounded child tickets:
 - Sharing modules in `src/share/` are pure-TS with no top-level side
   effects, so bundlers tree-shake them out of surfaces that don't open
   the share dialog.
-- Embed modules in `src/embed/` parse strings only — no MapLibre import
-  in the parser layer. The React embed page (lands once #9 + #13 merge
-  to trunk) dynamic-imports the viewer module to keep MapLibre off the
-  catalog/list bundles.
+- Embed modules in `src/embed/` parse strings only: no MapLibre import in
+  the parser/auth layer. The router lazy-loads `EmbedMap`, which reuses the
+  maps route and pulls the MapLibre viewer into that route chunk instead of
+  catalog/list startup.
 - Closure walker is BFS with explicit depth/node caps; the walker is
   O(V + E) over the closure subgraph and is safe to run on every share
   dialog open and every tier change.
@@ -120,19 +114,19 @@ wiring requires these recorded bounded child tickets:
 - Embed tokens are read from the URL fragment (`#embedToken=…`) so they
   never reach access logs or referer headers. Snippet builder enforces
   this — there is no API to put a token in the query string.
-- Token-mode embed pages do not write to localStorage; the resolved
-  posture from `resolveEmbedAuth` is the only place a token is held.
+- Token-mode auth helpers do not write to localStorage; the resolved
+  posture from `resolveEmbedAuth` is the only place a token is held. The
+  React embed route uses fixture redemption before mount; SDK-backed
+  redemption replaces that seam when the server verifier lands.
 - Embed snippet emits `referrerpolicy="strict-origin-when-cross-origin"`
   to limit referer leakage from embedder pages.
-- The embed page owns a `<meta name="robots" content="noindex,nofollow" />`
-  tag (added by the React route in a later integration ticket). The
-  non-embed `/maps/:id` page is the indexable canonical.
+- Deployment or route-owned `<meta name="robots" content="noindex,nofollow" />`
+  handling for embed pages is deferred. The non-embed `/maps/:id` page is
+  the indexable canonical.
 
 ## What This Slice Does NOT Cover
 
-- React UI components (lazy-loaded `ShareDialog`, `EmbedPage`) — those
-  land once #9 (portal shell) and #13 (viewer) converge on trunk.
-- Network-layer `CatalogClient` — replaced by the SDK child ticket. The
-  fixture client mirrors the wire shape so the swap is mechanical.
+- Server/SDK-backed `CatalogClient` activation. `HttpCatalogClient` exists as
+  a transport seam, but the fixture client remains the active `#4` default.
 - Server enforcement and embed-token mint/verify — recorded child
   tickets above.

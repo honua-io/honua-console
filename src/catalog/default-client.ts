@@ -40,6 +40,10 @@ export function getDefaultCatalogClient(): FixtureCatalogClient {
   return defaultClient;
 }
 
+export function getDefaultCatalogFixtureItems(): readonly ContentItem[] {
+  return FIXTURE_ITEMS;
+}
+
 function buildFixtureCatalogData(): FixtureCatalogData {
   const items = new Map<string, ContentItem>();
   const listOrder: string[] = [];

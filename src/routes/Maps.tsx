@@ -16,20 +16,27 @@ import "./maps.css";
 
 interface MapViewerSurfaceProps {
   mode?: "viewer" | "embed";
+  itemId?: string;
+  savedMapId?: string;
 }
 
-export function MapViewerSurface({ mode = "viewer" }: MapViewerSurfaceProps): JSX.Element {
+export function MapViewerSurface({
+  mode = "viewer",
+  itemId,
+  savedMapId: savedMapIdOverride,
+}: MapViewerSurfaceProps): JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null);
   const params = useParams();
   const location = useLocation();
   const { session } = useSession();
   const routeMapId = params["mapId"];
   const sourceItemId = useMemo(() => {
+    if (itemId) return itemId;
     if (routeMapId !== "new") return undefined;
     const from = new URLSearchParams(location.search).get("from")?.trim();
     return from || undefined;
-  }, [location.search, routeMapId]);
-  const savedMapId = routeMapId === "new" ? undefined : routeMapId;
+  }, [itemId, location.search, routeMapId]);
+  const savedMapId = savedMapIdOverride ?? (sourceItemId ? undefined : routeMapId === "new" ? undefined : routeMapId);
   const embedParams = useMemo(
     () => (mode === "embed" ? parseEmbedParams(location.search) : null),
     [location.search, mode],

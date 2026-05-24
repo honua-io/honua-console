@@ -39,7 +39,7 @@ This matches the design brief for `#4` and lets the upcoming Studio (`#5`), Oper
 
 Embed snippets already in the wild target Portal's `/embed/maps/:id` (with the embed token in the URL fragment) and customers may have linked `/maps/:id` and `/public/items/:idOrSlug`. The Console router serves the legacy paths through the same components as the new Console-IA paths. The URL fragment (embed token) and query string (chrome / legend / zoom / extent) survive untouched because the same component handles both routes.
 
-Helpers that emit URLs (`mapUrl`, the saved-map fixture renderer, share snippet builder, open-data `publicItemPath`, the `openInMap` action) continue to emit the legacy `/maps/...`, `/embed/maps/...`, `/public/...` URL space. Nav-level user-visible links (`NavConfig.NAV_ITEMS`, the AppShell `Maps` and `Public` items) point at the new Console-IA paths. Canonicalising URL emission to Console-IA paths is a follow-up cleanup ticket; it does not block `#4`.
+Helpers that emit URLs (`mapUrl`, the saved-map fixture renderer, share snippet builder, open-data `publicItemPath`, the `openInMap` action) continue to emit the legacy `/maps/...`, `/embed/maps/...`, `/public/...` URL space. Catalog item open actions use `/maps/new?from=:itemId` for service, layer, and map sources so `target.webmapJsonRef` remains only the WebMap document pointer. Nav-level user-visible links (`NavConfig.NAV_ITEMS`, the AppShell `Maps` and `Public` items) point at the new Console-IA paths. Canonicalising URL emission to Console-IA paths is a follow-up cleanup ticket; it does not block `#4`.
 
 ### 3. Fixture posture and contracts
 
@@ -47,7 +47,7 @@ The Console port inherits Portal's fixture-backed clients:
 
 - `FixtureCatalogClient` — `listItems`, `getItem`, `getDependencies`, `patchAccess`.
 - `FixtureSavedMapClient` — full saved-map CRUD against `webmap-doc/v1`.
-- `FixtureShareClient` — `patchAccess`, `mintEmbedToken`, `redeemEmbedToken`, `listMyGroups`.
+- `FixtureShareClient` — `patchAccess`, `listMyGroups`, and the 403/409 access-update contract. The React embed route uses fixture token redemption plus `prepareEmbedAuth()` until the SDK/server token surfaces land.
 
 JSON Schemas under `schemas/` (`content-item-v1`, `webmap-doc-v1`, `share-access-v1`, `embed-token-v1`, `catalog-api-v1`, `publish-handoff-v1`) are the canonical contracts. TS mirrors in `src/contracts/` and `src/saved-maps/types.ts` are explicitly transitional and pinned by schema-parity tests until [honua-sdk-js#225](https://github.com/honua-io/honua-sdk-js/issues/225) exports generated types. Console never forks the wire contract.
 

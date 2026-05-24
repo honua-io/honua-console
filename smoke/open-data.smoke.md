@@ -15,6 +15,10 @@ Source-repo history is `honua-portal#17`; ongoing ownership is
 | Document distribution | `/public/items/parcels-data-dictionary` exposes the document download URL and a copyable `curl -L` example. | `src/open-data/OpenDataItemPage.test.tsx` |
 | Private and non-open-data denial | Private, unauthorized, missing, and public-but-not-open-data items render the generic "Public item not found" surface and do not leak private titles. | `src/open-data/OpenDataItemPage.test.tsx`, `tests/smoke/shell.spec.ts` |
 
+Public-link tokenized open-data routes are not implemented in `#4`: the public
+collection and item page require `sharing === "public"` plus
+`access.openData === true`.
+
 ### How To Run Locally
 
 ```bash

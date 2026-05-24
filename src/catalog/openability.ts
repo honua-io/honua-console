@@ -115,10 +115,6 @@ function forLayer(view: ItemView): OpenAction {
 }
 
 function forMap(view: ItemView): OpenAction {
-  const target = view.target;
-  if (target && target.type === "map" && target.webmapJsonRef) {
-    return openInMap(`/maps/${encodeURIComponent(target.webmapJsonRef)}`);
-  }
   return openInMap(`/maps/new?from=${encodeURIComponent(view.id)}`);
 }
 
