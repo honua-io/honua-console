@@ -28,10 +28,12 @@ Console exposes three kinds of routes under `/operate/*`:
 | Pattern | Component | Purpose |
 | --- | --- | --- |
 | `/operate` and `/operate/<native-section>` | `OperateLanding` and native React views | Operate landing and any native React replacements that have shipped. |
-| `/operate/legacy/*` | `OperateLegacyEmbed` | Single iframe host for any legacy Admin path in the embed allowlist (every `EMBED` row in the disposition table plus the duplicate-builder "Legacy reference target (embed)" entries). |
+| `/operate/legacy/*` | `OperateLegacyEmbed` | Single iframe host for any legacy Admin path in the embed allowlist (every non-root `EMBED` row in the disposition table plus the duplicate-builder "Legacy reference target (embed)" entries). |
 | `/operate/moved-to-studio/<legacy-segment>` | `MovedToStudioLanding` | Fallback target for `REDIRECT-TO-STUDIO` rows before the Studio port lands. |
 
 The embed mount preserves legacy paths verbatim: a Blazor `@page "/operator/data-connections"` resolves under base href `/operate/legacy/` to `/operate/legacy/operator/data-connections`. The Console paths in the [disposition table](../migration/legacy-admin-route-disposition.md) reflect this verbatim form.
+
+The legacy root `@page "/"` is the one exception to the embed allowlist. It maps only to Console `/operate`; Console MUST NOT register `/operate/legacy/` or a top-level `/` bare-path passthrough for the legacy root.
 
 In addition, the router registers explicit redirect rules at the bare legacy paths themselves (`/operator/app-builder`, `/operator/spec`, `/operator/sql`, `/operator/annotations`) so bookmarks and external links resolve correctly. Redirect targets are determined by the disposition table. The redirect lives at the bare legacy path; the verbatim `/operate/legacy/operator/<duplicate>` location is the reference target reachable via `MovedToStudioLanding` and is NOT redirected back to Studio (otherwise `MovedToStudioLanding`'s "Open the legacy reference" would bounce).
 
@@ -42,7 +44,9 @@ The base-href mount alone is not sufficient: the legacy Blazor app's `Shared/Nav
 The contract resolves this with two complementary rules:
 
 - **In-frame navigation (`honua-server-admin#96` deliverable).** The legacy bundle MUST rewrite root-absolute internal navigation to base-relative form so in-frame nav resolves under the base href. Concretely: every `<NavLink Href="/X">` / `<a href="/X">` / `NavigationManager.NavigateTo("/X")` that targets another legacy page is rewritten to the base-relative form (`Href="X"` / `NavigateTo("X")`). External links (auth bounce, docs, support) MAY remain root-absolute. After this rewrite, an in-frame click on "Services" stays under `/operate/legacy/services` instead of escaping to `/services`.
-- **Top-level bare-path passthrough (Console router).** For bookmarks and external links that still hit bare legacy paths at the top of the origin, the Console router registers a passthrough redirect: any top-level navigation to a bare legacy path that matches the embed allowlist (every `EMBED` row plus the duplicate-builder reference targets) `Navigate`s to `/operate/legacy/<that-path>`, preserving query string. Bare paths in the `REDIRECT-TO-STUDIO` set keep their existing Studio redirect (the duplicate-builder rule above). Bare paths not in either set fall through to Console `NotFound`.
+- **Top-level bare-path passthrough (Console router).** For bookmarks and external links that still hit bare legacy paths at the top of the origin, the Console router registers a passthrough redirect: any top-level navigation to a bare legacy path that matches the embed allowlist (every non-root `EMBED` row plus the duplicate-builder reference targets) `Navigate`s to `/operate/legacy/<that-path>`, preserving query string. Bare paths in the `REDIRECT-TO-STUDIO` set keep their existing Studio redirect (the duplicate-builder rule above). The bare root `/` is excluded and resolves to Console's normal root handling, with `/operate` as the Operate landing. Bare paths not in either set fall through to Console `NotFound`.
+
+The allowlist preserves Blazor route constraints from the disposition table. Parameterized paths MUST validate those constraints before embedding; for example, `/operate/legacy/operator/data-connections/not-a-guid` and `/operate/legacy/layers/not-an-int` render Console `NotFound` instead of loading the legacy bundle.
 
 The passthrough only applies to top-level navigation, not to iframe-internal navigation; it cannot intercept the iframe's own `window.location` because the iframe is its own browsing context. The in-frame rewrite in `honua-server-admin#96` is the load-bearing fix.
 
@@ -120,7 +124,7 @@ The Operate area must render exactly these surfaces in these conditions, using t
 
 | Condition | Surface | Notes |
 | --- | --- | --- |
-| Path under `/operate/legacy/<x>` does not match the embed allowlist (every `EMBED` row plus the duplicate-builder "Legacy reference target (embed)" entries in the disposition table) | `NotFound` | URL preserved so disposition-table fixes are reachable by refresh. |
+| Path under `/operate/legacy/<x>` does not match the embed allowlist (every non-root `EMBED` row plus the duplicate-builder "Legacy reference target (embed)" entries in the disposition table), or fails the disposition table's Blazor route constraint for a parameterized row | `NotFound` | URL preserved so disposition-table fixes are reachable by refresh. |
 | Authenticated user lacks Operate scope | `Forbidden` | Single shared component; URL preserved. |
 | Same-origin precondition unmet (`link-out` mode) | `EmptyState` with explanation and "Open in new tab" | Treated as a normal state, not an error. |
 | Iframe `error` event, `honua.legacy.error` message, or no `load` event within 30s | `EmptyState` with retry and "Open in new tab" fallback | Retry recreates the iframe with a cache-busting query parameter. Missing `honua.legacy.ready` is NOT an error condition (the message is an optional refinement; see Postmessage Channel). |

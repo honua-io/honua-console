@@ -25,7 +25,7 @@ Two things this doc is, and one thing it is not:
 | Disposition | Meaning |
 | --- | --- |
 | `KEEP` | Console exposes a native React route at this path now. No legacy embed. |
-| `EMBED` | Legacy route is reached from Console under `/operate/legacy/<verbatim-legacy-path>` via the same-origin embed contract. The Console mount preserves the legacy path verbatim — including any leading `/operator` or `/admin` segment — because the Blazor app's `@page` declarations resolve relative to base href `/operate/legacy/`. Retires when a native replacement parity-tests. |
+| `EMBED` | Legacy route is reached from Console under `/operate/legacy/<verbatim-legacy-path>` via the same-origin embed contract. The Console mount preserves the legacy path verbatim — including any leading `/operator` or `/admin` segment — because the Blazor app's `@page` declarations resolve relative to base href `/operate/legacy/`. The legacy root `/` is an explicit exception: it maps only to Console `/operate` and is not part of the embed allowlist or bare-path passthrough. Retires when a native replacement parity-tests. |
 | `REDIRECT-TO-STUDIO` | Legacy duplicate of a Studio surface. Console redirects the legacy path to the Studio canonical path. Not listed in Operate nav. The legacy route is still reachable at its verbatim `/operate/legacy/<verbatim-legacy-path>` location for use as a `MovedToStudioLanding` reference target (see the "Legacy reference targets" note below). |
 | `RETIRE` | Marked for removal without a Console replacement. Either the workflow is being absorbed by Catalog/Share or it is being deleted outright. |
 
@@ -46,15 +46,17 @@ Until all four hold, the EMBED rows operate in a degraded mode documented in [`e
 
 Legacy paths are taken from `honua-server-admin/src/Honua.Admin/Pages/**/@page` declarations as of 2026-05-23.
 
+Parameterized rows preserve the Blazor route constraint in the legacy-path column. The Console path column uses React-style `:param` names for readability, but the generated route projection and `OperateLegacyEmbed` allowlist MUST validate the inherited Blazor constraint before embedding: `{id:guid}` and `{ConnectionId:guid}` accept only GUID segments; `{LayerId:int}` accepts only integer segments.
+
 ### Operator workflows kept in Operate
 
 | Legacy path | Console path | Disposition | Replacement ticket | Owner | Retirement gate |
 | --- | --- | --- | --- | --- | --- |
-| `/` | `/operate` | `EMBED` initially, then `KEEP` once the native landing ships | honua-console#3 (landing scaffold), follow-on | Console | Native `/operate` landing renders without the iframe and the Operate parity smoke passes. |
+| `/` | `/operate` | `KEEP` | honua-console#3 (landing scaffold), follow-on | Console | Native `/operate` landing renders without the iframe and the Operate parity smoke passes. |
 | `/operator/data-connections` | `/operate/legacy/operator/data-connections` | `EMBED` | TBD (operator data-connections redesign) | Operate | Native replacement ships and connector smoke passes. |
 | `/operator/data-connections/new` | `/operate/legacy/operator/data-connections/new` | `EMBED` | TBD | Operate | Same as parent. |
-| `/operator/data-connections/{id}` | `/operate/legacy/operator/data-connections/:id` | `EMBED` | TBD | Operate | Same as parent. |
-| `/operator/data-connections/{id}/diagnostics` | `/operate/legacy/operator/data-connections/:id/diagnostics` | `EMBED` | TBD | Operate | Same as parent. |
+| `/operator/data-connections/{id:guid}` | `/operate/legacy/operator/data-connections/:id` | `EMBED` | TBD | Operate | Same as parent. |
+| `/operator/data-connections/{id:guid}/diagnostics` | `/operate/legacy/operator/data-connections/:id/diagnostics` | `EMBED` | TBD | Operate | Same as parent. |
 | `/operator/publishing` | `/operate/legacy/operator/publishing` | `EMBED` | TBD (Publishing v2) | Operate | Native Publishing ships and publish smoke passes. |
 | `/operator/operations` | `/operate/legacy/operator/operations` | `EMBED` | TBD | Operate | Native Operations view ships. |
 | `/operator/control-center` | `/operate/legacy/operator/control-center` | `EMBED` | TBD | Operate | Native Control Center ships. |
@@ -70,14 +72,14 @@ Legacy paths are taken from `honua-server-admin/src/Honua.Admin/Pages/**/@page` 
 | `/services` | `/operate/legacy/services` | `EMBED` | TBD (service catalog v2) | Operate | Native service catalog ships and publish smoke passes. |
 | `/services/{ServiceName}/settings` | `/operate/legacy/services/:serviceName/settings` | `EMBED` | TBD | Operate | Same as parent. |
 | `/layers` | `/operate/legacy/layers` | `EMBED` | TBD | Operate | Native layers view ships. |
-| `/layers/{LayerId}` | `/operate/legacy/layers/:layerId` | `EMBED` | TBD | Operate | Same as parent. |
-| `/layers/{LayerId}/configure` | `/operate/legacy/layers/:layerId/configure` | `EMBED` | TBD | Operate | Same as parent. |
-| `/layers/{LayerId}/preview` | `/operate/legacy/layers/:layerId/preview` | `EMBED` | TBD | Operate | Same as parent. |
-| `/services/{ServiceName}/layers/{LayerId}/preview` | `/operate/legacy/services/:serviceName/layers/:layerId/preview` | `EMBED` | TBD | Operate | Same as parent. |
-| `/layers/{LayerId}/style` | `/operate/legacy/layers/:layerId/style` | `EMBED` | TBD | Operate | Same as parent. |
+| `/layers/{LayerId:int}` | `/operate/legacy/layers/:layerId` | `EMBED` | TBD | Operate | Same as parent. |
+| `/layers/{LayerId:int}/configure` | `/operate/legacy/layers/:layerId/configure` | `EMBED` | TBD | Operate | Same as parent. |
+| `/layers/{LayerId:int}/preview` | `/operate/legacy/layers/:layerId/preview` | `EMBED` | TBD | Operate | Same as parent. |
+| `/services/{ServiceName}/layers/{LayerId:int}/preview` | `/operate/legacy/services/:serviceName/layers/:layerId/preview` | `EMBED` | TBD | Operate | Same as parent. |
+| `/layers/{LayerId:int}/style` | `/operate/legacy/layers/:layerId/style` | `EMBED` | TBD | Operate | Same as parent. |
 | `/connections` | `/operate/legacy/connections` | `EMBED` (legacy already redirects) | TBD | Operate | Same as parent. |
 | `/connections/new` | `/operate/legacy/connections/new` | `EMBED` | TBD | Operate | Same as parent. |
-| `/connections/{ConnectionId}` | `/operate/legacy/connections/:connectionId` | `EMBED` | TBD | Operate | Same as parent. |
+| `/connections/{ConnectionId:guid}` | `/operate/legacy/connections/:connectionId` | `EMBED` | TBD | Operate | Same as parent. |
 | `/connections/{ConnectionId}/layers` | `/operate/legacy/connections/:connectionId/layers` | `EMBED` | TBD | Operate | Same as parent. |
 | `/connections/{ConnectionId}/publish` | `/operate/legacy/connections/:connectionId/publish` | `EMBED` | TBD | Operate | Native publish flow ships. |
 | `/admin/connection-registry` | `/operate/legacy/admin/connection-registry` | `EMBED` | TBD | Operate | Native connection-registry view ships. |
@@ -169,7 +171,7 @@ Per the project's telemetry constraint, a Console Operate smoke must:
 2. Visit `/operate` and confirm the landing renders.
 3. Visit `/operate/legacy/operator/publishing` and confirm the embed loads (or the documented degraded surface, if the same-origin precondition is unmet).
 4. Inside the publishing embed, click an in-frame nav entry (for example, the legacy NavMenu's "Services" link) and confirm the iframe URL stays under `/operate/legacy/` (proves the `honua-server-admin#96` link rewrite is in place and the embed does not escape to a bare legacy path).
-5. Visit a bare legacy path that maps to an `EMBED` row (for example, `/services`) and confirm the Console router passthrough redirects to `/operate/legacy/services`.
+5. Visit a bare legacy path that maps to a non-root `EMBED` row (for example, `/services`) and confirm the Console router passthrough redirects to `/operate/legacy/services`.
 6. Trigger one embedded download — for example, visit `/operate/legacy/operator/print` and download a print preview, or `/operate/legacy/operator/analytics` and export a usage CSV — and confirm the browser writes the file (proves the `allow-downloads` sandbox token is in place).
 7. Visit `/operator/app-builder` and confirm the redirect lands on the Studio target or the `moved-to-studio` page.
 8. Sign in as a non-operator user, visit `/operate`, and confirm the `Forbidden` surface renders.
