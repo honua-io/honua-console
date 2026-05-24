@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { studioPublishingClient } from "../studio/publishing/fixtureClient.js";
 import { StudioPublishingError } from "../studio/publishing/types.js";
 import { StudioDraftPage } from "./StudioDraftPage.js";
+import { StudioHomePage } from "./StudioHomePage.js";
 import { StudioItemEditPage } from "./StudioItemEditPage.js";
 import { StudioPreviewPage } from "./StudioPreviewPage.js";
 
@@ -33,6 +34,24 @@ describe("Studio loader error surfaces", () => {
     expect(await screen.findByTestId("unauthorized-state")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Draft unavailable" })).toBeVisible();
     expect(screen.getByText("You cannot read this Studio draft.")).toBeVisible();
+  });
+
+  it("preserves unauthorized Studio home draft list failures", async () => {
+    vi.spyOn(studioPublishingClient, "listDrafts").mockRejectedValueOnce(
+      new StudioPublishingError("unauthorized", "You cannot list Studio drafts.")
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/studio"]}>
+        <Routes>
+          <Route path="/studio" element={<StudioHomePage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId("unauthorized-state")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Studio drafts unavailable" })).toBeVisible();
+    expect(screen.getByText("You cannot list Studio drafts.")).toBeVisible();
   });
 
   it("preserves unsupported preview loader failures", async () => {

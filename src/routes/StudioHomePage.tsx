@@ -4,20 +4,37 @@ import { Link } from "react-router-dom";
 import { EmptyState } from "../shell/EmptyState.js";
 import { studioPublishingClient } from "../studio/publishing/fixtureClient.js";
 import { publishReviewRoute, studioDraftRoute, studioPreviewRoute } from "../studio/publishing/routes.js";
-import type { StudioPublishDraft } from "../studio/publishing/types.js";
+import type { StudioPublishDraft, StudioPublishingProblem } from "../studio/publishing/types.js";
+import { studioPublishingProblemFromError } from "../studio/publishing/types.js";
 
 export function StudioHomePage(): JSX.Element {
   const [drafts, setDrafts] = useState<readonly StudioPublishDraft[] | null>(null);
+  const [error, setError] = useState<StudioPublishingProblem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    studioPublishingClient.listDrafts().then((items) => {
-      if (!cancelled) setDrafts(items.filter((draft) => draft.draftId !== "draft-map-conflict"));
-    });
+    setDrafts(null);
+    setError(null);
+    studioPublishingClient
+      .listDrafts()
+      .then((items) => {
+        if (cancelled) return;
+        setDrafts(items.filter((draft) => draft.draftId !== "draft-map-conflict"));
+        setError(null);
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+        setDrafts(null);
+        setError(studioPublishingProblemFromError(reason, "Studio drafts could not load."));
+      });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  if (error) {
+    return <EmptyState kind={error.kind} title="Studio drafts unavailable" description={error.message} />;
+  }
 
   if (!drafts) {
     return <EmptyState kind="missing" title="Loading Studio drafts" description="Resolving draft packages for publish review." />;
