@@ -136,6 +136,14 @@ export class FixtureStudioPublishingClient implements StudioPublishingClient {
       throw new StudioPublishingError("invalid", "A title is required before publishing.");
     }
 
+    if (!input.summary.trim()) {
+      throw new StudioPublishingError("invalid", "A summary is required before publishing.");
+    }
+
+    if (!input.versionNote.trim()) {
+      throw new StudioPublishingError("invalid", "A version note is required before publishing.");
+    }
+
     if (input.share.visibility === "group" && normalizedGroupIds(input.share.groupIds).length === 0) {
       throw new StudioPublishingError("invalid", "Choose at least one group before publishing with group visibility.");
     }

@@ -52,6 +52,8 @@ export function StudioPublishReviewPage(): JSX.Element {
     let cancelled = false;
     setState({ kind: "loading" });
     setResult(null);
+    setSubmitError(null);
+    setSubmitting(false);
     studioPublishingClient
       .getDraft(draftId)
       .then((draft) => {

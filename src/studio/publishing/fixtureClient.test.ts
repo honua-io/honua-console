@@ -120,6 +120,27 @@ describe("FixtureStudioPublishingClient", () => {
     expect((invalid as Error).message).toContain("title is required");
   });
 
+  it.each([
+    { field: "summary", override: { summary: "   " }, message: "summary is required" },
+    { field: "version note", override: { versionNote: "   " }, message: "version note is required" }
+  ])("rejects blank submitted $field before creating published content", async ({ override, message }) => {
+    const client = new FixtureStudioPublishingClient();
+
+    let invalid: unknown;
+    try {
+      await client.publishDraft({
+        ...publishInput("draft-map-operations"),
+        ...override
+      });
+    } catch (error) {
+      invalid = error;
+    }
+
+    expect(invalid).toBeInstanceOf(StudioPublishingError);
+    expect((invalid as StudioPublishingError).kind).toBe("invalid");
+    expect((invalid as Error).message).toContain(message);
+  });
+
   it("appends versions on republish and preserves rollback provenance", async () => {
     const client = new FixtureStudioPublishingClient();
 
