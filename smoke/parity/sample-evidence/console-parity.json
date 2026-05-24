@@ -1,11 +1,11 @@
 {
   "scenario": "console-parity-publish-to-embed",
-  "ranAt": "2026-05-24T01:03:58.284Z",
+  "ranAt": "2026-05-24T20:38:26.054Z",
   "originUrl": "http://127.0.0.1:4174",
-  "repoRoot": "/home/makani/worktrees/honua-console/honua-console-9",
+  "repoRoot": "/home/makani/worktrees/honua-console/honua-console-38",
   "buildArtifact": {
     "source": "fixture",
-    "path": "/home/makani/worktrees/honua-console/honua-console-9/smoke/parity/fixtures/dist-version.json",
+    "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/dist-version.json",
     "name": "honua-console",
     "version": "0.1.0",
     "commit": "0000000000000000000000000000000000000000",
@@ -53,6 +53,13 @@
       "note": "Saved-map document; viewer hydrates and Studio drafts read this shape."
     },
     {
+      "name": "studio-authoring-shell",
+      "version": "v1",
+      "owningLayer": "console",
+      "sourceRepo": "honua-console",
+      "note": "Console-owned authoring projection for prompt clarification, package inspection, preview, saved-version, and publish state."
+    },
+    {
       "name": "generated-app-lifecycle",
       "version": "v1",
       "owningLayer": "sdk",
@@ -96,11 +103,11 @@
       "owningLayer": "devops",
       "owningLayerLabel": "Devops / single deployable artifact",
       "status": "ok",
-      "durationMs": 1,
+      "durationMs": 2,
       "description": "Verify the single deployable artifact metadata (dist/version.json) declares name=honua-console, the four areas, and the legacy block.",
       "evidence": {
         "source": "fixture",
-        "path": "/home/makani/worktrees/honua-console/honua-console-9/smoke/parity/fixtures/dist-version.json",
+        "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/dist-version.json",
         "version": "0.1.0",
         "commit": "000000000000",
         "ref": "feature/honua-console-9",
@@ -232,7 +239,7 @@
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Studio creates a dashboard/app/report draft from the saved map; the draft route is same-origin.",
+      "description": "Studio clarifies an ambiguous prompt, keeps the generated output inspectable as a package, and moves the draft to preview state on the same origin.",
       "evidence": {
         "draftUrl": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
         "source": {
@@ -240,7 +247,41 @@
           "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
           "itemType": "map",
           "title": "City Parcels 2026 — overview"
-        }
+        },
+        "prompt": "Build a field app from this",
+        "clarification": {
+          "routed": true,
+          "questionId": "publish-intent",
+          "selectedChoice": "Prepare an organization preview"
+        },
+        "package": {
+          "contractName": "studio-authoring-shell",
+          "contractVersion": "v1",
+          "packageRef": "draft-app-01KS923C02F5XEMWXKBW2AB1SA",
+          "packageType": "app.package",
+          "schemaVersion": "package-shell/v1",
+          "lifecycleState": "Preview",
+          "inspectorSections": [
+            "assumptions",
+            "dataBindings",
+            "warnings",
+            "validation",
+            "provenance"
+          ],
+          "dataBindings": [
+            {
+              "id": "source-binding",
+              "sourceRef": "01KS923C02F5XEMWXKBW2AB1SA",
+              "status": "Bound after clarification"
+            }
+          ]
+        },
+        "lifecycleStates": [
+          "Draft",
+          "Preview",
+          "Saved version",
+          "Published"
+        ]
       },
       "error": null
     },
@@ -332,7 +373,7 @@
           "01KS923C02F5XEMWXKBW2AB1SA",
           "01KS923C01MRXBKM6AFX56RW1F"
         ],
-        "expiresAt": "2026-05-24T01:33:58.289Z"
+        "expiresAt": "2026-05-24T21:08:26.060Z"
       },
       "error": null
     },

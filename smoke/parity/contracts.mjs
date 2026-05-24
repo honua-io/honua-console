@@ -56,6 +56,13 @@ export const CONTRACT_VERSIONS = Object.freeze([
     note: "Generated-app revisions, plan/spec/package refs, and provenance — projected by the SDK.",
   }),
   Object.freeze({
+    name: "studio-authoring-shell",
+    version: "v1",
+    owningLayer: OWNING_LAYERS.console.id,
+    sourceRepo: "honua-console",
+    note: "Console-owned authoring projection for prompt clarification, package inspection, preview, saved-version, and publish state.",
+  }),
+  Object.freeze({
     name: "build-artifact",
     version: "v1",
     owningLayer: OWNING_LAYERS.devops.id,

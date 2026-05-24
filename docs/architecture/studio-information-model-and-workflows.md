@@ -610,6 +610,23 @@ Validate, preview, publish, and run responses should consistently return:
 - `job_id` and job status refs for analysis, GP, ETL, scheduled, batch, export, heavy refresh, and asynchronous preview paths
 - route, visibility, embed, service, schedule, rollback, and invocation policy refs for publish responses
 
+## Current Console Package Shell Slice
+
+The first Console implementation uses the shared Razor component library
+for both the Blazor Web host and MAUI Blazor Hybrid host. The
+Console-owned `studio-authoring-shell/v1` projection is intentionally a
+stable mock until the server package lifecycle API and SDK helpers are
+connected.
+
+The shell keeps the generated output visible as a package at all times:
+workflow selection produces a typed package draft, ambiguous prompts add
+structured clarification questions instead of applying hidden
+assumptions, and the inspector exposes assumptions, data bindings,
+warnings, validation, and provenance. Draft, Preview, Saved version, and
+Published states are represented as distinct lifecycle descriptors so
+the UI and smoke evidence can assert the state transition path without
+creating server-owned content versions prematurely.
+
 Console surfaces should use the same error and empty-state patterns for missing items, missing permissions, unsupported service metadata, and unsupported package bindings across Studio, Catalog, Share, and Operate.
 
 ## Required User Journeys

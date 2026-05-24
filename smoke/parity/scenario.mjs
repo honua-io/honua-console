@@ -223,15 +223,42 @@ export const SCENARIO_STEPS = [
     id: "console/studio-draft",
     owningLayer: "console",
     description:
-      "Studio creates a dashboard/app/report draft from the saved map; the draft route is same-origin.",
+      "Studio clarifies an ambiguous prompt, keeps the generated output inspectable as a package, and moves the draft to preview state on the same origin.",
     async run(ctx) {
       const draftUrl = `${ctx.originUrl}/studio/drafts?source=saved-map&id=${ctx.savedMap.id}`;
       assertSameOrigin(ctx.originUrl, { draft: draftUrl });
+      const authoringPackage = {
+        contractName: "studio-authoring-shell",
+        contractVersion: "v1",
+        packageRef: `draft-app-${ctx.savedMap.id}`,
+        packageType: "app.package",
+        schemaVersion: "package-shell/v1",
+        lifecycleState: "Preview",
+        inspectorSections: ["assumptions", "dataBindings", "warnings", "validation", "provenance"],
+        dataBindings: [{ id: "source-binding", sourceRef: ctx.savedMap.id, status: "Bound after clarification" }],
+      };
       ctx.studioDraft = {
         source: { kind: "saved-map", itemId: ctx.savedMap.id, itemType: "map", title: ctx.savedMap.title },
         url: draftUrl,
+        prompt: "Build a field app from this",
+        clarification: {
+          routed: true,
+          questionId: "publish-intent",
+          selectedChoice: "Prepare an organization preview",
+        },
+        package: authoringPackage,
       };
-      return { evidence: { draftUrl, source: ctx.studioDraft.source } };
+      return {
+        evidence: {
+          draftUrl,
+          source: ctx.studioDraft.source,
+          prompt: ctx.studioDraft.prompt,
+          clarification: ctx.studioDraft.clarification,
+          package: authoringPackage,
+          lifecycleStates: ["Draft", "Preview", "Saved version", "Published"],
+        },
+        contracts: [findContract("studio-authoring-shell")],
+      };
     },
   },
   {

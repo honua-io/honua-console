@@ -1,0 +1,71 @@
+<aside class="studio-inspector" aria-labelledby="studio-package-inspector-heading" data-package-ref="@Package.PackageRef">
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">@Package.ContractName @Package.ContractVersion</p>
+            <h2 id="studio-package-inspector-heading">Package Inspector</h2>
+        </div>
+        <span class="console-status">@Package.PackageType</span>
+    </div>
+
+    <dl class="console-definition-list studio-package-definition-list">
+        <dt>Package ref</dt>
+        <dd>@Package.PackageRef</dd>
+        <dt>Schema</dt>
+        <dd>@Package.SchemaVersion</dd>
+        <dt>State</dt>
+        <dd>@FormatLifecycle(Package.LifecycleState)</dd>
+    </dl>
+
+    <section class="studio-inspector-section" aria-labelledby="studio-package-summary-heading">
+        <h3 id="studio-package-summary-heading">@Package.Title</h3>
+        <p class="console-muted">@Package.Summary</p>
+    </section>
+
+    <section class="studio-inspector-section" aria-labelledby="studio-assumptions-heading">
+        <h3 id="studio-assumptions-heading">Assumptions</h3>
+        <ul class="studio-compact-list">
+            @foreach (var assumption in Package.Assumptions)
+            {
+                <li>@assumption</li>
+            }
+        </ul>
+    </section>
+
+    <section class="studio-inspector-section" aria-labelledby="studio-bindings-heading">
+        <h3 id="studio-bindings-heading">Data Bindings</h3>
+        <ul class="studio-binding-list">
+            @foreach (var binding in Package.DataBindings)
+            {
+                <li>
+                    <strong>@binding.Label</strong>
+                    <span>@binding.SourceRef</span>
+                    <small>@binding.Status</small>
+                </li>
+            }
+        </ul>
+    </section>
+
+    <StudioValidationPanel Items="Package.ValidationItems" Warnings="Package.Warnings" />
+
+    <section class="studio-inspector-section" aria-labelledby="studio-provenance-heading">
+        <h3 id="studio-provenance-heading">Provenance</h3>
+        <ol class="studio-provenance-list">
+            @foreach (var item in Package.Provenance)
+            {
+                <li>
+                    <strong>@item.Actor</strong>
+                    <span>@item.Action</span>
+                    <small>@item.Evidence</small>
+                </li>
+            }
+        </ol>
+    </section>
+</aside>
+
+@code {
+    [Parameter, EditorRequired]
+    public StudioPackageSnapshot Package { get; set; } = default!;
+
+    private static string FormatLifecycle(StudioPackageLifecycleState state) =>
+        StudioAuthoringContract.LifecycleDescriptors.First(descriptor => descriptor.State == state).Label;
+}

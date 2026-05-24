@@ -98,7 +98,7 @@ failure short-circuits and the remaining steps are recorded as
 | 5     | `console/catalog-list`           | `console`      | Catalog browse lists the new item.                                                              |
 | 6     | `console/viewer-open`            | `console`      | Same-origin `/maps/new?from=<id>` hydration URL is built.                                       |
 | 7     | `console/saved-map-save`         | `console`      | Saved map references the published service via `webmap-doc/v1`.                                 |
-| 8     | `console/studio-draft`           | `console`      | Studio draft route is same-origin with the artifact.                                            |
+| 8     | `console/studio-draft`           | `console`      | Studio prompt clarification, package inspector, and preview state are same-origin with the artifact. |
 | 9     | `sdk/app-package-build`          | `sdk`          | SDK builds the BuilderPlan and AppPackage from the draft.                                       |
 | 10    | `server/generated-app-publish`   | `server`       | Server records the generated app as a content item with provenance back to the source saved map or catalog item. |
 | 11    | `console/share-publish`          | `console`      | Share dialog promotes the generated app to org-tier and marks it embeddable.                    |
@@ -113,6 +113,7 @@ failure short-circuits and the remaining steps are recorded as
 | `publish-handoff`           | `v1`     | `legacy-admin`  | `honua-portal` (transitional)  |
 | `content-item`              | `v1.1.0` | `server`        | `honua-portal` (transitional)  |
 | `webmap-doc`                | `v1`     | `console`       | `honua-portal` (transitional)  |
+| `studio-authoring-shell`    | `v1`     | `console`       | `honua-console`                |
 | `share-access`              | `v1`     | `server`        | `honua-portal` (transitional)  |
 | `embed-token`               | `v1`     | `server`        | `honua-portal` (transitional)  |
 | `generated-app-lifecycle`   | `v1`     | `sdk`           | `honua-portal` (transitional)  |
@@ -197,6 +198,14 @@ real HTTP transport cannot silently accept a drifted payload:
   the `honua_generated_app_manifest.v1` format and an
   `operations-dashboard.v1` profile layout whose widget kinds belong to
   the `HonuaGeneratedAppWidgetKind` union.
+- **`studio-authoring-shell/v1`** — The Console-owned Studio step records
+  the first package-shell proof path before the SDK app package is built:
+  an ambiguous prompt routes to structured clarification, the draft
+  remains inspectable as an `app.package`, the inspector exposes
+  assumptions, data bindings, warnings, validation, and provenance, and
+  the lifecycle evidence names the distinct Draft, Preview, Saved version,
+  and Published states. This is a stable mock projection until the server
+  package lifecycle API and SDK package helpers are wired into Console.
 - **`share-access/v1`** — `patchAccess` returns
   `{ sharing, embeddable, groupIds?, publicLinkToken? }` only; `groupIds`
   is emitted for `sharing="group"` and `publicLinkToken` is emitted for

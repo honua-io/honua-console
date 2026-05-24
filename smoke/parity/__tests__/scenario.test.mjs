@@ -78,7 +78,21 @@ describe("parity scenario", () => {
       ],
     );
 
-    // Contract-version table includes the seven Console-parity contracts.
+    const studioStep = report.steps.find((step) => step.id === "console/studio-draft");
+    assert.equal(studioStep.evidence.clarification.routed, true);
+    assert.equal(studioStep.evidence.package.contractName, "studio-authoring-shell");
+    assert.equal(studioStep.evidence.package.packageType, "app.package");
+    assert.equal(studioStep.evidence.package.lifecycleState, "Preview");
+    assert.deepEqual(studioStep.evidence.package.inspectorSections, [
+      "assumptions",
+      "dataBindings",
+      "warnings",
+      "validation",
+      "provenance",
+    ]);
+    assert.deepEqual(studioStep.evidence.lifecycleStates, ["Draft", "Preview", "Saved version", "Published"]);
+
+    // Contract-version table includes the Console-parity contracts.
     const contractNames = report.contractVersions.map((c) => c.name).sort();
     assert.deepEqual(contractNames, [
       "build-artifact",
@@ -87,6 +101,7 @@ describe("parity scenario", () => {
       "generated-app-lifecycle",
       "publish-handoff",
       "share-access",
+      "studio-authoring-shell",
       "webmap-doc",
     ]);
 

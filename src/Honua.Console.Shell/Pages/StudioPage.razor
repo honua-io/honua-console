@@ -1,3 +1,222 @@
 @page "/studio"
+@inject IStudioAuthoringShell AuthoringShell
 
-<WorkflowAreaPage AreaId="studio" />
+<section class="console-page studio-page">
+    <div class="console-page-heading studio-page-heading">
+        <div>
+            <p class="console-kicker">Builder workflow</p>
+            <h1>Studio</h1>
+            <p>Author from prompt, resolve open questions, inspect the package, preview, save, and publish from one shared Console surface.</p>
+        </div>
+
+        <StudioLifecycleRail CurrentState="_session.ActivePackage.LifecycleState" />
+    </div>
+
+    <div class="studio-shell" data-authoring-contract="@StudioAuthoringContract.Name" data-contract-version="@StudioAuthoringContract.Version">
+        <aside class="console-panel studio-workflow-panel" aria-labelledby="studio-workflows-heading">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Artifact workflow</p>
+                    <h2 id="studio-workflows-heading">Workflow</h2>
+                </div>
+                <span class="console-status">@SelectedWorkflow.PackageType</span>
+            </div>
+
+            <div class="studio-workflow-grid" role="list">
+                @foreach (var workflow in _session.Workflows)
+                {
+                    var isSelected = string.Equals(_session.SelectedWorkflowId, workflow.Id, StringComparison.Ordinal);
+
+                    <button type="button"
+                            class="studio-workflow-button @(isSelected ? "studio-workflow-button-active" : string.Empty)"
+                            aria-pressed="@isSelected"
+                            @onclick="() => SelectWorkflow(workflow.Id)">
+                        <strong>@workflow.Label</strong>
+                        <small>@workflow.PackageType</small>
+                    </button>
+                }
+            </div>
+
+            <section class="studio-recent-section" aria-labelledby="studio-recent-heading">
+                <h3 id="studio-recent-heading">Recent Projects</h3>
+                <ul class="studio-recent-list">
+                    @foreach (var project in _session.RecentProjects)
+                    {
+                        <li>
+                            <div>
+                                <strong>@project.Title</strong>
+                                <small>@project.PackageType</small>
+                            </div>
+                            <span class="@GetLifecycleClass(project.State)">@FormatLifecycle(project.State)</span>
+                            <small>@project.UpdatedLabel</small>
+                        </li>
+                    }
+                </ul>
+            </section>
+        </aside>
+
+        <section class="console-panel studio-prompt-panel" aria-labelledby="studio-prompt-heading">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Prompt and clarification</p>
+                    <h2 id="studio-prompt-heading">Conversation</h2>
+                </div>
+                @if (_session.Clarifications.Count > 0)
+                {
+                    <span class="console-status">@_session.Clarifications.Count open</span>
+                }
+            </div>
+
+            <label class="studio-prompt-label" for="studio-prompt">Prompt</label>
+            <textarea id="studio-prompt"
+                      class="studio-prompt-input"
+                      rows="6"
+                      @bind="_prompt"
+                      @bind:event="oninput"></textarea>
+
+            <div class="studio-action-row">
+                <button class="console-button" type="button" @onclick="SubmitPrompt">Generate Package</button>
+                <button class="console-button console-button-secondary" type="button" disabled="@(_session.Clarifications.Count == 0)" @onclick="AnswerFirstClarification">
+                    Apply First Answer
+                </button>
+            </div>
+
+            @if (_session.Clarifications.Count > 0)
+            {
+                <section class="studio-clarification-panel" aria-labelledby="studio-clarification-heading" aria-live="polite">
+                    <p class="console-kicker">Structured clarification</p>
+                    <h3 id="studio-clarification-heading">Questions</h3>
+
+                    @foreach (var question in _session.Clarifications)
+                    {
+                        <fieldset class="studio-clarification-question">
+                            <legend>@question.Label</legend>
+                            <p class="console-muted">@question.Reason</p>
+
+                            <div class="studio-clarification-options">
+                                @foreach (var choice in question.Choices)
+                                {
+                                    <button type="button" class="studio-clarification-choice" @onclick="() => ApplyClarification(question.Id, choice.Id)">
+                                        <strong>@choice.Label</strong>
+                                        <small>@choice.Effect</small>
+                                    </button>
+                                }
+                            </div>
+                        </fieldset>
+                    }
+                </section>
+            }
+            else
+            {
+                <section class="studio-conversation-log" aria-labelledby="studio-conversation-log-heading">
+                    <h3 id="studio-conversation-log-heading">Conversation Log</h3>
+                    <ol>
+                        @foreach (var item in _session.ActivePackage.Provenance)
+                        {
+                            <li>
+                                <strong>@item.Actor</strong>
+                                <span>@item.Action</span>
+                                <small>@item.Evidence</small>
+                            </li>
+                        }
+                    </ol>
+                </section>
+            }
+        </section>
+
+        <section class="console-panel studio-preview-panel" aria-labelledby="studio-preview-heading">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Package state</p>
+                    <h2 id="studio-preview-heading">Preview</h2>
+                </div>
+                <span class="@GetLifecycleClass(_session.ActivePackage.LifecycleState)">@FormatLifecycle(_session.ActivePackage.LifecycleState)</span>
+            </div>
+
+            <div class="studio-preview-stage @GetLifecycleClass(_session.ActivePackage.LifecycleState)">
+                <div class="studio-preview-toolbar">
+                    <strong>@_session.ActivePackage.Title</strong>
+                    <small>@_session.ActivePackage.PackageRef</small>
+                </div>
+                <div class="studio-preview-canvas" aria-label="Generated package preview">
+                    <div class="studio-preview-map">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <div class="studio-preview-details">
+                        <strong>@_session.ActivePackage.PackageType</strong>
+                        <span>@_session.ActivePackage.Summary</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="studio-action-row">
+                <button class="console-button console-button-secondary" type="button" disabled="@HasOpenClarifications" @onclick="() => TransitionPackage(StudioPackageLifecycleState.Preview)">
+                    Preview
+                </button>
+                <button class="console-button console-button-secondary" type="button" disabled="@HasOpenClarifications" @onclick="() => TransitionPackage(StudioPackageLifecycleState.SavedVersion)">
+                    Save Version
+                </button>
+                <button class="console-button" type="button" disabled="@HasOpenClarifications" @onclick="() => TransitionPackage(StudioPackageLifecycleState.Published)">
+                    Publish
+                </button>
+            </div>
+        </section>
+
+        <StudioPackageInspector Package="_session.ActivePackage" />
+    </div>
+</section>
+
+@code {
+    private StudioAuthoringSession _session = default!;
+    private string _prompt = "Create a map of permit activity near schools.";
+
+    private StudioWorkflowOption SelectedWorkflow =>
+        _session.Workflows.First(workflow => string.Equals(workflow.Id, _session.SelectedWorkflowId, StringComparison.Ordinal));
+
+    private bool HasOpenClarifications => _session.Clarifications.Count > 0;
+
+    protected override void OnInitialized()
+    {
+        _session = AuthoringShell.CreateInitialSession();
+    }
+
+    private void SelectWorkflow(string workflowId)
+    {
+        _session = AuthoringShell.SelectWorkflow(_session, workflowId);
+    }
+
+    private void SubmitPrompt()
+    {
+        _session = AuthoringShell.SubmitPrompt(_session, _session.SelectedWorkflowId, _prompt);
+    }
+
+    private void ApplyClarification(string questionId, string choiceId)
+    {
+        _session = AuthoringShell.ApplyClarification(_session, questionId, choiceId);
+    }
+
+    private void AnswerFirstClarification()
+    {
+        var question = _session.Clarifications.FirstOrDefault();
+        if (question is null)
+        {
+            return;
+        }
+
+        ApplyClarification(question.Id, question.Choices[0].Id);
+    }
+
+    private void TransitionPackage(StudioPackageLifecycleState state)
+    {
+        _session = AuthoringShell.TransitionPackage(_session, state);
+    }
+
+    private static string FormatLifecycle(StudioPackageLifecycleState state) =>
+        StudioAuthoringContract.LifecycleDescriptors.First(descriptor => descriptor.State == state).Label;
+
+    private static string GetLifecycleClass(StudioPackageLifecycleState state) =>
+        StudioAuthoringContract.LifecycleDescriptors.First(descriptor => descriptor.State == state).CssClass;
+}
