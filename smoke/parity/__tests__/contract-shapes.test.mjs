@@ -518,6 +518,27 @@ describe("embed URL placement", () => {
 });
 
 describe("share-access response shape", () => {
+  async function generatedAppFixture() {
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item: svc } = server.publishService(handoff);
+    const { savedMap } = server.saveMap({
+      title: "x",
+      owner: svc.owner,
+      sourceItem: svc,
+      extent: svc.extent,
+    });
+    const { item: app } = server.publishGeneratedApp({
+      source: { kind: "saved-map", itemId: savedMap.id, itemType: "map", title: savedMap.title },
+      manifestVersion: "1.0.0",
+      plan: { id: "plan-1", warnings: [] },
+      appPackage: { id: "pkg-1", version: "1" },
+      owner: svc.owner,
+      title: "field app",
+    });
+    return { server, svc, savedMap, app };
+  }
+
   test("patchAccess returns share-access/v1 (no openData leak)", async () => {
     const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
     const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
@@ -610,6 +631,53 @@ describe("share-access response shape", () => {
     const { item: re } = server.getItem(item.id);
     assert.equal(re.access.sharing, "public");
     assert.equal(re.access.openData, true);
+  });
+
+  test("generated-app widening is blocked while its dependency closure is narrower", async () => {
+    const { server, svc, savedMap, app } = await generatedAppFixture();
+    const blocked = server.patchAccess({ itemId: app.id, tier: "org", embeddable: true });
+    assert.equal(blocked.kind, "closureBlocked");
+    assert.deepEqual(blocked.blockers.map((blocker) => blocker.id), [savedMap.id, svc.id]);
+    assert.deepEqual(blocked.blockers.map((blocker) => blocker.access.sharing), ["private", "private"]);
+  });
+
+  test("generated-app widening is blocked when its dependency closure is missing an item", async () => {
+    const { server, svc, savedMap, app } = await generatedAppFixture();
+    const servicePromotion = server.patchAccess({ itemId: svc.id, tier: "org", embeddable: false });
+    assert.equal(servicePromotion.kind, "ok");
+    const mapPromotion = server.patchAccess({ itemId: savedMap.id, tier: "org", embeddable: false });
+    assert.equal(mapPromotion.kind, "ok");
+
+    const missingId = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+    app.dependencies.push({ id: missingId, type: "service", role: "operationalLayer" });
+
+    const blocked = server.patchAccess({ itemId: app.id, tier: "org", embeddable: true });
+    assert.equal(blocked.kind, "closureBlocked");
+    assert.deepEqual(blocked.blockers, [
+      {
+        id: missingId,
+        type: "service",
+        role: "operationalLayer",
+        access: "unsupported",
+        reason: "missing",
+      },
+    ]);
+  });
+
+  test("generated-app share and embed token use the transitive dependency closure", async () => {
+    const { server, svc, savedMap, app } = await generatedAppFixture();
+    const servicePromotion = server.patchAccess({ itemId: svc.id, tier: "org", embeddable: false });
+    assert.equal(servicePromotion.kind, "ok");
+
+    const mapPromotion = server.patchAccess({ itemId: savedMap.id, tier: "org", embeddable: false });
+    assert.equal(mapPromotion.kind, "ok");
+
+    const appPromotion = server.patchAccess({ itemId: app.id, tier: "org", embeddable: true });
+    assert.equal(appPromotion.kind, "ok");
+
+    const token = server.mintEmbedToken({ itemId: app.id, audience: "pilot" });
+    assert.equal(token.kind, "ok");
+    assert.deepEqual(token.descriptor.closure, [savedMap.id, svc.id]);
   });
 });
 

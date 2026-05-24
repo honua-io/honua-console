@@ -62,6 +62,21 @@ describe("parity scenario", () => {
     const tokenStep = report.steps.find((step) => step.id === "server/embed-token-mint");
     assert.equal(tokenStep.evidence.tokenHash, report.items.embedTokenHash);
     assert.equal(tokenStep.evidence.token, undefined);
+    assert.equal(tokenStep.evidence.closureSize, 2);
+    assert.deepEqual(tokenStep.evidence.closure, [report.items.savedMapId, report.items.serviceItemId]);
+
+    const shareStep = report.steps.find((step) => step.id === "console/share-publish");
+    assert.deepEqual(
+      shareStep.evidence.dependencyPromotions.map((promotion) => ({
+        itemId: promotion.itemId,
+        role: promotion.role,
+        sharing: promotion.sharing,
+      })),
+      [
+        { itemId: report.items.serviceItemId, role: "source-service", sharing: "org" },
+        { itemId: report.items.savedMapId, role: "saved-map", sharing: "org" },
+      ],
+    );
 
     // Contract-version table includes the seven Console-parity contracts.
     const contractNames = report.contractVersions.map((c) => c.name).sort();

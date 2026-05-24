@@ -324,8 +324,18 @@ export const SCENARIO_STEPS = [
     id: "console/share-publish",
     owningLayer: "console",
     description:
-      "Console share dialog promotes the generated app to org-tier and marks it embeddable.",
+      "Console share dialog promotes the dependency closure, then promotes the generated app to org-tier and marks it embeddable.",
     async run(ctx) {
+      const dependencyPromotions = [
+        { itemId: ctx.serviceItem.id, role: "source-service" },
+        { itemId: ctx.savedMap.id, role: "saved-map" },
+      ].map(({ itemId, role }) => {
+        const promotion = ctx.server.patchAccess({ itemId, tier: "org", embeddable: false });
+        if (promotion.kind !== "ok") {
+          throw new Error(`dependency share patch returned ${promotion.kind} for ${role} ${itemId}`);
+        }
+        return { itemId, role, sharing: promotion.access.sharing };
+      });
       const result = ctx.server.patchAccess({ itemId: ctx.generatedApp.id, tier: "org", embeddable: true });
       if (result.kind !== "ok") {
         throw new Error(`share patch returned ${result.kind} for generated app ${ctx.generatedApp.id}`);
@@ -337,7 +347,12 @@ export const SCENARIO_STEPS = [
       }
       ctx.itemIds.shareTier = result.access.sharing;
       return {
-        evidence: { itemId: ctx.generatedApp.id, sharing: result.access.sharing, embeddable: result.access.embeddable },
+        evidence: {
+          itemId: ctx.generatedApp.id,
+          sharing: result.access.sharing,
+          embeddable: result.access.embeddable,
+          dependencyPromotions,
+        },
         contracts: [result.contract],
       };
     },
@@ -359,6 +374,7 @@ export const SCENARIO_STEPS = [
           tokenHash: ctx.itemIds.embedTokenHash,
           audience: result.descriptor.audience,
           closureSize: result.descriptor.closure.length,
+          closure: result.descriptor.closure,
           expiresAt: result.descriptor.expiresAt,
         },
         contracts: [result.contract],

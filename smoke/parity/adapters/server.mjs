@@ -86,6 +86,28 @@ function dependencyRoleFor(sourceKind) {
 // evidence file claiming share-access/v1 conformance while exercising a
 // drifted shape.
 const VALID_SHARING_TIERS = Object.freeze(["private", "org", "group", "public-link", "public"]);
+const MAX_CLOSURE_DEPTH = 5;
+const MAX_CLOSURE_NODES = 200;
+
+function compareTier(a, b) {
+  const aRank = VALID_SHARING_TIERS.indexOf(a);
+  const bRank = VALID_SHARING_TIERS.indexOf(b);
+  if (aRank === -1 || bRank === -1) {
+    throw new Error(`Cannot compare unknown sharing tier "${aRank === -1 ? a : b}".`);
+  }
+  return aRank - bRank;
+}
+
+function shareAccessDescriptor(access) {
+  if (!access || access === "unsupported") return "unsupported";
+  const descriptor = {
+    sharing: access.sharing,
+    embeddable: !!access.embeddable,
+  };
+  if (Array.isArray(access.groupIds)) descriptor.groupIds = [...access.groupIds];
+  if (access.publicLinkToken) descriptor.publicLinkToken = access.publicLinkToken;
+  return descriptor;
+}
 
 export function createServerAdapter({ originUrl } = {}) {
   if (!originUrl) throw new Error("createServerAdapter requires originUrl");
@@ -97,6 +119,86 @@ export function createServerAdapter({ originUrl } = {}) {
   const nextId = (prefix) => {
     counter += 1;
     return deterministicUlid(prefix, counter);
+  };
+
+  const lookupDependencyItem = (id) => items.get(id) ?? savedMaps.get(id) ?? null;
+
+  const getDependencyClosure = (rootId) => {
+    const root = lookupDependencyItem(rootId);
+    if (!root) return { nodes: [], missing: [], truncated: false };
+
+    const visited = new Set([rootId]);
+    const nodes = [];
+    const missing = [];
+    const queue = (root.dependencies ?? []).map((dependency) => ({ dependency, depth: 1 }));
+    let truncated = false;
+
+    while (queue.length > 0) {
+      const next = queue.shift();
+      if (!next) break;
+      const { dependency, depth } = next;
+      if (visited.has(dependency.id)) continue;
+      visited.add(dependency.id);
+
+      if (nodes.length >= MAX_CLOSURE_NODES) {
+        truncated = true;
+        break;
+      }
+
+      const item = lookupDependencyItem(dependency.id);
+      if (!item) {
+        missing.push({
+          id: dependency.id,
+          type: dependency.type ?? "layer",
+          role: dependency.role ?? "operationalLayer",
+        });
+        continue;
+      }
+
+      nodes.push({
+        id: item.id,
+        type: dependency.type ?? item.type,
+        role: dependency.role ?? "operationalLayer",
+        ...(item.title === undefined ? {} : { title: item.title }),
+        access: shareAccessDescriptor(item.access),
+      });
+
+      if (depth >= MAX_CLOSURE_DEPTH) continue;
+      for (const child of item.dependencies ?? []) {
+        if (!visited.has(child.id)) {
+          queue.push({ dependency: child, depth: depth + 1 });
+        }
+      }
+    }
+
+    return { nodes, missing, truncated };
+  };
+
+  const evaluateShareEscalation = ({ current, proposed, closure }) => {
+    const widening = compareTier(proposed, current) > 0;
+    if (!widening) return { kind: "ok", widening: false };
+
+    const blockers = [];
+    for (const node of closure.nodes) {
+      if (!node.access || node.access === "unsupported") continue;
+      if (compareTier(node.access.sharing, proposed) < 0) {
+        blockers.push(node);
+      }
+    }
+    for (const dependency of closure.missing) {
+      blockers.push({ ...dependency, access: "unsupported", reason: "missing" });
+    }
+    if (closure.truncated) {
+      blockers.push({
+        id: "dependency-closure",
+        type: "map",
+        role: "dependencyClosure",
+        access: "unsupported",
+        reason: "truncated",
+      });
+    }
+    if (blockers.length === 0) return { kind: "ok", widening: true };
+    return { kind: "blocked", blockers };
   };
 
   return {
@@ -243,7 +345,17 @@ export function createServerAdapter({ originUrl } = {}) {
           },
         },
       };
-      const record = { id: mapId, title, owner, document, createdAt: now, modifiedAt: now };
+      const record = {
+        id: mapId,
+        type: "map",
+        title,
+        owner,
+        document,
+        createdAt: now,
+        modifiedAt: now,
+        access: { sharing: "private", embeddable: false, openData: false },
+        dependencies: [{ id: sourceItem.id, type: sourceItem.type, role: "operationalLayer" }],
+      };
       savedMaps.set(mapId, record);
       return { savedMap: record, contract: findContract("webmap-doc") };
     },
@@ -344,7 +456,7 @@ export function createServerAdapter({ originUrl } = {}) {
      * an explicit open-data toggle elsewhere.
      */
     patchAccess({ itemId, tier, embeddable, groupIds }) {
-      const item = items.get(itemId);
+      const item = lookupDependencyItem(itemId);
       if (!item) return { kind: "missing" };
       if (!VALID_SHARING_TIERS.includes(tier)) {
         return {
@@ -353,18 +465,31 @@ export function createServerAdapter({ originUrl } = {}) {
           allowed: [...VALID_SHARING_TIERS],
         };
       }
+      const currentAccess =
+        item.access && item.access !== "unsupported"
+          ? item.access
+          : { sharing: "private", embeddable: false, openData: false };
       // Preserve content-item Access.openData across the share patch and
       // reject patches that would leave the item in a schema-invalid state
       // (openData=true with non-public sharing).
-      if (item.access.openData === true && tier !== "public") {
+      if (currentAccess.openData === true && tier !== "public") {
         return {
           kind: "open-data-locked",
           tier,
           reason: "open-data items cannot be narrowed below sharing=public without first toggling openData=false",
         };
       }
+      const closure = getDependencyClosure(itemId);
+      const outcome = evaluateShareEscalation({
+        current: currentAccess.sharing,
+        proposed: tier,
+        closure,
+      });
+      if (outcome.kind === "blocked") {
+        return { kind: "closureBlocked", blockers: outcome.blockers };
+      }
       item.access = {
-        ...item.access,
+        ...currentAccess,
         sharing: tier,
         embeddable: !!embeddable,
       };
@@ -392,7 +517,7 @@ export function createServerAdapter({ originUrl } = {}) {
         itemId,
         audience,
         expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-        closure: item.dependencies.map((d) => d.id),
+        closure: getDependencyClosure(itemId).nodes.map((node) => node.id),
       };
       embedTokens.set(token, descriptor);
       return { kind: "ok", descriptor, contract: findContract("embed-token") };

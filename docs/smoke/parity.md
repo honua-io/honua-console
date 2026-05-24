@@ -132,19 +132,18 @@ Response-contract notes worth keeping in sync with the registry:
   `groupIds` for group-tier shares, and `publicLinkToken` for
   public-link shares. They do not echo `openData`; that field is owned by
   `content-item.access`.
-- `embed-token/v1` owns the dependency closure descriptor and the Console
-  embed URL must carry the minted bearer in `#embedToken=<token>`, not in
-  the query string. Smoke evidence and log summaries store only the
-  token hash/redacted fragment.
+- `embed-token/v1` owns the transitive dependency closure descriptor and
+  the Console embed URL must carry the minted bearer in
+  `#embedToken=<token>`, not in the query string. Smoke evidence and log
+  summaries store only the token hash/redacted fragment.
 
-The `Version` column tracks the **major version family** the registry
-emits into evidence (e.g., `v1`). The "Wire shapes" section below cites
-the **specific schema revision** the smoke materializes (e.g.,
-`publish-handoff/v1.1.0`) using the canonical schema `$id` URI. The two
-will diverge until a contract's next major bump; readers triaging an
-evidence file should treat the `Version` cell as the family and the
-schema URI in the wire-shape entry as the precise revision the smoke
-asserts.
+The `Version` column is the exact string the registry emits into
+evidence. Some contracts intentionally report only the major family
+(for example, `publish-handoff` reports `v1`) while the "Wire shapes"
+section below documents the more precise schema revision the smoke
+materializes (for example, `publish-handoff/v1.1.0`). Readers triaging
+an evidence file should treat the table as the evidence contract and the
+wire-shape entry as the precise payload revision asserted by the smoke.
 
 ### Wire shapes the smoke actually exercises
 
@@ -209,6 +208,12 @@ real HTTP transport cannot silently accept a drifted payload:
   invariant `openData=true ⇒ sharing="public"` runs one way: public sharing
   does NOT auto-enable openData), and refuses to narrow an open-data item
   below `sharing="public"` (returns `kind:"open-data-locked"`).
+  Widening also evaluates the transitive dependency closure and returns
+  `kind:"closureBlocked"` when any resolved dependency is narrower than
+  the proposed tier, when a dependency is missing, or when traversal is
+  truncated. The generated-app smoke path therefore promotes the source
+  service and saved map to `org` before promoting the generated app to
+  `org`.
 - **`content-item/v1.1.0` re-publish ownership** — Server `publishService`
   upserts on `(source.kind, source.sourceId)` and, on re-publish, preserves
   the portal-owned fields `access`, `preview`, `dependencies`, `extensions`,
@@ -224,10 +229,14 @@ real HTTP transport cannot silently accept a drifted payload:
   `assertEmbedTokenInFragment` and attributed to the `console` layer. The
   runner keeps the raw token only in memory while assembling the route;
   JSON evidence and text summaries write `embedTokenHash` plus a redacted
-  embed URL fragment.
+  embed URL fragment. Minting snapshots the transitive dependency closure
+  at token time; for the generated-app path the closure evidence includes
+  both the saved map and the underlying service item.
 - **`webmap-doc/v1`** — `saveMap` produces a document with
   `version: "honua-webmap/v1"` plus `operationalLayers[]`, `baseMap`,
-  and `initialState.viewpoint.extent`.
+  and `initialState.viewpoint.extent`. The adapter also records the saved
+  map as a shareable dependency-graph node whose closure points back to
+  the source service item.
 
 Contract-shape parity is enforced by
 [`smoke/parity/__tests__/contract-shapes.test.mjs`](../../smoke/parity/__tests__/contract-shapes.test.mjs).

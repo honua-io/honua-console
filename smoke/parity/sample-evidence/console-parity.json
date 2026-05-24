@@ -1,11 +1,11 @@
 {
   "scenario": "console-parity-publish-to-embed",
-  "ranAt": "2026-05-23T23:32:27.165Z",
+  "ranAt": "2026-05-24T01:03:58.284Z",
   "originUrl": "http://127.0.0.1:4174",
-  "repoRoot": "/path/to/honua-console",
+  "repoRoot": "/home/makani/worktrees/honua-console/honua-console-9",
   "buildArtifact": {
     "source": "fixture",
-    "path": "/path/to/honua-console/smoke/parity/fixtures/dist-version.json",
+    "path": "/home/makani/worktrees/honua-console/honua-console-9/smoke/parity/fixtures/dist-version.json",
     "name": "honua-console",
     "version": "0.1.0",
     "commit": "0000000000000000000000000000000000000000",
@@ -100,7 +100,7 @@
       "description": "Verify the single deployable artifact metadata (dist/version.json) declares name=honua-console, the four areas, and the legacy block.",
       "evidence": {
         "source": "fixture",
-        "path": "/path/to/honua-console/smoke/parity/fixtures/dist-version.json",
+        "path": "/home/makani/worktrees/honua-console/honua-console-9/smoke/parity/fixtures/dist-version.json",
         "version": "0.1.0",
         "commit": "000000000000",
         "ref": "feature/honua-console-9",
@@ -122,7 +122,7 @@
       "owningLayer": "legacy-admin",
       "owningLayerLabel": "Legacy Admin transition surface",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff/v1.1.0 payload into Console catalog.",
       "evidence": {
         "type": "service",
@@ -297,11 +297,23 @@
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Console share dialog promotes the generated app to org-tier and marks it embeddable.",
+      "description": "Console share dialog promotes the dependency closure, then promotes the generated app to org-tier and marks it embeddable.",
       "evidence": {
         "itemId": "01KS923C0340N28KA6V8ESGC1E",
         "sharing": "org",
-        "embeddable": true
+        "embeddable": true,
+        "dependencyPromotions": [
+          {
+            "itemId": "01KS923C01MRXBKM6AFX56RW1F",
+            "role": "source-service",
+            "sharing": "org"
+          },
+          {
+            "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
+            "role": "saved-map",
+            "sharing": "org"
+          }
+        ]
       },
       "error": null
     },
@@ -310,13 +322,17 @@
       "owningLayer": "server",
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "Server mints a same-origin embed-token/v1 descriptor for the generated app.",
       "evidence": {
         "tokenHash": "sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e",
         "audience": "pilot",
-        "closureSize": 1,
-        "expiresAt": "2026-05-24T00:02:27.170Z"
+        "closureSize": 2,
+        "closure": [
+          "01KS923C02F5XEMWXKBW2AB1SA",
+          "01KS923C01MRXBKM6AFX56RW1F"
+        ],
+        "expiresAt": "2026-05-24T01:33:58.289Z"
       },
       "error": null
     },
