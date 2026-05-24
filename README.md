@@ -4,8 +4,8 @@ Honua Console is the unified web surface for Honua.
 
 It brings Studio, Catalog, Operate, and Share into one product surface and one deployment runtime:
 
-- **Studio**: AI-assisted spatial query, analysis, map, dashboard, report, and app creation.
-- **Catalog**: data, layers, services, saved maps, dashboards, reports, generated apps, metadata, and provenance.
+- **Studio**: AI-assisted spatial query, analysis, map, dashboard, report, form, app, and workflow authoring and publishing.
+- **Catalog**: data, layers, services, saved maps, dashboards, reports, forms, workflows, generated apps, metadata, and provenance.
 - **Operate**: publishing, jobs, service configuration, identity, connectors, deployment health, observability, licensing, and runtime administration.
 - **Share**: public links, embeds, open-data pages, exports, and external publishing flows.
 
@@ -57,3 +57,11 @@ Until parity is accepted, source behavior remains in:
 - `honua-sdk-js` for browser-safe SDK contracts and generated app runtime.
 - `honua-server` for server-owned metadata, content, RBAC, provenance, and package APIs.
 - `honua-devops` for the single deployable artifact and release pipeline.
+
+## Studio Contract Notes
+
+Studio authoring is modeled as shared package contracts, not separate Console-only schemas. The canonical model covers workspaces, content items, content versions, Studio projects, conversations/provenance, packages, data bindings, publications, and job runs.
+
+Package families include query, analysis, map, dashboard, report, form, app, workflow, and publication packages. Publishing always creates or updates server-owned content item versions and publication records; analysis, GP, ETL, scheduled, batch, export, and heavy refresh work routes through Honua's job runner.
+
+Console should consume server/SDK projections for validate, preview, publish, and run responses. Do not duplicate server or SDK DTOs in this repo when a shared contract exists.

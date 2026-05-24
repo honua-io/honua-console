@@ -13,12 +13,12 @@ Accepted, amended 2026-05-23
 Honua has three related web surfaces:
 
 - Admin/operator workflows for publishing, runtime configuration, identity, connectors, observability, and service operations.
-- Studio workflows for AI-assisted map, dashboard, report, and app creation.
+- Studio workflows for AI-assisted query, analysis, map, dashboard, report, form, app, and workflow authoring and publishing.
 - Portal/catalog/share workflows for finding, composing, publishing, embedding, and sharing spatial content.
 
 Earlier planning separated `honua-portal` from `honua-server-admin` to prevent end-user content workflows from becoming another operator screen. That boundary was useful, but it now creates a different risk: Honua can appear fragmented before the user has even created a map.
 
-That risk conflicts with a core Honua premise: spatial software should not inherit the deployment complexity and fragility associated with ArcGIS Enterprise-style stacks. A user should not need to reason about separate products, deployment artifacts, auth systems, UI conventions, or metadata models just to publish a service and turn it into a map, dashboard, report, or app.
+That risk conflicts with a core Honua premise: spatial software should not inherit the deployment complexity and fragility associated with ArcGIS Enterprise-style stacks. A user should not need to reason about separate products, deployment artifacts, auth systems, UI conventions, or metadata models just to publish a service and turn it into a map, dashboard, report, form, app, or workflow.
 
 Current implementation also has a framework split:
 
@@ -33,8 +33,8 @@ Honua will ship a single top-level web product surface and deployment runtime: *
 
 Honua Console contains workflow areas, not separately deployed products:
 
-- **Studio**: AI-assisted spatial query, analysis, map, dashboard, report, and app creation.
-- **Catalog**: data, layers, services, saved maps, dashboards, reports, generated apps, metadata, and provenance.
+- **Studio**: AI-assisted spatial query, analysis, map, dashboard, report, form, app, and workflow authoring and publishing.
+- **Catalog**: data, layers, services, saved maps, dashboards, reports, forms, workflows, generated apps, metadata, and provenance.
 - **Operate**: publishing, jobs, service configuration, identity, connectors, deployment health, observability, licensing, and runtime administration.
 - **Share**: public links, embeds, open-data pages, exports, and external publishing flows.
 
@@ -86,15 +86,18 @@ Transport guidance:
 The following contracts must be shared across Studio, Catalog, Operate, Share, MCP clients, QGIS plugin flows, and generated apps:
 
 - Metadata v2 and content items.
+- Content versions, publications, data bindings, and job runs.
 - Service-to-item provenance.
-- Saved map and map package contracts.
-- Dashboard/report/app package contracts.
+- Workspace, Studio project, conversation, and provenance references.
+- Query, analysis, map, dashboard, report, form, app, workflow, and publication package contracts.
 - Vega-Lite chart specs embedded or referenced by dashboard/report/app packages.
 - Build/spec/plan/apply contracts for AI-generated spatial outputs.
 - Sharing, embed, and authorization contracts.
 - Audit, lineage, and generated-output provenance.
 - Jobs, telemetry, alerting, realtime, temporal data history, disconnected sync, and rollback contracts.
 - Multi-environment Console connection profiles, transport capabilities, certificate trust state, and native mTLS policy.
+
+The detailed Studio information model and package response expectations are maintained in [Honua Studio Information Model And Workflows](../architecture/studio-information-model-and-workflows.md).
 
 UI implementation may transition over time. Contract divergence is not acceptable.
 
@@ -104,7 +107,7 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 
 - Honua presents a simpler product story: create, operate, publish, and share from one place.
 - Deployment becomes a differentiator against complex multi-component GIS stacks.
-- AI-generated maps, dashboards, reports, and apps can move naturally from prompt to preview to saved content to published artifact.
+- AI-generated maps, dashboards, reports, forms, apps, and workflows can move naturally from prompt to preview to saved content to published artifact.
 - Metadata v2 becomes the shared information model instead of an Admin-only or Portal-only schema.
 - The QGIS plugin, MCP clients, and Studio can target the same content/package contracts.
 - Blazor Web and MAUI Blazor Hybrid can share Razor components, .NET clients, validation, auth helpers, and workflow models.
@@ -143,7 +146,7 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 9. Hide or redirect duplicate builder/app-builder routes from legacy Admin.
 10. Rebuild redesigned Admin workflows inside the unified Blazor shell as the new metadata contract and mockups land.
 11. Add an optional MAUI Blazor Hybrid host once the shared Razor component library and .NET client contracts are stable.
-12. Add end-to-end smoke for publish service -> catalog item -> Studio map/dashboard/app -> share/embed.
+12. Add end-to-end smoke for publish service -> catalog item -> Studio generated artifact -> share/embed, with job-run evidence for workflow-backed artifacts.
 
 ## Backlog Implications
 
@@ -158,7 +161,7 @@ Create or update backlog items for:
 - Shared auth/session/RBAC wiring across all web areas.
 - Metadata v2 adoption by both Admin and Studio.
 - Legacy Admin route inventory: keep, embed temporarily, redirect, or rebuild.
-- Studio productionization for AI spatial query, analysis, maps, dashboards, reports, and apps.
+- Studio productionization for AI spatial query, analysis, maps, dashboards, reports, forms, apps, workflows, and publications.
 - Vega-Lite dashboard/report rendering as the standard chart specification layer.
 - MCP/QGIS/Studio generated-output parity through shared package contracts.
 - Cross-surface smoke and upgrade tests.
