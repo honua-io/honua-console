@@ -44,9 +44,12 @@ export function SessionProvider({ baseUrl, client, children }: SessionProviderPr
   const mounted = useRef(true);
 
   useEffect(
-    () => () => {
-      mounted.current = false;
-      refreshSeq.current += 1;
+    () => {
+      mounted.current = true;
+      return () => {
+        mounted.current = false;
+        refreshSeq.current += 1;
+      };
     },
     [],
   );

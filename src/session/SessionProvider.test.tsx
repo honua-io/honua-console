@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -99,6 +100,32 @@ describe("SessionProvider", () => {
     await waitFor(() => {
       expect(screen.getByTestId("cap").textContent).toBe("yes");
       expect(screen.getByTestId("ent").textContent).toBe("yes");
+    });
+  });
+
+  it("settles bootstrap after StrictMode replays mount effects", async () => {
+    const client = new FakeClient({
+      status: {
+        kind: "authenticated",
+        identity: { providerKey: "strict-session", displayName: "Strict Session" },
+        bundle: {
+          capabilities: new Set(["catalog:read"]),
+          entitlements: new Set(),
+        },
+      },
+      fellBackEndpoints: [],
+    });
+
+    render(
+      <StrictMode>
+        <SessionProvider client={client}>
+          <ProbeStatusWithRefresh />
+        </SessionProvider>
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-status").textContent).toBe("strict-session");
     });
   });
 
