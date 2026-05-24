@@ -596,6 +596,22 @@ Publishing always creates or updates a server-owned content item version before 
 
 The browser is never the authoritative execution runtime for analysis, GP, ETL, scheduled, or batch work. Console submits validation, preview, publish, and run requests to server/SDK APIs and follows the resulting `Job Run` state.
 
+## Response Contract Expectations
+
+Console should treat server/SDK responses as projections over the shared information model, not as local Console-only DTOs.
+
+Validate, preview, publish, and run responses should consistently return:
+
+- stable `workspace_id`, `item_id`, `version_id`, `publication_id`, `job_id`, and `provenance_id` refs when those objects exist
+- package type and package schema version
+- validation status, warnings, errors, missing permissions, unsupported service metadata, and unsupported package binding details
+- dependency and data-binding refs instead of duplicated embedded source records
+- preview refs or samples for synchronous preview paths
+- `job_id` and job status refs for analysis, GP, ETL, scheduled, batch, export, heavy refresh, and asynchronous preview paths
+- route, visibility, embed, service, schedule, rollback, and invocation policy refs for publish responses
+
+Console surfaces should use the same error and empty-state patterns for missing items, missing permissions, unsupported service metadata, and unsupported package bindings across Studio, Catalog, Share, and Operate.
+
 ## Required User Journeys
 
 ### Natural Language To Query Or Analysis
