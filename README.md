@@ -108,6 +108,29 @@ dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Test
 dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj
 ```
 
+## Catalog, Share, And Embed Route Slice
+
+The Blazor shell includes the catalog/share parity route slice for
+`honua-console#34` behind the temporary .NET SDK shim boundary in
+`src/Honua.Console.Contracts`.
+
+- `/catalog` accepts the Portal-compatible query keys `q`, `type`, `tag`,
+  `owner`, `visibility`, `sort`, and `cursor`. `visibility` is mapped to the
+  SDK request field `sharing`; do not add `sharing` to the public URL query.
+- `/catalog/{idOrSlug}` and `/maps/{mapId}` accept anonymous public reads
+  without a token and public-link reads with `?token=<value>`.
+  Authenticated reads continue to expose Studio and Share actions according
+  to item policy; anonymous reads hide those actions.
+- `/maps/new?from=<itemId>` hydrates an unsaved draft map from a supported
+  catalog item.
+- `/share/public` and `/public` list public open-data service, layer, and
+  document items. `/share/public/items/{idOrSlug}` and
+  `/public/items/{idOrSlug}` serve the eligible item detail page.
+- `/embed/maps/{mapId}` uses the shellless embed layout. It accepts
+  Portal-compatible `chrome`, `legend`, `zoom`, and `extent=W,S,E,N`
+  query options, but the bearer must be in `#embedToken=<value>`;
+  query-string `token` or `embedToken` is rejected by the route contract.
+
 The optional native host targets Windows and macOS desktop builds. See [Optional MAUI Blazor Hybrid Host](docs/native/MAUI_BLAZOR_HOST.md) for workload, publish, profile, mTLS, and streaming-proof details.
 
 Until parity is accepted, source behavior remains in:

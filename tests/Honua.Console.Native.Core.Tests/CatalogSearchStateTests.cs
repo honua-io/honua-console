@@ -67,6 +67,38 @@ public sealed class CatalogSearchStateTests
     }
 
     [Fact]
+    public void EmbedRouteOptionsPreservePortalSnippetControls()
+    {
+        var portalDefault = EmbedRouteOptions.FromUri(
+            "https://console.example/embed/maps/storm-response-map?chrome=minimal&legend=on&zoom=on#embedToken=abc-123");
+        var noChrome = EmbedRouteOptions.FromUri(
+            "https://console.example/embed/maps/storm-response-map?chrome=none&legend=off&zoom=off#embedToken=abc-123");
+
+        Assert.True(portalDefault.Chrome);
+        Assert.True(portalDefault.Legend);
+        Assert.True(portalDefault.Zoom);
+        Assert.False(noChrome.Chrome);
+        Assert.False(noChrome.Legend);
+        Assert.False(noChrome.Zoom);
+    }
+
+    [Theory]
+    [InlineData("999,999,1000,1000")]
+    [InlineData("10,0,5,5")]
+    [InlineData("-158.3,21.8,-157.6,21.1")]
+    [InlineData("-181,21,-157,22")]
+    [InlineData("-158,-91,-157,22")]
+    [InlineData("-158.3,21.1,-157.6,21.8,")]
+    [InlineData("NaN,21,-157,22")]
+    public void EmbedRouteOptionsRejectInvalidWgs84Extents(string extent)
+    {
+        var options = EmbedRouteOptions.FromUri(
+            $"https://console.example/embed/maps/storm-response-map?extent={Uri.EscapeDataString(extent)}#embedToken=abc-123");
+
+        Assert.Equal(string.Empty, options.Extent);
+    }
+
+    [Fact]
     public void EmbedRouteOptionsDetectQueryStringBearerRegression()
     {
         var options = EmbedRouteOptions.FromUri(

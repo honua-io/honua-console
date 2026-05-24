@@ -142,6 +142,15 @@ Response-contract notes worth keeping in sync with the registry:
   the Console embed URL must carry the minted bearer in
   `#embedToken=<token>`, not in the query string. Smoke evidence and log
   summaries store only the token hash/redacted fragment.
+- Console route compatibility pins public-link browser reads separately
+  from embed reads: `/catalog/:id?token=<token>` and
+  `/maps/:mapId?token=<token>` use the query token emitted by Portal
+  share links. Tokenless public reads use `/catalog/:id` and
+  `/maps/:mapId`, while `/embed/maps/:mapId#embedToken=<token>` keeps the
+  iframe bearer in the fragment and rejects query-string bearer tokens.
+  Embed controls preserve Portal snippet spellings such as
+  `chrome=none`, `legend=off`, and `zoom=off`; invalid WGS84 extents fall
+  back to the saved map extent.
 
 The `Version` column is the exact string the registry emits into
 evidence. Some contracts intentionally report only the major family

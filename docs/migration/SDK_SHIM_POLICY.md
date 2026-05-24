@@ -110,6 +110,17 @@ The current active shims are bounded to the catalog/viewer/share route parity wo
 | Share access and public-link fields (`ConsoleShareAccess`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
 | Saved-map package and embed options (`ConsoleMapPackage`, `EmbedRouteOptions`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-sdk-js#225 | Console | honua-console#7 |
 
+The catalog shim preserves the Portal URL contract at the route edge:
+`/catalog` accepts `visibility`, not `sharing`. `CatalogListRequest`
+maps that value to the SDK/server request field `sharing`, and
+`ToSdkParameters()` must not emit `visibility`. Embed bearer placement is
+also pinned here until the SDK projections land: `EmbedRouteOptions`
+reads `#embedToken=` from the URL fragment and flags query-string
+`token` or `embedToken` as an unavailable-route regression. Its query
+parser accepts Portal snippet `chrome` profiles (`full`, `minimal`,
+`none`), `legend`/`zoom` `on/off` controls, and only valid,
+non-degenerate WGS84 `extent=W,S,E,N` bounds.
+
 ## Why This Boundary, Not "Whatever Works"
 
 Two alternatives were considered:

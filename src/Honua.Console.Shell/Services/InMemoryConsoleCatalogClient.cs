@@ -391,6 +391,31 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             ],
             usage: [new("app-response-board", "Response Board App", "app", "launches this map in a dashboard panel")]);
 
+        var publicFieldMap = CreateDetail(
+            id: "map-public-field",
+            slug: "public-field-map",
+            type: "map",
+            title: "Public Field Map",
+            summary: "Public saved map package for tokenless viewer-read parity.",
+            owner: "field-team",
+            tags: ["public", "field", "map"],
+            formats: ["honua-webmap/v1"],
+            modifiedDaysAgo: 2,
+            access: new ConsoleShareAccess
+            {
+                Sharing = CatalogSharingTiers.Public,
+                Embeddable = true
+            },
+            role: "viewer",
+            viewerSupport: new ConsoleViewerSupport
+            {
+                CanOpenInViewer = true
+            },
+            capabilities: ["webmap-doc/v1"],
+            bindings: [new("Field observations", "layer", "Public field observations", "ready")],
+            publications: [new("/maps/public-field-map", "public", true, "published")],
+            usage: []);
+
         var dashboard = CreateDetail(
             id: "dash-capital-projects",
             slug: "capital-projects-dashboard",
@@ -469,7 +494,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             publications: [new("/maps/future-response-map", "public", true, "unsupported package")],
             usage: []);
 
-        return [coastalService, utilitiesLayer, stormMap, dashboard, legacyService, futureMap];
+        return [coastalService, utilitiesLayer, stormMap, publicFieldMap, dashboard, legacyService, futureMap];
     }
 
     private static ConsoleContentDetail CreateDetail(

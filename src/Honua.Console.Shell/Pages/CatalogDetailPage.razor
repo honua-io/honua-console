@@ -1,5 +1,6 @@
 @page "/catalog/{IdOrSlug}"
 @inject IConsoleCatalogClient Catalog
+@inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
 
 <section class="console-page">
@@ -198,9 +199,7 @@
     {
         _token = ConsoleUrlQuery.GetValue(Navigation.Uri, "token") ?? string.Empty;
         _tab = NormalizeTab(ConsoleUrlQuery.GetValue(Navigation.Uri, "tab"));
-        var context = string.IsNullOrWhiteSpace(_token)
-            ? CatalogReadContext.Authenticated
-            : CatalogReadContext.AnonymousPublicLink(_token);
+        var context = await ReadContexts.ResolveAsync(_token);
         _result = await Catalog.GetCatalogItemAsync(IdOrSlug, context);
     }
 

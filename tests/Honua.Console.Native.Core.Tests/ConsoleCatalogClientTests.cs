@@ -43,6 +43,52 @@ public sealed class ConsoleCatalogClientTests
     }
 
     [Fact]
+    public async Task NoSessionTokenlessReadsUseAnonymousPublicContext()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+        var resolver = new ConsoleCatalogReadContextResolver(
+            InMemoryConsoleEnvironmentProfileStore.CreateSeeded(),
+            new InMemoryConsoleAccountSessionStore());
+
+        var context = await resolver.ResolveAsync(publicLinkToken: null);
+        var item = await catalog.GetCatalogItemAsync("coastal-flood-service", context);
+        var map = await catalog.GetMapPackageAsync("public-field-map", context);
+
+        Assert.True(context.Anonymous);
+        Assert.Equal(CatalogReadStatus.Allowed, item.Status);
+        Assert.True(item.AnonymousRead);
+        Assert.Equal(CatalogReadStatus.Allowed, map.Status);
+        Assert.True(map.AnonymousRead);
+        Assert.Equal("Public Field Map", map.MapPackage?.Summary.Title);
+        Assert.DoesNotContain(
+            ConsoleCatalogActionPolicy.Resolve(item.Item!.Summary, isAuthenticated: !item.AnonymousRead),
+            action => action.Id is "studio" or "share");
+    }
+
+    [Fact]
+    public async Task ActiveSessionTokenlessReadsUseAuthenticatedContext()
+    {
+        var profiles = InMemoryConsoleEnvironmentProfileStore.CreateSeeded();
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = ConsoleEnvironmentProfileDefaults.DevelopmentProfileId,
+            AccountId = "operator.dev",
+            TenantId = "honua-dev",
+            AccessToken = "dev-session-token"
+        });
+        var resolver = new ConsoleCatalogReadContextResolver(profiles, sessions);
+        var catalog = new InMemoryConsoleCatalogClient();
+
+        var context = await resolver.ResolveAsync(publicLinkToken: null);
+        var orgItem = await catalog.GetCatalogItemAsync("capital-projects-dashboard", context);
+
+        Assert.False(context.Anonymous);
+        Assert.Equal(CatalogReadStatus.Allowed, orgItem.Status);
+        Assert.False(orgItem.AnonymousRead);
+    }
+
+    [Fact]
     public async Task EmbedAuthorizationRequiresFragmentTokenAndRejectsQueryBearer()
     {
         var catalog = new InMemoryConsoleCatalogClient();

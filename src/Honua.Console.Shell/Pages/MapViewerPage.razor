@@ -1,5 +1,6 @@
 @page "/maps/{MapId}"
 @inject IConsoleCatalogClient Catalog
+@inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
 
 <section class="console-page console-viewer-page">
@@ -64,9 +65,7 @@
     protected override async Task OnParametersSetAsync()
     {
         var token = ConsoleUrlQuery.GetValue(Navigation.Uri, "token") ?? string.Empty;
-        var context = string.IsNullOrWhiteSpace(token)
-            ? CatalogReadContext.Authenticated
-            : CatalogReadContext.AnonymousPublicLink(token);
+        var context = await ReadContexts.ResolveAsync(token);
         _result = await Catalog.GetMapPackageAsync(MapId, context);
     }
 

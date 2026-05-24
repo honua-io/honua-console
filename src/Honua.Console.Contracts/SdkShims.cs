@@ -408,12 +408,27 @@ public sealed record EmbedRouteOptions
 
         return new EmbedRouteOptions
         {
-            Chrome = ParseBoolean(query.GetValueOrDefault("chrome"), defaultValue: true),
+            Chrome = ParseChrome(query.GetValueOrDefault("chrome")),
             Legend = ParseBoolean(query.GetValueOrDefault("legend"), defaultValue: true),
             Zoom = ParseBoolean(query.GetValueOrDefault("zoom"), defaultValue: true),
             Extent = NormalizeExtent(query.GetValueOrDefault("extent")),
             EmbedToken = fragment.GetValueOrDefault("embedToken") ?? string.Empty,
             QueryStringCarriedToken = queryToken
+        };
+    }
+
+    private static bool ParseChrome(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "1" or "true" or "yes" or "on" or "minimal" or "full" => true,
+            "0" or "false" or "no" or "off" or "none" => false,
+            _ => true
         };
     }
 
@@ -426,8 +441,8 @@ public sealed record EmbedRouteOptions
 
         return value.Trim().ToLowerInvariant() switch
         {
-            "1" or "true" or "yes" => true,
-            "0" or "false" or "no" => false,
+            "1" or "true" or "yes" or "on" => true,
+            "0" or "false" or "no" or "off" => false,
             _ => defaultValue
         };
     }
@@ -439,18 +454,36 @@ public sealed record EmbedRouteOptions
             return string.Empty;
         }
 
-        var parts = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var parts = value.Split(',', StringSplitOptions.TrimEntries);
         if (parts.Length != 4)
         {
             return string.Empty;
         }
 
-        foreach (var part in parts)
+        var bounds = new double[4];
+        for (var i = 0; i < parts.Length; i++)
         {
-            if (!double.TryParse(part, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+            if (!double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+                || !double.IsFinite(parsed))
             {
                 return string.Empty;
             }
+
+            bounds[i] = parsed;
+        }
+
+        var west = bounds[0];
+        var south = bounds[1];
+        var east = bounds[2];
+        var north = bounds[3];
+        if (west is < -180 or > 180
+            || east is < -180 or > 180
+            || south is < -90 or > 90
+            || north is < -90 or > 90
+            || west >= east
+            || south >= north)
+        {
+            return string.Empty;
         }
 
         return string.Join(",", parts);
