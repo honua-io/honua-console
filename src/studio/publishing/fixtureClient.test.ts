@@ -102,6 +102,24 @@ describe("FixtureStudioPublishingClient", () => {
     expect(client.getGenerationCallCount()).toBe(0);
   });
 
+  it("rejects blank submitted titles before creating published content", async () => {
+    const client = new FixtureStudioPublishingClient();
+
+    let invalid: unknown;
+    try {
+      await client.publishDraft({
+        ...publishInput("draft-map-operations"),
+        title: "   "
+      });
+    } catch (error) {
+      invalid = error;
+    }
+
+    expect(invalid).toBeInstanceOf(StudioPublishingError);
+    expect((invalid as StudioPublishingError).kind).toBe("invalid");
+    expect((invalid as Error).message).toContain("title is required");
+  });
+
   it("appends versions on republish and preserves rollback provenance", async () => {
     const client = new FixtureStudioPublishingClient();
 

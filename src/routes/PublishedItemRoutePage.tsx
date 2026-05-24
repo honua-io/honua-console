@@ -33,15 +33,20 @@ export function PublishedItemRoutePage({ surface }: PublishedItemRoutePageProps)
   const [error, setError] = useState<{ readonly kind: "missing" | "server"; readonly message: string } | null>(null);
 
   useEffect(() => {
+    setItem(null);
+    setError(null);
     if (surface === "missing") return;
     let cancelled = false;
     studioPublishingClient
       .getPublishedItem(itemId)
       .then((published) => {
-        if (!cancelled) setItem(published);
+        if (cancelled) return;
+        setItem(published);
+        setError(null);
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
+        setItem(null);
         setError({
           kind: isStudioPublishingError(reason) && reason.kind === "missing" ? "missing" : "server",
           message: reason instanceof Error ? reason.message : "Published item could not load."

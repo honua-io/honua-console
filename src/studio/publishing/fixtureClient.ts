@@ -56,7 +56,7 @@ export class FixtureStudioPublishingClient implements StudioPublishingClient {
 
   async publishDraft(input: StudioPublishReviewInput): Promise<PublishedContentItem> {
     const draft = await this.getDraft(input.draftId);
-    this.assertCanPublish(draft, input.share);
+    this.assertCanPublish(draft, input);
 
     const itemId = ITEM_IDS[draft.draftId];
     const existing = this.published.get(itemId);
@@ -131,12 +131,12 @@ export class FixtureStudioPublishingClient implements StudioPublishingClient {
     this.clearPersistedPublishedItems();
   }
 
-  private assertCanPublish(draft: StudioPublishDraft, share: ShareEmbedSettings): void {
-    if (!draft.title.trim()) {
+  private assertCanPublish(draft: StudioPublishDraft, input: StudioPublishReviewInput): void {
+    if (!input.title.trim()) {
       throw new StudioPublishingError("invalid", "A title is required before publishing.");
     }
 
-    if (share.visibility === "group" && normalizedGroupIds(share.groupIds).length === 0) {
+    if (input.share.visibility === "group" && normalizedGroupIds(input.share.groupIds).length === 0) {
       throw new StudioPublishingError("invalid", "Choose at least one group before publishing with group visibility.");
     }
 
@@ -145,7 +145,7 @@ export class FixtureStudioPublishingClient implements StudioPublishingClient {
       throw new StudioPublishingError("conflict", blockingWarning.message);
     }
 
-    const requestedRank = VISIBILITY_RANK[share.visibility];
+    const requestedRank = VISIBILITY_RANK[input.share.visibility];
     const narrowDependency = draft.dependencies.find(
       (dependency) => requestedRank > VISIBILITY_RANK[dependency.requiredVisibility]
     );

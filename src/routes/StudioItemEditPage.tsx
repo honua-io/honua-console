@@ -15,11 +15,14 @@ export function StudioItemEditPage(): JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
+    setArtifact(null);
+    setError(null);
     studioPublishingClient
       .reopenPublishedItem(itemId)
       .then((reopened) => {
         if (cancelled) return;
         setArtifact(reopened);
+        setError(null);
         emitStudioPublishTelemetry({
           name: "publish.reopen.completed",
           itemId: reopened.item.itemId,
@@ -28,6 +31,7 @@ export function StudioItemEditPage(): JSX.Element {
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
+        setArtifact(null);
         setError({
           kind: isStudioPublishingError(reason) && reason.kind === "missing" ? "missing" : "server",
           message: reason instanceof Error ? reason.message : "Published item could not reopen."

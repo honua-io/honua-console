@@ -13,13 +13,19 @@ export function StudioPreviewPage(): JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
+    setDraft(null);
+    setError(null);
     studioPublishingClient
       .getDraft(draftId)
       .then((item) => {
-        if (!cancelled) setDraft(item);
+        if (cancelled) return;
+        setDraft(item);
+        setError(null);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Preview could not load.");
+        if (cancelled) return;
+        setDraft(null);
+        setError(reason instanceof Error ? reason.message : "Preview could not load.");
       });
     return () => {
       cancelled = true;

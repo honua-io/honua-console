@@ -50,7 +50,7 @@ All targets publish through the same review route:
 - `embedEnabled`
 - `embedPolicy`: `disabled`, `same-origin`, or `public`
 
-Private publishes normalize to private visibility, no groups, no public link, and disabled embeds. Public and public-link embeds normalize to `public`; other embeddable publishes use `same-origin`.
+Private publishes normalize to private visibility, no groups, no public link, and disabled embeds. Non-group publishes clear `groupIds`; group publishes trim empty group entries. When embeds are enabled, public and public-link publishes normalize `embedPolicy` to `public`; other embeddable publishes use `same-origin`.
 
 Group publishes require at least one non-empty `groupIds` entry. The UI validates this before submit, and the fixture client enforces the same rule for non-UI callers.
 
@@ -64,6 +64,8 @@ Successful publish returns a `PublishedContentItem` with:
 - provenance refs copied from the Studio draft, including prompt, spec, plan, apply job, package artifact refs, source item dependencies, model runs, actor, and publish timestamp
 - normalized share/embed settings
 - routable Console links
+
+`targetAudience` is part of the review input for the fixture milestone. It is not returned on `PublishedContentItem`; production persistence should either promote it into server-owned item metadata or keep it as publish-review context without changing the route contract.
 
 The canonical route is always the Catalog route:
 
@@ -104,7 +106,7 @@ Console uses the shared publish problem taxonomy for review, publish, route, and
 - `conflict`
 - `server`
 
-The fixture currently exercises missing published items, invalid group share requests, unsupported preview route mismatches, and dependency-closure conflicts. A publish is blocked when a blocking warning exists or requested visibility would widen a dependency beyond its required visibility. Visibility is ordered narrowest to widest as private, workspace, group, public-link, public. These errors render through the same Console empty-state or inline warning surfaces used by the publish route.
+The fixture currently exercises missing published items, invalid group share requests, unsupported preview route mismatches, and dependency-closure conflicts. A publish is blocked when a blocking warning exists or requested visibility would widen a dependency beyond its required visibility. Visibility is ordered narrowest to widest as private, workspace, group, public-link, public, so group sharing is treated as wider than workspace dependencies. These errors render through the same Console empty-state or inline warning surfaces used by the publish route.
 
 ## Telemetry And Smoke Evidence
 
@@ -116,7 +118,9 @@ Studio publish emits browser events on `honua:studio-publish`:
 - `publish.failed`
 - `publish.reopen.completed`
 
-Smoke coverage in `tests/smoke/studio-publishing.spec.ts` verifies every supported target from Studio entry to publish review, Catalog canonical route, target preview route, Share route, Embed route, and Edit in Studio reopen without generation. It also covers group visibility validation and unsupported preview route mismatches.
+Review, submit, success, and failure events carry the draft and target context when available; success also carries the published item id. Reopen completion carries the published item id and target, and the edit route verifies the package was loaded without a generation call.
+
+Smoke coverage in `tests/smoke/studio-publishing.spec.ts` verifies every supported target from Studio entry to publish review, Catalog canonical route, target preview route, Share route, Embed route, and Edit in Studio reopen without generation. It also covers group visibility validation, dependency-closure conflict rendering, and unsupported preview route mismatches.
 
 ## Deferred Server And SDK Follow-ons
 
