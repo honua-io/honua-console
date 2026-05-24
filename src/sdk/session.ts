@@ -66,14 +66,41 @@ interface AdminAuthSessionResponse {
 interface EffectivePermissionsResponse {
   readonly userId?: string | null;
   readonly roles?: ReadonlyArray<string>;
-  readonly permissions?: ReadonlyArray<{ name?: string; key?: string; permission?: string }>;
+  readonly permissions?: ReadonlyArray<PermissionGrantResponse>;
   readonly resolvedAt?: string | null;
 }
 
-interface LicenseEntitlementsResponse {
-  readonly edition?: string;
-  readonly features?: ReadonlyArray<{ name?: string; key?: string; enabled?: boolean }>;
+interface PermissionGrantResponse {
+  readonly name?: string;
+  readonly key?: string;
+  readonly permission?: string;
+  readonly service?: string;
+  readonly layer?: string;
+  readonly operation?: string;
 }
+
+interface LicenseFeatureEntitlementsResponse {
+  readonly edition?: string;
+  readonly features?: ReadonlyArray<{
+    readonly name?: string;
+    readonly key?: string;
+    readonly enabled?: boolean;
+    readonly isEnabled?: boolean;
+    readonly isActive?: boolean;
+  }>;
+}
+
+interface LicenseEntitlementResponse {
+  readonly name?: string;
+  readonly key?: string;
+  readonly enabled?: boolean;
+  readonly isEnabled?: boolean;
+  readonly isActive?: boolean;
+}
+
+type LicenseEntitlementsResponse =
+  | LicenseFeatureEntitlementsResponse
+  | ReadonlyArray<LicenseEntitlementResponse>;
 
 interface ApiEnvelope<T> {
   readonly success?: boolean;
@@ -117,6 +144,46 @@ function pickFirstClaim(
   return undefined;
 }
 
+const USER_ID_CLAIMS = [
+  "sub",
+  "uid",
+  "user_id",
+  "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
+  "http://schemas.microsoft.com/ws/2008/06/identity/claims/nameidentifier",
+];
+
+const CONSOLE_WILDCARD_READ_CAPABILITIES: ReadonlyArray<CapabilityName> = [
+  "catalog:read" as CapabilityName,
+  "map-packages:read" as CapabilityName,
+  "sharing:read" as CapabilityName,
+];
+
+const CONSOLE_WILDCARD_ADMIN_CAPABILITIES: ReadonlyArray<CapabilityName> = [
+  ...CONSOLE_WILDCARD_READ_CAPABILITIES,
+  "studio:preview" as CapabilityName,
+  "operate:provenance:read" as CapabilityName,
+];
+
+function normalizedGrantPart(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function addPermissionGrantCapability(out: Set<CapabilityName>, grant: PermissionGrantResponse): void {
+  const service = normalizedGrantPart(grant.service);
+  const layer = normalizedGrantPart(grant.layer);
+  const operation = normalizedGrantPart(grant.operation);
+  if (!service || !layer || !operation) return;
+
+  out.add(`permission:${service}:${layer}:${operation}` as CapabilityName);
+  if (service === "*" && layer === "*" && (operation === "read" || operation === "*")) {
+    for (const cap of CONSOLE_WILDCARD_READ_CAPABILITIES) out.add(cap);
+  }
+  if (service === "*" && layer === "*" && operation === "*") {
+    for (const cap of CONSOLE_WILDCARD_ADMIN_CAPABILITIES) out.add(cap);
+  }
+}
+
 function permissionsToCapabilities(
   permissions: EffectivePermissionsResponse["permissions"],
 ): Set<CapabilityName> {
@@ -125,19 +192,39 @@ function permissionsToCapabilities(
   for (const grant of permissions) {
     const value = grant.name ?? grant.key ?? grant.permission;
     if (value) out.add(value as CapabilityName);
+    addPermissionGrantCapability(out, grant);
   }
   return out;
 }
 
+function isFeatureEntitlementsResponse(
+  payload: LicenseEntitlementsResponse,
+): payload is LicenseFeatureEntitlementsResponse {
+  return !Array.isArray(payload);
+}
+
 function featuresToEntitlements(
-  features: LicenseEntitlementsResponse["features"],
+  payload: LicenseEntitlementsResponse | undefined,
 ): Set<EntitlementName> {
   const out = new Set<EntitlementName>();
-  if (!features) return out;
-  for (const feature of features) {
-    const value = feature.name ?? feature.key;
-    if (value && feature.enabled !== false) out.add(value as EntitlementName);
+  if (!payload) return out;
+  if (Array.isArray(payload)) {
+    for (const entitlement of payload) {
+      const value = entitlement.key ?? entitlement.name;
+      if (value && entitlement.isActive !== false && entitlement.isEnabled !== false && entitlement.enabled !== false) {
+        out.add(value as EntitlementName);
+      }
+    }
+    return out;
   }
+  if (!isFeatureEntitlementsResponse(payload)) return out;
+  for (const feature of payload.features ?? []) {
+    const value = feature.key ?? feature.name;
+    if (value && feature.isEnabled !== false && feature.isActive !== false && feature.enabled !== false) {
+      out.add(value as EntitlementName);
+    }
+  }
+  if (payload.edition) out.add(`edition:${payload.edition}` as EntitlementName);
   return out;
 }
 
@@ -173,14 +260,17 @@ export class SessionClient {
       (headers as Record<string, string>).authorization = `Bearer ${this.accessToken}`;
     }
 
+    const fetchEndpoint = (endpoint: string): Promise<Response | undefined> =>
+      this.fetchImpl(joinUrl(this.baseUrl, endpoint), {
+        headers,
+        credentials: "include",
+      }).catch(() => undefined);
+
     const sessionPromise = this.fetchImpl(joinUrl(this.baseUrl, SESSION_ENDPOINT), {
       headers,
       credentials: "include",
     });
-    const entitlementsPromise = this.fetchImpl(joinUrl(this.baseUrl, ENTITLEMENTS_ENDPOINT), {
-      headers,
-      credentials: "include",
-    });
+    const entitlementsPromise = fetchEndpoint(ENTITLEMENTS_ENDPOINT);
 
     let sessionResponse: Response;
     try {
@@ -214,21 +304,15 @@ export class SessionClient {
       return { status: { kind: "anonymous" }, fellBackEndpoints: fellBack };
     }
 
-    const userId =
-      sessionPayload.providerKey ??
-      pickFirstClaim(sessionPayload.claims, ["sub", "uid", "user_id"]) ??
-      undefined;
+    const userId = pickFirstClaim(sessionPayload.claims, USER_ID_CLAIMS) ?? undefined;
 
     const permissionsPromise = userId
-      ? this.fetchImpl(joinUrl(this.baseUrl, PERMISSIONS_ENDPOINT(userId)), {
-          headers,
-          credentials: "include",
-        })
+      ? fetchEndpoint(PERMISSIONS_ENDPOINT(userId))
       : Promise.resolve(undefined);
 
     const [entitlementsResponse, permissionsResponse] = await Promise.all([
-      entitlementsPromise.catch(() => undefined),
-      permissionsPromise.catch(() => undefined),
+      entitlementsPromise,
+      permissionsPromise,
     ]);
 
     const capabilities = new Set<CapabilityName>();
@@ -256,8 +340,7 @@ export class SessionClient {
             entitlementsResponse,
           ),
         );
-        for (const ent of featuresToEntitlements(payload?.features)) entitlements.add(ent);
-        if (payload?.edition) entitlements.add(`edition:${payload.edition}` as EntitlementName);
+        for (const ent of featuresToEntitlements(payload)) entitlements.add(ent);
       }
     }
 

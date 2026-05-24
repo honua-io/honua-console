@@ -1,4 +1,5 @@
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -16,6 +17,7 @@ import {
   type SessionStatus,
   createEmptyBundle,
 } from "../sdk/session";
+import { resolveHonuaBaseUrl } from "../config/honua";
 import { emitConsoleSmoke } from "../telemetry/smoke";
 
 interface SessionContextValue {
@@ -27,19 +29,42 @@ interface SessionContextValue {
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
 export interface SessionProviderProps {
+  readonly baseUrl?: string;
   readonly client?: SessionClient;
   readonly children: ReactNode;
 }
 
-export function SessionProvider({ client, children }: SessionProviderProps): JSX.Element {
-  const clientRef = useRef<SessionClient>(client ?? new SessionClient());
+export function SessionProvider({ baseUrl, client, children }: SessionProviderProps): JSX.Element {
+  const sessionClient = useMemo<SessionClient>(
+    () => client ?? new SessionClient({ baseUrl: resolveHonuaBaseUrl(baseUrl) }),
+    [baseUrl, client],
+  );
   const [status, setStatus] = useState<SessionStatus>({ kind: "loading" });
+  const refreshSeq = useRef(0);
+  const mounted = useRef(true);
 
-  const refresh = useMemo(
-    () => async () => {
+  useEffect(
+    () => () => {
+      mounted.current = false;
+      refreshSeq.current += 1;
+    },
+    [],
+  );
+
+  const refresh = useCallback(
+    async () => {
+      const seq = refreshSeq.current + 1;
+      refreshSeq.current = seq;
       setStatus({ kind: "loading" });
       const started = performance.now();
-      const result = await clientRef.current.bootstrap();
+      const result = await sessionClient.bootstrap().catch((error: unknown) => ({
+        status: {
+          kind: "error" as const,
+          message: error instanceof Error ? error.message : "session bootstrap failed",
+        },
+        fellBackEndpoints: [],
+      }));
+      if (!mounted.current || refreshSeq.current !== seq) return;
       setStatus(result.status);
       emitConsoleSmoke({
         surface: "session.bootstrap",
@@ -58,7 +83,7 @@ export function SessionProvider({ client, children }: SessionProviderProps): JSX
           : {}),
       });
     },
-    [],
+    [sessionClient],
   );
 
   useEffect(() => {

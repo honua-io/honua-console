@@ -3,7 +3,7 @@
  *
  * Each SDK-backed loader emits one event on first non-cache resolution:
  *
- *   { surface, sdk_subpath, status, durationMs, detail? }
+ *   { surface, sdkSubpath, status, durationMs, detail? }
  *
  * Events ride a `CustomEvent` on `window` (`honua:console-smoke`) so existing
  * Portal-style smoke listeners can reuse the same shape until a shared smoke

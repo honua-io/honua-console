@@ -5,6 +5,7 @@ import {
   HonuaControlPlaneClient,
   createHonuaControlPlane,
 } from "../sdk/control-plane";
+import { resolveHonuaBaseUrl } from "../config/honua";
 
 const ControlPlaneContext = createContext<HonuaControlPlaneClient | undefined>(undefined);
 
@@ -14,14 +15,6 @@ export interface ControlPlaneProviderProps {
   readonly children: ReactNode;
 }
 
-function resolveBaseUrl(explicit: string | undefined): string {
-  if (explicit) return explicit;
-  const fromEnv = (import.meta.env as Record<string, string | undefined>).VITE_HONUA_BASE_URL;
-  if (fromEnv) return fromEnv;
-  if (typeof window !== "undefined") return window.location.origin;
-  return "http://localhost";
-}
-
 export function ControlPlaneProvider({
   baseUrl,
   client,
@@ -29,7 +22,7 @@ export function ControlPlaneProvider({
 }: ControlPlaneProviderProps): JSX.Element {
   const value = useMemo<HonuaControlPlaneClient>(() => {
     if (client) return client;
-    const honua = new HonuaClient({ baseUrl: resolveBaseUrl(baseUrl) });
+    const honua = new HonuaClient({ baseUrl: resolveHonuaBaseUrl(baseUrl) });
     return createHonuaControlPlane({ client: honua });
   }, [baseUrl, client]);
   return <ControlPlaneContext.Provider value={value}>{children}</ControlPlaneContext.Provider>;

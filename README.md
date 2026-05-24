@@ -30,16 +30,39 @@ The Console migration spans the in-repo child-ticket backlog and external owner 
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The long-term runtime remains the Blazor Web / shared Razor architecture described in ADR-0001; the current React/TypeScript/Vite scaffold is the transitional shell used to wire already-open Console port branches against shared SDK contracts.
 
 [honua-console#7](https://github.com/honua-io/honua-console/issues/7) wires this shell to shared SDK contracts:
 
 - `src/sdk/` is the only place allowed to import from `@honua/sdk-js` (enforced by `eslint.config.js`).
-- `src/session/` carries the `SessionClient` facade, `SessionProvider`, `useCapability`, `useEntitlement`, and `<RequireCapability />` guard. Capability/entitlement gates derive from the server bundle; there is no Console-local role matrix.
+- `src/session/` carries the `SessionClient` facade, `SessionProvider`, `useCapability`, `useEntitlement`, and `<RequireCapability />` guard. Capability/entitlement gates derive from the server bundle and configured Honua server origin; there is no Console-local role matrix.
 - `src/surfaces/LoadSurface.ts` and `src/surfaces/ResourceState.tsx` are the shared loader contract and empty/error surface used by Catalog, Studio, Operate, and Share.
 - `src/telemetry/smoke.ts` emits one `{ surface, sdkSubpath, status, durationMs }` event per loader resolution; Portal-style listeners on `window` keep dashboard parity.
 
 Gaps from upstream contracts (still in flight) are tracked in [docs/server-sdk-gap-log.md](docs/server-sdk-gap-log.md). Console surfaces those gaps as `<ResourceState kind="pending-binding" />` instead of inventing local DTOs.
+
+## Response Contract
+
+Every SDK-backed loader returns `LoadSurface<T>`:
+
+- `ok` carries the loaded SDK value.
+- `missing` represents 404 or deleted/not-found items.
+- `unauthorized` represents 401/403 or a failed capability/entitlement gate.
+- `unsupported` represents unsupported service metadata, package bindings, or unexpected SDK errors; `reason` and optional `code` are preserved for UI and smoke telemetry.
+- `pending-binding` lists upstream contracts that are not published yet, such as `honua-sdk-js#225` or `honua-server#1162`.
+
+`HonuaControlPlaneResult<T>` adapts into this union through `src/surfaces/adapt.ts`: supported results become `ok`, 404 becomes `missing`, 401/403 thrown SDK errors become `unauthorized`, and unsupported/unknown failures become `unsupported`.
+
+## Current Wiring Matrix
+
+| Area | Route or hook | Gate | SDK surface | Current behavior |
+| --- | --- | --- | --- | --- |
+| Catalog | `/catalog/items`, `useContentItemList` | `catalog:read` | `src/sdk/content.ts` | `pending-binding` until metadata v2 content projections publish in `honua-sdk-js#225`. |
+| Catalog / Viewer | `/catalog/packages`, `usePackageList`, `usePackageDetail` | `map-packages:read` | `@honua/sdk-js/control-plane` via `src/sdk/control-plane.ts` | Lists and reads map packages through `HonuaMapPackagesClient`. |
+| Studio | `/studio/preview`, `useGeneratedAppPreview` | `studio:preview` | `@honua/sdk-js/generated-app` | Renders `pending-binding` until the Studio app-builder passes manifest input and load options, then returns the generated-app preview result. |
+| Operate | `/operate/provenance`, `useProvenance` | `operate:provenance:read` | `@honua/sdk-js/operator/workspace` | Uses the SDK `ProvenanceRecord` type; page stays `pending-binding` until the server provenance loader is supplied. |
+| Share | `/share`, `useShareMutate` | `sharing:read` + `sharing` entitlement | `@honua/sdk-js/control-plane` | Sharing mutation is wired through `HonuaSharingClient`; list/embed views wait on saved-map projections. |
+| Collaboration | `useCollaborationSession` | caller-owned | `@honua/sdk-js/collaboration` | Hook joins a saved-map collaboration session when options and join request are provided; no route is mounted yet. |
 
 ## Local Development
 
@@ -52,7 +75,7 @@ npm test            # vitest
 npm run build       # tsc + vite build
 ```
 
-`VITE_HONUA_BASE_URL` selects the Honua server origin; if unset, the current page origin is used.
+`VITE_HONUA_BASE_URL` selects the Honua server origin for both SDK/control-plane calls and session bootstrap; if unset, the current page origin is used.
 
 Until parity is accepted, source behavior remains in:
 
