@@ -18,6 +18,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [GitOps Metadata Publishing Visualization Design](docs/architecture/gitops-metadata-publishing-visualization-design.md)
 - [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
 - [Operate Observability Information Model](docs/architecture/operate-observability-information-model.md)
+- [Honua Console Design Handoff](docs/design-handoff/README.md)
 
 ## Current Status
 
