@@ -50,7 +50,7 @@ All targets publish through the same review route:
 - `embedEnabled`
 - `embedPolicy`: `disabled`, `same-origin`, or `public`
 
-Private publishes normalize to private visibility, no groups, no public link, and disabled embeds. Non-group publishes clear `groupIds`; group publishes trim empty group entries. When embeds are enabled, public and public-link publishes normalize `embedPolicy` to `public`; other embeddable publishes use `same-origin`.
+Private publishes normalize to private visibility, no groups, no public link, and disabled embeds. Non-group publishes clear `groupIds`; group publishes trim empty group entries. `publicLinkEnabled` is derived from the selected visibility and is true only for `public-link`. When embeds are enabled, public and public-link publishes normalize `embedPolicy` to `public`; other embeddable publishes use `same-origin`.
 
 Group publishes require at least one non-empty `groupIds` entry. The UI validates this before submit, and the fixture client enforces the same rule for non-UI callers.
 

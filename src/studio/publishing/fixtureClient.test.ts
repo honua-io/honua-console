@@ -185,6 +185,29 @@ describe("FixtureStudioPublishingClient", () => {
     expect((invalid as Error).message).toContain("Choose at least one group");
   });
 
+  it("derives public-link state strictly from the selected visibility", async () => {
+    const client = new FixtureStudioPublishingClient();
+
+    const item = await client.publishDraft({
+      ...publishInput("draft-map-operations"),
+      share: {
+        visibility: "workspace",
+        groupIds: ["group-emergency-ops"],
+        publicLinkEnabled: true,
+        embedEnabled: true,
+        embedPolicy: "public"
+      }
+    });
+
+    expect(item.share).toMatchObject({
+      visibility: "workspace",
+      groupIds: [],
+      publicLinkEnabled: false,
+      embedEnabled: true,
+      embedPolicy: "same-origin"
+    });
+  });
+
   it("treats group sharing as wider than workspace dependencies", async () => {
     const client = new FixtureStudioPublishingClient();
 

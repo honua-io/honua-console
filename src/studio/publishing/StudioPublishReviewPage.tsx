@@ -113,6 +113,7 @@ export function StudioPublishReviewPage(): JSX.Element {
     event.preventDefault();
     setSubmitting(true);
     setSubmitError(null);
+    setResult(null);
 
     if (currentShareSettings.visibility === "group" && currentShareSettings.groupIds.length === 0) {
       setSubmitError("Choose at least one group before publishing with group visibility.");

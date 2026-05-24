@@ -210,7 +210,7 @@ function normalizeShareSettings(share: ShareEmbedSettings): ShareEmbedSettings {
   return {
     visibility: share.visibility,
     groupIds: share.visibility === "group" ? normalizedGroupIds(share.groupIds) : [],
-    publicLinkEnabled: share.visibility === "public-link" || share.publicLinkEnabled,
+    publicLinkEnabled: share.visibility === "public-link",
     embedEnabled: share.embedEnabled,
     embedPolicy: share.embedEnabled ? (share.visibility === "public" || share.visibility === "public-link" ? "public" : "same-origin") : "disabled"
   };
