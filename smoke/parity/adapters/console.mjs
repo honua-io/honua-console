@@ -10,6 +10,8 @@
 // logs and is not written to localStorage. The smoke mirrors that placement
 // so a regression to a query-string bearer is caught before it ships.
 
+import { createHash } from "node:crypto";
+
 export const CONSOLE_ROUTES = Object.freeze({
   catalogItem: (id) => `/catalog/${id}`,
   viewerNewFrom: (sourceId) => `/maps/new?from=${sourceId}`,
@@ -30,6 +32,27 @@ export function buildConsoleUrls({ originUrl, items }) {
     generatedApp: `${originUrl}${CONSOLE_ROUTES.generatedAppDetail(items.generatedAppId)}`,
     share: `${originUrl}${CONSOLE_ROUTES.share(items.generatedAppId)}`,
     embed: `${originUrl}${CONSOLE_ROUTES.embed(items.generatedAppId, items.embedToken)}`,
+  };
+}
+
+export function redactEmbedToken(token) {
+  if (!token) throw new Error("redactEmbedToken requires a token");
+  const digest = createHash("sha256").update(token).digest("hex");
+  return `sha256:${digest}`;
+}
+
+export function redactEmbedTokenFromUrl(embedUrl) {
+  const parsed = new URL(embedUrl);
+  if (!parsed.hash.startsWith("#embedToken=")) return embedUrl;
+  const token = decodeURIComponent(parsed.hash.slice("#embedToken=".length));
+  parsed.hash = `#embedToken=${redactEmbedToken(token)}`;
+  return parsed.toString();
+}
+
+export function redactConsoleUrls(urls) {
+  return {
+    ...urls,
+    embed: redactEmbedTokenFromUrl(urls.embed),
   };
 }
 
@@ -55,12 +78,12 @@ export function assertEmbedTokenInFragment(embedUrl) {
   const parsed = new URL(embedUrl);
   if (parsed.searchParams.has("token") || parsed.searchParams.has("embedToken")) {
     throw new Error(
-      `Embed URL ${embedUrl} carries the token in the query string; embed-token/v1 requires the bearer in the URL fragment.`,
+      "Embed URL carries the token in the query string; embed-token/v1 requires the bearer in the URL fragment.",
     );
   }
   if (!parsed.hash || !parsed.hash.startsWith("#embedToken=")) {
     throw new Error(
-      `Embed URL ${embedUrl} is missing the #embedToken=… fragment required by embed-token/v1.`,
+      "Embed URL is missing the #embedToken=… fragment required by embed-token/v1.",
     );
   }
 }

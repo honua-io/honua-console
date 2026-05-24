@@ -20,7 +20,12 @@ import {
   projectGeneratedAppRecord,
   summarizeContentItem,
 } from "../adapters/sdk.mjs";
-import { CONSOLE_ROUTES } from "../adapters/console.mjs";
+import {
+  assertEmbedTokenInFragment,
+  CONSOLE_ROUTES,
+  redactEmbedToken,
+  redactEmbedTokenFromUrl,
+} from "../adapters/console.mjs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -488,6 +493,28 @@ describe("embed URL placement", () => {
     const parsed = new URL(url);
     assert.equal(decodeURIComponent(parsed.hash.replace("#embedToken=", "")), "tok with space=&");
   });
+
+  test("evidence redaction replaces the bearer with a stable hash", () => {
+    const url = `https://console.smoke.example${CONSOLE_ROUTES.embed("app-1", "tok-1")}`;
+    const redacted = redactEmbedTokenFromUrl(url);
+    assert.equal(redacted.includes("tok-1"), false);
+    const parsed = new URL(redacted);
+    const fragment = decodeURIComponent(parsed.hash.replace("#embedToken=", ""));
+    assert.equal(fragment, redactEmbedToken("tok-1"));
+    assert.match(fragment, /^sha256:[a-f0-9]{64}$/);
+  });
+
+  test("query-string token failures do not echo the bearer", () => {
+    const raw = "tok-secret-value";
+    assert.throws(
+      () => assertEmbedTokenInFragment(`https://console.smoke.example/embed/items/app-1?token=${raw}`),
+      (error) => {
+        assert.match(error.message, /query string/);
+        assert.equal(error.message.includes(raw), false);
+        return true;
+      },
+    );
+  });
 });
 
 describe("share-access response shape", () => {
@@ -512,6 +539,21 @@ describe("share-access response shape", () => {
     });
     assert.equal(result.kind, "ok");
     assert.deepEqual(result.access.groupIds, ["grp-1", "grp-2"]);
+  });
+
+  test("public-link tier carries a stable publicLinkToken field", async () => {
+    const handoff = await loadPublishHandoff({ repoRoot: REPO_ROOT });
+    const server = createServerAdapter({ originUrl: "https://console.smoke.example" });
+    const { item } = server.publishService(handoff);
+    const first = server.patchAccess({ itemId: item.id, tier: "public-link", embeddable: true });
+    assert.equal(first.kind, "ok");
+    assert.deepEqual(Object.keys(first.access).sort(), ["embeddable", "publicLinkToken", "sharing"]);
+    assert.equal(first.access.sharing, "public-link");
+    assert.match(first.access.publicLinkToken, /^plink-[0-9A-HJKMNP-TV-Z]{26}$/);
+
+    const second = server.patchAccess({ itemId: item.id, tier: "public-link", embeddable: false });
+    assert.equal(second.kind, "ok");
+    assert.equal(second.access.publicLinkToken, first.access.publicLinkToken);
   });
 
   test("rejects an invalid sharing tier with kind=invalid-tier", async () => {

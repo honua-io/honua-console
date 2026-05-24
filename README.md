@@ -61,9 +61,10 @@ npm run smoke:parity:test
 
 Local and loopback runs (`127.0.0.1`, `localhost`, `[::1]`, or
 `0.0.0.0`) read `dist/version.json` when present and otherwise use the
-committed fixture. Deployed-origin runs verify `<origin>/version.json`
-and fail the `devops/build-artifact` step if the artifact metadata is
-missing or invalid. Evidence records `buildArtifact.source` as
+committed fixture. Deployed-origin runs normalize `--origin` to its URL
+origin, verify `<origin>/version.json`, and fail the
+`devops/build-artifact` step if the artifact metadata is missing or
+invalid. Evidence records `buildArtifact.source` as
 `"origin"`, `"dist"`, or `"fixture"` so release promotion can distinguish
 a deployed artifact check from a local harness run.
 

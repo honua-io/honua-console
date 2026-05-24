@@ -31,7 +31,9 @@ Runner options:
 - `--origin <url>` (or `-o <url>`) — origin to verify. Non-loopback
   origins must serve `<origin>/version.json`; loopback origins
   (`127.0.0.1`, `localhost`, `[::1]`, or `0.0.0.0`) use the local/offline
-  artifact path.
+  artifact path. The runner normalizes this value with `new URL(url).origin`,
+  so a trailing slash, path, query, or fragment is stripped before fetching
+  `version.json` or assembling evidence URLs.
 - `--output <path>` — write evidence somewhere other than
   `smoke-evidence/console-parity.json`.
 - `--quiet` — write evidence without printing the text summary.
@@ -42,13 +44,16 @@ Exit codes:
 - `0` — scenario completed (`result: ok`).
 - `1` — one step failed (`result: failed`); see the triage line on stdout
   and the JSON evidence file written under `smoke-evidence/` for details.
-- `2` — runner setup error (e.g., bad CLI arguments).
+- `2` — runner setup error (e.g., bad CLI arguments or an invalid
+  `--origin` URL).
 
 For deployed origins, the runner fetches and validates
 `<origin>/version.json` and fails the `devops/build-artifact` step if the
-origin is unreachable or serves invalid metadata. Local/offline runs
-(default `127.0.0.1`, `localhost`, `[::1]`, `0.0.0.0`, or no origin) read
-`dist/version.json` produced by
+origin is unreachable or serves invalid metadata. The evidence stores the
+normalized origin, and every Console URL in `urls` is assembled from that
+same normalized origin so trailing-slash inputs cannot produce doubled
+route slashes. Local/offline runs (default `127.0.0.1`, `localhost`,
+`[::1]`, `0.0.0.0`, or no origin) read `dist/version.json` produced by
 [`honua-console#8`](https://github.com/honua-io/honua-console/issues/8).
 When that local file is absent — for example, on trunk before the
 scaffolding lands, or on a checkout that has not run `npm run build` —
@@ -123,12 +128,14 @@ Response-contract notes worth keeping in sync with the registry:
   `shortCommit`, `ref`, `builtAt`, `legacy.portal`, `legacy.admin`, and
   an `areas[]` list containing `studio`, `catalog`, `share`, and
   `operate`.
-- `share-access/v1` patch responses contain `sharing`, `embeddable`, and
-  `groupIds` for group-tier shares. They do not echo `openData`; that
-  field is owned by `content-item.access`.
+- `share-access/v1` patch responses contain `sharing`, `embeddable`,
+  `groupIds` for group-tier shares, and `publicLinkToken` for
+  public-link shares. They do not echo `openData`; that field is owned by
+  `content-item.access`.
 - `embed-token/v1` owns the dependency closure descriptor and the Console
   embed URL must carry the minted bearer in `#embedToken=<token>`, not in
-  the query string.
+  the query string. Smoke evidence and log summaries store only the
+  token hash/redacted fragment.
 
 The `Version` column tracks the **major version family** the registry
 emits into evidence (e.g., `v1`). The "Wire shapes" section below cites
@@ -192,8 +199,10 @@ real HTTP transport cannot silently accept a drifted payload:
   `operations-dashboard.v1` profile layout whose widget kinds belong to
   the `HonuaGeneratedAppWidgetKind` union.
 - **`share-access/v1`** — `patchAccess` returns
-  `{ sharing, embeddable, groupIds? }` only; `openData` lives on
-  `content-item.access` and is not echoed in the share-access response.
+  `{ sharing, embeddable, groupIds?, publicLinkToken? }` only; `groupIds`
+  is emitted for `sharing="group"` and `publicLinkToken` is emitted for
+  `sharing="public-link"`. `openData` lives on `content-item.access` and
+  is not echoed in the share-access response.
   The patch validates `sharing` against the canonical
   `private|org|group|public-link|public` enum (returns `kind:"invalid-tier"`
   on a non-enum string), preserves `content-item.access.openData` (the
@@ -212,7 +221,10 @@ real HTTP transport cannot silently accept a drifted payload:
 - **`embed-token/v1`** — The Console embed URL carries the bearer as
   `#embedToken=<token>` in the URL fragment so it never reaches access
   logs. A query-string token is rejected by
-  `assertEmbedTokenInFragment` and attributed to the `console` layer.
+  `assertEmbedTokenInFragment` and attributed to the `console` layer. The
+  runner keeps the raw token only in memory while assembling the route;
+  JSON evidence and text summaries write `embedTokenHash` plus a redacted
+  embed URL fragment.
 - **`webmap-doc/v1`** — `saveMap` produces a document with
   `version: "honua-webmap/v1"` plus `operationalLayers[]`, `baseMap`,
   and `initialState.viewpoint.extent`.
@@ -231,7 +243,8 @@ Top-level fields:
 
 - `scenario` — Stable scenario id (`console-parity-publish-to-embed`).
 - `ranAt` — ISO-8601 timestamp.
-- `originUrl` — The origin the smoke ran against.
+- `originUrl` — The normalized origin the smoke ran against
+  (`new URL(<origin>).origin`).
 - `repoRoot` — Local repository root used by the runner. The committed
   sample sanitizes this path.
 - `buildArtifact` — Deployed `<origin>/version.json`, local
@@ -242,9 +255,11 @@ Top-level fields:
   owning layer and source repo.
 - `items` — Stable ids generated during the run
   (`serviceItemId`, `savedMapId`, `generatedAppId`, `shareTier`,
-  `embedToken`).
+  `embedTokenHash`). The raw embed bearer is never written to evidence or
+  log output.
 - `urls` — Same-origin URLs for catalog, viewer hydration, viewer, Studio
-  draft, generated app detail, share, and embed surfaces.
+  draft, generated app detail, share, and embed surfaces, assembled from
+  the normalized origin.
 - `steps[]` — Per-step status (`ok` / `failed` / `skipped`),
   `owningLayer`, `owningLayerLabel`, `description`, `durationMs`, the
   step's declared evidence payload, and `error` (`null` unless that step

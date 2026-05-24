@@ -79,7 +79,7 @@
     "savedMapId": "01KS923C02F5XEMWXKBW2AB1SA",
     "generatedAppId": "01KS923C0340N28KA6V8ESGC1E",
     "shareTier": "org",
-    "embedToken": "embed-01KS923C0340N28KA6V8ESGC1E-pilot-5"
+    "embedTokenHash": "sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e"
   },
   "urls": {
     "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
@@ -88,7 +88,7 @@
     "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
     "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
     "share": "http://127.0.0.1:4174/share/items/01KS923C0340N28KA6V8ESGC1E",
-    "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=embed-01KS923C0340N28KA6V8ESGC1E-pilot-5"
+    "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e"
   },
   "steps": [
     {
@@ -313,7 +313,7 @@
       "durationMs": 0,
       "description": "Server mints a same-origin embed-token/v1 descriptor for the generated app.",
       "evidence": {
-        "token": "embed-01KS923C0340N28KA6V8ESGC1E-pilot-5",
+        "tokenHash": "sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e",
         "audience": "pilot",
         "closureSize": 1,
         "expiresAt": "2026-05-24T00:02:27.170Z"
@@ -326,7 +326,7 @@
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
       "durationMs": 0,
-      "description": "Console assembles the same-origin embed URL using the minted token; URL is reachable from the deployable artifact origin and carries the token in the URL fragment per embed-token/v1.",
+      "description": "Console assembles the same-origin embed URL using the minted token; evidence keeps the same-origin route while redacting the bearer fragment.",
       "evidence": {
         "urls": {
           "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
@@ -335,7 +335,7 @@
           "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
           "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
           "share": "http://127.0.0.1:4174/share/items/01KS923C0340N28KA6V8ESGC1E",
-          "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=embed-01KS923C0340N28KA6V8ESGC1E-pilot-5"
+          "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e"
         }
       },
       "error": null

@@ -371,6 +371,8 @@ export function createServerAdapter({ originUrl } = {}) {
       const descriptor = { sharing: tier, embeddable: !!embeddable };
       if (tier === "group") {
         descriptor.groupIds = [...(groupIds ?? [])];
+      } else if (tier === "public-link") {
+        descriptor.publicLinkToken = shareTiers.get(itemId)?.publicLinkToken ?? `plink-${nextId("lnk")}`;
       }
       shareTiers.set(itemId, descriptor);
       return { kind: "ok", access: descriptor, contract: findContract("share-access") };

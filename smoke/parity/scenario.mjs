@@ -26,7 +26,13 @@
 // rather than silently widen the smoke surface.
 
 import { loadPublishHandoff } from "./adapters/admin.mjs";
-import { assertEmbedTokenInFragment, assertSameOrigin, buildConsoleUrls } from "./adapters/console.mjs";
+import {
+  assertEmbedTokenInFragment,
+  assertSameOrigin,
+  buildConsoleUrls,
+  redactConsoleUrls,
+  redactEmbedToken,
+} from "./adapters/console.mjs";
 import { loadBuildArtifact } from "./adapters/devops.mjs";
 import {
   projectAppPackage,
@@ -347,10 +353,10 @@ export const SCENARIO_STEPS = [
         throw new Error(`embed-token mint returned ${result.kind} for generated app ${ctx.generatedApp.id}`);
       }
       ctx.embedToken = result.descriptor.token;
-      ctx.itemIds.embedToken = result.descriptor.token;
+      ctx.itemIds.embedTokenHash = redactEmbedToken(result.descriptor.token);
       return {
         evidence: {
-          token: result.descriptor.token,
+          tokenHash: ctx.itemIds.embedTokenHash,
           audience: result.descriptor.audience,
           closureSize: result.descriptor.closure.length,
           expiresAt: result.descriptor.expiresAt,
@@ -363,13 +369,16 @@ export const SCENARIO_STEPS = [
     id: "console/embed-render",
     owningLayer: "console",
     description:
-      "Console assembles the same-origin embed URL using the minted token; URL is reachable from the deployable artifact origin and carries the token in the URL fragment per embed-token/v1.",
+      "Console assembles the same-origin embed URL using the minted token; evidence keeps the same-origin route while redacting the bearer fragment.",
     async run(ctx) {
-      const urls = buildConsoleUrls({ originUrl: ctx.originUrl, items: ctx.itemIds });
+      const urls = buildConsoleUrls({
+        originUrl: ctx.originUrl,
+        items: { ...ctx.itemIds, embedToken: ctx.embedToken },
+      });
       assertSameOrigin(ctx.originUrl, urls);
       assertEmbedTokenInFragment(urls.embed);
-      ctx.urls = urls;
-      return { evidence: { urls } };
+      ctx.urls = redactConsoleUrls(urls);
+      return { evidence: { urls: ctx.urls } };
     },
   },
 ];

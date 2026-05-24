@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 
 import { OWNING_LAYER_IDS } from "../owning-layers.mjs";
 import { SCENARIO_STEPS } from "../scenario.mjs";
+import { formatTextSummary } from "../evidence.mjs";
 import { runParitySmoke } from "../run.mjs";
 
 const ORIGIN = "http://127.0.0.1:4174";
@@ -36,12 +37,14 @@ describe("parity scenario", () => {
     assert.ok(report.items.serviceItemId);
     assert.ok(report.items.savedMapId);
     assert.ok(report.items.generatedAppId);
-    assert.ok(report.items.embedToken);
+    assert.ok(report.items.embedTokenHash);
+    assert.match(report.items.embedTokenHash, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(report.items.embedToken, undefined);
     assert.equal(report.items.shareTier, "org");
 
     // URLs section captures every Console surface in the chain, all
-    // same-origin with the deployable artifact. The embed URL keeps the
-    // bearer token in the fragment per embed-token/v1.
+    // same-origin with the deployable artifact. The raw embed bearer stays
+    // internal to ctx; evidence/log URLs carry only its hash in the fragment.
     assert.ok(report.urls);
     const expectedOrigin = new URL(ORIGIN).origin;
     for (const value of Object.values(report.urls)) {
@@ -49,8 +52,16 @@ describe("parity scenario", () => {
     }
     const embedUrl = new URL(report.urls.embed);
     assert.ok(embedUrl.hash.startsWith("#embedToken="), "embed URL must carry token in fragment");
+    assert.equal(decodeURIComponent(embedUrl.hash.replace("#embedToken=", "")), report.items.embedTokenHash);
     assert.ok(!embedUrl.searchParams.has("token"), "embed URL must not carry token in query string");
     assert.ok(!embedUrl.searchParams.has("embedToken"), "embed URL must not carry embedToken in query string");
+
+    assert.ok(ctx.embedToken, "raw token remains available only inside the running scenario context");
+    assert.equal(JSON.stringify(report).includes(ctx.embedToken), false, "evidence JSON must not include raw token");
+    assert.equal(formatTextSummary(report).includes(ctx.embedToken), false, "text summary must not include raw token");
+    const tokenStep = report.steps.find((step) => step.id === "server/embed-token-mint");
+    assert.equal(tokenStep.evidence.tokenHash, report.items.embedTokenHash);
+    assert.equal(tokenStep.evidence.token, undefined);
 
     // Contract-version table includes the seven Console-parity contracts.
     const contractNames = report.contractVersions.map((c) => c.name).sort();
