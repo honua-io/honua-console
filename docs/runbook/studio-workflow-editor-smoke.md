@@ -14,7 +14,7 @@ npm run test -- src/studio/workflows/workflowEditorModel.test.ts src/studio/work
 This covers prompt-to-draft, definition inspection, malformed-but-valid JSON
 contract failures, validation failures, SDK-shaped dry-run history, artifacts,
 rejected rows, scheduled publication gating, process-service eligibility,
-derived service metadata, and rollback metadata.
+current-definition service metadata, and rollback metadata.
 
 ## Manual Smoke
 
@@ -38,7 +38,18 @@ derived service metadata, and rollback metadata.
 
 Publication controls should stay disabled until the current definition has a
 non-blocked validation result. Scheduled publication should remain disabled for
-cron input that is not five fields.
+cron input that is not a valid five-field expression, including out-of-range
+five-field values such as `99 99 99 99 99`.
+
+To smoke the contract guardrails, replace the generated definition JSON with
+`{}` and select `Validate`. The graph should stay empty, validation should
+report blocked contract issues such as a missing `workflowId`, and publication
+buttons should stay disabled. Restore or regenerate the draft before continuing.
+
+To smoke current-definition process-service eligibility, remove the
+`publication` node or remove its `resultPackageId` binding, validate the edited
+definition, and confirm `Publish Process Service` stays disabled. Restore or
+regenerate the draft before publication smoke.
 
 ## Expected Contract Evidence
 
@@ -49,3 +60,5 @@ cron input that is not five fields.
 - Published workflow content shows `workflow-definition`, manual/scheduled
   modes, a `wf-` definition hash, version controls, provenance, and run-history
   href.
+- Process-service metadata is derived from the edited workflow definition and
+  excludes internal sink, binding, and publication-only inputs.

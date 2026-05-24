@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { createStudioWorkflowFixtureClient } from "./fixtureClient";
+import {
+  isFiveFieldCron,
+  stableDefinitionHash,
+  toServerWorkflowDefinitionPayload,
+  validateWorkflowDefinition,
+} from "./workflowContracts";
 
 describe("Studio workflow editor model", () => {
   it("creates an inspectable hybrid ETL and GP draft from natural language", async () => {
@@ -79,6 +85,82 @@ describe("Studio workflow editor model", () => {
     );
   });
 
+  it("adapts the Console editor view model to the server workflow shape", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+
+    const serverDefinition = toServerWorkflowDefinitionPayload(draft.definition);
+    const [firstStep] = serverDefinition.steps;
+    const editorOnlyDefinition = {
+      ...draft.definition,
+      steps: draft.definition.steps.map((step) => ({ ...step, label: `${step.label} edited` })),
+    };
+
+    expect(serverDefinition).not.toHaveProperty("mode");
+    expect(firstStep).not.toHaveProperty("label");
+    expect(firstStep).not.toHaveProperty("nodeKind");
+    expect(firstStep).not.toHaveProperty("processId");
+    expect(firstStep).not.toHaveProperty("inputs");
+    expect(serverDefinition.steps.at(-1)?.failurePolicy).toBe("Skip");
+    expect(stableDefinitionHash(editorOnlyDefinition)).toBe(stableDefinitionHash(draft.definition));
+  });
+
+  it("blocks invalid cron trigger expressions before run or publication", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const invalidCronDefinition = {
+      ...draft.definition,
+      trigger: {
+        kind: "Cron" as const,
+        enabled: true,
+        cronExpression: "99 99 99 99 99",
+        timeZone: "Pacific/Honolulu",
+      },
+    };
+
+    const validation = validateWorkflowDefinition(invalidCronDefinition);
+    const run = await client.runDefinition(invalidCronDefinition, "dry-run");
+
+    expect(validation.status).toBe("blocked");
+    expect(validation.issues.map((issue) => issue.message)).toContain("Cron trigger must use a valid 5-field expression.");
+    expect(run.status).toBe("failed");
+    expect(run.logs.map((entry) => entry.message)).toContain("Cron trigger must use a valid 5-field expression.");
+  });
+
+  it("blocks retry policies that cannot retry safely", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const invalidRetryDefinition = {
+      ...draft.definition,
+      steps: draft.definition.steps.map((step, index) =>
+        index === 0
+          ? {
+              ...step,
+              retryPolicy: {
+                maxAttempts: 0,
+                backoffSeconds: 15,
+              },
+            }
+          : step,
+      ),
+    };
+
+    const validation = await client.validateDefinition(invalidRetryDefinition);
+
+    expect(validation.status).toBe("blocked");
+    expect(validation.issues.map((issue) => issue.message)).toContain(
+      "Step 'source-permits' retry policy must allow at least one attempt.",
+    );
+  });
+
+  it("validates the server scheduler cron subset", () => {
+    expect(isFiveFieldCron("*/15 0-23/2 * 1,6 0,7")).toBe(true);
+    expect(isFiveFieldCron("99 99 99 99 99")).toBe(false);
+    expect(isFiveFieldCron("0 2 ? * MON")).toBe(false);
+    expect(isFiveFieldCron("0\t2 * * *")).toBe(false);
+    expect(isFiveFieldCron("0 2 *")).toBe(false);
+  });
+
   it("runs dry-runs through the SDK job-runner surface and returns logs, artifacts, and row failures", async () => {
     const client = createStudioWorkflowFixtureClient();
     const draft = await client.createDraftFromPrompt("Run sample review");
@@ -134,6 +216,13 @@ describe("Studio workflow editor model", () => {
         timeZone: "Pacific/Honolulu",
       }),
     ).rejects.toThrow(/5-field cron expression/);
+    await expect(
+      client.publishDefinition(draft.definition, {
+        executionMode: "scheduled",
+        cronExpression: "99 99 99 99 99",
+        timeZone: "Pacific/Honolulu",
+      }),
+    ).rejects.toThrow(/valid 5-field cron expression/);
   });
 
   it("derives process-service eligibility and metadata from the current workflow definition", async () => {

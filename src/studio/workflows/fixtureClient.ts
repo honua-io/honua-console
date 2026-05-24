@@ -196,7 +196,8 @@ function createDraft(prompt: string): WorkflowDraft {
     metadata: {
       sourcePrompt: prompt,
       sourceDraftId: draftId,
-      contractSource: "honua-server:WorkflowDefinition",
+      contractSource: "console-studio-workflow-view-model",
+      serverContractSource: "honua-server:WorkflowDefinition",
       contentType: "honua.workflow.definition",
     },
     trigger: {
@@ -384,7 +385,7 @@ function createDraft(prompt: string): WorkflowDraft {
             targetInputKey: "resultPackageId",
           },
         ],
-        failurePolicy: "Continue",
+        failurePolicy: "Skip",
         timeoutSeconds: 300,
         plan: {
           planId: "plan-process-service-binding",
@@ -436,7 +437,7 @@ class FixtureGeospatialProcessClient implements GeospatialGrpcProcessClient {
   #counter = 0;
 
   async validatePlan() {
-    return { accepted: true, contract: "honua-server:WorkflowDefinition" };
+    return { accepted: true, contract: "console-studio-workflow-execution-plan" };
   }
 
   async dryRunPlan() {
@@ -586,7 +587,7 @@ function assertPublishableDefinition(definition: WorkflowDefinitionPayload): voi
 function assertPublishableSchedule(request: WorkflowPublicationRequest): void {
   if (request.executionMode !== "scheduled") return;
   if (!request.cronExpression?.trim() || !isFiveFieldCron(request.cronExpression)) {
-    throw new Error("Scheduled workflow publication requires a non-empty 5-field cron expression.");
+    throw new Error("Scheduled workflow publication requires a non-empty valid 5-field cron expression.");
   }
 }
 

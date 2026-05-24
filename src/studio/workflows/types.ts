@@ -65,16 +65,19 @@ export interface WorkflowStepDefinitionPayload {
   readonly dependsOn: readonly string[];
   readonly inputBindings: readonly StepInputBindingPayload[];
   readonly retryPolicy?: StepRetryPolicyPayload;
-  readonly failurePolicy: "Fail" | "Continue";
+  readonly failurePolicy: "Fail" | "Skip";
   readonly timeoutSeconds?: number;
 }
 
 /**
- * Structural projection of honua-server `WorkflowDefinition`.
+ * Console editor view model for workflow authoring.
  *
- * This is intentionally kept as an API payload at the transport boundary. The
- * editor may inspect and annotate it, but execution and publication remain
- * server or SDK responsibilities.
+ * The view model decorates server workflow semantics with editor-only fields
+ * such as mode, node kind, labels, and inspectable step inputs. It is not the
+ * server `WorkflowDefinition` DTO. Use the workflow contract adapter before a
+ * fixture path claims publication or provenance against the server-owned shape;
+ * replace these structural types with SDK/server DTOs when the shared browser
+ * contract is exposed.
  */
 export interface WorkflowDefinitionPayload {
   readonly workflowId: string;
@@ -82,6 +85,36 @@ export interface WorkflowDefinitionPayload {
   readonly description?: string;
   readonly mode: WorkflowMode;
   readonly steps: readonly WorkflowStepDefinitionPayload[];
+  readonly trigger?: WorkflowTriggerPayload;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly metadata: Readonly<Record<string, string>>;
+}
+
+export interface ServerStepRetryPolicyPayload {
+  readonly maxAttempts: number;
+  readonly initialDelaySeconds: number;
+}
+
+export interface ServerWorkflowStepDefinitionPayload {
+  readonly stepId: string;
+  readonly plan: AnalysisPlanPayload;
+  readonly dependsOn: readonly string[];
+  readonly inputBindings: readonly StepInputBindingPayload[];
+  readonly retryPolicy?: ServerStepRetryPolicyPayload;
+  readonly failurePolicy: "Fail" | "Skip";
+  readonly timeoutSeconds?: number;
+}
+
+/**
+ * Temporary structural adapter target for honua-server `WorkflowDefinition`.
+ * Keep this narrow and delete it once `honua-sdk-js` exports the workflow DTO.
+ */
+export interface ServerWorkflowDefinitionPayload {
+  readonly workflowId: string;
+  readonly name: string;
+  readonly description?: string;
+  readonly steps: readonly ServerWorkflowStepDefinitionPayload[];
   readonly trigger?: WorkflowTriggerPayload;
   readonly createdAt: string;
   readonly updatedAt: string;

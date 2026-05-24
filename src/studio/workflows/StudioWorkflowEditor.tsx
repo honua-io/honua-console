@@ -197,7 +197,7 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
           <div className="panel-heading">
             <div>
               <h2>Generated Definition</h2>
-              <p>Editable server workflow payload. Validation uses the same structural contract vocabulary.</p>
+              <p>Editable workflow view model. Validation uses the same structural contract vocabulary.</p>
             </div>
             <span className={parsedDefinition.ok ? "status-pill ok" : "status-pill blocked"}>
               {parsedDefinition.ok ? "JSON parsed" : "JSON invalid"}

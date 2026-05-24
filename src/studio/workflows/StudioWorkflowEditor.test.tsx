@@ -31,6 +31,12 @@ describe("StudioWorkflowEditor", () => {
     expect(within(runHistory).getByText(/Row 41/i)).toBeInTheDocument();
 
     await user.click(screen.getByLabelText(/enable scheduled execution/i));
+    const cronInput = screen.getByLabelText(/schedule cron expression/i);
+    await user.clear(cronInput);
+    await user.type(cronInput, "99 99 99 99 99");
+    expect(screen.getByRole("button", { name: /publish batch definition/i })).toBeDisabled();
+    await user.clear(cronInput);
+    await user.type(cronInput, "0 2 * * *");
     await user.click(screen.getByRole("button", { name: /publish batch definition/i }));
 
     expect(await screen.findByText(/workflow-item-/i)).toBeInTheDocument();

@@ -18,10 +18,12 @@ The local fixture client in `src/studio/workflows/fixtureClient.ts` is a
 deterministic transport stand-in. It exists behind `StudioWorkflowTransport` so
 the server client can replace it without changing editor state or UI behavior.
 
-The TypeScript payloads in `src/studio/workflows/types.ts` are a structural
-projection for this boundary. They should be replaced by imported server or SDK
-DTOs where those shared contracts are available; Console should not fork the
-protocol.
+The TypeScript payloads in `src/studio/workflows/types.ts` are Console editor
+view models that mirror and decorate this boundary; they are not the server
+DTOs. The fixture adapts the editor view model to a narrow server
+`WorkflowDefinition` wire shape before hashing publication provenance. These
+structural types should be replaced by imported server or SDK DTOs where those
+shared contracts are available; Console should not fork the protocol.
 
 ## Implemented Workflow
 
@@ -47,15 +49,19 @@ protocol.
 - `createDraftFromPrompt(prompt)` returns `WorkflowDraft`.
   - Includes `draftId`, original `prompt`, `generatedAt`, `warnings`,
     `explanation`, `eligibleProcessService`, and `generatedContract`.
-  - Carries an inspectable `definition` projection of
-    `honua-server:WorkflowDefinition` with `workflowId`, `name`, `mode`,
-    `steps`, optional `trigger`, timestamps, and metadata.
+  - Carries an inspectable editor `definition` with `workflowId`, `name`,
+    editor `mode`, `steps`, optional `trigger`, timestamps, and metadata.
   - Each workflow step carries `nodeKind`, canonical `AnalysisPlan` payload,
     inputs, dependencies, input bindings, failure policy, and optional retry or
     timeout metadata.
+  - The fixture adapter strips editor-only fields before server-shaped
+    publication provenance is produced.
 - `validateDefinition(definition)` accepts parsed JSON and returns
   `WorkflowValidationResult`; syntactically valid non-workflow JSON returns
   blocked contract issues instead of reaching graph rendering.
+  - Shape validation accepts `unknown` input at the transport boundary and only
+    promotes values that match the Console workflow editor view model to
+    graph, run, or publication actions.
   - `status` is `valid`, `warning`, or `blocked`.
   - Issues include `kind`, `severity`, `code`, JSON `path`, optional `nodeId`,
     message, and `requiredAction`.
@@ -66,14 +72,18 @@ protocol.
   - `mode` is `dry-run` or `sample-run`.
   - `status` and `snapshots` use the SDK job lifecycle shape.
   - Results expose logs, artifacts, row-level feature failures, and provenance
-    links. A validation-blocked definition returns a failed run with a
-    `WorkflowValidationBlocked` snapshot and no artifacts.
+    links.
+  - The transport revalidates before execution; a semantically blocked
+    definition returns a failed run with a `WorkflowValidationBlocked` snapshot
+    and no artifacts.
 - `publishDefinition(definition, request)` returns
   `PublishedWorkflowContentItem`.
   - The request selects `manual` or `scheduled` execution and may include a
     cron expression and time zone.
   - Publication rejects definitions with blocked validation results.
-  - Scheduled publication requires a non-empty five-field cron expression.
+  - Scheduled publication requires a non-empty valid five-field cron expression
+    using the server scheduler's POSIX subset: wildcard, values, lists, ranges,
+    and steps.
   - The response includes content item identity, `workflow-definition` kind,
     execution modes, optional schedule, versions, active version, provenance
     hash, upstream item references, and run-history link.
@@ -83,6 +93,9 @@ protocol.
     a publication node must opt into process-service publication, bind an
     upstream result package, carry process-capable plan metadata, and have
     publish-process permission.
+  - The current definition must also yield at least one invokable process
+    parameter after Console filters internal sink, binding, and publication
+    inputs from the metadata projection.
   - Successful responses include a stable
     `/ogc/processes/processes/{processId}/execution` route, parameter metadata,
     result package metadata, required permissions, and backing content item id.
@@ -99,10 +112,17 @@ The current validation pass checks the contract shape before run or publication:
 - Required workflow identifiers, names, step ids, and non-empty step lists.
 - Valid JSON that is not a workflow definition is surfaced as blocked contract
   validation instead of rendering graph nodes.
+- Structural fields use the shared contract vocabulary: workflow mode
+  `etl`, `geoprocessing`, or `hybrid`; trigger kind `Manual` or `Cron`; step
+  node kinds `source`, `transform`, `sink`, `process`, `parameter`,
+  `validation`, `artifact`, or `publication`; analysis plan step kinds
+  `QueryFeatures`, `Geoprocess`, `Aggregate`, `RenderMap`, or `Export`; and
+  artifact kinds from the SDK/server projection.
 - Duplicate step ids, unknown dependencies, missing binding dependencies, and
   dependency cycles.
 - Canonical analysis-plan presence and plan-step dependency references.
-- Cron triggers must include a non-empty five-field cron expression.
+- Cron triggers must include a non-empty valid five-field cron expression.
+- Retry policies must allow at least one attempt.
 - Process nodes must use Console-advertised process ids:
   `geometry.buffer`, `geometry.clip`, `analytics.summarize`, or
   `conversion.export`.
@@ -119,6 +139,9 @@ The current validation pass checks the contract shape before run or publication:
   shell with Studio active.
 - Draft generation, validation, dry-run, sample-run, batch publication, process
   service publication, and rollback are explicit builder actions.
+- Editing the generated definition clears prior validation and process-service
+  publication state; publication controls remain tied to the latest parsed and
+  validated definition.
 - The fixture transport is deterministic and browser-local. Server-backed
   wiring should preserve the same response contract while moving validation,
   job execution, content versioning, RBAC, provenance, and OGC route ownership

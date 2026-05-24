@@ -4,6 +4,8 @@ import type {
   ArtifactKind,
   ProcessParameterMetadata,
   ResultPackageMetadata,
+  ServerWorkflowDefinitionPayload,
+  ServerWorkflowStepDefinitionPayload,
   WorkflowDefinitionPayload,
   WorkflowMode,
   WorkflowNodeKind,
@@ -155,10 +157,10 @@ export function validateWorkflowDefinition(definition: unknown): WorkflowValidat
     } else if (!isFiveFieldCron(payload.trigger.cronExpression)) {
       issues.push(
         contractIssue(
-          "Cron trigger must use a 5-field expression.",
+          "Cron trigger must use a valid 5-field expression.",
           "$.trigger.cronExpression",
           undefined,
-          "Use minute hour day-of-month month day-of-week.",
+          "Use the supported POSIX subset: *, values, lists, ranges, and steps for minute hour day-of-month month day-of-week.",
         ),
       );
     }
@@ -242,18 +244,54 @@ export function toProcessExecutionPlan(definition: WorkflowDefinitionPayload, mo
     metadata: {
       ...definition.metadata,
       "console.runMode": mode,
-      "console.contract": "honua-server:WorkflowDefinition",
+      "console.contract": "console-studio-workflow-execution-plan",
     },
   };
 }
 
+export function toServerWorkflowDefinitionPayload(
+  definition: WorkflowDefinitionPayload,
+): ServerWorkflowDefinitionPayload {
+  return {
+    workflowId: definition.workflowId,
+    name: definition.name,
+    steps: definition.steps.map(toServerWorkflowStepDefinitionPayload),
+    createdAt: definition.createdAt,
+    updatedAt: definition.updatedAt,
+    metadata: definition.metadata,
+    ...(definition.description !== undefined ? { description: definition.description } : {}),
+    ...(definition.trigger !== undefined ? { trigger: definition.trigger } : {}),
+  };
+}
+
 export function stableDefinitionHash(definition: WorkflowDefinitionPayload): string {
-  const encoded = stableStringify(definition);
+  const encoded = stableStringify(toServerWorkflowDefinitionPayload(definition));
   let hash = 5381;
   for (let index = 0; index < encoded.length; index += 1) {
     hash = (hash * 33) ^ encoded.charCodeAt(index);
   }
   return `wf-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function toServerWorkflowStepDefinitionPayload(
+  step: WorkflowStepDefinitionPayload,
+): ServerWorkflowStepDefinitionPayload {
+  return {
+    stepId: step.stepId,
+    plan: step.plan,
+    dependsOn: step.dependsOn,
+    inputBindings: step.inputBindings,
+    failurePolicy: step.failurePolicy,
+    ...(step.retryPolicy
+      ? {
+          retryPolicy: {
+            maxAttempts: step.retryPolicy.maxAttempts,
+            initialDelaySeconds: step.retryPolicy.backoffSeconds,
+          },
+        }
+      : {}),
+    ...(step.timeoutSeconds !== undefined ? { timeoutSeconds: step.timeoutSeconds } : {}),
+  };
 }
 
 function validateStep(step: WorkflowStepDefinitionPayload, issues: WorkflowValidationIssue[]): void {
@@ -264,6 +302,16 @@ function validateStep(step: WorkflowStepDefinitionPayload, issues: WorkflowValid
     issues.push(contractIssue("Step must declare a canonical analysis plan.", `$.steps.${step.stepId}.plan`, step.stepId));
   }
   validatePlan(step.stepId, step.plan, issues);
+
+  if (step.retryPolicy && step.retryPolicy.maxAttempts < 1) {
+    issues.push(
+      contractIssue(
+        `Step '${step.stepId}' retry policy must allow at least one attempt.`,
+        `$.steps.${step.stepId}.retryPolicy.maxAttempts`,
+        step.stepId,
+      ),
+    );
+  }
 
   if (step.nodeKind === "transform" || step.nodeKind === "process") {
     const processId = step.processId ?? step.plan.steps.find((planStep) => planStep.kind === "Geoprocess")?.processId;
@@ -395,8 +443,8 @@ function validateStepShape(value: unknown, path: string, issues: WorkflowValidat
   expectStringRecord(value.inputs, `${path}.inputs`, "Workflow step inputs must be a string map.", issues);
   expectStringArray(value.dependsOn, `${path}.dependsOn`, "Workflow step dependsOn must be a string array.", issues);
   validateInputBindingsShape(value.inputBindings, `${path}.inputBindings`, issues);
-  if (value.failurePolicy !== "Fail" && value.failurePolicy !== "Continue") {
-    issues.push(contractIssue("Workflow step failurePolicy must be Fail or Continue.", `${path}.failurePolicy`));
+  if (value.failurePolicy !== "Fail" && value.failurePolicy !== "Skip") {
+    issues.push(contractIssue("Workflow step failurePolicy must be Fail or Skip.", `${path}.failurePolicy`));
   }
   if (value.timeoutSeconds !== undefined && typeof value.timeoutSeconds !== "number") {
     issues.push(contractIssue("Workflow step timeoutSeconds must be a number.", `${path}.timeoutSeconds`));
@@ -626,7 +674,68 @@ function hasCycle(steps: readonly WorkflowStepDefinitionPayload[]): boolean {
 }
 
 export function isFiveFieldCron(value: string): boolean {
-  return value.trim().split(/\s+/).length === 5;
+  const fields = value.trim().split(" ").filter((field) => field.length > 0);
+  if (fields.length !== 5) return false;
+
+  return (
+    parseCronField(fields[0], 0, 59) &&
+    parseCronField(fields[1], 0, 23) &&
+    parseCronField(fields[2], 1, 31) &&
+    parseCronField(fields[3], 1, 12) &&
+    parseCronField(fields[4], 0, 7)
+  );
+}
+
+function parseCronField(field: string, min: number, max: number): boolean {
+  const values = new Set<number>();
+  const parts = field.split(",").filter((part) => part.length > 0);
+  for (const part of parts) {
+    if (!parseCronPart(part.trim(), min, max, values)) return false;
+  }
+  for (let value = min; value <= max; value += 1) {
+    if (values.has(value)) return true;
+  }
+  return false;
+}
+
+function parseCronPart(part: string, min: number, max: number, values: Set<number>): boolean {
+  if (!part) return false;
+
+  const slashIndex = part.indexOf("/");
+  const body = slashIndex >= 0 ? part.slice(0, slashIndex) : part;
+  const stepText = slashIndex >= 0 ? part.slice(slashIndex + 1) : undefined;
+  const step = stepText === undefined ? 1 : parseCronInteger(stepText);
+  if (step === undefined || step <= 0) return false;
+
+  let start: number | undefined;
+  let end: number | undefined;
+  if (body === "*") {
+    start = min;
+    end = max;
+  } else if (body.includes("-")) {
+    const rangeParts = body.split("-");
+    if (rangeParts.length !== 2) return false;
+    start = parseCronInteger(rangeParts[0]);
+    end = parseCronInteger(rangeParts[1]);
+  } else {
+    start = parseCronInteger(body);
+    end = start;
+  }
+
+  if (start === undefined || end === undefined || start < min || end > max || start > end) {
+    return false;
+  }
+
+  for (let current = start; current <= end; current += step) {
+    values.add(current);
+  }
+  return true;
+}
+
+function parseCronInteger(value: string): number | undefined {
+  if (!/^[+-]?\d+$/.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
