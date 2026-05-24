@@ -228,10 +228,6 @@ function featuresToEntitlements(
   return out;
 }
 
-function isAuthFallbackStatus(status: number): boolean {
-  return status === 401 || status === 403;
-}
-
 const EMPTY_BUNDLE: CapabilityBundle = Object.freeze({
   capabilities: new Set<CapabilityName>(),
   entitlements: new Set<EntitlementName>(),
@@ -306,7 +302,12 @@ export class SessionClient {
       const { response } = outcome;
       if (response.ok) return response;
       fellBack.push(endpoint);
-      return isAuthFallbackStatus(response.status) ? undefined : response;
+      // Any non-ok secondary response is treated as a fallback: parsing the
+      // body would risk a `JSON.parse` throw on non-JSON 5xx pages (HTML
+      // error pages, plain text from a reverse proxy), which would reject
+      // the whole bootstrap and erase the authenticated session along with
+      // every other `fellBackEndpoints` diagnostic we already recorded.
+      return undefined;
     };
 
     if (sessionResponse.status === 401) {

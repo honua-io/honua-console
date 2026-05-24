@@ -131,4 +131,43 @@ describe("SessionClient", () => {
     );
     expect(result.fellBackEndpoints).toHaveLength(2);
   });
+
+  it("does not abort bootstrap when a secondary 5xx returns a non-JSON body", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/session")) {
+        return jsonResponse({
+          isAuthenticated: true,
+          providerKey: "oidc",
+          claims: [{ type: "sub", value: "user-1" }],
+        });
+      }
+      if (url.endsWith("/effective-permissions")) {
+        return new Response("<html><body>Internal Server Error</body></html>", {
+          status: 500,
+          headers: { "content-type": "text/html" },
+        });
+      }
+      return new Response("upstream gateway down", {
+        status: 502,
+        headers: { "content-type": "text/plain" },
+      });
+    });
+
+    const result = await new SessionClient({
+      fetchImpl: fetchImpl as typeof fetch,
+    }).bootstrap();
+
+    expect(result.status.kind).toBe("authenticated");
+    if (result.status.kind !== "authenticated") return;
+    expect(result.status.bundle.capabilities.size).toBe(0);
+    expect(result.status.bundle.entitlements.size).toBe(0);
+    expect(result.fellBackEndpoints).toEqual(
+      expect.arrayContaining([
+        "/api/v1/admin/users/user-1/effective-permissions",
+        "/api/v1/admin/license/entitlements",
+      ]),
+    );
+    expect(result.fellBackEndpoints).toHaveLength(2);
+  });
 });
