@@ -40,6 +40,40 @@ public sealed class StudioAuthoringShellTests
     }
 
     [Fact]
+    public void PartialClarificationKeepsPendingAssumptionsForRemainingQuestions()
+    {
+        IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
+        var session = shell.SubmitPrompt(shell.CreateInitialSession(), "app", "Build an app");
+        var sourceQuestion = session.Clarifications.First(question => question.Id == "source-binding");
+
+        var clarified = shell.ApplyClarification(session, sourceQuestion.Id, sourceQuestion.Choices[0].Id);
+
+        Assert.DoesNotContain(clarified.ActivePackage.Assumptions, assumption => assumption == "Pending: Select the source binding");
+        Assert.Contains(clarified.ActivePackage.Assumptions, assumption => assumption == "Pending: Choose the publication intent");
+        Assert.Contains(clarified.ActivePackage.Assumptions, assumption => assumption == sourceQuestion.Choices[0].Effect);
+        Assert.Contains(clarified.Clarifications, question => question.Id == "publish-intent");
+        Assert.Contains(clarified.ActivePackage.ValidationItems, item => item.Severity == StudioValidationSeverity.Blocker);
+    }
+
+    [Fact]
+    public void WorkflowSelectionRebuildsClarificationsForCurrentPrompt()
+    {
+        IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
+        var session = shell.SubmitPrompt(
+            shell.CreateInitialSession(),
+            "map",
+            "Create a map from parcels");
+
+        var selected = shell.SelectWorkflow(session, "query");
+
+        Assert.Equal("query", selected.SelectedWorkflowId);
+        Assert.Equal("query.package", selected.ActivePackage.PackageType);
+        Assert.DoesNotContain(selected.Clarifications, question => question.Id == "publish-intent");
+        Assert.DoesNotContain(selected.ActivePackage.Assumptions, assumption => assumption == "Pending: Choose the publication intent");
+        Assert.DoesNotContain(selected.ActivePackage.ValidationItems, item => item.Severity == StudioValidationSeverity.Blocker);
+    }
+
+    [Fact]
     public void LifecycleStatesHaveDistinctVisualDescriptors()
     {
         var descriptors = StudioAuthoringContract.LifecycleDescriptors;

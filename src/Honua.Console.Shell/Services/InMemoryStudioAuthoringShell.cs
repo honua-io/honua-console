@@ -47,10 +47,14 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
         ArgumentNullException.ThrowIfNull(session);
 
         var workflow = ResolveWorkflow(workflowId);
+        var clarifications = string.IsNullOrWhiteSpace(session.Prompt)
+            ? []
+            : BuildClarifications(workflow, session.Prompt);
         return session with
         {
             SelectedWorkflowId = workflow.Id,
-            ActivePackage = CreatePackage(workflow, session.Prompt, session.Clarifications)
+            Clarifications = clarifications,
+            ActivePackage = CreatePackage(workflow, session.Prompt, clarifications)
         };
     }
 
@@ -111,8 +115,9 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
         var provenance = package.Provenance
             .Append(new StudioProvenanceEvent("Builder", "Clarification accepted", $"{question.Label}: {choice.Label}"))
             .ToArray();
+        var answeredAssumption = $"Pending: {question.Label}";
         var assumptions = package.Assumptions
-            .Where(assumption => !assumption.StartsWith("Pending:", StringComparison.Ordinal))
+            .Where(assumption => !string.Equals(assumption, answeredAssumption, StringComparison.Ordinal))
             .Append(choice.Effect)
             .ToArray();
 
