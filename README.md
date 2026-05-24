@@ -24,6 +24,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Honua Console Design Handoff](docs/design-handoff/README.md)
 - [Legacy Admin Route Disposition](docs/migration/legacy-admin-route-disposition.md)
 - [Operate Embed Contract](docs/operate/embed-contract.md)
+- [Native Operate Transition Surface](docs/operate/native-transition-surface.md)
 
 ## Migration Coordination
 

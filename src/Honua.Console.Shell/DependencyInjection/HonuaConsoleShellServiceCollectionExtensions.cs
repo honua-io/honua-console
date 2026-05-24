@@ -14,6 +14,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
         services.TryAddSingleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>();
+        services.TryAddSingleton<IOperateTransitionDataSource>(
+            _ => InMemoryOperateTransitionDataSource.CreateSeeded());
 
         return services;
     }

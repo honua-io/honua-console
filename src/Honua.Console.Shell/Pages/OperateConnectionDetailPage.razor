@@ -1,0 +1,133 @@
+@page "/operate/connections/{ConnectionId}"
+@page "/operate/connections/{ConnectionId}/diagnostics"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    @if (_connection is null)
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Connections</p>
+            <h1>Connection Not Found</h1>
+            <p class="console-muted">The requested data connection is not registered for this environment.</p>
+        </div>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Connections</p>
+            <h1>@_connection.Name</h1>
+            <p>@_connection.Provider connection for @_connection.Target.</p>
+        </div>
+
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Connection</p>
+                        <h2>Overview</h2>
+                    </div>
+                    <span class="@StatusClass(_connection.Status)">@_connection.Status</span>
+                </div>
+                <dl class="console-definition-list">
+                    <dt>Provider</dt>
+                    <dd>@_connection.Provider</dd>
+                    <dt>Target</dt>
+                    <dd>@_connection.Target</dd>
+                    <dt>Principal</dt>
+                    <dd>@_connection.Principal</dd>
+                    <dt>Last tested</dt>
+                    <dd>@_connection.LastTested</dd>
+                </dl>
+            </article>
+
+            <article class="console-panel">
+                <p class="console-kicker">Diagnostics</p>
+                @if (_safeDiagnostic is null)
+                {
+                    <h2>No Active Diagnostic</h2>
+                    <p class="console-muted">The latest connection test passed without an operator action.</p>
+                }
+                else
+                {
+                    <h2>@_safeDiagnostic.FailureCode</h2>
+                    <p class="console-muted">@_safeDiagnostic.Summary</p>
+                    <dl class="console-definition-list">
+                        <dt>Outcome</dt>
+                        <dd>@_safeDiagnostic.Outcome</dd>
+                        @foreach (var evidence in _safeDiagnostic.Evidence)
+                        {
+                            <dt>@evidence.Key</dt>
+                            <dd>@evidence.Value</dd>
+                        }
+                    </dl>
+                }
+            </article>
+        </div>
+
+        @if (_safeDiagnostic is not null)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Structured Checks</p>
+                    <h2>Test Breakdown</h2>
+                </div>
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr>
+                                <th>Check</th>
+                                <th>Severity</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var signal in _safeDiagnostic.Signals)
+                            {
+                                <tr>
+                                    <td>@signal.Check</td>
+                                    <td><span class="@StatusClass(signal.Severity)">@signal.Severity</span></td>
+                                    <td>@signal.Message</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Next Steps</p>
+                    <h2>Operator Actions</h2>
+                </div>
+                <ol class="console-action-list">
+                    @foreach (var action in _safeDiagnostic.OperatorActions)
+                    {
+                        <li>@action</li>
+                    }
+                </ol>
+            </section>
+        }
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ConnectionId { get; set; } = string.Empty;
+
+    private OperateConnectionSummary? _connection;
+    private OperateConnectionDiagnostic? _safeDiagnostic;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _connection = await OperateData.FindConnectionAsync(ConnectionId);
+        _safeDiagnostic = _connection?.LastDiagnostic?.ToSafeDiagnostic();
+    }
+
+    private static string StatusClass(string status) =>
+        string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "Error", StringComparison.OrdinalIgnoreCase)
+            ? "console-status console-status-danger"
+            : string.Equals(status, "Warning", StringComparison.OrdinalIgnoreCase)
+                ? "console-status console-status-warning"
+                : "console-status";
+}

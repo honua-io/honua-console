@@ -1,0 +1,66 @@
+@page "/operate/layers/{LayerId:int}"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    @if (_layerRow is null)
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>Layer Not Found</h1>
+            <p class="console-muted">The requested layer is not registered for this environment.</p>
+        </div>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>@_layerRow.Value.Layer.Name</h1>
+            <p>Layer @_layerRow.Value.Layer.LayerId is exposed by @_layerRow.Value.Service.DisplayName and reads metadata from @_layerRow.Value.Layer.CanonicalResourceName.</p>
+        </div>
+
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <p class="console-kicker">Exposure</p>
+                <h2>Service Layer</h2>
+                <dl class="console-definition-list">
+                    <dt>Service</dt>
+                    <dd><a href="@($"/operate/services/{_layerRow.Value.Service.Name}/settings")">@_layerRow.Value.Service.DisplayName</a></dd>
+                    <dt>Geometry</dt>
+                    <dd>@_layerRow.Value.Layer.Geometry</dd>
+                    <dt>Runtime</dt>
+                    <dd>@_layerRow.Value.Service.RuntimeStatus</dd>
+                </dl>
+            </article>
+
+            <article class="console-panel">
+                <p class="console-kicker">Canonical Metadata</p>
+                <h2>Resource Owner</h2>
+                <dl class="console-definition-list">
+                    <dt>Resource</dt>
+                    <dd><a href="@($"/operate/resources/{_layerRow.Value.Layer.CanonicalResourceId}")">@_layerRow.Value.Layer.CanonicalResourceName</a></dd>
+                    <dt>Resource ID</dt>
+                    <dd>@_layerRow.Value.Layer.CanonicalResourceId</dd>
+                    <dt>Ownership</dt>
+                    <dd>@_layerRow.Value.Service.MetadataOwnership</dd>
+                </dl>
+            </article>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public int LayerId { get; set; }
+
+    private (OperateServiceDetail Service, OperateServiceLayerProjection Layer)? _layerRow;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var workspace = await OperateData.GetWorkspaceAsync();
+        _layerRow = workspace.Services
+            .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
+            .Where(row => row.Layer.LayerId == LayerId)
+            .Select(row => ((OperateServiceDetail Service, OperateServiceLayerProjection Layer)?)row)
+            .FirstOrDefault();
+    }
+}

@@ -156,6 +156,10 @@ p {
     grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
+.console-section {
+    margin-top: 28px;
+}
+
 .console-panel {
     background: var(--honua-surface);
     border: 1px solid var(--honua-border);
@@ -259,6 +263,18 @@ p {
     color: #9e2b25;
 }
 
+.console-status-warning {
+    border-color: #e0b84d;
+    background: #fff7dc;
+    color: #725312;
+}
+
+.console-status-danger {
+    border-color: #e08b82;
+    background: #fff0ed;
+    color: #8f2f24;
+}
+
 .console-button,
 .console-button-link {
     display: inline-flex;
@@ -273,6 +289,12 @@ p {
     font: inherit;
     font-weight: 800;
     text-decoration: none;
+}
+
+.console-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: -4px 0 18px;
 }
 
 .console-button:disabled {
@@ -296,6 +318,78 @@ p {
     color: var(--honua-accent-strong);
     font-size: 1.4rem;
     font-weight: 900;
+}
+
+.console-tab-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 18px;
+}
+
+.console-tab-row a {
+    padding: 8px 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+    color: var(--honua-accent-strong);
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.console-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.console-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+}
+
+.console-table th,
+.console-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--honua-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.console-table th {
+    background: var(--honua-surface-strong);
+    color: var(--honua-accent-strong);
+    font-size: 0.78rem;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.console-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.console-table small,
+.console-definition-list small {
+    display: block;
+    margin-top: 4px;
+    color: var(--honua-muted);
+}
+
+.console-action-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding-left: 22px;
+}
+
+.console-action-list li {
+    padding: 12px 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
 }
 
 .console-event-list {
@@ -1180,6 +1274,10 @@ p {
     .console-page {
         width: min(100vw - 28px, 720px);
         padding-top: 26px;
+    }
+
+    .console-toolbar {
+        justify-content: flex-start;
     }
 
     .console-panel-heading,

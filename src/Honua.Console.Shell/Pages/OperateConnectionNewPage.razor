@@ -1,0 +1,44 @@
+@page "/operate/connections/new"
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Connections</p>
+        <h1>Add Connection</h1>
+        <p>New connections capture provider, endpoint, account binding, and secret reference separately so credentials never need to be displayed in Console.</p>
+    </div>
+
+    <div class="console-panel-grid">
+        <article class="console-panel">
+            <p class="console-kicker">Step 1</p>
+            <h2>Provider And Target</h2>
+            <dl class="console-definition-list">
+                <dt>Provider</dt>
+                <dd>PostgreSQL/PostGIS, ArcGIS REST, HTTP API, file upload</dd>
+                <dt>Target</dt>
+                <dd>Host, database, service URL, or upload source</dd>
+            </dl>
+        </article>
+
+        <article class="console-panel">
+            <p class="console-kicker">Step 2</p>
+            <h2>Credential Reference</h2>
+            <dl class="console-definition-list">
+                <dt>Secret ID</dt>
+                <dd>Non-secret identifier such as secret://connections/prod-postgres/[redacted]</dd>
+                <dt>Secret value</dt>
+                <dd>Stored only by the configured server secret store</dd>
+            </dl>
+        </article>
+
+        <article class="console-panel">
+            <p class="console-kicker">Step 3</p>
+            <h2>Test And Publish</h2>
+            <dl class="console-definition-list">
+                <dt>Diagnostics</dt>
+                <dd>Structured checks with redacted evidence</dd>
+                <dt>Next route</dt>
+                <dd>Create a data resource or migrate a one-time remote service</dd>
+            </dl>
+        </article>
+    </div>
+</section>

@@ -1,0 +1,52 @@
+@page "/operate/layers"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Layers</p>
+        <h1>Layers</h1>
+        <p>Layer rows show service exposure and point back to the canonical resource that owns metadata.</p>
+    </div>
+
+    <div class="console-table-wrap">
+        <table class="console-table">
+            <thead>
+                <tr>
+                    <th>Layer ID</th>
+                    <th>Name</th>
+                    <th>Service</th>
+                    <th>Geometry</th>
+                    <th>Canonical resource</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _layers)
+                {
+                    <tr>
+                        <td><a href="@($"/operate/layers/{row.Layer.LayerId}")">@row.Layer.LayerId</a></td>
+                        <td>@row.Layer.Name</td>
+                        <td><a href="@($"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
+                        <td>@row.Layer.Geometry</td>
+                        <td>
+                            <a href="@($"/operate/resources/{row.Layer.CanonicalResourceId}")">@row.Layer.CanonicalResourceName</a>
+                            <small>@row.Layer.CanonicalResourceId</small>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _layers =
+        Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var workspace = await OperateData.GetWorkspaceAsync();
+        _layers = workspace.Services
+            .SelectMany(service => service.Layers.Select(layer => (service, layer)))
+            .ToArray();
+    }
+}

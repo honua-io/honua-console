@@ -56,6 +56,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/new       Create
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
+/operate/resources             Data resources list and edit queue
+/operate/resources/new         Create resource from table/file or one-time remote-service migration
+/operate/resources/:id         Resource detail, validation, publish, access, presentation, and advanced tabs
 /operate/publishing            Publishing workspace
 /operate/identity/providers
 /operate/identity/status
@@ -67,9 +70,12 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/jobs/:jobRunId        Unified job-run detail deep link
 /operate/operations            Operations console
 /operate/control-center        Control center
+/operate/services              Service list and layer explorer
 /operate/services/:name/settings
+/operate/layers                Flat layer list
 /operate/layers/:id            Layer configuration (default + ?tab=configure)
 /operate/layers/:id/style      Layer style editor
+/operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
 /operate/deploy                Deploy control
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
@@ -127,9 +133,9 @@ will not see Operate while B is active. Confirmed default (§13, Q4).
 
 ### 2.2 Secondary navigation (within Operate)
 
-Connections, Publishing, Identity, License, Observability, Operations,
-Control Center, Services, Layers, Deploy, Server Info, Analytics,
-Legacy.
+Connections, Resources, Publishing, Identity, License, Observability,
+Operations, Control Center, Services, Layers, Settings, Deploy, Server
+Info, Analytics, Legacy.
 
 The Legacy submenu contains the transitional iframe-embedded pages from
 §5 (EMBED rows) and disappears when those pages are retired.
