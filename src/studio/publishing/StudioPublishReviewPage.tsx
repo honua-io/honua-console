@@ -99,12 +99,12 @@ export function StudioPublishReviewPage(): JSX.Element {
     };
   }, [form]);
 
-  if (state.kind === "loading" || !form || !shareSettings) {
-    return <EmptyState kind="missing" title="Loading publish review" description="Resolving the Studio draft and package context." />;
-  }
-
   if (state.kind === "error") {
     return <EmptyState kind={state.problemKind} title="Publish review unavailable" description={state.message} />;
+  }
+
+  if (state.kind === "loading" || !form || !shareSettings) {
+    return <EmptyState kind="missing" title="Loading publish review" description="Resolving the Studio draft and package context." />;
   }
 
   const { draft } = state;
