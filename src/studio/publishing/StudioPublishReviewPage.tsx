@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -47,9 +47,14 @@ export function StudioPublishReviewPage(): JSX.Element {
   const [result, setResult] = useState<PublishedContentItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const activeDraftIdRef = useRef(draftId);
+  const submitRequestIdRef = useRef(0);
+
+  activeDraftIdRef.current = draftId;
 
   useEffect(() => {
     let cancelled = false;
+    submitRequestIdRef.current += 1;
     setState({ kind: "loading" });
     setResult(null);
     setSubmitError(null);
@@ -113,6 +118,11 @@ export function StudioPublishReviewPage(): JSX.Element {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    const submitRequestId = submitRequestIdRef.current + 1;
+    submitRequestIdRef.current = submitRequestId;
+    const submittedDraftId = draft.draftId;
+    const isCurrentSubmit = () => activeDraftIdRef.current === submittedDraftId && submitRequestIdRef.current === submitRequestId;
+
     setSubmitting(true);
     setSubmitError(null);
     setResult(null);
@@ -145,6 +155,7 @@ export function StudioPublishReviewPage(): JSX.Element {
         versionNote: currentForm.versionNote,
         share: currentShareSettings
       });
+      if (!isCurrentSubmit()) return;
       setResult(item);
       emitStudioPublishTelemetry({
         name: "publish.succeeded",
@@ -154,6 +165,7 @@ export function StudioPublishReviewPage(): JSX.Element {
       });
     } catch (error) {
       const problem = studioPublishingProblemFromError(error, "Publish failed.");
+      if (!isCurrentSubmit()) return;
       setSubmitError(problem.message);
       emitStudioPublishTelemetry({
         name: "publish.failed",
@@ -162,7 +174,9 @@ export function StudioPublishReviewPage(): JSX.Element {
         problemKind: problem.kind
       });
     } finally {
-      setSubmitting(false);
+      if (isCurrentSubmit()) {
+        setSubmitting(false);
+      }
     }
   }
 

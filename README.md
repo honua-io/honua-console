@@ -23,9 +23,16 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The current scaffold uses React, TypeScript, Vite, and React Router while Console converges Studio, Catalog, Operate, and Share into one deployable runtime.
 
 The Studio publishing scaffold for [honua-console#16](https://github.com/honua-io/honua-console/issues/16) is implemented with fixture-backed Console routes for map, dashboard, report, and generated-app publish review. It proves the builder flow from Studio draft or generated preview to a versioned Catalog item, canonical `/catalog/:itemId` route, type-specific preview route, Share/embed route, and Edit in Studio reopen route while the server and SDK publish contracts are still landing. See the [Studio Publishing Contract And Usage](docs/architecture/studio-publishing-contract-and-usage.md) note for the current response shape, route contract, share/embed behavior, telemetry events, and deferred production API work.
+
+## Local Usage
+
+- `npm run dev` starts the Vite Console shell.
+- `npm run build` runs TypeScript checking and creates the production bundle.
+- `npm run test` runs the Vitest unit suite.
+- `npm run smoke:studio-publish` runs the Playwright smoke path for Studio publish, Catalog, preview, Share, Embed, and reopen.
 
 Until parity is accepted, source behavior remains in:
 
