@@ -233,11 +233,11 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | 6 | `/public/items/:idOrSlug` | `/share/public/items/:idOrSlug` | preserves DCAT-US / schema.org JSON-LD body; item must pass `isPublicOpenDataItem` (`access.sharing = public`, `access.openData = true`, type in `PUBLIC_OPEN_DATA_TYPES`) | `anonymous` (+ open-data eligibility) | share | open-data, share |
 | 7 | `/embed/maps/:mapId` | `/embed/maps/:mapId` | `chrome`, `legend`, `zoom`, `extent=W,S,E,N` (WGS84 lon/lat); fragment `#embedToken=` | `anonymous` (+ `resolveEmbedAuthorization`) | embed | embed |
 | 8 | `/catalog` | `/catalog` | `q`, `type`, `tag`, `owner`, `visibility`, `sort`, `cursor` (per `honua-portal:src/catalog/searchParams.ts:38` and `ListItemsRequest` in `honua-portal:src/contracts/content-item.ts:251`; the wire contract sets `additionalProperties: false`, so the Console list page must not invent new query keys) | `auth` | catalog | catalog-list |
-| 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:29` emits this for non-map items) | `auth` (+ `resolvePortalItemRole` for actions) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | catalog | catalog-detail |
+| 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:29` emits this for non-map items) | `auth` (+ server item read; `resolvePortalItemRole` only gates actions) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | catalog | catalog-detail |
 | 10 | `/maps` | `/catalog?type=map` (list) + `/studio` (create CTA) | preserves `from=:itemId` on the create path | `auth` | catalog (list), studio (create) | — |
-| 11 | `/maps/:mapId` | `/maps/:mapId` | `from=:itemId` (when transiting from Catalog); `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:27`) | `auth` (+ `item-role:viewer`) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | viewer | viewer |
+| 11 | `/maps/:mapId` | `/maps/:mapId` | `from=:itemId` (when transiting from Catalog); `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:27`) | `auth` (+ server saved-map/package read) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | viewer | viewer |
 | 12 | `/app-builder/proof` | `/studio` (entry) + `/studio/proof` (legacy alias) | legacy 301 → `/studio?source=…&itemId=…` | `auth` | studio | studio-generation |
-| 13 | `/apps/:itemId/preview` | `/studio/apps/:itemId/preview` | preserves `?revision=<n>` | `auth` (+ `item-role:viewer`) | studio | studio-generation |
+| 13 | `/apps/:itemId/preview` | `/studio/apps/:itemId/preview` | preserves `?revision=<n>` | `auth` (+ generated-app preview read) | studio | studio-generation |
 | 14 | `/data` | `/catalog` | — (Portal `/data` renders an `EmptyState` placeholder at `honua-portal:src/routes/Data.tsx:10` — "Data view is coming soon"; the legacy nav copy "Datasets, layers, and tables" at `honua-portal:src/shell/NavConfig.ts:53` has no single matching filter in the current `ListItemsRequest` contract — `type` is single-valued and `ItemType` does not include a `dataset` member — so Console drops `/data` as a dedicated surface and Catalog's type filter is the entry point; widening to a multi-type or "dataset-like" filter is deferred until a shared catalog filter contract change lands) | `auth` | catalog | — |
 | 15 | `/groups` | `/groups` | — | `auth` (any scope — member, operator, or admin, per `hasAnyScope(session, ["member", "operator", "admin"])` in `honua-portal:src/routes/Groups.tsx:10`) | shell | — |
 | 16 | `*` | `*` (Console NotFound) | — | `anonymous` | shell | — |
@@ -283,9 +283,18 @@ Defined in `honua-portal:src/share/rbac.ts`:
 
 - `PortalItemRole = "owner" | "editor" | "viewer"` (`share/rbac.ts:5`).
 - `resolvePortalItemRole(session, item)` (`share/rbac.ts:66`).
-- `ROLE_MATRIX` (`share/rbac.ts:22`) for the per-action gates on
-  `/catalog/:idOrSlug` (read, editMetadata, updateSharing, inviteEditors,
-  inviteViewers, revokeAccess).
+- `ROLE_MATRIX` (`share/rbac.ts:22`) for post-load item action
+  availability on `/catalog/:idOrSlug` (editMetadata, updateSharing,
+  inviteEditors, inviteViewers, revokeAccess; its `read` flag describes
+  the resolved role after the item is already loaded).
+
+`resolvePortalItemRole` is an action-role projection after an item is
+loaded, not the route read-authorization primitive. Item/detail preview
+routes load through the server-owned content, saved-map/package, or
+generated-app read API; a 403/`CatalogError("unauthorized")` or
+`GeneratedAppLifecycleError("unauthorized")` maps to the §7 forbidden
+or unavailable surface. After a successful load, `ROLE_MATRIX` controls
+which authenticated item actions are visible.
 
 ### 4.3 Sharing and embed
 
@@ -360,22 +369,27 @@ MCP/QGIS/browser integrations, and map/chart/editor interop.
 
 ### 4.6 Gate column grammar
 
-Each route row in this document uses the following gate vocabulary. A
-route may have multiple gates; all must pass.
+Each route row in this document uses the following gate vocabulary for
+client-side route guards. Rows may also name a server or SDK read call
+when read authorization is returned by the load itself rather than by a
+client-side gate. A route may have multiple gates; all must pass.
 
 | Token | Meaning |
 |---|---|
 | `anonymous` | No session required. The route is reachable without sign-in. |
 | `auth` | `isAuthenticated(session)` must be true. |
 | `scope:<name>` | `hasScope(session, <name>)`, e.g. `scope:operator`. |
-| `item-role:<min>` | `resolvePortalItemRole(session, item)` ≥ `<min>` per `ROLE_MATRIX`. |
+| `item-role:<min>` | Post-load action gate: `resolvePortalItemRole(session, item)` ≥ `<min>` per `ROLE_MATRIX`; not used as the route read-authorization primitive. |
 | `share-tier:<min>` | `ShareAccess.sharing` ≥ `<min>`. |
 | `open-data` | Item passes `isPublicOpenDataSummary` (collection) or `isPublicOpenDataItem` (detail): public sharing, `openData = true`, and type in `PUBLIC_OPEN_DATA_TYPES`. |
 | `entitlement:<key>` | `ILicenseEntitlementService.CheckEntitlement(<key>)` is granted. |
 | `edition:<tier>` | `rank(LicenseInfo.Edition) ≥ rank(<tier>)` per the rank table in §2.3 (`Community = 0`, `Pro = 1`, `Enterprise = 2`); the wire value is a string and must not be compared lexicographically. |
 
-Console must implement these as one `<RouteGuard>` consuming the named
-contracts; the guard surface is the seam called out in `honua-console#2`.
+Authenticated item routes (`/catalog/:idOrSlug`, `/maps/:mapId`, and
+`/studio/apps/:itemId/preview`) first rely on the server or SDK read call
+to authorize the item/package load. Console must implement the explicit
+gate tokens as one `<RouteGuard>` consuming the named contracts; the
+guard surface is the seam called out in `honua-console#2`.
 
 ### 4.7 SDK projection timing (default)
 
@@ -525,37 +539,40 @@ Authenticated sessions without `member`, `operator`, or `admin` render
 |---|---|---|---|---|
 | `/studio` | `auth` | empty-studio (start a prompt) | unauth-redirect | studio |
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
-| `/studio/apps/:itemId/preview` | `auth`, `item-role:viewer` | missing-item | forbidden / unsupported-package | studio |
+| `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
 
 ### 6.3 Catalog
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
 | `/catalog` | `auth` | empty-catalog (start a search / publish first item) | unauth-redirect | catalog |
-| `/catalog/:idOrSlug` | `auth` (+ `item-role:viewer`) **or** `anonymous` (+ `ShareAccess` with `share-tier:public`, or `share-tier:public-link` and a valid `?token=<value>`) | missing-item | forbidden / unsupported-service / unavailable (anonymous) | catalog |
+| `/catalog/:idOrSlug` | `auth` (+ server item read) **or** `anonymous` (+ `ShareAccess` with `share-tier:public`, or `share-tier:public-link` and a valid `?token=<value>`) | missing-item | forbidden / unsupported-service / unavailable (anonymous) | catalog |
 
 `/catalog/:idOrSlug` is anonymous-capable on the same `ShareAccess` +
 `?token=` contract as `/maps/:mapId` (§6.4, §2.5). Anonymous denials
 render `<UnavailableView>` (not the upgrade tile) so upgrade copy is
-not leaked to anonymous users (§13 Q5). Authenticated denials render
-`<ForbiddenView>`. Action gates (editMetadata, updateSharing, etc.)
-still require authenticated `item-role` per `ROLE_MATRIX` (§4.2) and
-are hidden from the anonymous read surface.
+not leaked to anonymous users (§13 Q5). Authenticated server-read
+denials render `<ForbiddenView>`. Action gates (editMetadata,
+updateSharing, etc.) still require authenticated `item-role` per
+`ROLE_MATRIX` (§4.2) and are hidden from the anonymous read surface.
 
 ### 6.4 Maps (viewer)
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
-| `/maps/:mapId` | `auth` (+ `item-role:viewer`) **or** `anonymous` (+ `ShareAccess` with `share-tier:public`, or `share-tier:public-link` and a valid `?token=<value>`) | missing-item | forbidden / unavailable (anonymous) | viewer |
-| `/maps/new` | `auth` | empty-studio (redirect to `/studio?from=`) | unauth-redirect | viewer + studio |
+| `/maps/:mapId` | `auth` (+ server saved-map/package read) **or** `anonymous` (+ `ShareAccess` with `share-tier:public`, or `share-tier:public-link` and a valid `?token=<value>`) | missing-item | forbidden / unsupported-package / unavailable (anonymous) | viewer |
+| `/maps/new` | `auth` | empty-studio (redirect to `/studio?from=`) | unauth-redirect | shell + auth (redirect) |
 
 `/maps/:mapId` is anonymous-capable for `ShareAccess.sharing = public`
 and for `sharing = public-link` when the URL carries the matching
 `?token=<value>` query that `honua-portal:src/share/snippet.ts:27` emits
-(see §2.5). Authenticated reads use `item-role:viewer` per `ROLE_MATRIX`
-(§4.2). The `forbidden` surface renders for authenticated denials; the
-`unavailable` surface (§7) renders for anonymous denials so upgrade copy
-is not leaked to anonymous users (§13 Q5).
+(see §2.5). Authenticated reads use the server-owned saved-map/package
+read path described in §4.2 and §4.6; `item-role` gates only post-load
+actions. The `forbidden` surface renders for authenticated denials; the
+`unsupported-package` surface renders when the saved-map package is newer
+than the Console runtime; the `unavailable` surface (§7) renders for
+anonymous denials so upgrade copy is not leaked to anonymous users
+(§13 Q5).
 
 ### 6.5 Operate
 
@@ -624,7 +641,7 @@ routes do not author bespoke 403/404/empty copy.
 | Surface | Component | When | Source / contract |
 |---|---|---|---|
 | Unauthenticated | redirect | route requires `auth` and session is `UnauthenticatedSession` | `redirect('/auth/signin?returnTo=' + sanitizeReturnTo(location))` (`auth/returnTo.ts:5`) |
-| Forbidden | `<ForbiddenView cause=...>` | gate denial (scope, item-role, share-tier, edition, entitlement) | failed gate token from §4.6; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`) |
+| Forbidden | `<ForbiddenView cause=...>` | gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`) |
 | Missing item | `<MissingItemView kind=...>` | item id resolved → not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `<UnsupportedServiceView>` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug` and Studio "open from catalog" |
 | Unsupported package binding | `<UnsupportedPackageView>` | generated-app or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview` and `/maps/:mapId` |
@@ -669,10 +686,10 @@ constraint).
 
 | Chunk | Routes |
 |---|---|
-| shell + auth | `/`, `/auth/*`, `/groups`, `*` |
+| shell + auth | `/`, `/auth/*`, `/groups`, `/maps/new`, `*` |
 | studio | `/studio*`, `/studio/apps/:itemId/preview` |
 | catalog | `/catalog`, `/catalog/:idOrSlug` |
-| viewer | `/maps/:mapId`, `/maps/new` |
+| viewer | `/maps/:mapId` |
 | operate | all `/operate/*` |
 | share | `/share/public`, `/share/public/items/:idOrSlug` |
 | embed | `/embed/maps/:mapId` |
@@ -717,9 +734,9 @@ eligible for `/share/public/items/:idOrSlug` per §6.6).
      here; it fails `isPublicOpenDataItem` on both `openData` and
      `type`.
    - **`/maps/:mapId`** — viewer load of the generated saved map
-     (authenticated path uses `item-role:viewer`; anonymous-via-token
-     path uses `?token=<value>` per §2.5 / §6.4). Smoke label:
-     `viewer` (row 11).
+     (authenticated path uses the server-owned saved-map/package read
+     path; anonymous-via-token path uses `?token=<value>` per §2.5 /
+     §6.4). Smoke label: `viewer` (row 11).
    - **`/embed/maps/:mapId`** — anonymous embed of the generated
      saved map (`resolveEmbedAuthorization`; token in `#embedToken=`
      fragment per §8). Smoke label: `embed` (row 7).
