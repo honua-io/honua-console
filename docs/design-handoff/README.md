@@ -34,6 +34,7 @@ The goal is to give design enough structure to create flows, screen maps, and in
 - [Operate Observability Information Model](../architecture/operate-observability-information-model.md)
 - [Honua Console Migration Backlog](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 - [Console Backend Capability Backlog](../roadmap/CONSOLE_BACKEND_CAPABILITY_BACKLOG.md)
+- [Console UI Implementation Backlog](../roadmap/CONSOLE_UI_IMPLEMENTATION_BACKLOG.md)
 
 ## Design Direction
 
