@@ -50,12 +50,12 @@ The exception is recorded as a comment on `honua-console#10` (retirement ticket)
 
 1. [`honua-console#4`](https://github.com/honua-io/honua-console/issues/4) ported: Catalog, Viewer, Saved Maps, Share, Embed, Open Data.
 2. [`honua-console#5`](https://github.com/honua-io/honua-console/issues/5) ported: Studio app-builder and generated-app lifecycle (proof loop: prompt -> clarification -> spec/plan -> apply -> preview -> edit -> publish/reopen).
-3. [`honua-console#7`](https://github.com/honua-io/honua-console/issues/7) accepted: Console consumes shared Metadata v2, content, package, and RBAC contracts from `@honua/sdk-js`.
+3. [`honua-console#7`](https://github.com/honua-io/honua-console/issues/7) accepted: Console consumes shared Metadata v2, content, package, and RBAC contracts from `honua-sdk-dotnet` (with `honua-sdk-js` still authoritative for embed and generated-app browser bundles).
 4. [`honua-console#8`](https://github.com/honua-io/honua-console/issues/8) accepted: single deployable artifact serves `/studio`, `/catalog`, `/operate`, `/share` from one origin.
 5. [`honua-console#9`](https://github.com/honua-io/honua-console/issues/9) accepted: cross-surface smoke evidence captured in CI proves publish service -> catalog item -> Studio artifact -> share/embed, including open-data publication and unauthenticated embed rendering (see scope clarification in the migration backlog).
 6. The parity gate checklist in [`HONUA_CONSOLE_MIGRATION_BACKLOG.md`](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md) passes.
 
-The mechanics of repo archival, deployment removal, redirect plan, and `package.json` `file:../honua-portal` consumer cleanup are owned by `honua-console#10`.
+The mechanics of repo archival, deployment removal, redirect plan, and removal of any remaining `honua-portal` consumers (e.g., local `file:../honua-portal` references in adjacent JS packages or porting scaffolds) are owned by `honua-console#10`.
 
 ## Owner Sign-off Required Before Soft Freeze
 
