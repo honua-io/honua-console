@@ -53,6 +53,24 @@ export function emitConsoleSmoke(input: Omit<ConsoleSmokeEvent, "at">): ConsoleS
   return event;
 }
 
+export function emitPendingBindingSmoke(input: {
+  readonly surface: string;
+  readonly sdkSubpath: string;
+  readonly waitingFor: ReadonlyArray<string>;
+  readonly detail?: Readonly<Record<string, unknown>>;
+}): ConsoleSmokeEvent {
+  return emitConsoleSmoke({
+    surface: input.surface,
+    sdkSubpath: input.sdkSubpath,
+    status: "pending-binding",
+    durationMs: 0,
+    detail: {
+      ...input.detail,
+      waitingFor: input.waitingFor,
+    },
+  });
+}
+
 export function addConsoleSmokeListener(listener: ConsoleSmokeListener): () => void {
   localListeners.add(listener);
   return () => localListeners.delete(listener);

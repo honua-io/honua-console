@@ -61,7 +61,7 @@ Every SDK-backed loader returns `LoadSurface<T>`:
 | Catalog / Viewer | `/catalog/packages`, `usePackageList`, `usePackageDetail` | `map-packages:read` | `@honua/sdk-js/control-plane` via `src/sdk/control-plane.ts` | Lists and reads map packages through `HonuaMapPackagesClient`. |
 | Studio | `/studio/preview`, `useGeneratedAppPreview` | `studio:preview` | `@honua/sdk-js/generated-app` | Renders `pending-binding` until the Studio app-builder passes manifest input and load options, then returns the generated-app preview result. |
 | Operate | `/operate/provenance`, `useProvenance` | `operate:provenance:read` | `@honua/sdk-js/operator/workspace` | Uses the SDK `ProvenanceRecord` type; page stays `pending-binding` until the server provenance loader is supplied. |
-| Share | `/share`, `useShareMutate` | `sharing:read` + `sharing` entitlement | `@honua/sdk-js/control-plane` | Sharing mutation is wired through `HonuaSharingClient`; list/embed views wait on saved-map projections. |
+| Share | `/share`, `useShareMutate` | `sharing:read` | `@honua/sdk-js/control-plane` | Sharing mutation is wired through `HonuaSharingClient`; list/embed views wait on saved-map projections. |
 | Collaboration | `useCollaborationSession` | caller-owned | `@honua/sdk-js/collaboration` | Hook joins a saved-map collaboration session when options and join request are provided; no route is mounted yet. |
 
 ## Local Development

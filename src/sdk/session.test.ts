@@ -76,7 +76,7 @@ describe("SessionClient", () => {
     expect(result.status.bundle.entitlements.has("disabled.feature")).toBe(false);
   });
 
-  it("maps 401 sibling endpoints to fallback metadata while keeping authenticated state", async () => {
+  it("maps 401/403 secondary endpoints to fallback metadata while keeping authenticated state", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/auth/session")) {
@@ -86,6 +86,7 @@ describe("SessionClient", () => {
           claims: [{ type: "sub", value: "user-1" }],
         });
       }
+      if (url.endsWith("/effective-permissions")) return new Response("", { status: 403 });
       return new Response("", { status: 401 });
     });
 

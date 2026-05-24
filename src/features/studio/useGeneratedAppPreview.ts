@@ -8,7 +8,7 @@ import {
 } from "../../sdk/generated-app";
 import { adaptSdkThrown } from "../../surfaces/adapt";
 import { pendingBinding, type LoadSurface } from "../../surfaces/LoadSurface";
-import { emitConsoleSmoke, type SmokeStatus } from "../../telemetry/smoke";
+import { emitConsoleSmoke, emitPendingBindingSmoke, type SmokeStatus } from "../../telemetry/smoke";
 
 const PENDING_WAITING: ReadonlyArray<string> = Object.freeze(["generated-app.preview"]);
 
@@ -24,6 +24,11 @@ export function useGeneratedAppPreview(
   useEffect(() => {
     if (!input || !options) {
       setSurface(pendingBinding(PENDING_WAITING));
+      emitPendingBindingSmoke({
+        surface: "studio.generated-app.preview",
+        sdkSubpath: "generated-app",
+        waitingFor: PENDING_WAITING,
+      });
       return;
     }
     let cancelled = false;

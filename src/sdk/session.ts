@@ -228,6 +228,10 @@ function featuresToEntitlements(
   return out;
 }
 
+function isAuthFallbackStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
 const EMPTY_BUNDLE: CapabilityBundle = Object.freeze({
   capabilities: new Set<CapabilityName>(),
   entitlements: new Set<EntitlementName>(),
@@ -235,7 +239,7 @@ const EMPTY_BUNDLE: CapabilityBundle = Object.freeze({
 
 export interface SessionBootstrapResult {
   readonly status: SessionStatus;
-  /** When the bootstrap encountered 401s, this lists which endpoints were inaccessible. */
+  /** When bootstrap encountered inaccessible endpoints, this lists which endpoints fell back. */
   readonly fellBackEndpoints: ReadonlyArray<string>;
 }
 
@@ -317,7 +321,7 @@ export class SessionClient {
 
     const capabilities = new Set<CapabilityName>();
     if (permissionsResponse) {
-      if (permissionsResponse.status === 401) {
+      if (isAuthFallbackStatus(permissionsResponse.status)) {
         fellBack.push(userId ? PERMISSIONS_ENDPOINT(userId) : PERMISSIONS_ENDPOINT("(unknown)"));
       } else if (permissionsResponse.ok) {
         const payload = unwrap<EffectivePermissionsResponse>(
@@ -332,7 +336,7 @@ export class SessionClient {
 
     const entitlements = new Set<EntitlementName>();
     if (entitlementsResponse) {
-      if (entitlementsResponse.status === 401) {
+      if (isAuthFallbackStatus(entitlementsResponse.status)) {
         fellBack.push(ENTITLEMENTS_ENDPOINT);
       } else if (entitlementsResponse.ok) {
         const payload = unwrap<LicenseEntitlementsResponse>(

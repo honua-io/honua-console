@@ -27,8 +27,8 @@ data, and embed projections are pending upstream publishes and are tracked in
   Synthesizes a bundle from three admin endpoints today; collapses to one
   call when `honua-server#1162` ships the non-admin capability endpoint. Its
   public bootstrap result is `{ status, fellBackEndpoints }`, where 401 on the
-  session endpoint becomes `anonymous` and 401 on secondary bundle endpoints is
-  reported through `fellBackEndpoints`. The transitional permissions adapter
+  session endpoint becomes `anonymous` and 401/403 on secondary bundle endpoints
+  are reported through `fellBackEndpoints`. The transitional permissions adapter
   reads server `PermissionGrantResponse` grants (`service`, `layer`,
   `operation`) from the user-id based endpoint and bridges wildcard grants to
   the current Console route gate labels. Entitlements are read from the flat

@@ -1,11 +1,12 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
   HonuaGeneratedAppLoadOptions,
   HonuaGeneratedAppPreviewInput,
   HonuaGeneratedAppPreviewResult,
 } from "../../sdk/generated-app";
+import { addConsoleSmokeListener } from "../../telemetry/smoke";
 import { useGeneratedAppPreview } from "./useGeneratedAppPreview";
 
 vi.mock("../../sdk/generated-app", () => ({
@@ -21,6 +22,12 @@ interface HookProps {
   readonly input: HonuaGeneratedAppPreviewInput | undefined;
   readonly options: HonuaGeneratedAppLoadOptions | undefined;
 }
+
+const cleanups: Array<() => void> = [];
+
+afterEach(() => {
+  while (cleanups.length) cleanups.pop()?.();
+});
 
 describe("useGeneratedAppPreview", () => {
   it("resets to pending-binding when preview inputs disappear", async () => {
@@ -42,6 +49,24 @@ describe("useGeneratedAppPreview", () => {
 
     await waitFor(() => {
       expect(result.current.status).toBe("pending-binding");
+    });
+  });
+
+  it("emits pending-binding smoke when preview inputs are absent", async () => {
+    const events: unknown[] = [];
+    cleanups.push(addConsoleSmokeListener((event) => events.push(event)));
+
+    renderHook(() => useGeneratedAppPreview(undefined, undefined));
+
+    await waitFor(() => {
+      expect(events).toEqual([
+        expect.objectContaining({
+          surface: "studio.generated-app.preview",
+          sdkSubpath: "generated-app",
+          status: "pending-binding",
+          detail: expect.objectContaining({ waitingFor: ["generated-app.preview"] }),
+        }),
+      ]);
     });
   });
 });
