@@ -1,0 +1,35 @@
+{
+  "name": "@honua/console",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Honua Console unified web shell.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@honua/sdk-js": "file:../../../honua-sdk-js",
+    "@tanstack/react-query": "5.62.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.0.1",
+    "@testing-library/user-event": "14.5.2",
+    "@types/node": "25.9.1",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "6.0.2",
+    "jsdom": "25.0.1",
+    "typescript": "5.6.3",
+    "vite": "8.0.14",
+    "vitest": "4.1.7"
+  }
+}

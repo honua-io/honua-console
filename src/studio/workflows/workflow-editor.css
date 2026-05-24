@@ -1,0 +1,332 @@
+.workflow-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.workflow-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #d7dee2;
+  padding-bottom: 18px;
+}
+
+.workflow-kicker {
+  margin: 0 0 6px;
+  color: #38605f;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.workflow-header h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 3vw, 3rem);
+  line-height: 1.05;
+}
+
+.workflow-subtitle {
+  margin: 10px 0 0;
+  color: #59686e;
+  max-width: 760px;
+}
+
+.workflow-actions,
+.publish-controls,
+.version-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #9db0b8;
+  background: #ffffff;
+  color: #172227;
+  border-radius: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: #35696b;
+  background: #eef5f2;
+}
+
+button:disabled {
+  color: #87949a;
+  cursor: not-allowed;
+}
+
+input,
+textarea {
+  border: 1px solid #bbc8cd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172227;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.workflow-error {
+  border: 1px solid #c76052;
+  background: #fff2ef;
+  color: #862d20;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
+}
+
+.lower-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.workflow-panel {
+  background: #ffffff;
+  border: 1px solid #d7dee2;
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-heading h2,
+.publication-record h3,
+.run-record h3,
+.workflow-node h3 {
+  margin: 0;
+}
+
+.panel-heading p,
+.publication-record p,
+.workflow-node p {
+  margin: 4px 0 0;
+  color: #637278;
+  line-height: 1.4;
+}
+
+.prompt-input {
+  min-height: 160px;
+  padding: 12px;
+  line-height: 1.45;
+}
+
+.definition-input {
+  min-height: 360px;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.draft-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.draft-summary span,
+.status-pill,
+.node-kind,
+.run-record li span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  background: #edf2f4;
+  color: #405159;
+  padding: 0 9px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-pill.ok {
+  background: #dff3e7;
+  color: #1b6945;
+}
+
+.status-pill.blocked {
+  background: #fbe1dc;
+  color: #923323;
+}
+
+.node-list,
+.issue-list,
+.run-stack,
+.publication-stack {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workflow-node,
+.issue-list li,
+.run-record,
+.publication-record {
+  border: 1px solid #dde5e8;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfc;
+}
+
+.workflow-node {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
+  gap: 12px;
+}
+
+.workflow-node dl,
+.run-metrics,
+.publication-record dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+dt {
+  color: #637278;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.issue-list li {
+  display: grid;
+  gap: 5px;
+}
+
+.issue-list li.error {
+  border-color: #e0a39a;
+  background: #fff8f6;
+}
+
+.issue-list li.warning {
+  border-color: #dfc46a;
+  background: #fffbea;
+}
+
+.issue-list small {
+  color: #5d6a70;
+}
+
+.empty-message {
+  margin: 0;
+  padding: 22px;
+  border: 1px dashed #c5d0d4;
+  border-radius: 8px;
+  color: #637278;
+  background: #fbfcfc;
+}
+
+.run-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.run-title strong,
+.run-title span {
+  display: block;
+}
+
+.run-title span {
+  color: #637278;
+}
+
+.run-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.run-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.run-columns ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.run-columns li {
+  margin: 4px 0;
+}
+
+.publish-controls {
+  align-items: center;
+}
+
+.publish-controls input[aria-label="Schedule cron expression"] {
+  min-height: 36px;
+  padding: 0 10px;
+  width: 150px;
+}
+
+.toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.publication-record dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.version-list {
+  margin-top: 12px;
+}
+
+@media (max-width: 1120px) {
+  .workflow-header,
+  .workflow-grid,
+  .workflow-node,
+  .run-columns,
+  .publication-record dl {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-header {
+    display: grid;
+  }
+
+  .run-metrics {
+    grid-template-columns: 1fr;
+  }
+}
