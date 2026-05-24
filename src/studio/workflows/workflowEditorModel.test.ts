@@ -65,6 +65,20 @@ describe("Studio workflow editor model", () => {
     );
   });
 
+  it("returns contract issues for syntactically valid non-workflow JSON", async () => {
+    const client = createStudioWorkflowFixtureClient();
+
+    const validation = await client.validateDefinition({});
+
+    expect(validation.status).toBe("blocked");
+    expect(validation.issues.map((issue) => issue.message)).toEqual(
+      expect.arrayContaining([
+        "Workflow definition must declare workflowId as a string.",
+        "Workflow steps must be an array.",
+      ]),
+    );
+  });
+
   it("runs dry-runs through the SDK job-runner surface and returns logs, artifacts, and row failures", async () => {
     const client = createStudioWorkflowFixtureClient();
     const draft = await client.createDraftFromPrompt("Run sample review");
@@ -100,5 +114,67 @@ describe("Studio workflow editor model", () => {
     expect(service.stableInvocationRoute).toContain("/ogc/processes/processes/");
     expect(service.resultPackageMetadata.artifactKinds).toContain("FeatureLayer");
     expect(rolledBack.activeVersionId).toBe(manual.activeVersionId);
+  });
+
+  it("blocks invalid batch publication and invalid scheduled publication requests", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const invalidDefinition = {
+      ...draft.definition,
+      steps: [],
+    };
+
+    await expect(client.publishDefinition(invalidDefinition, { executionMode: "manual" })).rejects.toThrow(
+      /Workflow validation blocked publication/,
+    );
+    await expect(
+      client.publishDefinition(draft.definition, {
+        executionMode: "scheduled",
+        cronExpression: "0 2 *",
+        timeZone: "Pacific/Honolulu",
+      }),
+    ).rejects.toThrow(/5-field cron expression/);
+  });
+
+  it("derives process-service eligibility and metadata from the current workflow definition", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const editedDefinition = {
+      ...draft.definition,
+      steps: draft.definition.steps.map((step) =>
+        step.stepId === "buffer-habitats"
+          ? {
+              ...step,
+              inputs: {
+                ...step.inputs,
+                distanceMeters: "750",
+              },
+              plan: {
+                ...step.plan,
+                steps: step.plan.steps.map((planStep) =>
+                  planStep.stepId === "buffer"
+                    ? {
+                        ...planStep,
+                        inputs: {
+                          ...planStep.inputs,
+                          distanceMeters: "750",
+                        },
+                      }
+                    : planStep,
+                ),
+              },
+            }
+          : step,
+      ),
+    };
+    const etlOnlyDefinition = {
+      ...draft.definition,
+      steps: draft.definition.steps.filter((step) => step.nodeKind !== "publication"),
+    };
+
+    const service = await client.publishProcessService(editedDefinition);
+
+    expect(service.parameterMetadata.find((parameter) => parameter.name === "distanceMeters")?.defaultValue).toBe("750");
+    await expect(client.publishProcessService(etlOnlyDefinition)).rejects.toThrow(/publication node/);
   });
 });

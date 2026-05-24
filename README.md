@@ -30,7 +30,14 @@ The Console migration spans the in-repo child-ticket backlog and external owner 
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The current scaffold is a React/TypeScript/Vite Console shell with the Studio workflow area active by default.
+
+Implemented Console slices:
+
+- [honua-console#2](https://github.com/honua-io/honua-console/issues/2): React/TypeScript Console shell.
+- [honua-console#17](https://github.com/honua-io/honua-console/issues/17): [Studio unified GP and ETL workflow editor](docs/features/studio-workflow-editor.md).
+
+The Studio workflow editor is currently backed by a deterministic fixture transport in `src/studio/workflows/fixtureClient.ts`. It exercises the shared workflow, analysis-plan, SDK job-runner, publication, provenance, rollback, and OGC process-service response contracts without making Console the runtime owner.
 
 Until parity is accepted, source behavior remains in:
 
@@ -40,3 +47,19 @@ Until parity is accepted, source behavior remains in:
 - `honua-sdk-js` for browser-safe SDK contracts and generated app runtime.
 - `honua-server` for server-owned metadata, content, RBAC, provenance, and package APIs.
 - `honua-devops` for the single deployable artifact and release pipeline.
+
+## Local Development
+
+Run the Console shell:
+
+```sh
+npm run dev -- --host 127.0.0.1
+```
+
+Validate the current Studio workflow editor slice:
+
+```sh
+npm run typecheck
+npm run test -- src/studio/workflows/workflowEditorModel.test.ts src/studio/workflows/StudioWorkflowEditor.test.tsx
+npm run build
+```

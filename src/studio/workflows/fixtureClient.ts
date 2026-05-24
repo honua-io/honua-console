@@ -23,6 +23,8 @@ import type {
   WorkflowRunRecord,
 } from "./types";
 import {
+  describeProcessServicePublication,
+  isFiveFieldCron,
   stableDefinitionHash,
   toProcessExecutionPlan,
   validateWorkflowDefinition,
@@ -41,7 +43,7 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
       const effectivePrompt = prompt.trim() || DEFAULT_PROMPT;
       return createDraft(effectivePrompt);
     },
-    async validateDefinition(definition: WorkflowDefinitionPayload) {
+    async validateDefinition(definition: unknown) {
       return validateWorkflowDefinition(definition);
     },
     async runDefinition(definition: WorkflowDefinitionPayload, mode: WorkflowRunMode) {
@@ -91,6 +93,9 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
       };
     },
     async publishDefinition(definition: WorkflowDefinitionPayload, request: WorkflowPublicationRequest) {
+      assertPublishableDefinition(definition);
+      assertPublishableSchedule(request);
+
       const now = new Date().toISOString();
       const hash = stableDefinitionHash(definition);
       const itemId = `workflow-item-${definition.workflowId}`;
@@ -137,43 +142,19 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
       return item;
     },
     async publishProcessService(definition: WorkflowDefinitionPayload) {
-      const validation = validateWorkflowDefinition(definition);
-      if (validation.status === "blocked") {
-        throw new Error("Only validated workflow definitions can be published as process services.");
+      assertPublishableDefinition(definition);
+      const publication = describeProcessServicePublication(definition);
+      if (!publication.eligibility.eligible) {
+        throw new Error(`Workflow is not eligible for process-service publication: ${publication.eligibility.reasons.join(" ")}`);
       }
+
       const itemId = `workflow-item-${definition.workflowId}`;
-      const outputKinds = uniqueArtifacts(definition);
       return {
         processId: `studio.${definition.workflowId}`,
         title: definition.name,
         stableInvocationRoute: `/ogc/processes/processes/studio.${definition.workflowId}/execution`,
-        parameterMetadata: [
-          {
-            name: "inputLayerId",
-            displayName: "Input layer",
-            valueType: "LayerId",
-            required: true,
-          },
-          {
-            name: "distanceMeters",
-            displayName: "Buffer distance",
-            valueType: "FloatingPoint",
-            required: true,
-            defaultValue: "500",
-          },
-          {
-            name: "sampleLimit",
-            displayName: "Sample limit",
-            valueType: "WholeNumber",
-            required: false,
-            defaultValue: "250",
-          },
-        ],
-        resultPackageMetadata: {
-          resultPackageId: `result-package-${definition.workflowId}`,
-          artifactKinds: outputKinds,
-          retentionPolicy: "honua.retention.result-package.default",
-        },
+        parameterMetadata: publication.parameterMetadata,
+        resultPackageMetadata: publication.resultPackageMetadata,
         permissions: ["workflow:execute", "workflow:read", "process:invoke"],
         contentItemId: itemId,
       } satisfies ProcessServicePublication;
@@ -594,6 +575,21 @@ function isTerminal(status: JobStatus): boolean {
   return status === "successful" || status === "failed" || status === "dismissed";
 }
 
+function assertPublishableDefinition(definition: WorkflowDefinitionPayload): void {
+  const validation = validateWorkflowDefinition(definition);
+  if (validation.status === "blocked") {
+    const messages = validation.issues.map((issue) => issue.message).join(" ");
+    throw new Error(`Workflow validation blocked publication: ${messages}`);
+  }
+}
+
+function assertPublishableSchedule(request: WorkflowPublicationRequest): void {
+  if (request.executionMode !== "scheduled") return;
+  if (!request.cronExpression?.trim() || !isFiveFieldCron(request.cronExpression)) {
+    throw new Error("Scheduled workflow publication requires a non-empty 5-field cron expression.");
+  }
+}
+
 function collectUpstreamItems(definition: WorkflowDefinitionPayload): readonly string[] {
   return Array.from(
     new Set(
@@ -604,8 +600,4 @@ function collectUpstreamItems(definition: WorkflowDefinitionPayload): readonly s
       ),
     ),
   );
-}
-
-function uniqueArtifacts(definition: WorkflowDefinitionPayload): readonly ArtifactKind[] {
-  return Array.from(new Set(definition.steps.flatMap((step) => step.plan.outputs)));
 }

@@ -232,7 +232,7 @@ export interface ProcessServicePublication {
 
 export interface StudioWorkflowTransport {
   createDraftFromPrompt(prompt: string, signal?: AbortSignal): Promise<WorkflowDraft>;
-  validateDefinition(definition: WorkflowDefinitionPayload, signal?: AbortSignal): Promise<WorkflowValidationResult>;
+  validateDefinition(definition: unknown, signal?: AbortSignal): Promise<WorkflowValidationResult>;
   runDefinition(
     definition: WorkflowDefinitionPayload,
     mode: WorkflowRunMode,

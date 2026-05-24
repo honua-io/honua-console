@@ -383,6 +383,15 @@ Workflow publication modes:
 - `gp_service`: parameterized service endpoint backed by the canonical geoprocessing runtime.
 - `etl_pipeline`: reusable ETL definition backed by the job runner.
 
+honua-console#17 implements the first Console projection of this package family.
+The editor generates an inspectable `honua-server:WorkflowDefinition`
+projection from natural language, validates it against shared workflow,
+analysis-plan, job-runner, and OGC process-service contract references, and
+publishes either a reusable workflow definition content item or an eligible OGC
+process service. Server and SDK contracts remain the source of truth; the
+Console types exist only at the transport boundary until the shared DTOs are
+available directly.
+
 ## Studio Authoring Workflow
 
 ### 1. Start From Intent

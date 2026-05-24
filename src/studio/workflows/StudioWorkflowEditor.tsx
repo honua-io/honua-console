@@ -11,6 +11,11 @@ import type {
   WorkflowRunRecord,
   WorkflowValidationResult,
 } from "./types";
+import {
+  getProcessServiceEligibility,
+  isFiveFieldCron,
+  isWorkflowDefinitionPayload,
+} from "./workflowContracts";
 
 import "./workflow-editor.css";
 
@@ -35,7 +40,17 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
   const [error, setError] = useState<string | undefined>();
 
   const parsedDefinition = useMemo(() => parseDefinition(definitionJson), [definitionJson]);
-  const definition = parsedDefinition.ok ? parsedDefinition.definition : undefined;
+  const definition =
+    parsedDefinition.ok && isWorkflowDefinitionPayload(parsedDefinition.value) ? parsedDefinition.value : undefined;
+  const serviceEligibility = definition ? getProcessServiceEligibility(definition) : undefined;
+  const canValidate = parsedDefinition.ok && !busy;
+  const canPublishDefinition =
+    Boolean(definition && validation && validation.status !== "blocked" && !busy) &&
+    (!scheduleEnabled || isFiveFieldCron(cronExpression));
+  const canPublishProcessService = Boolean(
+    definition && validation && validation.status !== "blocked" && serviceEligibility?.eligible && !busy,
+  );
+  const processServiceEligible = definition ? serviceEligibility?.eligible === true : false;
 
   async function generateDraft(): Promise<void> {
     await act("draft", async () => {
@@ -50,12 +65,12 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
   }
 
   async function validateDraft(): Promise<void> {
-    if (!definition) {
+    if (!parsedDefinition.ok) {
       setError(definitionParseMessage(parsedDefinition));
       return;
     }
     await act("validate", async () => {
-      setValidation(await transport.validateDefinition(definition));
+      setValidation(await transport.validateDefinition(parsedDefinition.value));
     });
   }
 
@@ -116,6 +131,12 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
     }
   }
 
+  function updateDefinitionJson(value: string): void {
+    setDefinitionJson(value);
+    setValidation(undefined);
+    setProcessService(undefined);
+  }
+
   return (
     <section className="workflow-editor" aria-labelledby="workflow-editor-title">
       <header className="workflow-header">
@@ -130,7 +151,7 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
           <button disabled={Boolean(busy)} onClick={generateDraft} type="button">
             Generate Draft
           </button>
-          <button disabled={!definition || Boolean(busy)} onClick={validateDraft} type="button">
+          <button disabled={!canValidate} onClick={validateDraft} type="button">
             Validate
           </button>
           <button disabled={!definition || Boolean(busy)} onClick={() => run("dry-run")} type="button">
@@ -167,7 +188,7 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
             <div className="draft-summary">
               <span>{draft.definition.mode}</span>
               <span>{draft.generatedContract.join(" / ")}</span>
-              <span>{draft.eligibleProcessService ? "Process service eligible" : "Batch only"}</span>
+              <span>{processServiceEligible ? "Process service eligible" : "Batch only"}</span>
             </div>
           ) : null}
         </section>
@@ -185,7 +206,7 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
           <textarea
             aria-label="Workflow definition JSON"
             className="definition-input"
-            onChange={(event) => setDefinitionJson(event.target.value)}
+            onChange={(event) => updateDefinitionJson(event.target.value)}
             spellCheck={false}
             value={definitionJson}
           />
@@ -200,7 +221,17 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
               <p>Source, transform, sink, process, artifact, and publication nodes from the contract.</p>
             </div>
           </div>
-          {definition ? <WorkflowGraph definition={definition} /> : <EmptyMessage message="Generate a draft to inspect nodes." />}
+          {definition ? (
+            <WorkflowGraph definition={definition} />
+          ) : (
+            <EmptyMessage
+              message={
+                parsedDefinition.ok
+                  ? "Run validation to inspect contract issues before nodes render."
+                  : "Generate a draft to inspect nodes."
+              }
+            />
+          )}
         </section>
 
         <section className="workflow-panel" aria-label="Validation findings">
@@ -250,14 +281,10 @@ export function StudioWorkflowEditor({ transport }: StudioWorkflowEditorProps): 
               onChange={(event) => setCronExpression(event.target.value)}
               value={cronExpression}
             />
-            <button disabled={!definition || Boolean(busy)} onClick={publishDefinition} type="button">
+            <button disabled={!canPublishDefinition} onClick={publishDefinition} type="button">
               Publish Batch Definition
             </button>
-            <button
-              disabled={!definition || Boolean(busy) || draft?.eligibleProcessService === false}
-              onClick={publishProcessService}
-              type="button"
-            >
+            <button disabled={!canPublishProcessService} onClick={publishProcessService} type="button">
               Publish Process Service
             </button>
           </div>
@@ -451,14 +478,12 @@ function EmptyMessage({ message }: { message: string }): JSX.Element {
   return <p className="empty-message">{message}</p>;
 }
 
-function parseDefinition(json: string):
-  | { ok: true; definition: WorkflowDefinitionPayload }
-  | { ok: false; message: string } {
+function parseDefinition(json: string): { ok: true; value: unknown } | { ok: false; message: string } {
   if (!json.trim()) {
     return { ok: false, message: "Generate or paste a workflow definition before continuing." };
   }
   try {
-    return { ok: true, definition: JSON.parse(json) as WorkflowDefinitionPayload };
+    return { ok: true, value: JSON.parse(json) };
   } catch (caught) {
     return {
       ok: false,
@@ -468,5 +493,5 @@ function parseDefinition(json: string):
 }
 
 function definitionParseMessage(result: ReturnType<typeof parseDefinition>): string {
-  return result.ok ? "Workflow definition JSON could not be parsed." : result.message;
+  return result.ok ? "Workflow definition JSON must match the server workflow contract before continuing." : result.message;
 }

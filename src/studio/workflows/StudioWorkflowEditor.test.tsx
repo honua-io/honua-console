@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -40,5 +40,21 @@ describe("StudioWorkflowEditor", () => {
 
     expect(await screen.findByText(/\/ogc\/processes\/processes\//i)).toBeInTheDocument();
     expect(screen.getByText(/process:invoke/i)).toBeInTheDocument();
+  });
+
+  it("validates syntactically valid non-workflow JSON without rendering graph nodes", async () => {
+    const user = userEvent.setup();
+    render(<StudioWorkflowEditor transport={createStudioWorkflowFixtureClient()} />);
+
+    fireEvent.change(screen.getByLabelText(/workflow definition json/i), { target: { value: "{}" } });
+
+    expect(screen.getByText(/Run validation to inspect contract issues before nodes render/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^validate$/i }));
+
+    expect(await screen.findByText(/^blocked$/i)).toBeInTheDocument();
+    expect(screen.getByText(/Workflow definition must declare workflowId as a string/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /publish batch definition/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /publish process service/i })).toBeDisabled();
   });
 });

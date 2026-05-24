@@ -1,6 +1,12 @@
 import type {
   AnalysisPlanPayload,
+  AnalysisPlanStepKind,
+  ArtifactKind,
+  ProcessParameterMetadata,
+  ResultPackageMetadata,
   WorkflowDefinitionPayload,
+  WorkflowMode,
+  WorkflowNodeKind,
   WorkflowStepDefinitionPayload,
   WorkflowValidationIssue,
   WorkflowValidationResult,
@@ -20,22 +26,82 @@ const REQUIRED_PROCESS_PARAMETERS: Readonly<Record<string, readonly string[]>> =
   "analytics.summarize": ["inputLayerId", "groupByField"],
   "conversion.export": ["inputLayerId", "format"],
 };
+const WORKFLOW_MODES = ["etl", "geoprocessing", "hybrid"] satisfies readonly WorkflowMode[];
+const WORKFLOW_NODE_KINDS = [
+  "source",
+  "transform",
+  "sink",
+  "process",
+  "parameter",
+  "validation",
+  "artifact",
+  "publication",
+] satisfies readonly WorkflowNodeKind[];
+const ANALYSIS_PLAN_STEP_KINDS = [
+  "QueryFeatures",
+  "Geoprocess",
+  "Aggregate",
+  "RenderMap",
+  "Export",
+] satisfies readonly AnalysisPlanStepKind[];
+const ARTIFACT_KINDS = [
+  "Scalar",
+  "FeatureLayer",
+  "Table",
+  "Raster",
+  "File",
+  "Report",
+  "Map",
+  "AppBundle",
+] satisfies readonly ArtifactKind[];
+const NON_SERVICE_PARAMETER_INPUTS = new Set([
+  "format",
+  "itemKind",
+  "permission",
+  "publishAsProcessService",
+  "retentionPolicy",
+  "schemaPolicy",
+  "sinkType",
+  "sourceUri",
+]);
 
-export function validateWorkflowDefinition(definition: WorkflowDefinitionPayload): WorkflowValidationResult {
+export interface ProcessServiceEligibility {
+  readonly eligible: boolean;
+  readonly bindingStep?: WorkflowStepDefinitionPayload;
+  readonly reasons: readonly string[];
+}
+
+export interface ProcessServicePublicationContract {
+  readonly eligibility: ProcessServiceEligibility;
+  readonly parameterMetadata: readonly ProcessParameterMetadata[];
+  readonly resultPackageMetadata: ResultPackageMetadata;
+}
+
+export function isWorkflowDefinitionPayload(value: unknown): value is WorkflowDefinitionPayload {
+  return validateWorkflowDefinitionShape(value).length === 0;
+}
+
+export function validateWorkflowDefinition(definition: unknown): WorkflowValidationResult {
+  const shapeIssues = validateWorkflowDefinitionShape(definition);
+  if (shapeIssues.length > 0) {
+    return validationResult(shapeIssues);
+  }
+
+  const payload = definition as WorkflowDefinitionPayload;
   const issues: WorkflowValidationIssue[] = [];
 
-  if (!definition.workflowId.trim()) {
+  if (!payload.workflowId.trim()) {
     issues.push(contractIssue("Workflow identifier is required.", "$.workflowId"));
   }
-  if (!definition.name.trim()) {
+  if (!payload.name.trim()) {
     issues.push(contractIssue("Workflow name is required.", "$.name"));
   }
-  if (definition.steps.length === 0) {
+  if (payload.steps.length === 0) {
     issues.push(contractIssue("Workflow must contain at least one step.", "$.steps"));
   }
 
   const stepIds = new Set<string>();
-  for (const step of definition.steps) {
+  for (const step of payload.steps) {
     validateStep(step, issues);
     if (stepIds.has(step.stepId)) {
       issues.push(contractIssue(`Duplicate step identifier '${step.stepId}'.`, `$.steps.${step.stepId}`));
@@ -43,7 +109,7 @@ export function validateWorkflowDefinition(definition: WorkflowDefinitionPayload
     stepIds.add(step.stepId);
   }
 
-  for (const step of definition.steps) {
+  for (const step of payload.steps) {
     for (const dependency of step.dependsOn) {
       if (!stepIds.has(dependency)) {
         issues.push(
@@ -79,14 +145,14 @@ export function validateWorkflowDefinition(definition: WorkflowDefinitionPayload
     }
   }
 
-  if (hasCycle(definition.steps)) {
+  if (hasCycle(payload.steps)) {
     issues.push(contractIssue("Workflow contains a dependency cycle.", "$.steps"));
   }
 
-  if (definition.trigger?.kind === "Cron") {
-    if (!definition.trigger.cronExpression?.trim()) {
+  if (payload.trigger?.kind === "Cron") {
+    if (!payload.trigger.cronExpression?.trim()) {
       issues.push(contractIssue("Cron trigger requires a non-empty cron expression.", "$.trigger.cronExpression"));
-    } else if (!isFiveFieldCron(definition.trigger.cronExpression)) {
+    } else if (!isFiveFieldCron(payload.trigger.cronExpression)) {
       issues.push(
         contractIssue(
           "Cron trigger must use a 5-field expression.",
@@ -98,6 +164,56 @@ export function validateWorkflowDefinition(definition: WorkflowDefinitionPayload
     }
   }
 
+  return validationResult(issues);
+}
+
+export function getProcessServiceEligibility(definition: WorkflowDefinitionPayload): ProcessServiceEligibility {
+  const bindingStep = definition.steps.find(isProcessServiceBinding);
+  if (!bindingStep) {
+    return {
+      eligible: false,
+      reasons: ["Process-service publication requires a publication node with publishAsProcessService=true."],
+    };
+  }
+
+  const reasons: string[] = [];
+  const processId = getStepProcessId(bindingStep);
+  if (!processId || !SUPPORTED_TRANSFORMS.has(processId)) {
+    reasons.push("Process-service publication requires a Console-advertised process id.");
+  }
+  if (!bindingStep.plan.steps.some((planStep) => planStep.processId === processId || planStep.kind === "Geoprocess")) {
+    reasons.push("Process-service publication requires process-capable analysis-plan metadata.");
+  }
+  if (!bindingStep.inputBindings.some((binding) => binding.targetInputKey === "resultPackageId")) {
+    reasons.push("Process-service publication requires an explicit result-package input binding.");
+  }
+  if (bindingStep.inputs.permission !== "granted") {
+    reasons.push("Process-service publication requires publish-process permission on the current definition.");
+  }
+  if (collectProcessServiceParameterMetadata(definition).length === 0) {
+    reasons.push("Process-service publication requires at least one invokable parameter.");
+  }
+
+  return {
+    eligible: reasons.length === 0,
+    bindingStep,
+    reasons,
+  };
+}
+
+export function describeProcessServicePublication(definition: WorkflowDefinitionPayload): ProcessServicePublicationContract {
+  return {
+    eligibility: getProcessServiceEligibility(definition),
+    parameterMetadata: collectProcessServiceParameterMetadata(definition),
+    resultPackageMetadata: {
+      resultPackageId: `result-package-${definition.workflowId}`,
+      artifactKinds: collectResultArtifactKinds(definition),
+      retentionPolicy: "honua.retention.result-package.default",
+    },
+  };
+}
+
+function validationResult(issues: readonly WorkflowValidationIssue[]): WorkflowValidationResult {
   const status = issues.some((issue) => issue.severity === "error")
     ? "blocked"
     : issues.some((issue) => issue.severity === "warning")
@@ -217,6 +333,155 @@ function validateStep(step: WorkflowStepDefinitionPayload, issues: WorkflowValid
   }
 }
 
+function validateWorkflowDefinitionShape(value: unknown): WorkflowValidationIssue[] {
+  const issues: WorkflowValidationIssue[] = [];
+  if (!isRecord(value)) {
+    issues.push(contractIssue("Workflow definition must be a JSON object.", "$"));
+    return issues;
+  }
+
+  expectString(value.workflowId, "$.workflowId", "Workflow definition must declare workflowId as a string.", issues);
+  expectString(value.name, "$.name", "Workflow definition must declare name as a string.", issues);
+  expectEnum(value.mode, WORKFLOW_MODES, "$.mode", "Workflow mode must be etl, geoprocessing, or hybrid.", issues);
+  expectString(value.createdAt, "$.createdAt", "Workflow definition must declare createdAt as an ISO string.", issues);
+  expectString(value.updatedAt, "$.updatedAt", "Workflow definition must declare updatedAt as an ISO string.", issues);
+  expectStringRecord(value.metadata, "$.metadata", "Workflow metadata must be a string map.", issues);
+  validateTriggerShape(value.trigger, issues);
+
+  if (!Array.isArray(value.steps)) {
+    issues.push(contractIssue("Workflow steps must be an array.", "$.steps"));
+    return issues;
+  }
+
+  value.steps.forEach((step, index) => validateStepShape(step, `$.steps[${index}]`, issues));
+  return issues;
+}
+
+function validateTriggerShape(value: unknown, issues: WorkflowValidationIssue[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    issues.push(contractIssue("Workflow trigger must be an object.", "$.trigger"));
+    return;
+  }
+  expectEnum(value.kind, ["Manual", "Cron"], "$.trigger.kind", "Workflow trigger kind must be Manual or Cron.", issues);
+  if (value.cronExpression !== undefined) {
+    expectString(
+      value.cronExpression,
+      "$.trigger.cronExpression",
+      "Workflow trigger cronExpression must be a string.",
+      issues,
+    );
+  }
+  if (value.timeZone !== undefined) {
+    expectString(value.timeZone, "$.trigger.timeZone", "Workflow trigger timeZone must be a string.", issues);
+  }
+  if (typeof value.enabled !== "boolean") {
+    issues.push(contractIssue("Workflow trigger enabled must be a boolean.", "$.trigger.enabled"));
+  }
+}
+
+function validateStepShape(value: unknown, path: string, issues: WorkflowValidationIssue[]): void {
+  if (!isRecord(value)) {
+    issues.push(contractIssue("Workflow step must be an object.", path));
+    return;
+  }
+
+  expectString(value.stepId, `${path}.stepId`, "Workflow step must declare stepId as a string.", issues);
+  expectString(value.label, `${path}.label`, "Workflow step must declare label as a string.", issues);
+  expectEnum(value.nodeKind, WORKFLOW_NODE_KINDS, `${path}.nodeKind`, "Workflow step nodeKind is unsupported.", issues);
+  if (value.processId !== undefined) {
+    expectString(value.processId, `${path}.processId`, "Workflow step processId must be a string.", issues);
+  }
+  expectStringRecord(value.inputs, `${path}.inputs`, "Workflow step inputs must be a string map.", issues);
+  expectStringArray(value.dependsOn, `${path}.dependsOn`, "Workflow step dependsOn must be a string array.", issues);
+  validateInputBindingsShape(value.inputBindings, `${path}.inputBindings`, issues);
+  if (value.failurePolicy !== "Fail" && value.failurePolicy !== "Continue") {
+    issues.push(contractIssue("Workflow step failurePolicy must be Fail or Continue.", `${path}.failurePolicy`));
+  }
+  if (value.timeoutSeconds !== undefined && typeof value.timeoutSeconds !== "number") {
+    issues.push(contractIssue("Workflow step timeoutSeconds must be a number.", `${path}.timeoutSeconds`));
+  }
+  validateRetryPolicyShape(value.retryPolicy, `${path}.retryPolicy`, issues);
+  validatePlanShape(value.plan, `${path}.plan`, issues);
+}
+
+function validateInputBindingsShape(value: unknown, path: string, issues: WorkflowValidationIssue[]): void {
+  if (!Array.isArray(value)) {
+    issues.push(contractIssue("Workflow step inputBindings must be an array.", path));
+    return;
+  }
+  value.forEach((binding, index) => {
+    const bindingPath = `${path}[${index}]`;
+    if (!isRecord(binding)) {
+      issues.push(contractIssue("Workflow input binding must be an object.", bindingPath));
+      return;
+    }
+    expectString(
+      binding.sourceStepId,
+      `${bindingPath}.sourceStepId`,
+      "Workflow input binding sourceStepId must be a string.",
+      issues,
+    );
+    expectString(
+      binding.sourceArtifactSelector,
+      `${bindingPath}.sourceArtifactSelector`,
+      "Workflow input binding sourceArtifactSelector must be a string.",
+      issues,
+    );
+    expectString(
+      binding.targetInputKey,
+      `${bindingPath}.targetInputKey`,
+      "Workflow input binding targetInputKey must be a string.",
+      issues,
+    );
+  });
+}
+
+function validateRetryPolicyShape(value: unknown, path: string, issues: WorkflowValidationIssue[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    issues.push(contractIssue("Workflow retryPolicy must be an object.", path));
+    return;
+  }
+  if (typeof value.maxAttempts !== "number") {
+    issues.push(contractIssue("Workflow retryPolicy maxAttempts must be a number.", `${path}.maxAttempts`));
+  }
+  if (typeof value.backoffSeconds !== "number") {
+    issues.push(contractIssue("Workflow retryPolicy backoffSeconds must be a number.", `${path}.backoffSeconds`));
+  }
+}
+
+function validatePlanShape(value: unknown, path: string, issues: WorkflowValidationIssue[]): void {
+  if (!isRecord(value)) {
+    issues.push(contractIssue("Workflow step plan must be an object.", path));
+    return;
+  }
+  expectString(value.planId, `${path}.planId`, "Analysis plan must declare planId as a string.", issues);
+  expectString(value.intentId, `${path}.intentId`, "Analysis plan must declare intentId as a string.", issues);
+  expectEnumArray(value.outputs, ARTIFACT_KINDS, `${path}.outputs`, "Analysis plan outputs must be artifact kinds.", issues);
+  expectStringArray(value.warnings, `${path}.warnings`, "Analysis plan warnings must be a string array.", issues);
+
+  if (!Array.isArray(value.steps)) {
+    issues.push(contractIssue("Analysis plan steps must be an array.", `${path}.steps`));
+    return;
+  }
+  value.steps.forEach((planStep, index) => validatePlanStepShape(planStep, `${path}.steps[${index}]`, issues));
+}
+
+function validatePlanStepShape(value: unknown, path: string, issues: WorkflowValidationIssue[]): void {
+  if (!isRecord(value)) {
+    issues.push(contractIssue("Analysis plan step must be an object.", path));
+    return;
+  }
+  expectString(value.stepId, `${path}.stepId`, "Analysis plan step must declare stepId as a string.", issues);
+  expectEnum(value.kind, ANALYSIS_PLAN_STEP_KINDS, `${path}.kind`, "Analysis plan step kind is unsupported.", issues);
+  if (value.processId !== undefined) {
+    expectString(value.processId, `${path}.processId`, "Analysis plan step processId must be a string.", issues);
+  }
+  expectStringRecord(value.inputs, `${path}.inputs`, "Analysis plan step inputs must be a string map.", issues);
+  expectStringArray(value.dependsOn, `${path}.dependsOn`, "Analysis plan step dependsOn must be a string array.", issues);
+}
+
 function validatePlan(stepId: string, plan: AnalysisPlanPayload, issues: WorkflowValidationIssue[]): void {
   if (!plan.planId.trim()) {
     issues.push(contractIssue(`Step '${stepId}' plan must declare a plan identifier.`, `$.steps.${stepId}.plan.planId`, stepId));
@@ -243,6 +508,81 @@ function validatePlan(stepId: string, plan: AnalysisPlanPayload, issues: Workflo
 function hasInput(step: WorkflowStepDefinitionPayload, key: string): boolean {
   if (step.inputs[key] !== undefined && step.inputs[key] !== "") return true;
   return step.plan.steps.some((planStep) => planStep.inputs[key] !== undefined && planStep.inputs[key] !== "");
+}
+
+function isProcessServiceBinding(step: WorkflowStepDefinitionPayload): boolean {
+  return step.nodeKind === "publication" && step.inputs.publishAsProcessService === "true";
+}
+
+function getStepProcessId(step: WorkflowStepDefinitionPayload): string | undefined {
+  return step.processId ?? step.plan.steps.find((planStep) => planStep.processId)?.processId;
+}
+
+function collectProcessServiceParameterMetadata(definition: WorkflowDefinitionPayload): readonly ProcessParameterMetadata[] {
+  const parameters = new Map<string, ProcessParameterMetadata>();
+  for (const step of definition.steps) {
+    if (step.nodeKind !== "process" && step.nodeKind !== "transform" && step.nodeKind !== "publication") continue;
+
+    const required = new Set(REQUIRED_PROCESS_PARAMETERS[getStepProcessId(step) ?? ""] ?? []);
+    collectInputParameters(step.inputs, required, parameters);
+    for (const planStep of step.plan.steps) {
+      collectInputParameters(planStep.inputs, required, parameters);
+    }
+  }
+
+  return Array.from(parameters.values()).sort((left, right) => parameterSortKey(left.name) - parameterSortKey(right.name));
+}
+
+function collectInputParameters(
+  inputs: Readonly<Record<string, string>>,
+  required: ReadonlySet<string>,
+  parameters: Map<string, ProcessParameterMetadata>,
+): void {
+  for (const [name, value] of Object.entries(inputs)) {
+    if (!isServiceParameterInput(name, value)) continue;
+    const next: ProcessParameterMetadata = {
+      name,
+      displayName: displayName(name),
+      valueType: parameterValueType(name),
+      required: required.has(name) || name === "inputLayerId",
+      defaultValue: value,
+    };
+    const current = parameters.get(name);
+    parameters.set(name, current ? { ...current, required: current.required || next.required } : next);
+  }
+}
+
+function isServiceParameterInput(name: string, value: string): boolean {
+  return value.trim() !== "" && !value.includes(".outputs.") && !NON_SERVICE_PARAMETER_INPUTS.has(name);
+}
+
+function parameterValueType(name: string): ProcessParameterMetadata["valueType"] {
+  const normalized = name.toLowerCase();
+  if (normalized.endsWith("layerid") || normalized === "layer") return "LayerId";
+  if (normalized.includes("distance") || normalized.includes("meters") || normalized.includes("ratio")) {
+    return "FloatingPoint";
+  }
+  if (normalized.includes("limit") || normalized.includes("count")) return "WholeNumber";
+  if (normalized.includes("enabled") || normalized.startsWith("is") || normalized.startsWith("has")) return "Flag";
+  if (normalized.includes("srid")) return "Srid";
+  if (normalized.includes("wkb")) return "Wkb";
+  return "Text";
+}
+
+function displayName(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/^./, (first) => first.toUpperCase());
+}
+
+function parameterSortKey(name: string): number {
+  return ["inputLayerId", "clipLayerId", "distanceMeters", "units", "groupByField"].indexOf(name) + 1 || 99;
+}
+
+function collectResultArtifactKinds(definition: WorkflowDefinitionPayload): readonly ArtifactKind[] {
+  const artifactKinds = Array.from(new Set(definition.steps.flatMap((step) => step.plan.outputs)));
+  return artifactKinds.length > 0 ? artifactKinds : ["Report"];
 }
 
 function contractIssue(
@@ -285,8 +625,68 @@ function hasCycle(steps: readonly WorkflowStepDefinitionPayload[]): boolean {
   return steps.some((step) => visit(step.stepId));
 }
 
-function isFiveFieldCron(value: string): boolean {
+export function isFiveFieldCron(value: string): boolean {
   return value.trim().split(/\s+/).length === 5;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function expectString(value: unknown, path: string, message: string, issues: WorkflowValidationIssue[]): void {
+  if (typeof value !== "string") {
+    issues.push(contractIssue(message, path));
+  }
+}
+
+function expectStringArray(value: unknown, path: string, message: string, issues: WorkflowValidationIssue[]): void {
+  if (!Array.isArray(value)) {
+    issues.push(contractIssue(message, path));
+    return;
+  }
+  value.forEach((entry, index) => {
+    if (typeof entry !== "string") {
+      issues.push(contractIssue(message, `${path}[${index}]`));
+    }
+  });
+}
+
+function expectStringRecord(value: unknown, path: string, message: string, issues: WorkflowValidationIssue[]): void {
+  if (!isRecord(value)) {
+    issues.push(contractIssue(message, path));
+    return;
+  }
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry !== "string") {
+      issues.push(contractIssue(message, `${path}.${key}`));
+    }
+  }
+}
+
+function expectEnum<T extends string>(
+  value: unknown,
+  values: readonly T[],
+  path: string,
+  message: string,
+  issues: WorkflowValidationIssue[],
+): void {
+  if (typeof value !== "string" || !values.includes(value as T)) {
+    issues.push(contractIssue(message, path));
+  }
+}
+
+function expectEnumArray<T extends string>(
+  value: unknown,
+  values: readonly T[],
+  path: string,
+  message: string,
+  issues: WorkflowValidationIssue[],
+): void {
+  if (!Array.isArray(value)) {
+    issues.push(contractIssue(message, path));
+    return;
+  }
+  value.forEach((entry, index) => expectEnum(entry, values, `${path}[${index}]`, message, issues));
 }
 
 function stableStringify(value: unknown): string {
