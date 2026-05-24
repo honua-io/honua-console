@@ -13,6 +13,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 
 - [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md)
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
+- [Honua Console Route Map, RBAC, and Navigation](docs/console-route-map.md) — IA source of truth for Studio, Catalog, Operate, Share routes, gates, and exception surfaces. Migration tickets cite this map for URL shapes, gates, empty states, and smoke evidence.
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
 - [GitOps Metadata Publishing Information Model](docs/architecture/gitops-metadata-publishing-information-model.md)
 - [GitOps Metadata Publishing Visualization Design](docs/architecture/gitops-metadata-publishing-visualization-design.md)
@@ -46,7 +47,7 @@ npm run preview    # Serves the built bundle on 127.0.0.1:4174
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The Console IA is fixed in [docs/console-route-map.md](docs/console-route-map.md) ([honua-console#3](https://github.com/honua-io/honua-console/issues/3)); the Blazor Web Console shell and shared Razor component library scaffold lands under [honua-console#2](https://github.com/honua-io/honua-console/issues/2).
 
 Until parity is accepted, source behavior remains in:
 
