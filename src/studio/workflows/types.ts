@@ -214,6 +214,9 @@ export interface WorkflowVersionRecord {
   readonly createdAt: string;
   readonly summary: string;
   readonly rollbackAvailable: boolean;
+  readonly executionModes: readonly WorkflowPublicationRequest["executionMode"][];
+  readonly schedule?: WorkflowTriggerPayload;
+  readonly definitionHash: string;
 }
 
 export interface WorkflowContentProvenance {

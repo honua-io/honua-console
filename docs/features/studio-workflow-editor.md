@@ -83,7 +83,7 @@ shared contracts are available; Console should not fork the protocol.
   - Publication rejects definitions with blocked validation results.
   - Scheduled publication requires a non-empty valid five-field cron expression
     using the server scheduler's POSIX subset: wildcard, values, lists, ranges,
-    and steps.
+    and steps. Empty comma-list entries and signed values are rejected.
   - The response includes content item identity, `workflow-definition` kind,
     execution modes, optional schedule, versions, active version, provenance
     hash, upstream item references, and run-history link.
@@ -102,8 +102,9 @@ shared contracts are available; Console should not fork the protocol.
   - Parameter and result-package metadata are derived from the current workflow
     definition.
 - `rollbackContentItem(item, versionId)` returns the updated
-  `PublishedWorkflowContentItem` with the active version moved to `versionId`
-  and rollback availability recalculated.
+  `PublishedWorkflowContentItem` with the active version moved to `versionId`,
+  rollback availability recalculated, and manual/scheduled state restored from
+  the target version.
 
 ## Validation Scope
 
@@ -122,7 +123,9 @@ The current validation pass checks the contract shape before run or publication:
   dependency cycles.
 - Canonical analysis-plan presence and plan-step dependency references.
 - Cron triggers must include a non-empty valid five-field cron expression.
-- Retry policies must allow at least one attempt.
+- Retry policies must allow at least one attempt and use a positive backoff
+  interval.
+- Step timeouts must be greater than zero seconds when present.
 - Process nodes must use Console-advertised process ids:
   `geometry.buffer`, `geometry.clip`, `analytics.summarize`, or
   `conversion.export`.

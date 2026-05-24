@@ -312,6 +312,24 @@ function validateStep(step: WorkflowStepDefinitionPayload, issues: WorkflowValid
       ),
     );
   }
+  if (step.retryPolicy && step.retryPolicy.backoffSeconds <= 0) {
+    issues.push(
+      contractIssue(
+        `Step '${step.stepId}' retry policy must use a positive backoff interval.`,
+        `$.steps.${step.stepId}.retryPolicy.backoffSeconds`,
+        step.stepId,
+      ),
+    );
+  }
+  if (step.timeoutSeconds !== undefined && step.timeoutSeconds <= 0) {
+    issues.push(
+      contractIssue(
+        `Step '${step.stepId}' timeout must be greater than zero seconds.`,
+        `$.steps.${step.stepId}.timeoutSeconds`,
+        step.stepId,
+      ),
+    );
+  }
 
   if (step.nodeKind === "transform" || step.nodeKind === "process") {
     const processId = step.processId ?? step.plan.steps.find((planStep) => planStep.kind === "Geoprocess")?.processId;
@@ -446,7 +464,7 @@ function validateStepShape(value: unknown, path: string, issues: WorkflowValidat
   if (value.failurePolicy !== "Fail" && value.failurePolicy !== "Skip") {
     issues.push(contractIssue("Workflow step failurePolicy must be Fail or Skip.", `${path}.failurePolicy`));
   }
-  if (value.timeoutSeconds !== undefined && typeof value.timeoutSeconds !== "number") {
+  if (value.timeoutSeconds !== undefined && !isFiniteNumber(value.timeoutSeconds)) {
     issues.push(contractIssue("Workflow step timeoutSeconds must be a number.", `${path}.timeoutSeconds`));
   }
   validateRetryPolicyShape(value.retryPolicy, `${path}.retryPolicy`, issues);
@@ -491,10 +509,10 @@ function validateRetryPolicyShape(value: unknown, path: string, issues: Workflow
     issues.push(contractIssue("Workflow retryPolicy must be an object.", path));
     return;
   }
-  if (typeof value.maxAttempts !== "number") {
+  if (!isFiniteNumber(value.maxAttempts)) {
     issues.push(contractIssue("Workflow retryPolicy maxAttempts must be a number.", `${path}.maxAttempts`));
   }
-  if (typeof value.backoffSeconds !== "number") {
+  if (!isFiniteNumber(value.backoffSeconds)) {
     issues.push(contractIssue("Workflow retryPolicy backoffSeconds must be a number.", `${path}.backoffSeconds`));
   }
 }
@@ -688,7 +706,8 @@ export function isFiveFieldCron(value: string): boolean {
 
 function parseCronField(field: string, min: number, max: number): boolean {
   const values = new Set<number>();
-  const parts = field.split(",").filter((part) => part.length > 0);
+  const parts = field.split(",");
+  if (parts.some((part) => part.trim() === "")) return false;
   for (const part of parts) {
     if (!parseCronPart(part.trim(), min, max, values)) return false;
   }
@@ -733,9 +752,13 @@ function parseCronPart(part: string, min: number, max: number, values: Set<numbe
 }
 
 function parseCronInteger(value: string): number | undefined {
-  if (!/^[+-]?\d+$/.test(value)) return undefined;
+  if (!/^\d+$/.test(value)) return undefined;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

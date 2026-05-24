@@ -127,10 +127,10 @@ describe("Studio workflow editor model", () => {
     expect(run.logs.map((entry) => entry.message)).toContain("Cron trigger must use a valid 5-field expression.");
   });
 
-  it("blocks retry policies that cannot retry safely", async () => {
+  it("blocks retry and timeout policies that cannot execute safely", async () => {
     const client = createStudioWorkflowFixtureClient();
     const draft = await client.createDraftFromPrompt("Publish workflow");
-    const invalidRetryDefinition = {
+    const invalidExecutionPolicyDefinition = {
       ...draft.definition,
       steps: draft.definition.steps.map((step, index) =>
         index === 0
@@ -138,18 +138,25 @@ describe("Studio workflow editor model", () => {
               ...step,
               retryPolicy: {
                 maxAttempts: 0,
-                backoffSeconds: 15,
+                backoffSeconds: 0,
               },
+              timeoutSeconds: 0,
             }
           : step,
       ),
     };
 
-    const validation = await client.validateDefinition(invalidRetryDefinition);
+    const validation = await client.validateDefinition(invalidExecutionPolicyDefinition);
 
     expect(validation.status).toBe("blocked");
     expect(validation.issues.map((issue) => issue.message)).toContain(
       "Step 'source-permits' retry policy must allow at least one attempt.",
+    );
+    expect(validation.issues.map((issue) => issue.message)).toContain(
+      "Step 'source-permits' retry policy must use a positive backoff interval.",
+    );
+    expect(validation.issues.map((issue) => issue.message)).toContain(
+      "Step 'source-permits' timeout must be greater than zero seconds.",
     );
   });
 
@@ -157,6 +164,8 @@ describe("Studio workflow editor model", () => {
     expect(isFiveFieldCron("*/15 0-23/2 * 1,6 0,7")).toBe(true);
     expect(isFiveFieldCron("99 99 99 99 99")).toBe(false);
     expect(isFiveFieldCron("0 2 ? * MON")).toBe(false);
+    expect(isFiveFieldCron("0 2 1,,2 * *")).toBe(false);
+    expect(isFiveFieldCron("0 +2 * * *")).toBe(false);
     expect(isFiveFieldCron("0\t2 * * *")).toBe(false);
     expect(isFiveFieldCron("0 2 *")).toBe(false);
   });
@@ -196,6 +205,39 @@ describe("Studio workflow editor model", () => {
     expect(service.stableInvocationRoute).toContain("/ogc/processes/processes/");
     expect(service.resultPackageMetadata.artifactKinds).toContain("FeatureLayer");
     expect(rolledBack.activeVersionId).toBe(manual.activeVersionId);
+    expect(rolledBack.executionModes).toEqual(["manual"]);
+    expect(rolledBack.schedule).toBeUndefined();
+    expect(rolledBack.versions.find((version) => version.versionId === manual.activeVersionId)?.rollbackAvailable).toBe(
+      false,
+    );
+    expect(rolledBack.versions.find((version) => version.versionId === scheduled.activeVersionId)?.rollbackAvailable).toBe(
+      true,
+    );
+  });
+
+  it("reconciles manual republish and scheduled rollback state", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+
+    const firstManual = await client.publishDefinition(draft.definition, { executionMode: "manual" });
+    const scheduled = await client.publishDefinition(draft.definition, {
+      executionMode: "scheduled",
+      cronExpression: "0 2 * * *",
+      timeZone: "Pacific/Honolulu",
+    });
+    const nextManual = await client.publishDefinition(draft.definition, { executionMode: "manual" });
+    const rolledBackToScheduled = await client.rollbackContentItem(nextManual, scheduled.activeVersionId);
+
+    expect(firstManual.executionModes).toEqual(["manual"]);
+    expect(firstManual.schedule).toBeUndefined();
+    expect(nextManual.executionModes).toEqual(["manual"]);
+    expect(nextManual.schedule).toBeUndefined();
+    expect(rolledBackToScheduled.executionModes).toEqual(["manual", "scheduled"]);
+    expect(rolledBackToScheduled.schedule?.cronExpression).toBe("0 2 * * *");
+    expect(
+      rolledBackToScheduled.versions.find((version) => version.versionId === scheduled.activeVersionId)
+        ?.rollbackAvailable,
+    ).toBe(false);
   });
 
   it("blocks invalid batch publication and invalid scheduled publication requests", async () => {

@@ -39,7 +39,8 @@ current-definition service metadata, and rollback metadata.
 Publication controls should stay disabled until the current definition has a
 non-blocked validation result. Scheduled publication should remain disabled for
 cron input that is not a valid five-field expression, including out-of-range
-five-field values such as `99 99 99 99 99`.
+five-field values such as `99 99 99 99 99`, malformed comma lists such as
+`0 2 1,,2 * *`, and unsupported scheduler syntax such as `0 2 ? * MON`.
 
 To smoke the contract guardrails, replace the generated definition JSON with
 `{}` and select `Validate`. The graph should stay empty, validation should

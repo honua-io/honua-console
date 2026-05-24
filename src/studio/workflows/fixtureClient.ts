@@ -100,13 +100,27 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
       const hash = stableDefinitionHash(definition);
       const itemId = `workflow-item-${definition.workflowId}`;
       const existing = publishedItems.get(itemId);
+      const executionModes: PublishedWorkflowContentItem["executionModes"] =
+        request.executionMode === "scheduled" ? ["manual", "scheduled"] : ["manual"];
+      const schedule =
+        request.executionMode === "scheduled"
+          ? {
+              kind: "Cron" as const,
+              cronExpression: request.cronExpression ?? "0 2 * * *",
+              timeZone: request.timeZone ?? "Pacific/Honolulu",
+              enabled: true,
+            }
+          : undefined;
       const versions = [
-        ...(existing?.versions ?? []),
+        ...(existing?.versions.map((version) => ({ ...version, rollbackAvailable: true })) ?? []),
         {
           versionId: `v${(existing?.versions.length ?? 0) + 1}`,
           createdAt: now,
           summary: request.executionMode === "scheduled" ? "Scheduled workflow definition" : "Manual workflow definition",
-          rollbackAvailable: Boolean(existing),
+          rollbackAvailable: false,
+          executionModes,
+          ...(schedule ? { schedule } : {}),
+          definitionHash: hash,
         },
       ];
       const item: PublishedWorkflowContentItem = {
@@ -115,17 +129,8 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
         contentKind: "workflow-definition",
         workflowId: definition.workflowId,
         href: `/catalog/items/${itemId}`,
-        executionModes:
-          request.executionMode === "scheduled" ? ["manual", "scheduled"] : existing?.executionModes ?? ["manual"],
-        schedule:
-          request.executionMode === "scheduled"
-            ? {
-                kind: "Cron",
-                cronExpression: request.cronExpression ?? "0 2 * * *",
-                timeZone: request.timeZone ?? "Pacific/Honolulu",
-                enabled: true,
-              }
-            : existing?.schedule,
+        executionModes,
+        ...(schedule ? { schedule } : {}),
         versions,
         activeVersionId: versions.at(-1)?.versionId ?? "v1",
         provenance: {
@@ -160,12 +165,20 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
       } satisfies ProcessServicePublication;
     },
     async rollbackContentItem(item: PublishedWorkflowContentItem, versionId: string) {
-      if (!item.versions.some((version) => version.versionId === versionId)) {
+      const targetVersion = item.versions.find((version) => version.versionId === versionId);
+      if (!targetVersion) {
         throw new Error(`Unknown workflow content version '${versionId}'.`);
       }
+      const { schedule: _currentSchedule, ...itemWithoutSchedule } = item;
       const rolledBack: PublishedWorkflowContentItem = {
-        ...item,
+        ...itemWithoutSchedule,
         activeVersionId: versionId,
+        executionModes: targetVersion.executionModes,
+        ...(targetVersion.schedule ? { schedule: targetVersion.schedule } : {}),
+        provenance: {
+          ...item.provenance,
+          definitionHash: targetVersion.definitionHash,
+        },
         versions: item.versions.map((version) => ({
           ...version,
           rollbackAvailable: version.versionId !== versionId,
