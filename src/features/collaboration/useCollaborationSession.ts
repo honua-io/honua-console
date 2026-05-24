@@ -7,7 +7,7 @@ import {
   type SavedMapCollaborationJoinRequest,
 } from "../../sdk/collaboration";
 import { adaptSdkThrown } from "../../surfaces/adapt";
-import { type LoadSurface } from "../../surfaces/LoadSurface";
+import { pendingBinding, type LoadSurface } from "../../surfaces/LoadSurface";
 import { emitConsoleSmoke, type SmokeStatus } from "../../telemetry/smoke";
 
 const PENDING_WAITING: ReadonlyArray<string> = Object.freeze(["collaboration-transport"]);
@@ -22,7 +22,10 @@ export function useCollaborationSession<TPayload = unknown>(
   });
 
   useEffect(() => {
-    if (!options || !join) return;
+    if (!options || !join) {
+      setSurface(pendingBinding(PENDING_WAITING));
+      return;
+    }
     let cancelled = false;
     let live: HonuaSavedMapCollaborationSession<TPayload> | undefined;
     const started = performance.now();

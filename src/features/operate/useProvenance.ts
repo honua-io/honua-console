@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { ProvenanceRecord } from "../../sdk/operator";
 import { adaptSdkThrown } from "../../surfaces/adapt";
-import { type LoadSurface } from "../../surfaces/LoadSurface";
+import { pendingBinding, type LoadSurface } from "../../surfaces/LoadSurface";
 import { emitConsoleSmoke, type SmokeStatus } from "../../telemetry/smoke";
 
 export type ProvenanceLoader = (signal: AbortSignal) => Promise<ReadonlyArray<ProvenanceRecord>>;
@@ -25,7 +25,10 @@ export function useProvenance(
   });
 
   useEffect(() => {
-    if (!loader) return;
+    if (!loader) {
+      setSurface(pendingBinding(PENDING_WAITING));
+      return;
+    }
     const controller = new AbortController();
     const started = performance.now();
     void (async () => {

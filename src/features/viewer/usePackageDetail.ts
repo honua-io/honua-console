@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { HonuaMapPackagesClient, type HonuaControlPlaneClient } from "../../sdk/control-plane";
 import type { HonuaMapPackage } from "../../sdk/packages";
 import { adaptControlPlaneResult, adaptSdkThrown } from "../../surfaces/adapt";
-import { type LoadSurface } from "../../surfaces/LoadSurface";
+import { pendingBinding, type LoadSurface } from "../../surfaces/LoadSurface";
 import { emitConsoleSmoke, type SmokeStatus } from "../../telemetry/smoke";
 
 const PENDING_WAITING: ReadonlyArray<string> = Object.freeze(["honua-control-plane"]);
@@ -18,7 +18,10 @@ export function usePackageDetail(
   });
 
   useEffect(() => {
-    if (!controlPlane || !packageId) return;
+    if (!controlPlane || !packageId) {
+      setSurface(pendingBinding(PENDING_WAITING));
+      return;
+    }
     let cancelled = false;
     const started = performance.now();
     const client = new HonuaMapPackagesClient(controlPlane);

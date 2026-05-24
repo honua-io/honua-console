@@ -9,6 +9,12 @@ import { resolveHonuaBaseUrl } from "../config/honua";
 
 const ControlPlaneContext = createContext<HonuaControlPlaneClient | undefined>(undefined);
 
+const includeCredentialFetch: typeof fetch = (input, init) =>
+  globalThis.fetch(input, {
+    ...init,
+    credentials: init?.credentials ?? "include",
+  });
+
 export interface ControlPlaneProviderProps {
   readonly baseUrl?: string;
   readonly client?: HonuaControlPlaneClient;
@@ -22,7 +28,10 @@ export function ControlPlaneProvider({
 }: ControlPlaneProviderProps): JSX.Element {
   const value = useMemo<HonuaControlPlaneClient>(() => {
     if (client) return client;
-    const honua = new HonuaClient({ baseUrl: resolveHonuaBaseUrl(baseUrl) });
+    const honua = new HonuaClient({
+      baseUrl: resolveHonuaBaseUrl(baseUrl),
+      fetchFn: includeCredentialFetch,
+    });
     return createHonuaControlPlane({ client: honua });
   }, [baseUrl, client]);
   return <ControlPlaneContext.Provider value={value}>{children}</ControlPlaneContext.Provider>;
