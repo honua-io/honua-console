@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Honua Admin · wireframes</title>
+<title>Honua Console · wireframes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kalam:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -332,7 +332,7 @@ function App() {
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="svc" title="⑦ Services & Layers" subtitle="Endpoints (FeatureServer, MapServer, OGC API, WMS, WMTS, OData…) with their layer slots. Catalogs (Esri catalog, OGC Records) auto-appear when you publish services. DCAT/STAC publishing lives in the separate Portal product.">
+      <DCSection id="svc" title="⑦ Services & Layers" subtitle="Endpoints (FeatureServer, MapServer, OGC API, WMS, WMTS, OData…) with their layer slots. Catalogs (Esri catalog, OGC Records) auto-appear when you publish services. DCAT/STAC publishing lives in Honua Console.">
         <DCArtboard id="svc-list" label="Services & layers · flat list" width={W} height={H}>
           <ServicesList />
         </DCArtboard>
@@ -347,8 +347,8 @@ function App() {
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="catalogs" title="⑦·b Catalogs" subtitle="Discovery endpoints — Esri catalog, OGC API Records, OData catalog (auto-mirror from services); STAC + DCAT (stubs into the Portal product).">
-        <DCArtboard id="catalogs-list" label="Catalogs · all five (3 live + 2 Portal stubs)" width={W} height={H}>
+      <DCSection id="catalogs" title="⑦·b Catalogs" subtitle="Discovery endpoints — Esri catalog, OGC API Records, OData catalog, STAC, and DCAT in one Console deploy surface.">
+        <DCArtboard id="catalogs-list" label="Catalogs · all five in Console" width={W} height={H}>
           <CatalogsList />
         </DCArtboard>
         <DCArtboard id="catalog-esri" label="Esri catalog · items grid (auto-mirrored from services)" width={W} height={H}>

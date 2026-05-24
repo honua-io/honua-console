@@ -16,7 +16,7 @@ function ServicesList() {
       <div className="main">
         <PageHead
           title="Services & layers"
-          sub={<span>Endpoints that expose your Data Resources. Each service contains one or more layer slots. <span className="muted">Catalog entries (Esri catalog, OGC Records) appear automatically when you publish to Esri or OGC services. DCAT &amp; STAC live in the separate <b>Portal</b> product.</span></span>}
+          sub={<span>Endpoints that expose your Data Resources. Each service contains one or more layer slots. <span className="muted">Catalog entries (Esri catalog, OGC Records) appear automatically when you publish to Esri or OGC services. DCAT &amp; STAC live in Honua Console.</span></span>}
           actions={<><Btn>Import existing</Btn><Btn kind="p" ico="+">New service</Btn></>}
         />
         <Toolbar

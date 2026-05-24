@@ -11,6 +11,7 @@ Coordination contracts (binding on all child tickets):
 - [Console Patterns Charter](../migration/CONSOLE_PATTERNS_CHARTER.md) - routing, RBAC, error/empty/loading surfaces, perf budgets, smoke conventions, file layout.
 - [`honua-portal` Freeze And Retirement Policy](../migration/PORTAL_FREEZE_POLICY.md) - soft/hard freeze gates, exception path, retirement trigger.
 - [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md) - per-language .NET and browser shim boundaries while `honua-sdk-dotnet#166` and `honua-sdk-js#225` land; removed under `honua-console#7`.
+- [Console Backend Capability Backlog](CONSOLE_BACKEND_CAPABILITY_BACKLOG.md) - backend/server/devops/sdk capability crosswalk required behind the design handoff and one deploy surface.
 
 IA source: [Honua Console Route Map, RBAC, and Navigation](../console-route-map.md). Migration tickets `#4`, `#5`, `#6`, `#7`, and `#9` cite specific sections of this map for URL shapes, gates, empty states, and smoke evidence — see `console-route-map.md` §12 for the per-ticket section index.
 
@@ -153,7 +154,9 @@ Do not retire `honua-portal` or separate Admin deployment paths until:
 
 - Console can run the current catalog item -> viewer -> saved map -> share/embed path.
 - Console can run the Studio prompt -> clarification -> spec/plan -> apply -> preview -> edit -> publish/reopen proof path.
+- Console can persist and reopen Studio-generated query, analysis, map, dashboard, report, form, app, workflow, GP, and ETL packages through server-owned content/version/package contracts.
 - Console can publish maps, dashboards, reports, apps, batch workflows, and eligible GP/process services from Studio using shared server/SDK contracts.
+- Console serves open-data, STAC, and DCAT publication through the unified Console deploy surface.
 - The unified GP/ETL editor can dry-run and publish definitions to the existing Honua job runner with execution history, logs, artifacts, and provenance.
 - Console can propose, prevalidate, commit, monitor, promote, and roll back metadata/service/layer releases through GitOps using semantic resource identities across environments.
 - Console can inspect optional temporal datasets through as-of views, diffs, actor attribution, feature timelines, and governed rollback operations where the backend declares support.

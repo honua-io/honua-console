@@ -33,6 +33,7 @@ The goal is to give design enough structure to create flows, screen maps, and in
 - [Temporal Data Viewer Information Model](../architecture/temporal-data-viewer-information-model.md)
 - [Operate Observability Information Model](../architecture/operate-observability-information-model.md)
 - [Honua Console Migration Backlog](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
+- [Console Backend Capability Backlog](../roadmap/CONSOLE_BACKEND_CAPABILITY_BACKLOG.md)
 
 ## Design Direction
 

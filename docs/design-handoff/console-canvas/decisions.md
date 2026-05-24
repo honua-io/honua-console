@@ -66,9 +66,8 @@ checkboxes.
 Esri + OGC catalogs auto-mirror service publications (checkbox pre-checked,
 operator can uncheck). OData / STAC / DCAT require explicit opt-in.
 
-**Portal was folded in.** Originally STAC + DCAT lived in a separate "Portal"
-product; that's complexity admins hate. They're now first-class catalogs in
-Honua Admin with the same shape as the others.
+**Catalogs are consolidated.** STAC + DCAT are first-class catalogs in Honua
+Console with the same shape as the others.
 
 ---
 
@@ -222,8 +221,7 @@ diagnostics / raw object inspectors.
 
 Use instead: Source, Style, Access, Slot label, Catalog entry.
 
-**Never say "Portal" as a separate product.** STAC + DCAT publishing lives in
-Honua Admin.
+**No separate product surface.** STAC + DCAT publishing lives in Honua Console.
 
 **Service catalog terminology**: it's **"Esri catalog"** (not Esri item, not
 GSR, not GeoServices REST catalog).
