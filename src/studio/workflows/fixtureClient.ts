@@ -26,6 +26,7 @@ import type {
 import {
   describeProcessServicePublication,
   isFiveFieldCron,
+  isResolvableTimeZone,
   stableDefinitionHash,
   toProcessExecutionPlan,
   validateWorkflowDefinition,
@@ -275,7 +276,7 @@ function createDraft(prompt: string): WorkflowDraft {
         inputBindings: [
           {
             sourceStepId: "source-permits",
-            sourceArtifactSelector: "outputs.table",
+            sourceArtifactSelector: "artifact:0",
             targetInputKey: "candidatePermits",
           },
         ],
@@ -318,12 +319,12 @@ function createDraft(prompt: string): WorkflowDraft {
         inputBindings: [
           {
             sourceStepId: "source-permits",
-            sourceArtifactSelector: "outputs.table",
+            sourceArtifactSelector: "artifact:0",
             targetInputKey: "inputLayerId",
           },
           {
             sourceStepId: "buffer-habitats",
-            sourceArtifactSelector: "outputs.FeatureLayer",
+            sourceArtifactSelector: "artifact:0",
             targetInputKey: "clipLayerId",
           },
         ],
@@ -364,7 +365,7 @@ function createDraft(prompt: string): WorkflowDraft {
         inputBindings: [
           {
             sourceStepId: "flag-intersections",
-            sourceArtifactSelector: "outputs.FeatureLayer",
+            sourceArtifactSelector: "artifact:0",
             targetInputKey: "inputLayerId",
           },
         ],
@@ -404,7 +405,7 @@ function createDraft(prompt: string): WorkflowDraft {
         inputBindings: [
           {
             sourceStepId: "publish-review-package",
-            sourceArtifactSelector: "outputs.resultPackage",
+            sourceArtifactSelector: "artifact:0",
             targetInputKey: "resultPackageId",
           },
         ],
@@ -611,6 +612,9 @@ function assertPublishableSchedule(request: WorkflowPublicationRequest): void {
   if (request.executionMode !== "scheduled") return;
   if (!request.cronExpression?.trim() || !isFiveFieldCron(request.cronExpression)) {
     throw new Error("Scheduled workflow publication requires a non-empty valid 5-field cron expression.");
+  }
+  if (request.timeZone?.trim() && !isResolvableTimeZone(request.timeZone)) {
+    throw new Error("Scheduled workflow publication requires a time zone resolvable by the server scheduler.");
   }
 }
 

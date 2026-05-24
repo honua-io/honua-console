@@ -164,6 +164,16 @@ export function validateWorkflowDefinition(definition: unknown): WorkflowValidat
         ),
       );
     }
+    if (payload.trigger.timeZone?.trim() && !isResolvableTimeZone(payload.trigger.timeZone)) {
+      issues.push(
+        contractIssue(
+          `Cron trigger time zone '${payload.trigger.timeZone}' could not be resolved.`,
+          "$.trigger.timeZone",
+          undefined,
+          "Use an IANA time zone supported by the server scheduler, such as UTC or Pacific/Honolulu, or omit the field to default to UTC.",
+        ),
+      );
+    }
   }
 
   return validationResult(issues);
@@ -521,6 +531,14 @@ function validateInputBindingsShape(value: unknown, path: string, issues: Workfl
       "Workflow input binding sourceArtifactSelector must be a string.",
       issues,
     );
+    if (typeof binding.sourceArtifactSelector === "string" && !isServerArtifactSelector(binding.sourceArtifactSelector)) {
+      issues.push(
+        contractIssue(
+          "Workflow input binding sourceArtifactSelector must use artifact:{index} or artifact:{label}.",
+          `${bindingPath}.sourceArtifactSelector`,
+        ),
+      );
+    }
     expectString(
       binding.targetInputKey,
       `${bindingPath}.targetInputKey`,
@@ -729,6 +747,25 @@ export function isFiveFieldCron(value: string): boolean {
     parseCronField(fields[3], 1, 12) &&
     parseCronField(fields[4], 0, 7)
   );
+}
+
+export function isResolvableTimeZone(value: string): boolean {
+  const timeZone = value.trim();
+  if (!timeZone) return true;
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date(0));
+    return true;
+  } catch (caught) {
+    if (caught instanceof RangeError) return false;
+    throw caught;
+  }
+}
+
+function isServerArtifactSelector(value: string): boolean {
+  const artifactPrefix = "artifact:";
+  if (!value.toLowerCase().startsWith(artifactPrefix)) return false;
+  return value.slice(artifactPrefix.length).trim().length > 0;
 }
 
 function parseCronField(field: string, min: number, max: number): boolean {

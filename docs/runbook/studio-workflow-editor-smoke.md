@@ -38,9 +38,12 @@ current-definition service metadata, and version-owned rollback metadata.
 
 Publication controls should stay disabled until the current definition has a
 non-blocked validation result. Scheduled publication should remain disabled for
-cron input that is not a valid five-field expression, including out-of-range
-five-field values such as `99 99 99 99 99`, malformed comma lists such as
-`0 2 1,,2 * *`, and unsupported scheduler syntax such as `0 2 ? * MON`.
+cron input that is not a valid numeric five-field expression, including
+out-of-range values such as `99 99 99 99 99`, malformed comma lists such as
+`0 2 1,,2 * *`, signed values such as `0 +2 * * *`, tab-separated fields such
+as `0\t2 * * *`, and unsupported scheduler syntax such as `0 2 ? * MON`.
+Scheduled publication requests should also reject unknown scheduler time zones
+such as `Mars/Olympus_Mons`.
 
 To smoke the contract guardrails, replace the generated definition JSON with
 `{}` and select `Validate`. The graph should stay empty, validation should

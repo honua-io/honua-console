@@ -81,9 +81,12 @@ shared contracts are available; Console should not fork the protocol.
   - The request selects `manual` or `scheduled` execution and may include a
     cron expression and time zone.
   - Publication rejects definitions with blocked validation results.
-  - Scheduled publication requires a non-empty valid five-field cron expression
-    using the server scheduler's POSIX subset: wildcard, values, lists, ranges,
-    and steps. Empty comma-list entries and signed values are rejected.
+  - Scheduled publication requires a non-empty valid numeric five-field cron
+    expression using the server scheduler's POSIX subset: wildcard, values,
+    lists, ranges, and positive steps across minute, hour, day-of-month, month,
+    and day-of-week. Empty comma-list entries, signed values, named
+    month/day tokens, question marks, tab-separated fields, and out-of-range
+    values are rejected.
   - The response includes content item identity, `workflow-definition` kind,
     execution modes, optional schedule, versions, active version, provenance
     hash, upstream item references, and run-history link.
@@ -122,8 +125,13 @@ The current validation pass checks the contract shape before run or publication:
   artifact kinds from the SDK/server projection.
 - Duplicate step ids, unknown dependencies, missing binding dependencies, and
   dependency cycles.
+- Input binding artifact selectors must use the server resolver forms
+  `artifact:{index}` or `artifact:{label}`.
 - Canonical analysis-plan presence and plan-step dependency references.
-- Cron triggers must include a non-empty valid five-field cron expression.
+- Cron triggers must include a non-empty valid numeric five-field cron
+  expression using the scheduler subset documented above.
+- Cron trigger time zones must resolve through the server scheduler's IANA time
+  zone support; blank values default to UTC.
 - Retry policies must allow at least one whole-number attempt and use a
   positive whole-number backoff interval.
 - Step timeouts must be positive whole-number seconds when present.

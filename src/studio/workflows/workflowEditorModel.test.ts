@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createStudioWorkflowFixtureClient } from "./fixtureClient";
 import {
   isFiveFieldCron,
+  isResolvableTimeZone,
   stableDefinitionHash,
   toServerWorkflowDefinitionPayload,
   validateWorkflowDefinition,
@@ -102,7 +103,38 @@ describe("Studio workflow editor model", () => {
     expect(firstStep).not.toHaveProperty("processId");
     expect(firstStep).not.toHaveProperty("inputs");
     expect(serverDefinition.steps.at(-1)?.failurePolicy).toBe("Skip");
+    expect(
+      serverDefinition.steps.flatMap((step) =>
+        step.inputBindings.map((binding) => binding.sourceArtifactSelector),
+      ),
+    ).toEqual(["artifact:0", "artifact:0", "artifact:0", "artifact:0", "artifact:0"]);
     expect(stableDefinitionHash(editorOnlyDefinition)).toBe(stableDefinitionHash(draft.definition));
+  });
+
+  it("blocks binding selectors that the server resolver cannot parse", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const invalidBindingDefinition = {
+      ...draft.definition,
+      steps: draft.definition.steps.map((step) =>
+        step.stepId === "buffer-habitats"
+          ? {
+              ...step,
+              inputBindings: step.inputBindings.map((binding) => ({
+                ...binding,
+                sourceArtifactSelector: "outputs.table",
+              })),
+            }
+          : step,
+      ),
+    };
+
+    const validation = validateWorkflowDefinition(invalidBindingDefinition);
+
+    expect(validation.status).toBe("blocked");
+    expect(validation.issues.map((issue) => issue.message)).toContain(
+      "Workflow input binding sourceArtifactSelector must use artifact:{index} or artifact:{label}.",
+    );
   });
 
   it("blocks invalid cron trigger expressions before run or publication", async () => {
@@ -125,6 +157,39 @@ describe("Studio workflow editor model", () => {
     expect(validation.issues.map((issue) => issue.message)).toContain("Cron trigger must use a valid 5-field expression.");
     expect(run.status).toBe("failed");
     expect(run.logs.map((entry) => entry.message)).toContain("Cron trigger must use a valid 5-field expression.");
+  });
+
+  it("blocks cron trigger time zones the server scheduler cannot resolve", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const invalidTimeZoneDefinition = {
+      ...draft.definition,
+      trigger: {
+        kind: "Cron" as const,
+        enabled: true,
+        cronExpression: "0 2 * * *",
+        timeZone: "Mars/Olympus_Mons",
+      },
+    };
+
+    const validation = validateWorkflowDefinition(invalidTimeZoneDefinition);
+    const run = await client.runDefinition(invalidTimeZoneDefinition, "dry-run");
+
+    expect(validation.status).toBe("blocked");
+    expect(validation.issues.map((issue) => issue.message)).toContain(
+      "Cron trigger time zone 'Mars/Olympus_Mons' could not be resolved.",
+    );
+    expect(run.status).toBe("failed");
+    expect(run.logs.map((entry) => entry.message)).toContain(
+      "Cron trigger time zone 'Mars/Olympus_Mons' could not be resolved.",
+    );
+    await expect(
+      client.publishDefinition(draft.definition, {
+        executionMode: "scheduled",
+        cronExpression: "0 2 * * *",
+        timeZone: "Mars/Olympus_Mons",
+      }),
+    ).rejects.toThrow(/time zone resolvable/);
   });
 
   it("blocks retry and timeout policies that cannot execute safely", async () => {
@@ -202,6 +267,9 @@ describe("Studio workflow editor model", () => {
     expect(isFiveFieldCron("0 +2 * * *")).toBe(false);
     expect(isFiveFieldCron("0\t2 * * *")).toBe(false);
     expect(isFiveFieldCron("0 2 *")).toBe(false);
+    expect(isResolvableTimeZone("UTC")).toBe(true);
+    expect(isResolvableTimeZone("Pacific/Honolulu")).toBe(true);
+    expect(isResolvableTimeZone("Mars/Olympus_Mons")).toBe(false);
   });
 
   it("runs dry-runs through the SDK job-runner surface and returns logs, artifacts, and row failures", async () => {
