@@ -213,10 +213,12 @@ export interface WorkflowVersionRecord {
   readonly versionId: string;
   readonly createdAt: string;
   readonly summary: string;
+  readonly title: string;
   readonly rollbackAvailable: boolean;
   readonly executionModes: readonly WorkflowPublicationRequest["executionMode"][];
   readonly schedule?: WorkflowTriggerPayload;
   readonly definitionHash: string;
+  readonly provenance: WorkflowContentProvenance;
 }
 
 export interface WorkflowContentProvenance {

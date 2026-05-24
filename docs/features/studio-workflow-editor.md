@@ -103,8 +103,9 @@ shared contracts are available; Console should not fork the protocol.
     definition.
 - `rollbackContentItem(item, versionId)` returns the updated
   `PublishedWorkflowContentItem` with the active version moved to `versionId`,
-  rollback availability recalculated, and manual/scheduled state restored from
-  the target version.
+  rollback availability recalculated, and title, provenance, upstream item
+  references, definition hash, and manual/scheduled state restored from the
+  target version.
 
 ## Validation Scope
 
@@ -123,9 +124,9 @@ The current validation pass checks the contract shape before run or publication:
   dependency cycles.
 - Canonical analysis-plan presence and plan-step dependency references.
 - Cron triggers must include a non-empty valid five-field cron expression.
-- Retry policies must allow at least one attempt and use a positive backoff
-  interval.
-- Step timeouts must be greater than zero seconds when present.
+- Retry policies must allow at least one whole-number attempt and use a
+  positive whole-number backoff interval.
+- Step timeouts must be positive whole-number seconds when present.
 - Process nodes must use Console-advertised process ids:
   `geometry.buffer`, `geometry.clip`, `analytics.summarize`, or
   `conversion.export`.

@@ -14,6 +14,7 @@ import type {
   ProcessServicePublication,
   PublishedWorkflowContentItem,
   StudioWorkflowTransport,
+  WorkflowContentProvenance,
   WorkflowDefinitionPayload,
   WorkflowDraft,
   WorkflowExecutionResult,
@@ -111,16 +112,19 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
               enabled: true,
             }
           : undefined;
+      const provenance = createContentProvenance(definition, hash);
       const versions = [
         ...(existing?.versions.map((version) => ({ ...version, rollbackAvailable: true })) ?? []),
         {
           versionId: `v${(existing?.versions.length ?? 0) + 1}`,
           createdAt: now,
           summary: request.executionMode === "scheduled" ? "Scheduled workflow definition" : "Manual workflow definition",
+          title: definition.name,
           rollbackAvailable: false,
           executionModes,
           ...(schedule ? { schedule } : {}),
           definitionHash: hash,
+          provenance,
         },
       ];
       const item: PublishedWorkflowContentItem = {
@@ -133,14 +137,7 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
         ...(schedule ? { schedule } : {}),
         versions,
         activeVersionId: versions.at(-1)?.versionId ?? "v1",
-        provenance: {
-          createdBy: "studio:workflow-editor",
-          sourcePrompt: definition.metadata.sourcePrompt ?? DEFAULT_PROMPT,
-          sourceDraftId: definition.metadata.sourceDraftId ?? "draft-fixture",
-          definitionHash: hash,
-          upstreamItems: collectUpstreamItems(definition),
-          runHistoryHref: `/studio/workflows/${definition.workflowId}/runs`,
-        },
+        provenance,
         runHistoryHref: `/studio/workflows/${definition.workflowId}/runs`,
       };
       publishedItems.set(itemId, item);
@@ -172,13 +169,12 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
       const { schedule: _currentSchedule, ...itemWithoutSchedule } = item;
       const rolledBack: PublishedWorkflowContentItem = {
         ...itemWithoutSchedule,
+        title: targetVersion.title,
         activeVersionId: versionId,
         executionModes: targetVersion.executionModes,
         ...(targetVersion.schedule ? { schedule: targetVersion.schedule } : {}),
-        provenance: {
-          ...item.provenance,
-          definitionHash: targetVersion.definitionHash,
-        },
+        provenance: targetVersion.provenance,
+        runHistoryHref: targetVersion.provenance.runHistoryHref,
         versions: item.versions.map((version) => ({
           ...version,
           rollbackAvailable: version.versionId !== versionId,
@@ -187,6 +183,20 @@ export function createStudioWorkflowFixtureClient(): StudioWorkflowTransport {
       publishedItems.set(item.itemId, rolledBack);
       return rolledBack;
     },
+  };
+}
+
+function createContentProvenance(
+  definition: WorkflowDefinitionPayload,
+  definitionHash: string,
+): WorkflowContentProvenance {
+  return {
+    createdBy: "studio:workflow-editor",
+    sourcePrompt: definition.metadata.sourcePrompt ?? DEFAULT_PROMPT,
+    sourceDraftId: definition.metadata.sourceDraftId ?? "draft-fixture",
+    definitionHash,
+    upstreamItems: collectUpstreamItems(definition),
+    runHistoryHref: `/studio/workflows/${definition.workflowId}/runs`,
   };
 }
 

@@ -14,7 +14,7 @@ npm run test -- src/studio/workflows/workflowEditorModel.test.ts src/studio/work
 This covers prompt-to-draft, definition inspection, malformed-but-valid JSON
 contract failures, validation failures, SDK-shaped dry-run history, artifacts,
 rejected rows, scheduled publication gating, process-service eligibility,
-current-definition service metadata, and rollback metadata.
+current-definition service metadata, and version-owned rollback metadata.
 
 ## Manual Smoke
 
@@ -61,5 +61,7 @@ regenerate the draft before publication smoke.
 - Published workflow content shows `workflow-definition`, manual/scheduled
   modes, a `wf-` definition hash, version controls, provenance, and run-history
   href.
+- Rollback restores the selected version's title, provenance, upstream item
+  references, definition hash, and manual/scheduled state.
 - Process-service metadata is derived from the edited workflow definition and
   excludes internal sink, binding, and publication-only inputs.

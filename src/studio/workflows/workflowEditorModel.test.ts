@@ -160,6 +160,40 @@ describe("Studio workflow editor model", () => {
     );
   });
 
+  it("blocks fractional retry and timeout policies before server publication", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const fractionalExecutionPolicyDefinition = {
+      ...draft.definition,
+      steps: draft.definition.steps.map((step, index) =>
+        index === 0
+          ? {
+              ...step,
+              retryPolicy: {
+                maxAttempts: 1.5,
+                backoffSeconds: 0.5,
+              },
+              timeoutSeconds: 10.25,
+            }
+          : step,
+      ),
+    };
+
+    const validation = await client.validateDefinition(fractionalExecutionPolicyDefinition);
+
+    expect(validation.status).toBe("blocked");
+    expect(validation.issues.map((issue) => issue.message)).toEqual(
+      expect.arrayContaining([
+        "Step 'source-permits' retry policy maxAttempts must be a positive whole number.",
+        "Step 'source-permits' retry policy backoffSeconds must be a positive whole number of seconds.",
+        "Step 'source-permits' timeout must be a positive whole number of seconds.",
+      ]),
+    );
+    await expect(
+      client.publishDefinition(fractionalExecutionPolicyDefinition, { executionMode: "manual" }),
+    ).rejects.toThrow(/positive whole number/);
+  });
+
   it("validates the server scheduler cron subset", () => {
     expect(isFiveFieldCron("*/15 0-23/2 * 1,6 0,7")).toBe(true);
     expect(isFiveFieldCron("99 99 99 99 99")).toBe(false);
@@ -238,6 +272,46 @@ describe("Studio workflow editor model", () => {
       rolledBackToScheduled.versions.find((version) => version.versionId === scheduled.activeVersionId)
         ?.rollbackAvailable,
     ).toBe(false);
+  });
+
+  it("restores version-owned title and provenance on rollback", async () => {
+    const client = createStudioWorkflowFixtureClient();
+    const draft = await client.createDraftFromPrompt("Publish workflow");
+    const editedDefinition = {
+      ...draft.definition,
+      name: "Edited shoreline workflow",
+      metadata: {
+        ...draft.definition.metadata,
+        sourcePrompt: "Edited source prompt",
+        sourceDraftId: "draft-edited-shoreline-workflow",
+      },
+      steps: draft.definition.steps.map((step) =>
+        step.stepId === "buffer-habitats"
+          ? {
+              ...step,
+              inputs: {
+                ...step.inputs,
+                inputLayerId: "edited-protected-habitats",
+              },
+            }
+          : step,
+      ),
+    };
+
+    const original = await client.publishDefinition(draft.definition, { executionMode: "manual" });
+    const edited = await client.publishDefinition(editedDefinition, { executionMode: "manual" });
+    const rolledBack = await client.rollbackContentItem(edited, original.activeVersionId);
+
+    expect(edited.title).toBe("Edited shoreline workflow");
+    expect(edited.provenance.sourcePrompt).toBe("Edited source prompt");
+    expect(edited.provenance.upstreamItems).toContain("edited-protected-habitats");
+    expect(rolledBack.activeVersionId).toBe(original.activeVersionId);
+    expect(rolledBack.title).toBe(original.title);
+    expect(rolledBack.provenance).toEqual(original.provenance);
+    expect(rolledBack.provenance.upstreamItems).not.toContain("edited-protected-habitats");
+    expect(
+      rolledBack.versions.find((version) => version.versionId === edited.activeVersionId)?.provenance.sourcePrompt,
+    ).toBe("Edited source prompt");
   });
 
   it("blocks invalid batch publication and invalid scheduled publication requests", async () => {

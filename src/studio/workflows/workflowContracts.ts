@@ -312,6 +312,15 @@ function validateStep(step: WorkflowStepDefinitionPayload, issues: WorkflowValid
       ),
     );
   }
+  if (step.retryPolicy && step.retryPolicy.maxAttempts >= 1 && !Number.isSafeInteger(step.retryPolicy.maxAttempts)) {
+    issues.push(
+      contractIssue(
+        `Step '${step.stepId}' retry policy maxAttempts must be a positive whole number.`,
+        `$.steps.${step.stepId}.retryPolicy.maxAttempts`,
+        step.stepId,
+      ),
+    );
+  }
   if (step.retryPolicy && step.retryPolicy.backoffSeconds <= 0) {
     issues.push(
       contractIssue(
@@ -321,10 +330,28 @@ function validateStep(step: WorkflowStepDefinitionPayload, issues: WorkflowValid
       ),
     );
   }
+  if (step.retryPolicy && step.retryPolicy.backoffSeconds > 0 && !Number.isSafeInteger(step.retryPolicy.backoffSeconds)) {
+    issues.push(
+      contractIssue(
+        `Step '${step.stepId}' retry policy backoffSeconds must be a positive whole number of seconds.`,
+        `$.steps.${step.stepId}.retryPolicy.backoffSeconds`,
+        step.stepId,
+      ),
+    );
+  }
   if (step.timeoutSeconds !== undefined && step.timeoutSeconds <= 0) {
     issues.push(
       contractIssue(
         `Step '${step.stepId}' timeout must be greater than zero seconds.`,
+        `$.steps.${step.stepId}.timeoutSeconds`,
+        step.stepId,
+      ),
+    );
+  }
+  if (step.timeoutSeconds !== undefined && step.timeoutSeconds > 0 && !Number.isSafeInteger(step.timeoutSeconds)) {
+    issues.push(
+      contractIssue(
+        `Step '${step.stepId}' timeout must be a positive whole number of seconds.`,
         `$.steps.${step.stepId}.timeoutSeconds`,
         step.stepId,
       ),
