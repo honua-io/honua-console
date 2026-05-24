@@ -24,6 +24,20 @@ types rather than re-declaring DTOs. Schema parity is pinned by the catalog,
 saved-maps, publish-handoff, and share schema tests until `honua-sdk-js#225`
 exports generated browser-safe types.
 
+## Service Metadata And Endpoint Formats
+
+`ServiceLink.format` and `ServiceLink.conformsTo` are closed registry values.
+The registry lives in `src/contracts/conforms-to.ts` and mirrors the JSON
+Schema enums: `SERVICE_FORMATS`, `CONFORMS_TO_URIS`, display labels, and
+Honua-curated fallback documentation URLs must change together.
+
+When a service link omits `describedBy`, consumers that render endpoint docs
+links should use `FORMAT_FALLBACK_DOCS[format]`. A `null` fallback is
+meaningful: it represents an unsupported metadata-docs surface and should
+render the shared empty or unsupported state rather than a broken documentation
+link. The catalog fixtures include `service-no-docs.json` and
+`service-honua-api.json` to model both the fallback and unsupported-docs cases.
+
 ## Saved Maps And Viewer
 
 Saved maps are catalog `ContentItem` records with `type="map"` and a
@@ -61,6 +75,11 @@ initial-view hydration. Extent-level `spatialReference` wins over document-level
 unknown or out-of-range extents fall back instead of treating metre coordinates
 as lon/lat.
 
+Viewer routes also hydrate saved-map-only workspace behavior from the
+`webmap-doc/v1` document: annotation workspaces, style overrides, collaboration
+presence, and layer/viewpoint state are viewer concerns. They do not add new
+content-item DTOs.
+
 ## Publish Handoff
 
 Publish handoff projects an admin event into a catalog `ContentItem` with
@@ -79,6 +98,14 @@ service URLs on update leave the stored item unchanged.
 and `public`. The `embeddable` flag is independent of tier: public items are
 not iframe-renderable unless the owner explicitly allows embeds.
 
+`HttpCatalogClient.patchAccess()` serializes `{ "access": ShareAccess }`, and
+`schemas/catalog-api-v1.json#/$defs/PatchItemRequest` references
+`share-access-v1` for that body. The share patch may carry `groupIds` or a
+`publicLinkToken`; it intentionally does not mutate the content-item
+`Access.openData` flag, which remains catalog metadata controlled by publish or
+metadata flows. The share dialog separately prevents demoting existing
+open-data items below public sharing.
+
 There are two copied-link surfaces in the fixture port:
 
 - `src/share/snippet.ts` builds standalone copy links for tests and snippets:
@@ -91,7 +118,8 @@ There are two copied-link surfaces in the fixture port:
   map items. The snippet targets `/embed/maps/:id` and carries the fixture
   embed token in the URL fragment.
 
-Embed snippets target the legacy iframe-compatible route:
+Embed snippets target the legacy iframe-compatible route; the router also
+serves `/share/embed/maps/:id` through the same no-shell component:
 
 ```text
 /embed/maps/:id?chrome=minimal|none|full&legend=on|off&zoom=on|off&extent=W,S,E,N#embedToken=...
@@ -103,6 +131,23 @@ including tokens containing literal `%`, and `prepareEmbedAuth()` maps valid,
 expired, invalid, missing-redemption, and network-error outcomes onto the
 standard empty-state vocabulary. The React embed route resolves fixture token
 redemption and root embeddable/tier posture before MapLibre mounts.
+
+Embed route authorization happens in this order:
+
+1. Resolve the target as a fixture saved map or catalog map.
+2. Parse and redeem any `#embedToken=...` fragment.
+3. Reject a valid token whose descriptor is scoped to a different map.
+4. Evaluate the root map's `embeddable` flag and sharing tier.
+5. Mount MapLibre only when the root map is readable by the embed audience.
+
+Root denial maps to shared empty states: `embeddable=false` and unsupported
+roots render `unsupported`; tier denial, expired/invalid tokens, and descriptor
+mismatches render `unauthorized`; redemption failures render `error`. Public
+and public-link embeds can still mount when the root is readable but a
+dependency is narrower; those dependencies are returned as per-layer
+`unauthorized` cells. Token-mode embeds rely on the redeemed descriptor and the
+root `embeddable` gate in the fixture port; production closure-snapshot
+validation belongs to the server verifier follow-up.
 
 ## Public Open Data
 
@@ -116,6 +161,10 @@ The public collection lists only `ContentItemSummary` rows where
 or `document`. Item pages render only for public open-data items. Private,
 missing, unauthorized, and public-but-not-open-data items share the generic
 "Public item not found" surface so titles do not leak.
+
+`publicOpenDataPath()` currently emits legacy `/public/items/:idOrSlug` paths.
+The router also serves `/share/public/items/:idOrSlug`; canonicalizing emitted
+open-data URLs to Console IA is deferred with the other URL cleanup work.
 
 ## Deferred Contract Work
 

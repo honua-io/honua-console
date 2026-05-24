@@ -511,7 +511,6 @@ function isFiniteWgs84Bbox(bbox: readonly [number, number, number, number]): boo
     south <= 90 &&
     north >= -90 &&
     north <= 90 &&
-    west <= east &&
     south <= north
   );
 }

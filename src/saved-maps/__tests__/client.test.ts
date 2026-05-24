@@ -466,6 +466,26 @@ describe("FixtureSavedMapClient extent CRS normalization", () => {
     });
   });
 
+  it("WGS84 antimeridian-crossing extent is preserved on the catalog item", async () => {
+    const client = makeExtentClient();
+    const state = makeViewerState({
+      extent: {
+        xmin: 170,
+        ymin: -10,
+        xmax: -170,
+        ymax: 10,
+        rotation: 0,
+      },
+    });
+
+    const item = await client.create({ title: "Antimeridian", state });
+
+    expect(item.extent).toEqual({
+      bbox: [170, -10, -170, 10],
+      crs: "EPSG:4326",
+    });
+  });
+
   it("Web Mercator (3857) viewpoint extent is reprojected to WGS84 on the catalog item", async () => {
     const client = makeExtentClient();
     const item = await client.create({ title: "WebMerc", state: makeViewerState() });

@@ -29,8 +29,17 @@ npm test
 | Empty/error surfaces | Missing item → `null`; soft-deleted item → `null`; non-owner mutation → `SavedMapForbiddenError`. | `src/saved-maps/__tests__/client.test.ts` |
 | Read permission | Owner reads always; org-shared maps readable by any authenticated actor; public-link/public readable anonymously; private maps unreadable + non-listable + non-duplicable by non-owner. | `src/saved-maps/__tests__/client.test.ts` → "FixtureSavedMapClient read permission enforcement" |
 | Catalog extent CRS | WebMap viewpoint extent is normalized to WGS84 lon/lat on the catalog item; 3857/102100 reprojected; unknown WKID → `extent: null`. | `src/saved-maps/__tests__/client.test.ts` → "FixtureSavedMapClient extent CRS normalization" |
-| Metadata validation | content-item/v1 invariants on title (1–280), summary (≤ 280), tags (unique non-empty ≤ 64), schema-valid ULID ids, and absolute http(s) metadata URLs. | `src/saved-maps/__tests__/client.test.ts` → "FixtureSavedMapClient metadata validation" |
+| Metadata validation | content-item/v1 invariants on title (1–280), summary (≤ 280), tags (unique non-empty ≤ 64), schema-valid ULID ids, absolute http(s) metadata URLs, and WGS84 extents including antimeridian-crossing boxes. | `src/saved-maps/__tests__/client.test.ts` → "FixtureSavedMapClient metadata validation" and "FixtureSavedMapClient extent CRS normalization" |
 | Schema parity | Emitted ContentItem and WebMapDoc validate against the JSON Schemas with Ajv pattern/format enforcement; `type='map'` requires the map target shape. | `src/saved-maps/__tests__/schema-parity.test.ts` |
+
+## Viewer-Attached Behavior
+
+| Flow | Coverage | Evidence |
+|---|---|---|
+| Saved-map route hydration | `/maps/:id`, `/catalog/maps/:id`, and `/maps/new?from=:itemId` mount `MapViewerSurface`; catalog service/layer/map sources hydrate through the viewer SDK client path, while saved maps hydrate through fixture WebMapDoc loading. | `src/routes/Maps.test.tsx`, `src/viewer/init.test.ts`, `tests/smoke/shell.spec.ts` |
+| Annotation workspace | Saved-map viewer routes can create map comments, feature-linked comments, replies, rectangle/polygon/freehand shapes, export JSON, and reload persisted annotations. Embed mode renders approved annotations read-only and can accept public comments when a moderator enables them. | `src/viewer/init.test.ts`, `tests/smoke/shell.spec.ts` |
+| Collaboration cues | Authenticated saved-map viewer sessions share presence, map cursors, and feature selecting/editing cues. Collaboration UI is not rendered in embed mode. | `src/viewer/collaboration-panel.test.ts`, `src/viewer/feature-detail.test.ts`, `src/viewer/init.test.ts`, `tests/smoke/shell.spec.ts` |
+| Style overrides | The self-hosted Maputnik bridge writes saved-map style overrides without mutating the admin/server style reference; stale or failed bridge messages do not create pending drafts. | `src/saved-maps/__tests__/style-overrides.test.ts`, `src/viewer/init.test.ts` |
 
 Saved-map read permission is the fixture client data-plane policy. The
 iframe route gates the public-link demo saved map through fixture embed auth

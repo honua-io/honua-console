@@ -6,6 +6,7 @@ import { CatalogClientProvider } from "../catalog/CatalogContext.js";
 import type { CatalogClient } from "../catalog/client.js";
 import { FixtureCatalogClient } from "../catalog/client.js";
 import { loadCatalogFixtures } from "../catalog/fixtures.js";
+import { type ContentItem, summarize } from "../contracts/content-item.js";
 import { OpenDataCollectionPage } from "./OpenDataCollectionPage.js";
 import { OpenDataItemPage } from "./OpenDataItemPage.js";
 
@@ -51,6 +52,45 @@ describe("OpenDataCollectionPage", () => {
     const grid = await screen.findByTestId("public-open-data-grid");
     expect(within(grid).getByRole("link", { name: "Permit Status Feed (no docs URL)" })).toBeInTheDocument();
     expect(within(grid).queryByRole("link", { name: "City Parcels 2026" })).not.toBeInTheDocument();
+  });
+
+  it("continues through public catalog pages before filtering to open-data items", async () => {
+    const fixtures = loadCatalogFixtures();
+    const publicMap = fixtures.items.get("01HXY3ZK7N1J2Q9V8M0FQ2PWAD");
+    const publicService = fixtures.items.get("01HXY3ZK7N1J2Q9V8M0FQ2PWAB");
+    if (!publicMap || !publicService) throw new Error("fixture missing");
+    const listItems = vi.fn(async (request = {}) => {
+      if (request.cursor === "page-2") {
+        return { items: [summarize(publicService)], nextCursor: null };
+      }
+      return { items: [summarize(publicMap)], nextCursor: "page-2" };
+    });
+    const client: CatalogClient = {
+      listItems,
+      getItem: async (id: string) => fixtures.items.get(id) as ContentItem,
+      getDependencies: async () => ({ nodes: [], missing: [], unauthorized: [], unsupported: [], truncated: false }),
+    };
+
+    renderPublicRoute("/public", client);
+
+    const grid = await screen.findByTestId("public-open-data-grid");
+    expect(within(grid).getByRole("link", { name: "City Parcels 2026" })).toBeInTheDocument();
+    expect(screen.queryByText("City Parcels Overview Map")).not.toBeInTheDocument();
+    expect(listItems).toHaveBeenCalledTimes(2);
+    expect(listItems).toHaveBeenNthCalledWith(1, {
+      sharing: "public",
+      q: undefined,
+      sort: "modified-desc",
+      limit: 100,
+      cursor: null,
+    });
+    expect(listItems).toHaveBeenNthCalledWith(2, {
+      sharing: "public",
+      q: undefined,
+      sort: "modified-desc",
+      limit: 100,
+      cursor: "page-2",
+    });
   });
 });
 

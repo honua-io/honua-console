@@ -3,11 +3,13 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 
 import { CAPABILITIES, ITEM_TYPES, SHARING_LEVELS, SOURCE_KINDS } from "../../contracts/content-item.js";
+import { HttpCatalogClient } from "../client.js";
 import { FIXTURE_FILES, readFixture } from "../fixtures.js";
 
 const contentItemSchema = readFixture("../../schemas/content-item-v1.json");
 const catalogApiSchema = readFixture("../../schemas/catalog-api-v1.json");
 const publishHandoffSchema = readFixture("../../schemas/publish-handoff-v1.json");
+const shareAccessSchema = readFixture("../../schemas/share-access-v1.json");
 
 function buildAjv(): Ajv2020 {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -15,6 +17,7 @@ function buildAjv(): Ajv2020 {
   ajv.addSchema(contentItemSchema as object);
   ajv.addSchema(catalogApiSchema as object);
   ajv.addSchema(publishHandoffSchema as object);
+  ajv.addSchema(shareAccessSchema as object);
   return ajv;
 }
 
@@ -87,6 +90,9 @@ describe("catalog-api-v1 schema", () => {
   const errorEnvelopeValidator = ajv.compile({
     $ref: "https://schemas.honua.io/content-item/v1.1.0/catalog-api.json#/$defs/ErrorEnvelope",
   });
+  const patchItemRequestValidator = ajv.compile({
+    $ref: "https://schemas.honua.io/content-item/v1.1.0/catalog-api.json#/$defs/PatchItemRequest",
+  });
 
   it("validates the list-response.json fixture", () => {
     const fixture = readFixture("list-response.json");
@@ -109,6 +115,31 @@ describe("catalog-api-v1 schema", () => {
 
   it("rejects unknown error codes", () => {
     expect(errorEnvelopeValidator({ error: { code: "boom", message: "x" } })).toBe(false);
+  });
+
+  it("validates the actual HttpCatalogClient share patch body", async () => {
+    let capturedBody: unknown;
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      if (typeof init?.body !== "string") throw new Error("expected JSON string body");
+      capturedBody = JSON.parse(init.body);
+      return new Response(JSON.stringify({ access: (capturedBody as { access: unknown }).access, etag: '"v1"' }), {
+        status: 200,
+        headers: { "content-type": "application/json", etag: '"v1"' },
+      });
+    };
+    const client = new HttpCatalogClient({ baseUrl: "https://api.honua.example/items", fetch: fetchImpl });
+
+    await client.patchAccess({
+      id: "01HXY3ZK7N1J2Q9V8M0FQ2PWAD",
+      access: { sharing: "group", embeddable: true, groupIds: ["field-review"] },
+    });
+
+    expect(capturedBody).toEqual({
+      access: { sharing: "group", embeddable: true, groupIds: ["field-review"] },
+    });
+    const ok = patchItemRequestValidator(capturedBody);
+    expect(patchItemRequestValidator.errors ?? []).toEqual([]);
+    expect(ok).toBe(true);
   });
 });
 

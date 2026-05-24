@@ -36,7 +36,9 @@ npm test
 npm run typecheck
 ```
 
-Last green run on this branch: 107 vitest assertions across 11 files; `tsc --noEmit` clean.
+Run the commands above for current assertion counts. This smoke note avoids
+pinning totals because the Catalog, viewer, share/embed, and open-data matrices
+are reconciled together during the `#4` port.
 
 ### Flows Deferred Out Of This Ticket
 

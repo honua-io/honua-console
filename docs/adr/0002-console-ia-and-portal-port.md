@@ -29,7 +29,7 @@ Routes are grouped under top-level area paths instead of inheriting Portal's fla
 | `/catalog/maps/:mapId` | Catalog | `MapViewerSurface` mode=viewer |
 | `/share/public` | Share | `OpenDataCollectionPage` (anonymous) |
 | `/share/public/items/:idOrSlug` | Share | `OpenDataItemPage` (anonymous) |
-| `/share/embed/maps/:mapId` | Share | `MapViewerSurface` mode=embed (no shell, token via fragment) |
+| `/share/embed/maps/:mapId` | Share | `EmbedMap` gate + `MapViewerSurface` mode=embed (no shell, token via fragment) |
 | `/data`, `/groups` | Catalog | placeholders |
 | `/auth/signin`, `/auth/signed-out`, `/auth/callback` | (system) | anonymous |
 
@@ -39,7 +39,7 @@ This matches the design brief for `#4` and lets the upcoming Studio (`#5`), Oper
 
 Embed snippets already in the wild target Portal's `/embed/maps/:id` (with the embed token in the URL fragment) and customers may have linked `/maps/:id` and `/public/items/:idOrSlug`. The Console router serves the legacy paths through the same components as the new Console-IA paths. The URL fragment (embed token) and query string (chrome / legend / zoom / extent) survive untouched because the same component handles both routes.
 
-Helpers that emit URLs (`mapUrl`, the saved-map fixture renderer, share snippet builder, open-data `publicItemPath`, the `openInMap` action) continue to emit the legacy `/maps/...`, `/embed/maps/...`, `/public/...` URL space. Catalog item open actions use `/maps/new?from=:itemId` for service, layer, and map sources so `target.webmapJsonRef` remains only the WebMap document pointer. Nav-level user-visible links (`NavConfig.NAV_ITEMS`, the AppShell `Maps` and `Public` items) point at the new Console-IA paths. Canonicalising URL emission to Console-IA paths is a follow-up cleanup ticket; it does not block `#4`.
+Helpers that emit URLs (`mapUrl`, the saved-map fixture renderer, share snippet builder, open-data `publicOpenDataPath`, the `openInMap` action) continue to emit the legacy `/maps/...`, `/embed/maps/...`, `/public/...` URL space. Catalog item open actions use `/maps/new?from=:itemId` for service, layer, and map sources so `target.webmapJsonRef` remains only the WebMap document pointer. Nav-level user-visible links (`NavConfig.NAV_ITEMS`, the AppShell `Maps` and `Public` items) point at the new Console-IA paths. Canonicalising URL emission to Console-IA paths is a follow-up cleanup ticket; it does not block `#4`.
 
 ### 3. Fixture posture and contracts
 

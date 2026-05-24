@@ -7,6 +7,8 @@ These fixtures are the **golden** representation of `content-item/v1`. Every con
 | File | Purpose |
 | --- | --- |
 | `service.json` | Item type `service` (Feature service). |
+| `service-no-docs.json` | Public open-data service without `describedBy`, used to model endpoint documentation fallback behavior. |
+| `service-honua-api.json` | Honua API service whose format intentionally has no curated docs fallback, used to model the unsupported-docs branch. |
 | `layer.json` | Item type `layer`. Depends on `service.json`. |
 | `map.json` | Item type `map` (operational layer references `layer.json`, basemap references `tile-service.json`). |
 | `tile-service.json` | Secondary `service` used as a basemap dependency target. |
@@ -38,5 +40,7 @@ The IDs used here are deliberately deterministic so the walker tests can referen
 | `01HXY3ZK7N1J2Q9V8M0FQ2PWAK` | `deps-fanout.json` |
 | `01HXY3ZK7N1J2Q9V8M0FQ2PWAM` | `unsupported.json` |
 | `01HXY3ZK7N1J2Q9V8M0FQ2PWAN` | `unauthorized.json` |
+| `01HXY3ZK7N1J2Q9V8M0FQ2PWAP` | `service-no-docs.json` |
+| `01HXY3ZK7N1J2Q9V8M0FQ2PWAQ` | `service-honua-api.json` |
 
 `01HXY3ZK7N1J2Q9V8M0FQ2PW00` is reserved for "missing" — no fixture exists at that ID. The walker tests use it to assert the `missing` surface.

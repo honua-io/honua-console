@@ -24,7 +24,7 @@ npm test
 | --- | --- | --- |
 | **AC1** | Private, organization, and public-link access behave differently in tests or smoke validation. | `src/share/__tests__/policy.test.ts` → tier-ordering, escalation matrix, blocker-order parity. `src/share/__tests__/client.test.ts` → per-tier `patchAccess` round-trip + 403 forbidden + 409 closureBlocked + network-error. |
 | **AC2** | Public embeds work only when map dependencies are shareable by the embed audience. | `src/share/__tests__/policy.test.ts` → `canEmbedAudienceAccess` matrix. `src/embed/__tests__/permissions.test.ts` → public-embed-of-public-deps OK; public-embed-of-private-dep renders the per-layer `unauthorized` cell while the rest of the map still loads. |
-| **AC3** | A user can copy an embed snippet and load the map in an iframe-compatible route. | `src/share/__tests__/snippet.test.ts` → snippet shape (iframe, `loading="lazy"`, `allow="fullscreen"`, `referrerpolicy`), default `chrome=minimal&legend=on&zoom=on`, custom chrome variants, fragment-only embed token. `src/catalog/__tests__/ItemDetailPage.test.tsx` → SharePanel renders and copies the iframe snippet for embeddable public maps. `src/embed/__tests__/route.test.ts` → defensive parsing for `chrome`, `legend`, `zoom`, `extent`, fragment token. `src/routes/EmbedMap.test.tsx`, `src/routes/Maps.test.tsx`, and `src/viewer/init.test.ts` → embed auth gates before mount, parsed params are threaded into `/embed/maps/:id`, `zoom=off` suppresses navigation controls, query extent overrides persisted extent, invalid extents fall back, and `#embedToken` is not overwritten by viewer hash state. |
+| **AC3** | A user can copy an embed snippet and load the map in an iframe-compatible route. | `src/share/__tests__/snippet.test.ts` → snippet shape (iframe, `loading="lazy"`, `allow="fullscreen"`, `referrerpolicy`), default `chrome=minimal&legend=on&zoom=on`, custom chrome variants, fragment-only embed token. `src/catalog/__tests__/ItemDetailPage.test.tsx` → SharePanel renders and copies the iframe snippet for embeddable public maps. `src/embed/__tests__/route.test.ts` → defensive parsing for `chrome`, `legend`, `zoom`, `extent`, fragment token. `src/routes/EmbedMap.test.tsx`, `src/routes/Maps.test.tsx`, and `src/viewer/init.test.ts` → embed auth gates before mount, parsed params are threaded into the no-shell embed viewer, `zoom=off` suppresses navigation controls, query extent overrides persisted extent, invalid extents fall back, and `#embedToken` is not overwritten by viewer hash state. |
 
 ## Design AC → Evidence (extends issue ACs)
 
@@ -58,9 +58,10 @@ fixture ids, not browser-routable saved-map fixtures.
    `closureBlocked` for every typed dependency narrower than public-link:
    `layer-a`, `layer-b`, `service-a`, and `service-b`. `style-1` is
    `unsupported` and does not block.
-3. Build an embed snippet for `map-1`. It targets `/embed/maps/map-1` with
-   `chrome=minimal&legend=on&zoom=on`; custom chrome and extent overrides are
-   parser-tested.
+3. Build an embed snippet for `map-1`. It targets the legacy-compatible
+   `/embed/maps/map-1` with `chrome=minimal&legend=on&zoom=on`; the Console IA
+   route `/share/embed/maps/:id` is served by the same no-shell component.
+   Custom chrome and extent overrides are parser-tested.
 4. Parse `?extent=foo`. The route parser returns `null` and the viewer falls
    back to the persisted saved-map extent.
 5. Resolve a public embed of `map-public` with a private layer dependency.
@@ -69,7 +70,9 @@ fixture ids, not browser-routable saved-map fixtures.
 6. Exercise `prepareEmbedAuth` with an expired token in unit coverage. It
    returns the `unauthorized` empty-state posture without writing
    localStorage. The fixture React route redeems fixture tokens before viewer
-   mount and renders the same empty state for expired fragments.
+   mount, rejects descriptor/target mismatches, evaluates the root
+   embeddable/tier gate, and renders the same empty state for expired
+   fragments.
 
 ## Cross-repo Coordination
 
@@ -128,5 +131,6 @@ wiring requires these recorded bounded child tickets:
 
 - Server/SDK-backed `CatalogClient` activation. `HttpCatalogClient` exists as
   a transport seam, but the fixture client remains the active `#4` default.
-- Server enforcement and embed-token mint/verify — recorded child
-  tickets above.
+- Server enforcement and production embed-token mint/verify — recorded child
+  tickets above. The current React route only performs fixture redemption and
+  fixture root authorization.

@@ -98,7 +98,7 @@
         },
         "license": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/License" },
         "attribution": { "type": ["string", "null"] },
-        "access": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Access" }
+        "access": { "$ref": "https://honua.io/schemas/share-access/v1.json" }
       }
     },
     "ErrorEnvelope": {

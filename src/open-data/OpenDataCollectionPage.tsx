@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { useCatalogClient } from "../catalog/CatalogContext.js";
+import type { CatalogClient } from "../catalog/client.js";
 import { formatDate } from "../catalog/components/format.js";
-import { CatalogError, type ContentItemSummary, type ListItemsResponse } from "../contracts/content-item.js";
+import { CatalogError, type ContentItemSummary, type ListItemsRequest } from "../contracts/content-item.js";
 import { EmptyState } from "../shell/EmptyState.js";
 import { Pill } from "../ui/Pill.js";
 import { Thumbnail } from "../ui/Thumbnail.js";
 import { TypePill } from "../ui/TypePill.js";
 import { formatPublicTypeList, isPublicOpenDataSummary, publicOpenDataPath } from "./public-items.js";
 
+const PUBLIC_COLLECTION_PAGE_SIZE = 100;
+
 type CollectionState =
   | { kind: "loading" }
-  | { kind: "ready"; response: ListItemsResponse }
+  | { kind: "ready"; items: readonly ContentItemSummary[] }
   | { kind: "error"; error: CatalogError | Error };
 
 export function OpenDataCollectionPage(): JSX.Element {
@@ -30,16 +33,10 @@ export function OpenDataCollectionPage(): JSX.Element {
   useEffect(() => {
     const seq = ++requestSeq.current;
     setState({ kind: "loading" });
-    client
-      .listItems({
-        sharing: "public",
-        q: query || undefined,
-        sort: query ? "relevance" : "modified-desc",
-        limit: 100,
-      })
+    loadPublicOpenDataItems(client, query)
       .then((response) => {
         if (requestSeq.current !== seq) return;
-        setState({ kind: "ready", response });
+        setState({ kind: "ready", items: response });
       })
       .catch((error: unknown) => {
         if (requestSeq.current !== seq) return;
@@ -47,10 +44,7 @@ export function OpenDataCollectionPage(): JSX.Element {
       });
   }, [client, query]);
 
-  const items = useMemo(
-    () => (state.kind === "ready" ? state.response.items.filter(isPublicOpenDataSummary) : []),
-    [state],
-  );
+  const items = state.kind === "ready" ? state.items : [];
 
   const applySearch = (value: string) => {
     const next = value.trim();
@@ -149,6 +143,32 @@ function renderResults(state: CollectionState, items: readonly ContentItemSummar
       ))}
     </ul>
   );
+}
+
+async function loadPublicOpenDataItems(client: CatalogClient, query: string): Promise<readonly ContentItemSummary[]> {
+  const baseRequest: ListItemsRequest = {
+    sharing: "public",
+    q: query || undefined,
+    sort: query ? "relevance" : "modified-desc",
+    limit: PUBLIC_COLLECTION_PAGE_SIZE,
+  };
+  const items: ContentItemSummary[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+
+  do {
+    const response = await client.listItems({ ...baseRequest, cursor });
+    items.push(...response.items.filter(isPublicOpenDataSummary));
+    cursor = response.nextCursor;
+    if (cursor) {
+      if (seenCursors.has(cursor)) {
+        throw new CatalogError("server", "catalog pagination returned a repeated cursor");
+      }
+      seenCursors.add(cursor);
+    }
+  } while (cursor);
+
+  return items;
 }
 
 function OpenDataCard({ item }: { item: ContentItemSummary }): JSX.Element {
