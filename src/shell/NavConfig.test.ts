@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import { visibleNavItems } from "./NavConfig";
 
 describe("visibleNavItems", () => {
+  it("hides authenticated route links from unauthenticated sessions", () => {
+    const items = visibleNavItems({ status: "unauthenticated" });
+
+    expect(items.map((item) => item.id)).toEqual([]);
+  });
+
   it("keeps Operate hidden from non-operator members", () => {
     const items = visibleNavItems({
       status: "authenticated",

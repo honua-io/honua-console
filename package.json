@@ -18,7 +18,6 @@
     "smoke:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
-    "@honua/sdk-js": "file:../honua-sdk-js",
     "@tanstack/react-query": "5.62.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",

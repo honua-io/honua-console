@@ -36,7 +36,7 @@ This backlog intentionally separates three decisions:
 
 ### Issue #2 Scaffold Baseline
 
-The scaffold establishes the shared React/TypeScript/Vite runtime, route guard pattern, fixture/whoami session drivers, placeholder routes for `/studio`, `/catalog`, `/operate`, and `/share`, and the `consoleFetch` response/error seam. Product behavior remains intentionally placeholder until the porting tickets below land.
+The scaffold establishes the shared React/TypeScript/Vite runtime, route guard pattern, fixture/whoami session drivers, placeholder routes for `/studio`, `/catalog`, `/operate`, and `/share`, and the `consoleFetch` response/error seam. The fixture driver is the local development path; production builds default to the whoami driver unless fixture auth is explicitly enabled for smoke/preview harnesses. Product behavior remains intentionally placeholder until the porting tickets below land.
 
 Follow-on tickets should extend these seams instead of creating parallel ones:
 
@@ -44,7 +44,7 @@ Follow-on tickets should extend these seams instead of creating parallel ones:
 - honua-console#4/#5 own Catalog, Share, Viewer, Open Data, Studio, app-builder, and generated-app behavior.
 - honua-console#6 owns the legacy Admin bridge and eventual Operate replacement.
 - honua-console#7 owns replacement of temporary local session/permission types with shared server and `@honua/sdk-js` contracts.
-- honua-console#8/#9 own deployable artifact wiring and cross-surface smoke evidence.
+- honua-console#8/#9 own deployable artifact wiring and cross-surface smoke evidence beyond the current shell smoke for fixture sign-in, navigation, and Operate gating.
 
 ### P1 Migration And Runtime Work
 

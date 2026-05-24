@@ -24,6 +24,8 @@ export interface ConsoleEnv {
   readonly authSignInUrl: string;
   /** Server-owned sign-out endpoint used by the whoami driver. */
   readonly authSignOutUrl: string;
+  /** Optional JSON authenticated fixture session seed for local tests. */
+  readonly fakeSessionSeed: string;
   /** Comma-separated feature flags. Empty unless explicitly configured. */
   readonly featureFlags: ReadonlySet<string>;
 }
@@ -85,6 +87,7 @@ export function loadConsoleEnv(): ConsoleEnv {
     whoamiUrl: readEnv("VITE_WHOAMI_URL") || "/api/portal/whoami",
     authSignInUrl: readEnv("VITE_AUTH_SIGN_IN_URL") || "/api/auth/signin",
     authSignOutUrl: readEnv("VITE_AUTH_SIGN_OUT_URL") || "/api/auth/signout",
+    fakeSessionSeed: readEnv("VITE_FAKE_SESSION"),
     featureFlags: parseFlags(readEnv("VITE_FEATURE_FLAGS")),
   };
 }

@@ -75,7 +75,7 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     label: "Share",
     to: "/share",
     description: "Public links, embeds, exports, and open-data pages",
-    visible: () => true,
+    visible: isAuthenticated,
   },
 ];
 

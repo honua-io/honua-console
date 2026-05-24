@@ -69,6 +69,8 @@ The scaffold exposes a temporary local `Session` shape in `src/auth/types.ts` un
 - Authenticated sessions include `user`, `workspace`, `scopes`, and optional `accessToken`.
 - Builder navigation uses `member`, `operator`, or `admin` scopes.
 - Operate navigation and the `/operate` route use the single `canSeeOperatorLinks` rule: `operator` or `admin`.
+- Builder sessions that visit `/operate` stay inside the shared Console shell and see the standard permission empty state.
+- The transitional legacy Admin link appears in the user menu only when `VITE_ADMIN_BASE_URL` is configured and the session has `operator` or `admin` scope.
 
 The default local `fixture` driver stores only local session state in `sessionStorage` and offers builder, operator, and admin presets. Production builds default to `whoami` when `VITE_AUTH_DRIVER` is unset; production fixture auth requires `VITE_AUTH_DRIVER=fixture` and `VITE_ALLOW_FIXTURE_AUTH=true` so preview/release cannot silently boot with public fixture sessions. The `whoami` driver calls `VITE_WHOAMI_URL` with credentials, treats `401`/`403` as unauthenticated, surfaces `501` as "Session endpoint not yet available", redirects sign-in/sign-out through server-owned auth endpoints, and expects an authenticated JSON payload with `user`, `workspace`, `scopes`, and optional `accessToken`.
 
@@ -97,6 +99,9 @@ In local dev and tests, the default auth driver is `fixture`, so protected route
 - `npm run test` runs Vitest.
 - `npm run build` runs typecheck and produces the Vite production build.
 - `npm run smoke` runs the Playwright shell smoke suite for fixture sign-in, navigation, and Operate gating.
+- `npm run smoke:install` installs the Chromium browser dependency for local Playwright smoke runs.
+
+`npm run smoke` builds the production bundle, previews it on `127.0.0.1:4173`, and explicitly enables fixture auth for the smoke harness with `VITE_AUTH_DRIVER=fixture` and `VITE_ALLOW_FIXTURE_AUTH=true`. The checked-in smoke specs cover fixture sign-in, Studio/Catalog/Share navigation, builder denial on `/operate`, and operator access to `/operate`.
 
 ### Environment
 

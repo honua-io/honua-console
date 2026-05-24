@@ -30,7 +30,7 @@ function resolveDefaultDriver(): SessionDriver {
       signOutUrl: consoleEnv.authSignOutUrl,
     });
   }
-  return createFixtureDriver();
+  return createFixtureDriver({ fakeSessionSeed: consoleEnv.fakeSessionSeed });
 }
 
 export function SessionProvider({ driver, children }: SessionProviderProps): JSX.Element {

@@ -4,6 +4,10 @@ import type { AuthenticatedSession, Session, SessionDriver } from "./types";
 const STORAGE_KEY = "honua.console.fixture-session";
 const RETURN_TO_KEY = "honua.console.fixture-return-to";
 
+interface FixtureDriverOptions {
+  readonly fakeSessionSeed?: string;
+}
+
 /**
  * Preset fixture sessions. Selectable from the sign-in screen so developers
  * and smoke tests can switch between builder and operator nav variants without
@@ -69,11 +73,11 @@ function writeStorage(session: AuthenticatedSession | null): void {
   }
 }
 
-function readEnvFixture(): AuthenticatedSession | null {
-  const raw = (import.meta.env.VITE_FAKE_SESSION as string | undefined)?.trim();
-  if (!raw) return null;
+function readSeededFixture(seed: string | undefined): AuthenticatedSession | null {
+  const value = seed?.trim();
+  if (!value) return null;
   try {
-    const parsed = JSON.parse(raw) as AuthenticatedSession;
+    const parsed = JSON.parse(value) as AuthenticatedSession;
     if (parsed?.status === "authenticated" && parsed.user && parsed.workspace) {
       return parsed;
     }
@@ -103,13 +107,13 @@ export function consumeReturnTo(): string | null {
   }
 }
 
-export function createFixtureDriver(): SessionDriver {
+export function createFixtureDriver(options: FixtureDriverOptions = {}): SessionDriver {
   return {
     name: "fixture",
     async probe(): Promise<Session> {
       const stored = readStorage();
       if (stored) return stored;
-      const seeded = readEnvFixture();
+      const seeded = readSeededFixture(options.fakeSessionSeed);
       if (seeded) {
         writeStorage(seeded);
         return seeded;
