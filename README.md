@@ -95,6 +95,12 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj
 Validate the shared shell and native-core behavior without a desktop MAUI toolchain:
 
 ```bash
+./scripts/fast-local-check.sh
+```
+
+That script runs the same host-independent checks directly:
+
+```bash
 dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj
 dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj
 ```

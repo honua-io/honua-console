@@ -6,8 +6,8 @@ Honua Console remains a browser-deployable Blazor web app. The native host is an
 
 - `src/Honua.Console.Shell`: shared Razor component library for the Console shell, route map, environment profile model, account/RBAC session model, and native streaming proof contract.
 - `src/Honua.Console.Web`: independently deployable browser Console host. It references `Honua.Console.Shell` only.
-- `src/Honua.Console.Native.Core`: testable native services for persisted environment profiles, account-token sessions, mTLS certificate references, native HTTP/gRPC connection setup, and the deterministic telemetry streaming proof.
-- `src/Honua.Console.Native`: optional .NET MAUI Blazor Hybrid host. It renders `Honua.Console.Shell.ConsoleRoutes` in a `BlazorWebView` and stores profile/session material through MAUI secure storage.
+- `src/Honua.Console.Native.Core`: testable native services for JSON-backed environment profiles, account-token sessions, mTLS certificate references, native HTTP/gRPC connection setup, and the deterministic telemetry streaming proof.
+- `src/Honua.Console.Native`: optional .NET MAUI Blazor Hybrid host. It renders `Honua.Console.Shell.ConsoleRoutes` in a `BlazorWebView` and binds the native-core profile/session storage abstractions to MAUI secure storage.
 
 ## Host And Route Contract
 
@@ -27,11 +27,11 @@ Two host-support routes are also shared:
 | `/environments` | Uses the seeded in-memory profile store from `AddHonuaConsoleShell`. | Uses `JsonConsoleEnvironmentProfileStore` backed by MAUI secure storage. |
 | `/operate/native-stream` | Renders a native-proof unavailable state because the web host does not register native gRPC services. | Resolves the active profile, streams deterministic telemetry proof events, and saves resume diagnostics. |
 
-The browser host registers `AddHonuaConsoleShell()` only. The MAUI host registers `AddHonuaConsoleShell()` and `AddHonuaConsoleNativeCore()`, which replaces the in-memory profile/session stores with native JSON/secure-storage-backed stores and adds certificate, token, connection, and streaming services. This keeps browser startup and deployment independent from MAUI workloads and native gRPC dependencies.
+The browser host registers `AddHonuaConsoleShell()` only. The MAUI host registers `AddHonuaConsoleShell()` and `AddHonuaConsoleNativeCore()`, which replaces the shell's in-memory profile/session stores with JSON native-core stores and adds certificate, token, connection, and streaming services. The test host keeps in-memory profile/secret adapters; the MAUI host binds those adapters to `NativeSecureStorage`. This keeps browser startup and deployment independent from MAUI workloads and native gRPC dependencies.
 
 ## Environment Profiles
 
-The native profile store seeds two environments, `dev` and `staging`, and supports adding more with distinct profile state:
+The native profile store seeds two environments, `dev` and `staging`, and supports adding more with distinct profile state stored as JSON under `honua.console.native.environment-profiles.v1`:
 
 - server base URL
 - environment kind and tenant ID
@@ -53,7 +53,7 @@ The implemented profile shape is Console-owned UI state, not a duplicate of serv
 | `ClientCertificate` | Optional certificate reference for native mTLS. Supported reference kinds are `None`, `FilePath`, `StoreThumbprint`, and `StoreSubject`. |
 | `ConsoleEnvironmentState` | Profile-scoped `LastRoute`, `LastStreamingResumeToken`, `LastConnectedAt`, and diagnostics. |
 
-Account authorization remains bearer-token account/RBAC based; mTLS is an optional per-environment transport trust layer. Anonymous profiles omit bearer tokens and certificate material. Native account sessions are stored per profile as secure-storage secrets named with the `honua.console.native.account-session.{profileId}.v1` pattern.
+Account authorization remains bearer-token account/RBAC based; mTLS is an optional per-environment transport trust layer. Anonymous auth mode omits bearer-token attachment; client certificates are controlled only by the profile's certificate binding. Native account sessions are stored per profile as secure-storage secrets named with the `honua.console.native.account-session.{profileId}.v1` pattern.
 
 The seeded profiles are:
 
@@ -134,11 +134,17 @@ The generated MAUI project keeps `WindowsPackageType=None` for an unpackaged Win
 On Linux, validate the host-independent implementation with:
 
 ```bash
+./scripts/fast-local-check.sh
+```
+
+The fast check runs:
+
+```bash
 dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj
 dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj
 ```
 
-The native MAUI desktop app must be compiled on Windows or macOS. Linux command-line builds use the project fallback Android target for source validation and require an Android SDK, which is not part of the desktop host acceptance path.
+The native MAUI desktop app must be compiled on Windows or macOS. On Linux, the native project builds a no-op library target by default so solution and fast validation do not require Android tooling. Android source validation remains explicit with `-p:EnableHonuaConsoleAndroidTarget=true` and requires an Android SDK; it is not part of the desktop host acceptance path.
 
 Native-core tests cover:
 
