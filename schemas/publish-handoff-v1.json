@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.honua.io/content-item/v1.1.0/publish-handoff.json",
+  "title": "PublishHandoff",
+  "description": "Admin → server publish handoff payload. The server fills in id, slug, timestamps, endpoints.self, and the canonical source.history entry. Idempotent on (source.kind, source.sourceId). v1.1: endpoints carry full ServiceLink shape (accessURL, format, mediaType, describedBy, describedByType, conformsTo) so the admin UI can pass through API/service metadata to the portal item.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "title",
+    "summary",
+    "owner",
+    "extent",
+    "nativeCrs",
+    "license",
+    "attribution",
+    "source",
+    "target",
+    "endpoints",
+    "preview",
+    "capabilities",
+    "dependencies",
+    "access"
+  ],
+  "properties": {
+    "type": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ItemType" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 280 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 280 },
+    "description": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "uniqueItems": true
+    },
+    "owner": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Owner" },
+    "extent": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Extent" },
+    "nativeCrs": { "type": ["string", "null"] },
+    "license": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/License" },
+    "attribution": { "type": ["string", "null"] },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceId", "jobId", "publishedBy"],
+      "description": "Provenance asserted by admin. The server appends the initial entry to source.history when it materializes the item.",
+      "properties": {
+        "kind": { "type": "string", "enum": ["import", "publish", "admin-job", "external"] },
+        "sourceId": { "type": ["string", "null"] },
+        "jobId": { "type": ["string", "null"] },
+        "publishedBy": { "type": ["string", "null"] }
+      }
+    },
+    "target": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Target" },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["geoservices", "ogcFeatures", "stac", "tiles"],
+      "description": "Admin asserts only the protocol endpoints. The server fills in `self` and rewrites them through its public host map.",
+      "properties": {
+        "geoservices": {
+          "oneOf": [
+            { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ServiceLink" },
+            { "type": "null" }
+          ]
+        },
+        "ogcFeatures": {
+          "oneOf": [
+            { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ServiceLink" },
+            { "type": "null" }
+          ]
+        },
+        "stac": {
+          "oneOf": [
+            { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ServiceLink" },
+            { "type": "null" }
+          ]
+        },
+        "tiles": {
+          "oneOf": [
+            { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/TileServiceLink" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "preview": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Preview" },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Capability" },
+      "uniqueItems": true
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Dependency" }
+    },
+    "access": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Access" },
+    "extensions": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Extensions" }
+  },
+  "allOf": [
+    {
+      "description": "target.type MUST equal item type (mirrors the ContentItem cross-field invariant).",
+      "if": { "properties": { "type": { "const": "service" } } },
+      "then": { "properties": { "target": { "properties": { "type": { "const": "service" } } } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "layer" } } },
+      "then": { "properties": { "target": { "properties": { "type": { "const": "layer" } } } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "map" } } },
+      "then": { "properties": { "target": { "properties": { "type": { "const": "map" } } } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "scene" } } },
+      "then": { "properties": { "target": { "properties": { "type": { "const": "scene" } } } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "app" } } },
+      "then": { "properties": { "target": { "properties": { "type": { "const": "app" } } } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "document" } } },
+      "then": { "properties": { "target": { "properties": { "type": { "const": "document" } } } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "external-url" } } },
+      "then": { "properties": { "target": { "properties": { "type": { "const": "external-url" } } } } }
+    }
+  ]
+}

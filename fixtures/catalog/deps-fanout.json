@@ -1,0 +1,65 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAK",
+  "slug": "city-overview-everything",
+  "type": "map",
+  "title": "City Overview — Everything",
+  "summary": "Aggregate map used to exercise the dependency closure walker on a 3-deep tree with mixed branches.",
+  "description": "This map references the parcels overview map (which itself references a layer and a basemap), an unsupported imagery service, an unauthorized internal layer, and a missing item id. Used by walker tests to assert that all four surfaces (`ok`, `missing`, `unauthorized`, `unsupported`) are categorized correctly.",
+  "tags": ["fixture", "deps-fanout"],
+  "owner": { "id": "user_alex", "name": "Alex Lee", "kind": "user" },
+  "timestamps": {
+    "created": "2026-04-22T08:00:00Z",
+    "modified": "2026-05-02T09:00:00Z",
+    "published": null,
+    "refreshed": null
+  },
+  "extent": { "bbox": [-158.4, 21.1, -157.5, 21.9], "crs": "EPSG:4326" },
+  "nativeCrs": null,
+  "license": {
+    "spdx": null,
+    "name": "City of Honua Internal Working Map",
+    "url": null
+  },
+  "attribution": null,
+  "source": {
+    "kind": "manual",
+    "sourceId": null,
+    "jobId": null,
+    "publishedBy": "user_alex",
+    "history": [
+      { "at": "2026-04-22T08:00:00Z", "kind": "manual", "actor": "user_alex" }
+    ]
+  },
+  "target": {
+    "type": "map",
+    "webmapJsonRef": "https://api.honua.example/portal/maps/01HXY3ZK7N1J2Q9V8M0FQ2PWAK/webmap.json",
+    "operationalLayerCount": 4
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAK",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": null,
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": null,
+    "image": null
+  },
+  "capabilities": ["render"],
+  "dependencies": [
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAD", "type": "map", "role": "operationalLayer" },
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAM", "type": "service", "role": "operationalLayer" },
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAN", "type": "layer", "role": "operationalLayer" },
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PW00", "type": "layer", "role": "operationalLayer" }
+  ],
+  "access": { "sharing": "org", "embeddable": false, "openData": false },
+  "extensions": {}
+}

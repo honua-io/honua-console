@@ -1,0 +1,63 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAD",
+  "slug": "city-parcels-overview-map",
+  "type": "map",
+  "title": "City Parcels Overview Map",
+  "summary": "Saved web map showing active city parcels over the Honua basemap.",
+  "description": "A saved web map ready for embedding in city websites. One operational layer (active parcels) draped over the Honua vector basemap.",
+  "tags": ["parcels", "saved-map"],
+  "owner": { "id": "user_alex", "name": "Alex Lee", "kind": "user" },
+  "timestamps": {
+    "created": "2026-02-01T15:30:00Z",
+    "modified": "2026-04-15T10:00:00Z",
+    "published": "2026-02-02T08:00:00Z",
+    "refreshed": null
+  },
+  "extent": { "bbox": [-158.3, 21.2, -157.6, 21.8], "crs": "EPSG:4326" },
+  "nativeCrs": null,
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "name": "Creative Commons Attribution 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "attribution": "City of Honua, Department of Planning",
+  "source": {
+    "kind": "manual",
+    "sourceId": null,
+    "jobId": null,
+    "publishedBy": "user_alex",
+    "history": [
+      { "at": "2026-02-01T15:30:00Z", "kind": "manual", "actor": "user_alex" }
+    ]
+  },
+  "target": {
+    "type": "map",
+    "webmapJsonRef": "https://api.honua.example/portal/maps/01HXY3ZK7N1J2Q9V8M0FQ2PWAD/webmap.json",
+    "operationalLayerCount": 1
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAD",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": null,
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": "https://cdn.honua.example/thumbs/parcels-overview.png",
+    "image": null
+  },
+  "capabilities": ["render"],
+  "dependencies": [
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAC", "type": "layer", "role": "operationalLayer" },
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAE", "type": "service", "role": "baseMap" }
+  ],
+  "access": { "sharing": "public", "embeddable": true, "openData": false },
+  "extensions": {}
+}

@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/webmap-doc/v1.json",
+  "title": "WebMapDoc",
+  "description": "Durable, portal-native web map document. Captures the state of a saved web map: layer order, visibility, opacity, style + popup references, basemap, and initial viewpoint. A near-superset of honua-sdk-js's WebMap input shape; ArcGIS WebMap JSON migration is handled separately by #16.",
+  "type": "object",
+  "required": ["version", "operationalLayers", "baseMap", "initialState"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "honua-webmap/v1",
+      "description": "Document schema version. Breaking changes ship as v2 with a documented upgrader."
+    },
+    "authoringApp": { "type": "string", "default": "honua-portal" },
+    "authoringAppVersion": { "type": "string" },
+    "operationalLayers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/OperationalLayer" },
+      "default": []
+    },
+    "baseMap": { "$ref": "#/$defs/BaseMap" },
+    "initialState": { "$ref": "#/$defs/InitialState" },
+    "spatialReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wkid": { "type": "integer" },
+        "latestWkid": { "type": "integer" }
+      }
+    },
+    "annotations": { "$ref": "#/$defs/AnnotationWorkspaceState" }
+  },
+  "$defs": {
+    "AnnotationWorkspaceState": {
+      "type": "object",
+      "description": "Optional portal annotation/comment workspace state for a saved map. The Beta slice supports map pin comments, feature-linked threads, replies, rectangle/polygon/freehand shape annotations, open/resolved status, owner-approved public comments, and viewer-side JSON/GeoJSON export. Mentions, edition gating, and realtime collaboration are separate feature contracts.",
+      "required": ["version", "visibility", "annotationSets", "commentThreads"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "const": "honua-annotations/v1" },
+        "visibility": {
+          "type": "object",
+          "required": ["defaultAudience", "publicComments"],
+          "additionalProperties": false,
+          "properties": {
+            "defaultAudience": {
+              "type": "string",
+              "const": "map",
+              "description": "Annotation visibility follows the saved map's sharing policy in this prep contract."
+            },
+            "publicComments": {
+              "type": "boolean",
+              "description": "When true, public/embed viewers may submit map-pin comments. Public submissions are stored as pending until a map owner approves them."
+            }
+          }
+        },
+        "annotationSets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        },
+        "commentThreads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        }
+      }
+    },
+    "OperationalLayer": {
+      "type": "object",
+      "required": ["id", "title", "layerType", "sourceRef", "visibility", "opacity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable layer id within this WebMapDoc. Regenerated on duplicate."
+        },
+        "title": { "type": "string" },
+        "layerType": {
+          "type": "string",
+          "enum": [
+            "honua-feature",
+            "honua-vector-tile",
+            "honua-raster-tile",
+            "honua-image",
+            "ogc-features",
+            "ogc-tiles",
+            "geojson",
+            "wms",
+            "wmts",
+            "unsupported"
+          ]
+        },
+        "sourceRef": {
+          "type": "object",
+          "required": ["itemId"],
+          "additionalProperties": false,
+          "properties": {
+            "itemId": {
+              "type": "string",
+              "description": "Portal ContentItem id of the layer or service this draws from."
+            },
+            "subLayerId": {
+              "type": ["string", "null"],
+              "description": "Optional sublayer/collection id within the source service."
+            }
+          }
+        },
+        "styleRef": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "itemId": { "type": "string" },
+            "origin": {
+              "type": "string",
+              "enum": ["admin-layer-style", "portal-override"],
+              "description": "Ownership of the effective style. Admin/server-owned styles are referenced by itemId; portal overrides are saved inline on this WebMapDoc and do not mutate the authoritative server/admin style."
+            },
+            "inline": {
+              "description": "Embedded MapLibre style JSON. Portal style edits store a full normalized v8 style here as a saved-map override while preserving itemId as admin/server style lineage when present.",
+              "type": ["object", "null"],
+              "additionalProperties": true
+            }
+          }
+        },
+        "visibility": { "type": "boolean", "default": true },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+        "popupInfo": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "description": "Inlined popup config. Default is inline (popup configs are small; avoids N+1 fetch on viewer load)."
+        },
+        "minScale": { "type": ["number", "null"] },
+        "maxScale": { "type": ["number", "null"] }
+      }
+    },
+    "BaseMap": {
+      "type": "object",
+      "required": ["title", "baseMapLayers"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "baseMapLayers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/BaseMapLayer" },
+          "minItems": 1
+        }
+      }
+    },
+    "BaseMapLayer": {
+      "type": "object",
+      "required": ["id", "layerType"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "layerType": {
+          "type": "string",
+          "enum": [
+            "honua-vector-tile",
+            "honua-raster-tile",
+            "wmts",
+            "xyz",
+            "style-url"
+          ]
+        },
+        "sourceRef": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "itemId": { "type": "string" }
+          }
+        },
+        "styleUrl": {
+          "type": ["string", "null"],
+          "description": "Optional MapLibre style URL when the basemap is a third-party style."
+        },
+        "visibility": { "type": "boolean", "default": true },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 }
+      }
+    },
+    "InitialState": {
+      "type": "object",
+      "required": ["viewpoint"],
+      "additionalProperties": false,
+      "properties": {
+        "viewpoint": {
+          "type": "object",
+          "required": ["extent"],
+          "additionalProperties": false,
+          "properties": {
+            "extent": {
+              "type": "object",
+              "required": ["xmin", "ymin", "xmax", "ymax"],
+              "additionalProperties": false,
+              "properties": {
+                "xmin": { "type": "number" },
+                "ymin": { "type": "number" },
+                "xmax": { "type": "number" },
+                "ymax": { "type": "number" },
+                "spatialReference": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "wkid": { "type": "integer" },
+                    "latestWkid": { "type": "integer" }
+                  }
+                }
+              }
+            },
+            "rotation": { "type": "number", "default": 0 }
+          }
+        }
+      }
+    }
+  }
+}

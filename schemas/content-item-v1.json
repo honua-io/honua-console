@@ -1,0 +1,578 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.honua.io/content-item/v1.1.0/content-item.json",
+  "title": "ContentItem",
+  "description": "Honua Portal content item — durable shape shared by portal, server, admin, and SDK consumers. Schema version content-item/v1 (full SemVer in $id). v1.1 nests endpoints in ServiceLink records carrying API/service metadata (accessURL, format, mediaType, describedBy, describedByType, conformsTo) and adds a `formats` projection to ContentItemSummary so list cards render format pills without a per-item detail fetch.",
+  "type": "object",
+  "$defs": {
+    "Ulid": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Crockford base32 ULID (26 chars, server-issued, sortable)."
+    },
+    "Slug": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9][a-z0-9-]{0,127}$",
+      "description": "Optional URL slug; lowercase ASCII, dash separated, ≤128 chars."
+    },
+    "RFC3339": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "RFC3339Nullable": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "ItemType": {
+      "type": "string",
+      "enum": ["service", "layer", "map", "scene", "app", "document", "external-url"]
+    },
+    "Owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["user", "org", "group"] }
+      }
+    },
+    "Timestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["created", "modified", "published", "refreshed"],
+      "properties": {
+        "created": { "$ref": "#/$defs/RFC3339" },
+        "modified": { "$ref": "#/$defs/RFC3339" },
+        "published": { "$ref": "#/$defs/RFC3339Nullable" },
+        "refreshed": { "$ref": "#/$defs/RFC3339Nullable" }
+      }
+    },
+    "Extent": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["bbox", "crs"],
+      "properties": {
+        "bbox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            { "type": "number", "minimum": -180, "maximum": 180, "description": "west longitude" },
+            { "type": "number", "minimum": -90, "maximum": 90, "description": "south latitude" },
+            { "type": "number", "minimum": -180, "maximum": 180, "description": "east longitude" },
+            { "type": "number", "minimum": -90, "maximum": 90, "description": "north latitude" }
+          ],
+          "items": false,
+          "description": "[west, south, east, north] in WGS84 (EPSG:4326). Longitudes in [-180, 180]; latitudes in [-90, 90]."
+        },
+        "crs": { "type": "string", "const": "EPSG:4326" }
+      }
+    },
+    "License": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spdx", "name", "url"],
+      "properties": {
+        "spdx": { "type": ["string", "null"], "description": "SPDX identifier or null if non-standard." },
+        "name": { "type": "string", "minLength": 1 },
+        "url": { "type": ["string", "null"], "format": "uri", "pattern": "^https?://" }
+      }
+    },
+    "SourceKind": {
+      "type": "string",
+      "enum": ["import", "publish", "admin-job", "external", "manual"]
+    },
+    "HistoryEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "kind", "actor"],
+      "properties": {
+        "at": { "$ref": "#/$defs/RFC3339" },
+        "kind": {
+          "type": "string",
+          "enum": ["import", "publish", "admin-job", "external", "manual", "update", "share-change", "metadata-edit"]
+        },
+        "actor": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceId", "jobId", "publishedBy", "history"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/SourceKind" },
+        "sourceId": { "type": ["string", "null"] },
+        "jobId": { "type": ["string", "null"] },
+        "publishedBy": { "type": ["string", "null"] },
+        "history": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/HistoryEvent" }
+        }
+      }
+    },
+    "Capability": {
+      "type": "string",
+      "enum": [
+        "query",
+        "queryAggregate",
+        "queryExtent",
+        "queryObjectIds",
+        "queryRelated",
+        "applyEdits",
+        "attachments",
+        "render",
+        "tiles",
+        "sql",
+        "stream",
+        "pbf",
+        "connect",
+        "image",
+        "geometry",
+        "geoprocess",
+        "processes"
+      ]
+    },
+    "DependencyRole": {
+      "type": "string",
+      "description": "Role this dependency plays in the parent item. Unknown roles MUST be preserved on round-trip."
+    },
+    "Dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "role"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Ulid" },
+        "type": { "$ref": "#/$defs/ItemType" },
+        "role": { "$ref": "#/$defs/DependencyRole" }
+      }
+    },
+    "ServiceFormat": {
+      "type": "string",
+      "description": "Honua-curated short token identifying the service/API family. Mirrors src/contracts/conforms-to.ts SERVICE_FORMATS.",
+      "enum": [
+        "Honua:Portal:v1",
+        "Honua:API:v1",
+        "OGC:API:Features",
+        "OGC:API:Tiles",
+        "OGC:WMS:1.3.0",
+        "OGC:WFS:2.0",
+        "OGC:STAC:1.0",
+        "GeoServices:FeatureService",
+        "GeoServices:MapService",
+        "GeoServices:ImageService",
+        "GeoServices:VectorTileService",
+        "GeoServices:TileService"
+      ]
+    },
+    "ConformsToUri": {
+      "type": "string",
+      "description": "Well-known conformance URI from CONFORMS_TO_URIS. Closed enum so DCAT-US 3.0 export stays deterministic.",
+      "enum": [
+        "http://www.opengis.net/def/serviceType/ogc/wfs/2.0",
+        "http://www.opengis.net/def/serviceType/ogc/wms/1.3.0",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30",
+        "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/core",
+        "http://www.opengis.net/spec/wfs/2.0",
+        "http://www.opengis.net/spec/wms/1.3.0",
+        "https://api.stacspec.org/v1.0.0/core",
+        "https://developers.arcgis.com/rest/services-reference/feature-service.htm",
+        "https://developers.arcgis.com/rest/services-reference/image-service.htm",
+        "https://developers.arcgis.com/rest/services-reference/map-service.htm",
+        "https://developers.arcgis.com/rest/services-reference/tile-map-service.htm",
+        "https://developers.arcgis.com/rest/services-reference/vector-tile-service.htm",
+        "https://schemas.honua.io/content-item/v1",
+        "https://schemas.honua.io/honua-api/v1"
+      ]
+    },
+    "ServiceLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accessURL", "format", "mediaType", "describedBy", "describedByType", "conformsTo"],
+      "description": "Service/API endpoint metadata. Required-on-the-wire (null when unknown) so consumers don't have to defend against missing keys.",
+      "properties": {
+        "accessURL": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "URL or URL template clients use to call this endpoint."
+        },
+        "format": { "$ref": "#/$defs/ServiceFormat" },
+        "mediaType": {
+          "type": ["string", "null"],
+          "description": "IANA media type the endpoint returns (e.g., application/geo+json, image/png)."
+        },
+        "describedBy": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Documentation URL for the API. Null triggers the format-based fallback in the renderer."
+        },
+        "describedByType": {
+          "type": ["string", "null"],
+          "description": "IANA media type of the describedBy resource (e.g., text/html, application/vnd.oai.openapi+json;version=3.0). Null whenever describedBy is null."
+        },
+        "conformsTo": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ConformsToUri" },
+          "description": "Spec URIs the endpoint conforms to. Empty array means no conformance asserted."
+        }
+      }
+    },
+    "TileServiceLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accessURL", "format", "mediaType", "describedBy", "describedByType", "conformsTo"],
+      "description": "Tile-slot ServiceLink — accessURL relaxes the strict URI format constraint to allow XYZ/TMS templates with {z}/{x}/{y} placeholders.",
+      "properties": {
+        "accessURL": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tile URL or XYZ/TMS template (may contain {z}/{x}/{y} placeholders); not validated as a strict URI."
+        },
+        "format": { "$ref": "#/$defs/ServiceFormat" },
+        "mediaType": { "type": ["string", "null"] },
+        "describedBy": { "type": ["string", "null"], "format": "uri", "pattern": "^https?://" },
+        "describedByType": { "type": ["string", "null"] },
+        "conformsTo": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ConformsToUri" }
+        }
+      }
+    },
+    "Endpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["self", "geoservices", "ogcFeatures", "stac", "tiles"],
+      "properties": {
+        "self": { "$ref": "#/$defs/ServiceLink" },
+        "geoservices": {
+          "oneOf": [{ "$ref": "#/$defs/ServiceLink" }, { "type": "null" }]
+        },
+        "ogcFeatures": {
+          "oneOf": [{ "$ref": "#/$defs/ServiceLink" }, { "type": "null" }]
+        },
+        "stac": {
+          "oneOf": [{ "$ref": "#/$defs/ServiceLink" }, { "type": "null" }]
+        },
+        "tiles": {
+          "oneOf": [{ "$ref": "#/$defs/TileServiceLink" }, { "type": "null" }]
+        }
+      }
+    },
+    "Preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thumbnail", "image"],
+      "properties": {
+        "thumbnail": { "type": ["string", "null"], "format": "uri", "pattern": "^https?://" },
+        "image": { "type": ["string", "null"], "format": "uri", "pattern": "^https?://" }
+      }
+    },
+    "Access": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sharing", "embeddable", "openData"],
+      "properties": {
+        "sharing": { "type": "string", "enum": ["private", "org", "group", "public-link", "public"] },
+        "embeddable": { "type": "boolean" },
+        "openData": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "openData": { "const": true } }, "required": ["openData"] },
+          "then": { "properties": { "sharing": { "const": "public" } } }
+        }
+      ]
+    },
+    "Extensions": {
+      "type": "object",
+      "additionalProperties": { "type": "object" },
+      "description": "Namespaced extensions. Consumers MUST ignore unknown namespaces and MUST round-trip them unchanged."
+    },
+    "Target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "serviceName", "kind", "layerCount", "serviceUrl", "serviceType", "status"],
+          "properties": {
+            "type": { "const": "service" },
+            "serviceName": { "type": "string", "minLength": 1 },
+            "kind": { "type": "string", "enum": ["feature", "map", "image", "tile", "vector-tile"] },
+            "layerCount": { "type": "integer", "minimum": 0 },
+            "serviceUrl": {
+              "type": "string",
+              "pattern": "^https?://",
+              "minLength": 1,
+              "description": "Canonical end-user URL for the published service. NEVER an admin-only URL."
+            },
+            "serviceType": {
+              "type": "string",
+              "enum": [
+                "feature",
+                "vector-tile",
+                "raster-tile",
+                "image",
+                "ogc-features",
+                "ogc-tiles",
+                "wms",
+                "wmts",
+                "unsupported"
+              ]
+            },
+            "importJobId": { "type": ["string", "null"] },
+            "status": {
+              "type": "string",
+              "enum": ["available", "limited", "unavailable", "draft"],
+              "description": "User-safe status. Operator-only states are mapped down to one of these four."
+            },
+            "statusDetail": {
+              "type": ["string", "null"],
+              "maxLength": 500,
+              "description": "Short user-facing reason when status != available. NEVER an operator-only diagnostic."
+            },
+            "adminDiagnosticsRef": {
+              "type": ["string", "null"],
+              "description": "Opaque admin-side correlation id used to build the admin-only diagnostic URL. Stored, not rendered to non-operators."
+            },
+            "lastCheckedAt": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "serviceId", "layerId", "geometryType", "fieldCount"],
+          "properties": {
+            "type": { "const": "layer" },
+            "serviceId": { "$ref": "#/$defs/Ulid" },
+            "layerId": { "type": "integer", "minimum": 0 },
+            "geometryType": {
+              "type": ["string", "null"],
+              "enum": ["point", "multipoint", "polyline", "polygon", "envelope", "raster", null]
+            },
+            "fieldCount": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "webmapJsonRef", "operationalLayerCount"],
+          "properties": {
+            "type": { "const": "map" },
+            "webmapJsonRef": { "type": "string", "minLength": 1 },
+            "operationalLayerCount": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "webSceneJsonRef", "layers"],
+          "properties": {
+            "type": { "const": "scene" },
+            "webSceneJsonRef": { "type": "string", "minLength": 1 },
+            "layers": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "url", "framework"],
+          "properties": {
+            "type": { "const": "app" },
+            "url": { "type": "string", "format": "uri", "pattern": "^https?://" },
+            "framework": { "type": "string", "enum": ["honua", "external"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "url", "mediaType"],
+          "properties": {
+            "type": { "const": "document" },
+            "url": { "type": "string", "format": "uri", "pattern": "^https?://" },
+            "mediaType": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "url"],
+          "properties": {
+            "type": { "const": "external-url" },
+            "url": { "type": "string", "format": "uri", "pattern": "^https?://" }
+          }
+        }
+      ]
+    },
+    "ContentItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "type",
+        "title",
+        "summary",
+        "description",
+        "tags",
+        "owner",
+        "timestamps",
+        "extent",
+        "nativeCrs",
+        "license",
+        "attribution",
+        "source",
+        "target",
+        "endpoints",
+        "preview",
+        "capabilities",
+        "dependencies",
+        "access",
+        "extensions"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Ulid" },
+        "slug": { "$ref": "#/$defs/Slug" },
+        "type": { "$ref": "#/$defs/ItemType" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "description": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "uniqueItems": true
+        },
+        "owner": { "$ref": "#/$defs/Owner" },
+        "timestamps": { "$ref": "#/$defs/Timestamps" },
+        "extent": { "$ref": "#/$defs/Extent" },
+        "nativeCrs": { "type": ["string", "null"] },
+        "license": { "$ref": "#/$defs/License" },
+        "attribution": { "type": ["string", "null"] },
+        "source": { "$ref": "#/$defs/Source" },
+        "target": { "$ref": "#/$defs/Target" },
+        "endpoints": { "$ref": "#/$defs/Endpoints" },
+        "preview": { "$ref": "#/$defs/Preview" },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Capability" },
+          "uniqueItems": true
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Dependency" }
+        },
+        "access": { "$ref": "#/$defs/Access" },
+        "extensions": { "$ref": "#/$defs/Extensions" }
+      },
+      "allOf": [
+        {
+          "description": "target.type MUST equal item type.",
+          "if": { "properties": { "type": { "const": "service" } } },
+          "then": { "properties": { "target": { "properties": { "type": { "const": "service" } } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "layer" } } },
+          "then": { "properties": { "target": { "properties": { "type": { "const": "layer" } } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "map" } } },
+          "then": { "properties": { "target": { "properties": { "type": { "const": "map" } } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "scene" } } },
+          "then": { "properties": { "target": { "properties": { "type": { "const": "scene" } } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "app" } } },
+          "then": { "properties": { "target": { "properties": { "type": { "const": "app" } } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "document" } } },
+          "then": { "properties": { "target": { "properties": { "type": { "const": "document" } } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "external-url" } } },
+          "then": { "properties": { "target": { "properties": { "type": { "const": "external-url" } } } } }
+        }
+      ]
+    },
+    "ViewerSupport": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["supported", "reason"],
+      "description": "Projection of extensions['honua-portal-viewer'] surfaced on summaries so cards and dependency walkers can mirror the detail page's openability gate without a per-item detail fetch. Null when the publisher has not asserted an override.",
+      "properties": {
+        "supported": { "type": ["boolean", "null"] },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "ContentItemSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "type",
+        "title",
+        "summary",
+        "owner",
+        "tags",
+        "extent",
+        "preview",
+        "modified",
+        "capabilities",
+        "formats",
+        "sharing",
+        "openData",
+        "viewerSupport"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/Ulid" },
+        "slug": { "$ref": "#/$defs/Slug" },
+        "type": { "$ref": "#/$defs/ItemType" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "owner": { "$ref": "#/$defs/Owner" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "uniqueItems": true
+        },
+        "extent": { "$ref": "#/$defs/Extent" },
+        "preview": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["thumbnail"],
+          "properties": {
+            "thumbnail": { "type": ["string", "null"], "format": "uri" }
+          }
+        },
+        "modified": { "$ref": "#/$defs/RFC3339" },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Capability" },
+          "uniqueItems": true
+        },
+        "formats": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ServiceFormat" },
+          "uniqueItems": true,
+          "description": "Deduplicated ServiceFormat tokens drawn from the item's populated non-self endpoints. Drives at-a-glance format pills on catalog cards without a per-item detail fetch."
+        },
+        "sharing": { "type": "string", "enum": ["private", "org", "group", "public-link", "public"] },
+        "openData": { "type": "boolean" },
+        "viewerSupport": { "$ref": "#/$defs/ViewerSupport" }
+      }
+    }
+  },
+  "$ref": "#/$defs/ContentItem"
+}

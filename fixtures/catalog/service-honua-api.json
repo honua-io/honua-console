@@ -1,0 +1,75 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAQ",
+  "slug": "honua-events-stream",
+  "type": "service",
+  "title": "Honua Events Stream",
+  "summary": "Honua-native API endpoint with no curated fallback. Exercises the empty-state branch when no documentation URL exists.",
+  "description": "A Honua API endpoint where the admin did not supply a `describedBy` URL and the registry intentionally has no curated fallback for the `Honua:API:v1` family. The renderer surfaces the shared empty-state UI rather than a bare or broken link.",
+  "tags": ["events", "fixture", "empty-state"],
+  "owner": { "id": "org_honua", "name": "Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2026-04-20T00:00:00Z",
+    "modified": "2026-04-25T00:00:00Z",
+    "published": "2026-04-22T00:00:00Z",
+    "refreshed": null
+  },
+  "extent": null,
+  "nativeCrs": null,
+  "license": {
+    "spdx": null,
+    "name": "Honua Internal API Terms",
+    "url": null
+  },
+  "attribution": "Honua",
+  "source": {
+    "kind": "manual",
+    "sourceId": null,
+    "jobId": null,
+    "publishedBy": "user_admin",
+    "history": [
+      { "at": "2026-04-22T00:00:00Z", "kind": "manual", "actor": "user_admin" }
+    ]
+  },
+  "target": {
+    "type": "service",
+    "serviceName": "honua/events",
+    "kind": "feature",
+    "layerCount": 0,
+    "serviceUrl": "https://api.honua.example/honua/v1/events",
+    "serviceType": "feature",
+    "importJobId": null,
+    "status": "available",
+    "statusDetail": null,
+    "adminDiagnosticsRef": null,
+    "lastCheckedAt": "2026-05-06T03:00:00Z"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAQ",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": {
+      "accessURL": "https://api.honua.example/honua/v1/events",
+      "format": "Honua:API:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/honua-api/v1"]
+    },
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": null,
+    "image": null
+  },
+  "capabilities": ["stream"],
+  "dependencies": [],
+  "access": { "sharing": "org", "embeddable": false, "openData": false },
+  "extensions": {}
+}

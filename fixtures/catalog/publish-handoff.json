@@ -1,0 +1,66 @@
+{
+  "type": "service",
+  "title": "City Parcels 2026",
+  "summary": "Authoritative parcel polygons for the City of Honua, refreshed nightly.",
+  "description": "# Parcels\n\nNightly export from the city assessor's database. Includes parcel boundary, owner type, land use code, and assessed value.",
+  "tags": ["parcels", "land-use", "assessor"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "extent": { "bbox": [-158.3, 21.2, -157.6, 21.8], "crs": "EPSG:4326" },
+  "nativeCrs": "EPSG:3857",
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "name": "Creative Commons Attribution 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "attribution": "City of Honua, Department of Planning",
+  "source": {
+    "kind": "publish",
+    "sourceId": "arcgis:itemId:abc123",
+    "jobId": "job_01HXY3ZJW6S7EJC3V0K3M4D7TN",
+    "publishedBy": "user_alex"
+  },
+  "target": {
+    "type": "service",
+    "serviceName": "city/parcels",
+    "kind": "feature",
+    "layerCount": 3,
+    "serviceUrl": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer",
+    "serviceType": "feature",
+    "importJobId": "job_01HXY3ZJW6S7EJC3V0K3M4D7TN",
+    "status": "available",
+    "statusDetail": null,
+    "adminDiagnosticsRef": null,
+    "lastCheckedAt": "2026-05-06T03:00:00Z"
+  },
+  "endpoints": {
+    "geoservices": {
+      "accessURL": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer",
+      "format": "GeoServices:FeatureService",
+      "mediaType": "application/json",
+      "describedBy": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer?f=help",
+      "describedByType": "text/html",
+      "conformsTo": ["https://developers.arcgis.com/rest/services-reference/feature-service.htm"]
+    },
+    "ogcFeatures": {
+      "accessURL": "https://api.honua.example/ogc/features/collections/city-parcels",
+      "format": "OGC:API:Features",
+      "mediaType": "application/geo+json",
+      "describedBy": "https://api.honua.example/ogc/features/api",
+      "describedByType": "application/vnd.oai.openapi+json;version=3.0",
+      "conformsTo": [
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson"
+      ]
+    },
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": null,
+    "image": null
+  },
+  "capabilities": ["query", "queryAggregate", "queryExtent", "queryRelated", "render", "stream", "pbf"],
+  "dependencies": [],
+  "access": { "sharing": "org", "embeddable": false, "openData": false }
+}

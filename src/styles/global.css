@@ -1,0 +1,145 @@
+:root {
+  --hc-space-1: 4px;
+  --hc-space-2: 8px;
+  --hc-space-3: 12px;
+  --hc-space-4: 16px;
+  --hc-space-5: 24px;
+  --hc-space-6: 32px;
+  --hc-space-7: 48px;
+  --hc-space-8: 64px;
+
+  --hc-radius-sm: 6px;
+  --hc-radius-md: 10px;
+  --hc-radius-lg: 14px;
+
+  --hc-color-bg: #f6f7fb;
+  --hc-color-surface: #ffffff;
+  --hc-color-surface-strong: #fbfcff;
+  --hc-color-border: #e3e6ee;
+  --hc-color-border-strong: #cdd2df;
+  --hc-color-text: #161a25;
+  --hc-color-text-muted: #5a6275;
+  --hc-color-text-soft: #80869a;
+  --hc-color-accent: #2a5dff;
+  --hc-color-accent-soft: #e8efff;
+  --hc-color-accent-text: #ffffff;
+  --hc-color-success: #226347;
+  --hc-color-success-soft: #e8f5ef;
+  --hc-color-success-border: #87bba2;
+  --hc-color-warn: #b85a00;
+  --hc-color-warn-soft: #fff2e0;
+  --hc-color-danger: #b3261e;
+  --hc-color-danger-soft: #ffe9e7;
+
+  --hc-shadow-1: 0 1px 2px rgba(20, 24, 40, 0.06);
+  --hc-shadow-2: 0 6px 24px rgba(20, 24, 40, 0.08);
+
+  --hc-nav-width: 232px;
+  --hc-topbar-height: 56px;
+
+  --hc-font-stack:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
+
+  color-scheme: light;
+  font-family: var(--hc-font-stack);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hc-color-bg: #0f1220;
+    --hc-color-surface: #161a2c;
+    --hc-color-surface-strong: #1c2138;
+    --hc-color-border: #262b44;
+    --hc-color-border-strong: #353b59;
+    --hc-color-text: #f1f3fb;
+    --hc-color-text-muted: #b3b9cf;
+    --hc-color-text-soft: #8c93b0;
+    --hc-color-accent: #6f93ff;
+    --hc-color-accent-soft: #1a2548;
+    --hc-color-accent-text: #ffffff;
+    --hc-color-success: #8fd8b5;
+    --hc-color-success-soft: #123325;
+    --hc-color-success-border: #2e6f51;
+    --hc-color-warn: #ffba6b;
+    --hc-color-warn-soft: #2e2110;
+    --hc-color-danger: #ff8a82;
+    --hc-color-danger-soft: #3b1716;
+
+    --hc-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --hc-shadow-2: 0 6px 24px rgba(0, 0, 0, 0.45);
+
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--hc-color-bg);
+  color: var(--hc-color-text);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--hc-color-accent);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+}
+
+button {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--hc-color-accent);
+  outline-offset: 2px;
+  border-radius: var(--hc-radius-sm);
+}
+
+.hc-skip-link {
+  position: absolute;
+  top: -40px;
+  left: var(--hc-space-3);
+  background: var(--hc-color-accent);
+  color: var(--hc-color-accent-text);
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  z-index: 1000;
+  transition: top 120ms ease;
+}
+
+.hc-skip-link:focus {
+  top: var(--hc-space-3);
+  text-decoration: none;
+}
+
+.hc-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

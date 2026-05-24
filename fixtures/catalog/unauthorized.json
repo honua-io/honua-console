@@ -1,0 +1,62 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAN",
+  "slug": "internal-staff-roster-layer",
+  "type": "layer",
+  "title": "Internal Staff Roster Layer",
+  "summary": "Internal-only layer used to demonstrate the unauthorized empty surface in share review.",
+  "description": "This item is private. The fixture client returns a `403`-equivalent error so the dependency walker can categorize it as `unauthorized` without inventing a permission engine.",
+  "tags": ["internal"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2026-02-01T00:00:00Z",
+    "modified": "2026-04-01T00:00:00Z",
+    "published": null,
+    "refreshed": null
+  },
+  "extent": null,
+  "nativeCrs": null,
+  "license": {
+    "spdx": null,
+    "name": "Internal Use Only",
+    "url": null
+  },
+  "attribution": null,
+  "source": {
+    "kind": "manual",
+    "sourceId": null,
+    "jobId": null,
+    "publishedBy": "user_admin",
+    "history": [
+      { "at": "2026-02-01T00:00:00Z", "kind": "manual", "actor": "user_admin" }
+    ]
+  },
+  "target": {
+    "type": "layer",
+    "serviceId": "01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+    "layerId": 99,
+    "geometryType": "point",
+    "fieldCount": 6
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAN",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": null,
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": null,
+    "image": null
+  },
+  "capabilities": ["query"],
+  "dependencies": [],
+  "access": { "sharing": "private", "embeddable": false, "openData": false },
+  "extensions": {}
+}

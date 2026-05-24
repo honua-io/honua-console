@@ -1,0 +1,75 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAP",
+  "slug": "permit-status-feed",
+  "type": "service",
+  "title": "Permit Status Feed (no docs URL)",
+  "summary": "GeoServices feed of permit status changes. Exercises the format-derived documentation fallback path.",
+  "description": "A GeoServices FeatureService where the publishing admin did not supply a `describedBy` URL. The renderer falls back to the curated `/docs/api/geoservices-feature` page so the link is never broken.",
+  "tags": ["permits", "fixture", "fallback"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2026-04-01T00:00:00Z",
+    "modified": "2026-04-15T00:00:00Z",
+    "published": "2026-04-05T00:00:00Z",
+    "refreshed": "2026-05-06T03:00:00Z"
+  },
+  "extent": { "bbox": [-158.3, 21.2, -157.6, 21.8], "crs": "EPSG:4326" },
+  "nativeCrs": "EPSG:3857",
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "name": "Creative Commons Attribution 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "attribution": "City of Honua, Department of Planning",
+  "source": {
+    "kind": "publish",
+    "sourceId": "arcgis:itemId:permits-feed",
+    "jobId": "job_01HXY3ZJW6S7EJC3V0K3M4D7TM",
+    "publishedBy": "user_alex",
+    "history": [
+      { "at": "2026-04-05T00:00:00Z", "kind": "publish", "actor": "user_alex" }
+    ]
+  },
+  "target": {
+    "type": "service",
+    "serviceName": "city/permit-status",
+    "kind": "feature",
+    "layerCount": 1,
+    "serviceUrl": "https://api.honua.example/arcgis/rest/services/city/permit-status/FeatureServer",
+    "serviceType": "feature",
+    "importJobId": null,
+    "status": "available",
+    "statusDetail": null,
+    "adminDiagnosticsRef": null,
+    "lastCheckedAt": "2026-05-06T03:00:00Z"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAP",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": {
+      "accessURL": "https://api.honua.example/arcgis/rest/services/city/permit-status/FeatureServer",
+      "format": "GeoServices:FeatureService",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://developers.arcgis.com/rest/services-reference/feature-service.htm"]
+    },
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": null,
+    "image": null
+  },
+  "capabilities": ["query", "queryExtent", "render"],
+  "dependencies": [],
+  "access": { "sharing": "public", "embeddable": false, "openData": true },
+  "extensions": {}
+}

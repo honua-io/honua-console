@@ -1,0 +1,107 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAC",
+  "slug": "city-parcels-2026-active",
+  "type": "layer",
+  "title": "City Parcels — Active",
+  "summary": "Active parcel polygons (excludes retired records). Layer 0 of city/parcels.",
+  "description": "Layer 0 of the City Parcels feature service. 142,330 active polygon features with attributes for owner type, land use, and assessed value.",
+  "tags": ["parcels", "active"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2025-11-04T12:00:00Z",
+    "modified": "2026-04-30T09:11:32Z",
+    "published": "2026-01-10T17:42:00Z",
+    "refreshed": "2026-05-06T03:00:00Z"
+  },
+  "extent": { "bbox": [-158.3, 21.2, -157.6, 21.8], "crs": "EPSG:4326" },
+  "nativeCrs": "EPSG:3857",
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "name": "Creative Commons Attribution 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "attribution": "City of Honua, Department of Planning",
+  "source": {
+    "kind": "publish",
+    "sourceId": "arcgis:itemId:abc123:layer0",
+    "jobId": "job_01HXY3ZJW6S7EJC3V0K3M4D7TN",
+    "publishedBy": "user_alex",
+    "history": [
+      { "at": "2026-01-10T17:42:00Z", "kind": "publish", "actor": "user_alex" }
+    ]
+  },
+  "target": {
+    "type": "layer",
+    "serviceId": "01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+    "layerId": 0,
+    "geometryType": "polygon",
+    "fieldCount": 18
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAC",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": {
+      "accessURL": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer/0",
+      "format": "GeoServices:FeatureService",
+      "mediaType": "application/json",
+      "describedBy": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer/0?f=help",
+      "describedByType": "text/html",
+      "conformsTo": ["https://developers.arcgis.com/rest/services-reference/feature-service.htm"]
+    },
+    "ogcFeatures": {
+      "accessURL": "https://api.honua.example/ogc/features/collections/city-parcels-active",
+      "format": "OGC:API:Features",
+      "mediaType": "application/geo+json",
+      "describedBy": "https://api.honua.example/ogc/features/api",
+      "describedByType": "application/vnd.oai.openapi+json;version=3.0",
+      "conformsTo": [
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson"
+      ]
+    },
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": "https://cdn.honua.example/thumbs/parcels-active.png",
+    "image": null
+  },
+  "capabilities": ["query", "queryExtent", "queryRelated", "render", "stream", "pbf"],
+  "dependencies": [
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAB", "type": "service", "role": "datasource" }
+  ],
+  "access": { "sharing": "public", "embeddable": true, "openData": true },
+  "extensions": {
+    "honua:openData": {
+      "relatedItems": [
+        {
+          "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+          "type": "service",
+          "relationship": "source-dataset",
+          "title": "City Parcels 2026",
+          "note": "Parent FeatureServer that publishes this active parcel layer."
+        },
+        {
+          "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAH",
+          "type": "document",
+          "relationship": "companion-table",
+          "title": "City Parcels Data Dictionary (PDF)",
+          "note": "Definitions for the public parcel attributes surfaced by this layer."
+        }
+      ],
+      "revision": {
+        "version": "city-parcels-active.2026-05-06",
+        "sourceVersion": "assessor-export-2026-05-06T03:00Z",
+        "updateNotes": "Layer 0 was refreshed from the same assessor export as the parent service.",
+        "changeSummary": "Active parcel records were refreshed. Beta metadata does not include a full feature-level diff."
+      }
+    }
+  }
+}

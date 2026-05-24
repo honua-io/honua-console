@@ -1,0 +1,59 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAJ",
+  "slug": "state-elevation-mosaic",
+  "type": "external-url",
+  "title": "State Elevation Mosaic (External)",
+  "summary": "Pointer to the state DEM mosaic hosted on the state GIS portal.",
+  "description": "External URL registered in the catalog so users can find the state DEM mosaic without leaving the portal search experience.",
+  "tags": ["elevation", "external", "dem"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2026-03-01T00:00:00Z",
+    "modified": "2026-03-01T00:00:00Z",
+    "published": "2026-03-01T00:00:00Z",
+    "refreshed": null
+  },
+  "extent": null,
+  "nativeCrs": null,
+  "license": {
+    "spdx": null,
+    "name": "State of Honua Open Data Terms",
+    "url": "https://state.honua.example/data-terms"
+  },
+  "attribution": "State of Honua, Office of Geospatial Information",
+  "source": {
+    "kind": "external",
+    "sourceId": "state:dem-mosaic-2024",
+    "jobId": null,
+    "publishedBy": "user_alex",
+    "history": [
+      { "at": "2026-03-01T00:00:00Z", "kind": "external", "actor": "user_alex" }
+    ]
+  },
+  "target": {
+    "type": "external-url",
+    "url": "https://state.honua.example/items/dem-mosaic-2024"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAJ",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": null,
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": null,
+    "image": null
+  },
+  "capabilities": [],
+  "dependencies": [],
+  "access": { "sharing": "public", "embeddable": false, "openData": false },
+  "extensions": {}
+}

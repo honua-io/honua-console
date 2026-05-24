@@ -1,0 +1,83 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAM",
+  "slug": "legacy-wms-imagery",
+  "type": "service",
+  "title": "Legacy WMS Imagery",
+  "summary": "Legacy WMS-only imagery service. Not yet renderable in the portal viewer.",
+  "description": "An imagery service published only as WMS. Catalog can list and describe it, but the portal v1 viewer does not render WMS — surfaced via the `unsupported` empty surface with an external client affordance. Exercises the format-derived documentation fallback path: `describedBy` is null but `format: OGC:WMS:1.3.0` resolves to a curated docs page.",
+  "tags": ["imagery", "legacy", "wms"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2024-06-01T00:00:00Z",
+    "modified": "2025-09-01T00:00:00Z",
+    "published": "2024-06-15T00:00:00Z",
+    "refreshed": null
+  },
+  "extent": { "bbox": [-158.4, 21.1, -157.5, 21.9], "crs": "EPSG:4326" },
+  "nativeCrs": "EPSG:3857",
+  "license": {
+    "spdx": null,
+    "name": "City of Honua Public Imagery Terms",
+    "url": null
+  },
+  "attribution": "City of Honua",
+  "source": {
+    "kind": "import",
+    "sourceId": "legacy:wms:imagery-2024",
+    "jobId": null,
+    "publishedBy": "user_admin",
+    "history": [
+      { "at": "2024-06-15T00:00:00Z", "kind": "import", "actor": "user_admin" }
+    ]
+  },
+  "target": {
+    "type": "service",
+    "serviceName": "legacy/imagery",
+    "kind": "image",
+    "layerCount": 1,
+    "serviceUrl": "https://legacy.example.com/imagery",
+    "serviceType": "unsupported",
+    "importJobId": null,
+    "status": "limited",
+    "statusDetail": "Service type not supported.",
+    "adminDiagnosticsRef": null,
+    "lastCheckedAt": "2026-05-06T03:00:00Z"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAM",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": {
+      "accessURL": "https://api.honua.example/wms/legacy-imagery",
+      "format": "OGC:WMS:1.3.0",
+      "mediaType": "image/png",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": [
+        "http://www.opengis.net/spec/wms/1.3.0",
+        "http://www.opengis.net/def/serviceType/ogc/wms/1.3.0"
+      ]
+    },
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": null,
+    "image": null
+  },
+  "capabilities": ["render"],
+  "dependencies": [],
+  "access": { "sharing": "org", "embeddable": false, "openData": false },
+  "extensions": {
+    "honua-portal-viewer": {
+      "supported": false,
+      "reason": "WMS rendering is not implemented in the portal viewer v1; open in an external WMS client."
+    }
+  }
+}

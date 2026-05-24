@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/share-access/v1.json",
+  "title": "ShareAccess",
+  "description": "Sharing tier and embed-eligibility for a portal ContentItem (#15). Authoritative wire shape projected from honua-portal#10's `ContentItem.access`. Adds the `group` tier required by #15. Five tiers: private | org | group | public-link | public. `embeddable` is independent of `sharing`: an owner may share publicly without consenting to iframe-from-anywhere.",
+  "type": "object",
+  "required": ["sharing", "embeddable"],
+  "additionalProperties": false,
+  "properties": {
+    "sharing": {
+      "type": "string",
+      "enum": ["private", "org", "group", "public-link", "public"],
+      "description": "Audience tier ordered narrowest → widest. Server is authoritative; tier widening triggers a dependency-closure check that may return 409 with blocker ids."
+    },
+    "embeddable": {
+      "type": "boolean",
+      "description": "Whether the item may be rendered inside an iframe at /embed/maps/{id}. Independent of `sharing` — must be explicitly enabled even when `sharing=public`."
+    },
+    "groupIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Optional list of group ids this item is shared with. Only populated when `sharing=group`."
+    },
+    "publicLinkToken": {
+      "type": ["string", "null"],
+      "description": "Opaque token segment used in the share link when `sharing=public-link`. Server-managed; rotated on demand. Absent for other tiers."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "sharing": { "const": "group" } } },
+      "then": { "required": ["groupIds"] }
+    },
+    {
+      "if": {
+        "not": { "properties": { "sharing": { "const": "group" } } }
+      },
+      "then": {
+        "properties": {
+          "groupIds": { "maxItems": 0 }
+        }
+      }
+    }
+  ]
+}

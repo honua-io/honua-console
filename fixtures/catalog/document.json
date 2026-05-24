@@ -1,0 +1,78 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAH",
+  "slug": "parcels-data-dictionary",
+  "type": "document",
+  "title": "City Parcels Data Dictionary (PDF)",
+  "summary": "Field definitions, code lists, and refresh cadence for the City Parcels feature service.",
+  "description": "Companion documentation for the City Parcels service. Field-by-field definitions, value code lists, refresh cadence, and known limitations.",
+  "tags": ["documentation", "parcels"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2026-01-15T00:00:00Z",
+    "modified": "2026-04-15T00:00:00Z",
+    "published": "2026-01-15T00:00:00Z",
+    "refreshed": null
+  },
+  "extent": null,
+  "nativeCrs": null,
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "name": "Creative Commons Attribution 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "attribution": "City of Honua, Department of Planning",
+  "source": {
+    "kind": "manual",
+    "sourceId": null,
+    "jobId": null,
+    "publishedBy": "user_jules",
+    "history": [
+      { "at": "2026-01-15T00:00:00Z", "kind": "manual", "actor": "user_jules" }
+    ]
+  },
+  "target": {
+    "type": "document",
+    "url": "https://docs.honua.example/parcels-data-dictionary.pdf",
+    "mediaType": "application/pdf"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAH",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": null,
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": "https://cdn.honua.example/thumbs/parcels-pdf.png",
+    "image": null
+  },
+  "capabilities": [],
+  "dependencies": [],
+  "access": { "sharing": "public", "embeddable": false, "openData": true },
+  "extensions": {
+    "honua:openData": {
+      "relatedItems": [
+        {
+          "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+          "type": "service",
+          "relationship": "source-dataset",
+          "title": "City Parcels 2026",
+          "note": "The public FeatureServer described by this data dictionary."
+        }
+      ],
+      "revision": {
+        "version": "parcels-dictionary.2026-04-15",
+        "sourceVersion": "documentation-release-2026-04-15",
+        "updateNotes": "Updated field descriptions to match the April parcel schema.",
+        "changeSummary": "Documentation-only update. No data rows or geometries changed."
+      }
+    }
+  }
+}

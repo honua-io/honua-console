@@ -1,0 +1,62 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAG",
+  "slug": "permit-finder",
+  "type": "app",
+  "title": "Permit Finder",
+  "summary": "Lightweight portal app for finding active building permits by parcel.",
+  "description": "Portal app that lets residents search for active permits by parcel address. Built with the Honua app framework.",
+  "tags": ["permits", "app"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2026-04-01T09:00:00Z",
+    "modified": "2026-04-20T16:00:00Z",
+    "published": "2026-04-05T12:00:00Z",
+    "refreshed": null
+  },
+  "extent": null,
+  "nativeCrs": null,
+  "license": {
+    "spdx": null,
+    "name": "City of Honua Public App License",
+    "url": null
+  },
+  "attribution": null,
+  "source": {
+    "kind": "manual",
+    "sourceId": null,
+    "jobId": null,
+    "publishedBy": "user_alex",
+    "history": [
+      { "at": "2026-04-01T09:00:00Z", "kind": "manual", "actor": "user_alex" }
+    ]
+  },
+  "target": {
+    "type": "app",
+    "url": "https://apps.honua.example/permit-finder",
+    "framework": "honua"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAG",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": null,
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": "https://cdn.honua.example/thumbs/permit-finder.png",
+    "image": null
+  },
+  "capabilities": [],
+  "dependencies": [
+    { "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAB", "type": "service", "role": "datasource" }
+  ],
+  "access": { "sharing": "public", "embeddable": true, "openData": false },
+  "extensions": {}
+}

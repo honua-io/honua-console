@@ -19,16 +19,45 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
 - [Operate Observability Information Model](docs/architecture/operate-observability-information-model.md)
 - [Honua Console Design Handoff](docs/design-handoff/README.md)
+- [Content Item, Catalog, Share, Embed, And Open Data Contracts](docs/contracts/content-item-v1.md)
 
 ## Current Status
 
-This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The first implementation issue is [honua-console#2](https://github.com/honua-io/honua-console/issues/2), which scaffolds the Blazor Web Console shell and shared Razor component library.
+This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface.
 
-Until parity is accepted, source behavior remains in:
+[honua-console#4](https://github.com/honua-io/honua-console/issues/4) ports Catalog browse + item detail, the MapLibre map viewer, saved maps, sharing + embed, and the public open-data surface from `honua-portal` into Console. The Console worktree now contains the React/TypeScript shell, route IA (Home, Catalog, Share groups), `AppShell`/`EmptyState`/`LoadingShell` primitives, `FixtureCatalogClient` / `FixtureSavedMapClient` / `FixtureShareClient`, the viewer module (MapLibre dynamic import), the embed route (token-mode, no shell), and the anonymous `/share/public` open-data pages. Legacy Portal URLs (`/maps/...`, `/embed/maps/...`, `/public/...`) keep working as compatibility aliases at the router level so embed snippets in the wild do not break.
 
-- `honua-portal` for current Portal, Catalog, Share, and Studio proof work.
-- `honua-server-admin` for current legacy Admin and operator workflows.
-- `honua-sdk-dotnet` for Console .NET clients, native gRPC paths, and shared contract packages.
-- `honua-sdk-js` for browser-safe SDK contracts and generated app runtime.
-- `honua-server` for server-owned metadata, content, RBAC, provenance, and package APIs.
-- `honua-devops` for the single deployable artifact and release pipeline.
+For this port, catalog `map` item open actions route by the catalog item id (`/maps/:itemId`); `target.webmapJsonRef` remains the saved WebMap document pointer, not a route id. Embed authorization resolves before MapLibre mounts: anonymous iframe loads can read public roots only, while public-link roots require a valid `#embedToken=...` fragment and otherwise render the `unauthorized` empty state.
+
+Still outside `honua-console#4`:
+
+- Studio app-builder + generated-app preview — `honua-console#5`.
+- Operate / Admin transitional surface — `honua-console#6`.
+- Server-owned metadata/RBAC wiring — `honua-server#1162` via `honua-console#7`.
+- Single deployable artifact — `honua-devops#55/#56` via `honua-console#8`.
+- Cross-surface parity smoke (publish → catalog → Studio → share/embed) — `honua-console#9`.
+- Retiring `honua-portal` — `honua-console#10`.
+
+Active clients are fixture-backed until `honua-sdk-js#225` and `honua-server#1162` ship the network surfaces. The fixture-to-SDK swap is a mechanical follow-up Console ticket, not part of `#4`.
+
+## Develop
+
+```bash
+npm install
+npm run typecheck
+npm test          # vitest
+npm run lint      # biome
+npm run dev       # vite dev server on http://127.0.0.1:5173
+npm run build     # tsc + vite build
+npm run smoke     # playwright (smoke:install once first)
+```
+
+The dev/preview server reads `VITE_*` env vars; copy `.env.example` to `.env.local` to override. With `VITE_SESSION_DRIVER=fixture` (the default) `/auth/signin` exposes the member / operator / owner presets used by the smoke tests.
+
+Source repos that fed this port:
+
+- `honua-portal` — current Portal, Catalog, Share, and Studio proof work.
+- `honua-server-admin` — current legacy Admin and operator workflows.
+- `honua-sdk-js` — browser-safe SDK contracts and generated app runtime.
+- `honua-server` — server-owned metadata, content, RBAC, provenance, and package APIs.
+- `honua-devops` — the single deployable artifact and release pipeline.

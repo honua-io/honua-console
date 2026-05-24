@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.honua.io/content-item/v1.1.0/catalog-api.json",
+  "title": "Catalog API",
+  "description": "Request and response envelopes for the portal catalog endpoints. Schema version content-item/v1 (full SemVer in $id).",
+  "type": "object",
+  "$defs": {
+    "ListItemsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ItemType" },
+        "owner": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "q": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "sharing": { "type": "string", "enum": ["private", "org", "group", "public-link", "public"] },
+        "sort": {
+          "type": "string",
+          "enum": ["modified-desc", "modified-asc", "title-asc", "title-desc", "relevance"]
+        },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "cursor": { "type": ["string", "null"] }
+      }
+    },
+    "ListItemsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "nextCursor"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ContentItemSummary" }
+        },
+        "nextCursor": { "type": ["string", "null"] }
+      }
+    },
+    "GetItemResponse": {
+      "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ContentItem"
+    },
+    "DependencyNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "role", "depth", "summary"],
+      "properties": {
+        "id": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Ulid" },
+        "type": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ItemType" },
+        "role": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/DependencyRole" },
+        "depth": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "summary": {
+          "oneOf": [
+            { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/ContentItemSummary" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "GetDependenciesResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "missing", "unauthorized", "unsupported", "truncated"],
+      "description": "Bounded dependency-closure response. The runtime cap (`limit`, default 50, max 200) applies to the SUM of `nodes` + `missing` + `unauthorized` + `unsupported`. When the cap is reached or `depth` would be exceeded, the server sets `truncated: true` and stops. Each individual array MAY be empty.",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/DependencyNode" }
+        },
+        "missing": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Dependency" }
+        },
+        "unauthorized": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Dependency" }
+        },
+        "unsupported": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Dependency" }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "PatchItemRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "description": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "uniqueItems": true
+        },
+        "license": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/License" },
+        "attribution": { "type": ["string", "null"] },
+        "access": { "$ref": "https://schemas.honua.io/content-item/v1.1.0/content-item.json#/$defs/Access" }
+      }
+    },
+    "ErrorEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": ["missing", "unauthorized", "unsupported", "invalid", "conflict", "server"]
+            },
+            "message": { "type": "string", "minLength": 1 },
+            "details": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

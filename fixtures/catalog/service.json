@@ -1,0 +1,119 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+  "slug": "city-parcels-2026",
+  "type": "service",
+  "title": "City Parcels 2026",
+  "summary": "Authoritative parcel polygons for the City of Honua, refreshed nightly.",
+  "description": "# Parcels\n\nNightly export from the city assessor's database. Includes parcel boundary, owner type, land use code, and assessed value.",
+  "tags": ["parcels", "land-use", "assessor"],
+  "owner": { "id": "org_honua", "name": "City of Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2025-11-04T12:00:00Z",
+    "modified": "2026-04-30T09:11:32Z",
+    "published": "2026-01-10T17:42:00Z",
+    "refreshed": "2026-05-06T03:00:00Z"
+  },
+  "extent": { "bbox": [-158.3, 21.2, -157.6, 21.8], "crs": "EPSG:4326" },
+  "nativeCrs": "EPSG:3857",
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "name": "Creative Commons Attribution 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "attribution": "City of Honua, Department of Planning",
+  "source": {
+    "kind": "publish",
+    "sourceId": "arcgis:itemId:abc123",
+    "jobId": "job_01HXY3ZJW6S7EJC3V0K3M4D7TN",
+    "publishedBy": "user_alex",
+    "history": [
+      { "at": "2026-01-10T17:42:00Z", "kind": "publish", "actor": "user_alex" },
+      { "at": "2026-04-30T09:11:32Z", "kind": "metadata-edit", "actor": "user_jules" }
+    ]
+  },
+  "target": {
+    "type": "service",
+    "serviceName": "city/parcels",
+    "kind": "feature",
+    "layerCount": 3,
+    "serviceUrl": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer",
+    "serviceType": "feature",
+    "importJobId": "job_01HXY3ZJW6S7EJC3V0K3M4D7TN",
+    "status": "available",
+    "statusDetail": null,
+    "adminDiagnosticsRef": null,
+    "lastCheckedAt": "2026-05-06T03:00:00Z"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAB",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": {
+      "accessURL": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer",
+      "format": "GeoServices:FeatureService",
+      "mediaType": "application/json",
+      "describedBy": "https://api.honua.example/arcgis/rest/services/city/parcels/FeatureServer?f=help",
+      "describedByType": "text/html",
+      "conformsTo": ["https://developers.arcgis.com/rest/services-reference/feature-service.htm"]
+    },
+    "ogcFeatures": {
+      "accessURL": "https://api.honua.example/ogc/features/collections/city-parcels",
+      "format": "OGC:API:Features",
+      "mediaType": "application/geo+json",
+      "describedBy": "https://api.honua.example/ogc/features/api",
+      "describedByType": "application/vnd.oai.openapi+json;version=3.0",
+      "conformsTo": [
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30",
+        "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson"
+      ]
+    },
+    "stac": null,
+    "tiles": null
+  },
+  "preview": {
+    "thumbnail": "https://cdn.honua.example/thumbs/parcels.png",
+    "image": null
+  },
+  "capabilities": ["query", "queryAggregate", "queryExtent", "queryRelated", "render", "stream", "pbf"],
+  "dependencies": [],
+  "access": { "sharing": "public", "embeddable": true, "openData": true },
+  "extensions": {
+    "honua:openData": {
+      "relatedItems": [
+        {
+          "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAC",
+          "type": "layer",
+          "relationship": "companion-layer",
+          "title": "City Parcels — Active",
+          "note": "Layer 0 exposes the active parcel records used by public maps and API examples."
+        },
+        {
+          "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAH",
+          "type": "document",
+          "relationship": "source-dataset",
+          "title": "City Parcels Data Dictionary (PDF)",
+          "note": "Field definitions, code lists, refresh cadence, and known limitations for the parcel service."
+        },
+        {
+          "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAD",
+          "type": "map",
+          "relationship": "related-map",
+          "title": "City Parcels Overview Map",
+          "note": "Saved map that composes the active parcel layer with the Honua basemap."
+        }
+      ],
+      "revision": {
+        "version": "city-parcels-2026.2026-05-06",
+        "sourceVersion": "assessor-export-2026-05-06T03:00Z",
+        "updateNotes": "Nightly assessor export completed successfully and refreshed the public FeatureServer.",
+        "changeSummary": "Updated parcel attributes from the latest assessor extract. No schema change or row-level diff is published in the Beta portal."
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "id": "01HXY3ZK7N1J2Q9V8M0FQ2PWAE",
+  "slug": "honua-basemap",
+  "type": "service",
+  "title": "Honua Basemap (Vector Tiles)",
+  "summary": "Default vector basemap published by Honua for portal viewers and embeds.",
+  "description": "Vector tile service used as the portal's default basemap. Updated weekly from OpenStreetMap and city GIS sources.",
+  "tags": ["basemap", "vector-tiles"],
+  "owner": { "id": "org_honua", "name": "Honua", "kind": "org" },
+  "timestamps": {
+    "created": "2025-09-01T00:00:00Z",
+    "modified": "2026-05-01T00:00:00Z",
+    "published": "2025-09-15T00:00:00Z",
+    "refreshed": "2026-05-01T00:00:00Z"
+  },
+  "extent": { "bbox": [-180, -85, 180, 85], "crs": "EPSG:4326" },
+  "nativeCrs": "EPSG:3857",
+  "license": {
+    "spdx": "ODbL-1.0",
+    "name": "Open Database License v1.0",
+    "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+  },
+  "attribution": "© OpenStreetMap contributors, City of Honua",
+  "source": {
+    "kind": "manual",
+    "sourceId": null,
+    "jobId": null,
+    "publishedBy": "user_admin",
+    "history": [
+      { "at": "2025-09-15T00:00:00Z", "kind": "manual", "actor": "user_admin" }
+    ]
+  },
+  "target": {
+    "type": "service",
+    "serviceName": "honua/basemap",
+    "kind": "vector-tile",
+    "layerCount": 8,
+    "serviceUrl": "https://tiles.honua.example/honua-basemap/{z}/{x}/{y}.pbf",
+    "serviceType": "vector-tile",
+    "importJobId": null,
+    "status": "available",
+    "statusDetail": null,
+    "adminDiagnosticsRef": null,
+    "lastCheckedAt": "2026-05-06T03:00:00Z"
+  },
+  "endpoints": {
+    "self": {
+      "accessURL": "https://portal.honua.example/items/01HXY3ZK7N1J2Q9V8M0FQ2PWAE",
+      "format": "Honua:Portal:v1",
+      "mediaType": "application/json",
+      "describedBy": null,
+      "describedByType": null,
+      "conformsTo": ["https://schemas.honua.io/content-item/v1"]
+    },
+    "geoservices": null,
+    "ogcFeatures": null,
+    "stac": null,
+    "tiles": {
+      "accessURL": "https://tiles.honua.example/honua-basemap/{z}/{x}/{y}.pbf",
+      "format": "GeoServices:VectorTileService",
+      "mediaType": "application/vnd.mapbox-vector-tile",
+      "describedBy": "https://tiles.honua.example/honua-basemap/tilejson.json",
+      "describedByType": "application/json",
+      "conformsTo": [
+        "https://developers.arcgis.com/rest/services-reference/vector-tile-service.htm"
+      ]
+    }
+  },
+  "preview": {
+    "thumbnail": "https://cdn.honua.example/thumbs/honua-basemap.png",
+    "image": null
+  },
+  "capabilities": ["render", "tiles", "pbf"],
+  "dependencies": [],
+  "access": { "sharing": "public", "embeddable": true, "openData": false },
+  "extensions": {}
+}

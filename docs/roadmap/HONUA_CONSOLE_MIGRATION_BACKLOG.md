@@ -28,7 +28,7 @@ This backlog intentionally separates three decisions:
 
 ### P1 Migration And Runtime Work
 
-- [honua-console#4](https://github.com/honua-io/honua-console/issues/4): Port Catalog Viewer Saved Maps Share Embed and Open Data from `honua-portal`.
+- [honua-console#4](https://github.com/honua-io/honua-console/issues/4): Port Catalog Viewer Saved Maps Share Embed and Open Data from `honua-portal`. — Port lands the Console-side scaffold, AppShell, IA route map (`/catalog/maps`, `/share/embed/maps`, `/share/public`), and fixture-backed catalog/viewer/saved-maps/share/embed/open-data surfaces. Legacy Portal paths (`/maps/...`, `/embed/maps/...`, `/public/...`) remain valid as client-side compatibility aliases.
 - [honua-console#5](https://github.com/honua-io/honua-console/issues/5): Port Honua Studio app-builder and generated-app lifecycle.
 - [honua-console#7](https://github.com/honua-io/honua-console/issues/7): Wire Console to shared metadata content package and RBAC contracts.
 - [honua-console#8](https://github.com/honua-io/honua-console/issues/8): Integrate Console with single deployable artifact and preview pipeline.
