@@ -130,9 +130,12 @@ Groups feature ticket lands (tracked alongside `honua-portal#15`).
 
 ### 2.3 Edition gates
 
-Edition gates render as a per-route badge or upgrade tile (not a hidden
-route). Anonymous deep links to gated routes resolve to a clear upgrade
-surface, not a 404. Edition is sourced from `LicenseInfo.Edition`
+Edition gates render as a per-route badge or upgrade tile for
+authenticated sessions that can otherwise reach the route (not a hidden
+route). Anonymous users still follow the route's base response contract:
+`auth` routes redirect to sign-in, while anonymous-capable
+Share/Catalog/Maps denials render `<UnavailableView>` without upgrade
+copy (§7, §13 Q5). Edition is sourced from `LicenseInfo.Edition`
 (`honua-server:src/Honua.Core/Features/Licensing/Domain/LicenseInfo.cs:14`).
 On the wire, `LicenseInfo.Edition` is a `string` populated from
 `HonuaEdition.ToString()` (e.g. server mappers at
@@ -180,7 +183,13 @@ Keys cited by the route map below (all verified in `FeatureCatalog.cs`):
 - `alerts.dwell`, `channels.slack`
 - `geocoding.batch`, `import.geoserver`
 - `streaming.feature-subscriptions`, `staticmap.high-dpi`
-- families: `analytics.*`, `temporal.*`, `raster.*`
+- `analytics.clustering`, `analytics.spatial-join`,
+  `analytics.buffer-aggregate`, `analytics.density`
+- `temporal.filtering`, `temporal.extent-discovery`,
+  `temporal.histogram`, `temporal.time-series-tiles`,
+  `temporal.animation-api`
+- `raster.cloud-cog-serving`, `raster.cloud-storage-config`,
+  `raster.temporal-mosaic`
 
 ### 2.5 Anonymous routes
 
@@ -512,8 +521,9 @@ state.
 ## 6. Console Route Catalogue (Gates and Surfaces)
 
 This is the per-route catalogue Console must implement. Each row names
-the gate, the canonical empty/forbidden surface, the code-split chunk,
-and the smoke label (see §10) when applicable.
+the gate, the canonical empty/forbidden surface, and the code-split
+chunk. Smoke labels are anchored in the Portal destination map (§3) and
+the smoke pipeline (§10).
 
 ### 6.1 Shell and Auth
 
@@ -600,14 +610,22 @@ or entitlement requirements on top.
 | `/operate/layers/:id/style` | — | missing-item | forbidden | operate |
 | `/operate/deploy` | — | empty-operate | forbidden | operate |
 | `/operate/server-info` | — | — | forbidden | operate |
-| `/operate/analytics` | `edition:Pro`, `entitlement:analytics.*` (per tab) | empty-operate | forbidden / upgrade | operate |
+| `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
 
 Other entitlement gates that surface inside Operate sub-pages but do
 not own a top-level route (so they appear as in-page upgrade tiles
 rather than route gates): `alerts.dwell`, `channels.slack`,
 `geocoding.batch`, `import.geoserver`, `streaming.feature-subscriptions`,
-`staticmap.high-dpi`, `temporal.*`, `raster.*`.
+`staticmap.high-dpi`, `analytics.clustering`,
+`analytics.spatial-join`, `analytics.buffer-aggregate`,
+`analytics.density`, `temporal.filtering`,
+`temporal.extent-discovery`, `temporal.histogram`,
+`temporal.time-series-tiles`, `temporal.animation-api`,
+`raster.cloud-cog-serving`, `raster.cloud-storage-config`,
+`raster.temporal-mosaic`. The Analytics page exposes those analytics
+entitlements as per-tab gates after the `edition:Pro` route shell has
+loaded; Console must not evaluate wildcard entitlement tokens.
 
 ### 6.6 Share
 
@@ -641,14 +659,14 @@ routes do not author bespoke 403/404/empty copy.
 | Surface | Component | When | Source / contract |
 |---|---|---|---|
 | Unauthenticated | redirect | route requires `auth` and session is `UnauthenticatedSession` | `redirect('/auth/signin?returnTo=' + sanitizeReturnTo(location))` (`auth/returnTo.ts:5`) |
-| Forbidden | `<ForbiddenView cause=...>` | gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`) |
+| Forbidden | `<ForbiddenView cause=...>` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Catalog/Maps routes use `<UnavailableView>` |
 | Missing item | `<MissingItemView kind=...>` | item id resolved → not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `<UnsupportedServiceView>` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug` and Studio "open from catalog" |
 | Unsupported package binding | `<UnsupportedPackageView>` | generated-app or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview` and `/maps/:mapId` |
 | Empty state | `<EmptyState area=...>` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `<SectionSkeleton>` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
-| Unavailable (anonymous) | `<UnavailableView>` | anonymous viewer on `/share/*`, `/catalog/:idOrSlug`, or `/maps/:mapId` for content that requires entitlement | does not reveal upgrade copy to anonymous users (§13 Q5) |
+| Unavailable (anonymous) | `<UnavailableView>` | anonymous read or authorization denial on `/share/*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
 
 These components are seeded by `honua-console#2` (scaffold) and used by
 all downstream port tickets.
@@ -741,7 +759,7 @@ eligible for `/share/public/items/:idOrSlug` per §6.6).
      saved map (`resolveEmbedAuthorization`; token in `#embedToken=`
      fragment per §8). Smoke label: `embed` (row 7).
 
-Route rows in §3 and §6 carry smoke labels matching this pipeline:
+Route rows in §3 carry smoke labels matching this pipeline:
 `catalog-list`, `catalog-detail`, `viewer`, `studio-generation`,
 `open-data`, `share`, `embed`. Migration tickets `#4`, `#5`, and `#9`
 must preserve evidence emission at each label and must not route
@@ -779,7 +797,7 @@ PRs that touch each ticket should link to its section number(s).
 | `honua-console#5` — Port Studio app-builder and generated-app lifecycle | §1 (`/studio*`), §3 rows 12–13, §5.2 RETIRE (`/operator/app-builder`), §6.2 (route catalogue), §7 (`<UnsupportedPackageView>`), §9 (studio chunk), §10 (studio-generation smoke). |
 | `honua-console#6` — Integrate legacy Admin as transitional Operate surface | §1 (`/operate/*`, `/operate/legacy/<path>`), all of §5 (Admin disposition map), §6.5 (Operate gates and surfaces), §11 (`honua-server-admin#96` consumer notes). |
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
-| `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 / §6 rows carrying smoke labels. |
+| `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 rows carrying smoke labels. |
 
 `honua-console#2` (scaffold) seeds the `<RouteGuard>`, the exception
 surface components in §7, the chunk boundaries in §9, the redirect

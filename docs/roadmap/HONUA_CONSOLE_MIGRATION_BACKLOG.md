@@ -42,7 +42,7 @@ This backlog intentionally separates three decisions:
 - [honua-console#5](https://github.com/honua-io/honua-console/issues/5): Port Honua Studio app-builder and generated-app lifecycle. IA: route-map §1, §3 rows 12–13, §5.2 RETIRE, §6.2, §7, §9, §10.
 - [honua-console#7](https://github.com/honua-io/honua-console/issues/7): Wire Console to shared metadata content package and RBAC contracts. IA: route-map §4 (full RBAC reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225`).
 - [honua-console#8](https://github.com/honua-io/honua-console/issues/8): Integrate Console with single deployable artifact and preview pipeline.
-- [honua-console#9](https://github.com/honua-io/honua-console/issues/9): Console parity smoke: publish service to catalog to Studio artifact to share embed. IA: route-map §10 (smoke evidence map), §3/§6 rows with smoke labels.
+- [honua-console#9](https://github.com/honua-io/honua-console/issues/9): Console parity smoke: publish service to catalog to Studio artifact to share embed. IA: route-map §10 (smoke evidence map), §3 rows with smoke labels.
 
 ### P1 AI GIS Studio Work
 
