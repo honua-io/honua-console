@@ -1,6 +1,6 @@
 # Honua Console Patterns Charter
 
-Status: filed 2026-05-23, reconciled with ADR-0001 .NET-first amendment.
+Status: filed 2026-05-23, reconciled with ADR-0001 .NET-first amendment; amended 2026-05-24 with the real-server integration policy (section 11).
 
 Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
 Backlog source: [Honua Console Migration Backlog](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md).
@@ -43,7 +43,7 @@ If a porting ticket discovers a pattern gap that cannot be expressed inside the 
 - **`honua-sdk-dotnet`** as the authoritative client for metadata, content, packages, RBAC, jobs, telemetry, GitOps, temporal, sync, and publishing APIs ([`honua-sdk-dotnet#166`](https://github.com/honua-io/honua-sdk-dotnet/issues/166)).
 - **`honua-sdk-js`** is consumed only inside contained JS interop bundles for generated apps, browser embeds, MCP/QGIS bridges, and the open-data/embed runtime ([`honua-sdk-js#225`](https://github.com/honua-io/honua-sdk-js/issues/225), [`#226`](https://github.com/honua-io/honua-sdk-js/issues/226)). It is not the Console-side contract source.
 - **MapLibre GL JS** for map rendering, **Vega-Lite** for chart specs, and a Monaco-based editor for code surfaces, all via narrow JS interop modules under `wwwroot/interop/`. No additional top-level JS framework.
-- **Lint/format** via `dotnet format`. **Unit/component tests** via xUnit + bUnit. **Smoke** via Playwright for .NET.
+- **Lint/format** via `dotnet format`. **Unit/component tests** via xUnit + bUnit. **Integration tests** via xUnit + Testcontainers against a real honua-server (see section 11). **Smoke** via Playwright for .NET.
 - React/TypeScript/Vite is permitted only while reading from `honua-portal` to port behavior; no React/Vite code lands in the long-term Console runtime without an ADR amendment.
 
 No new top-level framework, runtime, or design-system dependency is introduced without an ADR update.
@@ -115,7 +115,7 @@ Per project constraints:
 > Add or preserve smoke evidence for publish, catalog, viewer, Studio generation, share, and embed flows when behavior changes.
 
 - Each porting ticket that changes a flow (publish, catalog, viewer, Studio generation, share, embed, open-data) carries forward or adds Playwright-for-.NET smoke that produces the same evidence the portal currently produces.
-- Cross-surface smoke (publish service -> catalog item -> Studio artifact -> share/embed, plus open-data publication and unauthenticated embed rendering) is the gate at [`honua-console#9`](https://github.com/honua-io/honua-console/issues/9). Per-port smoke is preferred over deferring to `#9`, because regressions caught at `#9` mean rework across multiple already-merged ports.
+- Cross-surface smoke (publish service -> catalog item -> Studio artifact -> share/embed, plus open-data publication and unauthenticated embed rendering) is the gate at [`honua-console#9`](https://github.com/honua-io/honua-console/issues/9). Per-port smoke is preferred over deferring to `#9`, because regressions caught at `#9` mean rework across multiple already-merged ports. The `#9` gate runs against a real honua-server started via Testcontainers/compose (`sourceHydrated: true`); a smoke that passes only against in-memory fixtures does not satisfy it (see section 11).
 - Console emits OpenTelemetry traces and metrics from the .NET host. Telemetry attributes follow the conventions shared with `honua-server`; Console does not invent a parallel telemetry vocabulary.
 - Smoke runbooks live under `docs/runbook/` and are referenced from PR evidence.
 
@@ -157,6 +157,7 @@ src/
   Honua.Console.Contracts/       # SDK shim boundary (see SDK_SHIM_POLICY.md). Removed in #7.
   Honua.Console.Auth/            # AuthenticationStateProvider, permission helpers, policies.
   Honua.Console.Tests/           # xUnit + bUnit component tests.
+  Honua.Console.IntegrationTests/ # xUnit + Testcontainers against a real honua-server (section 11).
   Honua.Console.Smoke/           # Playwright-for-.NET smoke specs.
 docs/
   adr/                           # Architecture decisions.
@@ -167,6 +168,16 @@ docs/
 ```
 
 The `Honua.Console.Components` project is the same one a future MAUI Blazor Hybrid host would reference - the shell project is the only swap.
+
+### 11. Real-server integration and no standing mocks (binding)
+
+ADR-0001's "shared .NET-owned contracts" unifier means Console binds to **real honua-server data**, not hand-built fakes. The mock-first latitude in earlier planning drafts (the "or a stable checked-in mock contract" language in the roadmap backlogs) is **withdrawn**.
+
+- **No standing mocks for server-owned data.** Any surface whose data is owned by honua-server (catalog/content, packages, publications, jobs, events, telemetry, GitOps, temporal, sync, RBAC/session) binds to honua-server through `honua-sdk-dotnet` projections - or, only until that projection lands, a thin `HttpClient` behind the single `Honua.Console.Contracts` shim boundary ([`SDK_SHIM_POLICY.md`](./SDK_SHIM_POLICY.md)), removed in [`honua-console#7`](https://github.com/honua-io/honua-console/issues/7). In-memory / fixture data clients are permitted only as a transient scaffold **inside the same PR** that lands the real binding and its integration test; an in-memory implementation must never be the merged data source of a server-owned surface.
+- **A Testcontainers integration test is Definition of Done.** Every server-backed surface ships an xUnit integration test in `Honua.Console.IntegrationTests` that boots a real honua-server via Testcontainers (`Testcontainers.PostgreSql` + the honua-server container image, both already pinned in `honua-server/Directory.Packages.props`), seeds a known fixture, and asserts the surface renders from live data. Console reuses the honua-server bootstrap + seed contract from the `sdk-integration-testing-against-honua-server` work contract; it does not invent a parallel harness. Tests skip gracefully when Docker is unavailable, matching honua-server's existing pattern.
+- **The #9 cross-surface gate runs against a real server** (`sourceHydrated: true`), not the in-memory adapters currently under `smoke/parity/`.
+- **Genuinely-local client state is excluded.** Native environment profiles, the local session/token cache, and other host-local state are legitimately local; they may use local persistence and are out of scope for the no-mock rule. The rule targets server-owned data only.
+- **Blocked surfaces wait; they do not fake.** A surface whose server contract is not yet implemented (open wrappers `honua-server#1181`-`#1186`, `#1165`) stays `blocked` until that contract lands - standing up a mock does not unblock it. Surfaces whose contracts are already closed (`#1162`, `#1180`, `#1168`, `#1170`) are unblocked now.
 
 ## Out of Scope For This Charter
 

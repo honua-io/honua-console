@@ -12,19 +12,27 @@ Design sources:
 - [Console Route Map](../console-route-map.md)
 - [Console Backend Capability Backlog](CONSOLE_BACKEND_CAPABILITY_BACKLOG.md)
 
+Companion planning artifact:
+
+- [Design Artifact Work Breakdown Matrix](DESIGN_ARTIFACT_WORK_BREAKDOWN.md)
+
 ## Purpose
 
 This backlog breaks the Console design handoff into implementable UI slices. It is intentionally more detailed than the existing GitHub epics, but still higher-level than individual component tasks.
 
 The split follows product workflows instead of artboard count. A single ticket may reference several artboards when they are one user journey. A large artboard may appear in more than one ticket when it contains separate buildable concerns.
 
+Use the [Design Artifact Work Breakdown Matrix](DESIGN_ARTIFACT_WORK_BREAKDOWN.md) before filing child implementation work. It maps each design artifact to routes, contracts or mocks, reusable components, required states, and child issue splits.
+
 ## Non-Negotiable Constraints
 
 - One deployable artifact: no separate Portal, Admin, or Studio product surface.
 - Server-owned truth: UI does not invent package, permission, publication, job, release, event, temporal, or sync state.
+- Real-server integration, no standing mocks: server-owned data binds to a real honua-server (via `honua-sdk-dotnet` or the shim boundary); in-memory clients are transient scaffolding only, never a merged data source; every server-backed slice's Definition of Done is a Testcontainers integration test against honua-server. See [Console Patterns Charter §11](../migration/CONSOLE_PATTERNS_CHARTER.md).
 - Shared package contracts: Console, MCP, QGIS, generated apps, and embeds use the same server/SDK contract family.
 - Every route has loading, empty, warning, blocked, partial success, error, permission denied, and filtered-empty handling.
 - AI is advisory or authoring assistance only; governed operations require explicit user action and evidence.
+- AI mapmaking and analysis target ArcGIS Pro-style capability breadth through natural-language planning, package generation, validation, and governed execution. Console must not clone ArcGIS Pro desktop UI surfaces; it should expose equivalent GIS intent through Honua packages, capability registry coverage, execution adapters, and interoperability behaviors.
 
 ## Implementation Milestones
 
@@ -303,11 +311,13 @@ Build:
 - Recent projects and drafts.
 - Conversation/prompt panel with clarification controls.
 - Package inspector showing assumptions, bindings, warnings, validation, and provenance.
+- Capability-registry-backed planner that maps natural-language GIS intent to package families, tool/workflow candidates, parameters, environments, execution targets, and unsupported-capability explanations.
 
 Backend dependencies:
 
 - Studio package lifecycle API proposed in [Backend Capability Backlog](CONSOLE_BACKEND_CAPABILITY_BACKLOG.md).
 - SDK package projections.
+- GIS capability registry for ArcGIS Pro-style mapmaking, analysis, GP/ETL, and data-management intent.
 
 Acceptance:
 
@@ -971,4 +981,4 @@ These child issues are projected from Specifica items under `agent-delivery-spec
 | [honua-console#43](https://github.com/honua-io/honua-console/issues/43) | `#23` | `console-temporal-viewer-and-disconnected-sync-conflict-review` |
 | [honua-console#44](https://github.com/honua-io/honua-console/issues/44) | `#26` | `console-native-profiles-trust-diagnostics-and-mtls` |
 
-Do not start child implementation that requires package, temporal, sync, GitOps, event, alert, job, or native contracts until its backend dependency is either landed or represented by a stable mock contract checked into the repo.
+Do not start child implementation that requires package, temporal, sync, GitOps, event, alert, job, or native contracts until its honua-server backend dependency is landed. A checked-in mock does not unblock it and is not an acceptable merged data source — every server-backed slice binds to a real honua-server with a Testcontainers integration test ([Console Patterns Charter §11](../migration/CONSOLE_PATTERNS_CHARTER.md)).
