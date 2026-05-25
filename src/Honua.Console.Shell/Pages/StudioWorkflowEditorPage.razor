@@ -427,6 +427,7 @@
     private bool _busy;
     private StudioWorkflowPackageDraft? _draft;
     private IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions = [];
+    private string? _activeDraftRouteId;
     private string? _selectedNodeId;
     private StudioWorkflowSaveResult? _lastSave;
     private StudioWorkflowDryRunResult? _lastDryRun;
@@ -477,6 +478,13 @@
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
+        var draftRouteId = string.IsNullOrWhiteSpace(DraftId) ? "new" : DraftId;
+        if (!string.Equals(_activeDraftRouteId, draftRouteId, StringComparison.Ordinal))
+        {
+            ClearOperationState();
+            _activeDraftRouteId = draftRouteId;
+        }
+
         _nodeDefinitions = await Workflows.ListNodeDefinitionsAsync();
 
         if (string.IsNullOrWhiteSpace(DraftId) ||
@@ -506,9 +514,15 @@
         }
 
         _busy = true;
-        _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved from Studio workflow editor.");
-        _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
-        _busy = false;
+        try
+        {
+            _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved from Studio workflow editor.");
+            _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task DryRunAsync()
@@ -519,8 +533,14 @@
         }
 
         _busy = true;
-        _lastDryRun = await Workflows.DryRunAsync(_draft);
-        _busy = false;
+        try
+        {
+            _lastDryRun = await Workflows.DryRunAsync(_draft);
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task PublishAsync()
@@ -531,15 +551,28 @@
         }
 
         _busy = true;
-        if (NeedsSaveBeforePublish())
+        try
         {
-            _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved before workflow publication.");
+            if (NeedsSaveBeforePublish())
+            {
+                _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved before workflow publication.");
+                _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
+            }
+
+            _lastPublish = await Workflows.PublishAsync(_draft);
             _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         }
+        finally
+        {
+            _busy = false;
+        }
+    }
 
-        _lastPublish = await Workflows.PublishAsync(_draft);
-        _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
-        _busy = false;
+    private void ClearOperationState()
+    {
+        _lastSave = null;
+        _lastDryRun = null;
+        _lastPublish = null;
     }
 
     private bool NeedsSaveBeforePublish() =>
