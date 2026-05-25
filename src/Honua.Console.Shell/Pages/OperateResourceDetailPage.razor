@@ -88,10 +88,10 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _resource = workspace.ResourceEdits.FirstOrDefault(
+        var view = await OperateData.GetResourcesViewAsync();
+        _resource = view.ResourceEdits.FirstOrDefault(
             resource => string.Equals(resource.ResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Resources", "Layers");
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
     }
 
     private static string FormatItems(IReadOnlyList<string> items) =>

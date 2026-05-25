@@ -86,12 +86,48 @@ public sealed class OperateTransitionLiveServerTests
             new HonuaAdminOperateClientOptions(server.BaseUri));
         var dataSource = new HonuaServerOperateTransitionDataSource(operateClient);
 
+        var liveServiceCount = await GetLiveServiceCountAsync(adminClient);
+
         var connectionsHtml = await RenderPageAsync<OperateConnectionsPage>(dataSource);
         var resourcesHtml = await RenderPageAsync<OperateResourcesPage>(dataSource);
+        var servicesHtml = await RenderPageAsync<OperateServicesPage>(dataSource);
+        var layersHtml = await RenderPageAsync<OperateLayersPage>(dataSource);
+        var settingsHtml = await RenderPageAsync<OperateSettingsPage>(dataSource);
 
+        // Connections and resources render the live connection and the published layer.
         Assert.Contains("Console Live PostGIS", connectionsHtml, StringComparison.Ordinal);
         Assert.Contains("Console Live Fixture", resourcesHtml, StringComparison.Ordinal);
         Assert.Contains("console_live", resourcesHtml, StringComparison.Ordinal);
+
+        // Services, layers, and settings slices render their operate surface end to end against the
+        // same live honua-server fixture.
+        Assert.Contains("Services And Layers", servicesHtml, StringComparison.Ordinal);
+        Assert.Contains("Operate / Layers", layersHtml, StringComparison.Ordinal);
+        Assert.Contains("Operator Settings", settingsHtml, StringComparison.Ordinal);
+
+        // The settings slice always reflects live server metadata read from GET /api/v1/admin/version.
+        Assert.Contains("Admin API version", settingsHtml, StringComparison.Ordinal);
+
+        // When the Metadata v2 graph projects the published service, the services and layers surfaces
+        // render the live published layer; otherwise they render the shared empty operate surface
+        // rather than fabricated rows. Branching on the live services count keeps the assertion
+        // deterministic against either projection outcome.
+        if (liveServiceCount > 0)
+        {
+            Assert.Contains("Console Live Fixture", servicesHtml, StringComparison.Ordinal);
+            Assert.Contains("Console Live Fixture", layersHtml, StringComparison.Ordinal);
+        }
+    }
+
+    private static async Task<int> GetLiveServiceCountAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync("/api/v1/admin/services/").ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        using var json = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
+        return json.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
+            ? data.GetArrayLength()
+            : 0;
     }
 
     private static async Task<Guid> CreateConnectionAsync(HttpClient client, PostgreSqlContainer postgres)

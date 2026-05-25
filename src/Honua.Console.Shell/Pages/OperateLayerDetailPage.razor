@@ -55,12 +55,12 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _layerRow = workspace.Services
+        var view = await OperateData.GetLayersViewAsync();
+        _layerRow = view.Services
             .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
             .Where(row => row.Layer.LayerId == LayerId)
             .Select(row => ((OperateServiceDetail Service, OperateServiceLayerProjection Layer)?)row)
             .FirstOrDefault();
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Layers", "Services");
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
     }
 }

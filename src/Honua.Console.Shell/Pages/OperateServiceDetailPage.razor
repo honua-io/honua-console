@@ -110,9 +110,9 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _service = workspace.Services.FirstOrDefault(
+        var view = await OperateData.GetServicesViewAsync();
+        _service = view.Services.FirstOrDefault(
             service => string.Equals(service.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Services", "Layers");
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
     }
 }

@@ -128,6 +128,94 @@ public sealed class OperateTransitionDataSourceTests
     }
 
     [Fact]
+    public async Task ConnectionsViewFetchesOnlyTheConnectionEndpoint()
+    {
+        var connectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var handler = new RecordingJsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/connections/"] = $$"""
+                {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","lastHealthCheck":"2026-05-24T10:00:00Z","storageType":"managed","sslMode":"Require"}]}
+                """
+        });
+        var dataSource = CreateServerDataSource(handler);
+
+        var view = await dataSource.GetConnectionsViewAsync();
+
+        Assert.Contains(view.Connections, connection => connection.Name == "Live PostGIS");
+        // The connections surface must not block on services, layers, settings, or identity reads.
+        Assert.Equal(["/api/v1/admin/connections/"], handler.RequestedPaths);
+    }
+
+    [Fact]
+    public async Task SettingsViewFetchesOnlySettingsEndpoints()
+    {
+        var handler = new RecordingJsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/version"] = """
+                {"success":true,"data":{"version":"1.2.3","metadataApiVersion":"v2","metadataSchemaVersion":"2026-05"}}
+                """,
+            ["/api/v1/admin/capabilities"] = """
+                {"success":true,"data":{"metadataApiVersion":"v2","metadataSchemaVersion":"2026-05","serverVersion":"1.2.3"}}
+                """,
+            ["/api/v1/admin/license/"] = """
+                {"success":true,"data":{"edition":"Community","isValid":true,"validationState":"valid","entitlements":[]}}
+                """,
+            ["/api/v1/admin/api-keys/"] = """
+                {"success":true,"data":[]}
+                """,
+            ["/api/v1/admin/oidc/providers/"] = """
+                {"success":true,"data":[]}
+                """
+        });
+        var dataSource = CreateServerDataSource(handler);
+
+        var view = await dataSource.GetSettingsViewAsync();
+
+        Assert.Contains(view.SettingsChanges, change => change.Id == "admin-version");
+        // The settings surface reads only the control-plane endpoints, never connections/services/layers.
+        Assert.Equal(
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "/api/v1/admin/version",
+                "/api/v1/admin/capabilities",
+                "/api/v1/admin/license/",
+                "/api/v1/admin/api-keys/",
+                "/api/v1/admin/oidc/providers/"
+            },
+            handler.RequestedPaths.ToHashSet(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task LayersViewSkipsPerServiceSettingsReads()
+    {
+        var connectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var handler = new RecordingJsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/connections/"] = $$"""
+                {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
+                """,
+            ["/api/v1/admin/services/"] = """
+                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
+                {"success":true,"data":[]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=planning"] = """
+                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+                """
+        });
+        var dataSource = CreateServerDataSource(handler);
+
+        var view = await dataSource.GetLayersViewAsync();
+
+        Assert.Contains(view.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        // The layers surface renders the service/layer projection but does not need per-service settings.
+        Assert.DoesNotContain(
+            handler.RequestedPaths,
+            path => path.Contains("/settings", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task DetailPagesRenderMissingItemAndCapabilityState()
     {
         var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace(
@@ -384,6 +472,66 @@ public sealed class OperateTransitionDataSourceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspace.Services.FirstOrDefault(
                 service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static HonuaServerOperateTransitionDataSource CreateServerDataSource(HttpMessageHandler handler)
+    {
+        var baseUri = new Uri("https://server.example");
+        var httpClient = new HttpClient(handler) { BaseAddress = baseUri };
+        var client = new HonuaAdminOperateHttpClient(
+            httpClient,
+            new HonuaAdminOperateClientOptions(baseUri, "test-api-key"));
+        return new HonuaServerOperateTransitionDataSource(client);
+    }
+
+    private sealed class RecordingJsonFixtureHandler : HttpMessageHandler
+    {
+        private readonly IReadOnlyDictionary<string, string> _responses;
+        private readonly List<string> _requestedPaths = new();
+        private readonly object _gate = new();
+
+        public RecordingJsonFixtureHandler(IReadOnlyDictionary<string, string> responses)
+        {
+            _responses = responses;
+        }
+
+        public IReadOnlyList<string> RequestedPaths
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _requestedPaths.ToArray();
+                }
+            }
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var key = request.RequestUri?.PathAndQuery ?? string.Empty;
+            lock (_gate)
+            {
+                _requestedPaths.Add(key);
+            }
+
+            if (_responses.TryGetValue(key, out var json))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = new StringContent(
+                    """{"success":false,"message":"missing fixture"}""",
+                    System.Text.Encoding.UTF8,
+                    "application/json")
+            });
+        }
     }
 
     private sealed class JsonFixtureHandler : HttpMessageHandler

@@ -57,9 +57,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _settingsChanges = workspace.SettingsChanges;
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Settings");
+        var view = await OperateData.GetSettingsViewAsync();
+        _settingsChanges = view.SettingsChanges;
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Settings");
     }
 
     private static string RestartClass(bool requiresRestart) =>

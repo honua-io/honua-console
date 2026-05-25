@@ -68,9 +68,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _connections = workspace.Connections;
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Connections");
+        var view = await OperateData.GetConnectionsViewAsync();
+        _connections = view.Connections;
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
     }
 
     private static string StatusClass(string status) =>

@@ -62,32 +62,48 @@ Endpoint issues are normalized before they reach Razor components:
 | JSON shape mismatch | `Unsupported` |
 | Successful envelope with no data | `Unavailable` |
 
-The server-backed data source starts the independent top-level reads together
-to avoid a startup waterfall, then reads layer rows per connection across the
-default service scope and each non-default service reported by
-`GET /api/v1/admin/services/`. Service settings are read per service. It does
-not fabricate rows for unsupported contracts.
+Each Operate route loads only the server data it renders rather than composing
+the whole workspace, so a connections route does not block on services, layers,
+or settings reads. The data source exposes surface-scoped reads
+(`GetConnectionsViewAsync`, `GetResourcesViewAsync`, `GetServicesViewAsync`,
+`GetLayersViewAsync`, `GetSettingsViewAsync`); each view carries the capability
+states accumulated while loading that surface. The endpoints each surface reads:
+
+| Surface | Admin endpoints fetched |
+| --- | --- |
+| Connections (list + detail) | connections |
+| Resources (list + detail) | connections, services, per-connection/per-service layers |
+| Services (list + detail) | connections, services, per-connection/per-service layers, per-service settings |
+| Layers (list + detail) | connections, services, per-connection/per-service layers (no per-service settings) |
+| Settings | version, capabilities, license, API keys, OIDC providers |
+
+Only the `/operate` landing page composes the full workspace through
+`GetWorkspaceAsync`. Within each read the server-backed data source starts the
+independent top-level reads together to avoid a waterfall, then reads layer rows
+per connection across the default service scope and each non-default service
+reported by `GET /api/v1/admin/services/`. It does not fabricate rows for
+unsupported contracts.
 
 ## Response Contract
 
 These are Console transition view models, not server protocol DTOs:
 
-| Surface | Contract fields rendered |
+| Surface | View model fields and rendered details |
 | --- | --- |
-| Operate workspace | Four bounded collections: `connections`, `resourceEdits`, `services`, and `settingsChanges`, plus `capabilityStates` for missing binding, missing permission, unsupported, or unavailable backend contracts. The landing page renders counts, current actionable items, and capability states. |
+| Operate workspace | Four bounded collections: `connections`, `resourceEdits`, `services`, and `settingsChanges`, plus `capabilityStates` entries with `surface`, `state`, `contract`, and `detail` for missing binding, missing permission, unsupported, or unavailable backend contracts. The landing page renders counts, current actionable items, and capability states. |
 | Connections | `id`, `name`, `provider`, `target`, `principal`, `status`, `lastTested`, optional safe diagnostic. |
 | Connection diagnostics | The detail and `/diagnostics` routes share the same component and render `outcome`, `failureCode`, redacted `summary`, structured `signals`, redacted `operatorActions`, and redacted evidence key/value rows. |
 | Resource edits | `resourceId`, `name`, `source`, `draftChange`, `validationState`, `validationIssues`, `editTabs`, and blast-radius lists for catalog items, services, layers, saved maps, share links, and generated apps. |
 | Services | `name`, `displayName`, `serviceType`, `runtimeStatus`, `metadataOwnership`, layer projections, runtime settings, and publication slots. |
 | Layers | Flattened service-layer projections with `layerId`, `name`, `geometry`, service link, and canonical resource link. |
-| Settings | `category`, `name`, `proposedChange`, `applyScope`, `requiresRestart`, `restartRequirement`, and `policyState`. |
+| Settings | `id`, `category`, `name`, `proposedChange`, `applyScope`, `requiresRestart`, `restartRequirement`, and `policyState`. |
 
 Missing detail records render the shared Console missing-item surface:
 
-- Unknown connection: `<MissingItemView kind="connection">`.
-- Unknown resource: `<MissingItemView kind="resource">`.
-- Unknown service: `<MissingItemView kind="service">`.
-- Unknown layer ID: `<MissingItemView kind="layer">`.
+- Unknown connection: `<MissingItemView Kind="connection" AreaLabel="Operate / Connections">`.
+- Unknown resource: `<MissingItemView Kind="resource" AreaLabel="Operate / Resources">`.
+- Unknown service: `<MissingItemView Kind="service" AreaLabel="Operate / Services">`.
+- Unknown layer ID: `<MissingItemView Kind="layer" AreaLabel="Operate / Layers">`.
 
 Empty list states render the shared `<EmptyState area="operate">` surface with the list subject and any available primary action. Routes do not author bespoke 403, 404, or empty-state copy; they supply only the item kind, area, subject, and action target required by the shared component contract in [Console Route Map](../console-route-map.md#7-exception-surfaces).
 
@@ -104,7 +120,7 @@ Missing backend contracts render `<OperateCapabilityStateList>` entries that nam
 
 - New connections capture provider/target details separately from the credential reference. Console displays only non-secret identifiers; the secret value is stored by the configured server secret store.
 - New resources can start from an owned table, uploaded file, or one-time remote-service migration. Migration copies schema, metadata, and supported features into a Console-owned resource. It is not a proxy, sync, or mirror contract.
-- Resource detail tabs are represented by the current edit preview: Overview, Source, Fields, Metadata, Publish, Access, Validation, Presentation, and Advanced.
+- Resource detail tabs are supplied by the current edit preview. The seeded demo row carries the full transition tab set (Overview, Source, Fields, Metadata, Publish, Access, Validation, Presentation, and Advanced); live honua-server layer projections currently expose Overview, Source, Fields, and Validation until the Metadata v2 resource edit contract lands.
 - Service settings control runtime, exposure, restart-scoped options, and publication slots. Canonical resource metadata stays owned by data resources.
 - Settings changes must show apply scope, policy state, and restart impact before the operator applies the change. API key secret values are server-owned one-time reveals and are never kept in Console state.
 

@@ -9,6 +9,11 @@ namespace Honua.Console.Shell.Services;
 public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionDataSource
 {
     private const string MetadataResourcesContract = "GET /api/v1/admin/metadata/resources";
+
+    private static readonly IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> EmptyServiceSettings =
+        new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(
+            new Dictionary<string, HonuaAdminServiceSettingsResponse>(StringComparer.OrdinalIgnoreCase));
+
     private readonly IHonuaAdminOperateClient _client;
 
     public HonuaServerOperateTransitionDataSource(IHonuaAdminOperateClient client)
@@ -18,65 +23,34 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
     public async Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
+        // The landing page is the only surface that needs the whole workspace; fan out the
+        // independent top-level reads, then the dependent layer/settings reads, in parallel.
+        var connectionsTask = LoadConnectionsAsync(cancellationToken);
+        var summariesTask = LoadServiceSummariesAsync(cancellationToken);
+        var settingsChangesTask = LoadSettingsChangesAsync(cancellationToken);
+        await Task.WhenAll(connectionsTask, summariesTask, settingsChangesTask).ConfigureAwait(false);
+
+        var (connections, connectionStates) = await connectionsTask.ConfigureAwait(false);
+        var (summaries, summaryStates) = await summariesTask.ConfigureAwait(false);
+        var (settingsChanges, settingsChangeStates) = await settingsChangesTask.ConfigureAwait(false);
+
+        var layerRowsTask = LoadLayerRowsAsync(connections, summaries, cancellationToken);
+        var serviceSettingsTask = LoadServiceSettingsAsync(summaries, cancellationToken);
+        await Task.WhenAll(layerRowsTask, serviceSettingsTask).ConfigureAwait(false);
+        var (layerRows, layerStates) = await layerRowsTask.ConfigureAwait(false);
+        var (serviceSettings, serviceSettingsStates) = await serviceSettingsTask.ConfigureAwait(false);
+
         var states = new List<OperateCapabilityState>();
+        MergeStates(states, connectionStates);
+        MergeStates(states, summaryStates);
+        MergeStates(states, layerStates);
+        AddStateOnce(states, ResourcesUnsupportedState());
+        MergeStates(states, serviceSettingsStates);
+        MergeStates(states, settingsChangeStates);
 
-        var connectionsTask = _client.ListConnectionsAsync(cancellationToken);
-        var servicesTask = _client.ListServicesAsync(cancellationToken);
-        var versionTask = _client.GetVersionAsync(cancellationToken);
-        var capabilitiesTask = _client.GetCapabilitiesAsync(cancellationToken);
-        var licenseTask = _client.GetLicenseStatusAsync(cancellationToken);
-        var apiKeysTask = _client.ListApiKeysAsync(cancellationToken);
-        var oidcProvidersTask = _client.ListOidcProvidersAsync(cancellationToken);
-
-        await Task.WhenAll(
-                connectionsTask,
-                servicesTask,
-                versionTask,
-                capabilitiesTask,
-                licenseTask,
-                apiKeysTask,
-                oidcProvidersTask)
-            .ConfigureAwait(false);
-
-        var connectionResult = await connectionsTask.ConfigureAwait(false);
-        AddIssue(states, "Connections", connectionResult.Issue);
-        var connections = (connectionResult.Data ?? [])
-            .Select(MapConnection)
-            .OrderBy(connection => connection.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var serviceResult = await servicesTask.ConfigureAwait(false);
-        AddIssue(states, "Services", serviceResult.Issue);
-        var serviceSummaries = (serviceResult.Data ?? [])
-            .Where(service => !string.IsNullOrWhiteSpace(service.ServiceName))
-            .OrderBy(service => service.ServiceName, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var layerRows = await ReadLayerRowsAsync(connections, serviceSummaries, states, cancellationToken)
-            .ConfigureAwait(false);
         var resources = BuildResourceEdits(layerRows);
-
-        AddStateOnce(
-            states,
-            new OperateCapabilityState(
-                "Resources",
-                "Unsupported",
-                $"{MetadataResourcesContract} plus resource edit validation/blast-radius projection",
-                "honua-server does not currently expose a Metadata v2 resource-edit preview contract for validation issues, saved maps, share links, or generated-app blast radius."));
-
-        var serviceSettings = await ReadServiceSettingsAsync(serviceSummaries, states, cancellationToken)
-            .ConfigureAwait(false);
-        var services = serviceSummaries
+        var services = summaries
             .Select(service => MapService(service, serviceSettings, layerRows))
-            .ToArray();
-
-        var settingsChanges = MapSettings(
-                await versionTask.ConfigureAwait(false),
-                await capabilitiesTask.ConfigureAwait(false),
-                await licenseTask.ConfigureAwait(false),
-                await apiKeysTask.ConfigureAwait(false),
-                await oidcProvidersTask.ConfigureAwait(false),
-                states)
             .ToArray();
 
         return new OperateTransitionWorkspace(
@@ -87,12 +61,96 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             states);
     }
 
+    public async Task<OperateConnectionsView> GetConnectionsViewAsync(CancellationToken cancellationToken = default)
+    {
+        var (connections, states) = await LoadConnectionsAsync(cancellationToken).ConfigureAwait(false);
+        return new OperateConnectionsView(connections, states);
+    }
+
+    public async Task<OperateResourcesView> GetResourcesViewAsync(CancellationToken cancellationToken = default)
+    {
+        var connectionsTask = LoadConnectionsAsync(cancellationToken);
+        var summariesTask = LoadServiceSummariesAsync(cancellationToken);
+        await Task.WhenAll(connectionsTask, summariesTask).ConfigureAwait(false);
+        var (connections, connectionStates) = await connectionsTask.ConfigureAwait(false);
+        var (summaries, summaryStates) = await summariesTask.ConfigureAwait(false);
+
+        var (layerRows, layerStates) = await LoadLayerRowsAsync(connections, summaries, cancellationToken)
+            .ConfigureAwait(false);
+
+        var states = new List<OperateCapabilityState>();
+        MergeStates(states, connectionStates);
+        MergeStates(states, summaryStates);
+        MergeStates(states, layerStates);
+        AddStateOnce(states, ResourcesUnsupportedState());
+
+        return new OperateResourcesView(BuildResourceEdits(layerRows), states);
+    }
+
+    public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default) =>
+        BuildServicesViewAsync(includeRuntimeSettings: true, cancellationToken);
+
+    public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
+        BuildServicesViewAsync(includeRuntimeSettings: false, cancellationToken);
+
+    public async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
+    {
+        var (settingsChanges, states) = await LoadSettingsChangesAsync(cancellationToken).ConfigureAwait(false);
+        return new OperateSettingsView(settingsChanges, states);
+    }
+
+    // Services and layers share the same service/layer projection. The services surface needs the
+    // per-service settings reads (runtime settings, publication slots); the layers surface does not,
+    // so it skips those calls.
+    private async Task<OperateServicesView> BuildServicesViewAsync(
+        bool includeRuntimeSettings,
+        CancellationToken cancellationToken)
+    {
+        var connectionsTask = LoadConnectionsAsync(cancellationToken);
+        var summariesTask = LoadServiceSummariesAsync(cancellationToken);
+        await Task.WhenAll(connectionsTask, summariesTask).ConfigureAwait(false);
+        var (connections, connectionStates) = await connectionsTask.ConfigureAwait(false);
+        var (summaries, summaryStates) = await summariesTask.ConfigureAwait(false);
+
+        var layerRowsTask = LoadLayerRowsAsync(connections, summaries, cancellationToken);
+        var serviceSettingsTask = includeRuntimeSettings
+            ? LoadServiceSettingsAsync(summaries, cancellationToken)
+            : null;
+
+        await layerRowsTask.ConfigureAwait(false);
+        if (serviceSettingsTask is not null)
+        {
+            await serviceSettingsTask.ConfigureAwait(false);
+        }
+
+        var (layerRows, layerStates) = await layerRowsTask.ConfigureAwait(false);
+
+        var states = new List<OperateCapabilityState>();
+        MergeStates(states, connectionStates);
+        MergeStates(states, summaryStates);
+        MergeStates(states, layerStates);
+
+        var serviceSettings = EmptyServiceSettings;
+        if (serviceSettingsTask is not null)
+        {
+            var (settings, settingsStates) = await serviceSettingsTask.ConfigureAwait(false);
+            MergeStates(states, settingsStates);
+            serviceSettings = settings;
+        }
+
+        var services = summaries
+            .Select(service => MapService(service, serviceSettings, layerRows))
+            .ToArray();
+
+        return new OperateServicesView(services, states);
+    }
+
     public async Task<OperateConnectionSummary?> FindConnectionAsync(
         string connectionId,
         CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
-        return workspace.Connections.FirstOrDefault(
+        var (connections, _) = await LoadConnectionsAsync(cancellationToken).ConfigureAwait(false);
+        return connections.FirstOrDefault(
             connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -100,8 +158,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         string resourceId,
         CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
-        return workspace.ResourceEdits.FirstOrDefault(
+        var view = await GetResourcesViewAsync(cancellationToken).ConfigureAwait(false);
+        return view.ResourceEdits.FirstOrDefault(
             resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -109,20 +167,87 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         string serviceName,
         CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
-        return workspace.Services.FirstOrDefault(
+        var view = await GetServicesViewAsync(cancellationToken).ConfigureAwait(false);
+        return view.Services.FirstOrDefault(
             service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task<LayerRow[]> ReadLayerRowsAsync(
+    private async Task<(OperateConnectionSummary[] Connections, List<OperateCapabilityState> States)>
+        LoadConnectionsAsync(CancellationToken cancellationToken)
+    {
+        var states = new List<OperateCapabilityState>();
+        var connectionResult = await _client.ListConnectionsAsync(cancellationToken).ConfigureAwait(false);
+        AddIssue(states, "Connections", connectionResult.Issue);
+        var connections = (connectionResult.Data ?? [])
+            .Select(MapConnection)
+            .OrderBy(connection => connection.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return (connections, states);
+    }
+
+    private async Task<(HonuaAdminServiceSummary[] Summaries, List<OperateCapabilityState> States)>
+        LoadServiceSummariesAsync(CancellationToken cancellationToken)
+    {
+        var states = new List<OperateCapabilityState>();
+        var serviceResult = await _client.ListServicesAsync(cancellationToken).ConfigureAwait(false);
+        AddIssue(states, "Services", serviceResult.Issue);
+        var summaries = (serviceResult.Data ?? [])
+            .Where(service => !string.IsNullOrWhiteSpace(service.ServiceName))
+            .OrderBy(service => service.ServiceName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return (summaries, states);
+    }
+
+    private async Task<(IReadOnlyList<OperateSettingsChange> Changes, List<OperateCapabilityState> States)>
+        LoadSettingsChangesAsync(CancellationToken cancellationToken)
+    {
+        var states = new List<OperateCapabilityState>();
+        var versionTask = _client.GetVersionAsync(cancellationToken);
+        var capabilitiesTask = _client.GetCapabilitiesAsync(cancellationToken);
+        var licenseTask = _client.GetLicenseStatusAsync(cancellationToken);
+        var apiKeysTask = _client.ListApiKeysAsync(cancellationToken);
+        var oidcProvidersTask = _client.ListOidcProvidersAsync(cancellationToken);
+
+        await Task.WhenAll(versionTask, capabilitiesTask, licenseTask, apiKeysTask, oidcProvidersTask)
+            .ConfigureAwait(false);
+
+        var changes = MapSettings(
+                await versionTask.ConfigureAwait(false),
+                await capabilitiesTask.ConfigureAwait(false),
+                await licenseTask.ConfigureAwait(false),
+                await apiKeysTask.ConfigureAwait(false),
+                await oidcProvidersTask.ConfigureAwait(false),
+                states)
+            .ToArray();
+        return (changes, states);
+    }
+
+    private static void MergeStates(
+        List<OperateCapabilityState> target,
+        IEnumerable<OperateCapabilityState> source)
+    {
+        foreach (var state in source)
+        {
+            AddStateOnce(target, state);
+        }
+    }
+
+    private static OperateCapabilityState ResourcesUnsupportedState() =>
+        new(
+            "Resources",
+            "Unsupported",
+            $"{MetadataResourcesContract} plus resource edit validation/blast-radius projection",
+            "honua-server does not currently expose a Metadata v2 resource-edit preview contract for validation issues, saved maps, share links, or generated-app blast radius.");
+
+    private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
         IReadOnlyList<HonuaAdminServiceSummary> services,
-        List<OperateCapabilityState> states,
         CancellationToken cancellationToken)
     {
+        var states = new List<OperateCapabilityState>();
         if (connections.Count == 0)
         {
-            return [];
+            return ([], states);
         }
 
         var serviceScopes = CreateLayerServiceScopes(services);
@@ -174,7 +299,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             }
         }
 
-        return rows.ToArray();
+        return (rows.ToArray(), states);
     }
 
     private static IReadOnlyList<string?> CreateLayerServiceScopes(IReadOnlyList<HonuaAdminServiceSummary> services)
@@ -198,11 +323,12 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         return serviceScopes;
     }
 
-    private async Task<IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>> ReadServiceSettingsAsync(
-        IReadOnlyList<HonuaAdminServiceSummary> services,
-        List<OperateCapabilityState> states,
-        CancellationToken cancellationToken)
+    private async Task<(IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> Settings, List<OperateCapabilityState> States)>
+        LoadServiceSettingsAsync(
+            IReadOnlyList<HonuaAdminServiceSummary> services,
+            CancellationToken cancellationToken)
     {
+        var states = new List<OperateCapabilityState>();
         var settingsTasks = services
             .Where(service => !string.IsNullOrWhiteSpace(service.ServiceName))
             .Select(async service => (
@@ -236,7 +362,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             }
         }
 
-        return new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(settings);
+        return (new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(settings), states);
     }
 
     private static IReadOnlyList<OperateResourceEditPreview> BuildResourceEdits(IReadOnlyList<LayerRow> layerRows)

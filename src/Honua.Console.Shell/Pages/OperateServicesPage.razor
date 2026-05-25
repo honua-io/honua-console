@@ -85,8 +85,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _services = workspace.Services;
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Services", "Layers");
+        var view = await OperateData.GetServicesViewAsync();
+        _services = view.Services;
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
     }
 }

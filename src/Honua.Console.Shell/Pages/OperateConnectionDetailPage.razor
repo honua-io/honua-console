@@ -118,11 +118,11 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _connection = workspace.Connections.FirstOrDefault(
+        var view = await OperateData.GetConnectionsViewAsync();
+        _connection = view.Connections.FirstOrDefault(
             connection => string.Equals(connection.Id, ConnectionId, StringComparison.OrdinalIgnoreCase));
         _safeDiagnostic = _connection?.LastDiagnostic;
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Connections");
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
     }
 
     private static string StatusClass(string status) =>

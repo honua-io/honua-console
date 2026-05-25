@@ -54,9 +54,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _resources = workspace.ResourceEdits;
-        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Resources", "Layers");
+        var view = await OperateData.GetResourcesViewAsync();
+        _resources = view.ResourceEdits;
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
     }
 
     private static string FormatCount(IReadOnlyCollection<string> items) =>
