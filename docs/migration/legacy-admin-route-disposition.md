@@ -18,13 +18,13 @@ Two things this doc is, and one thing it is not:
 
 - It IS the contract that the Console router, navigation, and embed component implement.
 - It IS the contract that `honua-server-admin#96` consumes when it prepares the legacy bundle for transitional hosting (base href, CSP, frame ancestors).
-- It is NOT the redesigned-operator IA. Native React Operate views are the responsibility of follow-on tickets and replace `EMBED` rows one at a time.
+- It is NOT the redesigned-operator IA. Native Blazor/Razor Operate views are the responsibility of follow-on tickets and replace `EMBED` rows one at a time.
 
 ## Disposition Vocabulary
 
 | Disposition | Meaning |
 | --- | --- |
-| `KEEP` | Console exposes a native React route at this path now. No legacy embed. |
+| `KEEP` | Console exposes a native Console route at this path now. No legacy embed. |
 | `EMBED` | Legacy route is reached from Console under `/operate/legacy/<verbatim-legacy-path>` via the same-origin embed contract. The Console mount preserves the legacy path verbatim — including any leading `/operator` or `/admin` segment — because the Blazor app's `@page` declarations resolve relative to base href `/operate/legacy/`. The legacy root `/` is an explicit exception: it maps only to Console `/operate` and is not part of the embed allowlist or bare-path passthrough. Retires when a native replacement parity-tests. |
 | `REDIRECT-TO-STUDIO` | Legacy duplicate of a Studio surface. Console redirects the legacy path to the Studio canonical path. Not listed in Operate nav. The legacy route is still reachable at its verbatim `/operate/legacy/<verbatim-legacy-path>` location for use as a `MovedToStudioLanding` reference target (see the "Legacy reference targets" note below). |
 | `RETIRE` | Marked for removal without a Console replacement. Either the workflow is being absorbed by Catalog/Share or it is being deleted outright. |
@@ -35,7 +35,7 @@ A route may carry one or two dispositions during the transition (for example, `E
 
 This table is implementable end-to-end only when all four preconditions hold:
 
-1. `honua-console#2` lands the React/TypeScript shell that exposes a route table for `/operate/*` and `/studio/*`.
+1. `honua-console#2` lands the Blazor Web shell and shared Razor route table for `/operate/*` and `/studio/*`.
 2. `honua-console#3` lands the IA, navigation, and `canSeeOperate` RBAC predicate.
 3. `honua-server-admin#96` rehosts the legacy Blazor bundle so it serves under `/operate/legacy/` with the matching base href and a frame-ancestors policy that allows same-origin embedding, AND rewrites root-absolute in-app navigation (`NavMenu.razor`, `NavigateTo("/...")` call sites, in-page `<a href="/...">`) to base-relative form so in-frame clicks stay under `/operate/legacy/` (see [Legacy Link Resolution](../operate/embed-contract.md#legacy-link-resolution)).
 4. `honua-devops#55` builds a single deployable artifact that serves Console and the legacy bundle from one origin.
@@ -46,7 +46,7 @@ Until all four hold, the EMBED rows operate in a degraded mode documented in [`e
 
 Legacy paths are taken from `honua-server-admin/src/Honua.Admin/Pages/**/@page` declarations as of 2026-05-23.
 
-Parameterized rows preserve the Blazor route constraint in the legacy-path column. The Console path column uses React-style `:param` names for readability, but the generated route projection and `OperateLegacyEmbed` allowlist MUST validate the inherited Blazor constraint before embedding: `{id:guid}` and `{ConnectionId:guid}` accept only GUID segments; `{LayerId:int}` accepts only integer segments.
+Parameterized rows preserve the Blazor route constraint in the legacy-path column. The Console path column uses colon-prefixed `:param` names for readability, but the generated route projection and `OperateLegacyEmbed` allowlist MUST validate the inherited Blazor constraint before embedding: `{id:guid}` and `{ConnectionId:guid}` accept only GUID segments; `{LayerId:int}` accepts only integer segments.
 
 ### Operator workflows kept in Operate
 
@@ -123,12 +123,12 @@ Until Studio ports complete (honua-console#5), `REDIRECT-TO-STUDIO` rows resolve
 
 The shapes below are the contract that scaffold and IA tickets implement. They live in this repo once `honua-console#2` lands; this ticket commits to the surface names so downstream code can plug in without rediscovery.
 
-- `src/operate/OperateLanding.tsx` — native React landing for `/operate`. Renders the Operate sub-section index.
-- `src/operate/OperateLegacyEmbed.tsx` — single iframe host for `/operate/legacy/*`. Implements the [embed contract](../operate/embed-contract.md).
-- `src/operate/OperateRedirect.tsx` — single component used by `REDIRECT-TO-STUDIO` rows. Reads target from disposition data, falls back to the `moved-to-studio` landing.
-- `src/operate/movedToStudio/MovedToStudioLanding.tsx` — fallback target for redirects before Studio ports land.
-- `src/operate/dispositionData.ts` — typed projection of this document used by router wiring. The source of truth for the table is this Markdown; the `.ts` projection is a generated/maintained mirror, not a divergent copy.
-- `src/auth/canSeeOperate.ts` — single RBAC predicate Operate routes use. Sourced from `canSeeOperatorLinks` (scopes `operator` / `admin`) per design.
+- `src/Honua.Console.Shell/Pages/OperatePage.razor` - native Console landing for `/operate`. Renders the Operate sub-section index.
+- `src/Honua.Console.Shell/Components/OperateLegacyEmbed.razor` - single iframe host for `/operate/legacy/*`. Implements the [embed contract](../operate/embed-contract.md).
+- `src/Honua.Console.Shell/Components/OperateRedirect.razor` - single component used by `REDIRECT-TO-STUDIO` rows. Reads target from disposition data, falls back to the `moved-to-studio` landing.
+- `src/Honua.Console.Shell/Pages/MovedToStudioLanding.razor` - fallback target for redirects before Studio ports land.
+- `src/Honua.Console.Shell/Models/LegacyAdminRouteDisposition.cs` - typed projection of this document used by router wiring. The source of truth for the table is this Markdown; the C# projection is a generated/maintained mirror, not a divergent copy.
+- `src/Honua.Console.Shell/Auth/OperatePermissions.cs` - single RBAC predicate Operate routes use. Sourced from `canSeeOperatorLinks` (scopes `operator` / `admin`) per design.
 
 ## Error And Empty-State Surfaces
 
@@ -185,7 +185,7 @@ Tracked here so #2/#3 implementers and Studio (#5) port owners see the open deci
 1. `/operator/annotations` target — Studio map canvas, Catalog item-level annotations, or remain `EMBED`? Owner: Studio / Catalog joint call.
 2. `/operator/sql` target — Studio surface, retire entirely in favor of NL query, or keep `EMBED`? Owner: Studio.
 3. Embed mount path — confirmed `/operate/legacy/<verbatim-legacy-path>` here (including the `/operator` and `/admin` prefixes the legacy `@page` declarations carry). Tables and nav reflect this verbatim form; revisit only if `honua-server-admin#96` requires otherwise.
-4. Iframe vs. true reverse proxy — this disposition assumes iframe-in-React (Console chrome wraps the legacy surface). True reverse proxy is a fallback; revisit if `honua-devops#55` cannot embed.
+4. Iframe vs. true reverse proxy — this disposition assumes iframe-in-Console (Console chrome wraps the legacy surface). True reverse proxy is a fallback; revisit if `honua-devops#55` cannot embed.
 5. Pre-`honua-devops#55` posture — the embed contract documents the degraded `link-out` mode. Operators reach legacy via direct origin until single-artifact lands.
 6. Retirement gate refinement — current bar is "replacement ships AND parity smoke passes." Per-route owner sign-off MAY be added; flag a row here if so.
 

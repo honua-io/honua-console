@@ -23,4 +23,8 @@
     <ProjectReference Include="..\..\src\Honua.Console.Shell\Honua.Console.Shell.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\config\console-areas.json" Link="console-areas.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

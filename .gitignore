@@ -1,12 +1,11 @@
 node_modules/
-dist/
+artifacts/
 coverage/
 bin/
 obj/
 .DS_Store
 .env
 .env.local
-.vite/
 
 # Smoke evidence output (committed samples live under smoke/parity/sample-evidence/).
 smoke-evidence/

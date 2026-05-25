@@ -15,7 +15,7 @@ under "Pass the cross-surface smoke."
 ## Running the smoke
 
 ```sh
-# Run against the local single deployable artifact (dist/version.json).
+# Run against the local single deployable artifact metadata.
 npm run smoke:parity
 
 # Run against a deployed origin (the staging or preview URL devops promotes).
@@ -53,13 +53,13 @@ origin is unreachable or serves invalid metadata. The evidence stores the
 normalized origin, and every Console URL in `urls` is assembled from that
 same normalized origin so trailing-slash inputs cannot produce doubled
 route slashes. Local/offline runs (default `127.0.0.1`, `localhost`,
-`[::1]`, `0.0.0.0`, or no origin) read `dist/version.json` produced by
-[`honua-console#8`](https://github.com/honua-io/honua-console/issues/8).
-When that local file is absent — for example, on trunk before the
-scaffolding lands, or on a checkout that has not run `npm run build` —
+`[::1]`, `0.0.0.0`, or no origin) read
+`artifacts/honua-console-web/version.json` when a local publish artifact has
+been stamped by `scripts/write-build-metadata.mjs`. When that local file is
+absent - for example, on a checkout that has not run `dotnet publish` -
 the runner falls back to the committed fixture under
-[`smoke/parity/fixtures/dist-version.json`](../../smoke/parity/fixtures/dist-version.json).
-The evidence JSON records `buildArtifact.source` as `"origin"`, `"dist"`,
+[`smoke/parity/fixtures/version.json`](../../smoke/parity/fixtures/version.json).
+The evidence JSON records `buildArtifact.source` as `"origin"`, `"artifact"`,
 or `"fixture"` so promotion tooling can distinguish deployed-origin
 evidence from a local placeholder run. Release-promotion jobs should gate
 on `"origin"` evidence once the preview pipeline is wired; `"fixture"` is
@@ -275,9 +275,9 @@ Top-level fields:
   (`new URL(<origin>).origin`).
 - `repoRoot` — Local repository root used by the runner. The committed
   sample sanitizes this path.
-- `buildArtifact` — Deployed `<origin>/version.json`, local
-  `dist/version.json`, or local fixture snapshot. Includes `source:
-  "origin"|"dist"|"fixture"` so promotion tooling can distinguish a
+- `buildArtifact` — Deployed `<origin>/version.json`, local published
+  artifact metadata, or local fixture snapshot. Includes `source:
+  "origin"|"artifact"|"fixture"` so promotion tooling can distinguish a
   deployed-origin verification from a placeholder run.
 - `contractVersions[]` — All contracts exercised by the scenario, with
   owning layer and source repo.
@@ -323,13 +323,15 @@ can happen one layer at a time without changing the scenario.
 `honua-devops` owns the CI pipeline (see
 [`honua-devops#56`](https://github.com/honua-io/honua-devops/issues/56)).
 The Console parity smoke is the gate the release-promotion job should
-run after `npm run build` and before promotion:
+run after the Blazor artifact is published and previewed, before promotion:
 
 ```yaml
 # Sketch — owned by honua-devops, included here so a reviewer can see
 # how Console expects the parity smoke to land in CI.
 - name: Build Console artifact
-  run: npm run build
+  run: |
+    dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web
+    HONUA_CONSOLE_ARTIFACT_DIR=artifacts/honua-console-web node scripts/write-build-metadata.mjs
 
 - name: Console parity smoke
   run: npm run smoke:parity -- --origin "$PREVIEW_ORIGIN"

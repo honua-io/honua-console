@@ -10,7 +10,7 @@ Disposition table: [Legacy Admin Route Disposition](../migration/legacy-admin-ro
 
 ## Scope
 
-This document specifies the transitional contract Honua Console implements at `/operate/*` so that legacy `honua-server-admin` (Blazor WebAssembly) workflows can be reached from the unified Console shell while native React Operate views are built. It binds:
+This document specifies the transitional contract Honua Console implements at `/operate/*` so that legacy `honua-server-admin` (Blazor WebAssembly) workflows can be reached from the unified Console shell while native Blazor/Razor Operate views are built. It binds:
 
 - Console route shape under `/operate/*`.
 - The same-origin iframe embed at `/operate/legacy/*`.
@@ -27,7 +27,7 @@ Console exposes three kinds of routes under `/operate/*`:
 
 | Pattern | Component | Purpose |
 | --- | --- | --- |
-| `/operate` and `/operate/<native-section>` | `OperateLanding` and native React views | Operate landing and any native React replacements that have shipped. |
+| `/operate` and `/operate/<native-section>` | `OperateLanding` and native Razor views | Operate landing and any native Console replacements that have shipped. |
 | `/operate/legacy/*` | `OperateLegacyEmbed` | Single iframe host for any legacy Admin path in the embed allowlist (every non-root `EMBED` row in the disposition table plus the duplicate-builder "Legacy reference target (embed)" entries). |
 | `/operate/moved-to-studio/<legacy-segment>` | `MovedToStudioLanding` | Fallback target for `REDIRECT-TO-STUDIO` rows before the Studio port lands. |
 
@@ -89,7 +89,7 @@ Defined messages (initial set). All legacy → Console messages are OPTIONAL ref
 { type: 'honua.console.locale', locale: string }       // BCP-47
 ```
 
-The channel is intentionally minimal. Anything richer (cross-app commands, shared state) is out of scope and is a sign that the workflow should be a native React port, not an embed.
+The channel is intentionally minimal. Anything richer (cross-app commands, shared state) is out of scope and is a sign that the workflow should be a native Console port, not an embed.
 
 ## Redirect Behavior
 
@@ -132,7 +132,7 @@ The Operate area must render exactly these surfaces in these conditions, using t
 
 ## Performance Posture
 
-- The Operate area is lazy-loaded (`React.lazy`). The Blazor WASM bundle is not fetched until the user navigates to `/operate/legacy/*`. Console startup, catalog, viewer, Studio generation, share, and embed paths are unaffected.
+- The legacy Blazor WASM bundle is not fetched until the user navigates to `/operate/legacy/*`. Console startup, catalog, viewer, Studio generation, share, and embed paths are unaffected.
 - `OperateLegacyEmbed` mounts a single iframe at most. Navigating between two legacy paths reuses the iframe and updates `src` rather than remounting where possible, to avoid a full Blazor cold start per click.
 - `MovedToStudioLanding` is static and lazy.
 
@@ -142,7 +142,7 @@ The smoke test specified in the disposition document is the canonical evidence f
 
 ## Out Of Scope
 
-- A Blazor↔React micro-frontend or web-component integration. The embed is an iframe; deeper integration is explicitly not pursued during the transition.
+- A second-framework micro-frontend or web-component integration. The embed is an iframe; deeper integration is explicitly not pursued during the transition.
 - A cross-origin embed with credentialed requests. Rejected for cookie / CSP / OIDC bounce reasons.
 - Server-side reverse-proxying of the legacy app with no iframe (`/operate/legacy/*` IS the Blazor page). Considered as a fallback in [Open Questions of the disposition doc](../migration/legacy-admin-route-disposition.md#open-questions); not the default.
 

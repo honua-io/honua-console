@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Models;
 using Microsoft.AspNetCore.Components;
@@ -31,5 +32,15 @@ public sealed class ConsoleRouteMapTests
         Assert.Contains("/studio/proof", routes);
         Assert.Contains("/studio/drafts", routes);
         Assert.Contains("/studio/apps/{ItemId}/preview", routes);
+    }
+
+    [Fact]
+    public void SharedRouteMapMatchesBuildMetadataAreaRegistry()
+    {
+        var registryPath = Path.Combine(AppContext.BaseDirectory, "console-areas.json");
+        var registryAreas = JsonSerializer.Deserialize<string[]>(File.ReadAllText(registryPath));
+
+        Assert.NotNull(registryAreas);
+        Assert.Equal(registryAreas, ConsoleRouteMap.Areas.Select(area => area.Id).ToArray());
     }
 }

@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-// Standalone build-metadata writer. Vite emits the same file via the
-// build-metadata plugin during `npm run build`; this script exists so
-// release-promotion tooling (honua-devops) can re-stamp the artifact with
-// promotion-time metadata (e.g., new ref, new legacy status) without
-// re-running the full bundler.
+// Standalone build-metadata writer. The Blazor Web host exposes the same
+// schema at `/version.json`; this script writes a copy next to the published
+// artifact so release-promotion tooling can inspect or re-stamp metadata
+// without rebuilding the web host.
 
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -12,8 +11,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-const pkg = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
-const consoleAreas = JSON.parse(readFileSync(resolve(repoRoot, "src/areas.json"), "utf8"));
+const webProject = readFileSync(resolve(repoRoot, "src/Honua.Console.Web/Honua.Console.Web.csproj"), "utf8");
+const version = webProject.match(/<Version>([^<]+)<\/Version>/)?.[1]?.trim() ?? "unknown";
+const consoleAreas = JSON.parse(readFileSync(resolve(repoRoot, "config/console-areas.json"), "utf8"));
 
 function readGit(args) {
   try {
@@ -30,11 +30,11 @@ const ref = process.env.HONUA_CONSOLE_REF ?? readGit(["rev-parse", "--abbrev-ref
 
 const metadata = {
   name: "honua-console",
-  version: pkg.version,
+  version,
   commit: sha,
   shortCommit: sha.slice(0, 12),
   ref,
-  builtAt: new Date().toISOString(),
+  builtAt: process.env.HONUA_CONSOLE_BUILT_AT ?? new Date().toISOString(),
   legacy: {
     portal: process.env.HONUA_CONSOLE_LEGACY_PORTAL_STATUS ?? "active",
     admin: process.env.HONUA_CONSOLE_LEGACY_ADMIN_STATUS ?? "active",
@@ -42,9 +42,9 @@ const metadata = {
   areas: consoleAreas,
 };
 
-const outDir = process.env.HONUA_CONSOLE_DIST_DIR
-  ? resolve(repoRoot, process.env.HONUA_CONSOLE_DIST_DIR)
-  : resolve(repoRoot, "dist");
+const outDir = process.env.HONUA_CONSOLE_ARTIFACT_DIR
+  ? resolve(repoRoot, process.env.HONUA_CONSOLE_ARTIFACT_DIR)
+  : resolve(repoRoot, "artifacts/honua-console-web");
 mkdirSync(outDir, { recursive: true });
 const outPath = resolve(outDir, "version.json");
 writeFileSync(outPath, `${JSON.stringify(metadata, null, 2)}\n`);

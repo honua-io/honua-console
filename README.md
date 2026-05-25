@@ -34,19 +34,17 @@ The Console migration spans the in-repo child-ticket backlog and external owner 
 
 ## Deployment
 
-- [Build artifact contract](docs/deployment/BUILD_ARTIFACT.md) — what `honua-devops` consumes from `npm run build`.
+- [Build artifact contract](docs/deployment/BUILD_ARTIFACT.md) - what `honua-devops` consumes from the Blazor Web publish output.
 - [Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md) — how to run, preview, and promote.
 
 ## Quickstart
 
-```
-npm ci
-npm run dev        # Vite dev server on 127.0.0.1:5174
-npm run build      # Produces dist/ and dist/version.json
-npm run preview    # Serves the built bundle on 127.0.0.1:4174
+```bash
+dotnet restore Honua.Console.slnx
+dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
 ```
 
-`/studio`, `/catalog`, `/operate`, and `/share` all resolve from the same origin via the SPA fallback. See [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md) for the same-origin proxy contract and the `version.json` schema used by release notes.
+`/studio`, `/catalog`, `/operate`, and `/share` all resolve from the same Blazor Web host. See [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md) for the same-origin proxy contract and the `version.json` schema used by release notes.
 
 ## Parity Smoke
 
@@ -61,13 +59,13 @@ npm run smoke:parity:test
 ```
 
 Local and loopback runs (`127.0.0.1`, `localhost`, `[::1]`, or
-`0.0.0.0`) read `dist/version.json` when present and otherwise use the
-committed fixture. Deployed-origin runs normalize `--origin` to its URL
-origin, verify `<origin>/version.json`, and fail the
+`0.0.0.0`) read `artifacts/honua-console-web/version.json` when present
+and otherwise use the committed fixture. Deployed-origin runs normalize
+`--origin` to its URL origin, verify `<origin>/version.json`, and fail the
 `devops/build-artifact` step if the artifact metadata is missing or
-invalid. Evidence records `buildArtifact.source` as
-`"origin"`, `"dist"`, or `"fixture"` so release promotion can distinguish
-a deployed artifact check from a local harness run.
+invalid. Evidence records `buildArtifact.source` as `"origin"`,
+`"artifact"`, or `"fixture"` so release promotion can distinguish a
+deployed artifact check from a local harness run.
 
 See [docs/smoke/parity.md](docs/smoke/parity.md) for the CLI options,
 scenario, owning-layer triage taxonomy, and evidence format.

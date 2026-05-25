@@ -1,4 +1,5 @@
 using Honua.Console.Shell.DependencyInjection;
+using Honua.Console.Web;
 using Honua.Console.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +24,11 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapGet("/version.json", (HttpContext context) =>
+{
+    context.Response.Headers["Cache-Control"] = "no-store";
+    return Results.Json(ConsoleBuildMetadata.Create());
+});
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddAdditionalAssemblies(typeof(Honua.Console.Shell.ConsoleRoutes).Assembly);

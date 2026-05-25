@@ -113,7 +113,7 @@ describe("parity scenario", () => {
     // Build artifact metadata captured (fixture in this test environment).
     assert.equal(report.buildArtifact.name, "honua-console");
     assert.equal(report.buildArtifact.source, "fixture");
-    assert.deepEqual(report.buildArtifact.areas, ["studio", "catalog", "share", "operate"]);
+    assert.deepEqual(report.buildArtifact.areas, ["studio", "catalog", "operate", "share"]);
 
     // The runner records the origin used so a CI reviewer can correlate the
     // evidence with the artifact it ran against.
