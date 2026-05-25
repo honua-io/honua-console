@@ -8,47 +8,58 @@
         <p>Settings changes show policy state, apply scope, and restart requirement before an operator commits the change.</p>
     </div>
 
-    <div class="console-table-wrap">
-        <table class="console-table">
-            <thead>
-                <tr>
-                    <th>Category</th>
-                    <th>Setting</th>
-                    <th>Proposed change</th>
-                    <th>Apply scope</th>
-                    <th>Restart requirement</th>
-                    <th>Policy</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var change in _settingsChanges)
-                {
+    <OperateCapabilityStateList States="@_states" />
+
+    @if (_settingsChanges.Count == 0 && _states.Count == 0)
+    {
+        <EmptyState Area="operate" Subject="settings" />
+    }
+    else if (_settingsChanges.Count > 0)
+    {
+        <div class="console-table-wrap">
+            <table class="console-table">
+                <thead>
                     <tr>
-                        <td>@change.Category</td>
-                        <td>@change.Name</td>
-                        <td>@change.ProposedChange</td>
-                        <td>@change.ApplyScope</td>
-                        <td>
-                            <span class="@RestartClass(change.RequiresRestart)">
-                                @(change.RequiresRestart ? "Restart required" : "No restart")
-                            </span>
-                            <small>@change.RestartRequirement</small>
-                        </td>
-                        <td>@change.PolicyState</td>
+                        <th>Category</th>
+                        <th>Setting</th>
+                        <th>Proposed change</th>
+                        <th>Apply scope</th>
+                        <th>Restart requirement</th>
+                        <th>Policy</th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                </thead>
+                <tbody>
+                    @foreach (var change in _settingsChanges)
+                    {
+                        <tr>
+                            <td>@change.Category</td>
+                            <td>@change.Name</td>
+                            <td>@change.ProposedChange</td>
+                            <td>@change.ApplyScope</td>
+                            <td>
+                                <span class="@RestartClass(change.RequiresRestart)">
+                                    @(change.RequiresRestart ? "Restart required" : "No restart")
+                                </span>
+                                <small>@change.RestartRequirement</small>
+                            </td>
+                            <td>@change.PolicyState</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 </section>
 
 @code {
     private IReadOnlyList<OperateSettingsChange> _settingsChanges = Array.Empty<OperateSettingsChange>();
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _settingsChanges = workspace.SettingsChanges;
+        var view = await OperateData.GetSettingsViewAsync();
+        _settingsChanges = view.SettingsChanges;
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Settings");
     }
 
     private static string RestartClass(bool requiresRestart) =>

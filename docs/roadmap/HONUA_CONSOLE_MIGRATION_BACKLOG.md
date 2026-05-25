@@ -75,6 +75,7 @@ This backlog intentionally separates three decisions:
 ### P1 Operate Transition Work
 
 - [honua-console#36](https://github.com/honua-io/honua-console/issues/36): Native Operate transition routes for connections, data resources, services, layers, and operator settings. IA: route-map §1, §2.2, §6.5. Contract: [Native Operate Transition Surface](../operate/native-transition-surface.md). Legacy Admin rows remain under `/operate/legacy/*` until SDK-backed parity smoke retires each successor.
+- [honua-console#60](https://github.com/honua-io/honua-console/issues/60): Retrofit the #36 transition routes away from normal seeded in-memory data and onto honua-server admin bindings or explicit missing/unsupported capability states. Contract and runtime configuration are documented in [Native Operate Transition Surface](../operate/native-transition-surface.md).
 
 ### P2 Native Console Work
 

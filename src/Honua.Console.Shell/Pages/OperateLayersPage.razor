@@ -8,7 +8,9 @@
         <p>Layer rows show service exposure and point back to the canonical resource that owns metadata.</p>
     </div>
 
-    @if (_layers.Count == 0)
+    <OperateCapabilityStateList States="@_states" />
+
+    @if (_layers.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="layers" />
     }
@@ -29,7 +31,7 @@
                     @foreach (var row in _layers)
                     {
                         <tr>
-                            <td><a href="@($"/operate/layers/{row.Layer.LayerId}")">@row.Layer.LayerId</a></td>
+                            <td><a href="@($"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
                             <td>@row.Layer.Name</td>
                             <td><a href="@($"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>
                             <td>@row.Layer.Geometry</td>
@@ -48,12 +50,14 @@
 @code {
     private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _layers =
         Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _layers = workspace.Services
+        var view = await OperateData.GetLayersViewAsync();
+        _layers = view.Services
             .SelectMany(service => service.Layers.Select(layer => (service, layer)))
             .ToArray();
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
     }
 }

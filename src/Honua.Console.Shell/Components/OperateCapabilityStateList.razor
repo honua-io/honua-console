@@ -1,0 +1,32 @@
+@if (States.Count > 0)
+{
+    <section class="console-section">
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate binding</p>
+            <h2>Server Capability States</h2>
+        </div>
+        <div class="console-panel-grid">
+            @foreach (var state in States)
+            {
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@state.State</p>
+                            <h2>@state.Surface</h2>
+                        </div>
+                    </div>
+                    <p class="console-muted">@state.Detail</p>
+                    <dl class="console-definition-list">
+                        <dt>Contract</dt>
+                        <dd>@state.Contract</dd>
+                    </dl>
+                </article>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<OperateCapabilityState> States { get; set; } = [];
+}

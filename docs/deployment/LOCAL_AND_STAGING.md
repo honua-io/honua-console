@@ -19,10 +19,23 @@ shared shell and resolve from the same origin.
 
 Same-origin API expectations:
 
-- API calls are relative paths (`/api/...`). For local dev, run `honua-server`
-  behind the same reverse proxy shape used by staging, or add a development
-  proxy in front of both processes. Console build itself does not bake in an
-  API base URL.
+- Console build output does not bake in an API base URL. The browser host
+  reads runtime configuration.
+- Operate transition routes bind to honua-server admin endpoints when
+  `Honua:Server:BaseUrl`, `Honua__Server__BaseUrl`, or
+  `HONUA_SERVER_BASE_URL` is configured with an absolute HTTP(S) URL.
+  `Honua:Server:AdminApiKey`, `Honua__Server__AdminApiKey`, or
+  `HONUA_ADMIN_API_KEY` is optional and is forwarded as `X-API-Key`.
+- Without a valid server base URL, Operate renders a missing-binding state
+  instead of seeded sample data.
+
+Local server-backed Operate run:
+
+```bash
+HONUA_SERVER_BASE_URL=http://127.0.0.1:5000 \
+HONUA_ADMIN_API_KEY=dev-admin-key \
+dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
+```
 
 Common commands:
 
@@ -41,6 +54,17 @@ against a containerized server, set `HONUA_CONSOLE_INTEGRATION=true`,
 `./scripts/integration-trust-check.sh`. To point at an existing server instead,
 set `HONUA_CONSOLE_EXTERNAL_BASE_URL=https://...`. Without those variables the
 suite reports skips rather than failures.
+
+Optional live Operate binding evidence:
+
+```bash
+HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
+HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
+dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
+```
+
+This evidence path skips when it is not opted in or when Docker/server
+prerequisites are unavailable.
 
 ## Verifying the production artifact locally
 
@@ -74,6 +98,10 @@ For smoke evidence during staging promotion, exercise:
 
 - Same-origin auth cookie set by `honua-server` survives navigation between
   `/studio`, `/catalog`, `/operate`, and `/share`.
+- `HONUA_SERVER_BASE_URL` points at the absolute HTTP(S) staging honua-server
+  origin or proxy used for admin API reads, and `/operate` shows either live
+  admin data or named unsupported/missing-permission states for absent server
+  contracts.
 - `/version.json` is reachable on the deployed origin.
 - A direct page load of `/operate/anything` is handled by the Console host
   rather than a static-server 404.

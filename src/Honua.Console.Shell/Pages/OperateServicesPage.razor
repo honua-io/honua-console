@@ -8,7 +8,9 @@
         <p>Services expose runtime endpoints and layer projections. Canonical metadata remains owned by data resources.</p>
     </div>
 
-    @if (_services.Count == 0)
+    <OperateCapabilityStateList States="@_states" />
+
+    @if (_services.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="services" />
     }
@@ -79,10 +81,12 @@
 
 @code {
     private IReadOnlyList<OperateServiceDetail> _services = Array.Empty<OperateServiceDetail>();
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _services = workspace.Services;
+        var view = await OperateData.GetServicesViewAsync();
+        _services = view.Services;
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
     }
 }

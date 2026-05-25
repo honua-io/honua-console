@@ -97,6 +97,8 @@
             </div>
         </section>
     }
+
+    <OperateCapabilityStateList States="@_states" />
 </section>
 
 @code {
@@ -104,9 +106,13 @@
     public string ServiceName { get; set; } = string.Empty;
 
     private OperateServiceDetail? _service;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
-        _service = await OperateData.FindServiceAsync(ServiceName);
+        var view = await OperateData.GetServicesViewAsync();
+        _service = view.Services.FirstOrDefault(
+            service => string.Equals(service.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
     }
 }

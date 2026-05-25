@@ -12,7 +12,57 @@ public sealed record OperateTransitionWorkspace(
     IReadOnlyList<OperateConnectionSummary> Connections,
     IReadOnlyList<OperateResourceEditPreview> ResourceEdits,
     IReadOnlyList<OperateServiceDetail> Services,
-    IReadOnlyList<OperateSettingsChange> SettingsChanges);
+    IReadOnlyList<OperateSettingsChange> SettingsChanges,
+    IReadOnlyList<OperateCapabilityState> CapabilityStates);
+
+/// <summary>
+/// Surface-scoped projections of <see cref="OperateTransitionWorkspace"/>. Each Operate route loads
+/// only the server-owned data it renders rather than composing the whole workspace, so a connections
+/// route does not block on services, layers, or settings reads. Each view carries the capability
+/// states accumulated while loading that surface.
+/// </summary>
+public sealed record OperateConnectionsView(
+    IReadOnlyList<OperateConnectionSummary> Connections,
+    IReadOnlyList<OperateCapabilityState> CapabilityStates);
+
+public sealed record OperateResourcesView(
+    IReadOnlyList<OperateResourceEditPreview> ResourceEdits,
+    IReadOnlyList<OperateCapabilityState> CapabilityStates);
+
+public sealed record OperateServicesView(
+    IReadOnlyList<OperateServiceDetail> Services,
+    IReadOnlyList<OperateCapabilityState> CapabilityStates);
+
+public sealed record OperateSettingsView(
+    IReadOnlyList<OperateSettingsChange> SettingsChanges,
+    IReadOnlyList<OperateCapabilityState> CapabilityStates);
+
+public sealed record OperateCapabilityState(
+    string Surface,
+    string State,
+    string Contract,
+    string Detail);
+
+public static class OperateCapabilityStateFilters
+{
+    public static IReadOnlyList<OperateCapabilityState> ForSurface(
+        IReadOnlyList<OperateCapabilityState>? states,
+        params string[] surfaces)
+    {
+        if (states is null || states.Count == 0)
+        {
+            return [];
+        }
+
+        var requestedSurfaces = surfaces
+            .Append("Operate")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return states
+            .Where(state => requestedSurfaces.Contains(state.Surface))
+            .ToArray();
+    }
+}
 
 public sealed record OperateConnectionSummary(
     string Id,

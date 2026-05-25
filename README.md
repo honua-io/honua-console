@@ -79,7 +79,7 @@ for `honua-console#40`.
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The Console IA is fixed in [docs/console-route-map.md](docs/console-route-map.md) ([honua-console#3](https://github.com/honua-io/honua-console/issues/3)); the Blazor Web Console shell and shared Razor component library scaffold lands under [honua-console#2](https://github.com/honua-io/honua-console/issues/2). The scaffold now also includes an independently deployable Blazor web host and an optional .NET MAUI Blazor Hybrid native host ([honua-console#26](https://github.com/honua-io/honua-console/issues/26)) for operator/power-user workflows.
 
-Native Operate transition routes for connections, resources, services, layers, and settings are documented in [Native Operate Transition Surface](docs/operate/native-transition-surface.md). They use bounded Console view models until `honua-sdk-dotnet` admin projections replace the in-memory transition data source.
+Native Operate transition routes for connections, resources, services, layers, and settings are documented in [Native Operate Transition Surface](docs/operate/native-transition-surface.md). They use bounded Console view models projected from live honua-server admin endpoints when `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL` is set to an absolute HTTP(S) URL. Without a valid server binding, the routes render an explicit missing-binding state; seeded Operate data is limited to tests or the explicit demo opt-in until `honua-sdk-dotnet` admin projections replace the temporary HTTP shim.
 
 ## Project Layout
 
@@ -88,7 +88,7 @@ Native Operate transition routes for connections, resources, services, layers, a
 - `src/Honua.Console.Web`: default browser Console host. It references the shared shell and stays independently buildable/deployable without MAUI or native services; native gRPC, mTLS, and trust validation render as unsupported.
 - `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation that enforces pinned server fingerprints when present, the server-bound trust gate (cert-changed blocking, acknowledge/revalidate, unreachable-state preservation), and the deterministic telemetry streaming proof.
 - `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.
-- `tests/Honua.Console.Native.Core.Tests`: host-independent coverage for route boundaries, profile persistence, native connection setup, the trust gate, and the streaming proof contract.
+- `tests/Honua.Console.Native.Core.Tests`: host-independent coverage for route boundaries, profile persistence, native connection setup, the trust gate, and the streaming proof contract, plus opt-in Testcontainers coverage for the live honua-server Operate binding.
 - `tests/Honua.Console.IntegrationTests`: opt-in Testcontainers suite asserting mTLS/trust behavior against a real honua-server (Console Patterns Charter section 11); skips without Docker.
 
 ## Local Usage
@@ -97,6 +97,20 @@ Run the browser Console:
 
 ```bash
 dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj
+```
+
+Bind the Operate transition pages to a local honua-server by setting
+`HONUA_SERVER_BASE_URL` and, when needed, `HONUA_ADMIN_API_KEY` before
+starting the web host. The API key is sent to admin endpoints as
+`X-API-Key`.
+
+Run the live Operate integration evidence only when Docker and a honua-server
+checkout are available:
+
+```bash
+HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
+HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
+dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
 ```
 
 Validate the shared shell and native-core behavior without a desktop MAUI toolchain:

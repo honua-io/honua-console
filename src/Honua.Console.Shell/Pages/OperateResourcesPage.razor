@@ -12,7 +12,9 @@
         <a class="console-button-link" href="/operate/resources/new">Create Resource</a>
     </div>
 
-    @if (_resources.Count == 0)
+    <OperateCapabilityStateList States="@_states" />
+
+    @if (_resources.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="resources" ActionHref="/operate/resources/new" ActionText="Create Resource" />
     }
@@ -48,11 +50,13 @@
 
 @code {
     private IReadOnlyList<OperateResourceEditPreview> _resources = Array.Empty<OperateResourceEditPreview>();
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnInitializedAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _resources = workspace.ResourceEdits;
+        var view = await OperateData.GetResourcesViewAsync();
+        _resources = view.ResourceEdits;
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
     }
 
     private static string FormatCount(IReadOnlyCollection<string> items) =>

@@ -75,6 +75,8 @@
             </article>
         </div>
     }
+
+    <OperateCapabilityStateList States="@_states" />
 </section>
 
 @code {
@@ -82,10 +84,14 @@
     public string ResourceId { get; set; } = string.Empty;
 
     private OperateResourceEditPreview? _resource;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
-        _resource = await OperateData.FindResourceEditAsync(ResourceId);
+        var view = await OperateData.GetResourcesViewAsync();
+        _resource = view.ResourceEdits.FirstOrDefault(
+            resource => string.Equals(resource.ResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
     }
 
     private static string FormatItems(IReadOnlyList<string> items) =>

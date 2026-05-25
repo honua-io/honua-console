@@ -1,8 +1,8 @@
-@page "/operate/layers/{LayerId:int}"
+@page "/operate/layers/{ResourceId}"
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_layerRow is null)
+    @if (_exposures.Count == 0)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
@@ -10,53 +10,68 @@
     {
         <div class="console-page-heading">
             <p class="console-kicker">Operate / Layers</p>
-            <h1>@_layerRow.Value.Layer.Name</h1>
-            <p>Layer @_layerRow.Value.Layer.LayerId is exposed by @_layerRow.Value.Service.DisplayName and reads metadata from @_layerRow.Value.Layer.CanonicalResourceName.</p>
+            <h1>@_exposures[0].Layer.Name</h1>
+            <p>Layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
         </div>
 
         <div class="console-panel-grid">
-            <article class="console-panel">
-                <p class="console-kicker">Exposure</p>
-                <h2>Service Layer</h2>
-                <dl class="console-definition-list">
-                    <dt>Service</dt>
-                    <dd><a href="@($"/operate/services/{_layerRow.Value.Service.Name}/settings")">@_layerRow.Value.Service.DisplayName</a></dd>
-                    <dt>Geometry</dt>
-                    <dd>@_layerRow.Value.Layer.Geometry</dd>
-                    <dt>Runtime</dt>
-                    <dd>@_layerRow.Value.Service.RuntimeStatus</dd>
-                </dl>
-            </article>
+            @foreach (var exposure in _exposures)
+            {
+                <article class="console-panel">
+                    <p class="console-kicker">Exposure</p>
+                    <h2>@exposure.Service.DisplayName</h2>
+                    <dl class="console-definition-list">
+                        <dt>Service</dt>
+                        <dd><a href="@($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
+                        <dt>Geometry</dt>
+                        <dd>@exposure.Layer.Geometry</dd>
+                        <dt>Runtime</dt>
+                        <dd>@exposure.Service.RuntimeStatus</dd>
+                    </dl>
+                </article>
+            }
 
             <article class="console-panel">
                 <p class="console-kicker">Canonical Metadata</p>
                 <h2>Resource Owner</h2>
                 <dl class="console-definition-list">
                     <dt>Resource</dt>
-                    <dd><a href="@($"/operate/resources/{_layerRow.Value.Layer.CanonicalResourceId}")">@_layerRow.Value.Layer.CanonicalResourceName</a></dd>
+                    <dd><a href="@($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
                     <dt>Resource ID</dt>
-                    <dd>@_layerRow.Value.Layer.CanonicalResourceId</dd>
+                    <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
                     <dt>Ownership</dt>
-                    <dd>@_layerRow.Value.Service.MetadataOwnership</dd>
+                    <dd>@_exposures[0].Service.MetadataOwnership</dd>
                 </dl>
             </article>
         </div>
     }
+
+    <OperateCapabilityStateList States="@_states" />
 </section>
 
 @code {
     [Parameter]
-    public int LayerId { get; set; }
+    public string ResourceId { get; set; } = string.Empty;
 
-    private (OperateServiceDetail Service, OperateServiceLayerProjection Layer)? _layerRow;
+    // A raw layer id is only unique within its connection, so the route keys on the canonical resource
+    // id ({connection}-layer-{layerId}) instead — matching the route-map's /operate/layers/:id. That id
+    // is shared across every service exposing the same layer (honua-server stores service exposure
+    // separately in honua.service_layers) but differs per connection, so grouping by it renders all of
+    // this layer's exposures without conflating a same-numbered layer from another connection.
+    private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _exposures =
+        Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
+    private string _serviceSummary = string.Empty;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
-        var workspace = await OperateData.GetWorkspaceAsync();
-        _layerRow = workspace.Services
+        var view = await OperateData.GetLayersViewAsync();
+        _exposures = view.Services
             .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
-            .Where(row => row.Layer.LayerId == LayerId)
-            .Select(row => ((OperateServiceDetail Service, OperateServiceLayerProjection Layer)?)row)
-            .FirstOrDefault();
+            .Where(row => string.Equals(row.Layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(row => row.Service.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
+        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
     }
 }
