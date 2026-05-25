@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Honua.Console.Contracts;
@@ -418,6 +419,74 @@ public sealed class ConsoleConnectionManagerTests
         Assert.False(harness.Manager.IsConnected("dev-east"));
     }
 
+    [Fact]
+    public async Task Connect_WhenServerBecomesUnreachable_DropsPreviouslyLiveConnection()
+    {
+        var harness = new Harness();
+        await harness.Store.UpsertProfileAsync(NonMtlsProfile());
+
+        harness.Probe.Fingerprint = "SERVER-AAA";
+        var connected = await harness.Manager.ConnectAsync("dev-east");
+        Assert.Equal(ConsoleConnectionStatus.Connected, connected.Status);
+        Assert.True(harness.Manager.IsConnected("dev-east"));
+
+        // The server can no longer be reached on a later connect. Unreachable means "no usable
+        // connection", so the stale live connection must be dropped while persisted trust state,
+        // pins, and LastConnectedAt are preserved.
+        harness.Probe.Fingerprint = null;
+        var unreachable = await harness.Manager.ConnectAsync("dev-east");
+
+        Assert.Equal(ConsoleConnectionStatus.Unreachable, unreachable.Status);
+        Assert.False(harness.Manager.IsConnected("dev-east"));
+
+        var state = await harness.Store.GetStateAsync("dev-east");
+        Assert.Equal("SERVER-AAA", state!.PinnedServerFingerprint);
+        Assert.NotNull(state.LastConnectedAt);
+        Assert.False(state.TrustBlocked);
+    }
+
+    [Fact]
+    public async Task Revalidate_WhenServerBecomesUnreachable_DropsLiveConnection()
+    {
+        var harness = new Harness();
+        await harness.Store.UpsertProfileAsync(NonMtlsProfile());
+
+        harness.Probe.Fingerprint = "SERVER-AAA";
+        await harness.Manager.ConnectAsync("dev-east");
+        Assert.True(harness.Manager.IsConnected("dev-east"));
+
+        harness.Probe.Fingerprint = null;
+        var outcome = await harness.Manager.RevalidateAsync("dev-east");
+
+        Assert.Equal(ConsoleConnectionStatus.Unreachable, outcome.Status);
+        Assert.False(harness.Manager.IsConnected("dev-east"));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task Connect_MtlsProfile_WhenValidationReturnsAuthorizationFailure_BlocksAsInsufficientRbac(HttpStatusCode statusCode)
+    {
+        using var certificate = CreateCertificate();
+        var harness = new Harness(certificate);
+        harness.Probe.Fingerprint = "SERVER-AAA";
+        harness.Validation.ThrowStatus = statusCode;
+        await harness.Store.UpsertProfileAsync(MtlsProfile());
+
+        var outcome = await harness.Manager.ConnectAsync("prod-west");
+
+        // An admin-endpoint authorization failure is a permission/trust problem, not a network
+        // failure: it must block (not report Unreachable) so the operator sees a trust diagnostic.
+        Assert.Equal(ConsoleConnectionStatus.Blocked, outcome.Status);
+        Assert.Equal(HonuaCertificateValidationStatus.Rejected, outcome.Trust.Status);
+        Assert.Equal(ConsoleCertificateValidationCodes.InsufficientRbac, outcome.Trust.ReasonCode);
+        Assert.False(harness.Manager.IsConnected("prod-west"));
+
+        var state = await harness.Store.GetStateAsync("prod-west");
+        Assert.True(state!.TrustBlocked);
+        Assert.Equal(ConsoleCertificateValidationCodes.InsufficientRbac, state.Trust?.ReasonCode);
+    }
+
     private static ConsoleEnvironmentProfile NonMtlsProfile() => new()
     {
         Id = "dev-east",
@@ -507,6 +576,8 @@ public sealed class ConsoleConnectionManagerTests
 
         public bool ThrowUnreachable { get; set; }
 
+        public HttpStatusCode? ThrowStatus { get; set; }
+
         public int CallCount { get; private set; }
 
         public string? LastValidatedThumbprint { get; private set; }
@@ -519,6 +590,12 @@ public sealed class ConsoleConnectionManagerTests
         {
             CallCount++;
             LastValidatedThumbprint = NativeServerTrust.ComputeSha256Thumbprint(clientCertificate);
+
+            if (ThrowStatus is { } status)
+            {
+                // Mirror HttpResponseMessage.EnsureSuccessStatusCode(), which throws with the status.
+                throw new HttpRequestException($"Server returned {(int)status}.", inner: null, statusCode: status);
+            }
 
             if (ThrowUnreachable)
             {

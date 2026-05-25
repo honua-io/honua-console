@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using Honua.Console.Contracts;
 using Honua.Console.Native.Core.Security;
@@ -93,6 +94,10 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
 
             if (unreachable)
             {
+                // Unreachable means no usable connection (AC#2 / docs contract). Tear down any
+                // previously live connection without rewriting persisted trust state, pins, or
+                // LastConnectedAt.
+                await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
                 return new ConsoleConnectionOutcome
                 {
                     Status = ConsoleConnectionStatus.Unreachable,
@@ -165,7 +170,9 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
                 await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
             }
 
-            if (evaluation.IsBlocked)
+            // Blocked or unreachable both mean no usable connection; drop any live connection while
+            // leaving persisted trust state, pins, and LastConnectedAt untouched on the unreachable path.
+            if (evaluation.IsBlocked || unreachable)
             {
                 await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
             }
@@ -207,9 +214,10 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
                 await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
             }
 
-            // Terminal-state invariant: a blocked evaluation must not leave a live connection,
-            // matching ConnectAsync/RevalidateAsync.
-            if (evaluation.IsBlocked)
+            // Terminal-state invariant: neither a blocked nor an unreachable evaluation may leave a
+            // live connection, matching ConnectAsync/RevalidateAsync. The unreachable path leaves
+            // persisted trust state, pins, and LastConnectedAt untouched.
+            if (evaluation.IsBlocked || unreachable)
             {
                 await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
             }
@@ -297,6 +305,18 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
                     .ValidateAsync(profile, certificate, trustedFingerprint, cancellationToken)
                     .ConfigureAwait(false);
             }
+            catch (HttpRequestException ex) when (!cancellationToken.IsCancellationRequested && IsAuthorizationFailure(ex))
+            {
+                // A 401/403 from the admin validation endpoint is a permission problem, not a
+                // transport failure. Surface it as a blocking insufficient-RBAC trust result rather
+                // than masking it as Unreachable.
+                validation = new ConsoleClientCertificateValidationResult
+                {
+                    Valid = false,
+                    Code = ConsoleCertificateValidationCodes.InsufficientRbac,
+                    Detail = $"The account is not authorized to validate client certificates for this environment (HTTP {(int)ex.StatusCode!.Value})."
+                };
+            }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
                 unreachable = true;
@@ -360,6 +380,9 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
 
     private static string? SummarizeIssuer(X509Certificate2? certificate) =>
         certificate is null || string.IsNullOrWhiteSpace(certificate.Issuer) ? null : certificate.Issuer;
+
+    private static bool IsAuthorizationFailure(HttpRequestException exception) =>
+        exception.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
 
     public async ValueTask DisposeAsync()
     {

@@ -60,6 +60,13 @@ public sealed class TlsServerCertificateProbe : IConsoleServerCertificateProbe
 
             await ssl.AuthenticateAsClientAsync(options, linked.Token).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Honor caller cancellation: a canceled probe is not an "unreachable" server, so it must
+            // not be swallowed into a null/observed result. Only the probe's own 10s handshake timeout
+            // (a linked-token cancel where the caller token is not canceled) falls through below.
+            throw;
+        }
         catch (Exception) when (fingerprint is not null)
         {
             // Server certificate was observed before the handshake failed (e.g. server demanded a

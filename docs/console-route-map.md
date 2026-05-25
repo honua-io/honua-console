@@ -608,9 +608,11 @@ seam: the web host keeps `SupportsNativeTransports = false`, does not
 register `IConsoleConnectionManager`, and renders native-only controls as
 "Native host only"; the MAUI host registers native profile storage,
 certificate resolution, connection management, server-certificate probe,
-and the honua-server#1171 validation client. The native trust gate passes
-the accepted server fingerprint into both the validation call and the
-native HTTP/gRPC connection factory. When a fingerprint is supplied, the
+and the honua-server#1171 validation client. The native trust gate
+resolves the bound client certificate once and passes it, with the
+accepted server fingerprint, into both the validation call and the native
+HTTP/gRPC connection factory, so the transport presents exactly the server
+identity and client certificate that were validated. When a fingerprint is supplied, the
 transport callback requires the presented certificate fingerprint to
 match it rather than accepting a different OS-trusted certificate; when
 no fingerprint is supplied, the callback falls back to the OS chain
