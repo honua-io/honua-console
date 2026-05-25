@@ -3,7 +3,11 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_connection is null)
+    @if (_connection is null && _states.Count > 0)
+    {
+        <OperateCapabilityStateList States="@_states" />
+    }
+    else if (_connection is null)
     {
         <MissingItemView Kind="connection" AreaLabel="Operate / Connections" />
     }
@@ -112,11 +116,15 @@
 
     private OperateConnectionSummary? _connection;
     private OperateConnectionDiagnostic? _safeDiagnostic;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
-        _connection = await OperateData.FindConnectionAsync(ConnectionId);
+        var workspace = await OperateData.GetWorkspaceAsync();
+        _connection = workspace.Connections.FirstOrDefault(
+            connection => string.Equals(connection.Id, ConnectionId, StringComparison.OrdinalIgnoreCase));
         _safeDiagnostic = _connection?.LastDiagnostic;
+        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Connections");
     }
 
     private static string StatusClass(string status) =>

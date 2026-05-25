@@ -8,7 +8,9 @@
         <p>Layer rows show service exposure and point back to the canonical resource that owns metadata.</p>
     </div>
 
-    @if (_layers.Count == 0)
+    <OperateCapabilityStateList States="@_states" />
+
+    @if (_layers.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="layers" />
     }
@@ -48,6 +50,7 @@
 @code {
     private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _layers =
         Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -55,5 +58,6 @@
         _layers = workspace.Services
             .SelectMany(service => service.Layers.Select(layer => (service, layer)))
             .ToArray();
+        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Layers", "Services");
     }
 }

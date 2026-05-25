@@ -12,7 +12,9 @@
         <a class="console-button-link" href="/operate/connections/new">Add Connection</a>
     </div>
 
-    @if (_connections.Count == 0)
+    <OperateCapabilityStateList States="@_states" />
+
+    @if (_connections.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="connections" ActionHref="/operate/connections/new" ActionText="Add Connection" />
     }
@@ -62,11 +64,13 @@
 
 @code {
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnInitializedAsync()
     {
         var workspace = await OperateData.GetWorkspaceAsync();
         _connections = workspace.Connections;
+        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Connections");
     }
 
     private static string StatusClass(string status) =>

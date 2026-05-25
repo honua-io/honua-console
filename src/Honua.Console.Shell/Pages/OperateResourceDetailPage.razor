@@ -2,7 +2,11 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_resource is null)
+    @if (_resource is null && _states.Count > 0)
+    {
+        <OperateCapabilityStateList States="@_states" />
+    }
+    else if (_resource is null)
     {
         <MissingItemView Kind="resource" AreaLabel="Operate / Resources" />
     }
@@ -82,10 +86,14 @@
     public string ResourceId { get; set; } = string.Empty;
 
     private OperateResourceEditPreview? _resource;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
-        _resource = await OperateData.FindResourceEditAsync(ResourceId);
+        var workspace = await OperateData.GetWorkspaceAsync();
+        _resource = workspace.ResourceEdits.FirstOrDefault(
+            resource => string.Equals(resource.ResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Resources", "Layers");
     }
 
     private static string FormatItems(IReadOnlyList<string> items) =>

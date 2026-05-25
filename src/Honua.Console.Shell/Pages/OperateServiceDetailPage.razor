@@ -2,7 +2,11 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_service is null)
+    @if (_service is null && _states.Count > 0)
+    {
+        <OperateCapabilityStateList States="@_states" />
+    }
+    else if (_service is null)
     {
         <MissingItemView Kind="service" AreaLabel="Operate / Services" />
     }
@@ -104,9 +108,13 @@
     public string ServiceName { get; set; } = string.Empty;
 
     private OperateServiceDetail? _service;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
-        _service = await OperateData.FindServiceAsync(ServiceName);
+        var workspace = await OperateData.GetWorkspaceAsync();
+        _service = workspace.Services.FirstOrDefault(
+            service => string.Equals(service.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
+        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Services", "Layers");
     }
 }

@@ -2,7 +2,11 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_layerRow is null)
+    @if (_layerRow is null && _states.Count > 0)
+    {
+        <OperateCapabilityStateList States="@_states" />
+    }
+    else if (_layerRow is null)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
@@ -49,6 +53,7 @@
     public int LayerId { get; set; }
 
     private (OperateServiceDetail Service, OperateServiceLayerProjection Layer)? _layerRow;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -58,5 +63,6 @@
             .Where(row => row.Layer.LayerId == LayerId)
             .Select(row => ((OperateServiceDetail Service, OperateServiceLayerProjection Layer)?)row)
             .FirstOrDefault();
+        _states = OperateCapabilityStateFilters.ForSurface(workspace.CapabilityStates, "Layers", "Services");
     }
 }

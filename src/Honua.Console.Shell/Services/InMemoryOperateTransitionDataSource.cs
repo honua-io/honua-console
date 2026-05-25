@@ -276,5 +276,6 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                     RequiresRestart: false,
                     "No restart; published items re-evaluate on next catalog refresh.",
                     "Requires catalog:admin.")
-            ]);
+            ],
+            CapabilityStates: []);
 }

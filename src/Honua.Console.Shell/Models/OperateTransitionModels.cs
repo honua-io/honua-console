@@ -12,7 +12,35 @@ public sealed record OperateTransitionWorkspace(
     IReadOnlyList<OperateConnectionSummary> Connections,
     IReadOnlyList<OperateResourceEditPreview> ResourceEdits,
     IReadOnlyList<OperateServiceDetail> Services,
-    IReadOnlyList<OperateSettingsChange> SettingsChanges);
+    IReadOnlyList<OperateSettingsChange> SettingsChanges,
+    IReadOnlyList<OperateCapabilityState> CapabilityStates);
+
+public sealed record OperateCapabilityState(
+    string Surface,
+    string State,
+    string Contract,
+    string Detail);
+
+public static class OperateCapabilityStateFilters
+{
+    public static IReadOnlyList<OperateCapabilityState> ForSurface(
+        IReadOnlyList<OperateCapabilityState>? states,
+        params string[] surfaces)
+    {
+        if (states is null || states.Count == 0)
+        {
+            return [];
+        }
+
+        var requestedSurfaces = surfaces
+            .Append("Operate")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return states
+            .Where(state => requestedSurfaces.Contains(state.Surface))
+            .ToArray();
+    }
+}
 
 public sealed record OperateConnectionSummary(
     string Id,

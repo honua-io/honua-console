@@ -1,8 +1,8 @@
 # Native Operate Transition Surface
 
-Status: implemented for `honua-console#36`.
+Status: implemented for `honua-console#36`, retrofitted for real server bindings in `honua-console#60`.
 
-This slice adds native Blazor Operate pages for the Admin transition while the shared `honua-sdk-dotnet` admin projections are still pending. The data source is intentionally bounded to `IOperateTransitionDataSource` in `Honua.Console.Shell`; it is UI sample data, not a server DTO mirror. When SDK clients land, replace that service implementation and keep the Razor routes.
+This slice adds native Blazor Operate pages for the Admin transition while the shared `honua-sdk-dotnet` admin projections are still pending. Normal runtime registration no longer uses the seeded in-memory data source. When `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL` is configured, `IOperateTransitionDataSource` binds through the `Honua.Console.Contracts` Operate admin HTTP shim to live honua-server admin endpoints. When no server binding is configured, the routes render an explicit missing-binding state rather than sample data. The seeded in-memory data source remains available only through tests or the explicit `AddHonuaConsoleDemoOperateTransitionData()` opt-in.
 
 The native routes are the preferred Console navigation for connections, data resources, services, layers, and operator settings. Legacy Admin routes remain available under `/operate/legacy/*` according to the [legacy route disposition](../migration/legacy-admin-route-disposition.md) until parity smoke and SDK-backed data prove each legacy row can be retired.
 
@@ -28,7 +28,7 @@ These are Console transition view models, not server protocol DTOs:
 
 | Surface | Contract fields rendered |
 | --- | --- |
-| Operate workspace | Four bounded collections: `connections`, `resourceEdits`, `services`, and `settingsChanges`. The landing page renders counts and current actionable items from those collections. |
+| Operate workspace | Four bounded collections: `connections`, `resourceEdits`, `services`, and `settingsChanges`, plus `capabilityStates` for missing binding, missing permission, unsupported, or unavailable backend contracts. The landing page renders counts, current actionable items, and capability states. |
 | Connections | `id`, `name`, `provider`, `target`, `principal`, `status`, `lastTested`, optional safe diagnostic. |
 | Connection diagnostics | The detail and `/diagnostics` routes share the same component and render `outcome`, `failureCode`, redacted `summary`, structured `signals`, redacted `operatorActions`, and redacted evidence key/value rows. |
 | Resource edits | `resourceId`, `name`, `source`, `draftChange`, `validationState`, `validationIssues`, `editTabs`, and blast-radius lists for catalog items, services, layers, saved maps, share links, and generated apps. |
@@ -44,6 +44,8 @@ Missing detail records render the shared Console missing-item surface:
 - Unknown layer ID: `<MissingItemView kind="layer">`.
 
 Empty list states render the shared `<EmptyState area="operate">` surface with the list subject and any available primary action. Routes do not author bespoke 403, 404, or empty-state copy; they supply only the item kind, area, subject, and action target required by the shared component contract in [Console Route Map](../console-route-map.md#7-exception-surfaces).
+
+Missing backend contracts render `<OperateCapabilityStateList>` entries that name the contract. Current known gaps are the Metadata v2 resource edit validation/blast-radius projection (`GET /api/v1/admin/metadata/resources`), service-scope TimeInfo in `GET /api/v1/admin/services/{serviceName}/settings`, a CORS admin read/write contract, and a catalog endpoint visibility admin contract.
 
 ## Acceptance Mapping
 
@@ -62,6 +64,6 @@ Empty list states render the shared `<EmptyState area="operate">` surface with t
 
 ## SDK Swap Point
 
-The current implementation registers `InMemoryOperateTransitionDataSource.CreateSeeded()` from `AddHonuaConsoleShell()`. The replacement should bind `IOperateTransitionDataSource` to `honua-sdk-dotnet` admin clients once those contracts are available, without duplicating server protocol DTOs in Console.
+`AddHonuaConsoleShell()` now registers `UnsupportedOperateTransitionDataSource` unless a server base URL is provided. `AddHonuaConsoleShell(serverBaseUrl, adminApiKey)` registers `HonuaServerOperateTransitionDataSource`, which maps the temporary `Honua.Console.Contracts` HTTP shim records into Console view models. Replace `HonuaAdminOperateHttpClient` with `honua-sdk-dotnet` admin clients once those contracts are available, without moving server protocol DTOs into Shell pages or services.
 
-The SDK-backed replacement must preserve the redaction boundary in `IOperateTransitionDataSource` before values reach Razor rendering. Tests in `OperateTransitionDataSourceTests` cover the transition behavior for data-source diagnostic redaction, blast radius, service metadata ownership, and settings restart requirements.
+The SDK-backed replacement must preserve the redaction boundary in `IOperateTransitionDataSource` before values reach Razor rendering. Tests in `OperateTransitionDataSourceTests` cover runtime DI, server-response mapping, missing-contract states, diagnostic redaction, blast radius, service metadata ownership, and settings restart requirements. `OperateTransitionLiveServerTests` is an opt-in xUnit/Testcontainers integration test (`HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true`) that starts PostgreSQL, boots a real honua-server checkout, creates a connection/layer fixture, and renders Razor pages from live data; it skips cleanly when not opted in or when Docker/server checkout prerequisites are unavailable.
