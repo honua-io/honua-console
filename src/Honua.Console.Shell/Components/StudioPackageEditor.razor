@@ -262,7 +262,7 @@
                     </ul>
                     @if (Editor.RequiresOfflinePolicyBeforePublish && !CanPublish)
                     {
-                        <p class="console-warning">Offline/sync policy review is required before publish.</p>
+                        <p class="console-warning">Choose an offline/sync policy and mark it reviewed before publish.</p>
                     }
                 </article>
 
@@ -329,9 +329,9 @@
                     <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Reopen)">Reopen</button>
                     <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Edit)">Edit</button>
                     <button type="button" class="console-button" disabled="@(!CanPublish)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Publish)">Publish</button>
-                    <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Share)">Share</button>
-                    <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Embed)">Embed</button>
-                    <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Rollback)">Rollback</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!CanUsePublishedLifecycle)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Share)">Share</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!CanUsePublishedLifecycle)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Embed)">Embed</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!CanUsePublishedLifecycle)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Rollback)">Rollback</button>
                 </div>
                 <p class="console-muted">@_lifecycleStatus</p>
                 <ol class="studio-evidence-list">
@@ -396,7 +396,11 @@
     private bool CanPublish =>
         StudioPackageLifecycleSimulator.CanPublish(
             Editor,
-            new StudioPublicationReadiness(!Editor.RequiresOfflinePolicyBeforePublish || _offlinePolicyReviewed));
+            BuildPublicationReadiness());
+
+    private bool CanUsePublishedLifecycle => _lifecycle is { Published: true, PublishedVersion: > 0 };
+
+    private bool HasOfflinePolicySelection => !string.IsNullOrWhiteSpace(_offlinePolicy);
 
     private string GeneratedSql =>
         $"SELECT * FROM {_sourceBinding} WHERE {_predicateField} {_predicateOperator} @parameter LIMIT {_resultLimit}; -- @parameter = {_parameterValue}";
@@ -449,7 +453,7 @@
         _validationStatus = CanPublish ? "Validated" : "Blocked";
         _previewStatus = CanPublish
             ? $"{Editor.DisplayName} package validation passed with stable mock refs."
-            : "Publish validation is blocked until required policy review is complete.";
+            : "Publish validation is blocked until required policy selection and review are complete.";
     }
 
     private void PreviewPackage()
@@ -465,7 +469,7 @@
                 Editor,
                 _lifecycle,
                 operation,
-                new StudioPublicationReadiness(CanPublish));
+                BuildPublicationReadiness());
             _lifecycleStatus = $"{operation} completed for {_lifecycle.ItemId} at {_lifecycle.CurrentVersionId}.";
         }
         catch (InvalidOperationException ex)
@@ -536,7 +540,7 @@
                 ["domain"] = _fieldDomain,
                 ["submit_target"] = _submitTarget,
                 ["offline_sync_policy"] = string.IsNullOrWhiteSpace(_offlinePolicy) ? "not_reviewed" : _offlinePolicy,
-                ["offline_policy_reviewed"] = _offlinePolicyReviewed,
+                ["offline_policy_reviewed"] = _offlinePolicyReviewed && HasOfflinePolicySelection,
                 ["attachment_policy"] = _attachmentPolicy
             },
             StudioPackageFamily.App => new()
@@ -566,5 +570,12 @@
         };
 
         return JsonSerializer.Serialize(spec, PackageJsonOptions);
+    }
+
+    private StudioPublicationReadiness BuildPublicationReadiness()
+    {
+        return new StudioPublicationReadiness(
+            OfflinePolicyReviewed: !Editor.RequiresOfflinePolicyBeforePublish || _offlinePolicyReviewed,
+            OfflineSyncPolicy: HasOfflinePolicySelection ? _offlinePolicy : null);
     }
 }

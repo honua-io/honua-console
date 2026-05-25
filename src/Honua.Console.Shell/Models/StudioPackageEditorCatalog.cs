@@ -63,7 +63,9 @@ public sealed record StudioPackageLifecycleSnapshot(
     public string PublishedVersionId => PublishedVersion > 0 ? $"v{PublishedVersion}" : "none";
 }
 
-public sealed record StudioPublicationReadiness(bool OfflinePolicyReviewed = true);
+public sealed record StudioPublicationReadiness(
+    bool OfflinePolicyReviewed = true,
+    string? OfflineSyncPolicy = null);
 
 public static class StudioPackageLifecycleSimulator
 {
@@ -92,7 +94,12 @@ public static class StudioPackageLifecycleSimulator
         ArgumentNullException.ThrowIfNull(editor);
         ArgumentNullException.ThrowIfNull(readiness);
 
-        return !editor.RequiresOfflinePolicyBeforePublish || readiness.OfflinePolicyReviewed;
+        if (!editor.RequiresOfflinePolicyBeforePublish)
+        {
+            return true;
+        }
+
+        return readiness.OfflinePolicyReviewed && !string.IsNullOrWhiteSpace(readiness.OfflineSyncPolicy);
     }
 
     public static StudioPackageLifecycleSnapshot Apply(
@@ -128,7 +135,7 @@ public static class StudioPackageLifecycleSimulator
             case StudioLifecycleOperation.Publish:
                 if (!CanPublish(editor, readinessSnapshot))
                 {
-                    throw new InvalidOperationException("Offline/sync policy must be reviewed before publishing this form package.");
+                    throw new InvalidOperationException("Offline/sync policy must be selected and reviewed before publishing this form package.");
                 }
 
                 evidence.Add("publication.create: publish review accepted and routed to server-owned publication contract");
@@ -140,15 +147,18 @@ public static class StudioPackageLifecycleSimulator
                 };
 
             case StudioLifecycleOperation.Share:
+                EnsurePublished(snapshot, operation);
                 evidence.Add("share-access.update: share tier and dependency promotions reviewed");
                 return snapshot with { Shared = true, Evidence = evidence };
 
             case StudioLifecycleOperation.Embed:
+                EnsurePublished(snapshot, operation);
                 evidence.Add("embed-token.mint: embeddable policy reviewed with closure refs");
                 return snapshot with { Embedded = true, Evidence = evidence };
 
             case StudioLifecycleOperation.Rollback:
-                var rollbackSource = snapshot.PublishedVersion > 0 ? snapshot.PublishedVersion : snapshot.CurrentVersion;
+                EnsurePublished(snapshot, operation);
+                var rollbackSource = snapshot.PublishedVersion;
                 evidence.Add($"rollback.create: rollback requested from v{rollbackSource} to prior governed content version");
                 return snapshot with
                 {
@@ -162,6 +172,17 @@ public static class StudioPackageLifecycleSimulator
             default:
                 throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported Studio lifecycle operation.");
         }
+    }
+
+    private static void EnsurePublished(StudioPackageLifecycleSnapshot snapshot, StudioLifecycleOperation operation)
+    {
+        if (snapshot.Published && snapshot.PublishedVersion > 0)
+        {
+            return;
+        }
+
+        var operationName = operation.ToString().ToLowerInvariant();
+        throw new InvalidOperationException($"{operationName} requires a published content version.");
     }
 }
 

@@ -37,7 +37,7 @@ public sealed class StudioPackageEditorCatalogTests
                 editor,
                 snapshot,
                 StudioLifecycleOperation.Publish,
-                new StudioPublicationReadiness(OfflinePolicyReviewed: true));
+                CreateReadyPublication(editor));
 
             Assert.True(snapshot.Published);
             Assert.True(snapshot.PublishedVersion > 0);
@@ -73,6 +73,32 @@ public sealed class StudioPackageEditorCatalogTests
     }
 
     [Fact]
+    public void ShareEmbedAndRollbackRequirePublishedVersion()
+    {
+        var map = StudioPackageEditorCatalog.Find("map")!;
+        var snapshot = StudioPackageLifecycleSimulator.Create(map);
+        var publishedOperations = new[]
+        {
+            StudioLifecycleOperation.Share,
+            StudioLifecycleOperation.Embed,
+            StudioLifecycleOperation.Rollback
+        };
+
+        foreach (var operation in publishedOperations)
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                StudioPackageLifecycleSimulator.Apply(map, snapshot, operation));
+
+            Assert.Contains("requires a published content version", exception.Message, StringComparison.Ordinal);
+        }
+
+        Assert.False(snapshot.Published);
+        Assert.False(snapshot.Shared);
+        Assert.False(snapshot.Embedded);
+        Assert.Null(snapshot.RollbackFromVersion);
+    }
+
+    [Fact]
     public void DashboardAndReportChartsUseVegaLite()
     {
         var dashboard = StudioPackageEditorCatalog.Find("dashboard")!;
@@ -93,19 +119,25 @@ public sealed class StudioPackageEditorCatalogTests
         Assert.True(form.RequiresOfflinePolicyBeforePublish);
         Assert.False(StudioPackageLifecycleSimulator.CanPublish(
             form,
-            new StudioPublicationReadiness(OfflinePolicyReviewed: false)));
+            new StudioPublicationReadiness(OfflinePolicyReviewed: false, OfflineSyncPolicy: "online-only")));
+        Assert.False(StudioPackageLifecycleSimulator.CanPublish(
+            form,
+            new StudioPublicationReadiness(OfflinePolicyReviewed: true)));
+        Assert.False(StudioPackageLifecycleSimulator.CanPublish(
+            form,
+            new StudioPublicationReadiness(OfflinePolicyReviewed: true, OfflineSyncPolicy: string.Empty)));
         Assert.Throws<InvalidOperationException>(() =>
             StudioPackageLifecycleSimulator.Apply(
                 form,
                 snapshot,
                 StudioLifecycleOperation.Publish,
-                new StudioPublicationReadiness(OfflinePolicyReviewed: false)));
+                new StudioPublicationReadiness(OfflinePolicyReviewed: true)));
 
         var published = StudioPackageLifecycleSimulator.Apply(
             form,
             snapshot,
             StudioLifecycleOperation.Publish,
-            new StudioPublicationReadiness(OfflinePolicyReviewed: true));
+            new StudioPublicationReadiness(OfflinePolicyReviewed: true, OfflineSyncPolicy: "online-only"));
 
         Assert.True(published.Published);
     }
@@ -127,5 +159,12 @@ public sealed class StudioPackageEditorCatalogTests
         Assert.Equal(publishedVersion, snapshot.PublishedVersion);
         Assert.True(snapshot.CurrentVersion > publishedVersion);
         Assert.Contains(snapshot.Evidence, entry => entry.Contains("reopened app edit created a new version", StringComparison.Ordinal));
+    }
+
+    private static StudioPublicationReadiness CreateReadyPublication(StudioPackageEditorDefinition editor)
+    {
+        return editor.RequiresOfflinePolicyBeforePublish
+            ? new StudioPublicationReadiness(OfflinePolicyReviewed: true, OfflineSyncPolicy: "online-only")
+            : new StudioPublicationReadiness(OfflinePolicyReviewed: true);
     }
 }

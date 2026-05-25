@@ -275,6 +275,12 @@ Key fields:
 
 ## Package Families
 
+### Console Implementation Slice
+
+`honua-console#39` implements the first Console-native package editor slice for `query.package`, `analysis.package`, `map.package`, `dashboard.package`, `report.package`, `form.package`, and `app.package` at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, and `/studio/app`.
+
+The slice uses the temporary `studio-package-mock/v1` inspector and `StudioPackageLifecycleSimulator` lifecycle evidence until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs. Those mock refs are documented in [Studio Package Editor Routes](../studio/package-editor-routes.md) and do not change the server-owned package schema guidance below.
+
 ### Query Package
 
 Represents natural-language to spatial query output.
