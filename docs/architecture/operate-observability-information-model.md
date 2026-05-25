@@ -265,6 +265,27 @@ Key fields:
 
 ## Console Views
 
+### UI Implementation Checkpoint
+
+`honua-console#41` adds the first native Blazor Operate observability
+surface at `/operate`, `/operate/observability`, `/operate/events/{eventId}`,
+`/operate/alerts/{alertId}`, and `/operate/jobs/{jobRunId}`. Until the
+server and SDK projections land, the route uses a single UI projection
+fixture in `OperateObservabilityFixture` rather than re-declaring server
+protocol DTOs across components.
+
+The checkpoint proves these product behaviors:
+
+- unknown, unsupported, missing, disabled, and not configured telemetry
+  render as neutral states and do not fail the environment card
+- event and alert AI advisory copy is always shown beside raw evidence
+  links, not as a replacement for them
+- invalid realtime/geofence rules expose validation messages and render
+  their enable action disabled
+- Studio, publishing, GitOps, temporal, alert delivery, import, and
+  maintenance jobs all link to the same `/operate/jobs/{jobRunId}` detail
+  surface
+
 ### Server Overview
 
 Purpose: show whether a connected server is healthy and observable.

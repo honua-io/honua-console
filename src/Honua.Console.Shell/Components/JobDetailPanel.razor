@@ -1,0 +1,75 @@
+<aside class="console-panel operate-detail-panel" aria-labelledby="job-detail-heading">
+    <p class="console-kicker">Job detail</p>
+    <h3 id="job-detail-heading">@Job.JobRunId</h3>
+    <p>@Job.Status.Description</p>
+
+    <dl class="console-definition-list">
+        <dt>Source</dt>
+        <dd>@Job.Source</dd>
+        <dt>Type</dt>
+        <dd>@Job.JobType</dd>
+        <dt>Queue</dt>
+        <dd>@Job.Queue</dd>
+        <dt>Submitted by</dt>
+        <dd>@Job.SubmittedBy</dd>
+        <dt>Failure class</dt>
+        <dd>@Job.FailureClassification</dd>
+    </dl>
+
+    <div class="operate-progress operate-progress-large" aria-label="@($"{Job.ProgressPercent} percent complete")">
+        <span style="@($"width: {Job.ProgressPercent}%")"></span>
+    </div>
+
+    <section class="operate-evidence-section">
+        <h4>Stages</h4>
+        <ol class="operate-stage-list">
+            @foreach (var stage in Job.Stages)
+            {
+                <li>
+                    <span class="console-status @stage.Status.CssClass">@stage.Status.Label</span>
+                    <strong>@stage.Name</strong>
+                    <p>@stage.Detail</p>
+                    <div class="operate-progress" aria-label="@($"{stage.ProgressPercent} percent complete")">
+                        <span style="@($"width: {stage.ProgressPercent}%")"></span>
+                    </div>
+                </li>
+            }
+        </ol>
+    </section>
+
+    <section class="operate-evidence-section">
+        <h4>Logs</h4>
+        <pre class="operate-log-lines">@string.Join(Environment.NewLine, Job.Logs)</pre>
+    </section>
+
+    <EvidenceList Heading="Artifacts" Items="Job.Artifacts" />
+
+    <section class="operate-evidence-section">
+        <h4>Metrics</h4>
+        <div class="operate-metric-grid">
+            @foreach (var metric in Job.Metrics)
+            {
+                <div>
+                    <span>@metric.Name</span>
+                    <strong>@metric.Value</strong>
+                    <small class="@metric.Status.CssClass">@metric.Status.Label</small>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="operate-evidence-section">
+        <h4>Allowed actions</h4>
+        <div class="operate-action-row">
+            @foreach (var action in Job.AllowedActions)
+            {
+                <button class="console-button" type="button" disabled="@(!action.IsAllowed)" title="@action.Reason">@action.Label</button>
+            }
+        </div>
+    </section>
+</aside>
+
+@code {
+    [Parameter]
+    public OperateJobRun Job { get; set; } = OperateObservabilityFixture.Default.Jobs.First();
+}

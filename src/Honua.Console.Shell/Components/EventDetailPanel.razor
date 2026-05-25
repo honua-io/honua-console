@@ -1,0 +1,48 @@
+<aside class="console-panel operate-detail-panel" aria-labelledby="event-detail-heading">
+    <p class="console-kicker">Event detail</p>
+    <h3 id="event-detail-heading">@Event.Message</h3>
+    <p class="console-muted">@Event.Category</p>
+
+    <dl class="console-definition-list">
+        <dt>Event id</dt>
+        <dd>@Event.EventId</dd>
+        <dt>Time</dt>
+        <dd>@Event.EventTime</dd>
+        <dt>Type</dt>
+        <dd>@Event.EventType</dd>
+        <dt>Correlation</dt>
+        <dd>@Event.CorrelationId</dd>
+        <dt>Trace</dt>
+        <dd>@Event.TraceId</dd>
+        <dt>Request</dt>
+        <dd>@Event.RequestId</dd>
+    </dl>
+
+    <EvidenceList Heading="Raw evidence" Items="Event.RawEvidence" />
+    <AiAdvisoryPanel Advisory="Event.AiAdvisory" />
+
+    <section class="operate-evidence-section">
+        <h4>Lifecycle</h4>
+        <ol class="operate-lifecycle-list">
+            @foreach (var item in Event.Lifecycle)
+            {
+                <li>@item</li>
+            }
+        </ol>
+    </section>
+
+    <section class="operate-evidence-section">
+        <h4>Related objects</h4>
+        <div class="console-chip-row">
+            @foreach (var related in Event.RelatedObjects)
+            {
+                <a href="@related.Href">@related.Kind: @related.Label</a>
+            }
+        </div>
+    </section>
+</aside>
+
+@code {
+    [Parameter]
+    public OperateEventRow Event { get; set; } = OperateObservabilityFixture.Default.Events.First();
+}

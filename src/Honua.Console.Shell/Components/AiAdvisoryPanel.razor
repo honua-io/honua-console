@@ -1,0 +1,32 @@
+@if (Advisory is not null)
+{
+    <section class="operate-ai-advisory">
+        <h4>AI Advisory</h4>
+        <p>@Advisory.Summary</p>
+
+        <div class="operate-ai-evidence">
+            <strong>Evidence links</strong>
+            <ul>
+                @foreach (var evidence in Advisory.EvidenceLinks)
+                {
+                    <li><a href="@evidence.Href">@evidence.Label</a> <span>@evidence.Kind</span></li>
+                }
+            </ul>
+        </div>
+
+        <div class="operate-ai-actions">
+            <strong>Suggested next actions</strong>
+            <ul>
+                @foreach (var action in Advisory.SuggestedActions)
+                {
+                    <li>@action</li>
+                }
+            </ul>
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public OperateAiAdvisory? Advisory { get; set; }
+}
