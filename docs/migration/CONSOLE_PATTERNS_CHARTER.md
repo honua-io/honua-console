@@ -168,6 +168,17 @@ docs/
 
 The `Honua.Console.Components` project is the same one a future MAUI Blazor Hybrid host would reference - the shell project is the only swap.
 
+### 11. Real-server integration and standing-mock prohibition
+
+Per project constraints, server-owned Console data binds to a real server, and every server-backed slice proves it against live data.
+
+- **No standing mocks for server-owned data.** Console does not merge a standing in-memory or mock data source for server-owned responses (metadata, content, packages, RBAC, jobs, telemetry, **trust/capability/certificate validation**, …). Bind through `honua-sdk-dotnet`, or - only until the SDK projection lands - through a thin `HttpClient` behind the single [`Honua.Console.Contracts`](./SDK_SHIM_POLICY.md) shim boundary. If the **server** contract is still open, the ticket stays blocked rather than mocking it.
+- **Real-server integration test required.** Every server-backed Console slice ships an xUnit Testcontainers test that boots a real `honua-server` (with PostgreSQL), seeds a fixture, and asserts the surface renders/behaves from live data. The suite is **opt-in** and **skips gracefully** when Docker or the server image is unavailable; it is not a default PR gate until stable, and it lives in a lane separate from the Docker-free `scripts/fast-local-check.sh`.
+- **Local-state carve-out.** Host-owned local UI/client state is explicitly **exempt** from the no-mock rule: native **environment profiles**, the **account session cache**, last-route/resume tokens, and client-side trust pins (acknowledged server fingerprint, bound client-certificate thumbprint) may be stored locally (in-memory or JSON) and seeded locally. These are not server-owned DTOs; they are the host's own selection/persistence state. Server-validated trust *results* (`HonuaCertificateValidationStatus` / `HonuaEnvironmentTrustState`) are server-owned and fall under the no-mock rule above.
+- **Telemetry parity.** A server-backed slice that changes a flow carries forward its smoke/integration evidence (section 8); the real-server suite is the evidence for trust/mTLS behavior.
+
+Reference implementation: [`honua-console#44`](https://github.com/honua-io/honua-console/issues/44) (native trust diagnostics and mTLS) is the first server-backed slice and establishes `tests/Honua.Console.IntegrationTests` + `scripts/integration-trust-check.sh` against [`honua-server#1171`](https://github.com/honua-io/honua-server/issues/1171). This section is owned by the charter (`honua-console#2`/`#3`); it was authored alongside `#44` because the acceptance criteria require it, and is flagged for charter-owner sign-off.
+
 ## Out of Scope For This Charter
 
 - Concrete scaffold code (owned by `#2`).

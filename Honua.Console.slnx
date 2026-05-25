@@ -7,6 +7,7 @@
     <Project Path="src/Honua.Console.Web/Honua.Console.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj" />
     <Project Path="tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj" />
   </Folder>
 </Solution>

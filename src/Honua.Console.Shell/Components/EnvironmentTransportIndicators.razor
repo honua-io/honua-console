@@ -1,0 +1,44 @@
+@* Transport capability indicators: browser HTTP, browser realtime, native gRPC, native mTLS.
+   Native rows render as "Native host only" on the browser host so web renders native-only
+   capabilities as unsupported without taking a native dependency. *@
+<div class="console-chip-row">
+    <span class="@BrowserCss(Profile.TransportCapabilities.BrowserHttp)">Browser HTTP · @Enabled(Profile.TransportCapabilities.BrowserHttp)</span>
+    <span class="@BrowserCss(Profile.TransportCapabilities.BrowserRealtime)">Browser realtime · @Enabled(Profile.TransportCapabilities.BrowserRealtime)</span>
+    <span class="@NativeCss(Profile.TransportCapabilities.NativeGrpc)">Native gRPC · @NativeLabel(Profile.TransportCapabilities.NativeGrpc)</span>
+    <span class="@NativeCss(NativeMtls)">Native mTLS · @NativeLabel(NativeMtls)</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ConsoleEnvironmentProfile Profile { get; set; } = new();
+
+    /// <summary>Whether the current host supports native transports (false on the browser host).</summary>
+    [Parameter]
+    public bool NativeAvailable { get; set; }
+
+    private bool NativeMtls => Profile.TransportCapabilities.NativeMtls && Profile.ClientCertificate.Enabled;
+
+    private static string Enabled(bool on) => on ? "Available" : "Off";
+
+    private static string BrowserCss(bool on) => on ? "console-state-success" : "console-state-neutral";
+
+    private string NativeLabel(bool configured)
+    {
+        if (!NativeAvailable)
+        {
+            return "Native host only";
+        }
+
+        return configured ? "Enabled" : "Disabled";
+    }
+
+    private string NativeCss(bool configured)
+    {
+        if (!NativeAvailable)
+        {
+            return "console-state-info";
+        }
+
+        return configured ? "console-state-success" : "console-state-neutral";
+    }
+}

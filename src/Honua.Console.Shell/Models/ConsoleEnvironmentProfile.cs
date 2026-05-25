@@ -1,3 +1,5 @@
+using Honua.Console.Contracts;
+
 namespace Honua.Console.Shell.Models;
 
 public sealed record ConsoleEnvironmentProfile
@@ -56,6 +58,9 @@ public sealed record ConsoleClientCertificateBinding
     public bool Enabled { get; init; }
 
     public ConsoleClientCertificateReference? Reference { get; init; }
+
+    /// <summary>Optional server trust profile id to pass to honua-server certificate validation.</summary>
+    public string TrustProfileId { get; init; } = string.Empty;
 }
 
 public sealed record ConsoleClientCertificateReference
@@ -88,6 +93,22 @@ public sealed record ConsoleEnvironmentState
     public string LastStreamingResumeToken { get; init; } = string.Empty;
 
     public DateTimeOffset? LastConnectedAt { get; init; }
+
+    // Console-owned trust pins (local/session state, exempt from the no-mock rule per
+    // Console Patterns Charter section 11). The server exposes no fingerprint or
+    // capability-discovery endpoint, so server-identity pinning is client-side.
+
+    /// <summary>Acknowledged server certificate SHA-256 fingerprint used to detect server-identity changes.</summary>
+    public string PinnedServerFingerprint { get; init; } = string.Empty;
+
+    /// <summary>Acknowledged bound client certificate SHA-256 thumbprint used to detect client-certificate changes.</summary>
+    public string PinnedClientCertificateThumbprint { get; init; } = string.Empty;
+
+    /// <summary>True when the native connection is refused until the operator acknowledges or revalidates.</summary>
+    public bool TrustBlocked { get; init; }
+
+    /// <summary>Last server-validated trust state (shim of honua-sdk-dotnet#166 HonuaEnvironmentTrustState).</summary>
+    public HonuaEnvironmentTrustState? Trust { get; init; }
 
     public Dictionary<string, string> Diagnostics { get; init; } = new(StringComparer.Ordinal);
 }

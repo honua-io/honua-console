@@ -83,12 +83,13 @@ Native Operate transition routes for connections, resources, services, layers, a
 
 ## Project Layout
 
-- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, native Operate transition surfaces, catalog/share route-slice surfaces, and native streaming proof interface.
-- `src/Honua.Console.Contracts`: temporary SDK shim boundary for Console-side contracts until the shared .NET SDK projections replace them.
-- `src/Honua.Console.Web`: default browser Console host. It references the shared shell and stays independently buildable/deployable without MAUI or native services.
-- `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation, and the deterministic telemetry streaming proof.
+- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, the host-capability/connection-manager seam, native Operate transition surfaces, catalog/share route-slice surfaces, and native streaming proof interface.
+- `src/Honua.Console.Contracts`: temporary SDK shim boundary for Console-side contracts (including the honua-sdk-dotnet#166 environment-trust shapes and honua-server#1171 validate wire contracts) until the shared .NET SDK projections replace them.
+- `src/Honua.Console.Web`: default browser Console host. It references the shared shell and stays independently buildable/deployable without MAUI or native services; native gRPC, mTLS, and trust validation render as unsupported.
+- `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation, the server-bound trust gate (cert-changed blocking, acknowledge/revalidate), and the deterministic telemetry streaming proof.
 - `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.
-- `tests/Honua.Console.Native.Core.Tests`: host-independent coverage for route boundaries, profile persistence, native connection setup, and the streaming proof contract.
+- `tests/Honua.Console.Native.Core.Tests`: host-independent coverage for route boundaries, profile persistence, native connection setup, the trust gate, and the streaming proof contract.
+- `tests/Honua.Console.IntegrationTests`: opt-in Testcontainers suite asserting mTLS/trust behavior against a real honua-server (Console Patterns Charter section 11); skips without Docker.
 
 ## Local Usage
 

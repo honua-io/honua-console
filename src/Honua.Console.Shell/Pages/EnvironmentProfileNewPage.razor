@@ -1,0 +1,241 @@
+@page "/environments/new"
+@inject IConsoleEnvironmentProfileStore Profiles
+@inject IConsoleHostCapabilities Host
+@inject NavigationManager Nav
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Native host configuration</p>
+        <h1>Add Environment</h1>
+        <p>Create a managed Honua Server profile. The profile stores server URL, account binding, transport capabilities, and an optional client-certificate reference. Private keys are never stored - only a certificate reference.</p>
+    </div>
+
+    @if (!Host.SupportsNativeTransports)
+    {
+        <article class="console-panel console-state-info" role="note">
+            <h2>Profile creation runs on the desktop host</h2>
+            <p class="console-muted">Creating native environment profiles, certificate references, and trust validation is available in the optional native (MAUI) Console host. The browser host renders saved profiles read-only.</p>
+            <a class="console-button" href="/environments">Back to environments</a>
+        </article>
+    }
+    else
+    {
+        <article class="console-panel">
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <p class="console-warning" role="alert">@_error</p>
+            }
+
+            <div class="studio-field-grid">
+                <label>
+                    <span>Display name</span>
+                    <input class="console-input" @bind="_displayName" placeholder="Honua Production" />
+                </label>
+                <label>
+                    <span>Server URL</span>
+                    <input class="console-input" @bind="_serverBaseUri" placeholder="https://prod.honua.example" />
+                </label>
+                <label>
+                    <span>Environment kind</span>
+                    <select class="console-input" @bind="_environmentKind">
+                        <option value="development">development</option>
+                        <option value="staging">staging</option>
+                        <option value="production">production</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Tenant ID</span>
+                    <input class="console-input" @bind="_tenantId" placeholder="honua-prod" />
+                </label>
+                <label>
+                    <span>Account model</span>
+                    <select class="console-input" @bind="_authMode">
+                        <option value="@nameof(ConsoleAccountAuthMode.AccountRbac)">Account / RBAC</option>
+                        <option value="@nameof(ConsoleAccountAuthMode.Anonymous)">Anonymous</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Account ID</span>
+                    <input class="console-input" @bind="_accountId" placeholder="operator.prod" />
+                </label>
+            </div>
+
+            <div class="studio-check-row">
+                <input id="native-grpc" type="checkbox" @bind="_nativeGrpc" />
+                <label for="native-grpc"><span>Enable native gRPC transport</span></label>
+            </div>
+            <div class="studio-check-row">
+                <input id="native-mtls" type="checkbox" @bind="_mtlsEnabled" />
+                <label for="native-mtls"><span>Require client certificate (native mTLS)</span></label>
+            </div>
+
+            @if (_mtlsEnabled)
+            {
+                <div class="studio-field-grid">
+                    <label>
+                        <span>Certificate reference kind</span>
+                        <select class="console-input" @bind="_certKind">
+                            <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreSubject)">Store subject</option>
+                            <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreThumbprint)">Store thumbprint</option>
+                            <option value="@nameof(ConsoleClientCertificateReferenceKind.FilePath)">File path</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Reference value</span>
+                        <input class="console-input" @bind="_certValue" placeholder="CN=Honua Operator" />
+                    </label>
+                    <label>
+                        <span>Store name</span>
+                        <input class="console-input" @bind="_storeName" placeholder="My" />
+                    </label>
+                    <label>
+                        <span>Store location</span>
+                        <input class="console-input" @bind="_storeLocation" placeholder="CurrentUser" />
+                    </label>
+                    <label>
+                        <span>Secret name (file password, optional)</span>
+                        <input class="console-input" @bind="_secretName" placeholder="secret://certs/prod/[redacted]" />
+                    </label>
+                    <label>
+                        <span>Trust profile ID (optional)</span>
+                        <input class="console-input" @bind="_trustProfileId" placeholder="operators-prod" />
+                    </label>
+                </div>
+            }
+
+            <div class="console-action-row">
+                <button class="console-button" type="button" disabled="@_busy" @onclick="CreateAsync">Create environment</button>
+                <a href="/environments">Cancel</a>
+            </div>
+        </article>
+    }
+</section>
+
+@code {
+    private string _displayName = string.Empty;
+    private string _serverBaseUri = "https://";
+    private string _environmentKind = "production";
+    private string _tenantId = string.Empty;
+    private string _accountId = string.Empty;
+    private string _authMode = nameof(ConsoleAccountAuthMode.AccountRbac);
+    private bool _nativeGrpc = true;
+    private bool _mtlsEnabled;
+    private string _certKind = nameof(ConsoleClientCertificateReferenceKind.StoreSubject);
+    private string _certValue = string.Empty;
+    private string _storeName = "My";
+    private string _storeLocation = "CurrentUser";
+    private string _secretName = string.Empty;
+    private string _trustProfileId = string.Empty;
+    private string? _error;
+    private bool _busy;
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_displayName))
+        {
+            _error = "Display name is required.";
+            return;
+        }
+
+        if (!Uri.TryCreate(_serverBaseUri, UriKind.Absolute, out var serverUri)
+            || !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            _error = "Server URL must be an absolute https URL.";
+            return;
+        }
+
+        if (_mtlsEnabled && string.IsNullOrWhiteSpace(_certValue))
+        {
+            _error = "A certificate reference value is required when native mTLS is enabled.";
+            return;
+        }
+
+        _busy = true;
+
+        var profileId = await ResolveUniqueIdAsync(Slugify(_displayName));
+        var authMode = Enum.TryParse<ConsoleAccountAuthMode>(_authMode, out var parsedAuth)
+            ? parsedAuth
+            : ConsoleAccountAuthMode.AccountRbac;
+
+        var certificate = new ConsoleClientCertificateBinding();
+        if (_mtlsEnabled)
+        {
+            var kind = Enum.TryParse<ConsoleClientCertificateReferenceKind>(_certKind, out var parsedKind)
+                ? parsedKind
+                : ConsoleClientCertificateReferenceKind.StoreSubject;
+            certificate = new ConsoleClientCertificateBinding
+            {
+                Enabled = true,
+                TrustProfileId = _trustProfileId.Trim(),
+                Reference = new ConsoleClientCertificateReference
+                {
+                    Kind = kind,
+                    Value = _certValue.Trim(),
+                    StoreName = string.IsNullOrWhiteSpace(_storeName) ? "My" : _storeName.Trim(),
+                    StoreLocation = string.IsNullOrWhiteSpace(_storeLocation) ? "CurrentUser" : _storeLocation.Trim(),
+                    SecretName = _secretName.Trim()
+                }
+            };
+        }
+
+        var profile = new ConsoleEnvironmentProfile
+        {
+            Id = profileId,
+            DisplayName = _displayName.Trim(),
+            ServerBaseUri = serverUri,
+            EnvironmentKind = _environmentKind,
+            TenantId = _tenantId.Trim(),
+            TransportCapabilities = new ConsoleEnvironmentTransportCapabilities
+            {
+                BrowserHttp = true,
+                BrowserRealtime = true,
+                NativeGrpc = _nativeGrpc,
+                NativeMtls = _mtlsEnabled
+            },
+            Account = new ConsoleAccountBinding
+            {
+                AuthMode = authMode,
+                AccountId = _accountId.Trim(),
+                DisplayName = _displayName.Trim(),
+                TenantId = _tenantId.Trim()
+            },
+            ClientCertificate = certificate
+        };
+
+        await Profiles.UpsertProfileAsync(profile);
+        Nav.NavigateTo($"/environments/{profileId}");
+    }
+
+    private async Task<string> ResolveUniqueIdAsync(string candidate)
+    {
+        var baseId = string.IsNullOrWhiteSpace(candidate) ? Guid.NewGuid().ToString("N")[..8] : candidate;
+        var existing = await Profiles.ListProfilesAsync();
+        var taken = existing.Select(profile => profile.Id).ToHashSet(StringComparer.Ordinal);
+        if (!taken.Contains(baseId))
+        {
+            return baseId;
+        }
+
+        for (var suffix = 2; suffix < 100; suffix++)
+        {
+            var next = $"{baseId}-{suffix}";
+            if (!taken.Contains(next))
+            {
+                return next;
+            }
+        }
+
+        return $"{baseId}-{Guid.NewGuid():N}"[..16];
+    }
+
+    private static string Slugify(string value)
+    {
+        var slug = new string(value.Trim().ToLowerInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+            .ToArray());
+        slug = string.Join('-', slug.Split('-', StringSplitOptions.RemoveEmptyEntries));
+        return slug;
+    }
+}

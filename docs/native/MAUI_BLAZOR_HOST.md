@@ -20,14 +20,23 @@ The shared shell owns the route map and workflow boundaries:
 | Operate | `/operate` | Operator |
 | Share | `/share/public` (entry alias `/share`) | Builder |
 
-Two host-support routes are also shared:
+Host-support routes are also shared:
 
 | Route | Web host behavior | Native host behavior |
 | --- | --- | --- |
-| `/environments` | Uses the seeded in-memory profile store from `AddHonuaConsoleShell`. | Uses `JsonConsoleEnvironmentProfileStore` backed by MAUI secure storage. |
+| `/environments` | Read-only profile list. Native gRPC, native mTLS, connect/disconnect, and trust validation render as "Native host only" unsupported states. | Multi-environment list with connect/disconnect, last-seen, transport indicators, trust pill, and acknowledge/revalidate. |
+| `/environments/new` | Renders an unsupported state (profile creation is native-only). | First-run / add-environment form persisting through `IConsoleEnvironmentProfileStore`. |
+| `/environments/{id}` | Read-only connection diagnostics. | Per-profile transport, trust state, server fingerprint, issuer, last-seen, resume token, and connect/acknowledge/revalidate actions. |
 | `/operate/native-stream` | Renders a native-proof unavailable state because the web host does not register native gRPC services. | Resolves the active profile, streams deterministic telemetry proof events, and saves resume diagnostics. |
 
-The browser host registers `AddHonuaConsoleShell()` only. The MAUI host registers `AddHonuaConsoleShell()` and `AddHonuaConsoleNativeCore()`, which replaces the shell's in-memory profile/session stores with JSON native-core stores and adds certificate, token, connection, and streaming services. The test host keeps in-memory profile/secret adapters; the MAUI host binds those adapters to `NativeSecureStorage`. This keeps browser startup and deployment independent from MAUI workloads and native gRPC dependencies.
+The browser host registers `AddHonuaConsoleShell()` only. The MAUI host registers `AddHonuaConsoleShell()` and `AddHonuaConsoleNativeCore()`, which replaces the shell's in-memory profile/session stores with JSON native-core stores and adds certificate, token, connection, trust, and streaming services. The test host keeps in-memory profile/secret adapters; the MAUI host binds those adapters to `NativeSecureStorage`. This keeps browser startup and deployment independent from MAUI workloads and native gRPC dependencies.
+
+### Host-capability seam (web renders native-only as unsupported)
+
+Shared routes gate native capabilities on the shell-owned `IConsoleHostCapabilities` seam and resolve `IConsoleConnectionManager` as an optional service:
+
+- The web host keeps the default `BrowserConsoleHostCapabilities` (`SupportsNativeTransports = false`) and never registers `IConsoleConnectionManager`. Native gRPC, native mTLS, certificate selection, connect/disconnect, and trust validation render through the shell's consistent unsupported/empty surfaces. `Honua.Console.Web` references `Honua.Console.Shell` only - no native or `Grpc.Net.Client` dependency.
+- `AddHonuaConsoleNativeCore()` replaces the seam with `NativeConsoleHostCapabilities` (`SupportsNativeTransports = true`) and registers the connection manager, trust gate, server-certificate probe, and validation client.
 
 ## Environment Profiles
 
@@ -50,8 +59,8 @@ The implemented profile shape is Console-owned UI state, not a duplicate of serv
 | `ServerBaseUri`, `EnvironmentKind`, `TenantId` | Active Honua Server target and tenant/environment identity. |
 | `TransportCapabilities` | `BrowserHttp`, `BrowserRealtime`, `NativeGrpc`, and `NativeMtls` capability flags. |
 | `Account` | Account/RBAC binding with auth mode, account id, tenant id, display name, and permission hints. |
-| `ClientCertificate` | Optional certificate reference for native mTLS. Supported reference kinds are `None`, `FilePath`, `StoreThumbprint`, and `StoreSubject`. |
-| `ConsoleEnvironmentState` | Profile-scoped `LastRoute`, `LastStreamingResumeToken`, `LastConnectedAt`, and diagnostics. |
+| `ClientCertificate` | Optional certificate reference for native mTLS, plus an optional server trust profile id passed to the validation endpoint. Supported reference kinds are `None`, `FilePath`, `StoreThumbprint`, and `StoreSubject`. |
+| `ConsoleEnvironmentState` | Profile-scoped `LastRoute`, `LastStreamingResumeToken`, `LastConnectedAt`, diagnostics, client-side trust pins (`PinnedServerFingerprint`, `PinnedClientCertificateThumbprint`), `TrustBlocked`, and the last server-validated `Trust` state. |
 
 Account authorization remains bearer-token account/RBAC based; mTLS is an optional per-environment transport trust layer. Anonymous auth mode omits bearer-token attachment; client certificates are controlled only by the profile's certificate binding. Native account sessions are stored per profile as secure-storage secrets named with the `honua.console.native.account-session.{profileId}.v1` pattern.
 
@@ -66,7 +75,21 @@ The seeded profiles are:
 
 `NativeHonuaConnectionFactory` creates one profile-scoped `HttpClient` and one `GrpcChannel` for the selected `ServerBaseUri`. If a profile has a saved account session, the factory attaches the session access token as a bearer token. If the profile has an enabled certificate reference that resolves successfully, the factory attaches that certificate to the native HTTP handler and the stream transport is reported as `grpc/native+mtls`.
 
-Certificate references are environment-local. File path references load a PKCS#12/PFX file, with an optional password looked up by `SecretName`. Store references search the configured `StoreName` and `StoreLocation`, defaulting to `My` and `CurrentUser` when parsing fails. Server-side mTLS policy, trust registration, revocation, and capability advertisement remain server/SDK follow-on work.
+Certificate references are environment-local. File path references load a PKCS#12/PFX file, with an optional password looked up by `SecretName`. Store references search the configured `StoreName` and `StoreLocation`, defaulting to `My` and `CurrentUser` when parsing fails.
+
+## Trust Gate, Connection Lifecycle, And Cert-Changed Blocking
+
+`IConsoleConnectionManager` (native-only) wraps the connection factory with a server-bound trust gate:
+
+1. Resolve the bound client certificate (if any) and observe the server's TLS certificate fingerprint via `IConsoleServerCertificateProbe` (a TLS handshake; the server exposes no fingerprint endpoint, so pinning is client-side).
+2. When a client certificate is bound, validate it against the real server through `IConsoleClientCertificateValidationClient` - a thin `HttpClient` that posts the certificate's public PEM to honua-server#1171's `POST /api/v1/admin/security/client-certificates/validate` and maps the stable `client_certificate_*` codes onto `HonuaCertificateValidationStatus`.
+3. `ConsoleTrustEvaluator` (pure, host-agnostic) decides the resulting `HonuaEnvironmentTrustState` and whether to **block**:
+   - the observed server fingerprint differs from the pinned (acknowledged) value (`server_certificate_changed`),
+   - the bound client-certificate identity changed (`client_certificate_changed`), or
+   - validation returned a blocking status (`Untrusted`, `Rejected`, `WrongEnvironment`, `Expired`, `Missing`).
+4. A blocked result returns **no usable connection**; the profile state records `TrustBlocked = true`. **Acknowledge** re-pins the newly observed server identity and clears the block; **Revalidate** re-runs validation against the server. First use pins on a trust-on-first-use basis. `ExpiringSoon` is a non-blocking warning.
+
+Private keys are never persisted; only certificate references and the sanitized `HonuaEnvironmentTrustState` (status, server fingerprint, issuer summary, reason code, sanitized message) are stored. Server-side mTLS policy, trust registration, revocation, and capability advertisement are honua-server#1171 (closed) and remain Scope Out of the Console UI work.
 
 ## Streaming Proof Contract
 
@@ -101,6 +124,9 @@ The native streaming seam is the shared `IConsoleNativeStreamingProof` interface
 | Account/RBAC bearer session model | Shared interface | Profile-scoped secure-storage implementation |
 | Native gRPC channel | Unsupported state | Profile-scoped channel |
 | Client certificate / mTLS attachment | Not supported | Optional per profile |
+| Connect / disconnect / last-seen | "Native host only" | Through the trust gate |
+| Server-bound trust validation (mTLS) | Unsupported state | Live validation against honua-server#1171 |
+| Cert-changed blocking + acknowledge/revalidate | Unsupported state | Enforced before connecting |
 | Native telemetry streaming proof | Unavailable state | Deterministic three-event stream |
 
 ## Desktop Build And Package
@@ -153,3 +179,17 @@ Native-core tests cover:
 - account/RBAC bearer-token attachment and anonymous-profile omission
 - optional client-certificate attachment
 - deterministic native gRPC telemetry proof events and mTLS transport labeling
+- trust-gate cert-changed blocking, acknowledge/revalidate, and stable-code → trust-status mapping (`ConsoleTrustEvaluatorTests`, `ConsoleConnectionManagerTests`)
+
+### Real-server trust integration lane (opt-in)
+
+`tests/Honua.Console.IntegrationTests` boots a real `honua-server` (with PostgreSQL) via Testcontainers, configures mTLS, and asserts client-certificate validation and cert-changed blocking against live data (Console Patterns Charter section 11). It is **off by default** and skips every fact with a clear reason unless opted in. It is intentionally **not** part of `fast-local-check.sh`. Run it with:
+
+```bash
+HONUA_CONSOLE_INTEGRATION=true \
+HONUA_CONSOLE_SERVER_IMAGE=<honua-server image with honua-server#1171> \
+HONUA_CONSOLE_ADMIN_TOKEN=<admin bearer token> \
+./scripts/integration-trust-check.sh
+```
+
+Or target an already-running server with `HONUA_CONSOLE_EXTERNAL_BASE_URL`. See the script header for the full set of optional environment variables.
