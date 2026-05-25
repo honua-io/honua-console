@@ -82,7 +82,6 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/deploy                Deploy control
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
-/operate/jobs/:jobId           Job monitor for workflow dry-run and publish evidence
 /operate/events                Event evidence view (?jobId=<id>)
 /operate/legacy/<path>         Transitional iframe container for legacy Admin pages
 
@@ -742,7 +741,6 @@ below add edition or entitlement requirements on top.
 | `/operate/deploy` | — | empty-operate | forbidden | operate |
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |
-| `/operate/jobs/:jobId` | — | missing-item | forbidden | operate |
 | `/operate/events` | — | missing-item | forbidden | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
 
@@ -772,9 +770,11 @@ authorizes the caller to read that job. The workflow adapter may name the
 identifier `jobId`; Console treats it as the job-run route id for
 navigation. Missing or unauthorized job ids render the standard
 missing/forbidden surfaces once these routes switch from fixture and
-adapter lookups to server-backed job reads. Blocked process-endpoint
+adapter lookups to server-backed job reads. Blocked workflow
 publications do not queue jobs and therefore do not produce job-scoped
-Operate URLs.
+Operate URLs, whether the blocker is endpoint parameter validation,
+schedule validation, graph coverage, failure routing, or output schema
+validation.
 
 Other entitlement gates that surface inside Operate sub-pages but do
 not own a top-level route (so they appear as in-page upgrade tiles

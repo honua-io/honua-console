@@ -199,8 +199,9 @@ Response-contract notes worth keeping in sync with the registry:
 - `workflow-dry-run/v1` and queued `workflow-publication/v1` responses
   must carry Operate evidence URLs so a builder can move from Studio into
   job and event evidence without leaving the same Console origin. Blocked
-  publication responses carry validation issues and parameter validation
-  but no job or Operate evidence URLs.
+  publication responses carry saved content item/version ids, validation
+  issues, and parameter validation, but no publication id, job, Operate
+  evidence URLs, or invocation endpoint.
 
 The `Version` column is the exact string the registry emits into
 evidence. Some contracts intentionally report only the major family
@@ -226,7 +227,8 @@ real HTTP transport cannot silently accept a drifted payload:
   and named output schemas. Failure edges and output schemas are required
   before publish evidence can pass.
 - **`workflow-dry-run/v1`** — The dry-run response asserted by the smoke
-  contains `jobId`, `kind="workflow_dry_run"`, `status`, `sampleRows`,
+  contains `jobId`, the workflow dry-run job kind (`kind` in smoke
+  evidence, `jobKind` in the Console adapter), `status`, `sampleRows`,
   logs, artifacts, and output schema names. Console must surface these
   through `/operate/jobs/{jobId}` and `/operate/events?jobId={jobId}`.
 - **`workflow-publication/v1`** — Successful publication evidence contains
@@ -236,9 +238,10 @@ real HTTP transport cannot silently accept a drifted payload:
   the mode is `process-endpoint` or the draft's explicit endpoint flag is
   set, and the endpoint ends in `/invoke` only when parameter validation
   passes.
-  Package validation errors return `status="blocked"` with validation
-  issues and parameter validation, and without `publicationId`, `jobId`,
-  job kind, Operate URLs, or an invocation endpoint.
+  Package validation errors return `status="blocked"` with saved content
+  item/version ids, validation issues, and parameter validation, and
+  without `publicationId`, `jobId`, job kind, Operate URLs, or an
+  invocation endpoint.
 - **`publish-handoff/v1.1.0`** — The fixture at
   [`smoke/parity/fixtures/publish-handoff.json`](../../smoke/parity/fixtures/publish-handoff.json)
   matches every top-level required field in

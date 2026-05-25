@@ -177,4 +177,48 @@ public sealed class StudioWorkflowPackageClientTests
             issue.Scope == "output-schema" &&
             issue.Severity == "error");
     }
+
+    [Fact]
+    public async Task PublishBlocksMissingTransformBeforeQueueingOperateEvidence()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.Nodes.RemoveAll(node => node.Category == StudioWorkflowContractValues.NodeCategoryTransform);
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal("blocked", publish.Status);
+        Assert.Empty(publish.PublicationId);
+        Assert.Empty(publish.JobId);
+        Assert.Empty(publish.JobKind);
+        Assert.Empty(publish.OperateJobUrl);
+        Assert.Empty(publish.OperateEventsUrl);
+        Assert.Contains(publish.ValidationIssues, issue =>
+            issue.Scope == "graph" &&
+            issue.Severity == "error" &&
+            issue.Message.Contains("transform", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task PublishBlocksMissingFailureEdgeBeforeQueueingOperateEvidence()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.Edges.RemoveAll(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure);
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal("blocked", publish.Status);
+        Assert.Empty(publish.PublicationId);
+        Assert.Empty(publish.JobId);
+        Assert.Empty(publish.JobKind);
+        Assert.Empty(publish.OperateJobUrl);
+        Assert.Empty(publish.OperateEventsUrl);
+        Assert.Contains(publish.ValidationIssues, issue =>
+            issue.Scope == "failure-routing" &&
+            issue.Severity == "error" &&
+            issue.Message.Contains("failure edge", StringComparison.OrdinalIgnoreCase));
+    }
 }

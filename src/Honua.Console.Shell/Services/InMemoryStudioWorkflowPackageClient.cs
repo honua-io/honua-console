@@ -350,6 +350,16 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
             });
         }
 
+        if (!draft.Nodes.Any(node => node.Category == StudioWorkflowContractValues.NodeCategoryTransform))
+        {
+            issues.Add(new StudioWorkflowValidationIssue
+            {
+                Severity = "error",
+                Scope = "graph",
+                Message = "Workflow must include at least one transform node."
+            });
+        }
+
         if (!draft.Nodes.Any(node => node.Category == StudioWorkflowContractValues.NodeCategorySink))
         {
             issues.Add(new StudioWorkflowValidationIssue
@@ -364,9 +374,9 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
         {
             issues.Add(new StudioWorkflowValidationIssue
             {
-                Severity = "warning",
+                Severity = "error",
                 Scope = "failure-routing",
-                Message = "No failure edge is configured; retries will end in a terminal failed job."
+                Message = "Workflow must include at least one failure edge before publish."
             });
         }
 
