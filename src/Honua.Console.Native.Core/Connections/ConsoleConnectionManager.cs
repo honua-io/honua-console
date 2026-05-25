@@ -61,51 +61,69 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
         }
 
         var state = await GetOrCreateStateAsync(profileId, cancellationToken).ConfigureAwait(false);
-        var (evaluation, unreachable) = await EvaluateAsync(
-                profile,
-                state,
-                acknowledgeServerCertificate: false,
-                revalidateClientCertificateChange: false,
-                cancellationToken)
-            .ConfigureAwait(false);
 
-        if (evaluation.IsBlocked)
+        // Resolve the bound client certificate exactly once and reuse the same instance for
+        // validation and for the transport, so the connection can never attach a different
+        // certificate than the trust gate validated. The connection takes ownership on success.
+        var certificate = await _certificateResolver.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
+        var certificateOwned = true;
+        try
         {
-            await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
-            await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
+            var (evaluation, unreachable) = await EvaluateAsync(
+                    profile,
+                    state,
+                    certificate,
+                    acknowledgeServerCertificate: false,
+                    revalidateClientCertificateChange: false,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (evaluation.IsBlocked)
+            {
+                await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
+                await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
+                return new ConsoleConnectionOutcome
+                {
+                    Status = ConsoleConnectionStatus.Blocked,
+                    Trust = evaluation.Trust,
+                    Message = evaluation.Trust.SanitizedMessage
+                        ?? "The connection is blocked until the certificate change is acknowledged or revalidated."
+                };
+            }
+
+            if (unreachable)
+            {
+                return new ConsoleConnectionOutcome
+                {
+                    Status = ConsoleConnectionStatus.Unreachable,
+                    Trust = evaluation.Trust,
+                    Message = "The server could not be reached to validate trust."
+                };
+            }
+
+            var connection = await _connectionFactory
+                .CreateAsync(profile, certificate, evaluation.ServerFingerprintToPin, cancellationToken)
+                .ConfigureAwait(false);
+            certificateOwned = false;
+            ReplaceConnection(profileId, connection);
+            await PersistAsync(state, evaluation, markConnected: true, cancellationToken).ConfigureAwait(false);
+
             return new ConsoleConnectionOutcome
             {
-                Status = ConsoleConnectionStatus.Blocked,
+                Status = ConsoleConnectionStatus.Connected,
                 Trust = evaluation.Trust,
-                Message = evaluation.Trust.SanitizedMessage
-                    ?? "The connection is blocked until the certificate change is acknowledged or revalidated."
+                UsesMutualTls = profile.ClientCertificate.Enabled
+                    && !string.IsNullOrEmpty(evaluation.ClientThumbprintToPin),
+                Message = "Connected."
             };
         }
-
-        if (unreachable)
+        finally
         {
-            return new ConsoleConnectionOutcome
+            if (certificateOwned)
             {
-                Status = ConsoleConnectionStatus.Unreachable,
-                Trust = evaluation.Trust,
-                Message = "The server could not be reached to validate trust."
-            };
+                certificate?.Dispose();
+            }
         }
-
-        var connection = await _connectionFactory
-            .CreateAsync(profile, evaluation.ServerFingerprintToPin, cancellationToken)
-            .ConfigureAwait(false);
-        ReplaceConnection(profileId, connection);
-        await PersistAsync(state, evaluation, markConnected: true, cancellationToken).ConfigureAwait(false);
-
-        return new ConsoleConnectionOutcome
-        {
-            Status = ConsoleConnectionStatus.Connected,
-            Trust = evaluation.Trust,
-            UsesMutualTls = profile.ClientCertificate.Enabled
-                && !string.IsNullOrEmpty(evaluation.ClientThumbprintToPin),
-            Message = "Connected."
-        };
     }
 
     public Task DisconnectAsync(string profileId, CancellationToken cancellationToken = default)
@@ -131,24 +149,33 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
         }
 
         var state = await GetOrCreateStateAsync(profileId, cancellationToken).ConfigureAwait(false);
-        var (evaluation, unreachable) = await EvaluateAsync(
-                profile,
-                state,
-                acknowledgeServerCertificate: false,
-                revalidateClientCertificateChange: true,
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (evaluation.IsBlocked || !unreachable)
+        var certificate = await _certificateResolver.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
+        try
         {
-            await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
-        }
+            var (evaluation, unreachable) = await EvaluateAsync(
+                    profile,
+                    state,
+                    certificate,
+                    acknowledgeServerCertificate: false,
+                    revalidateClientCertificateChange: true,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (evaluation.IsBlocked || !unreachable)
+            {
+                await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
+            }
 
-        if (evaluation.IsBlocked)
+            if (evaluation.IsBlocked)
+            {
+                await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
+            }
+
+            return BuildLifecycleOutcome(profileId, evaluation, unreachable);
+        }
+        finally
         {
-            await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
+            certificate?.Dispose();
         }
-
-        return BuildLifecycleOutcome(profileId, evaluation, unreachable);
     }
 
     public async Task<ConsoleConnectionOutcome> AcknowledgeServerCertificateAsync(string profileId, CancellationToken cancellationToken = default)
@@ -164,19 +191,35 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
         }
 
         var state = await GetOrCreateStateAsync(profileId, cancellationToken).ConfigureAwait(false);
-        var (evaluation, unreachable) = await EvaluateAsync(
-                profile,
-                state,
-                acknowledgeServerCertificate: true,
-                revalidateClientCertificateChange: false,
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (evaluation.IsBlocked || !unreachable)
+        var certificate = await _certificateResolver.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
+        try
         {
-            await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
-        }
+            var (evaluation, unreachable) = await EvaluateAsync(
+                    profile,
+                    state,
+                    certificate,
+                    acknowledgeServerCertificate: true,
+                    revalidateClientCertificateChange: false,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (evaluation.IsBlocked || !unreachable)
+            {
+                await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
+            }
 
-        return BuildLifecycleOutcome(profileId, evaluation, unreachable);
+            // Terminal-state invariant: a blocked evaluation must not leave a live connection,
+            // matching ConnectAsync/RevalidateAsync.
+            if (evaluation.IsBlocked)
+            {
+                await DisconnectAsync(profileId, cancellationToken).ConfigureAwait(false);
+            }
+
+            return BuildLifecycleOutcome(profileId, evaluation, unreachable);
+        }
+        finally
+        {
+            certificate?.Dispose();
+        }
     }
 
     private ConsoleConnectionOutcome BuildLifecycleOutcome(string profileId, ConsoleTrustEvaluation evaluation, bool unreachable)
@@ -213,74 +256,68 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
     private async Task<(ConsoleTrustEvaluation Evaluation, bool Unreachable)> EvaluateAsync(
         ConsoleEnvironmentProfile profile,
         ConsoleEnvironmentState state,
+        X509Certificate2? certificate,
         bool acknowledgeServerCertificate,
         bool revalidateClientCertificateChange,
         CancellationToken cancellationToken)
     {
-        X509Certificate2? certificate = null;
-        try
+        // The certificate is resolved once by the caller and reused here for the probe and the
+        // server validation so the connection later attaches exactly the validated certificate.
+        var clientThumbprint = certificate is null ? null : NativeServerTrust.ComputeSha256Thumbprint(certificate);
+        var clientNotAfter = certificate is null ? (DateTimeOffset?)null : certificate.NotAfter.ToUniversalTime();
+
+        var observedFingerprint = await _serverProbe
+            .ObserveServerFingerprintAsync(profile, certificate, cancellationToken)
+            .ConfigureAwait(false);
+
+        ConsoleClientCertificateValidationResult? validation = null;
+        var unreachable = string.Equals(
+                profile.ServerBaseUri.Scheme,
+                Uri.UriSchemeHttps,
+                StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrEmpty(observedFingerprint);
+        var pinnedServer = string.IsNullOrEmpty(state.PinnedServerFingerprint)
+            ? null
+            : state.PinnedServerFingerprint;
+        var serverChanged = !string.IsNullOrEmpty(observedFingerprint)
+            && !string.IsNullOrEmpty(pinnedServer)
+            && !string.Equals(observedFingerprint, pinnedServer, StringComparison.OrdinalIgnoreCase);
+
+        if (profile.ClientCertificate.Enabled
+            && certificate is not null
+            && !unreachable
+            && (!serverChanged || acknowledgeServerCertificate))
         {
-            certificate = await _certificateResolver.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
-            var clientThumbprint = certificate is null ? null : NativeServerTrust.ComputeSha256Thumbprint(certificate);
-            var clientNotAfter = certificate is null ? (DateTimeOffset?)null : certificate.NotAfter.ToUniversalTime();
-
-            var observedFingerprint = await _serverProbe
-                .ObserveServerFingerprintAsync(profile, certificate, cancellationToken)
-                .ConfigureAwait(false);
-
-            ConsoleClientCertificateValidationResult? validation = null;
-            var unreachable = string.Equals(
-                    profile.ServerBaseUri.Scheme,
-                    Uri.UriSchemeHttps,
-                    StringComparison.OrdinalIgnoreCase)
-                && string.IsNullOrEmpty(observedFingerprint);
-            var pinnedServer = string.IsNullOrEmpty(state.PinnedServerFingerprint)
-                ? null
-                : state.PinnedServerFingerprint;
-            var serverChanged = !string.IsNullOrEmpty(observedFingerprint)
-                && !string.IsNullOrEmpty(pinnedServer)
-                && !string.Equals(observedFingerprint, pinnedServer, StringComparison.OrdinalIgnoreCase);
-
-            if (profile.ClientCertificate.Enabled
-                && certificate is not null
-                && !unreachable
-                && (!serverChanged || acknowledgeServerCertificate))
+            var trustedFingerprint = acknowledgeServerCertificate && !string.IsNullOrEmpty(observedFingerprint)
+                ? observedFingerprint
+                : pinnedServer ?? observedFingerprint;
+            try
             {
-                var trustedFingerprint = acknowledgeServerCertificate && !string.IsNullOrEmpty(observedFingerprint)
-                    ? observedFingerprint
-                    : pinnedServer ?? observedFingerprint;
-                try
-                {
-                    validation = await _validationClient
-                        .ValidateAsync(profile, certificate, trustedFingerprint, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception) when (!cancellationToken.IsCancellationRequested)
-                {
-                    unreachable = true;
-                }
+                validation = await _validationClient
+                    .ValidateAsync(profile, certificate, trustedFingerprint, cancellationToken)
+                    .ConfigureAwait(false);
             }
-
-            var evaluation = _evaluator.Evaluate(new ConsoleTrustEvaluationContext
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
-                Profile = profile,
-                State = state,
-                ObservedServerFingerprint = observedFingerprint,
-                ClientCertificateThumbprint = clientThumbprint,
-                ClientCertificateIssuer = SummarizeIssuer(certificate),
-                ClientCertificateNotAfter = clientNotAfter,
-                Validation = validation,
-                Acknowledge = acknowledgeServerCertificate,
-                RevalidateClientCertificateChange = revalidateClientCertificateChange,
-                Now = _timeProvider.GetUtcNow()
-            });
+                unreachable = true;
+            }
+        }
 
-            return (evaluation, unreachable);
-        }
-        finally
+        var evaluation = _evaluator.Evaluate(new ConsoleTrustEvaluationContext
         {
-            certificate?.Dispose();
-        }
+            Profile = profile,
+            State = state,
+            ObservedServerFingerprint = observedFingerprint,
+            ClientCertificateThumbprint = clientThumbprint,
+            ClientCertificateIssuer = SummarizeIssuer(certificate),
+            ClientCertificateNotAfter = clientNotAfter,
+            Validation = validation,
+            Acknowledge = acknowledgeServerCertificate,
+            RevalidateClientCertificateChange = revalidateClientCertificateChange,
+            Now = _timeProvider.GetUtcNow()
+        });
+
+        return (evaluation, unreachable);
     }
 
     private async Task PersistAsync(

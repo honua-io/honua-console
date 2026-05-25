@@ -217,7 +217,7 @@ Native-core tests cover:
 
 ### Real-server trust integration lane (opt-in)
 
-`tests/Honua.Console.IntegrationTests` boots a real `honua-server` (with PostgreSQL) via Testcontainers, configures mTLS, and asserts client-certificate validation and cert-changed blocking against live data (Console Patterns Charter section 11). It is **off by default** and skips every fact with a clear reason unless opted in. It is intentionally **not** part of `fast-local-check.sh`. Run it with:
+`tests/Honua.Console.IntegrationTests` boots a real `honua-server` (with PostgreSQL) via Testcontainers, configures mTLS, and asserts client-certificate validation and cert-changed blocking against live data (Console Patterns Charter section 11). It also drives a profile through the real trust gate against the live server and renders the shared `EnvironmentProfileDetailPage` (via bUnit), asserting the diagnostics surface shows the live blocking trust state. It is **off by default** and skips every fact with a clear reason unless opted in. It is intentionally **not** part of `fast-local-check.sh`. Run it with:
 
 ```bash
 HONUA_CONSOLE_INTEGRATION=true \

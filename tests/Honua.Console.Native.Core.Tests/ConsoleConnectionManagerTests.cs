@@ -354,6 +354,57 @@ public sealed class ConsoleConnectionManagerTests
     }
 
     [Fact]
+    public async Task Connect_ResolvesClientCertificateOnce_AndAttachesTheValidatedCertificate()
+    {
+        using var certificate = CreateCertificate();
+        var harness = new Harness(certificate);
+        harness.Probe.Fingerprint = "SERVER-AAA";
+        harness.Validation.Result = ReadyResult();
+        await harness.Store.UpsertProfileAsync(MtlsProfile());
+
+        var outcome = await harness.Manager.ConnectAsync("prod-west");
+
+        Assert.Equal(ConsoleConnectionStatus.Connected, outcome.Status);
+
+        // The bound certificate is resolved exactly once, so the transport attaches the same
+        // instance the trust gate validated (no resolve-time-of-check/use gap).
+        Assert.Equal(1, harness.Resolver.ResolveCount);
+        Assert.Equal(1, harness.Validation.CallCount);
+
+        var state = await harness.Store.GetStateAsync("prod-west");
+        Assert.Equal(harness.Validation.LastValidatedThumbprint, state!.PinnedClientCertificateThumbprint);
+        Assert.Equal(NativeServerTrust.ComputeSha256Thumbprint(certificate), state.PinnedClientCertificateThumbprint);
+    }
+
+    [Fact]
+    public async Task Acknowledge_WhenStillBlockedByClientCertificate_DropsLiveConnection()
+    {
+        using var certificate = CreateCertificate();
+        var harness = new Harness(certificate);
+        harness.Probe.Fingerprint = "SERVER-AAA";
+        harness.Validation.Result = ReadyResult();
+        await harness.Store.UpsertProfileAsync(MtlsProfile());
+
+        var connected = await harness.Manager.ConnectAsync("prod-west");
+        Assert.Equal(ConsoleConnectionStatus.Connected, connected.Status);
+        Assert.True(harness.Manager.IsConnected("prod-west"));
+
+        // The server now rejects the client certificate. Acknowledging the server identity must not
+        // leave the stale live connection in place when the result is still blocked.
+        harness.Validation.Result = new ConsoleClientCertificateValidationResult
+        {
+            Valid = false,
+            Code = ConsoleCertificateValidationCodes.Revoked,
+            Detail = "Certificate revoked."
+        };
+
+        var acknowledged = await harness.Manager.AcknowledgeServerCertificateAsync("prod-west");
+
+        Assert.Equal(ConsoleConnectionStatus.Blocked, acknowledged.Status);
+        Assert.False(harness.Manager.IsConnected("prod-west"));
+    }
+
+    [Fact]
     public async Task Disconnect_ReleasesConnection()
     {
         var harness = new Harness();
@@ -456,12 +507,19 @@ public sealed class ConsoleConnectionManagerTests
 
         public bool ThrowUnreachable { get; set; }
 
+        public int CallCount { get; private set; }
+
+        public string? LastValidatedThumbprint { get; private set; }
+
         public Task<ConsoleClientCertificateValidationResult> ValidateAsync(
             ConsoleEnvironmentProfile profile,
             X509Certificate2 clientCertificate,
             string? trustedServerFingerprint = null,
             CancellationToken cancellationToken = default)
         {
+            CallCount++;
+            LastValidatedThumbprint = NativeServerTrust.ComputeSha256Thumbprint(clientCertificate);
+
             if (ThrowUnreachable)
             {
                 throw new HttpRequestException("Server unreachable.");
@@ -477,10 +535,14 @@ public sealed class ConsoleConnectionManagerTests
 
         public X509Certificate2? Certificate { get; set; }
 
+        public int ResolveCount { get; private set; }
+
         public ValueTask<X509Certificate2?> ResolveAsync(
             ConsoleEnvironmentProfile profile,
             CancellationToken cancellationToken = default)
         {
+            ResolveCount++;
+
             // Mirror the real resolver: each call returns a fresh, caller-owned instance the
             // connection manager is free to dispose. (A public-only clone is sufficient for the
             // thumbprint/expiry the trust gate reads; no real TLS handshake runs in this test.)

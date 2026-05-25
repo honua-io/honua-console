@@ -3,8 +3,10 @@ using System.Security.Cryptography.X509Certificates;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
+using Honua.Console.Native.Core.Connections;
 using Honua.Console.Native.Core.Security;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Services;
 using Testcontainers.PostgreSql;
 
 namespace Honua.Console.IntegrationTests;
@@ -153,6 +155,26 @@ public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
 
     public IConsoleServerCertificateProbe CreateProbe() => new TlsServerCertificateProbe();
 
+    /// <summary>
+    /// Builds the production trust gate (probe + validation client + evaluator + connection factory)
+    /// over the supplied profile store and bound client certificate, so a test can drive a profile
+    /// through the live validation path and then render the diagnostics surface from the persisted state.
+    /// </summary>
+    public ConsoleConnectionManager BuildConnectionManager(
+        IConsoleEnvironmentProfileStore store,
+        X509Certificate2 clientCertificate)
+    {
+        var resolver = new FixedCertificateResolver(clientCertificate);
+        var tokenProvider = new StaticTokenProvider(Options.AdminToken);
+        return new ConsoleConnectionManager(
+            store,
+            resolver,
+            new TlsServerCertificateProbe(),
+            new ServerClientCertificateValidationClient(tokenProvider),
+            new ConsoleTrustEvaluator(),
+            new NativeHonuaConnectionFactory(tokenProvider, resolver));
+    }
+
     public X509Certificate2? LoadTrustedCertificate()
     {
         if (string.IsNullOrWhiteSpace(Options.TrustedCertificatePfxPath) || !File.Exists(Options.TrustedCertificatePfxPath))
@@ -181,5 +203,19 @@ public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
         public ValueTask<string?> GetAccessTokenAsync(
             ConsoleEnvironmentProfile profile,
             CancellationToken cancellationToken = default) => ValueTask.FromResult(_token);
+    }
+
+    private sealed class FixedCertificateResolver : IClientCertificateResolver
+    {
+        private readonly X509Certificate2 _certificate;
+
+        public FixedCertificateResolver(X509Certificate2 certificate) => _certificate = certificate;
+
+        public ValueTask<X509Certificate2?> ResolveAsync(
+            ConsoleEnvironmentProfile profile,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<X509Certificate2?>(profile.ClientCertificate.Enabled
+                ? X509CertificateLoader.LoadCertificate(_certificate.RawData)
+                : null);
     }
 }

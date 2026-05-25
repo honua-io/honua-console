@@ -32,6 +32,44 @@ public sealed class NativeHonuaConnectionFactory
         ArgumentNullException.ThrowIfNull(profile);
         cancellationToken.ThrowIfCancellationRequested();
 
+        var certificate = await _certificateResolver.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return CreateWithCertificate(profile, certificate, trustedServerFingerprint, await _tokenProvider
+                .GetAccessTokenAsync(profile, cancellationToken).ConfigureAwait(false));
+        }
+        catch
+        {
+            certificate?.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Builds a native connection that attaches exactly <paramref name="clientCertificate"/> - the
+    /// certificate the trust gate already resolved and validated - so the transport never presents a
+    /// different certificate than the one validated (no resolve-time-of-check/use gap). The returned
+    /// connection takes ownership of the certificate and disposes it.
+    /// </summary>
+    public async Task<NativeHonuaConnection> CreateAsync(
+        ConsoleEnvironmentProfile profile,
+        X509Certificate2? clientCertificate,
+        string? trustedServerFingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var accessToken = await _tokenProvider.GetAccessTokenAsync(profile, cancellationToken).ConfigureAwait(false);
+        return CreateWithCertificate(profile, clientCertificate, trustedServerFingerprint, accessToken);
+    }
+
+    private static NativeHonuaConnection CreateWithCertificate(
+        ConsoleEnvironmentProfile profile,
+        X509Certificate2? clientCertificate,
+        string? trustedServerFingerprint,
+        string? accessToken)
+    {
         var handler = new HttpClientHandler();
         if (!string.IsNullOrWhiteSpace(trustedServerFingerprint))
         {
@@ -40,10 +78,9 @@ public sealed class NativeHonuaConnectionFactory
                 (message, certificate, chain, errors) => serverValidation(message, certificate, chain, errors);
         }
 
-        var certificate = await _certificateResolver.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
-        if (certificate is not null)
+        if (clientCertificate is not null)
         {
-            handler.ClientCertificates.Add(certificate);
+            handler.ClientCertificates.Add(clientCertificate);
         }
 
         var httpClient = new HttpClient(handler, disposeHandler: true)
@@ -51,7 +88,6 @@ public sealed class NativeHonuaConnectionFactory
             BaseAddress = profile.ServerBaseUri
         };
 
-        var accessToken = await _tokenProvider.GetAccessTokenAsync(profile, cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(accessToken))
         {
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -65,7 +101,7 @@ public sealed class NativeHonuaConnectionFactory
                 DisposeHttpClient = false
             });
 
-        return new NativeHonuaConnection(profile, httpClient, channel, accessToken, certificate);
+        return new NativeHonuaConnection(profile, httpClient, channel, accessToken, clientCertificate);
     }
 }
 
@@ -99,12 +135,14 @@ public sealed class NativeHonuaConnection : IAsyncDisposable, IDisposable
     {
         GrpcChannel.Dispose();
         HttpClient.Dispose();
+        ClientCertificate?.Dispose();
     }
 
     public ValueTask DisposeAsync()
     {
         GrpcChannel.Dispose();
         HttpClient.Dispose();
+        ClientCertificate?.Dispose();
         return ValueTask.CompletedTask;
     }
 }
