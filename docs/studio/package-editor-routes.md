@@ -20,9 +20,9 @@ The `/studio` entry page links to every route below. Each editor is a projection
 
 ## Backend Boundary
 
-Backend package lifecycle implementation is still out of scope for this ticket. The UI uses a single stable mock lifecycle model in `StudioPackageLifecycleSimulator` to represent the future honua-server and honua-sdk-dotnet content-version, publication, share, embed, and rollback APIs.
+These per-editor package families (`honua-console#52`–`#58`) are still out of scope for backend binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of `honua-console#61` the editor's validate/preview actions surface a **missing-binding** state rather than reporting mock validation success, so the editors never imply mock refs are valid runtime package data.
 
-When the backend SDK projections land, the mock boundary should be replaced behind the same editor model instead of introducing a second Console package schema.
+The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`) through `IStudioPackageLifecycleClient`; when the per-editor backend projections land, the simulator boundary should be replaced behind the same editor model instead of introducing a second Console package schema.
 
 ## Mock Response Contract
 

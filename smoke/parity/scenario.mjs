@@ -224,7 +224,7 @@ export const SCENARIO_STEPS = [
     id: "console/studio-draft",
     owningLayer: "console",
     description:
-      "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
+      "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible package inspectable from the honua-server-bound package lifecycle.",
     async run(ctx) {
       const draftUrl = `${ctx.originUrl}${CONSOLE_ROUTES.studioDraftForMap(ctx.savedMap.id)}`;
       assertSameOrigin(ctx.originUrl, { draft: draftUrl });
@@ -234,7 +234,10 @@ export const SCENARIO_STEPS = [
         contractVersion: "v1",
         packageRef: "draft-app-clarify",
         packageType: "app.package",
-        schemaVersion: "package-shell/v1",
+        // Server family schema version advertised by the bound honua-server lifecycle
+        // (StudioPackageFamilyCapabilities.currentSchemaVersion / ServerStudioAuthoringShell "1.0"
+        // fallback). The retired "package-shell/v1" was the pre-binding mock projection.
+        schemaVersion: "1.0",
         lifecycleState: "Draft",
         sourceHydrated: false,
         inspectorSections: ["assumptions", "dataBindings", "warnings", "validation", "provenance"],
@@ -266,7 +269,7 @@ export const SCENARIO_STEPS = [
           prompt: ctx.studioDraft.prompt,
           clarification: ctx.studioDraft.clarification,
           package: authoringPackage,
-          lifecycleStates: ["Draft", "Preview", "Saved version", "Published"],
+          lifecycleStates: ["Draft", "Saved version", "Published"],
         },
         contracts: [findContract("studio-authoring-shell")],
       };

@@ -4,21 +4,21 @@ public static class StudioAuthoringContract
 {
     public const string Name = "studio-authoring-shell";
     public const string Version = "v1";
-    public const string PackageSchemaVersion = "package-shell/v1";
 
+    // The lifecycle rail reflects the honua-server package lifecycle: a mutable draft becomes an
+    // immutable content version (saved), which can be published. "Preview" is a transient action
+    // (preview-plan), not a stored server state, so it is not a rail step.
     public static IReadOnlyList<StudioLifecycleDescriptor> LifecycleDescriptors { get; } =
     [
-        new(StudioPackageLifecycleState.Draft, "Draft", "Editable package", "studio-lifecycle-draft"),
-        new(StudioPackageLifecycleState.Preview, "Preview", "Runnable preview", "studio-lifecycle-preview"),
-        new(StudioPackageLifecycleState.SavedVersion, "Saved version", "Versioned content", "studio-lifecycle-saved"),
-        new(StudioPackageLifecycleState.Published, "Published", "Shared release", "studio-lifecycle-published")
+        new(StudioPackageLifecycleState.Draft, "Draft", "Editable package draft", "studio-lifecycle-draft"),
+        new(StudioPackageLifecycleState.SavedVersion, "Saved version", "Immutable content version", "studio-lifecycle-saved"),
+        new(StudioPackageLifecycleState.Published, "Published", "Published release", "studio-lifecycle-published")
     ];
 }
 
 public enum StudioPackageLifecycleState
 {
     Draft,
-    Preview,
     SavedVersion,
     Published
 }
@@ -41,13 +41,16 @@ public sealed record StudioWorkflowOption(
     string Id,
     string Label,
     string PackageType,
-    string Description);
-
-public sealed record StudioRecentProject(
-    string Title,
-    string PackageType,
-    StudioPackageLifecycleState State,
-    string UpdatedLabel);
+    string Description,
+    string SchemaVersion = "",
+    string Format = "",
+    string SupportLevel = "",
+    bool PreviewSupported = false,
+    bool PublishSupported = false,
+    IReadOnlyList<string>? Limitations = null)
+{
+    public IReadOnlyList<string> Limitations { get; init; } = Limitations ?? [];
+}
 
 public sealed record StudioClarificationQuestion(
     string Id,
@@ -96,10 +99,77 @@ public sealed record StudioProvenanceEvent(
     string Action,
     string Evidence);
 
+/// <summary>
+/// A blocked / missing-binding surface for the Studio shell, mirroring the Operate capability-state
+/// pattern. Non-null when the server-owned package lifecycle cannot be reached or is not configured
+/// (e.g. <c>Honua:Server:BaseUrl</c> unset), or when the server rejects/omits data. Never carries mock
+/// package data.
+/// </summary>
+public sealed record StudioAuthoringBindingState(
+    string State,
+    string Contract,
+    string Detail);
+
+/// <summary>
+/// The transient result of a server <c>preview-plan</c> call (honua-server#1181). The plan describes
+/// whether preview runs synchronously or requires a job and the planned steps; it is not a rendered
+/// preview. Rendered preview output / generated-app preview has no server contract yet, so the page
+/// surfaces a missing-binding note rather than a fabricated canvas.
+/// </summary>
+public sealed record StudioPreviewPlanView(
+    bool Synchronous,
+    bool RequiresJob,
+    IReadOnlyList<string> Steps);
+
+/// <summary>
+/// Identifies the live server draft (and saved version, once created) backing the current circuit.
+/// <see cref="Generation"/> is the optimistic-concurrency token the adapter advances after each
+/// server mutation.
+/// </summary>
+public sealed record StudioDraftHandle(
+    string DraftId,
+    string ItemId,
+    string PackageKey,
+    long Generation,
+    string? CurrentVersionId = null);
+
 public sealed record StudioAuthoringSession(
     IReadOnlyList<StudioWorkflowOption> Workflows,
     string SelectedWorkflowId,
     string Prompt,
     IReadOnlyList<StudioClarificationQuestion> Clarifications,
     StudioPackageSnapshot ActivePackage,
-    IReadOnlyList<StudioRecentProject> RecentProjects);
+    StudioAuthoringBindingState? BindingState = null,
+    StudioPreviewPlanView? PreviewPlan = null,
+    StudioDraftHandle? Draft = null,
+    string? StatusMessage = null)
+{
+    /// <summary>True when the active package is backed by a live server draft.</summary>
+    public bool HasServerDraft => Draft is not null;
+
+    /// <summary>
+    /// A non-null, data-free placeholder used as the initial render state before the async server
+    /// session resolves, so render paths never dereference a null session during the loading window.
+    /// Carries no <see cref="BindingState"/> and an empty Draft package; the page keeps it behind its
+    /// loading guard until the real session arrives.
+    /// </summary>
+    public static StudioAuthoringSession Empty { get; } = new(
+        [],
+        string.Empty,
+        string.Empty,
+        [],
+        new StudioPackageSnapshot(
+            StudioAuthoringContract.Name,
+            StudioAuthoringContract.Version,
+            "studio-loading",
+            "package",
+            string.Empty,
+            "Studio package shell",
+            string.Empty,
+            StudioPackageLifecycleState.Draft,
+            [],
+            [],
+            [],
+            [],
+            []));
+}

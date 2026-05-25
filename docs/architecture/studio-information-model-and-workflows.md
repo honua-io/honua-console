@@ -678,28 +678,37 @@ mounted at `/studio`, `/studio/proof`,
 `/studio/apps/:itemId/preview` so entry, legacy proof, source-scoped
 draft, and generated-app preview paths resolve to one authoring surface.
 Those route parameters are accepted for compatibility, but the current
-slice does not yet hydrate a server-backed source package or create
-content versions. The Console-owned `studio-authoring-shell/v1`
-projection is intentionally a stable in-memory mock until the server
-package lifecycle API and SDK helpers are connected.
+slice does not yet hydrate the source-scoped package from `source`/`id`
+or execute rendered generated-app previews from `itemId`. The
+Console-owned `studio-authoring-shell/v1` projection now maps the shared
+`/studio` shell to the honua-server package lifecycle through the
+temporary `Honua.Console.Contracts` shim while the SDK projection is
+pending.
 
 The shell keeps the generated output visible as a package at all times:
 workflow selection produces a typed package draft, ambiguous prompts add
 structured clarification questions instead of applying hidden
 assumptions, and the inspector exposes assumptions, data bindings,
-warnings, validation, and provenance. Draft, Preview, Saved version, and
-Published states are represented as distinct lifecycle descriptors so
-the UI and smoke evidence can assert the state transition path without
-creating server-owned content versions prematurely.
+warnings, validation, and provenance. The shared `/studio` shell binds
+the honua-server package lifecycle (honua-server#1180/#1181) through the
+`IStudioPackageLifecycleClient` shim: draft create/read/update,
+validation, preview-planning, content-version save, and publish are
+server-owned. Draft, Saved version, and Published are represented as
+distinct lifecycle descriptors; Preview is a transient preview-plan
+action, not a stored lifecycle state. Rendered preview output /
+generated-app preview has no server contract yet and is surfaced as a
+missing-binding state, never a fabricated canvas. When no server base
+address is configured the shell renders a missing-binding surface
+instead of mock package data.
 
 Current projection shape:
 
 - `StudioAuthoringContract.Name = "studio-authoring-shell"`.
 - `StudioAuthoringContract.Version = "v1"`.
-- `StudioAuthoringContract.PackageSchemaVersion = "package-shell/v1"`.
-- `StudioAuthoringSession` carries workflow options, the selected
-  workflow id, the current prompt, open clarification questions, the
-  active package snapshot, and recent projects.
+- `StudioAuthoringSession` carries workflow options (with server family
+  capabilities), the selected workflow id, the current prompt, open
+  clarification questions, the active package snapshot, an optional
+  binding state, an optional preview plan, and the live draft handle.
 - Workflow options currently cover `map.package`, `dashboard.package`,
   `report.package`, `form.package`, `app.package`, `query.package`,
   `analysis.package`, and `workflow.package` slices for workflow, GP
@@ -713,18 +722,20 @@ Current projection shape:
   answer removes that pending assumption, updates bindings and
   provenance, and keeps any remaining clarification as a validation
   blocker.
-- Preview, Save Version, and Publish controls stay blocked while any
-  clarification remains open. The service transition method also returns
-  the draft unchanged in that case, so tests cover the UI affordance and
-  the response contract.
-- Lifecycle transitions preserve the `PackageRef` and append provenance;
-  they do not create server-owned content versions or publication
-  records in this slice.
+- Validate, Preview, Save Version, and Publish controls stay blocked
+  while any clarification remains open. The server-backed shell mirrors
+  that guard before calling validation, preview-plan, content-version, or
+  publish endpoints, returning the active draft unchanged with a status
+  message.
+- Save Version creates a server-owned content version and Publish
+  creates a server-owned publication request. Both preserve the
+  `PackageRef` and append provenance to the Console projection.
 
 This projection is a Console-owned authoring shell response contract, not
-the canonical server package schema. When the server lifecycle API and
-`honua-sdk-dotnet` package projections land, Console should map this
-shell state onto the SDK types rather than keeping parallel DTOs.
+the canonical server package schema. Until `honua-sdk-dotnet` projects
+the Studio lifecycle types, Console keeps the temporary shim at the
+`Honua.Console.Contracts` boundary rather than mirroring those DTOs
+inside feature code.
 
 Console surfaces should use the same error and empty-state patterns for missing items, missing permissions, unsupported service metadata, and unsupported package bindings across Studio, Catalog, Share, and Operate.
 

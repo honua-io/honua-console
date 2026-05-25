@@ -627,7 +627,7 @@ until `honua-sdk-dotnet#166` is consumable.
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
-| `/studio` | `auth` | empty-studio (start a prompt) | unauth-redirect | studio |
+| `/studio` | `auth` | empty-studio (start a prompt); missing-binding when no server base address is configured | unauth-redirect | studio |
 | `/studio/query` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/analysis` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/map` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
@@ -641,16 +641,26 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio/workflows/new` | `auth` (+ workflow author permission) | empty-studio | forbidden / unsupported-package | studio |
 | `/studio/workflows/:draftId` | `auth` (+ workflow draft read/write) | missing-item | forbidden / unsupported-package | studio |
 
-The current `/studio` implementation is the first package-first Studio
-shell slice. It runs in the shared Razor component library and exposes
-the Console-owned `studio-authoring-shell/v1` projection for prompt
-clarification, package inspection, preview state, saved-version state,
-and publish state. Workflow choices cover map, dashboard, report, form,
-app, query, analysis, workflow, GP service, and ETL. Ambiguous prompts
-produce structured clarification questions; while any question remains
-open, Preview, Save Version, and Publish controls are disabled. The
-inspector remains visible for the active package and must include
-assumptions, data bindings, warnings, validation, and provenance.
+The current `/studio` implementation is the package-first Studio shell
+(real-server revisit `honua-console#61` of the `honua-console#38`
+slice). It runs in the shared Razor component library and binds the
+server-owned package lifecycle — draft create/read/update, validation,
+preview-planning, content-version save, and publish — to honua-server
+(`honua-server#1180`/`#1181`) through the `IStudioPackageLifecycleClient`
+shim in `Honua.Console.Contracts`; prompt and structured clarification
+stay Console-local UX. Workflow choices cover map, dashboard, report,
+form, app, query, analysis, workflow, GP service, and ETL. Ambiguous
+prompts produce structured clarification questions; while any question
+remains open, Validate, Preview, Save Version, and Publish controls are
+disabled. The inspector remains visible for the active package and must
+include assumptions, data bindings, warnings, validation, and
+provenance. Draft, Saved version, and Published are the lifecycle states;
+Preview is a transient preview-plan action (not a stored state), and
+rendered preview output / generated-app preview has no server contract
+yet, so it renders the shared missing-binding surface. When no server
+base address is configured the shell renders that missing-binding surface
+instead of mock package data; the in-memory authoring shell
+(`AddHonuaConsoleDemoStudioAuthoringShell`) is demo/test-only.
 
 `/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`,
 `/studio?source=<kind>&itemId=<itemId>`, and
@@ -660,17 +670,20 @@ edit actions, and generated-app reopen paths resolve through an
 implemented Studio route. The `?source=...&itemId=...` spelling is the
 route-compatible action URL emitted by the `honua-console#34` map viewer
 and draft-map slice. The route parameters are accepted but not yet used
-to hydrate a server-backed package. The package shell does not create
-server-owned content versions or publication records by itself.
+to hydrate a server-backed package. Save Version and Publish do create
+server-owned content versions and publication requests through the
+honua-server package lifecycle.
 
 The seven package editor routes above are the `honua-console#39`
-Console-native Studio slice. They render shared Razor editors from the
-Studio package editor catalog and use stable mock lifecycle refs until
-honua-server and honua-sdk-dotnet expose content-version, publication,
-share, embed, and rollback APIs. The mock projection is documented in
+Console-native Studio slice and per-editor families `honua-console#52`–
+`#58`. They render shared Razor editors from the Studio package editor
+catalog and still use the local lifecycle simulator, but their
+validate/preview actions surface a missing-binding state rather than mock
+validation success until each editor's backend contract lands. The local
+projection is documented in
 [`docs/studio/package-editor-routes.md`](studio/package-editor-routes.md)
 and must be replaced behind the same editor model when shared contracts
-land.
+land; the shared `/studio` shell already binds that lifecycle.
 
 Workflow routes are builder-owned Studio surfaces. They edit the
 `workflow.package/v1` projection through the workflow package client and

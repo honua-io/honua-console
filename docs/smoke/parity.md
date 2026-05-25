@@ -169,11 +169,12 @@ Response-contract notes worth keeping in sync with the registry:
   `shortCommit`, `ref`, `builtAt`, `legacy.portal`, `legacy.admin`, and
   an `areas[]` list containing `studio`, `catalog`, `share`, and
   `operate`.
-- `studio-authoring-shell/v1` evidence records the Console-owned package
-  shell projection before SDK app package construction: ambiguous prompt
+- `studio-authoring-shell/v1` evidence records the Console package shell
+  projection before SDK app package construction: ambiguous prompt
   clarification, the route-compatible inspectable package snapshot,
-  inspector section names, and lifecycle labels for Draft, Preview,
-  Saved version, and Published.
+  inspector section names, and lifecycle labels for Draft, Saved version,
+  and Published. Preview is a planning action, not a stored lifecycle
+  state.
 - `share-access/v1` patch responses contain `sharing`, `embeddable`,
   `groupIds` for group-tier shares, and `publicLinkToken` for
   public-link shares. They do not echo `openData`; that field is owned by
@@ -288,19 +289,21 @@ real HTTP transport cannot silently accept a drifted payload:
   the `honua_generated_app_manifest.v1` format and an
   `operations-dashboard.v1` profile layout whose widget kinds belong to
   the `HonuaGeneratedAppWidgetKind` union.
-- **`studio-authoring-shell/v1`** — The Console-owned Studio step records
-  the first package-shell proof path before the SDK app package is built:
-  an ambiguous prompt routes to structured clarification, the draft
-  remains inspectable as an `app.package`, the inspector exposes
-  assumptions, data bindings, warnings, validation, and provenance, and
-  the lifecycle evidence names the distinct Draft, Preview, Saved version,
-  and Published states. The current route is same-origin compatibility
-  evidence for `/studio?source=map&itemId=<id>`; source hydration and
-  publication persistence remain server/SDK follow-up work, so the package
-  snapshot records `sourceHydrated: false` and uses the generic mock
-  binding rather than the saved-map id. This is a stable mock projection
-  until the server package lifecycle API and SDK package helpers are wired
-  into Console.
+- **`studio-authoring-shell/v1`** — The Console Studio step records the
+  package-shell proof path before the SDK app package is built: an
+  ambiguous prompt routes to structured clarification, the draft remains
+  inspectable as an `app.package`, the inspector exposes assumptions, data
+  bindings, warnings, validation, and provenance, and the lifecycle
+  evidence names the distinct Draft, Saved version, and Published states
+  (Preview is a planning action, not a stored state). The current route is
+  same-origin compatibility evidence for `/studio?source=map&itemId=<id>`;
+  source hydration remains follow-up work, so the package snapshot records
+  `sourceHydrated: false` and uses the generic binding rather than the
+  saved-map id. The Blazor `/studio` shell binds the honua-server package
+  lifecycle (`honua-server#1180`/`#1181`); this JS parity harness still
+  materializes the projection through its in-memory console adapter until
+  that adapter is swapped for the real transport (see "Wiring to the real
+  surfaces").
 - **`share-access/v1`** — `patchAccess` returns
   `{ sharing, embeddable, groupIds?, publicLinkToken? }` only; `groupIds`
   is emitted for `sharing="group"` and `publicLinkToken` is emitted for

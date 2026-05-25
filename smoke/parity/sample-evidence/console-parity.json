@@ -57,7 +57,7 @@
       "version": "v1",
       "owningLayer": "console",
       "sourceRepo": "honua-console",
-      "note": "Console-owned authoring projection for prompt clarification, package inspection, preview, saved-version, and publish state."
+      "note": "Console authoring projection for prompt clarification and package inspection; draft/validation/preview-plan/saved-version/publish bind to the honua-server package lifecycle (#1180/#1181). Preview is a planning action, not a stored lifecycle state."
     },
     {
       "name": "generated-app-lifecycle",
@@ -264,7 +264,7 @@
           "contractVersion": "v1",
           "packageRef": "draft-app-clarify",
           "packageType": "app.package",
-          "schemaVersion": "package-shell/v1",
+          "schemaVersion": "1.0",
           "lifecycleState": "Draft",
           "sourceHydrated": false,
           "inspectorSections": [
@@ -284,7 +284,6 @@
         },
         "lifecycleStates": [
           "Draft",
-          "Preview",
           "Saved version",
           "Published"
         ]

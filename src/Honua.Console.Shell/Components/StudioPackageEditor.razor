@@ -1,4 +1,7 @@
 @using System.Text.Json
+@* This editor uses the local editor-catalog family enum. Disambiguate from the honua-server wire
+   enum Honua.Console.Contracts.StudioPackageFamily, which the shared _Imports also brings into scope. *@
+@using StudioPackageFamily = Honua.Console.Shell.Models.StudioPackageFamily
 
 <section class="console-page studio-editor-page">
     <div class="console-page-heading">
@@ -450,15 +453,20 @@
 
     private void ValidatePackage()
     {
-        _validationStatus = CanPublish ? "Validated" : "Blocked";
-        _previewStatus = CanPublish
-            ? $"{Editor.DisplayName} package validation passed with stable mock refs."
-            : "Publish validation is blocked until required policy selection and review are complete.";
+        // Per-editor package families (honua-console#52–#58) are not yet bound to the honua-server
+        // package validation API. Surface a missing-binding state rather than reporting mock validation
+        // success (Console Patterns Charter §6 / no-standing-mocks). The shared /studio shell binds the
+        // real lifecycle; these per-editor surfaces follow on their own tickets.
+        _validationStatus = "Missing binding";
+        _previewStatus =
+            $"{Editor.DisplayName} package validation is not bound to honua-server yet (honua-console#52–#58). "
+            + "Validation results will come from the server once the per-editor contract is bound.";
     }
 
     private void PreviewPackage()
     {
-        _previewStatus = $"{Editor.DisplayName} preview is ready from the saved draft projection.";
+        _previewStatus =
+            $"{Editor.DisplayName} preview rendering has no honua-server binding yet (honua-console#52–#58).";
     }
 
     private void RunLifecycle(StudioLifecycleOperation operation)
