@@ -846,6 +846,71 @@ p {
     padding: 0 10px;
 }
 
+.console-warning {
+    color: #8a4b0f;
+    font-weight: 800;
+}
+
+.studio-editor-directory {
+    margin-top: 26px;
+}
+
+.studio-editor-grid {
+    margin-bottom: 18px;
+}
+
+.studio-runtime-note {
+    margin-top: 18px;
+}
+
+.studio-editor-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.42fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.studio-editor-main,
+.studio-editor-side,
+.studio-capability-list {
+    display: grid;
+    gap: 16px;
+}
+
+.studio-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.studio-field-grid label,
+.studio-stacked-field {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.studio-field-grid span,
+.studio-stacked-field span,
+.studio-check-row span {
+    color: var(--honua-muted);
+    font-size: 0.84rem;
+    font-weight: 800;
+}
+
+.studio-field-grid input,
+.studio-field-grid select,
+.studio-stacked-field textarea {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--honua-text);
+    font: inherit;
+}
+
 .operate-detail-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.85fr);
@@ -989,6 +1054,115 @@ p {
     gap: 14px;
 }
 
+.studio-field-grid input,
+.studio-field-grid select {
+    min-height: 40px;
+    padding: 0 11px;
+}
+
+.studio-stacked-field {
+    margin-top: 16px;
+}
+
+.studio-stacked-field textarea {
+    padding: 11px;
+    resize: vertical;
+}
+
+.studio-editor-section {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--honua-border);
+}
+
+.studio-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.studio-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.studio-check-list,
+.studio-evidence-list,
+.studio-pipeline {
+    display: grid;
+    gap: 9px;
+    margin: 16px 0 0;
+    padding-left: 20px;
+}
+
+.studio-check-list li::marker,
+.studio-evidence-list li::marker,
+.studio-pipeline li::marker {
+    color: var(--honua-accent);
+    font-weight: 900;
+}
+
+.studio-capability-list section {
+    padding-top: 14px;
+    border-top: 1px solid var(--honua-border);
+}
+
+.studio-capability-list section:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.studio-capability-list h3 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.studio-code {
+    overflow: auto;
+    max-width: 100%;
+    margin: 16px 0 0;
+    padding: 14px;
+    border: 1px solid #b9d6d2;
+    border-radius: 8px;
+    background: #f4faf8;
+    color: #102b27;
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+.studio-package-json {
+    max-height: 480px;
+}
+
+.studio-map-preview {
+    display: grid;
+    gap: 6px;
+    min-height: 210px;
+    margin-top: 16px;
+    padding: 18px;
+    align-content: end;
+    border: 1px solid #9cc8c1;
+    border-radius: 8px;
+    background:
+        linear-gradient(135deg, rgb(15 118 110 / 18%) 25%, transparent 25%) 0 0 / 36px 36px,
+        linear-gradient(45deg, rgb(120 113 108 / 14%) 25%, transparent 25%) 0 0 / 42px 42px,
+        #e8f3ef;
+}
+
+.studio-map-preview span,
+.studio-map-preview small {
+    color: var(--honua-muted);
+    font-weight: 800;
+}
+
+.studio-check-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 16px;
+}
+
 @media (max-width: 760px) {
     .console-shell {
         grid-template-columns: 1fr;
@@ -1027,7 +1201,11 @@ p {
 
     .studio-page-heading,
     .studio-shell,
-    .studio-preview-canvas {
+    .studio-preview-canvas,
+    .studio-editor-shell,
+    .studio-preview-grid,
+    .studio-field-grid,
+    .studio-action-grid {
         grid-template-columns: 1fr;
     }
 
