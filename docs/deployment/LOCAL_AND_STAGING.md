@@ -29,8 +29,18 @@ Common commands:
 - `dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj`
 - `dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj`
 - `./scripts/fast-local-check.sh`
+- `./scripts/integration-trust-check.sh` - opt-in real-server mTLS/trust lane; skips unless configured.
 - `npm test` - Node smoke and metadata-writer unit tests; no npm dependencies.
 - `npm run smoke:parity` - fixture/local artifact parity smoke.
+
+The trust integration lane is intentionally separate from `fast-local-check.sh`
+because it can boot Docker/Testcontainers and a real `honua-server`. To run it
+against a containerized server, set `HONUA_CONSOLE_INTEGRATION=true`,
+`HONUA_CONSOLE_SERVER_IMAGE=<honua-server image with honua-server#1171>`, and
+`HONUA_CONSOLE_ADMIN_TOKEN=<admin bearer token>`, then run
+`./scripts/integration-trust-check.sh`. To point at an existing server instead,
+set `HONUA_CONSOLE_EXTERNAL_BASE_URL=https://...`. Without those variables the
+suite reports skips rather than failures.
 
 ## Verifying the production artifact locally
 

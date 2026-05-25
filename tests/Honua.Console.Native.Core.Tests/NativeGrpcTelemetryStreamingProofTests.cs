@@ -1,10 +1,6 @@
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using Honua.Console.Native.Core.Connections;
-using Honua.Console.Native.Core.Security;
-using Honua.Console.Native.Core.Storage;
 using Honua.Console.Native.Core.Streaming;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Native.Core.Tests;
 
@@ -15,18 +11,9 @@ public sealed class NativeGrpcTelemetryStreamingProofTests
     {
         var profile = ConsoleEnvironmentProfileDefaults.CreateProfiles()
             .First(profile => profile.Id == ConsoleEnvironmentProfileDefaults.DevelopmentProfileId);
-        var sessions = new JsonConsoleAccountSessionStore(new InMemoryNativeSecretStore());
-        await sessions.SaveSessionAsync(new ConsoleAccountSession
-        {
-            ProfileId = profile.Id,
-            AccountId = profile.Account.AccountId,
-            TenantId = profile.TenantId,
-            AccessToken = "dev-token"
-        });
-        var proof = new NativeGrpcTelemetryStreamingProof(
-            new NativeHonuaConnectionFactory(
-                new NativeSecretStoreAccountTokenProvider(sessions),
-                new NullCertificateResolver()));
+        var connections = new FakeConnectionManager(
+            new ConsoleConnectionOutcome { Status = ConsoleConnectionStatus.Connected });
+        var proof = new NativeGrpcTelemetryStreamingProof(connections);
 
         var events = new List<Honua.Console.Shell.Services.ConsoleStreamingEvent>();
         await foreach (var item in proof.StreamAsync(profile))
@@ -39,18 +26,20 @@ public sealed class NativeGrpcTelemetryStreamingProofTests
         Assert.All(events, item => Assert.Equal("grpc/native", item.Transport));
         Assert.Contains(events, item => item.EventKind == "jobs.progress");
         Assert.Equal("dev-resume-3", events[^1].ResumeToken);
+        Assert.Collection(connections.ConnectAttempts, id => Assert.Equal(profile.Id, id));
     }
 
     [Fact]
     public async Task StreamAsyncMarksTransportWhenMtlsCertificateIsAttached()
     {
-        using var certificate = CreateCertificate();
         var profile = ConsoleEnvironmentProfileDefaults.CreateProfiles()
             .First(profile => profile.Id == ConsoleEnvironmentProfileDefaults.StagingProfileId);
         var proof = new NativeGrpcTelemetryStreamingProof(
-            new NativeHonuaConnectionFactory(
-                new StaticTokenProvider("staging-token"),
-                new StaticCertificateResolver(certificate)));
+            new FakeConnectionManager(new ConsoleConnectionOutcome
+            {
+                Status = ConsoleConnectionStatus.Connected,
+                UsesMutualTls = true
+            }));
 
         var events = new List<Honua.Console.Shell.Services.ConsoleStreamingEvent>();
         await foreach (var item in proof.StreamAsync(profile))
@@ -63,57 +52,78 @@ public sealed class NativeGrpcTelemetryStreamingProofTests
         Assert.Equal("staging-resume-3", events[^1].ResumeToken);
     }
 
-    private sealed class StaticTokenProvider : IConsoleAccountTokenProvider
+    [Fact]
+    public async Task StreamAsyncReturnsNoEventsWhenTrustGateBlocks()
     {
-        private readonly string _token;
-
-        public StaticTokenProvider(string token)
+        var profile = ConsoleEnvironmentProfileDefaults.CreateProfiles()
+            .First(profile => profile.Id == ConsoleEnvironmentProfileDefaults.StagingProfileId);
+        var connections = new FakeConnectionManager(new ConsoleConnectionOutcome
         {
-            _token = token;
+            Status = ConsoleConnectionStatus.Blocked,
+            Message = "Trust blocked."
+        });
+        var proof = new NativeGrpcTelemetryStreamingProof(connections);
+
+        var events = new List<Honua.Console.Shell.Services.ConsoleStreamingEvent>();
+        await foreach (var item in proof.StreamAsync(profile))
+        {
+            events.Add(item);
         }
 
-        public ValueTask<string?> GetAccessTokenAsync(
-            ConsoleEnvironmentProfile profile,
+        Assert.Empty(events);
+        Assert.Collection(connections.ConnectAttempts, id => Assert.Equal(profile.Id, id));
+    }
+
+    [Fact]
+    public async Task StreamAsyncDoesNotConnectWhenNativeGrpcIsDisabled()
+    {
+        var profile = ConsoleEnvironmentProfileDefaults.CreateProfiles()
+            .First(profile => profile.Id == ConsoleEnvironmentProfileDefaults.DevelopmentProfileId)
+            with
+        {
+            TransportCapabilities = new ConsoleEnvironmentTransportCapabilities { NativeGrpc = false }
+        };
+        var connections = new FakeConnectionManager(
+            new ConsoleConnectionOutcome { Status = ConsoleConnectionStatus.Connected });
+        var proof = new NativeGrpcTelemetryStreamingProof(connections);
+
+        var events = new List<Honua.Console.Shell.Services.ConsoleStreamingEvent>();
+        await foreach (var item in proof.StreamAsync(profile))
+        {
+            events.Add(item);
+        }
+
+        Assert.Empty(events);
+        Assert.Empty(connections.ConnectAttempts);
+    }
+
+    private sealed class FakeConnectionManager : IConsoleConnectionManager
+    {
+        private readonly ConsoleConnectionOutcome _outcome;
+
+        public FakeConnectionManager(ConsoleConnectionOutcome outcome) => _outcome = outcome;
+
+        public List<string> ConnectAttempts { get; } = [];
+
+        public bool IsConnected(string profileId) => _outcome.IsConnected && ConnectAttempts.Contains(profileId);
+
+        public Task<ConsoleConnectionOutcome> ConnectAsync(
+            string profileId,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<string?>(_token);
-        }
-    }
-
-    private sealed class NullCertificateResolver : IClientCertificateResolver
-    {
-        public ValueTask<X509Certificate2?> ResolveAsync(
-            ConsoleEnvironmentProfile profile,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<X509Certificate2?>(null);
-        }
-    }
-
-    private sealed class StaticCertificateResolver : IClientCertificateResolver
-    {
-        private readonly X509Certificate2 _certificate;
-
-        public StaticCertificateResolver(X509Certificate2 certificate)
-        {
-            _certificate = certificate;
+            ConnectAttempts.Add(profileId);
+            return Task.FromResult(_outcome);
         }
 
-        public ValueTask<X509Certificate2?> ResolveAsync(
-            ConsoleEnvironmentProfile profile,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<X509Certificate2?>(_certificate);
-        }
-    }
+        public Task DisconnectAsync(string profileId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-    private static X509Certificate2 CreateCertificate()
-    {
-        using var key = RSA.Create(2048);
-        var request = new CertificateRequest("CN=Honua Stream Operator", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
+        public Task<ConsoleConnectionOutcome> RevalidateAsync(
+            string profileId,
+            CancellationToken cancellationToken = default) => Task.FromResult(_outcome);
+
+        public Task<ConsoleConnectionOutcome> AcknowledgeServerCertificateAsync(
+            string profileId,
+            CancellationToken cancellationToken = default) => Task.FromResult(_outcome);
     }
 }

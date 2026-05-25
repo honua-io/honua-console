@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Honua.Console.Native.Core.Connections;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 
@@ -7,11 +6,11 @@ namespace Honua.Console.Native.Core.Streaming;
 
 public sealed class NativeGrpcTelemetryStreamingProof : IConsoleNativeStreamingProof
 {
-    private readonly NativeHonuaConnectionFactory _connectionFactory;
+    private readonly IConsoleConnectionManager _connections;
 
-    public NativeGrpcTelemetryStreamingProof(NativeHonuaConnectionFactory connectionFactory)
+    public NativeGrpcTelemetryStreamingProof(IConsoleConnectionManager connections)
     {
-        _connectionFactory = connectionFactory;
+        _connections = connections;
     }
 
     public string ProofName => "Native gRPC telemetry fixture";
@@ -27,8 +26,11 @@ public sealed class NativeGrpcTelemetryStreamingProof : IConsoleNativeStreamingP
             yield break;
         }
 
-        await using var connection = await _connectionFactory.CreateAsync(profile, cancellationToken)
-            .ConfigureAwait(false);
+        var outcome = await _connections.ConnectAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+        if (!outcome.IsConnected)
+        {
+            yield break;
+        }
 
         foreach (var streamEvent in CreateFixtureEvents(profile))
         {
@@ -36,9 +38,7 @@ public sealed class NativeGrpcTelemetryStreamingProof : IConsoleNativeStreamingP
             await Task.Yield();
             yield return streamEvent with
             {
-                Transport = connection.ClientCertificate is null
-                    ? "grpc/native"
-                    : "grpc/native+mtls"
+                Transport = outcome.UsesMutualTls ? "grpc/native+mtls" : "grpc/native"
             };
         }
     }

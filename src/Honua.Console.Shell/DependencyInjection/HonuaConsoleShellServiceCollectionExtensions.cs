@@ -10,6 +10,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         services.TryAddSingleton<IConsoleEnvironmentProfileStore>(
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();

@@ -99,7 +99,7 @@ When "Active Shims" is empty:
 
 ## Active Shims
 
-The current active shims are bounded to catalog/viewer/share route parity and Studio workflow package work. Catalog/viewer/share shims live in `src/Honua.Console.Contracts/SdkShims.cs`; the Studio workflow projections currently live in the shared shell model boundary until the SDK workflow contracts land. They provide stable Console-side shapes until the `honua-sdk-dotnet#166` projection lands and `honua-console#7` replaces the shim imports.
+The current active shims are bounded to catalog/viewer/share route parity, Studio workflow package work, and the native trust/mTLS contract added by `honua-console#44`. Catalog/viewer/share shims live in `src/Honua.Console.Contracts/SdkShims.cs`; the native trust wire contract lives in `src/Honua.Console.Contracts/EnvironmentTrustShims.cs`; the Studio workflow projections currently live in the shared shell model boundary until the SDK workflow contracts land. They provide stable Console-side shapes until the `honua-sdk-dotnet#166` projection lands and `honua-console#7` replaces the shim imports.
 
 | Shim   | Language | Added in PR | Waiting on | Owner | Target removal |
 |--------|----------|-------------|------------|-------|----------------|
@@ -108,6 +108,10 @@ The current active shims are bounded to catalog/viewer/share route parity and St
 | Share access and public-link fields (`ConsoleShareAccess`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
 | Saved-map package and embed options (`ConsoleMapPackage`, `EmbedRouteOptions`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-sdk-js#225 | Console | honua-console#7 |
 | Studio workflow package projections in `src/Honua.Console.Shell/Models/StudioWorkflowPackage.cs` | .NET | honua-console#40 | honua-sdk-dotnet#166 workflow/package projections and honua-server#724 workflow DAG contracts | Studio | honua-console#7 replaces with shared SDK/server projections or moves through the dedicated contract boundary |
+| Environment trust contracts (`HonuaCertificateValidationStatus`, `HonuaEnvironmentTrustState`) in `src/Honua.Console.Contracts/EnvironmentTrustShims.cs` | .NET | honua-console#44 | honua-sdk-dotnet#166 (`Honua.Sdk.Abstractions.Environments`, merged on SDK trunk but not yet in a consumable package) | Console | honua-console#7 swaps to `global using …Environments.*` once the package ships #166 |
+| Client-certificate validate wire contracts (`ConsoleClientCertificateValidationRequest`, `ConsoleClientCertificateValidationResult`, `ConsoleServerEnvelope<T>`, `ConsoleCertificateValidationCodes`) in `src/Honua.Console.Contracts/EnvironmentTrustShims.cs` | .NET | honua-console#44 | honua-server#1171 (`POST /api/v1/admin/security/client-certificates/validate`) / honua-sdk-dotnet#166 | Console | honua-console#7 replaces with the SDK trust client when projected |
+
+On rule 6 ("no shim redefines a contract that already exists in `honua-sdk-dotnet`"): "exists" means **consumable in a restorable package**. The `honua-sdk-dotnet#166` `Honua.Sdk.Abstractions.Environments` contracts are merged on the SDK trunk but are **not** in the latest published `Honua.Sdk.Abstractions` package, and `honua-console` has no SDK package reference yet. Until that package ships #166, the trust/environment shapes are mirrored exactly behind this boundary (matching the SDK shape so the `#7` swap is a `global using` alias), not consumed directly. This is the same "do not block porting on #166" stance this policy takes for the catalog/share shims.
 
 The catalog shim preserves the Portal URL contract at the route edge:
 `/catalog` accepts `visibility`, not `sharing`. `CatalogListRequest`

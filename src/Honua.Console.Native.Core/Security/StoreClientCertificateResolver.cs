@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Honua.Console.Shell.Models;
 
@@ -54,8 +55,22 @@ public sealed class StoreClientCertificateResolver : IClientCertificateResolver
             ? null
             : await _secrets.GetSecretAsync(reference.SecretName, cancellationToken).ConfigureAwait(false);
 
-        return X509CertificateLoader.LoadPkcs12FromFile(reference.Value, password);
+        try
+        {
+            return X509CertificateLoader.LoadPkcs12FromFile(reference.Value, password);
+        }
+        catch (Exception ex) when (IsExpectedCertificateReferenceFailure(ex))
+        {
+            return null;
+        }
     }
+
+    private static bool IsExpectedCertificateReferenceFailure(Exception exception) =>
+        exception is FileNotFoundException
+            or DirectoryNotFoundException
+            or IOException
+            or UnauthorizedAccessException
+            or CryptographicException;
 
     private static X509Certificate2? FindInStore(
         ConsoleClientCertificateReference reference,

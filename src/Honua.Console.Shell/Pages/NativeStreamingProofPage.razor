@@ -70,18 +70,11 @@
 
         if (_events.Count > 0)
         {
-            await Profiles.SaveStateAsync(new ConsoleEnvironmentState
-            {
-                ProfileId = _activeProfile.Id,
-                LastRoute = "/operate/native-stream",
-                LastConnectedAt = DateTimeOffset.UtcNow,
-                LastStreamingResumeToken = _events[^1].ResumeToken,
-                Diagnostics = new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["streamProof"] = _proof.ProofName,
-                    ["transport"] = _events[^1].Transport
-                }
-            });
+            await ConsoleStreamingStatePersistence.SaveNativeStreamAsync(
+                Profiles,
+                _activeProfile,
+                _proof.ProofName,
+                _events[^1]);
         }
     }
 }

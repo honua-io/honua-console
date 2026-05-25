@@ -23,6 +23,13 @@ public static class HonuaConsoleNativeCoreServiceCollectionExtensions
         services.TryAddSingleton<NativeHonuaConnectionFactory>();
         services.TryAddSingleton<IConsoleNativeStreamingProof, NativeGrpcTelemetryStreamingProof>();
 
+        // Native transports and the server-bound trust gate (honua-console#44).
+        services.Replace(ServiceDescriptor.Singleton<IConsoleHostCapabilities, NativeConsoleHostCapabilities>());
+        services.TryAddSingleton<IConsoleServerCertificateProbe, TlsServerCertificateProbe>();
+        services.TryAddSingleton<IConsoleClientCertificateValidationClient, ServerClientCertificateValidationClient>();
+        services.TryAddSingleton<ConsoleTrustEvaluator>();
+        services.TryAddSingleton<IConsoleConnectionManager, ConsoleConnectionManager>();
+
         return services;
     }
 }

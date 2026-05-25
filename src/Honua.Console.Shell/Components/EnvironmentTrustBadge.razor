@@ -1,0 +1,32 @@
+@* Trust status pill shared by the environment list and diagnostics surfaces. *@
+<span class="console-status @CssClass">@Label</span>
+
+@code {
+    [Parameter]
+    public ConsoleEnvironmentState? State { get; set; }
+
+    private string Label => Describe().Label;
+
+    private string CssClass => Describe().Css;
+
+    private (string Label, string Css) Describe()
+    {
+        if (State?.TrustBlocked == true)
+        {
+            return ("Trust blocked", "console-status-danger");
+        }
+
+        var status = State?.Trust?.Status ?? HonuaCertificateValidationStatus.NotConfigured;
+        return status switch
+        {
+            HonuaCertificateValidationStatus.Ready => ("Trusted", "console-state-success"),
+            HonuaCertificateValidationStatus.ExpiringSoon => ("Expiring soon", "console-status-warning"),
+            HonuaCertificateValidationStatus.Untrusted => ("Untrusted", "console-status-danger"),
+            HonuaCertificateValidationStatus.Rejected => ("Rejected", "console-status-danger"),
+            HonuaCertificateValidationStatus.WrongEnvironment => ("Wrong environment", "console-status-danger"),
+            HonuaCertificateValidationStatus.Expired => ("Expired", "console-status-danger"),
+            HonuaCertificateValidationStatus.Missing => ("Certificate missing", "console-status-danger"),
+            _ => ("Not validated", "console-state-neutral")
+        };
+    }
+}

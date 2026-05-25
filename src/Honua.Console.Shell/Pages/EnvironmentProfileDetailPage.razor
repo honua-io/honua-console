@@ -1,0 +1,238 @@
+@page "/environments/{ProfileId}"
+@inject IConsoleEnvironmentProfileStore Profiles
+@inject IConsoleHostCapabilities Host
+@inject IServiceProvider Services
+
+@if (_profile is null)
+{
+    <section class="console-page">
+        <div class="console-state">
+            <h1>Environment not found</h1>
+            <p class="console-muted">No environment profile exists for <code>@ProfileId</code>.</p>
+            <a class="console-button" href="/environments">Back to environments</a>
+        </div>
+    </section>
+}
+else
+{
+    <section class="console-page">
+        <div class="console-detail-heading">
+            <div class="console-page-heading">
+                <p class="console-kicker">@_profile.EnvironmentKind · connection diagnostics</p>
+                <h1>@_profile.DisplayName</h1>
+                <p>@_profile.ServerBaseUri</p>
+            </div>
+            <div class="console-detail-actions">
+                <EnvironmentTrustBadge State="_state" />
+                @if (NativeReady)
+                {
+                    @if (_connections!.IsConnected(_profile.Id))
+                    {
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="DisconnectAsync">Disconnect</button>
+                    }
+                    else
+                    {
+                        <button class="console-button" type="button" disabled="@_busy" @onclick="ConnectAsync">Connect</button>
+                    }
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="RevalidateAsync">Revalidate</button>
+                }
+            </div>
+        </div>
+
+        @if (!Host.SupportsNativeTransports)
+        {
+            <article class="console-panel console-state-info" role="note">
+                <h2>Native diagnostics run on the desktop host</h2>
+                <p class="console-muted">Connect, certificate selection, and trust validation are available in the native Console host. The browser host shows this profile read-only.</p>
+            </article>
+        }
+
+        @if (_state?.TrustBlocked == true)
+        {
+            <article class="console-panel console-status-danger" role="alert">
+                <h2>Connection blocked</h2>
+                <p class="console-muted">@(_state.Trust?.SanitizedMessage ?? "The certificate changed and must be acknowledged or revalidated.")</p>
+                @if (NativeReady)
+                {
+                    <div class="console-action-row">
+                        <button class="console-button" type="button" disabled="@_busy" @onclick="AcknowledgeAsync">Acknowledge new certificate</button>
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="RevalidateAsync">Revalidate</button>
+                    </div>
+                }
+            </article>
+        }
+        else if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <p class="console-muted">@_message</p>
+        }
+
+        <div class="console-section">
+            <h2>Transports</h2>
+            <EnvironmentTransportIndicators Profile="_profile" NativeAvailable="Host.SupportsNativeTransports" />
+        </div>
+
+        <div class="console-section console-panel">
+            <h2>Trust state</h2>
+            <dl class="console-definition-list">
+                <dt>Status</dt>
+                <dd>@(_state?.Trust?.Status.ToString() ?? "Not validated")</dd>
+                <dt>Reason</dt>
+                <dd>@Display(_state?.Trust?.ReasonCode)</dd>
+                <dt>Detail</dt>
+                <dd>@Display(_state?.Trust?.SanitizedMessage)</dd>
+                <dt>Checked at</dt>
+                <dd>@FormatTime(_state?.Trust?.CheckedAt)</dd>
+                <dt>Certificate expires</dt>
+                <dd>@FormatTime(_state?.Trust?.ExpiresAt)</dd>
+                <dt>Issuer</dt>
+                <dd>@Display(_state?.Trust?.IssuerSummary)</dd>
+                <dt>Trust profile</dt>
+                <dd>@Display(_state?.Trust?.PolicyId)</dd>
+                <dt>Observed server fingerprint</dt>
+                <dd><code>@Display(_state?.Trust?.ServerFingerprint)</code></dd>
+                <dt>Pinned server fingerprint</dt>
+                <dd><code>@Display(Empty(_state?.PinnedServerFingerprint))</code></dd>
+                <dt>Pinned client certificate</dt>
+                <dd><code>@Display(Empty(_state?.PinnedClientCertificateThumbprint))</code></dd>
+            </dl>
+        </div>
+
+        <div class="console-section console-panel">
+            <h2>Session</h2>
+            <dl class="console-definition-list">
+                <dt>Tenant</dt>
+                <dd>@_profile.TenantId</dd>
+                <dt>Account model</dt>
+                <dd>@_profile.Account.AuthMode</dd>
+                <dt>Certificate reference</dt>
+                <dd>@FormatCertificate(_profile)</dd>
+                <dt>Configured trust profile</dt>
+                <dd>@Display(Empty(_profile.ClientCertificate.TrustProfileId))</dd>
+                <dt>Last connected</dt>
+                <dd>@FormatTime(_state?.LastConnectedAt)</dd>
+                <dt>Last route</dt>
+                <dd>@(_state?.LastRoute ?? "none")</dd>
+                <dt>Resume token</dt>
+                <dd>@(string.IsNullOrWhiteSpace(_state?.LastStreamingResumeToken) ? "none" : _state!.LastStreamingResumeToken)</dd>
+            </dl>
+        </div>
+
+        <div class="console-toolbar">
+            <a href="/environments">Back to environments</a>
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string ProfileId { get; set; } = string.Empty;
+
+    private ConsoleEnvironmentProfile? _profile;
+    private ConsoleEnvironmentState? _state;
+    private IConsoleConnectionManager? _connections;
+    private string? _message;
+    private bool _busy;
+    private string? _loadedProfileId;
+
+    private bool NativeReady => Host.SupportsNativeTransports && _connections is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _connections = Services.GetService<IConsoleConnectionManager>();
+        await LoadAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reload whenever the route parameter changes, even when the previous render was a
+        // not-found state (_profile is null), so navigating from a missing id to a valid one
+        // does not stay stuck on the stale not-found surface. Clear the per-action status
+        // message on navigation so it does not leak from the previously viewed profile.
+        if (!string.Equals(_loadedProfileId, ProfileId, StringComparison.Ordinal))
+        {
+            _message = null;
+            await LoadAsync();
+        }
+    }
+
+    private async Task ConnectAsync()
+    {
+        if (_connections is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var outcome = await _connections.ConnectAsync(ProfileId);
+        _message = outcome.Message;
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task DisconnectAsync()
+    {
+        if (_connections is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        await _connections.DisconnectAsync(ProfileId);
+        _message = "Disconnected.";
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task AcknowledgeAsync()
+    {
+        if (_connections is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var outcome = await _connections.AcknowledgeServerCertificateAsync(ProfileId);
+        _message = outcome.Message;
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task RevalidateAsync()
+    {
+        if (_connections is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var outcome = await _connections.RevalidateAsync(ProfileId);
+        _message = outcome.Message;
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loadedProfileId = ProfileId;
+        _profile = await Profiles.GetProfileAsync(ProfileId);
+        _state = _profile is null ? null : await Profiles.GetStateAsync(ProfileId);
+    }
+
+    private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string? Empty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static string FormatTime(DateTimeOffset? value) =>
+        value is { } moment ? moment.ToString("yyyy-MM-dd HH:mm 'UTC'") : "—";
+
+    private static string FormatCertificate(ConsoleEnvironmentProfile profile)
+    {
+        if (!profile.ClientCertificate.Enabled)
+        {
+            return "No client certificate";
+        }
+
+        var reference = profile.ClientCertificate.Reference;
+        return reference is null ? "Client certificate bound" : $"{reference.Kind}: {reference.Value}";
+    }
+}

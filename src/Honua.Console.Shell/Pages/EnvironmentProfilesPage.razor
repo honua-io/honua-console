@@ -1,76 +1,216 @@
 @page "/environments"
 @inject IConsoleEnvironmentProfileStore Profiles
+@inject IConsoleHostCapabilities Host
+@inject IServiceProvider Services
 
 <section class="console-page">
     <div class="console-page-heading">
         <p class="console-kicker">Native host configuration</p>
         <h1>Environment Profiles</h1>
-        <p>Saved Honua Server environments keep server URL, account/RBAC binding, transport capability, mTLS certificate reference, and per-environment resume state separate.</p>
+        <p>Manage multiple Honua Server environments. Each profile keeps its own server URL, account/RBAC binding, transport capabilities, mTLS certificate reference, trust state, and per-environment resume state.</p>
     </div>
 
-    <div class="console-panel-grid">
-        @foreach (var profile in _profiles)
+    @if (!Host.SupportsNativeTransports)
+    {
+        <article class="console-panel console-state-info" role="note">
+            <h2>Native transports run on the desktop host</h2>
+            <p class="console-muted">
+                This browser Console renders environment profiles read-only. Native gRPC, native mTLS, certificate
+                selection, connect/disconnect, and server trust validation are available in the optional native
+                (MAUI) Console host. The browser keeps HTTP and realtime transports.
+            </p>
+        </article>
+    }
+
+    <div class="console-toolbar">
+        @if (NativeReady)
         {
-            var isActive = string.Equals(profile.Id, _activeProfile?.Id, StringComparison.Ordinal);
-            var state = _states.GetValueOrDefault(profile.Id);
-
-            <article class="console-panel @(isActive ? "console-panel-active" : string.Empty)">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">@profile.EnvironmentKind</p>
-                        <h2>@profile.DisplayName</h2>
-                    </div>
-                    @if (isActive)
-                    {
-                        <span class="console-status">Active</span>
-                    }
-                </div>
-
-                <dl class="console-definition-list">
-                    <dt>Server</dt>
-                    <dd>@profile.ServerBaseUri</dd>
-                    <dt>Tenant</dt>
-                    <dd>@profile.TenantId</dd>
-                    <dt>Account model</dt>
-                    <dd>@profile.Account.AuthMode</dd>
-                    <dt>Native gRPC</dt>
-                    <dd>@FormatEnabled(profile.TransportCapabilities.NativeGrpc)</dd>
-                    <dt>mTLS</dt>
-                    <dd>@FormatCertificate(profile)</dd>
-                    <dt>Last route</dt>
-                    <dd>@(state?.LastRoute ?? "none")</dd>
-                    <dt>Resume token</dt>
-                    <dd>@(string.IsNullOrWhiteSpace(state?.LastStreamingResumeToken) ? "none" : state.LastStreamingResumeToken)</dd>
-                </dl>
-
-                <button class="console-button" type="button" disabled="@isActive" @onclick="() => ActivateAsync(profile.Id)">
-                    Use Environment
-                </button>
-            </article>
+            <a class="console-button" href="/environments/new">Add Environment</a>
+        }
+        else
+        {
+            <span class="console-status console-state-info">Add environment · Native host only</span>
         }
     </div>
+
+    @if (_profiles.Count == 0)
+    {
+        @if (NativeReady)
+        {
+            <article class="console-panel">
+                <h2>Create your first environment</h2>
+                <p class="console-muted">No environment profiles exist yet. Add a managed Honua Server to connect, validate trust, and stream telemetry.</p>
+                <a class="console-button" href="/environments/new">Create environment profile</a>
+            </article>
+        }
+        else
+        {
+            <EmptyState Area="operate" Subject="environment profiles" />
+        }
+    }
+    else
+    {
+        <div class="console-panel-grid">
+            @foreach (var profile in _profiles)
+            {
+                var isActive = string.Equals(profile.Id, _activeProfile?.Id, StringComparison.Ordinal);
+                var state = _states.GetValueOrDefault(profile.Id);
+                var connected = NativeReady && _connections!.IsConnected(profile.Id);
+                var busy = string.Equals(profile.Id, _busyProfileId, StringComparison.Ordinal);
+
+                <article class="console-panel @(isActive ? "console-panel-active" : string.Empty)">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@profile.EnvironmentKind</p>
+                            <h2>@profile.DisplayName</h2>
+                        </div>
+                        <div class="console-chip-row">
+                            <EnvironmentTrustBadge State="state" />
+                            @if (isActive)
+                            {
+                                <span class="console-status">Active</span>
+                            }
+                        </div>
+                    </div>
+
+                    <dl class="console-definition-list">
+                        <dt>Server</dt>
+                        <dd>@profile.ServerBaseUri</dd>
+                        <dt>Tenant</dt>
+                        <dd>@profile.TenantId</dd>
+                        <dt>Account model</dt>
+                        <dd>@profile.Account.AuthMode</dd>
+                        <dt>Certificate</dt>
+                        <dd>@FormatCertificate(profile)</dd>
+                        <dt>Last connected</dt>
+                        <dd>@FormatLastConnected(state)</dd>
+                    </dl>
+
+                    <EnvironmentTransportIndicators Profile="profile" NativeAvailable="Host.SupportsNativeTransports" />
+
+                    @if (state?.TrustBlocked == true)
+                    {
+                        <div class="console-panel console-status-danger" role="alert">
+                            <strong>Connection blocked</strong>
+                            <p class="console-muted">@(state.Trust?.SanitizedMessage ?? "The certificate changed and must be acknowledged or revalidated.")</p>
+                            @if (NativeReady)
+                            {
+                                <div class="console-action-row">
+                                    <button class="console-button" type="button" disabled="@busy" @onclick="() => AcknowledgeAsync(profile.Id)">Acknowledge new certificate</button>
+                                    <button class="console-button console-button-secondary" type="button" disabled="@busy" @onclick="() => RevalidateAsync(profile.Id)">Revalidate</button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if (_messages.TryGetValue(profile.Id, out var message) && !string.IsNullOrWhiteSpace(message))
+                    {
+                        <p class="console-muted">@message</p>
+                    }
+
+                    <div class="console-action-row">
+                        <button class="console-button console-button-secondary" type="button" disabled="@isActive" @onclick="() => ActivateAsync(profile.Id)">Use Environment</button>
+                        @if (NativeReady)
+                        {
+                            @if (connected)
+                            {
+                                <button class="console-button console-button-secondary" type="button" disabled="@busy" @onclick="() => DisconnectAsync(profile.Id)">Disconnect</button>
+                            }
+                            else
+                            {
+                                <button class="console-button" type="button" disabled="@busy" @onclick="() => ConnectAsync(profile.Id)">Connect</button>
+                            }
+                            @if (profile.ClientCertificate.Enabled)
+                            {
+                                <button class="console-button console-button-secondary" type="button" disabled="@busy" @onclick="() => RevalidateAsync(profile.Id)">Revalidate trust</button>
+                            }
+                        }
+                        else
+                        {
+                            <span class="console-status console-state-info">Connect · Native host only</span>
+                        }
+                        <a href="@($"/environments/{profile.Id}")">Diagnostics</a>
+                    </div>
+                </article>
+            }
+        </div>
+    }
 </section>
 
 @code {
     private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
     private ConsoleEnvironmentProfile? _activeProfile;
     private readonly Dictionary<string, ConsoleEnvironmentState?> _states = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _messages = new(StringComparer.Ordinal);
+    private IConsoleConnectionManager? _connections;
+    private string? _busyProfileId;
+
+    private bool NativeReady => Host.SupportsNativeTransports && _connections is not null;
 
     protected override async Task OnInitializedAsync()
     {
+        _connections = Services.GetService<IConsoleConnectionManager>();
         await LoadAsync();
     }
 
     private async Task ActivateAsync(string profileId)
     {
         await Profiles.ActivateProfileAsync(profileId);
-        await Profiles.SaveStateAsync(new ConsoleEnvironmentState
+        await LoadAsync();
+    }
+
+    private async Task ConnectAsync(string profileId)
+    {
+        if (_connections is null)
         {
-            ProfileId = profileId,
-            LastRoute = "/environments",
-            LastConnectedAt = DateTimeOffset.UtcNow,
-            LastStreamingResumeToken = _states.GetValueOrDefault(profileId)?.LastStreamingResumeToken ?? string.Empty
-        });
+            return;
+        }
+
+        _busyProfileId = profileId;
+        var outcome = await _connections.ConnectAsync(profileId);
+        _messages[profileId] = outcome.Message;
+        _busyProfileId = null;
+        await LoadAsync();
+    }
+
+    private async Task DisconnectAsync(string profileId)
+    {
+        if (_connections is null)
+        {
+            return;
+        }
+
+        _busyProfileId = profileId;
+        await _connections.DisconnectAsync(profileId);
+        _messages[profileId] = "Disconnected.";
+        _busyProfileId = null;
+        await LoadAsync();
+    }
+
+    private async Task AcknowledgeAsync(string profileId)
+    {
+        if (_connections is null)
+        {
+            return;
+        }
+
+        _busyProfileId = profileId;
+        var outcome = await _connections.AcknowledgeServerCertificateAsync(profileId);
+        _messages[profileId] = outcome.Message;
+        _busyProfileId = null;
+        await LoadAsync();
+    }
+
+    private async Task RevalidateAsync(string profileId)
+    {
+        if (_connections is null)
+        {
+            return;
+        }
+
+        _busyProfileId = profileId;
+        var outcome = await _connections.RevalidateAsync(profileId);
+        _messages[profileId] = outcome.Message;
+        _busyProfileId = null;
         await LoadAsync();
     }
 
@@ -86,16 +226,19 @@
         }
     }
 
-    private static string FormatEnabled(bool enabled) => enabled ? "Enabled" : "Disabled";
-
     private static string FormatCertificate(ConsoleEnvironmentProfile profile)
     {
         if (!profile.ClientCertificate.Enabled)
         {
-            return "Disabled";
+            return "No client certificate";
         }
 
         var reference = profile.ClientCertificate.Reference;
-        return reference is null ? "Enabled" : $"{reference.Kind}: {reference.Value}";
+        return reference is null ? "Client certificate bound" : $"{reference.Kind}: {reference.Value}";
     }
+
+    private static string FormatLastConnected(ConsoleEnvironmentState? state) =>
+        state?.LastConnectedAt is { } connectedAt
+            ? connectedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")
+            : "never";
 }
