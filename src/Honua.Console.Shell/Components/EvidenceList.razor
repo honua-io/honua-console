@@ -1,0 +1,24 @@
+@if (Items.Count > 0)
+{
+    <section class="operate-evidence-section">
+        <h4>@Heading</h4>
+        <ul class="operate-evidence-list">
+            @foreach (var item in Items)
+            {
+                <li>
+                    <a href="@item.Href">@item.Label</a>
+                    <span>@item.Kind</span>
+                    <p>@item.Detail</p>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string Heading { get; set; } = "Evidence";
+
+    [Parameter]
+    public IReadOnlyList<OperateEvidenceLink> Items { get; set; } = Array.Empty<OperateEvidenceLink>();
+}

@@ -55,6 +55,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/identity/diagnostics
 /operate/license               License + entitlement workspace
 /operate/observability         Top-level observability tile
+/operate/events/:eventId       Event timeline detail deep link
+/operate/alerts/:alertId       Alert evidence detail deep link
+/operate/jobs/:jobRunId        Unified job-run detail deep link
 /operate/operations            Operations console
 /operate/control-center        Control center
 /operate/services/:name/settings
@@ -624,6 +627,9 @@ or entitlement requirements on top.
 | `/operate/identity/diagnostics` | `entitlement:identity.claims-mapping` (gate claims tab) | — | forbidden / upgrade | operate |
 | `/operate/license` | — | — | forbidden | operate |
 | `/operate/observability` | — | empty-operate | forbidden | operate |
+| `/operate/events/:eventId` | — | fixture event fallback | forbidden | operate |
+| `/operate/alerts/:alertId` | — | fixture alert fallback | forbidden | operate |
+| `/operate/jobs/:jobRunId` | — | fixture job fallback | forbidden | operate |
 | `/operate/operations` | — | empty-operate | forbidden | operate |
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
@@ -633,6 +639,25 @@ or entitlement requirements on top.
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
+
+`honua-console#41` adds the native Blazor observability checkpoint for
+`/operate`, `/operate/observability`, and the event, alert, and job
+detail routes above. The checkpoint is backed by
+`OperateObservabilityFixture.Default`, so unmatched event, alert, or job
+ids currently select the first fixture row in that collection rather than
+issuing a backend read. Once `honua-server#1168`, `honua-server#1169`,
+`honua-server#1170`, and the SDK projections land, these routes should
+resolve by id and map not-found, permission, and unsupported states
+through the §7 exception surfaces.
+
+The checkpoint status contract treats `unknown`, `unsupported`,
+`missing`, `disabled`, `not configured`, and `unconfigured` as neutral
+states. `missing` displays as `unknown`; `unconfigured` displays as
+`not configured`. `error` event severities and `firing` alert states
+render as failures. AI advisory panels render beside raw evidence links,
+invalid realtime/geofence rules keep their enable action disabled, and
+Studio, publishing, GitOps, temporal, alert delivery, import, and
+maintenance jobs all use `/operate/jobs/:jobRunId` as the detail URL.
 
 Other entitlement gates that surface inside Operate sub-pages but do
 not own a top-level route (so they appear as in-page upgrade tiles
@@ -820,6 +845,7 @@ PRs that touch each ticket should link to its section number(s).
 | `honua-console#6` — Integrate legacy Admin as transitional Operate surface | §1 (`/operate/*`, `/operate/legacy/<path>`), all of §5 (Admin disposition map), §6.5 (Operate gates and surfaces), §11 (`honua-server-admin#96` consumer notes). |
 | `honua-console#7` — Wire Console to shared metadata / content / package / RBAC contracts | §4 (full RBAC and entitlement reference), §6 per-route gates, §11 (`honua-server#1162`, `honua-sdk-dotnet#166`, `honua-sdk-js#225` consumer notes). |
 | `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 rows carrying smoke labels. |
+| `honua-console#41` — Native Blazor Operate observability checkpoint | §1 (`/operate/observability`, `/operate/events/:eventId`, `/operate/alerts/:alertId`, `/operate/jobs/:jobRunId`), §6.5 (Operate detail-route and neutral-state behavior), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
 
 `honua-console#2` (scaffold) seeds the `<RouteGuard>`, the exception
 surface components in §7, the chunk boundaries in §9, the redirect

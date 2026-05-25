@@ -116,6 +116,22 @@ Until parity is accepted, source behavior remains in:
 - `honua-server` for server-owned metadata, content, RBAC, provenance, and package APIs.
 - `honua-devops` for the single deployable artifact and release pipeline.
 
+## Operate Observability Usage
+
+The native Blazor Operate observability checkpoint is available at
+`/operate` and `/operate/observability`, with deep links for
+`/operate/events/{eventId}`, `/operate/alerts/{alertId}`, and
+`/operate/jobs/{jobRunId}`.
+
+The current checkpoint is fixture-backed by `OperateObservabilityFixture`
+while the server and SDK Operate contracts land. It documents the
+response behavior Console must preserve: `unknown`, `unsupported`,
+`missing`, `disabled`, `not configured`, and `unconfigured` telemetry are
+neutral states; AI advisory text appears beside raw evidence links;
+invalid realtime/geofence rules cannot be enabled; and Studio,
+publishing, GitOps, temporal, alert delivery, import, and maintenance
+jobs share the `/operate/jobs/{jobRunId}` detail surface.
+
 ## Studio Contract Notes
 
 Studio authoring is modeled as shared package contracts, not separate Console-only schemas. The canonical model covers workspaces, content items, content versions, Studio projects, conversations/provenance, packages, data bindings, publications, and job runs.
