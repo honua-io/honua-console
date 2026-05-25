@@ -20,6 +20,7 @@ public sealed class OperateTransitionLiveServerTests
 {
     private const string RunLiveServerTestsVariable = "HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS";
     private const string HonuaServerProjectVariable = "HONUA_SERVER_PROJECT";
+    private const string HonuaServerStartupTimeoutVariable = "HONUA_CONSOLE_LIVE_SERVER_STARTUP_TIMEOUT_SECONDS";
     private const string DefaultHonuaServerProject =
         "/home/makani/honua-server/src/Honua.Server/Honua.Server.csproj";
 
@@ -129,7 +130,7 @@ public sealed class OperateTransitionLiveServerTests
                     geometryColumn = "geom",
                     geometryType = "Point",
                     primaryKey = "id",
-                    serviceName = "console-live",
+                    serviceName = "default",
                     enabled = true
                 })
             .ConfigureAwait(false);
@@ -148,8 +149,7 @@ public sealed class OperateTransitionLiveServerTests
 
         return await renderer.Dispatcher.InvokeAsync(async () =>
         {
-            var output = await renderer.RenderComponentAsync<TComponent>(ParameterView.Empty)
-                .ConfigureAwait(false);
+            var output = await renderer.RenderComponentAsync<TComponent>(ParameterView.Empty);
             return output.ToHtmlString();
         }).ConfigureAwait(false);
     }
@@ -201,12 +201,17 @@ public sealed class OperateTransitionLiveServerTests
             process.StartInfo.ArgumentList.Add("--project");
             process.StartInfo.ArgumentList.Add(projectPath);
             process.StartInfo.ArgumentList.Add("--no-launch-profile");
+            process.StartInfo.ArgumentList.Add("--no-restore");
             process.StartInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Test";
+            process.StartInfo.Environment["HONUA_REGISTER_TEST_INFRASTRUCTURE"] = "true";
             process.StartInfo.Environment["ASPNETCORE_URLS"] = baseUri.ToString();
+            process.StartInfo.Environment["ConnectionStrings__honua"] = connectionString;
             process.StartInfo.Environment["ConnectionStrings__DefaultConnection"] = connectionString;
             process.StartInfo.Environment["DataSource__Provider"] = "postgres";
             process.StartInfo.Environment["HONUA_DEV_AUTH"] = "true";
             process.StartInfo.Environment["HONUA_DEV_AUTH_ALLOW_BYPASS"] = "true";
+            process.StartInfo.Environment["Geocoding__Nominatim__BaseUrl"] = "https://8.8.8.8/nominatim";
+            process.StartInfo.Environment["Geocoding__Providers__Nominatim__BaseUrl"] = "https://8.8.8.8/nominatim";
             process.StartInfo.Environment["Security__ConnectionEncryption__MasterKey"] =
                 "console-live-test-master-key-32-bytes";
             process.StartInfo.Environment["HONUA_OBSERVABILITY"] = "false";
@@ -223,8 +228,16 @@ public sealed class OperateTransitionLiveServerTests
             process.BeginErrorReadLine();
 
             var server = new HonuaServerProcess(process, baseUri, output);
-            await server.WaitForHealthAsync().ConfigureAwait(false);
-            return server;
+            try
+            {
+                await server.WaitForHealthAsync().ConfigureAwait(false);
+                return server;
+            }
+            catch
+            {
+                server.Dispose();
+                throw;
+            }
         }
 
         public void Dispose()
@@ -245,13 +258,14 @@ public sealed class OperateTransitionLiveServerTests
         private async Task WaitForHealthAsync()
         {
             using var client = new HttpClient { BaseAddress = BaseUri };
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(120);
+            var timeout = GetStartupTimeout();
+            var deadline = DateTimeOffset.UtcNow.Add(timeout);
             while (DateTimeOffset.UtcNow < deadline)
             {
                 if (_process.HasExited)
                 {
                     throw new InvalidOperationException(
-                        $"honua-server exited with code {_process.ExitCode}.{Environment.NewLine}{_output}");
+                        $"honua-server exited with code {_process.ExitCode}.{Environment.NewLine}{GetCapturedOutput()}");
                 }
 
                 try
@@ -269,7 +283,16 @@ public sealed class OperateTransitionLiveServerTests
                 await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
             }
 
-            throw new TimeoutException($"honua-server did not become healthy within 120 seconds.{Environment.NewLine}{_output}");
+            throw new TimeoutException(
+                $"honua-server did not become healthy at {BaseUri} within {timeout.TotalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)} seconds.{Environment.NewLine}{GetCapturedOutput()}");
+        }
+
+        private static TimeSpan GetStartupTimeout()
+        {
+            var configured = Environment.GetEnvironmentVariable(HonuaServerStartupTimeoutVariable);
+            return int.TryParse(configured, out var seconds) && seconds > 0
+                ? TimeSpan.FromSeconds(seconds)
+                : TimeSpan.FromSeconds(300);
         }
 
         private static int GetAvailableTcpPort()
@@ -288,5 +311,8 @@ public sealed class OperateTransitionLiveServerTests
                 output.AppendLine(line);
             }
         }
+
+        private string GetCapturedOutput() =>
+            _output.Length == 0 ? "No honua-server output was captured." : _output.ToString();
     }
 }

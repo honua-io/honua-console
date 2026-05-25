@@ -2,7 +2,7 @@
 
 Status: implemented for `honua-console#36`, retrofitted for real server bindings in `honua-console#60`.
 
-This slice adds native Blazor Operate pages for the Admin transition while the shared `honua-sdk-dotnet` admin projections are still pending. Normal runtime registration no longer uses the seeded in-memory data source. When `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL` is configured, `IOperateTransitionDataSource` binds through the `Honua.Console.Contracts` Operate admin HTTP shim to live honua-server admin endpoints. When no server binding is configured, the routes render an explicit missing-binding state rather than sample data. The seeded in-memory data source remains available only through tests or the explicit `AddHonuaConsoleDemoOperateTransitionData()` opt-in.
+This slice adds native Blazor Operate pages for the Admin transition while the shared `honua-sdk-dotnet` admin projections are still pending. Normal runtime registration no longer uses the seeded in-memory data source. When `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL` is set to an absolute `http` or `https` URL, `IOperateTransitionDataSource` binds through the `Honua.Console.Contracts` Operate admin HTTP shim to live honua-server admin endpoints. When no valid server binding is configured, the routes render an explicit missing-binding state rather than sample data. The seeded in-memory data source remains available only through tests or the explicit `AddHonuaConsoleDemoOperateTransitionData()` opt-in.
 
 The native routes are the preferred Console navigation for connections, data resources, services, layers, and operator settings. Legacy Admin routes remain available under `/operate/legacy/*` according to the [legacy route disposition](../migration/legacy-admin-route-disposition.md) until parity smoke and SDK-backed data prove each legacy row can be retired.
 
@@ -25,10 +25,13 @@ The native routes are the preferred Console navigation for connections, data res
 ## Server Binding And Admin Shim
 
 The browser host passes `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL`
-into `AddHonuaConsoleShell(serverBaseUrl, adminApiKey)`. The optional admin
-API key can come from `Honua:Server:AdminApiKey` or `HONUA_ADMIN_API_KEY` and
-is sent as `X-API-Key`. Standard ASP.NET environment variable mapping also
-supports `Honua__Server__BaseUrl` and `Honua__Server__AdminApiKey`.
+into `AddHonuaConsoleShell(serverBaseUrl, adminApiKey)`. Only absolute
+`http` or `https` base URLs activate the server-backed binding; missing,
+relative, or non-HTTP values use the missing-binding capability state. The
+optional admin API key can come from `Honua:Server:AdminApiKey` or
+`HONUA_ADMIN_API_KEY` and is sent as `X-API-Key`. Standard ASP.NET
+environment variable mapping also supports `Honua__Server__BaseUrl` and
+`Honua__Server__AdminApiKey`.
 
 Until `honua-sdk-dotnet#166` provides admin projections, the temporary
 `HonuaAdminOperateHttpClient` reads the honua-server admin envelope
@@ -40,7 +43,7 @@ capability state.
 | Console surface | Admin endpoint used now |
 | --- | --- |
 | Connections | `GET /api/v1/admin/connections/` |
-| Published layer/resource projections | `GET /api/v1/admin/connections/{id}/layers/` |
+| Published layer/resource projections | `GET /api/v1/admin/connections/{id}/layers/`, plus `?serviceName={serviceName}` for non-default services reported by the service list |
 | Services | `GET /api/v1/admin/services/` |
 | Service settings | `GET /api/v1/admin/services/{serviceName}/settings` |
 | Runtime/version settings | `GET /api/v1/admin/version` and `GET /api/v1/admin/capabilities` |
@@ -60,8 +63,10 @@ Endpoint issues are normalized before they reach Razor components:
 | Successful envelope with no data | `Unavailable` |
 
 The server-backed data source starts the independent top-level reads together
-to avoid a startup waterfall, then reads layer rows per connection and service
-settings per service. It does not fabricate rows for unsupported contracts.
+to avoid a startup waterfall, then reads layer rows per connection across the
+default service scope and each non-default service reported by
+`GET /api/v1/admin/services/`. Service settings are read per service. It does
+not fabricate rows for unsupported contracts.
 
 ## Response Contract
 
@@ -102,6 +107,20 @@ Missing backend contracts render `<OperateCapabilityStateList>` entries that nam
 - Resource detail tabs are represented by the current edit preview: Overview, Source, Fields, Metadata, Publish, Access, Validation, Presentation, and Advanced.
 - Service settings control runtime, exposure, restart-scoped options, and publication slots. Canonical resource metadata stays owned by data resources.
 - Settings changes must show apply scope, policy state, and restart impact before the operator applies the change. API key secret values are server-owned one-time reveals and are never kept in Console state.
+
+## Live Integration Evidence
+
+`OperateTransitionLiveServerTests` is opt-in because it starts PostgreSQL with
+Testcontainers and boots a real honua-server checkout. Run it with:
+
+```bash
+HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
+HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
+dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
+```
+
+The test skips cleanly when it is not opted in, when Docker is unavailable, or
+when the honua-server project path cannot be found.
 
 ## SDK Swap Point
 

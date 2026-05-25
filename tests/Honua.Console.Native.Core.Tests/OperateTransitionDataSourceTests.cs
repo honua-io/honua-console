@@ -70,11 +70,17 @@ public sealed class OperateTransitionDataSourceTests
             [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=planning"] = """
                 {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}]}
                 """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=public"] = """
+                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"public"}]}
+                """,
             ["/api/v1/admin/services/"] = """
-                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer","MapServer"]}]}
+                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer","MapServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
                 """,
             ["/api/v1/admin/services/planning/settings"] = """
                 {"success":true,"data":{"serviceName":"planning","enabledProtocols":["FeatureServer"],"availableProtocols":["FeatureServer","MapServer"],"accessPolicy":{"allowAnonymous":true,"allowAnonymousWrite":false,"allowedRoles":["operator"],"allowedWriteRoles":[]},"mapServer":{"maxImageWidth":4096,"maxImageHeight":4096,"defaultFormat":"png","maxFeaturesPerLayer":1000}}}
+                """,
+            ["/api/v1/admin/services/public/settings"] = """
+                {"success":true,"data":{"serviceName":"public","enabledProtocols":["FeatureServer"],"availableProtocols":["FeatureServer"],"accessPolicy":{"allowAnonymous":true,"allowAnonymousWrite":false,"allowedRoles":[],"allowedWriteRoles":[]},"mapServer":{"maxImageWidth":2048,"maxImageHeight":2048,"defaultFormat":"png","maxFeaturesPerLayer":1000}}}
                 """,
             ["/api/v1/admin/version"] = """
                 {"success":true,"data":{"version":"1.2.3","metadataApiVersion":"v2","metadataSchemaVersion":"2026-05","serverTime":"2026-05-24T10:00:00Z"}}
@@ -104,8 +110,11 @@ public sealed class OperateTransitionDataSourceTests
         var workspace = await dataSource.GetWorkspaceAsync();
 
         Assert.Contains(workspace.Connections, connection => connection.Name == "Live PostGIS" && connection.Status == "Passed");
-        Assert.Contains(workspace.ResourceEdits, resource => resource.Name == "Console Parcels" && resource.ValidationState == "Published");
+        var resource = Assert.Single(workspace.ResourceEdits, candidate => candidate.Name == "Console Parcels");
+        Assert.Equal("Published", resource.ValidationState);
+        Assert.Equal(["planning", "public"], resource.BlastRadius.Services);
         Assert.Contains(workspace.Services, service => service.Name == "planning" && service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        Assert.Contains(workspace.Services, service => service.Name == "public" && service.Layers.Any(layer => layer.CanonicalResourceId == resource.ResourceId));
         Assert.Contains(workspace.SettingsChanges, change => change.Id == "license" && change.ProposedChange.Contains("Community", StringComparison.Ordinal));
         Assert.Contains(
             workspace.CapabilityStates,
@@ -341,8 +350,7 @@ public sealed class OperateTransitionDataSourceTests
 
         return await renderer.Dispatcher.InvokeAsync(async () =>
         {
-            var output = await renderer.RenderComponentAsync<TComponent>(parameters)
-                .ConfigureAwait(false);
+            var output = await renderer.RenderComponentAsync<TComponent>(parameters);
             return output.ToHtmlString();
         }).ConfigureAwait(false);
     }

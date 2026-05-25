@@ -54,10 +54,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
         var layerRows = await ReadLayerRowsAsync(connections, serviceSummaries, states, cancellationToken)
             .ConfigureAwait(false);
-        var resources = layerRows
-            .Select(row => row.Resource)
-            .OrderBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var resources = BuildResourceEdits(layerRows);
 
         AddStateOnce(
             states,
@@ -241,6 +238,45 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
         return new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(settings);
     }
+
+    private static IReadOnlyList<OperateResourceEditPreview> BuildResourceEdits(IReadOnlyList<LayerRow> layerRows)
+    {
+        return layerRows
+            .GroupBy(row => row.Resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var resource = group
+                    .Select(row => row.Resource)
+                    .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(candidate => candidate.ResourceId, StringComparer.OrdinalIgnoreCase)
+                    .First();
+                var blastRadius = resource.BlastRadius;
+
+                return resource with
+                {
+                    BlastRadius = blastRadius with
+                    {
+                        CatalogItems = DistinctOrdered(group.SelectMany(row => row.Resource.BlastRadius.CatalogItems)),
+                        Services = DistinctOrdered(group.SelectMany(row => row.Resource.BlastRadius.Services)),
+                        Layers = DistinctOrdered(group.SelectMany(row => row.Resource.BlastRadius.Layers)),
+                        SavedMaps = DistinctOrdered(group.SelectMany(row => row.Resource.BlastRadius.SavedMaps)),
+                        ShareLinks = DistinctOrdered(group.SelectMany(row => row.Resource.BlastRadius.ShareLinks)),
+                        GeneratedApps = DistinctOrdered(group.SelectMany(row => row.Resource.BlastRadius.GeneratedApps))
+                    }
+                };
+            })
+            .OrderBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(resource => resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> DistinctOrdered(IEnumerable<string> values) =>
+        values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private OperateServiceDetail MapService(
         HonuaAdminServiceSummary service,

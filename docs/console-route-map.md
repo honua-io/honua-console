@@ -767,10 +767,10 @@ For `honua-console#60`, the native transition group
 (`/operate/connections`, `/operate/resources`, `/operate/services`,
 `/operate/layers`, and `/operate/settings`) resolves through
 `IOperateTransitionDataSource`. Normal browser runtime binds that source to
-honua-server admin endpoints when a server base URL is configured, or renders
-a named missing-binding state when it is not. Missing server subcontracts,
-permission denials, and unsupported admin endpoints surface as in-page
-capability states rather than seeded rows.
+honua-server admin endpoints when an absolute HTTP(S) server base URL is
+configured, or renders a named missing-binding state when it is not. Missing
+server subcontracts, permission denials, and unsupported admin endpoints
+surface as in-page capability states rather than seeded rows.
 
 | Route | Additional gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
