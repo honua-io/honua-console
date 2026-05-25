@@ -78,8 +78,10 @@ public sealed record OperateStatus(string State, string Description)
     private static readonly HashSet<string> FailureStates = new(StringComparer.OrdinalIgnoreCase)
     {
         "critical",
+        "error",
         "failed",
         "failing",
+        "firing",
         "invalid",
         "unhealthy",
         "blocked"

@@ -25,6 +25,19 @@ public sealed class OperateObservabilityModelTests
     }
 
     [Fact]
+    public void ErrorEventsAndFiringAlertsRenderAsFailures()
+    {
+        var snapshot = OperateObservabilityFixture.Default;
+        var errorEvent = Assert.Single(snapshot.Events, item => item.EventId == "evt-job-301");
+        var firingAlert = Assert.Single(snapshot.Alerts, item => item.AlertId == "alert-slo-burn");
+
+        Assert.True(errorEvent.SeverityStatus.IsFailure);
+        Assert.Equal("console-state-danger", errorEvent.SeverityStatus.CssClass);
+        Assert.True(firingAlert.Status.IsFailure);
+        Assert.Equal("console-state-danger", firingAlert.Status.CssClass);
+    }
+
+    [Fact]
     public void AiAdvisoriesRemainEvidenceLinkedAndPreserveRawEvidence()
     {
         var snapshot = OperateObservabilityFixture.Default;

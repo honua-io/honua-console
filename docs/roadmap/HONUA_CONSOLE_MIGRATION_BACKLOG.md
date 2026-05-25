@@ -70,7 +70,7 @@ This backlog intentionally separates three decisions:
 
 - Define Operate observability information model:
   - [Operate Observability Information Model](../architecture/operate-observability-information-model.md)
-- [honua-console#24](https://github.com/honua-io/honua-console/issues/24): Operate observability event viewer alerts realtime rules and jobs workspace.
+- [honua-console#41](https://github.com/honua-io/honua-console/issues/41): Operate observability event viewer alerts realtime rules and jobs workspace.
 
 ### P2 Native Console Work
 

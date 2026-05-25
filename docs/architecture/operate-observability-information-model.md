@@ -1,6 +1,7 @@
 # Operate Observability Information Model
 
-Status: draft for backlog planning.
+Status: implementation checkpoint for `honua-console#41`; backend API
+contracts remain draft pending server and SDK projections.
 
 ## Purpose
 
@@ -286,6 +287,38 @@ The checkpoint proves these product behaviors:
   maintenance jobs all link to the same `/operate/jobs/{jobRunId}` detail
   surface
 
+Current UI projection response contract:
+
+- `OperateObservabilitySnapshot` is the route-level projection. It
+  contains `Environments`, `TelemetryFacts`, `CompatibilityRows`,
+  `Events`, `Alerts`, `Rules`, `Jobs`, and `Investigations`.
+- `OperateStatus` normalizes state strings by trimming, lowercasing, and
+  replacing underscores with spaces. Neutral states are `unknown`,
+  `unsupported`, `missing`, `disabled`, `not configured`, and
+  `unconfigured`; `missing` displays as `unknown`, and `unconfigured`
+  displays as `not configured`.
+- Failure styling is reserved for `critical`, `error`, `failed`,
+  `failing`, `firing`, `invalid`, `unhealthy`, and `blocked`. A neutral
+  telemetry fact is not a failed environment, even when the server
+  omitted, disabled, or cannot support that signal.
+- `OperateObservabilityRoutes.EventDetail`, `AlertDetail`, and
+  `JobDetail` emit `/operate/events/{eventId}`,
+  `/operate/alerts/{alertId}`, and `/operate/jobs/{jobRunId}` with the
+  route id escaped as a path segment.
+- The checkpoint uses fixture selection helpers. If a detail route id is
+  absent from the fixture, the UI selects the first event, alert, or job
+  row so the page remains renderable until the backend read contract is
+  available.
+- `OperateAiAdvisory` is advisory only: event and alert details must keep
+  raw evidence links visible beside the advisory summary and suggested
+  actions.
+- `OperateAlertRule.CanEnable` is true only when the rule is disabled and
+  valid. A rule is invalid when its normalized status is `invalid` or it
+  has validation messages.
+- `OperateJobRun.DetailHref` is the single job detail link for Studio,
+  publishing, GitOps, temporal, alert delivery, import, and maintenance
+  work.
+
 ### Server Overview
 
 Purpose: show whether a connected server is healthy and observable.
@@ -398,6 +431,11 @@ Content:
 ## Backend API Shape
 
 Console needs stable product-level APIs even if backing providers differ by deployment:
+
+The `honua-console#41` checkpoint does not call these endpoints yet. It
+keeps the route fixture as a Console UI projection until server-owned
+contracts and SDK projections land, so Console does not duplicate
+backend protocol DTOs in components.
 
 - `GET /operate/targets`
 - `GET /operate/servers/{serverId}/telemetry-status`
