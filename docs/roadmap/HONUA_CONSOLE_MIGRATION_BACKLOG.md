@@ -13,6 +13,7 @@ Coordination contracts (binding on all child tickets):
 - [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md) - per-language .NET and browser shim boundaries while `honua-sdk-dotnet#166` and `honua-sdk-js#225` land; removed under `honua-console#7`.
 - [Console Backend Capability Backlog](CONSOLE_BACKEND_CAPABILITY_BACKLOG.md) - backend/server/devops/sdk capability crosswalk required behind the design handoff and one deploy surface.
 - [Console UI Implementation Backlog](CONSOLE_UI_IMPLEMENTATION_BACKLOG.md) - design-artifact breakdown into buildable UI slices, route targets, backend dependencies, and smoke expectations.
+- [Design Artifact Work Breakdown Matrix](DESIGN_ARTIFACT_WORK_BREAKDOWN.md) - artifact-to-task traceability for child issues, mock-contract gates, route decisions, and superseded design surfaces.
 
 IA source: [Honua Console Route Map, RBAC, and Navigation](../console-route-map.md). Migration tickets `#4`, `#5`, `#6`, `#7`, and `#9` cite specific sections of this map for URL shapes, gates, empty states, and smoke evidence — see `console-route-map.md` §12 for the per-ticket section index.
 
@@ -32,6 +33,7 @@ This backlog intentionally separates three decisions:
 
 - [honua-console#1](https://github.com/honua-io/honua-console/issues/1): Epic: Honua Console migration and one deployable artifact.
 - Planning artifact: [Console UI Implementation Backlog](CONSOLE_UI_IMPLEMENTATION_BACKLOG.md).
+- Child-work traceability: [Design Artifact Work Breakdown Matrix](DESIGN_ARTIFACT_WORK_BREAKDOWN.md).
 
 ### P0 Blockers
 
