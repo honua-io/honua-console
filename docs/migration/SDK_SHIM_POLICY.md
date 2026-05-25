@@ -113,7 +113,11 @@ The current active shims are bounded to the catalog/viewer/share route parity wo
 The catalog shim preserves the Portal URL contract at the route edge:
 `/catalog` accepts `visibility`, not `sharing`. `CatalogListRequest`
 maps that value to the SDK/server request field `sharing`, and
-`ToSdkParameters()` must not emit `visibility`. Embed bearer placement is
+`ToSdkParameters()` must not emit `visibility`. `CatalogSearchState`
+normalizes `visibility` to `private`, `org`, `group`, `public-link`, or
+`public`, normalizes `sort` to `relevance`, `modified-desc`,
+`modified-asc`, `title-asc`, or `title-desc`, and drops unsupported type
+filters before creating the request. Embed bearer placement is
 also pinned here until the SDK projections land: `EmbedRouteOptions`
 reads `#embedToken=` from the URL fragment for token-authorized embeds
 and flags query-string `token` or `embedToken` as an unavailable-route

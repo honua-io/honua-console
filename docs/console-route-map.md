@@ -632,9 +632,12 @@ the Portal keys `q`, `type`, `tag`, `owner`, `visibility`, `sort`, and
 forwarded. `visibility` is the route/query spelling; it maps to the SDK
 request field `sharing`. The public URL must not accept a `sharing` query
 key. Invalid `type`, `visibility`, and `sort` enum values normalize to no
-type filter, no sharing filter, and `relevance`, respectively. The list
-surface requires an authenticated workspace session; public/open-data
-collection reads live under `/share`, `/share/public`, and `/public`.
+type filter, no sharing filter, and `relevance`, respectively. Accepted
+`visibility` values are `private`, `org`, `group`, `public-link`, and
+`public`; accepted `sort` values are `relevance`, `modified-desc`,
+`modified-asc`, `title-asc`, and `title-desc`. The list surface requires
+an authenticated workspace session; public/open-data collection reads
+live under `/share`, `/share/public`, and `/public`.
 
 The route slice exposes the unified content strip for `dataset`,
 `service`, `layer`, `document`, `map`, `dashboard`, `report`, `form`,
@@ -642,7 +645,9 @@ The route slice exposes the unified content strip for `dataset`,
 and `template`. Detail pages expose Overview, Versions, Lineage,
 Bindings, Publication, Permissions, Activity, and Usage tabs. Publication
 shows the canonical share link; Usage is the pre-retirement dependency
-risk surface.
+risk surface. Detail tab state is carried by
+`tab=overview|versions|lineage|bindings|publication|permissions|activity|usage`;
+missing or unknown tab values render Overview.
 
 `/catalog/:idOrSlug` is anonymous-capable on the same `ShareAccess` +
 `?token=` contract as `/maps/:mapId` (§6.4, §2.5). Anonymous denials
@@ -654,7 +659,10 @@ gates (editMetadata, updateSharing, etc.) still require authenticated
 `ROLE_MATRIX` (§4.2) and are hidden from the anonymous read surface.
 Anonymous public-link detail and map actions preserve the validated
 `?token=<value>` on followable `/catalog/:idOrSlug` and `/maps/:mapId`
-links; non-map draft hydration remains authenticated-only.
+links. When a signed-in workspace session exists, Console resolves the
+authenticated read path before the token path, so stale query tokens do
+not downgrade the read context or propagate into action links. Non-map
+draft hydration remains authenticated-only.
 
 ### 6.4 Maps (viewer)
 

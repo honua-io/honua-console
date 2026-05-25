@@ -1,5 +1,6 @@
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Native.Core.Tests;
@@ -62,6 +63,34 @@ public sealed class ConsoleCatalogClientTests
         Assert.Equal(CatalogReadStatus.Unavailable, publicLink.Status);
         Assert.Equal(CatalogReadStatus.Allowed, authenticated.Status);
         Assert.Equal("Utilities Critical Layer draft map", authenticated.MapPackage?.Summary.Title);
+    }
+
+    [Fact]
+    public async Task DraftMapHydrationReturnsMissingForUnknownSource()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+
+        var result = await catalog.GetDraftMapAsync(
+            "missing-source",
+            CatalogReadContext.Authenticated);
+        var state = MapDraftPage.ResolveReadState(result.Status, result.Message);
+
+        Assert.Equal(CatalogReadStatus.Missing, result.Status);
+        Assert.Null(result.MapPackage);
+        Assert.Equal("missing", state.Kind);
+    }
+
+    [Fact]
+    public async Task DraftMapHydrationRejectsSavedMapSources()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+
+        var result = await catalog.GetDraftMapAsync(
+            "storm-response-map",
+            CatalogReadContext.Authenticated);
+
+        Assert.Equal(CatalogReadStatus.UnsupportedServiceMetadata, result.Status);
+        Assert.Null(result.MapPackage);
     }
 
     [Fact]

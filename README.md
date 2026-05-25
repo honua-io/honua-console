@@ -121,7 +121,10 @@ The Blazor shell includes the catalog/share parity route slice for
 - `/catalog/{idOrSlug}` and `/maps/{mapId}` accept anonymous public reads
   without a token and public-link reads with `?token=<value>`.
   Authenticated reads continue to expose Studio and Share actions according
-  to item policy; anonymous reads hide those actions.
+  to item policy, and do not preserve stale public-link tokens in action
+  URLs. Anonymous reads hide those actions. Catalog detail tabs use
+  `?tab=overview|versions|lineage|bindings|publication|permissions|activity|usage`;
+  unknown tabs fall back to overview.
 - `/maps/new?from=<itemId>` requires a signed-in workspace session and
   hydrates an unsaved draft map from a supported catalog item.
 - `/share`, `/share/public`, and `/public` list public open-data service,

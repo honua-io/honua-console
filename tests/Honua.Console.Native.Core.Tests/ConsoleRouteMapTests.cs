@@ -71,6 +71,7 @@ public sealed class ConsoleRouteMapTests
     {
         var routes = ConsoleRouteMap.PortalParityRoutes;
 
+        Assert.Contains("/auth/signin", routes);
         Assert.Contains("/catalog", routes);
         Assert.Contains("/catalog/{idOrSlug}", routes);
         Assert.Contains("/maps/{mapId}", routes);

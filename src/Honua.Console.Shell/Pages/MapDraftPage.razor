@@ -22,7 +22,7 @@
     }
     else if (_result.Status != CatalogReadStatus.Allowed || _result.MapPackage is null)
     {
-        <ConsoleStateView Kind="unsupported-service" Kicker="Unsupported source" Title="Cannot hydrate map draft" Message="@_result.Message" ActionHref="/catalog" ActionLabel="Back To Catalog" />
+        @RenderReadState(_result.Status, _result.Message)
     }
     else
     {
@@ -87,4 +87,28 @@
         var returnTo = $"/{Navigation.ToBaseRelativePath(Navigation.Uri)}";
         return $"/auth/signin?returnTo={Uri.EscapeDataString(returnTo)}";
     }
+
+    public static (string Kind, string Kicker, string Title, string Body) ResolveReadState(CatalogReadStatus status, string message) =>
+        status switch
+        {
+            CatalogReadStatus.Missing => ("missing", "Missing source", "Source item not found", "The source item for this draft map does not exist or is no longer available."),
+            CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated draft-map read was denied by item policy."),
+            CatalogReadStatus.UnsupportedPackageBinding => ("unsupported-package", "Unsupported package", "Unsupported package binding", message),
+            CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported source", "Cannot hydrate map draft", message),
+            _ => ("unavailable", "Unavailable", "Cannot hydrate map draft", "Sign in or choose a catalog item that can be opened in the viewer.")
+        };
+
+    private RenderFragment RenderReadState(CatalogReadStatus status, string message) => builder =>
+    {
+        var (kind, kicker, title, body) = ResolveReadState(status, message);
+
+        builder.OpenComponent<ConsoleStateView>(0);
+        builder.AddAttribute(1, "Kind", kind);
+        builder.AddAttribute(2, "Kicker", kicker);
+        builder.AddAttribute(3, "Title", title);
+        builder.AddAttribute(4, "Message", body);
+        builder.AddAttribute(5, "ActionHref", "/catalog?type=service");
+        builder.AddAttribute(6, "ActionLabel", "Browse Catalog");
+        builder.CloseComponent();
+    };
 }

@@ -186,6 +186,13 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
                 "The source item for this draft map was not found."));
         }
 
+        if (!IsDraftMapSourceType(item.Summary.Type))
+        {
+            return Task.FromResult(MapPackageReadResult.Denied(
+                CatalogReadStatus.UnsupportedServiceMetadata,
+                "Draft maps can only be hydrated from supported catalog services or layers."));
+        }
+
         if (!item.Summary.ViewerSupport.CanOpenInViewer
             || item.Summary.ViewerSupport.SupportState != ConsoleContentSupportState.Supported)
         {
@@ -300,6 +307,10 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         && (string.Equals(item.Type, "service", StringComparison.Ordinal)
             || string.Equals(item.Type, "layer", StringComparison.Ordinal)
             || string.Equals(item.Type, "document", StringComparison.Ordinal));
+
+    private static bool IsDraftMapSourceType(string type) =>
+        string.Equals(type, "service", StringComparison.Ordinal)
+        || string.Equals(type, "layer", StringComparison.Ordinal);
 
     private static bool Contains(string value, string query) =>
         value.Contains(query, StringComparison.OrdinalIgnoreCase);

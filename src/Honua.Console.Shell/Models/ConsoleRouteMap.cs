@@ -12,6 +12,7 @@ public static class ConsoleRouteMap
 
     public static IReadOnlyList<string> PortalParityRoutes { get; } =
     [
+        "/auth/signin",
         "/catalog",
         "/catalog/{idOrSlug}",
         "/maps/{mapId}",
