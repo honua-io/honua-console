@@ -170,6 +170,68 @@
 
         <StudioPackageInspector Package="_session.ActivePackage" />
     </div>
+
+    <section class="studio-editor-directory" aria-labelledby="studio-editor-directory-heading">
+        <div class="console-page-heading">
+            <p class="console-kicker">Package editors</p>
+            <h2 id="studio-editor-directory-heading">Generated Package Families</h2>
+            <p class="console-muted">
+                Console-native editors for generated query, analysis, map, dashboard, report, form, and app packages.
+            </p>
+        </div>
+
+        <div class="console-panel-grid studio-editor-grid">
+            @foreach (var editor in StudioPackageEditorCatalog.Editors)
+            {
+                <a class="console-panel console-area-link studio-editor-card" href="@editor.Path">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h2>@editor.DisplayName</h2>
+                            <p class="console-muted">@editor.PackageType</p>
+                        </div>
+                        <span class="console-status">@editor.ContentType</span>
+                    </div>
+                    <p>@editor.Summary</p>
+                    <div class="console-chip-row">
+                        @foreach (var capability in editor.RequiredEditors.Take(3))
+                        {
+                            <span>@capability.Title</span>
+                        }
+                        @if (editor.UsesVegaLite)
+                        {
+                            <span>Vega-Lite</span>
+                        }
+                        @if (editor.RequiresOfflinePolicyBeforePublish)
+                        {
+                            <span>Offline policy required</span>
+                        }
+                        @if (editor.ReopenedEditsCreateNewContentVersions)
+                        {
+                            <span>Versioned reopen</span>
+                        }
+                    </div>
+                </a>
+            }
+        </div>
+
+        <article class="console-panel studio-runtime-note">
+            <div class="console-panel-heading">
+                <div>
+                    <h2>Package Lifecycle Boundary</h2>
+                    <p class="console-muted">
+                        The editors use stable mock refs until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs.
+                    </p>
+                </div>
+                <span class="console-status">Single Console runtime</span>
+            </div>
+            <div class="console-chip-row">
+                @foreach (var operation in StudioPackageEditorCatalog.FullLifecycleOperations)
+                {
+                    <span>@operation</span>
+                }
+            </div>
+        </article>
+    </section>
 </section>
 
 @code {

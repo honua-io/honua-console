@@ -1,0 +1,581 @@
+@using System.Text.Json
+
+<section class="console-page studio-editor-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio authoring</p>
+        <h1>@Editor.DisplayName Editor</h1>
+        <p>@Editor.Summary</p>
+    </div>
+
+    <div class="studio-editor-shell">
+        <div class="studio-editor-main">
+            <article class="console-panel studio-editor-card">
+                <div class="console-panel-heading">
+                    <div>
+                        <h2>Generated Package</h2>
+                        <p class="console-muted">@Editor.PackageType</p>
+                    </div>
+                    <span class="console-status">@_validationStatus</span>
+                </div>
+
+                <div class="studio-field-grid">
+                    <label>
+                        <span>Title</span>
+                        <input value="@_title" @oninput="OnTitleChanged" />
+                    </label>
+                    <label>
+                        <span>Source binding</span>
+                        <select @bind="_sourceBinding">
+                            <option>content:hydrants@v12</option>
+                            <option>content:parcels@v18</option>
+                            <option>content:flood-zones@v7</option>
+                            <option>content:service-requests@v5</option>
+                        </select>
+                    </label>
+                </div>
+
+                <label class="studio-stacked-field">
+                    <span>Summary</span>
+                    <textarea rows="3" @bind="_summary"></textarea>
+                </label>
+
+                @switch (Editor.Family)
+                {
+                    case StudioPackageFamily.Query:
+                        <div class="studio-editor-section">
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Predicate field</span>
+                                    <input @bind="_predicateField" />
+                                </label>
+                                <label>
+                                    <span>Operator</span>
+                                    <select @bind="_predicateOperator">
+                                        <option>within</option>
+                                        <option>intersects</option>
+                                        <option>contains</option>
+                                        <option>less_than</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Parameter</span>
+                                    <input @bind="_parameterValue" />
+                                </label>
+                                <label>
+                                    <span>Result limit</span>
+                                    <input type="number" min="1" max="5000" @bind="_resultLimit" />
+                                </label>
+                            </div>
+                            <pre class="studio-code">@GeneratedSql</pre>
+                        </div>
+                        break;
+
+                    case StudioPackageFamily.Analysis:
+                        <div class="studio-editor-section">
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Operation</span>
+                                    <select @bind="_analysisOperation">
+                                        <option>buffer</option>
+                                        <option>overlay</option>
+                                        <option>dissolve</option>
+                                        <option>spatial_join</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Distance</span>
+                                    <input @bind="_analysisDistance" />
+                                </label>
+                                <label>
+                                    <span>Worker profile</span>
+                                    <select @bind="_workerProfile">
+                                        <option>standard</option>
+                                        <option>memory-optimized</option>
+                                        <option>batch</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Output schema</span>
+                                    <input @bind="_outputSchema" />
+                                </label>
+                            </div>
+                            <ol class="studio-pipeline">
+                                <li>Bind source</li>
+                                <li>@_analysisOperation</li>
+                                <li>Validate output schema</li>
+                                <li>Submit preview job</li>
+                            </ol>
+                        </div>
+                        break;
+
+                    case StudioPackageFamily.Map:
+                        <div class="studio-editor-section">
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Basemap</span>
+                                    <select @bind="_basemap">
+                                        <option>honua-light</option>
+                                        <option>honua-satellite</option>
+                                        <option>honua-terrain</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Layer style</span>
+                                    <select @bind="_layerStyle">
+                                        <option>teal circles</option>
+                                        <option>risk choropleth</option>
+                                        <option>inspection status</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Popup fields</span>
+                                    <input @bind="_popupFields" />
+                                </label>
+                                <label>
+                                    <span>Initial extent</span>
+                                    <input @bind="_initialExtent" />
+                                </label>
+                            </div>
+                            <div class="studio-map-preview" role="img" aria-label="Map preview">
+                                <span>Layer stack</span>
+                                <strong>@_sourceBinding</strong>
+                                <small>@_basemap | @_layerStyle | @_initialExtent</small>
+                            </div>
+                        </div>
+                        break;
+
+                    case StudioPackageFamily.Dashboard:
+                    case StudioPackageFamily.Report:
+                        <div class="studio-editor-section">
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Chart title</span>
+                                    <input value="@_chartTitle" @oninput="OnChartTitleChanged" />
+                                </label>
+                                <label>
+                                    <span>Measure</span>
+                                    <input value="@_chartMeasure" @oninput="OnChartMeasureChanged" />
+                                </label>
+                                <label>
+                                    <span>Dimension</span>
+                                    <input value="@_chartDimension" @oninput="OnChartDimensionChanged" />
+                                </label>
+                                <label>
+                                    <span>Version pin</span>
+                                    <input @bind="_versionPin" />
+                                </label>
+                            </div>
+                            <label class="studio-stacked-field">
+                                <span>Vega-Lite chart spec</span>
+                                <textarea rows="10" @bind="_vegaLiteSpec"></textarea>
+                            </label>
+                        </div>
+                        break;
+
+                    case StudioPackageFamily.Form:
+                        <div class="studio-editor-section">
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Field group</span>
+                                    <input @bind="_formGroup" />
+                                </label>
+                                <label>
+                                    <span>Required field</span>
+                                    <input @bind="_requiredField" />
+                                </label>
+                                <label>
+                                    <span>Domain</span>
+                                    <input @bind="_fieldDomain" />
+                                </label>
+                                <label>
+                                    <span>Submit target</span>
+                                    <input @bind="_submitTarget" />
+                                </label>
+                                <label>
+                                    <span>Offline/sync policy</span>
+                                    <select @bind="_offlinePolicy">
+                                        <option value="">Not reviewed</option>
+                                        <option>online-only</option>
+                                        <option>offline-read-write-sync</option>
+                                        <option>offline-read-only</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Attachment policy</span>
+                                    <select @bind="_attachmentPolicy">
+                                        <option>photos required</option>
+                                        <option>photos optional</option>
+                                        <option>no attachments</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label class="studio-check-row">
+                                <input type="checkbox" @bind="_offlinePolicyReviewed" />
+                                <span>Offline/sync policy reviewed for publish</span>
+                            </label>
+                        </div>
+                        break;
+
+                    case StudioPackageFamily.App:
+                        <div class="studio-editor-section">
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Pages</span>
+                                    <input @bind="_appPages" />
+                                </label>
+                                <label>
+                                    <span>Components</span>
+                                    <input @bind="_appComponents" />
+                                </label>
+                                <label>
+                                    <span>Action</span>
+                                    <input @bind="_appAction" />
+                                </label>
+                                <label>
+                                    <span>Permission</span>
+                                    <select @bind="_appPermission">
+                                        <option>viewer</option>
+                                        <option>editor</option>
+                                        <option>operator</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <p class="console-muted">
+                                Published version @_lifecycle.PublishedVersionId remains immutable; reopened edits save to @_lifecycle.CurrentVersionId or the next content version.
+                            </p>
+                        </div>
+                        break;
+                }
+            </article>
+
+            <div class="studio-preview-grid">
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <h2>Validation</h2>
+                        <button type="button" class="console-button console-button-secondary" @onclick="ValidatePackage">Validate</button>
+                    </div>
+                    <ul class="studio-check-list">
+                        @foreach (var check in Editor.ValidationChecks)
+                        {
+                            <li>@check</li>
+                        }
+                    </ul>
+                    @if (Editor.RequiresOfflinePolicyBeforePublish && !CanPublish)
+                    {
+                        <p class="console-warning">Choose an offline/sync policy and mark it reviewed before publish.</p>
+                    }
+                </article>
+
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <h2>Preview</h2>
+                        <button type="button" class="console-button console-button-secondary" @onclick="PreviewPackage">Preview</button>
+                    </div>
+                    <div class="console-chip-row">
+                        @foreach (var panel in Editor.PreviewPanels)
+                        {
+                            <span>@panel</span>
+                        }
+                    </div>
+                    <p class="console-muted">@_previewStatus</p>
+                </article>
+            </div>
+        </div>
+
+        <aside class="studio-editor-side">
+            <article class="console-panel">
+                <h2>Editor Coverage</h2>
+                <div class="studio-capability-list">
+                    @foreach (var capability in Editor.RequiredEditors)
+                    {
+                        <section>
+                            <h3>@capability.Title</h3>
+                            <p class="console-muted">@capability.Summary</p>
+                            <div class="console-chip-row">
+                                @foreach (var control in capability.Controls)
+                                {
+                                    <span>@control</span>
+                                }
+                            </div>
+                        </section>
+                    }
+                </div>
+            </article>
+
+            <article class="console-panel">
+                <h2>Publish Review</h2>
+                <dl class="console-definition-list">
+                    <dt>Item</dt>
+                    <dd>@_lifecycle.ItemId</dd>
+                    <dt>Draft</dt>
+                    <dd>@_lifecycle.CurrentVersionId</dd>
+                    <dt>Published</dt>
+                    <dd>@_lifecycle.PublishedVersionId</dd>
+                    <dt>Package</dt>
+                    <dd>@Editor.PackageType</dd>
+                </dl>
+                <div class="console-chip-row">
+                    @foreach (var item in Editor.PublishReviewItems)
+                    {
+                        <span>@item</span>
+                    }
+                </div>
+            </article>
+
+            <article class="console-panel">
+                <h2>Lifecycle</h2>
+                <div class="studio-action-grid">
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Save)">Save</button>
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Reopen)">Reopen</button>
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => RunLifecycle(StudioLifecycleOperation.Edit)">Edit</button>
+                    <button type="button" class="console-button" disabled="@(!CanPublish)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Publish)">Publish</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!CanUsePublishedLifecycle)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Share)">Share</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!CanUsePublishedLifecycle)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Embed)">Embed</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!CanUsePublishedLifecycle)" @onclick="() => RunLifecycle(StudioLifecycleOperation.Rollback)">Rollback</button>
+                </div>
+                <p class="console-muted">@_lifecycleStatus</p>
+                <ol class="studio-evidence-list">
+                    @foreach (var entry in _lifecycle.Evidence)
+                    {
+                        <li>@entry</li>
+                    }
+                </ol>
+            </article>
+
+            <article class="console-panel">
+                <h2>Package Inspector</h2>
+                <pre class="studio-code studio-package-json">@PackageJson</pre>
+            </article>
+        </aside>
+    </div>
+</section>
+
+@code {
+    private static readonly JsonSerializerOptions PackageJsonOptions = new() { WriteIndented = true };
+
+    [Parameter, EditorRequired]
+    public StudioPackageEditorDefinition Editor { get; set; } = default!;
+
+    private StudioPackageEditorDefinition? _activeEditor;
+    private StudioPackageLifecycleSnapshot _lifecycle = default!;
+    private string _title = string.Empty;
+    private string _summary = string.Empty;
+    private string _sourceBinding = "content:hydrants@v12";
+    private string _predicateField = "geometry";
+    private string _predicateOperator = "within";
+    private string _parameterValue = "500 feet";
+    private int _resultLimit = 250;
+    private string _analysisOperation = "buffer";
+    private string _analysisDistance = "500 feet";
+    private string _workerProfile = "standard";
+    private string _outputSchema = "id,status,geometry,score";
+    private string _basemap = "honua-light";
+    private string _layerStyle = "teal circles";
+    private string _popupFields = "asset_id,status,last_inspected";
+    private string _initialExtent = "-158.22,21.25,-157.62,21.55";
+    private string _chartTitle = "Requests by district";
+    private string _chartMeasure = "request_count";
+    private string _chartDimension = "district";
+    private string _versionPin = "source current";
+    private string _vegaLiteSpec = string.Empty;
+    private string _formGroup = "Inspection";
+    private string _requiredField = "condition";
+    private string _fieldDomain = "good,needs repair,critical";
+    private string _submitTarget = "content:hydrant-inspections";
+    private string _offlinePolicy = string.Empty;
+    private string _attachmentPolicy = "photos required";
+    private bool _offlinePolicyReviewed;
+    private string _appPages = "/,/map,/form,/report";
+    private string _appComponents = "map,dashboard,form,report";
+    private string _appAction = "submit inspection";
+    private string _appPermission = "viewer";
+    private string _validationStatus = "Draft";
+    private string _previewStatus = "Preview waits for validation.";
+    private string _lifecycleStatus = "No lifecycle operation has run.";
+
+    private bool CanPublish =>
+        StudioPackageLifecycleSimulator.CanPublish(
+            Editor,
+            BuildPublicationReadiness());
+
+    private bool CanUsePublishedLifecycle => _lifecycle is { Published: true, PublishedVersion: > 0 };
+
+    private bool HasOfflinePolicySelection => !string.IsNullOrWhiteSpace(_offlinePolicy);
+
+    private string GeneratedSql =>
+        $"SELECT * FROM {_sourceBinding} WHERE {_predicateField} {_predicateOperator} @parameter LIMIT {_resultLimit}; -- @parameter = {_parameterValue}";
+
+    private string PackageJson =>
+        JsonSerializer.Serialize(BuildPackageProjection(), PackageJsonOptions);
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_activeEditor, Editor))
+        {
+            _activeEditor = Editor;
+            _lifecycle = StudioPackageLifecycleSimulator.Create(Editor);
+            _title = $"{Editor.DisplayName} generated package";
+            _summary = Editor.PromptExample;
+            _vegaLiteSpec = BuildVegaLiteSpec();
+            _validationStatus = "Draft";
+            _previewStatus = "Preview waits for validation.";
+            _lifecycleStatus = "No lifecycle operation has run.";
+            _offlinePolicyReviewed = false;
+            _offlinePolicy = string.Empty;
+        }
+    }
+
+    private void OnTitleChanged(ChangeEventArgs args)
+    {
+        _title = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnChartTitleChanged(ChangeEventArgs args)
+    {
+        _chartTitle = args.Value?.ToString() ?? string.Empty;
+        _vegaLiteSpec = BuildVegaLiteSpec();
+    }
+
+    private void OnChartMeasureChanged(ChangeEventArgs args)
+    {
+        _chartMeasure = args.Value?.ToString() ?? string.Empty;
+        _vegaLiteSpec = BuildVegaLiteSpec();
+    }
+
+    private void OnChartDimensionChanged(ChangeEventArgs args)
+    {
+        _chartDimension = args.Value?.ToString() ?? string.Empty;
+        _vegaLiteSpec = BuildVegaLiteSpec();
+    }
+
+    private void ValidatePackage()
+    {
+        _validationStatus = CanPublish ? "Validated" : "Blocked";
+        _previewStatus = CanPublish
+            ? $"{Editor.DisplayName} package validation passed with stable mock refs."
+            : "Publish validation is blocked until required policy selection and review are complete.";
+    }
+
+    private void PreviewPackage()
+    {
+        _previewStatus = $"{Editor.DisplayName} preview is ready from the saved draft projection.";
+    }
+
+    private void RunLifecycle(StudioLifecycleOperation operation)
+    {
+        try
+        {
+            _lifecycle = StudioPackageLifecycleSimulator.Apply(
+                Editor,
+                _lifecycle,
+                operation,
+                BuildPublicationReadiness());
+            _lifecycleStatus = $"{operation} completed for {_lifecycle.ItemId} at {_lifecycle.CurrentVersionId}.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            _lifecycleStatus = ex.Message;
+        }
+    }
+
+    private Dictionary<string, object?> BuildPackageProjection()
+    {
+        return new()
+        {
+            ["schema_version"] = "studio-package-mock/v1",
+            ["package_type"] = Editor.PackageType,
+            ["content_type"] = Editor.ContentType,
+            ["title"] = _title,
+            ["summary"] = _summary,
+            ["data_bindings"] = new[] { _sourceBinding },
+            ["current_version"] = _lifecycle.CurrentVersionId,
+            ["publication_intent"] = new Dictionary<string, object?>
+            {
+                ["visibility"] = "workspace",
+                ["embed_policy"] = Editor.Family is StudioPackageFamily.Map or StudioPackageFamily.Dashboard or StudioPackageFamily.Report or StudioPackageFamily.App ? "reviewed" : "not_applicable",
+                ["rollback_target"] = _lifecycle.RollbackFromVersion is null ? "latest prior version" : $"v{_lifecycle.RollbackFromVersion}"
+            },
+            ["editor"] = BuildFamilyPackageProjection()
+        };
+    }
+
+    private Dictionary<string, object?> BuildFamilyPackageProjection()
+    {
+        return Editor.Family switch
+        {
+            StudioPackageFamily.Query => new()
+            {
+                ["predicate"] = $"{_predicateField} {_predicateOperator} @parameter",
+                ["parameter"] = _parameterValue,
+                ["generated_sql"] = GeneratedSql,
+                ["result_limit"] = _resultLimit
+            },
+            StudioPackageFamily.Analysis => new()
+            {
+                ["operation"] = _analysisOperation,
+                ["distance"] = _analysisDistance,
+                ["worker_profile"] = _workerProfile,
+                ["output_schema"] = _outputSchema
+            },
+            StudioPackageFamily.Map => new()
+            {
+                ["basemap"] = _basemap,
+                ["layer_style"] = _layerStyle,
+                ["popup_fields"] = _popupFields,
+                ["initial_extent"] = _initialExtent
+            },
+            StudioPackageFamily.Dashboard or StudioPackageFamily.Report => new()
+            {
+                ["chart_standard"] = "vega-lite/v5",
+                ["chart_title"] = _chartTitle,
+                ["measure"] = _chartMeasure,
+                ["dimension"] = _chartDimension,
+                ["version_pin"] = _versionPin,
+                ["vega_lite_spec"] = _vegaLiteSpec
+            },
+            StudioPackageFamily.Form => new()
+            {
+                ["field_group"] = _formGroup,
+                ["required_field"] = _requiredField,
+                ["domain"] = _fieldDomain,
+                ["submit_target"] = _submitTarget,
+                ["offline_sync_policy"] = string.IsNullOrWhiteSpace(_offlinePolicy) ? "not_reviewed" : _offlinePolicy,
+                ["offline_policy_reviewed"] = _offlinePolicyReviewed && HasOfflinePolicySelection,
+                ["attachment_policy"] = _attachmentPolicy
+            },
+            StudioPackageFamily.App => new()
+            {
+                ["pages"] = _appPages,
+                ["components"] = _appComponents,
+                ["action"] = _appAction,
+                ["permission"] = _appPermission,
+                ["reopened_edit_policy"] = "create_new_content_version"
+            },
+            _ => new()
+        };
+    }
+
+    private string BuildVegaLiteSpec()
+    {
+        var spec = new Dictionary<string, object?>
+        {
+            ["$schema"] = "https://vega.github.io/schema/vega-lite/v5.json",
+            ["description"] = _chartTitle,
+            ["mark"] = "bar",
+            ["encoding"] = new Dictionary<string, object?>
+            {
+                ["x"] = new Dictionary<string, object?> { ["field"] = _chartDimension, ["type"] = "nominal" },
+                ["y"] = new Dictionary<string, object?> { ["field"] = _chartMeasure, ["type"] = "quantitative" }
+            }
+        };
+
+        return JsonSerializer.Serialize(spec, PackageJsonOptions);
+    }
+
+    private StudioPublicationReadiness BuildPublicationReadiness()
+    {
+        return new StudioPublicationReadiness(
+            OfflinePolicyReviewed: !Editor.RequiresOfflinePolicyBeforePublish || _offlinePolicyReviewed,
+            OfflineSyncPolicy: HasOfflinePolicySelection ? _offlinePolicy : null);
+    }
+}

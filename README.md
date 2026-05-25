@@ -16,6 +16,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 - [Honua Console Route Map, RBAC, and Navigation](docs/console-route-map.md) — IA source of truth for Studio, Catalog, Operate, Share routes, gates, and exception surfaces. Migration tickets cite this map for URL shapes, gates, empty states, and smoke evidence.
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
+- [Studio Package Editor Routes](docs/studio/package-editor-routes.md) — Console-native editor routes, package-family coverage, and the temporary lifecycle mock contract for `honua-console#39`.
 - [GitOps Metadata Publishing Information Model](docs/architecture/gitops-metadata-publishing-information-model.md)
 - [GitOps Metadata Publishing Visualization Design](docs/architecture/gitops-metadata-publishing-visualization-design.md)
 - [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
@@ -137,5 +138,7 @@ Studio authoring is modeled as shared package contracts, not separate Console-on
 The current `/studio` route includes the first shared Razor package shell slice for `honua-console#38`; the same in-memory shell is also mounted for `/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`, and `/studio/apps/:itemId/preview` route compatibility. It lets a builder choose a workflow, submit a prompt, answer structured clarification questions, inspect the active package, and move that package through Draft, Preview, Saved version, and Published UI states. Route parameters are accepted for the source-scoped and generated-app paths, but server-backed source hydration, content-version persistence, and publish records remain follow-up work. The shell records the temporary Console-owned `studio-authoring-shell/v1` projection with `package-shell/v1` package snapshots until the server package lifecycle API and SDK helpers are wired in.
 
 Package families include query, analysis, map, dashboard, report, form, app, workflow, and publication packages. Publishing always creates or updates server-owned content item versions and publication records; analysis, GP, ETL, scheduled, batch, export, and heavy refresh work routes through Honua's job runner.
+
+The shared Razor shell currently exposes the first Console-native package editor set at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, and `/studio/app`. These routes use the `studio-package-mock/v1` lifecycle projection documented in [Studio Package Editor Routes](docs/studio/package-editor-routes.md) until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs.
 
 Console should consume server/SDK projections for validate, preview, publish, and run responses. Do not duplicate server or SDK DTOs in this repo when a shared contract exists.

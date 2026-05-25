@@ -32,6 +32,13 @@ routes. Path prefixes are frozen for downstream tickets:
 /auth/signed-out               Post-signout landing (anonymous)
 
 /studio                        Studio entry (AI-assisted creation)
+/studio/query                  Generated query.package editor
+/studio/analysis               Generated analysis.package editor
+/studio/map                    Generated map.package editor
+/studio/dashboard              Generated dashboard.package editor
+/studio/report                 Generated report.package editor
+/studio/form                   Generated form.package editor
+/studio/app                    Generated app.package editor
 /studio/proof                  Legacy alias for current proof flow
 /studio/drafts                 Source-scoped draft start (source, id)
 /studio/apps/:itemId/preview   Generated-app preview / publish lifecycle
@@ -552,6 +559,13 @@ Authenticated sessions without `member`, `operator`, or `admin` render
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
 | `/studio` | `auth` | empty-studio (start a prompt) | unauth-redirect | studio |
+| `/studio/query` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/analysis` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/map` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/report` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/form` | `auth` | mock draft package; publish blocked until offline/sync policy selection and review | unauth-redirect / unsupported-package | studio |
+| `/studio/app` | `auth` | mock draft package; reopened edits create new content versions | unauth-redirect / unsupported-package | studio |
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
 | `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
@@ -574,6 +588,15 @@ generated-app reopen paths resolve through an implemented Studio route.
 The route parameters are accepted but not yet used to hydrate a
 server-backed package. The package shell does not create server-owned
 content versions or publication records by itself.
+
+The seven package editor routes above are the `honua-console#39`
+Console-native Studio slice. They render shared Razor editors from the
+Studio package editor catalog and use stable mock lifecycle refs until
+honua-server and honua-sdk-dotnet expose content-version, publication,
+share, embed, and rollback APIs. The mock projection is documented in
+[`docs/studio/package-editor-routes.md`](studio/package-editor-routes.md)
+and must be replaced behind the same editor model when shared contracts
+land.
 
 ### 6.3 Catalog
 
@@ -708,7 +731,7 @@ routes do not author bespoke 403/404/empty copy.
 | Forbidden | `<ForbiddenView cause=...>` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Catalog/Maps routes use `<UnavailableView>` |
 | Missing item | `<MissingItemView kind=...>` | item id resolved → not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `<UnsupportedServiceView>` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug` and Studio "open from catalog" |
-| Unsupported package binding | `<UnsupportedPackageView>` | generated-app or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview` and `/maps/:mapId` |
+| Unsupported package binding | `<UnsupportedPackageView>` | generated-app, saved-map, or generated Studio package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, and `/maps/:mapId` |
 | Empty state | `<EmptyState area=...>` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `<SectionSkeleton>` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
@@ -751,7 +774,7 @@ constraint).
 | Chunk | Routes |
 |---|---|
 | shell + auth | `/`, `/auth/*`, `/groups`, `/maps/new`, `*` |
-| studio | `/studio*`, `/studio/apps/:itemId/preview` |
+| studio | `/studio`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/studio/proof`, `/studio/apps/:itemId/preview` |
 | catalog | `/catalog`, `/catalog/:idOrSlug` |
 | viewer | `/maps/:mapId` |
 | operate | all `/operate/*` |
@@ -864,7 +887,7 @@ the human review answers land in
 
 | # | Question | Default decision | Status |
 |---|---|---|---|
-| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias, and `/studio/drafts` starts source-scoped drafts. Generator-specific sub-routes (`/studio/maps`, `/studio/dashboards`, `/studio/reports`) arrive in later Studio slices. | default |
+| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias, and `/studio/drafts` starts source-scoped drafts. The first Console-native package editor sub-routes are `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, and `/studio/app` from `honua-console#39`; broader list/marketplace generator routes stay deferred to their owning tickets. | default |
 | Q2 | Saved-map list: `/catalog?type=map` vs `/studio/maps` vs `/catalog/maps` | `/catalog?type=map` (Catalog filter). Avoids two list surfaces; preserves existing query-param contract. | default |
 | Q3 | `/share/public` vs `/public` redirect semantics | 301 for `/public` collection root. No 3xx for `/embed/maps/:mapId`; 200-at-both-paths for open-data item detail URLs (`/public/items/:idOrSlug` plus `/share/public/items/:idOrSlug`) because item URLs appear in DCAT-US / data.json / schema.org contexts. | default |
 | Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |
