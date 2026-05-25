@@ -610,12 +610,16 @@ register `IConsoleConnectionManager`, and renders native-only controls as
 certificate resolution, connection management, server-certificate probe,
 and the honua-server#1171 validation client. The native trust gate passes
 the accepted server fingerprint into both the validation call and the
-native HTTP/gRPC connection factory, so pinned private or self-signed
-server identities remain usable after acknowledgement; unreachable HTTPS
-probes preserve the previously persisted trust state. Environment profile
-state is Console-owned local host state; server-validated trust results
-remain behind `Honua.Console.Contracts` until `honua-sdk-dotnet#166` is
-consumable.
+native HTTP/gRPC connection factory. When a fingerprint is supplied, the
+transport callback requires the presented certificate fingerprint to
+match it rather than accepting a different OS-trusted certificate; when
+no fingerprint is supplied, the callback falls back to the OS chain
+decision. This keeps pinned private or self-signed server identities
+usable after acknowledgement while still blocking changed server
+identities. Unreachable HTTPS probes preserve the previously persisted
+trust state. Environment profile state is Console-owned local host state;
+server-validated trust results remain behind `Honua.Console.Contracts`
+until `honua-sdk-dotnet#166` is consumable.
 
 ### 6.2 Studio
 

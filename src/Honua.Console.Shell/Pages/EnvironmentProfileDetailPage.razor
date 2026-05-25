@@ -132,6 +132,7 @@ else
     private IConsoleConnectionManager? _connections;
     private string? _message;
     private bool _busy;
+    private string? _loadedProfileId;
 
     private bool NativeReady => Host.SupportsNativeTransports && _connections is not null;
 
@@ -143,7 +144,10 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_profile is not null && !string.Equals(_profile.Id, ProfileId, StringComparison.Ordinal))
+        // Reload whenever the route parameter changes, even when the previous render was a
+        // not-found state (_profile is null), so navigating from a missing id to a valid one
+        // does not stay stuck on the stale not-found surface.
+        if (!string.Equals(_loadedProfileId, ProfileId, StringComparison.Ordinal))
         {
             await LoadAsync();
         }
@@ -207,6 +211,7 @@ else
 
     private async Task LoadAsync()
     {
+        _loadedProfileId = ProfileId;
         _profile = await Profiles.GetProfileAsync(ProfileId);
         _state = _profile is null ? null : await Profiles.GetStateAsync(ProfileId);
     }
