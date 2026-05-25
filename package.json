@@ -10,8 +10,8 @@
   },
   "scripts": {
     "build:metadata": "node scripts/write-build-metadata.mjs",
-    "test": "node --test 'scripts/**/*.test.mjs' 'smoke/parity/__tests__/*.test.mjs'",
+    "test": "node --test scripts/__tests__/*.test.mjs smoke/parity/__tests__/*.test.mjs",
     "smoke:parity": "node smoke/parity/run.mjs",
-    "smoke:parity:test": "node --test 'smoke/parity/__tests__/*.test.mjs'"
+    "smoke:parity:test": "node --test smoke/parity/__tests__/*.test.mjs"
   }
 }
