@@ -61,9 +61,91 @@ public sealed class ConsoleConnectionManagerTests
         Assert.Equal(ConsoleConnectionStatus.Unreachable, outcome.Status);
         Assert.False(harness.Manager.IsConnected("dev-east"));
         var state = await harness.Store.GetStateAsync("dev-east");
-        Assert.Null(state?.LastConnectedAt);
-        Assert.False(state!.TrustBlocked);
-        Assert.Equal(string.Empty, state.PinnedServerFingerprint);
+        Assert.Null(state);
+    }
+
+    [Fact]
+    public async Task Connect_WhenServerFingerprintCannotBeObserved_PreservesExistingServerCertificateChangeBlock()
+    {
+        var harness = new Harness();
+        harness.Probe.Fingerprint = null;
+        var existingConnectedAt = DateTimeOffset.Parse("2026-05-24T12:00:00Z");
+        var existingTrust = new HonuaEnvironmentTrustState
+        {
+            Status = HonuaCertificateValidationStatus.Untrusted,
+            CheckedAt = DateTimeOffset.Parse("2026-05-24T11:59:00Z"),
+            ServerFingerprint = "SERVER-AAA",
+            ReasonCode = ConsoleTrustReasonCodes.ServerCertificateChanged,
+            SanitizedMessage = "Existing server certificate change block."
+        };
+        await harness.Store.UpsertProfileAsync(NonMtlsProfile());
+        await harness.Store.SaveStateAsync(new ConsoleEnvironmentState
+        {
+            ProfileId = "dev-east",
+            LastRoute = "/operate/native-stream",
+            LastStreamingResumeToken = "resume-existing",
+            LastConnectedAt = existingConnectedAt,
+            PinnedServerFingerprint = "SERVER-AAA",
+            PinnedClientCertificateThumbprint = "CLIENT-AAA",
+            TrustBlocked = true,
+            Trust = existingTrust,
+            Diagnostics = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["stream"] = "existing"
+            }
+        });
+
+        var outcome = await harness.Manager.ConnectAsync("dev-east");
+
+        Assert.Equal(ConsoleConnectionStatus.Unreachable, outcome.Status);
+        Assert.False(harness.Manager.IsConnected("dev-east"));
+        var state = await harness.Store.GetStateAsync("dev-east");
+        Assert.NotNull(state);
+        Assert.Equal("/operate/native-stream", state.LastRoute);
+        Assert.Equal("resume-existing", state.LastStreamingResumeToken);
+        Assert.Equal(existingConnectedAt, state.LastConnectedAt);
+        Assert.Equal("SERVER-AAA", state.PinnedServerFingerprint);
+        Assert.Equal("CLIENT-AAA", state.PinnedClientCertificateThumbprint);
+        Assert.True(state.TrustBlocked);
+        Assert.Equal(existingTrust, state.Trust);
+        Assert.Equal("existing", state.Diagnostics["stream"]);
+    }
+
+    [Fact]
+    public async Task Acknowledge_WhenServerFingerprintCannotBeObserved_PreservesExistingServerCertificateChangeBlock()
+    {
+        var harness = new Harness();
+        harness.Probe.Fingerprint = null;
+        var existingConnectedAt = DateTimeOffset.Parse("2026-05-24T12:00:00Z");
+        var existingTrust = new HonuaEnvironmentTrustState
+        {
+            Status = HonuaCertificateValidationStatus.Untrusted,
+            CheckedAt = DateTimeOffset.Parse("2026-05-24T11:59:00Z"),
+            ServerFingerprint = "SERVER-AAA",
+            ReasonCode = ConsoleTrustReasonCodes.ServerCertificateChanged,
+            SanitizedMessage = "Existing server certificate change block."
+        };
+        await harness.Store.UpsertProfileAsync(NonMtlsProfile());
+        await harness.Store.SaveStateAsync(new ConsoleEnvironmentState
+        {
+            ProfileId = "dev-east",
+            LastRoute = "/environments/dev-east",
+            LastConnectedAt = existingConnectedAt,
+            PinnedServerFingerprint = "SERVER-AAA",
+            TrustBlocked = true,
+            Trust = existingTrust
+        });
+
+        var outcome = await harness.Manager.AcknowledgeServerCertificateAsync("dev-east");
+
+        Assert.Equal(ConsoleConnectionStatus.Unreachable, outcome.Status);
+        var state = await harness.Store.GetStateAsync("dev-east");
+        Assert.NotNull(state);
+        Assert.Equal("/environments/dev-east", state.LastRoute);
+        Assert.Equal(existingConnectedAt, state.LastConnectedAt);
+        Assert.Equal("SERVER-AAA", state.PinnedServerFingerprint);
+        Assert.True(state.TrustBlocked);
+        Assert.Equal(existingTrust, state.Trust);
     }
 
     [Fact]
@@ -171,6 +253,38 @@ public sealed class ConsoleConnectionManagerTests
     }
 
     [Fact]
+    public async Task Connect_MtlsProfile_WhenServerFingerprintCannotBeObserved_DoesNotPinUnvalidatedClientCertificate()
+    {
+        using var certificate = CreateCertificate();
+        var harness = new Harness(certificate);
+        harness.Probe.Fingerprint = null;
+        var currentThumbprint = NativeServerTrust.ComputeSha256Thumbprint(certificate);
+        var existingTrust = new HonuaEnvironmentTrustState
+        {
+            Status = HonuaCertificateValidationStatus.Ready,
+            CheckedAt = DateTimeOffset.Parse("2026-05-24T11:59:00Z"),
+            SanitizedMessage = "Existing trust state."
+        };
+        await harness.Store.UpsertProfileAsync(MtlsProfile());
+        await harness.Store.SaveStateAsync(new ConsoleEnvironmentState
+        {
+            ProfileId = "prod-west",
+            LastRoute = "/operate/native-stream",
+            Trust = existingTrust
+        });
+
+        var outcome = await harness.Manager.ConnectAsync("prod-west");
+
+        Assert.Equal(ConsoleConnectionStatus.Unreachable, outcome.Status);
+        Assert.False(harness.Manager.IsConnected("prod-west"));
+        var state = await harness.Store.GetStateAsync("prod-west");
+        Assert.NotNull(state);
+        Assert.Equal(string.Empty, state.PinnedClientCertificateThumbprint);
+        Assert.NotEqual(currentThumbprint, state.PinnedClientCertificateThumbprint);
+        Assert.Equal(existingTrust, state.Trust);
+    }
+
+    [Fact]
     public async Task Revalidate_AfterClientCertificateChanges_RePinsValidatedCertificate()
     {
         using var original = CreateCertificate("CN=Honua Test Operator Original");
@@ -204,12 +318,39 @@ public sealed class ConsoleConnectionManagerTests
         var harness = new Harness(certificate);
         harness.Probe.Fingerprint = "SERVER-AAA";
         harness.Validation.ThrowUnreachable = true;
+        var currentThumbprint = NativeServerTrust.ComputeSha256Thumbprint(certificate);
+        var existingConnectedAt = DateTimeOffset.Parse("2026-05-24T12:00:00Z");
+        var existingTrust = new HonuaEnvironmentTrustState
+        {
+            Status = HonuaCertificateValidationStatus.Ready,
+            CheckedAt = DateTimeOffset.Parse("2026-05-24T11:59:00Z"),
+            ServerFingerprint = "SERVER-AAA",
+            IssuerSummary = "CN=Existing",
+            ReasonCode = "existing_trust",
+            SanitizedMessage = "Existing trust state."
+        };
         await harness.Store.UpsertProfileAsync(MtlsProfile());
+        await harness.Store.SaveStateAsync(new ConsoleEnvironmentState
+        {
+            ProfileId = "prod-west",
+            LastRoute = "/operate/native-stream",
+            LastStreamingResumeToken = "resume-existing",
+            LastConnectedAt = existingConnectedAt,
+            PinnedServerFingerprint = "SERVER-AAA",
+            Trust = existingTrust
+        });
 
         var outcome = await harness.Manager.ConnectAsync("prod-west");
 
         Assert.Equal(ConsoleConnectionStatus.Unreachable, outcome.Status);
         Assert.False(harness.Manager.IsConnected("prod-west"));
+        var state = await harness.Store.GetStateAsync("prod-west");
+        Assert.NotNull(state);
+        Assert.Equal(existingConnectedAt, state.LastConnectedAt);
+        Assert.Equal("SERVER-AAA", state.PinnedServerFingerprint);
+        Assert.Equal(string.Empty, state.PinnedClientCertificateThumbprint);
+        Assert.NotEqual(currentThumbprint, state.PinnedClientCertificateThumbprint);
+        Assert.Equal(existingTrust, state.Trust);
     }
 
     [Fact]

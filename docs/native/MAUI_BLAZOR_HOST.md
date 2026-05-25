@@ -73,23 +73,32 @@ The seeded profiles are:
 
 ## Connection And Certificate Contract
 
-`NativeHonuaConnectionFactory` creates one profile-scoped `HttpClient` and one `GrpcChannel` for the selected `ServerBaseUri`. If a profile has a saved account session, the factory attaches the session access token as a bearer token. If the profile has an enabled certificate reference that resolves successfully, the factory attaches that certificate to the native HTTP handler and the stream transport is reported as `grpc/native+mtls`.
+`NativeHonuaConnectionFactory` creates one profile-scoped `HttpClient` and one `GrpcChannel` for the selected `ServerBaseUri`. The connection manager passes the accepted server fingerprint into that factory so native HTTP/gRPC uses the same pinned private or self-signed server identity that the trust gate just validated. If a profile has a saved account session, the factory attaches the session access token as a bearer token. If the profile has an enabled certificate reference that resolves successfully, the factory attaches that certificate to the native HTTP handler and the stream transport is reported as `grpc/native+mtls`.
 
-Certificate references are environment-local. File path references load a PKCS#12/PFX file, with an optional password looked up by `SecretName`. Store references search the configured `StoreName` and `StoreLocation`, defaulting to `My` and `CurrentUser` when parsing fails.
+Certificate references are environment-local. File path references load a PKCS#12/PFX file, with an optional password looked up by `SecretName`. Missing, unreadable, or invalid file references resolve to no certificate rather than throwing through the route; for an mTLS profile, the connection manager persists `Missing` trust state and blocks connection creation. Store references search the configured `StoreName` and `StoreLocation`, defaulting to `My` and `CurrentUser` when parsing fails.
 
 ## Trust Gate, Connection Lifecycle, And Cert-Changed Blocking
 
 `IConsoleConnectionManager` (native-only) wraps the connection factory with a server-bound trust gate:
 
-1. Resolve the bound client certificate (if any) and observe the server's TLS certificate fingerprint via `IConsoleServerCertificateProbe` (a TLS handshake; the server exposes no fingerprint endpoint, so pinning is client-side).
+1. Resolve the bound client certificate (if any) and observe the server's TLS certificate fingerprint via `IConsoleServerCertificateProbe` (a TLS handshake; the server exposes no fingerprint endpoint, so pinning is client-side). For HTTPS profiles, failure to observe a fingerprint is `Unreachable`, not trusted-by-default.
 2. When a client certificate is bound, validate it against the real server through `IConsoleClientCertificateValidationClient` - a thin `HttpClient` that posts the certificate's public PEM to honua-server#1171's `POST /api/v1/admin/security/client-certificates/validate` and maps the stable `client_certificate_*` codes onto `HonuaCertificateValidationStatus`.
 3. `ConsoleTrustEvaluator` (pure, host-agnostic) decides the resulting `HonuaEnvironmentTrustState` and whether to **block**:
    - the observed server fingerprint differs from the pinned (acknowledged) value (`server_certificate_changed`),
    - the bound client-certificate identity changed (`client_certificate_changed`), or
    - validation returned a blocking status (`Untrusted`, `Rejected`, `WrongEnvironment`, `Expired`, `Missing`).
-4. A blocked result returns **no usable connection**; the profile state records `TrustBlocked = true`. **Acknowledge** re-pins the newly observed server identity and clears the block; **Revalidate** re-runs validation against the server. First use pins on a trust-on-first-use basis. `ExpiringSoon` is a non-blocking warning.
+4. A blocked result returns **no usable connection**; the profile state records `TrustBlocked = true`. An unreachable result also returns no usable connection, but does not rewrite persisted trust state, mark the profile trust-blocked, or update `LastConnectedAt`/pinned fingerprints. **Acknowledge** re-pins the newly observed server identity and clears a server-certificate-change block; **Revalidate** re-runs validation against the server. First use pins on a trust-on-first-use basis only after a fingerprint is observed. `ExpiringSoon` is a non-blocking warning.
 
 Private keys are never persisted; only certificate references and the sanitized `HonuaEnvironmentTrustState` (status, server fingerprint, issuer summary, reason code, sanitized message) are stored. Server-side mTLS policy, trust registration, revocation, and capability advertisement are honua-server#1171 (closed) and remain Scope Out of the Console UI work.
+
+`IConsoleConnectionManager` returns `ConsoleConnectionOutcome` values:
+
+| Outcome | Contract |
+| --- | --- |
+| `Connected` | A profile-scoped native connection is held. `UsesMutualTls=true` only when an enabled client-certificate reference resolved and was attached. |
+| `Blocked` | No usable connection. The profile stores `TrustBlocked=true` and the blocking `HonuaEnvironmentTrustState` until acknowledge or revalidate clears it. |
+| `Disconnected` | No live connection is held, including a missing profile result. |
+| `Unreachable` | No usable connection. The server could not be reached or an HTTPS server fingerprint could not be observed; this preserves the last persisted trust state and does not set `TrustBlocked`, update `LastConnectedAt`, or pin new fingerprints. |
 
 ### Server validation wire contract
 
@@ -137,7 +146,7 @@ The native streaming seam is the shared `IConsoleNativeStreamingProof` interface
 | `ResumeToken` | Profile-scoped resume token saved after the stream completes. |
 | `Timestamp` | Event timestamp. |
 
-`NativeGrpcTelemetryStreamingProof` returns no events when `TransportCapabilities.NativeGrpc` is disabled or the connection manager reports a blocked/unreachable trust state. For enabled profiles, the deterministic fixture connects through `IConsoleConnectionManager`, emits three events only after the trust gate succeeds, and the route saves the final resume token, last route `/operate/native-stream`, connection timestamp, proof name, and final transport in profile state without clearing existing trust pins. This is CI/local smoke evidence for native host wiring until shared SDK/server job or telemetry streams are available.
+`NativeGrpcTelemetryStreamingProof` returns no events when `TransportCapabilities.NativeGrpc` is disabled or the connection manager reports a blocked/unreachable trust state. For enabled profiles, the deterministic fixture connects through `IConsoleConnectionManager`, emits three events only after the trust gate succeeds, and labels transport from the established connection outcome (`grpc/native+mtls` only when a client certificate was actually attached). The route saves the final resume token, last route `/operate/native-stream`, connection timestamp, proof name, and final transport in profile state while preserving existing trust pins, trust-blocked state, and unrelated diagnostics. This is CI/local smoke evidence for native host wiring until shared SDK/server job or telemetry streams are available.
 
 ## Capability Matrix
 
@@ -204,7 +213,7 @@ Native-core tests cover:
 - account/RBAC bearer-token attachment and anonymous-profile omission
 - optional client-certificate attachment
 - deterministic native gRPC telemetry proof events and mTLS transport labeling
-- trust-gate cert-changed blocking, acknowledge/revalidate, and stable-code → trust-status mapping (`ConsoleTrustEvaluatorTests`, `ConsoleConnectionManagerTests`)
+- trust-gate cert-changed blocking, acknowledge/revalidate, unreachable HTTPS probes, missing/bad certificate references, stream-state preservation, and stable-code → trust-status mapping (`ConsoleTrustEvaluatorTests`, `ConsoleConnectionManagerTests`, `ConsoleStreamingStatePersistenceTests`, `StoreClientCertificateResolverTests`)
 
 ### Real-server trust integration lane (opt-in)
 

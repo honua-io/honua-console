@@ -19,14 +19,27 @@ public sealed class NativeHonuaConnectionFactory
         _certificateResolver = certificateResolver;
     }
 
+    public Task<NativeHonuaConnection> CreateAsync(
+        ConsoleEnvironmentProfile profile,
+        CancellationToken cancellationToken = default) =>
+        CreateAsync(profile, trustedServerFingerprint: null, cancellationToken);
+
     public async Task<NativeHonuaConnection> CreateAsync(
         ConsoleEnvironmentProfile profile,
+        string? trustedServerFingerprint,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         cancellationToken.ThrowIfCancellationRequested();
 
         var handler = new HttpClientHandler();
+        if (!string.IsNullOrWhiteSpace(trustedServerFingerprint))
+        {
+            var serverValidation = NativeServerTrust.CreateServerValidationCallback(trustedServerFingerprint);
+            handler.ServerCertificateCustomValidationCallback =
+                (message, certificate, chain, errors) => serverValidation(message, certificate, chain, errors);
+        }
+
         var certificate = await _certificateResolver.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
         if (certificate is not null)
         {

@@ -84,7 +84,6 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
 
         if (unreachable)
         {
-            await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
             return new ConsoleConnectionOutcome
             {
                 Status = ConsoleConnectionStatus.Unreachable,
@@ -93,7 +92,9 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
             };
         }
 
-        var connection = await _connectionFactory.CreateAsync(profile, cancellationToken).ConfigureAwait(false);
+        var connection = await _connectionFactory
+            .CreateAsync(profile, evaluation.ServerFingerprintToPin, cancellationToken)
+            .ConfigureAwait(false);
         ReplaceConnection(profileId, connection);
         await PersistAsync(state, evaluation, markConnected: true, cancellationToken).ConfigureAwait(false);
 
@@ -137,7 +138,10 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
                 revalidateClientCertificateChange: true,
                 cancellationToken)
             .ConfigureAwait(false);
-        await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
+        if (evaluation.IsBlocked || !unreachable)
+        {
+            await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
+        }
 
         if (evaluation.IsBlocked)
         {
@@ -167,7 +171,10 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
                 revalidateClientCertificateChange: false,
                 cancellationToken)
             .ConfigureAwait(false);
-        await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
+        if (evaluation.IsBlocked || !unreachable)
+        {
+            await PersistAsync(state, evaluation, markConnected: false, cancellationToken).ConfigureAwait(false);
+        }
 
         return BuildLifecycleOutcome(profileId, evaluation, unreachable);
     }

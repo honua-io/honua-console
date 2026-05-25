@@ -744,10 +744,13 @@ Operate landing and administration routes require `auth` and
 host-support `/operate/native-stream` proof route is the exception: it is
 shared by the web and native hosts, renders unavailable on web when no
 native streaming service is registered, and requires an active environment
-profile before emitting events. Job and event evidence routes can also be
-entered from builder workflows when the server authorizes read access to
-the specific job. Per-route gates listed below add edition or entitlement
-requirements on top.
+profile before emitting events. In the native host the proof opens the
+active profile through `IConsoleConnectionManager`; blocked or unreachable
+trust states emit no proof events, and successful streams update only
+resume/stream diagnostics while preserving profile trust pins. Job and
+event evidence routes can also be entered from builder workflows when the
+server authorizes read access to the specific job. Per-route gates listed
+below add edition or entitlement requirements on top.
 
 | Route | Additional gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
