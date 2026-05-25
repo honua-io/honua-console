@@ -58,6 +58,7 @@ Portal/Admin path for the core buyer journey:
 npm run smoke:parity
 npm run smoke:parity -- --origin https://console.staging.honua.example
 npm run smoke:parity:test
+npm run smoke:workflow
 ```
 
 Local and loopback runs (`127.0.0.1`, `localhost`, `[::1]`, or
@@ -70,7 +71,9 @@ invalid. Evidence records `buildArtifact.source` as `"origin"`,
 deployed artifact check from a local harness run.
 
 See [docs/smoke/parity.md](docs/smoke/parity.md) for the CLI options,
-scenario, owning-layer triage taxonomy, and evidence format.
+scenario, owning-layer triage taxonomy, and evidence format. The focused
+`smoke:workflow` command covers the Studio workflow-package path added
+for `honua-console#40`.
 
 ## Current Status
 
@@ -176,3 +179,28 @@ Package families include query, analysis, map, dashboard, report, form, app, wor
 The shared Razor shell currently exposes the first Console-native package editor set at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, and `/studio/app`. These routes use the `studio-package-mock/v1` lifecycle projection documented in [Studio Package Editor Routes](docs/studio/package-editor-routes.md) until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs.
 
 Console should consume server/SDK projections for validate, preview, publish, and run responses. Do not duplicate server or SDK DTOs in this repo when a shared contract exists.
+
+The first unified GP/ETL workflow editor lives at
+`/studio/workflows/new` and `/studio/workflows/{draftId}`. It edits a
+`workflow.package/v1` draft graph with source, transform, sink, success,
+and failure edges; parameters; schedule; worker profile; retry behavior;
+output schemas; and publication intent. Until the server and
+`honua-sdk-dotnet` workflow projections are available, Console uses the
+replaceable `IStudioWorkflowPackageClient` adapter in
+`src/Honua.Console.Shell/Services`.
+
+The adapter response contract is intentionally shaped like the future
+server boundary: dry-run returns `jobId`, `jobKind`, `status`, sample row
+count, logs, artifacts, output schemas, and Operate job/event URLs; save
+returns a versioned `workflow` content item with the
+`content-version/v1 + workflow.package/v1` contract label. Queued publish
+responses return a publication id, content item/version ids, job id, job
+kind, publication mode, optional invocation endpoint, validation issues,
+parameter validation, and Operate evidence links. Publish selects the
+current saved version when unchanged and saves unsaved package edits as a
+new version before queuing publication. Package validation errors,
+including missing source/transform/sink graph coverage, missing failure
+routing, missing scheduled cron, missing output schema, and invalid
+parameter contracts, return `status=blocked` with saved content
+item/version ids, validation issues, parameter validation, and no
+publication id, job, Operate evidence URLs, or invocation endpoint.

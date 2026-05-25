@@ -18,6 +18,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryOperateTransitionDataSource.CreateSeeded());
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
         services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
+        services.TryAddSingleton<IStudioWorkflowPackageClient>(
+            _ => InMemoryStudioWorkflowPackageClient.CreateSeeded());
 
         return services;
     }

@@ -69,6 +69,27 @@ export const CONTRACT_VERSIONS = Object.freeze([
     sourceRepo: "honua-console",
     note: "version.json shape emitted by the Blazor Console artifact and consumed by devops promotion.",
   }),
+  Object.freeze({
+    name: "workflow-package",
+    version: "v1",
+    owningLayer: OWNING_LAYERS.server.id,
+    sourceRepo: "honua-server",
+    note: "Server-owned workflow.package graph, parameters, schedule, worker profile, failure routing, output schema, and publication intent.",
+  }),
+  Object.freeze({
+    name: "workflow-dry-run",
+    version: "v1",
+    owningLayer: OWNING_LAYERS.server.id,
+    sourceRepo: "honua-server",
+    note: "Workflow dry-run job response with sample data, logs, artifacts, and output schemas.",
+  }),
+  Object.freeze({
+    name: "workflow-publication",
+    version: "v1",
+    owningLayer: OWNING_LAYERS.server.id,
+    sourceRepo: "honua-server",
+    note: "Workflow publication record for batch jobs, schedules, and eligible GP/process invocation endpoints.",
+  }),
 ]);
 
 export function findContract(name) {

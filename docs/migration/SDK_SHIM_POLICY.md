@@ -99,9 +99,7 @@ When "Active Shims" is empty:
 
 ## Active Shims
 
-The current active shims are bounded to the catalog/viewer/share route parity work and live in
-`src/Honua.Console.Contracts/SdkShims.cs`. They provide stable Console-side shapes until the
-`honua-sdk-dotnet#166` projection lands and `honua-console#7` replaces the shim imports.
+The current active shims are bounded to catalog/viewer/share route parity and Studio workflow package work. Catalog/viewer/share shims live in `src/Honua.Console.Contracts/SdkShims.cs`; the Studio workflow projections currently live in the shared shell model boundary until the SDK workflow contracts land. They provide stable Console-side shapes until the `honua-sdk-dotnet#166` projection lands and `honua-console#7` replaces the shim imports.
 
 | Shim   | Language | Added in PR | Waiting on | Owner | Target removal |
 |--------|----------|-------------|------------|-------|----------------|
@@ -109,6 +107,7 @@ The current active shims are bounded to the catalog/viewer/share route parity wo
 | Content summary/detail route payloads (`ConsoleContentSummary`, `ConsoleContentDetail`, versions, lineage, bindings, publication, permissions, activity, usage) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
 | Share access and public-link fields (`ConsoleShareAccess`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
 | Saved-map package and embed options (`ConsoleMapPackage`, `EmbedRouteOptions`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-sdk-js#225 | Console | honua-console#7 |
+| Studio workflow package projections in `src/Honua.Console.Shell/Models/StudioWorkflowPackage.cs` | .NET | honua-console#40 | honua-sdk-dotnet#166 workflow/package projections and honua-server#724 workflow DAG contracts | Studio | honua-console#7 replaces with shared SDK/server projections or moves through the dedicated contract boundary |
 
 The catalog shim preserves the Portal URL contract at the route edge:
 `/catalog` accepts `visibility`, not `sharing`. `CatalogListRequest`

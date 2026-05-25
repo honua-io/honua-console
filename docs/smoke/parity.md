@@ -24,6 +24,9 @@ npm run smoke:parity -- --origin https://console.staging.honua.example
 # Run the smoke's own unit tests (taxonomy, contract registry, scenario,
 # evidence emitter). Used by CI to gate the harness itself.
 npm run smoke:parity:test
+
+# Run the focused Studio workflow smoke added for honua-console#40.
+npm run smoke:workflow
 ```
 
 Runner options:
@@ -123,6 +126,43 @@ The registry lives in
 contract version changes in its source repo, bump the `version` field
 there in the same PR so the smoke evidence stays truthful.
 
+## Studio Workflow Smoke (`honua-console#40`)
+
+The workflow editor has a focused smoke alongside the broader parity
+chain. It exercises the route and contract path introduced for
+`workflow.package` authoring:
+
+> Studio workflow draft -> dry-run -> version save -> publish -> Operate monitor
+
+Run it with:
+
+```sh
+npm run smoke:workflow
+npm run smoke:workflow -- --origin https://console.staging.honua.example
+```
+
+By default it writes `smoke-evidence/studio-workflow.json`. The same
+`--origin`, `--output`, `--quiet`, and `--help` options are supported.
+
+Workflow smoke steps:
+
+| Order | Step id                         | Layer     | What it verifies |
+| ----- | ------------------------------- | --------- | ---------------- |
+| 1     | `devops/build-artifact`         | `devops`  | The same Console artifact is serving the Studio workflow route. |
+| 2     | `console/studio-workflow-draft` | `console` | The editor can materialize a `workflow.package` draft with sources, transforms, sinks, parameters, schedule, worker profile, retry policy, failure edges, output schemas, and publication intent. |
+| 3     | `server/workflow-dry-run`       | `server`  | The server-owned dry-run response includes sample rows, logs, artifacts, and output schemas. |
+| 4     | `server/workflow-version-save`  | `server`  | The package is saved as a versioned workflow content item. |
+| 5     | `server/workflow-publish`       | `server`  | The publication uses a saved content version, queues a job-runner job, and exposes an invocation endpoint when requested and parameter validation passes. |
+| 6     | `console/operate-job-monitor`   | `console` | Dry-run and publish jobs deep-link to same-origin Operate job and event evidence. |
+
+The workflow smoke adds these contract names to evidence:
+
+| Contract                 | Version | Owning layer | Source repo |
+| ------------------------ | ------- | ------------ | ----------- |
+| `workflow-package`       | `v1`    | `server`     | `honua-server` |
+| `workflow-dry-run`       | `v1`    | `server`     | `honua-server` |
+| `workflow-publication`   | `v1`    | `server`     | `honua-server` |
+
 Response-contract notes worth keeping in sync with the registry:
 
 - `build-artifact/v1` requires `name`, `version`, `commit`,
@@ -152,6 +192,16 @@ Response-contract notes worth keeping in sync with the registry:
   the fragment and query-string bearer tokens are rejected. Embed controls
   preserve Portal snippet spellings such as `chrome=none`, `legend=off`,
   and `zoom=off`; invalid WGS84 extents fall back to the saved map extent.
+- `workflow-package/v1` covers the authored draft graph and versioned
+  package snapshot. Smoke evidence must include source/transform/sink
+  coverage, failure edges, parameters, schedule, worker profile, retry
+  policy, output schemas, and publication intent.
+- `workflow-dry-run/v1` and queued `workflow-publication/v1` responses
+  must carry Operate evidence URLs so a builder can move from Studio into
+  job and event evidence without leaving the same Console origin. Blocked
+  publication responses carry saved content item/version ids, validation
+  issues, and parameter validation, but no publication id, job, Operate
+  evidence URLs, or invocation endpoint.
 
 The `Version` column is the exact string the registry emits into
 evidence. Some contracts intentionally report only the major family
@@ -167,6 +217,31 @@ The smoke does not just report contract versions — it materializes the
 canonical wire shapes for each step so a future port of an adapter to a
 real HTTP transport cannot silently accept a drifted payload:
 
+- **`workflow-package/v1`** — The workflow smoke materializes a draft
+  with `packageType="workflow.package"` and
+  `schemaVersion="workflow.package/v1"`. The draft includes graph nodes
+  with `source`, `transform`, and `sink` categories; success and failure
+  edges; invocation parameters using the allowed
+  `string|date|number|boolean|geometry` parameter family; a cron schedule;
+  a geospatial worker profile; retry/failure routing; publication intent;
+  and named output schemas. Failure edges and output schemas are required
+  before publish evidence can pass.
+- **`workflow-dry-run/v1`** — The dry-run response asserted by the smoke
+  contains `jobId`, the workflow dry-run job kind (`kind` in smoke
+  evidence, `jobKind` in the Console adapter), `status`, `sampleRows`,
+  logs, artifacts, and output schema names. Console must surface these
+  through `/operate/jobs/{jobId}` and `/operate/events?jobId={jobId}`.
+- **`workflow-publication/v1`** — Successful publication evidence contains
+  `publicationId`, `contentItemId`, `versionId`, `mode`, `status`,
+  `jobId`, optional same-origin invocation endpoint, validation issues,
+  and per-parameter validation. An invocation endpoint is requested when
+  the mode is `process-endpoint` or the draft's explicit endpoint flag is
+  set, and the endpoint ends in `/invoke` only when parameter validation
+  passes.
+  Package validation errors return `status="blocked"` with saved content
+  item/version ids, validation issues, and parameter validation, and
+  without `publicationId`, `jobId`, job kind, Operate URLs, or an
+  invocation endpoint.
 - **`publish-handoff/v1.1.0`** — The fixture at
   [`smoke/parity/fixtures/publish-handoff.json`](../../smoke/parity/fixtures/publish-handoff.json)
   matches every top-level required field in

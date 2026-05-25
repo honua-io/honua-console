@@ -1,0 +1,54 @@
+@page "/operate/events"
+@inject IStudioWorkflowPackageClient Workflows
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate events</p>
+        <h1>Workflow Event Evidence</h1>
+        <p>Workflow dry-run and publication events stay connected to the server-owned job id and package version they came from.</p>
+    </div>
+
+    @if (_evidence is null)
+    {
+        <article class="console-panel">
+            <h2>Event evidence unavailable</h2>
+            <p class="console-muted">Open this route from a workflow dry-run or publish result so the job id is supplied.</p>
+        </article>
+    }
+    else
+    {
+        <article class="console-panel">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">@_evidence.JobKind</p>
+                    <h2>@_evidence.JobId</h2>
+                </div>
+                <span class="console-status">@_evidence.Status</span>
+            </div>
+            <ol class="console-event-list">
+                @foreach (var log in _evidence.Logs)
+                {
+                    <li>
+                        <span>@_evidence.CreatedAt.ToString("HH:mm:ss")</span>
+                        <strong>@log</strong>
+                        <small>@_evidence.VersionId</small>
+                    </li>
+                }
+            </ol>
+        </article>
+    }
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "jobId")]
+    private string? JobId { get; set; }
+
+    private StudioWorkflowJobEvidence? _evidence;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _evidence = string.IsNullOrWhiteSpace(JobId)
+            ? null
+            : await Workflows.GetJobEvidenceAsync(JobId);
+    }
+}

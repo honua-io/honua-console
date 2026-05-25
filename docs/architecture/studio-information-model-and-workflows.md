@@ -11,6 +11,7 @@ Related backlog:
 - [honua-console#7](https://github.com/honua-io/honua-console/issues/7): Shared metadata/content/RBAC contracts.
 - [honua-console#16](https://github.com/honua-io/honua-console/issues/16): Studio publishing.
 - [honua-console#17](https://github.com/honua-io/honua-console/issues/17): Unified GP/ETL editor.
+- [honua-console#40](https://github.com/honua-io/honua-console/issues/40): Studio unified GP/ETL workflow editor UI.
 
 ## Purpose
 
@@ -199,6 +200,58 @@ Every package should carry:
 - `publication_intent`
 - `warnings`
 - `provenance`
+
+### Workflow Package Editor Projection
+
+Implementation note for `honua-console#40`: Console exposes the first
+Studio workflow editor at `/studio/workflows/new` and
+`/studio/workflows/{draftId}`. The editor is a Blazor projection over a
+replaceable `IStudioWorkflowPackageClient` adapter, seeded in memory until
+the server and SDK workflow contracts land. The adapter models the
+server-owned boundaries Console must call rather than inventing a durable
+Console schema:
+
+- `workflow.package` draft graph with source, transform, sink, success,
+  and failure edges.
+- Parameter, schedule, worker profile, retry/failure behavior, output
+  schema, and publication intent edits.
+- Dry-run job response with sample rows, logs, artifacts, and output
+  schemas.
+- Content item version save response for package persistence.
+- Publication response for batch workflow, scheduled job, or eligible
+  process endpoint with parameter validation.
+- Operate job/event evidence links for dry-run and publish jobs.
+
+The current adapter methods map to the expected server/SDK boundary as
+follows:
+
+| Adapter call | Contract surface | Required response notes |
+| --- | --- | --- |
+| `ListNodeDefinitionsAsync` | Node registry projection | Returns node `type`, `category`, `label`, `summary`, and declared input/output ports. Current categories are `source`, `transform`, and `sink`. |
+| `CreateDraftAsync` / `GetDraftAsync` | `workflow.package/v1` draft | Returns draft identity, package/content metadata, graph nodes/edges, parameters, schedule, worker profile, retry policy, publication intent, output schemas, warnings, and validation issues. |
+| `SaveVersionAsync` | Content-version save | Returns `contentItemId`, `versionId`, `versionNumber`, `packageType=workflow.package`, `contentItemType=workflow`, `contract=content-version/v1 + workflow.package/v1`, and validation issues. |
+| `DryRunAsync` | `workflow-dry-run/v1` job | Returns `jobId`, `jobKind=workflow_dry_run`, `status`, `sampleRows`, logs, artifacts, output schemas, `/operate/jobs/{jobId}`, and `/operate/events?jobId={jobId}`. |
+| `PublishAsync` | `workflow-publication/v1` | Selects the current saved version when the draft is unchanged and saves unsaved package edits as a new content version before publication. Queued responses return `publicationId`, content item/version ids, `jobId`, `jobKind=batch_publication`, `status`, publication `mode`, optional `invocationEndpoint`, validation issues, parameter validation, and Operate evidence links. |
+| `GetJobEvidenceAsync` | Operate job/event projection | Returns job kind/status, draft/content/version ids, logs, artifacts, output schemas, evidence URLs, and creation time, or `null` for missing job evidence. |
+
+Publication modes are `batch-workflow`, `scheduled-job`, and
+`process-endpoint`. An invocation endpoint is requested when the mode is
+`process-endpoint` or the draft's explicit endpoint flag is set; eligible
+publications may expose
+`/api/workspaces/{workspaceId}/workflows/{routeSlug}/invoke` when
+parameter validation succeeds. Supported parameter types are `string`,
+`date`, `number`, `boolean`, and `geometry`; invalid parameter contracts,
+missing source/transform/sink graph coverage, missing failure routing,
+missing scheduled cron expressions, and missing output schemas are
+package validation errors that block publication and do not queue a job.
+A blocked publication response still carries the saved content
+item/version ids, publication mode, `status=blocked`, validation issues,
+and parameter validation, but it omits the publication id, job id, job
+kind, Operate evidence URLs, and invocation endpoint.
+
+The focused smoke command is `npm run smoke:workflow`; it records
+dry-run -> save version -> publish -> Operate monitor evidence under the
+same owning-layer taxonomy as the Console parity smoke.
 
 ### Data Binding
 
