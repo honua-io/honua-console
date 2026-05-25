@@ -406,6 +406,7 @@
     private StudioWorkflowSaveResult? _lastSave;
     private StudioWorkflowDryRunResult? _lastDryRun;
     private StudioWorkflowPublishResult? _lastPublish;
+    private string? _savedDraftFingerprint;
 
     private StudioWorkflowNode? SelectedNode =>
         _draft?.Nodes.FirstOrDefault(node => string.Equals(node.Id, _selectedNodeId, StringComparison.Ordinal)) ??
@@ -458,6 +459,7 @@
         {
             _draft = await Workflows.CreateDraftAsync();
             _selectedNodeId = _draft.Nodes.FirstOrDefault()?.Id;
+            _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
             _loading = false;
             Navigation.NavigateTo($"/studio/workflows/{_draft.DraftId}", replace: true);
             return;
@@ -465,6 +467,9 @@
 
         _draft = await Workflows.GetDraftAsync(DraftId);
         _selectedNodeId = _draft?.Nodes.FirstOrDefault()?.Id;
+        _savedDraftFingerprint = _draft is null
+            ? null
+            : StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         _loading = false;
     }
 
@@ -477,6 +482,7 @@
 
         _busy = true;
         _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved from Studio workflow editor.");
+        _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         _busy = false;
     }
 
@@ -500,14 +506,24 @@
         }
 
         _busy = true;
-        if (string.IsNullOrWhiteSpace(_draft.CurrentVersionId))
+        if (NeedsSaveBeforePublish())
         {
             _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved before workflow publication.");
+            _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         }
 
         _lastPublish = await Workflows.PublishAsync(_draft);
+        _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         _busy = false;
     }
+
+    private bool NeedsSaveBeforePublish() =>
+        _draft is not null &&
+        (string.IsNullOrWhiteSpace(_draft.CurrentVersionId) ||
+            !string.Equals(
+                _savedDraftFingerprint,
+                StudioWorkflowPackageDraftContent.CreateFingerprint(_draft),
+                StringComparison.Ordinal));
 
     private void SelectNode(string nodeId)
     {

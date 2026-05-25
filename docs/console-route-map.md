@@ -628,6 +628,11 @@ share, embed, and rollback APIs. The mock projection is documented in
 and must be replaced behind the same editor model when shared contracts
 land.
 
+Workflow routes are builder-owned Studio surfaces. They edit the
+`workflow.package/v1` projection through the workflow package client and
+link dry-run/publish evidence into Operate with job-scoped URLs; they do
+not move workflow authoring into the Operate information architecture.
+
 ### 6.3 Catalog
 
 | Route | Gates | Empty | Forbidden | Chunk |
@@ -759,6 +764,13 @@ render as failures. AI advisory panels render beside raw evidence links,
 invalid realtime/geofence rules keep their enable action disabled, and
 Studio, publishing, GitOps, temporal, alert delivery, import, and
 maintenance jobs all use `/operate/jobs/:jobRunId` as the detail URL.
+
+Workflow dry-run and publish results reuse `/operate/jobs/:jobRunId` and
+`/operate/events?jobId=<id>` as evidence views, not workflow editors.
+The workflow adapter may name the identifier `jobId`; Console treats it
+as the job-run route id for navigation. Missing or unauthorized job ids
+render the standard missing/forbidden surfaces once these routes switch
+from fixture and adapter lookups to server-backed job reads.
 
 Other entitlement gates that surface inside Operate sub-pages but do
 not own a top-level route (so they appear as in-page upgrade tiles

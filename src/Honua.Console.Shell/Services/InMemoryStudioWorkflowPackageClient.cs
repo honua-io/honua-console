@@ -106,35 +106,7 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
 
         lock (_gate)
         {
-            var stored = PrepareDraftForStorage(draft);
-            stored.ContentItemId = string.IsNullOrWhiteSpace(stored.ContentItemId)
-                ? $"workflow-{Slugify(stored.Title)}"
-                : stored.ContentItemId;
-            stored.VersionNumber = Math.Max(stored.VersionNumber + 1, 1);
-            stored.CurrentVersionId = $"{stored.ContentItemId}:v{stored.VersionNumber}";
-            stored.LastSavedAt = DateTimeOffset.UtcNow;
-            stored.UpdatedAt = stored.LastSavedAt.Value;
-            stored.ValidationIssues = ValidatePackage(stored);
-
-            _drafts[stored.DraftId] = Clone(stored);
-
-            draft.ContentItemId = stored.ContentItemId;
-            draft.VersionNumber = stored.VersionNumber;
-            draft.CurrentVersionId = stored.CurrentVersionId;
-            draft.LastSavedAt = stored.LastSavedAt;
-            draft.UpdatedAt = stored.UpdatedAt;
-            draft.ValidationIssues = CloneList(stored.ValidationIssues).ToList();
-
-            return Task.FromResult(new StudioWorkflowSaveResult
-            {
-                ContentItemId = stored.ContentItemId,
-                VersionId = stored.CurrentVersionId,
-                VersionNumber = stored.VersionNumber,
-                PackageType = stored.PackageType,
-                ContentItemType = StudioWorkflowContractValues.ContentItemType,
-                Contract = "content-version/v1 + workflow.package/v1",
-                ValidationIssues = CloneList(stored.ValidationIssues)
-            });
+            return Task.FromResult(SaveVersionLocked(draft, changeNote));
         }
     }
 
@@ -201,15 +173,12 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
 
         lock (_gate)
         {
-            var prepared = PrepareDraftForStorage(draft);
-            if (string.IsNullOrWhiteSpace(prepared.CurrentVersionId))
+            if (RequiresVersionSave(draft))
             {
-                prepared.ContentItemId = string.IsNullOrWhiteSpace(prepared.ContentItemId)
-                    ? $"workflow-{Slugify(prepared.Title)}"
-                    : prepared.ContentItemId;
-                prepared.VersionNumber = Math.Max(prepared.VersionNumber + 1, 1);
-                prepared.CurrentVersionId = $"{prepared.ContentItemId}:v{prepared.VersionNumber}";
+                _ = SaveVersionLocked(draft, "Saved before workflow publication.");
             }
+
+            var prepared = PrepareDraftForStorage(draft);
 
             var parameterValidation = ValidateParameters(prepared).ToArray();
             var endpointRequested = IsEndpointRequested(prepared.PublicationIntent);
@@ -248,6 +217,8 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
 
             prepared.UpdatedAt = DateTimeOffset.UtcNow;
             _drafts[prepared.DraftId] = Clone(prepared);
+            draft.UpdatedAt = prepared.UpdatedAt;
+            draft.ValidationIssues = CloneList(prepared.ValidationIssues).ToList();
 
             _jobs[jobId] = new StudioWorkflowJobEvidence
             {
@@ -291,6 +262,66 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
         {
             return Task.FromResult(_jobs.TryGetValue(jobId, out var evidence) ? Clone(evidence) : null);
         }
+    }
+
+    private StudioWorkflowSaveResult SaveVersionLocked(StudioWorkflowPackageDraft draft, string changeNote)
+    {
+        var stored = PrepareDraftForStorage(draft);
+        stored.ContentItemId = string.IsNullOrWhiteSpace(stored.ContentItemId)
+            ? $"workflow-{Slugify(stored.Title)}"
+            : stored.ContentItemId;
+
+        var previousVersionNumber = _drafts.TryGetValue(stored.DraftId, out var existing)
+            ? existing.VersionNumber
+            : 0;
+        stored.VersionNumber = Math.Max(stored.VersionNumber, previousVersionNumber) + 1;
+        stored.CurrentVersionId = $"{stored.ContentItemId}:v{stored.VersionNumber}";
+        stored.LastSavedAt = DateTimeOffset.UtcNow;
+        stored.UpdatedAt = stored.LastSavedAt.Value;
+        stored.ValidationIssues = ValidatePackage(stored);
+
+        _drafts[stored.DraftId] = Clone(stored);
+
+        draft.ContentItemId = stored.ContentItemId;
+        draft.VersionNumber = stored.VersionNumber;
+        draft.CurrentVersionId = stored.CurrentVersionId;
+        draft.LastSavedAt = stored.LastSavedAt;
+        draft.UpdatedAt = stored.UpdatedAt;
+        draft.ValidationIssues = CloneList(stored.ValidationIssues).ToList();
+
+        return new StudioWorkflowSaveResult
+        {
+            ContentItemId = stored.ContentItemId,
+            VersionId = stored.CurrentVersionId,
+            VersionNumber = stored.VersionNumber,
+            PackageType = stored.PackageType,
+            ContentItemType = StudioWorkflowContractValues.ContentItemType,
+            Contract = "content-version/v1 + workflow.package/v1",
+            ValidationIssues = CloneList(stored.ValidationIssues)
+        };
+    }
+
+    private bool RequiresVersionSave(StudioWorkflowPackageDraft draft)
+    {
+        if (string.IsNullOrWhiteSpace(draft.CurrentVersionId))
+        {
+            return true;
+        }
+
+        if (!_drafts.TryGetValue(draft.DraftId, out var stored))
+        {
+            return true;
+        }
+
+        if (!string.Equals(draft.CurrentVersionId, stored.CurrentVersionId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return !string.Equals(
+            StudioWorkflowPackageDraftContent.CreateFingerprint(draft),
+            StudioWorkflowPackageDraftContent.CreateFingerprint(stored),
+            StringComparison.Ordinal);
     }
 
     private static StudioWorkflowPackageDraft PrepareDraftForStorage(StudioWorkflowPackageDraft draft)

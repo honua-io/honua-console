@@ -63,6 +63,31 @@ public sealed class StudioWorkflowPackageClientTests
     }
 
     [Fact]
+    public async Task PublishCreatesNewContentVersionWhenDraftChangedAfterSave()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+
+        var save = await client.SaveVersionAsync(draft, "baseline save");
+        draft.Summary = "Edited after the saved version.";
+        draft.Parameters[0].DefaultValue = "maui";
+
+        var publish = await client.PublishAsync(draft);
+        var publishEvidence = await client.GetJobEvidenceAsync(publish.JobId);
+        var stored = await client.GetDraftAsync(draft.DraftId);
+
+        Assert.NotEqual(save.VersionId, publish.VersionId);
+        Assert.EndsWith(":v3", publish.VersionId, StringComparison.Ordinal);
+        Assert.Equal(publish.VersionId, draft.CurrentVersionId);
+        Assert.NotNull(publishEvidence);
+        Assert.Equal(publish.VersionId, publishEvidence.VersionId);
+        Assert.NotNull(stored);
+        Assert.Equal(publish.VersionId, stored.CurrentVersionId);
+        Assert.Equal("maui", stored.Parameters[0].DefaultValue);
+    }
+
+    [Fact]
     public async Task EligibleWorkflowPublishesInvocationEndpointWithParameterValidation()
     {
         var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();

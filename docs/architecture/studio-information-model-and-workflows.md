@@ -221,6 +221,25 @@ Console schema:
   process endpoint with parameter validation.
 - Operate job/event evidence links for dry-run and publish jobs.
 
+The current adapter methods map to the expected server/SDK boundary as
+follows:
+
+| Adapter call | Contract surface | Required response notes |
+| --- | --- | --- |
+| `ListNodeDefinitionsAsync` | Node registry projection | Returns node `type`, `category`, `label`, `summary`, and declared input/output ports. Current categories are `source`, `transform`, and `sink`. |
+| `CreateDraftAsync` / `GetDraftAsync` | `workflow.package/v1` draft | Returns draft identity, package/content metadata, graph nodes/edges, parameters, schedule, worker profile, retry policy, publication intent, output schemas, warnings, and validation issues. |
+| `SaveVersionAsync` | Content-version save | Returns `contentItemId`, `versionId`, `versionNumber`, `packageType=workflow.package`, `contentItemType=workflow`, a contract label, and validation issues. |
+| `DryRunAsync` | `workflow-dry-run/v1` job | Returns `jobId`, `jobKind=workflow_dry_run`, `status`, `sampleRows`, logs, artifacts, output schemas, `/operate/jobs/{jobId}`, and `/operate/events?jobId={jobId}`. |
+| `PublishAsync` | `workflow-publication/v1` | Selects the current saved version when the draft is unchanged, saves unsaved package edits as a new content version before publication, and returns `publicationId`, content item/version ids, `jobId`, `jobKind=batch_publication`, `status`, publication `mode`, optional `invocationEndpoint`, parameter validation, and Operate evidence links. |
+| `GetJobEvidenceAsync` | Operate job/event projection | Returns job kind/status, draft/content/version ids, logs, artifacts, output schemas, evidence URLs, and creation time, or `null` for missing job evidence. |
+
+Publication modes are `batch-workflow`, `scheduled-job`, and
+`process-endpoint`. Process-endpoint publication may expose
+`/api/workspaces/{workspaceId}/workflows/{routeSlug}/invoke` when
+parameter validation succeeds. Supported parameter types are `string`,
+`date`, `number`, `boolean`, and `geometry`; invalid endpoint parameters
+block publication and do not queue a job.
+
 The focused smoke command is `npm run smoke:workflow`; it records
 dry-run -> save version -> publish -> Operate monitor evidence under the
 same owning-layer taxonomy as the Console parity smoke.

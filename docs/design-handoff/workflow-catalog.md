@@ -162,6 +162,12 @@ Design outputs needed:
 
 ## 7. Unified GP / ETL Editor
 
+Console implementation note (`honua-console#40`): the first Blazor
+projection is available at `/studio/workflows/new` and
+`/studio/workflows/{draftId}`. It covers the graph, inspector,
+parameters, schedule, worker profile, retry/failure routing, dry-run,
+publish intent, and Operate evidence surfaces listed below.
+
 Flow:
 
 1. User asks for a process, ETL pipeline, or GP service.
@@ -365,4 +371,3 @@ Design outputs needed:
 - connection diagnostics
 - environment switcher
 - transport capability indicators
-
