@@ -2,8 +2,13 @@ using System.Net;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Native.Core.Tests;
 
@@ -60,6 +65,9 @@ public sealed class OperateTransitionDataSourceTests
                 {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","lastHealthCheck":"2026-05-24T10:00:00Z","storageType":"managed","sslMode":"Require"}]}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
+                {"success":true,"data":[]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=planning"] = """
                 {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}]}
                 """,
             ["/api/v1/admin/services/"] = """
@@ -108,6 +116,77 @@ public sealed class OperateTransitionDataSourceTests
             workspace.CapabilityStates,
             state => state.Surface == "Settings"
                 && state.Contract.Contains("CORS", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetailPagesRenderMissingItemAndCapabilityState()
+    {
+        var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace(
+            Connections: [],
+            ResourceEdits: [],
+            Services: [],
+            SettingsChanges: [],
+            CapabilityStates:
+            [
+                new OperateCapabilityState(
+                    "Connections",
+                    "Unavailable",
+                    "GET /api/v1/admin/connections",
+                    "The connections contract is not available."),
+                new OperateCapabilityState(
+                    "Resources",
+                    "Unsupported",
+                    "GET /api/v1/admin/metadata/resources",
+                    "The resource edit contract is not available."),
+                new OperateCapabilityState(
+                    "Services",
+                    "Unavailable",
+                    "GET /api/v1/admin/services",
+                    "The services contract is not available."),
+                new OperateCapabilityState(
+                    "Layers",
+                    "Unavailable",
+                    "GET /api/v1/admin/connections/{id}/layers",
+                    "The layers contract is not available.")
+            ]));
+
+        var connectionHtml = await RenderPageAsync<OperateConnectionDetailPage>(
+            dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                ["ConnectionId"] = "missing-connection"
+            }));
+        var html = await RenderPageAsync<OperateResourceDetailPage>(
+            dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                ["ResourceId"] = "missing-resource"
+            }));
+        var serviceHtml = await RenderPageAsync<OperateServiceDetailPage>(
+            dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                ["ServiceName"] = "missing-service"
+            }));
+        var layerHtml = await RenderPageAsync<OperateLayerDetailPage>(
+            dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                ["LayerId"] = 404
+            }));
+
+        Assert.Contains("Connection Not Found", connectionHtml, StringComparison.Ordinal);
+        Assert.Contains("Server Capability States", connectionHtml, StringComparison.Ordinal);
+        Assert.Contains("GET /api/v1/admin/connections", connectionHtml, StringComparison.Ordinal);
+        Assert.Contains("Resource Not Found", html, StringComparison.Ordinal);
+        Assert.Contains("Server Capability States", html, StringComparison.Ordinal);
+        Assert.Contains("GET /api/v1/admin/metadata/resources", html, StringComparison.Ordinal);
+        Assert.Contains("Service Not Found", serviceHtml, StringComparison.Ordinal);
+        Assert.Contains("Server Capability States", serviceHtml, StringComparison.Ordinal);
+        Assert.Contains("GET /api/v1/admin/services", serviceHtml, StringComparison.Ordinal);
+        Assert.Contains("Layer Not Found", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("Server Capability States", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("GET /api/v1/admin/connections/{id}/layers", layerHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -246,6 +325,57 @@ public sealed class OperateTransitionDataSourceTests
         Assert.DoesNotContain("Host=pg-prod.internal.honua", renderedText, StringComparison.Ordinal);
         Assert.DoesNotContain("vault-material", renderedText, StringComparison.Ordinal);
         Assert.Contains("secret://connections/prod-postgres/[redacted]", renderedText, StringComparison.Ordinal);
+    }
+
+    private static async Task<string> RenderPageAsync<TComponent>(
+        IOperateTransitionDataSource dataSource,
+        ParameterView parameters)
+        where TComponent : IComponent
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton(dataSource);
+        await using var serviceProvider = services.BuildServiceProvider();
+        var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+        await using var renderer = new HtmlRenderer(serviceProvider, loggerFactory);
+
+        return await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var output = await renderer.RenderComponentAsync<TComponent>(parameters)
+                .ConfigureAwait(false);
+            return output.ToHtmlString();
+        }).ConfigureAwait(false);
+    }
+
+    private sealed class StubOperateTransitionDataSource : IOperateTransitionDataSource
+    {
+        private readonly OperateTransitionWorkspace _workspace;
+
+        public StubOperateTransitionDataSource(OperateTransitionWorkspace workspace)
+        {
+            _workspace = workspace;
+        }
+
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspace);
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(
+            string connectionId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspace.Connections.FirstOrDefault(
+                connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase)));
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(
+            string resourceId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspace.ResourceEdits.FirstOrDefault(
+                resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase)));
+
+        public Task<OperateServiceDetail?> FindServiceAsync(
+            string serviceName,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspace.Services.FirstOrDefault(
+                service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase)));
     }
 
     private sealed class JsonFixtureHandler : HttpMessageHandler

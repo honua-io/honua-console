@@ -99,7 +99,7 @@ When "Active Shims" is empty:
 
 ## Active Shims
 
-The current active shims are bounded to catalog/viewer/share route parity, Studio workflow package work, and the native trust/mTLS contract added by `honua-console#44`. Catalog/viewer/share shims live in `src/Honua.Console.Contracts/SdkShims.cs`; the native trust wire contract lives in `src/Honua.Console.Contracts/EnvironmentTrustShims.cs`; the Studio workflow projections currently live in the shared shell model boundary until the SDK workflow contracts land. They provide stable Console-side shapes until the `honua-sdk-dotnet#166` projection lands and `honua-console#7` replaces the shim imports.
+The current active shims are bounded to catalog/viewer/share route parity, Studio workflow package work, the native trust/mTLS contract added by `honua-console#44`, and the Operate admin transition retrofit. Catalog/viewer/share shims live in `src/Honua.Console.Contracts/SdkShims.cs`; the native trust wire contract lives in `src/Honua.Console.Contracts/EnvironmentTrustShims.cs`; the Operate admin HTTP shim lives in `src/Honua.Console.Contracts/OperateAdminShims.cs`; the Studio workflow projections currently live in the shared shell model boundary until the SDK workflow contracts land. They provide stable Console-side shapes until the `honua-sdk-dotnet#166` projection lands and `honua-console#7` replaces the shim imports.
 
 | Shim   | Language | Added in PR | Waiting on | Owner | Target removal |
 |--------|----------|-------------|------------|-------|----------------|

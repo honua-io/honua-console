@@ -2,11 +2,7 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_resource is null && _states.Count > 0)
-    {
-        <OperateCapabilityStateList States="@_states" />
-    }
-    else if (_resource is null)
+    @if (_resource is null)
     {
         <MissingItemView Kind="resource" AreaLabel="Operate / Resources" />
     }
@@ -79,6 +75,8 @@
             </article>
         </div>
     }
+
+    <OperateCapabilityStateList States="@_states" />
 </section>
 
 @code {

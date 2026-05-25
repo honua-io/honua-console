@@ -22,6 +22,47 @@ The native routes are the preferred Console navigation for connections, data res
 - `/operate/layers/{layerId:int}`
 - `/operate/settings`
 
+## Server Binding And Admin Shim
+
+The browser host passes `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL`
+into `AddHonuaConsoleShell(serverBaseUrl, adminApiKey)`. The optional admin
+API key can come from `Honua:Server:AdminApiKey` or `HONUA_ADMIN_API_KEY` and
+is sent as `X-API-Key`. Standard ASP.NET environment variable mapping also
+supports `Honua__Server__BaseUrl` and `Honua__Server__AdminApiKey`.
+
+Until `honua-sdk-dotnet#166` provides admin projections, the temporary
+`HonuaAdminOperateHttpClient` reads the honua-server admin envelope
+`{ success, data, message, timestamp }` and maps it into
+`HonuaAdminEndpointResult<T>`. Successful responses require
+`success == true` and non-null `data`; missing data becomes an unavailable
+capability state.
+
+| Console surface | Admin endpoint used now |
+| --- | --- |
+| Connections | `GET /api/v1/admin/connections/` |
+| Published layer/resource projections | `GET /api/v1/admin/connections/{id}/layers/` |
+| Services | `GET /api/v1/admin/services/` |
+| Service settings | `GET /api/v1/admin/services/{serviceName}/settings` |
+| Runtime/version settings | `GET /api/v1/admin/version` and `GET /api/v1/admin/capabilities` |
+| License settings | `GET /api/v1/admin/license/` |
+| API key inventory | `GET /api/v1/admin/api-keys/` |
+| OIDC provider inventory | `GET /api/v1/admin/oidc/providers/` |
+
+Endpoint issues are normalized before they reach Razor components:
+
+| Condition | Capability state |
+| --- | --- |
+| Request failure or timeout | `Unavailable` |
+| HTTP 401 or 403 | `Missing permission` |
+| HTTP 404, 405, or 501 | `Unsupported` |
+| Other non-success HTTP status | `Unavailable` |
+| JSON shape mismatch | `Unsupported` |
+| Successful envelope with no data | `Unavailable` |
+
+The server-backed data source starts the independent top-level reads together
+to avoid a startup waterfall, then reads layer rows per connection and service
+settings per service. It does not fabricate rows for unsupported contracts.
+
 ## Response Contract
 
 These are Console transition view models, not server protocol DTOs:

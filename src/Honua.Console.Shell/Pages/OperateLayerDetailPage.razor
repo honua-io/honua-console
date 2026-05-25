@@ -2,11 +2,7 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_layerRow is null && _states.Count > 0)
-    {
-        <OperateCapabilityStateList States="@_states" />
-    }
-    else if (_layerRow is null)
+    @if (_layerRow is null)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
@@ -46,6 +42,8 @@
             </article>
         </div>
     }
+
+    <OperateCapabilityStateList States="@_states" />
 </section>
 
 @code {

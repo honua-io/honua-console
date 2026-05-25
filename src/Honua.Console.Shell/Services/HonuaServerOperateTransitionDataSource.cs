@@ -45,7 +45,15 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             .OrderBy(connection => connection.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var layerRows = await ReadLayerRowsAsync(connections, states, cancellationToken).ConfigureAwait(false);
+        var serviceResult = await servicesTask.ConfigureAwait(false);
+        AddIssue(states, "Services", serviceResult.Issue);
+        var serviceSummaries = (serviceResult.Data ?? [])
+            .Where(service => !string.IsNullOrWhiteSpace(service.ServiceName))
+            .OrderBy(service => service.ServiceName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var layerRows = await ReadLayerRowsAsync(connections, serviceSummaries, states, cancellationToken)
+            .ConfigureAwait(false);
         var resources = layerRows
             .Select(row => row.Resource)
             .OrderBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
@@ -59,12 +67,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
                 $"{MetadataResourcesContract} plus resource edit validation/blast-radius projection",
                 "honua-server does not currently expose a Metadata v2 resource-edit preview contract for validation issues, saved maps, share links, or generated-app blast radius."));
 
-        var serviceResult = await servicesTask.ConfigureAwait(false);
-        AddIssue(states, "Services", serviceResult.Issue);
-        var serviceSummaries = (serviceResult.Data ?? [])
-            .Where(service => !string.IsNullOrWhiteSpace(service.ServiceName))
-            .OrderBy(service => service.ServiceName, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
         var serviceSettings = await ReadServiceSettingsAsync(serviceSummaries, states, cancellationToken)
             .ConfigureAwait(false);
         var services = serviceSummaries
@@ -117,6 +119,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
     private async Task<LayerRow[]> ReadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
+        IReadOnlyList<HonuaAdminServiceSummary> services,
         List<OperateCapabilityState> states,
         CancellationToken cancellationToken)
     {
@@ -125,38 +128,77 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             return [];
         }
 
+        var serviceScopes = CreateLayerServiceScopes(services);
         var layerTasks = connections
-            .Select(async connection => (
+            .SelectMany(connection => serviceScopes.Select(async serviceName => (
                 Connection: connection,
-                Result: await _client.ListConnectionLayersAsync(connection.Id, cancellationToken: cancellationToken)
-                    .ConfigureAwait(false)))
+                ServiceName: serviceName,
+                Result: await _client.ListConnectionLayersAsync(
+                        connection.Id,
+                        serviceName,
+                        cancellationToken)
+                    .ConfigureAwait(false))))
             .ToArray();
 
         await Task.WhenAll(layerTasks).ConfigureAwait(false);
 
         var rows = new List<LayerRow>();
+        var seenRows = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var layerTask in layerTasks)
         {
-            var (connection, result) = await layerTask.ConfigureAwait(false);
+            var (connection, serviceName, result) = await layerTask.ConfigureAwait(false);
             AddIssue(states, "Layers", result.Issue);
 
             foreach (var layer in result.Data ?? [])
             {
-                var resource = MapResource(connection, layer);
+                var effectiveServiceName = Coalesce(layer.ServiceName, serviceName, "default");
+                var rowKey = string.Join(
+                    '\u001f',
+                    connection.Id,
+                    layer.LayerId.ToString(CultureInfo.InvariantCulture),
+                    effectiveServiceName);
+                if (!seenRows.Add(rowKey))
+                {
+                    continue;
+                }
+
+                var normalizedLayer = layer with { ServiceName = effectiveServiceName };
+                var resource = MapResource(connection, normalizedLayer);
                 rows.Add(new LayerRow(
                     connection,
-                    layer,
+                    normalizedLayer,
                     resource,
                     new OperateServiceLayerProjection(
-                        layer.LayerId,
-                        Coalesce(layer.LayerName, $"Layer {layer.LayerId}"),
-                        Coalesce(layer.GeometryType, "Unknown"),
+                        normalizedLayer.LayerId,
+                        Coalesce(normalizedLayer.LayerName, $"Layer {normalizedLayer.LayerId}"),
+                        Coalesce(normalizedLayer.GeometryType, "Unknown"),
                         resource.ResourceId,
                         resource.Name)));
             }
         }
 
         return rows.ToArray();
+    }
+
+    private static IReadOnlyList<string?> CreateLayerServiceScopes(IReadOnlyList<HonuaAdminServiceSummary> services)
+    {
+        var serviceScopes = new List<string?> { null };
+        var serviceNames = services
+            .Select(service => service.ServiceName?.Trim())
+            .Where(serviceName => !string.IsNullOrWhiteSpace(serviceName))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var serviceName in serviceNames)
+        {
+            if (string.Equals(serviceName, "default", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            serviceScopes.Add(serviceName);
+        }
+
+        return serviceScopes;
     }
 
     private async Task<IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>> ReadServiceSettingsAsync(

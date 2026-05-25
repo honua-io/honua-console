@@ -3,11 +3,7 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_connection is null && _states.Count > 0)
-    {
-        <OperateCapabilityStateList States="@_states" />
-    }
-    else if (_connection is null)
+    @if (_connection is null)
     {
         <MissingItemView Kind="connection" AreaLabel="Operate / Connections" />
     }
@@ -108,6 +104,8 @@
             </section>
         }
     }
+
+    <OperateCapabilityStateList States="@_states" />
 </section>
 
 @code {
