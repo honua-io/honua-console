@@ -148,6 +148,23 @@ public sealed class ConsoleTrustEvaluatorTests
     }
 
     [Fact]
+    public void RequiredClientCertificateWithoutPrivateKey_BlocksAsMissing_WithDistinctReason()
+    {
+        var result = _evaluator.Evaluate(new ConsoleTrustEvaluationContext
+        {
+            Profile = Profile(certEnabled: true),
+            State = State(pinnedServer: "AAA"),
+            ObservedServerFingerprint = "AAA",
+            ClientCertificateMissingPrivateKey = true,
+            Now = Now
+        });
+
+        Assert.True(result.IsBlocked);
+        Assert.Equal(HonuaCertificateValidationStatus.Missing, result.Trust.Status);
+        Assert.Equal(ConsoleTrustReasonCodes.ClientCertificatePrivateKeyUnavailable, result.Trust.ReasonCode);
+    }
+
+    [Fact]
     public void ValidCertificate_PinsClientThumbprint_AndReportsReady()
     {
         var result = _evaluator.Evaluate(new ConsoleTrustEvaluationContext

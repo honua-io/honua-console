@@ -271,11 +271,21 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
     {
         // The certificate is resolved once by the caller and reused here for the probe and the
         // server validation so the connection later attaches exactly the validated certificate.
-        var clientThumbprint = certificate is null ? null : NativeServerTrust.ComputeSha256Thumbprint(certificate);
-        var clientNotAfter = certificate is null ? (DateTimeOffset?)null : certificate.NotAfter.ToUniversalTime();
+        // A bound certificate without a usable private key cannot complete client authentication, so
+        // it is treated as no usable credential: it is never probed with, validated, attached, or
+        // reported as connected mTLS. For an mTLS profile this surfaces as a blocking Missing state.
+        var missingPrivateKey = profile.ClientCertificate.Enabled
+            && certificate is not null
+            && !certificate.HasPrivateKey;
+        var usableCertificate = certificate is { HasPrivateKey: true } ? certificate : null;
+
+        var clientThumbprint = usableCertificate is null
+            ? null
+            : NativeServerTrust.ComputeSha256Thumbprint(usableCertificate);
+        var clientNotAfter = usableCertificate?.NotAfter.ToUniversalTime();
 
         var observedFingerprint = await _serverProbe
-            .ObserveServerFingerprintAsync(profile, certificate, cancellationToken)
+            .ObserveServerFingerprintAsync(profile, usableCertificate, cancellationToken)
             .ConfigureAwait(false);
 
         ConsoleClientCertificateValidationResult? validation = null;
@@ -292,7 +302,7 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
             && !string.Equals(observedFingerprint, pinnedServer, StringComparison.OrdinalIgnoreCase);
 
         if (profile.ClientCertificate.Enabled
-            && certificate is not null
+            && usableCertificate is not null
             && !unreachable
             && (!serverChanged || acknowledgeServerCertificate))
         {
@@ -302,7 +312,7 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
             try
             {
                 validation = await _validationClient
-                    .ValidateAsync(profile, certificate, trustedFingerprint, cancellationToken)
+                    .ValidateAsync(profile, usableCertificate, trustedFingerprint, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (HttpRequestException ex) when (!cancellationToken.IsCancellationRequested && IsAuthorizationFailure(ex))
@@ -329,8 +339,9 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
             State = state,
             ObservedServerFingerprint = observedFingerprint,
             ClientCertificateThumbprint = clientThumbprint,
-            ClientCertificateIssuer = SummarizeIssuer(certificate),
+            ClientCertificateIssuer = SummarizeIssuer(usableCertificate),
             ClientCertificateNotAfter = clientNotAfter,
+            ClientCertificateMissingPrivateKey = missingPrivateKey,
             Validation = validation,
             Acknowledge = acknowledgeServerCertificate,
             RevalidateClientCertificateChange = revalidateClientCertificateChange,

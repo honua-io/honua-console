@@ -52,75 +52,95 @@ public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
             return;
         }
 
-        _network = new NetworkBuilder().Build();
-
-        _postgres = new PostgreSqlBuilder()
-            .WithImage("postgis/postgis:16-3.4")
-            .WithNetwork(_network)
-            .WithNetworkAliases("postgres")
-            .WithDatabase("honua")
-            .WithUsername("honua")
-            .WithPassword("honua")
-            .Build();
-        await _postgres.StartAsync().ConfigureAwait(false);
-
-        var connectionString = "Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua";
-
-        var useTls = string.Equals(Options.ServerScheme, "https", StringComparison.OrdinalIgnoreCase);
-        var builder = new ContainerBuilder(Options.ServerImage!)
-            .WithNetwork(_network)
-            .WithPortBinding(Options.ServerPort, assignRandomHostPort: true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request =>
-            {
-                request = request
-                    .ForPort(Options.ServerPort)
-                    .ForPath(Options.ServerHealthPath)
-                    .ForStatusCodeMatching(code => (int)code is >= 200 and < 500);
-
-                if (useTls)
-                {
-                    // The fixture server presents a self-signed/dev certificate; accept it for the readiness probe only.
-                    request = request
-                        .UsingTls()
-                        .UsingHttpMessageHandler(new HttpClientHandler
-                        {
-                            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-                        });
-                }
-
-                return request;
-            }));
-
-        foreach (var (key, value) in Options.BuildServerEnvironment(connectionString))
+        try
         {
-            builder = builder.WithEnvironment(key, value);
+            _network = new NetworkBuilder().Build();
+
+            _postgres = new PostgreSqlBuilder()
+                .WithImage("postgis/postgis:16-3.4")
+                .WithNetwork(_network)
+                .WithNetworkAliases("postgres")
+                .WithDatabase("honua")
+                .WithUsername("honua")
+                .WithPassword("honua")
+                .Build();
+            await _postgres.StartAsync().ConfigureAwait(false);
+
+            var connectionString = "Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua";
+
+            var useTls = string.Equals(Options.ServerScheme, "https", StringComparison.OrdinalIgnoreCase);
+            var builder = new ContainerBuilder(Options.ServerImage!)
+                .WithNetwork(_network)
+                .WithPortBinding(Options.ServerPort, assignRandomHostPort: true)
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request =>
+                {
+                    request = request
+                        .ForPort(Options.ServerPort)
+                        .ForPath(Options.ServerHealthPath)
+                        .ForStatusCodeMatching(code => (int)code is >= 200 and < 500);
+
+                    if (useTls)
+                    {
+                        // The fixture server presents a self-signed/dev certificate; accept it for the readiness probe only.
+                        request = request
+                            .UsingTls()
+                            .UsingHttpMessageHandler(new HttpClientHandler
+                            {
+                                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                            });
+                    }
+
+                    return request;
+                }));
+
+            foreach (var (key, value) in Options.BuildServerEnvironment(connectionString))
+            {
+                builder = builder.WithEnvironment(key, value);
+            }
+
+            _server = builder.Build();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            await _server.StartAsync(timeout.Token).ConfigureAwait(false);
+
+            BaseAddress = new UriBuilder(
+                Options.ServerScheme,
+                _server.Hostname,
+                _server.GetMappedPublicPort(Options.ServerPort)).Uri;
         }
-
-        _server = builder.Build();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        await _server.StartAsync(timeout.Token).ConfigureAwait(false);
-
-        BaseAddress = new UriBuilder(
-            Options.ServerScheme,
-            _server.Hostname,
-            _server.GetMappedPublicPort(Options.ServerPort)).Uri;
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The lane is opt-in and must skip - never fail - when Docker/Testcontainers cannot start
+            // the server (daemon unavailable, image not pullable, or readiness timeout). Record the
+            // reason so the SkippableFact bodies skip with it, and tear down any partially started
+            // containers. This keeps the documented "skips gracefully when Docker/the image is
+            // unavailable" contract (Console Patterns Charter section 11).
+            SkipReason = "The honua-server integration container could not start "
+                + $"({ex.GetType().Name}: {ex.Message}). Ensure Docker is running and the configured "
+                + "server image is pullable, or set HONUA_CONSOLE_EXTERNAL_BASE_URL.";
+            await DisposeStartedContainersAsync().ConfigureAwait(false);
+        }
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync() => DisposeStartedContainersAsync();
+
+    private async Task DisposeStartedContainersAsync()
     {
         if (_server is not null)
         {
             await _server.DisposeAsync().ConfigureAwait(false);
+            _server = null;
         }
 
         if (_postgres is not null)
         {
             await _postgres.DisposeAsync().ConfigureAwait(false);
+            _postgres = null;
         }
 
         if (_network is not null)
         {
             await _network.DisposeAsync().ConfigureAwait(false);
+            _network = null;
         }
     }
 
@@ -214,8 +234,11 @@ public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
         public ValueTask<X509Certificate2?> ResolveAsync(
             ConsoleEnvironmentProfile profile,
             CancellationToken cancellationToken = default) =>
+            // Return a fresh, caller-owned clone that retains the private key, so the live trust gate
+            // exercises real client authentication (the server rejects the untrusted issuer) instead
+            // of blocking locally on a missing private key.
             ValueTask.FromResult<X509Certificate2?>(profile.ClientCertificate.Enabled
-                ? X509CertificateLoader.LoadCertificate(_certificate.RawData)
+                ? X509CertificateLoader.LoadPkcs12(_certificate.Export(X509ContentType.Pkcs12), password: null)
                 : null);
     }
 }

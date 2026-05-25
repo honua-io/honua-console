@@ -78,6 +78,16 @@ public sealed class NativeHonuaConnectionFactory
                 (message, certificate, chain, errors) => serverValidation(message, certificate, chain, errors);
         }
 
+        // Only a certificate with a usable private key can complete client authentication. A
+        // public-only certificate would silently disable mTLS while appearing attached, so drop it
+        // here as well. The trust gate already blocks this upstream; this is defense in depth that
+        // also covers the resolve-internally overloads.
+        if (clientCertificate is not null && !clientCertificate.HasPrivateKey)
+        {
+            clientCertificate.Dispose();
+            clientCertificate = null;
+        }
+
         if (clientCertificate is not null)
         {
             handler.ClientCertificates.Add(clientCertificate);

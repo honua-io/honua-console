@@ -70,6 +70,24 @@ public sealed class NativeConnectionFactoryTests
     }
 
     [Fact]
+    public async Task CreateAsyncDropsClientCertificateWithoutPrivateKey()
+    {
+        // A public-only clone has no private key and cannot complete client authentication.
+        using var keyBearing = CreateCertificate();
+        var publicOnly = X509CertificateLoader.LoadCertificate(keyBearing.RawData);
+        var profile = CreateProfile(clientCertificateEnabled: true);
+        var factory = new NativeHonuaConnectionFactory(
+            new EmptyTokenProvider(),
+            new StaticCertificateResolver(publicOnly));
+
+        await using var connection = await factory.CreateAsync(profile);
+
+        // The factory must drop the key-less certificate (taking ownership and disposing it) rather
+        // than silently disabling mTLS while appearing attached.
+        Assert.Null(connection.ClientCertificate);
+    }
+
+    [Fact]
     public async Task CreateAsyncUsesTrustedServerFingerprintForNativeHttpTransport()
     {
         using var serverCertificate = CreateServerCertificate();

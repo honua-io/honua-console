@@ -218,6 +218,32 @@ public sealed class ConsoleConnectionManagerTests
     }
 
     [Fact]
+    public async Task Connect_MtlsProfileWithCertificateMissingPrivateKey_BlocksWithoutValidating()
+    {
+        using var certificate = CreateCertificate();
+        var harness = new Harness(certificate);
+        harness.Resolver.StripPrivateKey = true;
+        harness.Probe.Fingerprint = "SERVER-AAA";
+        harness.Validation.Result = ReadyResult();
+        await harness.Store.UpsertProfileAsync(MtlsProfile());
+
+        var outcome = await harness.Manager.ConnectAsync("prod-west");
+
+        // A public-only certificate cannot complete client authentication. It must never be validated
+        // or reported as connected mTLS: it blocks as a Missing trust state before the server is called.
+        Assert.Equal(ConsoleConnectionStatus.Blocked, outcome.Status);
+        Assert.Equal(HonuaCertificateValidationStatus.Missing, outcome.Trust.Status);
+        Assert.Equal(ConsoleTrustReasonCodes.ClientCertificatePrivateKeyUnavailable, outcome.Trust.ReasonCode);
+        Assert.False(outcome.UsesMutualTls);
+        Assert.False(harness.Manager.IsConnected("prod-west"));
+        Assert.Equal(0, harness.Validation.CallCount);
+
+        var state = await harness.Store.GetStateAsync("prod-west");
+        Assert.True(state!.TrustBlocked);
+        Assert.Equal(ConsoleTrustReasonCodes.ClientCertificatePrivateKeyUnavailable, state.Trust?.ReasonCode);
+    }
+
+    [Fact]
     public async Task Connect_MtlsProfileWithBadCertificateFileReference_PersistsMissingTrustState()
     {
         var store = new JsonConsoleEnvironmentProfileStore(new InMemoryConsoleProfileStorage());
@@ -614,6 +640,12 @@ public sealed class ConsoleConnectionManagerTests
 
         public int ResolveCount { get; private set; }
 
+        /// <summary>
+        /// When true, resolve a public-only clone (no private key) so a test can exercise the mTLS
+        /// private-key gate. Defaults to false: mTLS requires a usable private key, so the clone keeps it.
+        /// </summary>
+        public bool StripPrivateKey { get; set; }
+
         public ValueTask<X509Certificate2?> ResolveAsync(
             ConsoleEnvironmentProfile profile,
             CancellationToken cancellationToken = default)
@@ -621,14 +653,16 @@ public sealed class ConsoleConnectionManagerTests
             ResolveCount++;
 
             // Mirror the real resolver: each call returns a fresh, caller-owned instance the
-            // connection manager is free to dispose. (A public-only clone is sufficient for the
-            // thumbprint/expiry the trust gate reads; no real TLS handshake runs in this test.)
+            // connection manager is free to dispose.
             if (!profile.ClientCertificate.Enabled || Certificate is null)
             {
                 return ValueTask.FromResult<X509Certificate2?>(null);
             }
 
-            return ValueTask.FromResult<X509Certificate2?>(X509CertificateLoader.LoadCertificate(Certificate.RawData));
+            var clone = StripPrivateKey
+                ? X509CertificateLoader.LoadCertificate(Certificate.RawData)
+                : X509CertificateLoader.LoadPkcs12(Certificate.Export(X509ContentType.Pkcs12), password: null);
+            return ValueTask.FromResult<X509Certificate2?>(clone);
         }
     }
 

@@ -80,9 +80,9 @@ public sealed class NativeGrpcTelemetryStreamingProofTests
         var profile = ConsoleEnvironmentProfileDefaults.CreateProfiles()
             .First(profile => profile.Id == ConsoleEnvironmentProfileDefaults.DevelopmentProfileId)
             with
-            {
-                TransportCapabilities = new ConsoleEnvironmentTransportCapabilities { NativeGrpc = false }
-            };
+        {
+            TransportCapabilities = new ConsoleEnvironmentTransportCapabilities { NativeGrpc = false }
+        };
         var connections = new FakeConnectionManager(
             new ConsoleConnectionOutcome { Status = ConsoleConnectionStatus.Connected });
         var proof = new NativeGrpcTelemetryStreamingProof(connections);

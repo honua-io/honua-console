@@ -81,8 +81,19 @@ public sealed class ConsoleTrustEvaluator
         {
             status = HonuaCertificateValidationStatus.Missing;
             blocked = true;
-            reason = ConsoleCertificateValidationCodes.Missing;
-            message = "The profile requires a client certificate, but the configured certificate reference could not be resolved.";
+            if (context.ClientCertificateMissingPrivateKey)
+            {
+                // A certificate resolved, but it has no usable private key, so it cannot complete
+                // client authentication. Distinguish it from an unresolved reference for the operator.
+                reason = ConsoleTrustReasonCodes.ClientCertificatePrivateKeyUnavailable;
+                message = "The profile requires a client certificate for mTLS, but the resolved certificate "
+                    + "has no usable private key. Bind a certificate that includes its private key.";
+            }
+            else
+            {
+                reason = ConsoleCertificateValidationCodes.Missing;
+                message = "The profile requires a client certificate, but the configured certificate reference could not be resolved.";
+            }
         }
         else if (requiresCert && context.Validation is null && !blocked)
         {
@@ -162,8 +173,16 @@ public sealed record ConsoleTrustEvaluationContext
     /// <summary>SHA-256 fingerprint observed during the current TLS handshake, when reachable.</summary>
     public string? ObservedServerFingerprint { get; init; }
 
-    /// <summary>SHA-256 thumbprint of the resolved bound client certificate, when present.</summary>
+    /// <summary>SHA-256 thumbprint of the resolved bound client certificate, when present and usable.</summary>
     public string? ClientCertificateThumbprint { get; init; }
+
+    /// <summary>
+    /// True when the profile requires a client certificate and one resolved, but it has no usable
+    /// private key (public-only). Such a certificate cannot complete client authentication, so the
+    /// evaluator blocks it as a <see cref="HonuaCertificateValidationStatus.Missing"/> trust state
+    /// with the <see cref="ConsoleTrustReasonCodes.ClientCertificatePrivateKeyUnavailable"/> reason.
+    /// </summary>
+    public bool ClientCertificateMissingPrivateKey { get; init; }
 
     /// <summary>Sanitized issuer summary of the bound client certificate, when present.</summary>
     public string? ClientCertificateIssuer { get; init; }
