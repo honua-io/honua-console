@@ -261,6 +261,12 @@
                 {
                     <EventDetailPanel Event="selectedEvent" />
                 }
+                else if (SelectedEventMissing)
+                {
+                    <OperateSectionStatusPanel Heading="Event detail"
+                        Status="OperateSectionStatus.Missing"
+                        Message="@SelectedEventMissingMessage" />
+                }
             }
         </div>
     </section>
@@ -446,6 +452,12 @@
                         </section>
                     </aside>
                 }
+                else if (SelectedAlertMissing)
+                {
+                    <OperateSectionStatusPanel Heading="Alert detail"
+                        Status="OperateSectionStatus.Missing"
+                        Message="@SelectedAlertMissingMessage" />
+                }
             </div>
         }
     </section>
@@ -517,46 +529,55 @@
                 }
             </div>
 
-            <div class="console-panel operate-table-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <h3>Geofence Zones</h3>
-                        <p class="console-muted">Zone geometry is echoed from server metadata; Console performs no client-side geodesy.</p>
+            @if (!RulesView.ZonesAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Geofence zones"
+                    Status="RulesView.ZonesStatus"
+                    Message="@RulesView.ZonesMessage" />
+            }
+            else
+            {
+                <div class="console-panel operate-table-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Geofence Zones</h3>
+                            <p class="console-muted">Zone geometry is echoed from server metadata; Console performs no client-side geodesy.</p>
+                        </div>
                     </div>
-                </div>
-                @if (RulesView.Zones.Count == 0)
-                {
-                    <p class="console-muted">No geofence zones are defined on the connected server.</p>
-                }
-                else
-                {
-                    <div class="operate-table-scroll">
-                        <table class="operate-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Zone</th>
-                                    <th scope="col">Service</th>
-                                    <th scope="col">Active</th>
-                                    <th scope="col">SRID</th>
-                                    <th scope="col">Geometry</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var zone in RulesView.Zones)
-                                {
+                    @if (RulesView.Zones.Count == 0)
+                    {
+                        <p class="console-muted">No geofence zones are defined on the connected server.</p>
+                    }
+                    else
+                    {
+                        <div class="operate-table-scroll">
+                            <table class="operate-table">
+                                <thead>
                                     <tr>
-                                        <td>@zone.Name</td>
-                                        <td>@zone.ServiceId</td>
-                                        <td>@(zone.Active ? "yes" : "no")</td>
-                                        <td>@zone.Srid</td>
-                                        <td>@zone.GeometrySummary</td>
+                                        <th scope="col">Zone</th>
+                                        <th scope="col">Service</th>
+                                        <th scope="col">Active</th>
+                                        <th scope="col">SRID</th>
+                                        <th scope="col">Geometry</th>
                                     </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
+                                </thead>
+                                <tbody>
+                                    @foreach (var zone in RulesView.Zones)
+                                    {
+                                        <tr>
+                                            <td>@zone.Name</td>
+                                            <td>@zone.ServiceId</td>
+                                            <td>@(zone.Active ? "yes" : "no")</td>
+                                            <td>@zone.Srid</td>
+                                            <td>@zone.GeometrySummary</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
         }
     </section>
 
@@ -672,6 +693,13 @@
                             </div>
                             <span class="console-status @investigation.Status.CssClass">@investigation.Status.Label</span>
                         </div>
+                        @if (investigation.HasIncompleteDetails)
+                        {
+                            <p class="console-muted">
+                                <span class="console-status @investigation.EffectiveDetailStatus.CssClass">@investigation.EffectiveDetailStatus.Label</span>
+                                @investigation.DetailMessage
+                            </p>
+                        }
                         <dl class="console-definition-list">
                             <dt>Owner</dt>
                             <dd>@investigation.Owner</dd>
@@ -757,13 +785,29 @@
 
     private string? SelectedJobRowId => SelectedJobRunId ?? _selectedJobLoadedFor;
 
+    private bool HasSelectedEventRoute => !string.IsNullOrWhiteSpace(SelectedEventId);
+
+    private bool HasSelectedAlertRoute => !string.IsNullOrWhiteSpace(SelectedAlertId);
+
+    private bool SelectedEventMissing => HasSelectedEventRoute && SelectedEvent is null;
+
+    private bool SelectedAlertMissing => HasSelectedAlertRoute && SelectedAlert is null;
+
+    private string SelectedEventMissingMessage =>
+        $"Event '{SelectedEventId?.Trim()}' was not found in the loaded server event page.";
+
+    private string SelectedAlertMissingMessage =>
+        $"Alert '{SelectedAlertId?.Trim()}' was not found in the loaded server alert page.";
+
     private OperateEventRow? SelectedEvent =>
-        EventRows.FirstOrDefault(item => string.Equals(item.EventId, SelectedEventId, StringComparison.OrdinalIgnoreCase))
-        ?? EventRows.FirstOrDefault();
+        HasSelectedEventRoute
+            ? EventRows.FirstOrDefault(item => string.Equals(item.EventId, SelectedEventId, StringComparison.OrdinalIgnoreCase))
+            : EventRows.FirstOrDefault();
 
     private OperateAlertRecord? SelectedAlert =>
-        AlertRows.FirstOrDefault(item => string.Equals(item.AlertId, SelectedAlertId, StringComparison.OrdinalIgnoreCase))
-        ?? AlertRows.FirstOrDefault();
+        HasSelectedAlertRoute
+            ? AlertRows.FirstOrDefault(item => string.Equals(item.AlertId, SelectedAlertId, StringComparison.OrdinalIgnoreCase))
+            : AlertRows.FirstOrDefault();
 
     protected override async Task OnInitializedAsync()
     {

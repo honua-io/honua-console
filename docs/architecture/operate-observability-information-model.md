@@ -1,7 +1,9 @@
 # Operate Observability Information Model
 
-Status: implementation checkpoint for `honua-console#41`; backend API
-contracts remain draft pending server and SDK projections.
+Status: server-backed Console runtime binding for `honua-console#24`;
+the honua-server admin API read paths are consumed through a temporary
+Console contracts shim while the honua-sdk-dotnet Operate projection is
+pending.
 
 ## Purpose
 
@@ -20,6 +22,10 @@ The surface should not replace Prometheus, Grafana, OpenTelemetry, SIEM, or clou
 - [honua-devops#5](https://github.com/honua-io/honua-devops/issues/5): SLO enforcement, alerting, error-budget burn, and release gates.
 - [honua-devops#4](https://github.com/honua-io/honua-devops/issues/4): AI DevOps intelligent operations foundation.
 - [honua-server-admin#89](https://github.com/honua-io/honua-server-admin/issues/89): legacy Admin dashboard and observability redesign around real server health.
+- [honua-server#1168](https://github.com/honua-io/honua-server/issues/1168): Console Operate observability event query API for telemetry logs alerts and investigations.
+- [honua-server#1169](https://github.com/honua-io/honua-server/issues/1169): Realtime alert rule and geofence configuration APIs for Console Operate.
+- [honua-server#1170](https://github.com/honua-io/honua-server/issues/1170): Job runner observability API for Console job viewer.
+- [honua-sdk-dotnet#231](https://github.com/honua-io/honua-sdk-dotnet/issues/231): .NET SDK projection target for Console Operate observability contracts.
 
 ## Product Goals
 
@@ -276,7 +282,7 @@ surface at `/operate`, `/operate/observability`, `/operate/events/{eventId}`,
 honua-server admin APIs until honua-sdk-dotnet projects the Operate contracts.
 `OperateObservabilityFixture` remains scaffolding/test data only.
 
-The checkpoint proves these product behaviors:
+The current runtime preserves these product behaviors:
 
 - unknown, unsupported, missing, disabled, and not configured telemetry
   render as neutral states and do not fail the environment card
@@ -284,41 +290,80 @@ The checkpoint proves these product behaviors:
   links, not as a replacement for them
 - invalid realtime/geofence rules expose validation messages and render
   their enable action disabled
+- logs render from `/api/v1/admin/observability/logs` with severity and
+  exception grouping derived from structured server log entries
 - Studio, publishing, GitOps, temporal, alert delivery, import, and
   maintenance jobs all link to the same `/operate/jobs/{jobRunId}` detail
   surface
 
-Current UI projection response contract:
+Current runtime response contract:
 
-- `OperateObservabilitySnapshot` is the route-level projection. It
-  contains `Environments`, `TelemetryFacts`, `CompatibilityRows`,
-  `Events`, `Alerts`, `Rules`, `Jobs`, and `Investigations`.
+- `IConsoleOperateObservabilityClient` is the route-level read boundary.
+  Each independently permissioned section returns
+  `OperateSectionResult<T>` with `Allowed`, `Missing`, `Forbidden`,
+  `Unavailable`, or `Unsupported` status. Non-allowed results render
+  through `OperateSectionStatusPanel`.
+- `HttpConsoleOperateObservabilityClient` reads from the active
+  `ConsoleEnvironmentProfile.ServerBaseUri` and attaches the active
+  account bearer token unless the profile is anonymous. No
+  server-owned observability data is sourced from
+  `OperateObservabilityFixture.Default` at runtime.
+- The page starts overview, events, logs, alerts, realtime rules, jobs,
+  and investigations reads in parallel. Rule health, job detail
+  logs/artifacts, and investigation details are also fetched in parallel
+  where the server contract requires sub-resource reads.
+- The overview section is built from live admin status endpoints:
+  `/api/v1/admin/version`, `/api/v1/admin/capabilities`,
+  `/api/v1/admin/observability/telemetry`,
+  `/api/v1/admin/observability/migrations`, and
+  `/api/v1/admin/observability/errors`. It no longer probes the event feed
+  to infer server metadata.
+- `OperateEventQuery` maps event type, minimum severity, correlation id,
+  trace id, request id, service id, resource ref, actor, operation id,
+  release id, change set id, from, to, and page size to server query
+  parameters on `GET /api/v1/admin/observability/events`. The current
+  environment filter is applied after mapping because the current server
+  event page does not carry an explicit environment query parameter.
 - `OperateStatus` normalizes state strings by trimming, lowercasing, and
   replacing underscores with spaces. Neutral states are `unknown`,
   `unsupported`, `missing`, `disabled`, `not configured`, and
   `unconfigured`; `missing` displays as `unknown`, and `unconfigured`
   displays as `not configured`.
 - Failure styling is reserved for `critical`, `error`, `failed`,
-  `failing`, `firing`, `invalid`, `unhealthy`, and `blocked`. A neutral
-  telemetry fact is not a failed environment, even when the server
-  omitted, disabled, or cannot support that signal.
+  `failing`, `firing`, `invalid`, `misconfigured`, `unhealthy`, and
+  `blocked`; `configured` renders as success. A neutral telemetry fact is
+  not a failed environment, even when the server omitted, disabled, or
+  cannot support that signal.
 - `OperateObservabilityRoutes.EventDetail`, `AlertDetail`, and
   `JobDetail` emit `/operate/events/{eventId}`,
   `/operate/alerts/{alertId}`, and `/operate/jobs/{jobRunId}` with the
   route id escaped as a path segment.
-- The checkpoint uses fixture selection helpers. If a detail route id is
-  absent from the fixture, the UI selects the first event, alert, or job
-  row so the page remains renderable until the backend read contract is
-  available.
+- `/operate/jobs/{jobRunId}` resolves a live job detail read from
+  `/api/v1/admin/jobs/{jobRunId}` plus job logs and artifacts. Event and
+  alert detail routes are page-scoped in this slice: the UI selects the
+  matching row from the live event or alert page. When a route id is
+  supplied but is missing from the loaded live page, the detail panel
+  renders the shared `Missing` status instead of falling back to an
+  unrelated first row.
 - `OperateAiAdvisory` is advisory only: event and alert details must keep
   raw evidence links visible beside the advisory summary and suggested
   actions.
 - `OperateAlertRule.CanEnable` is true only when the rule is disabled and
   valid. A rule is invalid when its normalized status is `invalid` or it
   has validation messages.
+- Rule health and geofence zone reads are sub-resources of the rules
+  surface. Failed rule-health reads are preserved on each rule as
+  unavailable/forbidden/unsupported validation evidence, and failed zone
+  reads render a `Geofence zones` status panel instead of an empty-zone
+  message.
+- Investigation summaries are not treated as complete detail records. If
+  an investigation detail read fails, the card carries the detail status
+  and message so missing pins and linked alerts/jobs do not look like an
+  intentional empty state.
 - `OperateJobRun.DetailHref` is the single job detail link for Studio,
   publishing, GitOps, temporal, alert delivery, import, and maintenance
-  work.
+  work. Job actions render from server-declared action descriptors and
+  stay disabled when the server says the action is unavailable.
 
 ### Server Overview
 
@@ -431,38 +476,75 @@ Content:
 
 ## Backend API Shape
 
-Console needs stable product-level APIs even if backing providers differ by deployment:
+Console needs stable product-level APIs even if backing providers differ
+by deployment. The current `honua-console#24` binding consumes the
+concrete honua-server v1 admin routes below through
+`OperateAdminRoutes` in `Honua.Console.Contracts` until
+honua-sdk-dotnet projects the same contracts.
 
-The `honua-console#41` checkpoint does not call these endpoints yet. It
-keeps the route fixture as a Console UI projection until server-owned
-contracts and SDK projections land, so Console does not duplicate
-backend protocol DTOs in components.
+Read paths used by the Operate page:
 
-- `GET /operate/targets`
-- `GET /operate/servers/{serverId}/telemetry-status`
-- `POST /operate/events/query`
-- `POST /operate/logs/query`
-- `POST /operate/alerts/query`
-- `POST /operate/alerts/{alertId}/acknowledge`
-- `POST /operate/alerts/{alertId}/suppress`
-- `POST /operate/alerts/{alertId}/resolve`
-- `GET /operate/alert-rules`
-- `POST /operate/alert-rules`
-- `GET /operate/alert-rules/{ruleId}`
-- `PUT /operate/alert-rules/{ruleId}`
-- `POST /operate/alert-rules/{ruleId}/test`
-- `GET /operate/geofence-zones`
-- `POST /operate/geofence-zones`
-- `GET /operate/jobs`
-- `GET /operate/jobs/{jobRunId}`
-- `GET /operate/jobs/{jobRunId}/logs`
-- `GET /operate/jobs/{jobRunId}/artifacts`
-- `POST /operate/jobs/{jobRunId}/actions`
-- `POST /operate/investigations`
-- `GET /operate/investigations/{investigationId}`
-- `POST /operate/investigations/{investigationId}/pins`
+- `GET /api/v1/admin/version`
+- `GET /api/v1/admin/capabilities`
+- `GET /api/v1/admin/observability/errors`
+- `GET /api/v1/admin/observability/telemetry`
+- `GET /api/v1/admin/observability/migrations`
+- `GET /api/v1/admin/observability/events`
+- `GET /api/v1/admin/observability/logs`
+- `GET /api/v1/admin/observability/alerts`
+- `GET /api/v1/admin/alerts/rules`
+- `GET /api/v1/admin/alerts/rules/{ruleId}/health`
+- `GET /api/v1/admin/alerts/zones`
+- `GET /api/v1/admin/jobs`
+- `GET /api/v1/admin/jobs/{jobRunId}`
+- `GET /api/v1/admin/jobs/{jobRunId}/logs`
+- `GET /api/v1/admin/jobs/{jobRunId}/artifacts`
+- `GET /api/v1/admin/investigations`
+- `GET /api/v1/admin/investigations/{investigationId}`
 
-Backend responses should include deep links to raw providers where available.
+Additional routes mirrored by the shim for the same server contract
+family, but not invoked by the current read-only UI slice:
+
+- `GET /api/v1/admin/observability/audit`
+- `POST /api/v1/admin/observability/alerts/{eventId}/acknowledge`
+- `POST /api/v1/admin/observability/alerts/{eventId}/suppress`
+- `POST /api/v1/admin/observability/alerts/{eventId}/resolve`
+- `POST /api/v1/admin/alerts/rules/test`
+- `GET /api/v1/admin/jobs/{jobRunId}/actions`
+
+Events accept these query parameters when present:
+
+- `kind`
+- `minSeverity`
+- `correlationId`
+- `traceId`
+- `requestId`
+- `serviceId`
+- `resourceRef`
+- `actor`
+- `operationId`
+- `releaseId`
+- `changeSetId`
+- `from`
+- `to`
+- `pageSize`
+
+The Console client requests `pageSize=50` for event and alert pages and
+`limit=50` for jobs. Alert rules and zones use the server
+`success/data/message` envelope; the other page responses use direct
+camelCase JSON payloads. `OperateObservabilityJsonContext` is the
+source-generated serialization context for trim/AOT safety.
+
+Status mapping is part of the response contract:
+
+- `401` and `403` -> `Forbidden`
+- `404` -> `Missing`
+- `501` -> `Unsupported`
+- empty, unreadable, unreachable, or other non-success responses ->
+  `Unavailable`
+
+Backend responses should include deep links to raw providers where
+available. Console preserves those links beside AI advisory summaries.
 
 ## Relationship To GitOps Publishing
 
@@ -532,7 +614,9 @@ AI DevOps cannot:
 6. Add job runner query/detail/log/artifact/action APIs for the Console jobs viewer.
 7. Emit correlated events from GitOps release operations, job runner operations, temporal history operations, disconnected sync, realtime alerts, and data-change workflows.
 8. Add provider adapters for local/dev, cloud-managed, and external OTLP/log/alert backends.
-9. Add SDK fixtures for server overview, event viewer, logs, alerts, realtime rules, jobs, and investigations.
+9. Replace the Console `OperateObservabilityContracts.cs` shim with the
+   honua-sdk-dotnet projection for server overview, event viewer, logs,
+   alerts, realtime rules, jobs, and investigations.
 10. Surface AI DevOps summaries as advisory records linked to immutable evidence.
 
 ## Open Questions

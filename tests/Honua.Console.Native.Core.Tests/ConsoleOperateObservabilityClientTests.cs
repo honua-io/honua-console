@@ -6,6 +6,7 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,108 @@ namespace Honua.Console.Native.Core.Tests;
 
 public sealed class ConsoleOperateObservabilityClientTests
 {
+    [Fact]
+    public async Task OverviewUsesAdminStatusEndpointsAndServerMetadata()
+    {
+        var serverTime = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/version" => JsonResponse(
+                new ConsoleApiEnvelope<AdminVersionResponse>
+                {
+                    Success = true,
+                    Data = new AdminVersionResponse
+                    {
+                        Version = "2026.05.24+abcdef1234567890",
+                        MetadataApiVersion = "metadata-v2",
+                        MetadataSchemaVersion = "schema-2",
+                        ServerTime = serverTime
+                    }
+                },
+                OperateObservabilityJsonContext.Default.AdminVersionEnvelope),
+            "/api/v1/admin/capabilities" => JsonResponse(
+                new ConsoleApiEnvelope<AdminCapabilitiesResponse>
+                {
+                    Success = true,
+                    Data = new AdminCapabilitiesResponse
+                    {
+                        MetadataApiVersion = "metadata-v2",
+                        MetadataSchemaVersion = "schema-2",
+                        ServerVersion = "2026.05.24+abcdef1234567890"
+                    }
+                },
+                OperateObservabilityJsonContext.Default.AdminCapabilitiesEnvelope),
+            "/api/v1/admin/observability/telemetry" => JsonResponse(
+                new OperateTelemetryStatusResponse
+                {
+                    GeneratedAt = serverTime.AddMinutes(5),
+                    Realtime = new OperateRealtimeStatusResponse
+                    {
+                        Supported = true,
+                        HubPath = "/api/v1/admin/realtime",
+                        Protocol = "signalr",
+                        Events = ["statusChanged"]
+                    },
+                    TracingEnabled = true,
+                    MetricsEnabled = true,
+                    LogsEnabled = false,
+                    OtlpConfigured = true,
+                    OtlpEndpointValid = true,
+                    OtlpExporterState = "configured",
+                    TraceExportState = "configured",
+                    MetricsExportState = "configured",
+                    LogExportState = "disabled"
+                },
+                OperateObservabilityJsonContext.Default.OperateTelemetryStatusResponse),
+            "/api/v1/admin/observability/migrations" => JsonResponse(
+                new OperateMigrationStatusResponse
+                {
+                    Status = "succeeded",
+                    IsReady = true,
+                    PlanAvailable = true,
+                    GeneratedAt = serverTime.AddMinutes(4)
+                },
+                OperateObservabilityJsonContext.Default.OperateMigrationStatusResponse),
+            "/api/v1/admin/observability/errors" => JsonResponse(
+                new OperateRecentErrorsResponse
+                {
+                    Capacity = 32,
+                    InstanceId = "server-live-1",
+                    Errors = []
+                },
+                OperateObservabilityJsonContext.Default.OperateRecentErrorsResponse),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetOverviewAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var environment = Assert.Single(result.Value!.Environments);
+        Assert.Equal("2026.05.24", environment.Version);
+        Assert.Equal("abcdef123456", environment.BuildSha);
+        Assert.Equal("healthy", environment.Health.Label);
+        Assert.Contains("no pending drift", environment.DriftSummary);
+
+        Assert.Contains(result.Value.TelemetryFacts, fact => fact.Signal == "Trace export" && fact.State.Label == "configured");
+        Assert.Contains(result.Value.TelemetryFacts, fact => fact.Signal == "Log export" && fact.State.Label == "disabled");
+        Assert.Contains(result.Value.TelemetryFacts, fact => fact.Signal == "Admin realtime" && fact.State.Label == "healthy");
+        Assert.Contains(result.Value.CompatibilityRows, row => row.Capability == "Metadata compatibility" && row.Current.Contains("metadata-v2", StringComparison.Ordinal));
+
+        var paths = handler.Requests.Select(request => request.RequestUri!.AbsolutePath).ToHashSet(StringComparer.Ordinal);
+        var expectedPaths = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "/api/v1/admin/version",
+            "/api/v1/admin/capabilities",
+            "/api/v1/admin/observability/telemetry",
+            "/api/v1/admin/observability/migrations",
+            "/api/v1/admin/observability/errors"
+        };
+        Assert.True(expectedPaths.SetEquals(paths), string.Join(", ", paths.OrderBy(path => path, StringComparer.Ordinal)));
+        Assert.DoesNotContain(handler.Requests, request => request.RequestUri!.AbsolutePath == "/api/v1/admin/observability/events");
+        Assert.All(handler.Requests, request => Assert.Equal(new AuthenticationHeaderValue("Bearer", "live-token"), request.Headers.Authorization));
+    }
+
     [Fact]
     public async Task EventQueryUsesAdminRouteServerFiltersAndBearerToken()
     {
@@ -151,11 +254,133 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Contains("Live Server Alpha", html);
         Assert.Contains("Live job warning", html);
         Assert.Contains("Live provider exception", html);
+        Assert.Contains("Live alert", html);
         Assert.Contains("Harbor Entry Live", html);
         Assert.Contains("Live investigation", html);
         Assert.Contains("live-job-1", html);
         Assert.DoesNotContain("Publish SLO burn alert", html);
         Assert.DoesNotContain("job-publish-001", html);
+    }
+
+    [Fact]
+    public async Task OperatePageRendersMissingStatesForUnknownEventAndAlertDeepLinks()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton<IConsoleOperateObservabilityClient>(new RenderingOperateClient());
+        var provider = services.BuildServiceProvider();
+
+        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
+        var html = await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var output = await renderer.RenderComponentAsync<OperateObservabilityPage>(
+                ParameterView.FromDictionary(new Dictionary<string, object?>
+                {
+                    [nameof(OperateObservabilityPage.SelectedEventId)] = "missing-event",
+                    [nameof(OperateObservabilityPage.SelectedAlertId)] = "missing-alert"
+                }));
+            return output.ToHtmlString();
+        });
+
+        Assert.Contains("Event &#x27;missing-event&#x27; was not found in the loaded server event page.", html);
+        Assert.Contains("Alert &#x27;missing-alert&#x27; was not found in the loaded server alert page.", html);
+        Assert.Contains("Live job warning", html);
+        Assert.Contains("Live alert", html);
+    }
+
+    [Fact]
+    public async Task RulesSurfaceCarriesHealthAndGeofenceFetchFailures()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/alerts/rules" => JsonResponse(
+                new ConsoleApiEnvelope<AlertRuleResponse[]>
+                {
+                    Success = true,
+                    Data =
+                    [
+                        new AlertRuleResponse
+                        {
+                            RuleId = 12,
+                            ServiceId = "svc-live",
+                            LayerId = 1,
+                            RuleName = "Harbor Entry Live",
+                            TriggerType = "enter",
+                            CooldownSeconds = 60,
+                            Severity = "warning",
+                            Channels = ["websocket"],
+                            IsActive = true
+                        }
+                    ]
+                },
+                OperateObservabilityJsonContext.Default.AlertRuleListEnvelope),
+            "/api/v1/admin/alerts/rules/12/health" => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                ReasonPhrase = "Forbidden"
+            },
+            "/api/v1/admin/alerts/zones" => new HttpResponseMessage(HttpStatusCode.NotImplemented)
+            {
+                ReasonPhrase = "Not Implemented"
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetRulesAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var rule = Assert.Single(result.Value!.Rules);
+        Assert.NotEqual("healthy", rule.Status.Label);
+        Assert.Contains(rule.ValidationMessages, message => message.Contains("Rule health unavailable", StringComparison.Ordinal));
+        Assert.False(rule.CanEnable);
+        Assert.Equal(OperateSectionStatus.Unsupported, result.Value.ZonesStatus);
+        Assert.Contains("501", result.Value.ZonesMessage);
+    }
+
+    [Fact]
+    public async Task InvestigationsCarryDetailFailureStateInsteadOfHidingMissingPinsAndLinks()
+    {
+        var now = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/investigations" => JsonResponse(
+                new InvestigationPageResponse
+                {
+                    Items =
+                    [
+                        new InvestigationSummaryResponse
+                        {
+                            InvestigationId = "inv-live-1",
+                            Title = "Live investigation",
+                            Status = "open",
+                            CreatedAt = now,
+                            UpdatedAt = now.AddMinutes(5),
+                            CreatedBy = "operator.live",
+                            Summary = "Summary only",
+                            PinCount = 1,
+                            LinkCount = 2
+                        }
+                    ]
+                },
+                OperateObservabilityJsonContext.Default.InvestigationPageResponse),
+            "/api/v1/admin/investigations/inv-live-1" => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                ReasonPhrase = "Forbidden"
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetInvestigationsAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var investigation = Assert.Single(result.Value!);
+        Assert.True(investigation.HasIncompleteDetails);
+        Assert.Contains("403", investigation.DetailMessage);
+        Assert.Contains(investigation.Notes, note => note.Contains("Investigation detail unavailable", StringComparison.Ordinal));
+        Assert.Empty(investigation.PinnedEventIds);
+        Assert.Empty(investigation.LinkedAlertIds);
+        Assert.Empty(investigation.LinkedJobRunIds);
     }
 
     private static HttpConsoleOperateObservabilityClient CreateClient(HttpMessageHandler handler)
@@ -165,6 +390,7 @@ public sealed class ConsoleOperateObservabilityClientTests
             Id = "live",
             DisplayName = "Live Server Alpha",
             ServerBaseUri = new Uri("https://server.example"),
+            UpdatedAt = DateTimeOffset.Parse("2026-05-24T19:00:00Z"),
             Account = new ConsoleAccountBinding
             {
                 AuthMode = ConsoleAccountAuthMode.AccountRbac,

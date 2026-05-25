@@ -87,9 +87,13 @@ public sealed record OperateFleetOverview(
 
 public sealed record OperateRulesView(
     IReadOnlyList<OperateAlertRule> Rules,
-    IReadOnlyList<OperateGeofenceZone> Zones)
+    IReadOnlyList<OperateGeofenceZone> Zones,
+    OperateSectionStatus ZonesStatus = OperateSectionStatus.Allowed,
+    string ZonesMessage = "")
 {
     public static OperateRulesView Empty { get; } = new([], []);
+
+    public bool ZonesAllowed => ZonesStatus == OperateSectionStatus.Allowed;
 }
 
 public sealed record OperateLogsView(

@@ -86,6 +86,7 @@ public sealed record OperateStatus(string State, string Description)
         "failing",
         "firing",
         "invalid",
+        "misconfigured",
         "unhealthy",
         "blocked"
     };
@@ -105,7 +106,7 @@ public sealed record OperateStatus(string State, string Description)
 
     public string CssClass => NormalizedState switch
     {
-        "healthy" or "succeeded" or "resolved" or "valid" => "console-state-success",
+        "configured" or "healthy" or "succeeded" or "resolved" or "valid" => "console-state-success",
         "running" or "info" or "notice" => "console-state-info",
         "warning" or "degraded" or "acknowledged" or "retrying" or "waiting" => "console-state-warning",
         _ when IsNeutral => "console-state-neutral",
@@ -333,7 +334,18 @@ public sealed record OperateInvestigation(
     IReadOnlyList<string> PinnedEventIds,
     IReadOnlyList<string> LinkedAlertIds,
     IReadOnlyList<string> LinkedJobRunIds,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    OperateStatus? DetailStatus = null,
+    string DetailMessage = "")
+{
+    public OperateStatus EffectiveDetailStatus => DetailStatus ?? new("healthy", "Investigation detail loaded.");
+
+    public bool HasIncompleteDetails => EffectiveDetailStatus.IsFailure
+        || EffectiveDetailStatus.IsNeutral
+        || string.Equals(EffectiveDetailStatus.NormalizedState, "forbidden", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(EffectiveDetailStatus.NormalizedState, "warning", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(EffectiveDetailStatus.NormalizedState, "degraded", StringComparison.OrdinalIgnoreCase);
+}
 
 public static class OperateObservabilityFixture
 {

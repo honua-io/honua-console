@@ -40,46 +40,96 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
     public async Task<OperateSectionResult<OperateFleetOverview>> GetOverviewAsync(
         CancellationToken cancellationToken = default)
     {
-        // A single lightweight probe makes the overview genuinely server-backed
-        // without fanning out every section: it confirms the admin API
-        // responds and classifies reachability. Forbidden/unavailable stay
-        // neutral and never mark the environment failed (preserving #41).
-        var probe = await FetchAsync(
-            $"{OperateAdminRoutes.Events}?pageSize=1",
-            OperateObservabilityJsonContext.Default.OperateEventPageResponse,
-            cancellationToken).ConfigureAwait(false);
+        var versionTask = FetchAsync(
+            OperateAdminRoutes.Version,
+            OperateObservabilityJsonContext.Default.AdminVersionEnvelope,
+            cancellationToken);
+        var capabilitiesTask = FetchAsync(
+            OperateAdminRoutes.Capabilities,
+            OperateObservabilityJsonContext.Default.AdminCapabilitiesEnvelope,
+            cancellationToken);
+        var telemetryTask = FetchAsync(
+            OperateAdminRoutes.Telemetry,
+            OperateObservabilityJsonContext.Default.OperateTelemetryStatusResponse,
+            cancellationToken);
+        var migrationsTask = FetchAsync(
+            OperateAdminRoutes.Migrations,
+            OperateObservabilityJsonContext.Default.OperateMigrationStatusResponse,
+            cancellationToken);
+        var errorsTask = FetchAsync(
+            $"{OperateAdminRoutes.RecentErrors}?limit=5",
+            OperateObservabilityJsonContext.Default.OperateRecentErrorsResponse,
+            cancellationToken);
 
-        if (probe.Profile is null)
+        await Task.WhenAll(versionTask, capabilitiesTask, telemetryTask, migrationsTask, errorsTask)
+            .ConfigureAwait(false);
+
+        var versionFetch = await versionTask.ConfigureAwait(false);
+        var capabilitiesFetch = await capabilitiesTask.ConfigureAwait(false);
+        var telemetryFetch = await telemetryTask.ConfigureAwait(false);
+        var migrationsFetch = await migrationsTask.ConfigureAwait(false);
+        var errorsFetch = await errorsTask.ConfigureAwait(false);
+        var profile = versionFetch.Profile
+            ?? capabilitiesFetch.Profile
+            ?? telemetryFetch.Profile
+            ?? migrationsFetch.Profile
+            ?? errorsFetch.Profile;
+        if (profile is null)
         {
-            return OperateSectionResult<OperateFleetOverview>.Denied(probe.Status, probe.Message);
+            return OperateSectionResult<OperateFleetOverview>.Denied(versionFetch.Status, versionFetch.Message);
         }
 
-        var reachability = ProbeTelemetryStatus(probe.Status);
-        var health = probe.Status == OperateSectionStatus.Allowed
-            ? new OperateStatus("healthy", "The honua-server admin observability API responded.")
-            : new OperateStatus("unknown", probe.Message);
+        var version = EnvelopeData(versionFetch);
+        var capabilities = EnvelopeData(capabilitiesFetch);
+        var telemetry = telemetryFetch.Ok ? telemetryFetch.Value : null;
+        var migrations = migrationsFetch.Ok ? migrationsFetch.Value : null;
+        var recentErrors = errorsFetch.Ok ? errorsFetch.Value : null;
+        var (serverVersion, buildSha) = ResolveServerVersion(version, capabilities);
 
-        var environment = OperateObservabilityMapper.MapEnvironment(
-            probe.Profile,
-            health,
-            "Bound to live honua-server /api/v1/admin observability via the Console contracts shim.");
+        var environment = new OperateEnvironmentOverview(
+            EnvironmentId: profile.Id,
+            Name: string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Id : profile.DisplayName,
+            ServerName: profile.ServerBaseUri.Host,
+            Version: serverVersion,
+            BuildSha: buildSha,
+            Health: ResolveOverviewHealth(
+                versionFetch,
+                capabilitiesFetch,
+                telemetryFetch,
+                migrationsFetch,
+                errorsFetch,
+                version,
+                capabilities,
+                telemetry,
+                migrations,
+                recentErrors),
+            LastSeen: ResolveOverviewLastSeen(profile, version, telemetry, migrations, recentErrors),
+            OwnerTeam: string.IsNullOrWhiteSpace(profile.TenantId) ? profile.EnvironmentKind : profile.TenantId,
+            DriftSummary: ResolveOverviewDriftSummary(migrationsFetch, migrations, capabilitiesFetch, capabilities));
 
         var overview = new OperateFleetOverview(
             Environments: [environment],
-            TelemetryFacts:
-            [
-                new OperateTelemetryFact(probe.Profile.Id, probe.Profile.ServerBaseUri.Host, "Admin observability API", reachability, reachability.Label, OperateObservabilityRoutes.Observability),
-                new OperateTelemetryFact(probe.Profile.Id, probe.Profile.ServerBaseUri.Host, "Operate SDK projection", new OperateStatus("not configured", "Bound through a thin HttpClient shim until honua-sdk-dotnet projects the Operate contracts."), "not configured", OperateObservabilityRoutes.Observability)
-            ],
-            CompatibilityRows:
-            [
-                new OperateCompatibilityRow(
-                    "SDK contract projection",
-                    "thin HttpClient shim",
-                    "honua-sdk-dotnet Operate projection",
-                    new OperateStatus("unknown", "Tracked as the SHIM swap target honua-sdk-dotnet#231."),
-                    "Honua.Console.Contracts/OperateObservabilityContracts.cs")
-            ]);
+            TelemetryFacts: BuildOverviewTelemetryFacts(
+                profile,
+                versionFetch,
+                telemetryFetch,
+                migrationsFetch,
+                errorsFetch,
+                version,
+                telemetry,
+                migrations,
+                recentErrors,
+                serverVersion),
+            CompatibilityRows: BuildOverviewCompatibilityRows(
+                versionFetch,
+                capabilitiesFetch,
+                telemetryFetch,
+                migrationsFetch,
+                version,
+                capabilities,
+                telemetry,
+                migrations,
+                serverVersion));
 
         return OperateSectionResult<OperateFleetOverview>.Allowed(overview);
     }
@@ -178,7 +228,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         // avoid a request waterfall across the rule list.
         var healthByRule = await ResolveRuleHealthAsync(rawRules, cancellationToken).ConfigureAwait(false);
         var rules = rawRules
-            .Select(rule => OperateObservabilityMapper.MapRule(rule, healthByRule.GetValueOrDefault(rule.RuleId)))
+            .Select(rule => MapRuleWithHealth(rule, healthByRule.GetValueOrDefault(rule.RuleId)))
             .ToArray();
 
         var zonesFetch = await FetchAsync(
@@ -189,8 +239,15 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         var zones = zonesFetch.Ok
             ? (zonesFetch.Value!.Data ?? []).Select(OperateObservabilityMapper.MapZone).ToArray()
             : [];
+        var zonesMessage = zonesFetch.Ok
+            ? string.Empty
+            : FirstNonBlank(zonesFetch.Message, "Geofence zone metadata is unavailable from the server.");
 
-        return OperateSectionResult<OperateRulesView>.Allowed(new OperateRulesView(rules, zones));
+        return OperateSectionResult<OperateRulesView>.Allowed(new OperateRulesView(
+            rules,
+            zones,
+            zonesFetch.Status,
+            zonesMessage));
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
@@ -268,13 +325,493 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             : OperateSectionResult<IReadOnlyList<OperateInvestigation>>.Denied(fetch.Status, fetch.Message);
     }
 
-    private async Task<IReadOnlyDictionary<long, AlertRuleHealthResponse>> ResolveRuleHealthAsync(
+    private static T? EnvelopeData<T>(FetchResult<ConsoleApiEnvelope<T>> fetch)
+        where T : class =>
+        fetch.Ok && fetch.Value!.Success ? fetch.Value.Data : null;
+
+    private static IReadOnlyList<OperateTelemetryFact> BuildOverviewTelemetryFacts(
+        ConsoleEnvironmentProfile profile,
+        FetchResult<ConsoleApiEnvelope<AdminVersionResponse>> versionFetch,
+        FetchResult<OperateTelemetryStatusResponse> telemetryFetch,
+        FetchResult<OperateMigrationStatusResponse> migrationsFetch,
+        FetchResult<OperateRecentErrorsResponse> errorsFetch,
+        AdminVersionResponse? version,
+        OperateTelemetryStatusResponse? telemetry,
+        OperateMigrationStatusResponse? migrations,
+        OperateRecentErrorsResponse? recentErrors,
+        string serverVersion)
+    {
+        var facts = new List<OperateTelemetryFact>
+        {
+            new(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Admin version",
+                EnvelopeStatus(versionFetch, $"Server version {serverVersion} reported by the admin version endpoint."),
+                FormatFreshness(NonDefault(version?.ServerTime)),
+                OperateObservabilityRoutes.Observability + "#telemetry")
+        };
+
+        if (telemetry is null)
+        {
+            facts.Add(new(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Telemetry status endpoint",
+                FetchStatus(telemetryFetch.Status, telemetryFetch.Message, "Telemetry status returned by honua-server."),
+                "unknown",
+                OperateObservabilityRoutes.Observability + "#telemetry"));
+        }
+        else
+        {
+            facts.Add(new(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Trace export",
+                ExportStatus("Trace", telemetry.TracingEnabled, telemetry.TraceExportState, telemetry.LastExportError),
+                FormatFreshness(NonDefault(telemetry.GeneratedAt)),
+                OperateObservabilityRoutes.Observability + "#telemetry"));
+            facts.Add(new(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Metrics export",
+                ExportStatus("Metrics", telemetry.MetricsEnabled, telemetry.MetricsExportState, telemetry.LastExportError),
+                FormatFreshness(NonDefault(telemetry.GeneratedAt)),
+                OperateObservabilityRoutes.Observability + "#telemetry"));
+            facts.Add(new(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Log export",
+                ExportStatus("Log", telemetry.LogsEnabled, telemetry.LogExportState, telemetry.LastExportError),
+                FormatFreshness(NonDefault(telemetry.GeneratedAt)),
+                OperateObservabilityRoutes.Observability + "#telemetry"));
+            facts.Add(new(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Admin realtime",
+                RealtimeStatus(telemetry.Realtime),
+                FormatFreshness(NonDefault(telemetry.GeneratedAt)),
+                OperateObservabilityRoutes.Observability + "#telemetry"));
+        }
+
+        facts.Add(migrations is null
+            ? new OperateTelemetryFact(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Database migrations",
+                FetchStatus(migrationsFetch.Status, migrationsFetch.Message, "Migration status returned by honua-server."),
+                "unknown",
+                OperateObservabilityRoutes.Observability + "#telemetry")
+            : new OperateTelemetryFact(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Database migrations",
+                MigrationStatus(migrations),
+                FormatFreshness(NonDefault(migrations.GeneratedAt)),
+                OperateObservabilityRoutes.Observability + "#telemetry"));
+
+        facts.Add(recentErrors is null
+            ? new OperateTelemetryFact(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Recent error buffer",
+                FetchStatus(errorsFetch.Status, errorsFetch.Message, "Recent error buffer returned by honua-server."),
+                "unknown",
+                OperateObservabilityRoutes.Observability + "#logs")
+            : new OperateTelemetryFact(
+                profile.Id,
+                profile.ServerBaseUri.Host,
+                "Recent error buffer",
+                RecentErrorsStatus(recentErrors),
+                $"{recentErrors.Errors.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} of {recentErrors.Capacity.ToString(System.Globalization.CultureInfo.InvariantCulture)} retained",
+                OperateObservabilityRoutes.Observability + "#logs"));
+
+        return facts;
+    }
+
+    private static IReadOnlyList<OperateCompatibilityRow> BuildOverviewCompatibilityRows(
+        FetchResult<ConsoleApiEnvelope<AdminVersionResponse>> versionFetch,
+        FetchResult<ConsoleApiEnvelope<AdminCapabilitiesResponse>> capabilitiesFetch,
+        FetchResult<OperateTelemetryStatusResponse> telemetryFetch,
+        FetchResult<OperateMigrationStatusResponse> migrationsFetch,
+        AdminVersionResponse? version,
+        AdminCapabilitiesResponse? capabilities,
+        OperateTelemetryStatusResponse? telemetry,
+        OperateMigrationStatusResponse? migrations,
+        string serverVersion)
+    {
+        var metadataCurrent = capabilities is null
+            ? "unavailable"
+            : $"metadata {DisplayValue(capabilities.MetadataApiVersion)} / schema {DisplayValue(capabilities.MetadataSchemaVersion)}";
+        var telemetryCurrent = telemetry is null
+            ? "unavailable"
+            : $"trace {NormalizeServerState(telemetry.TraceExportState)}, metrics {NormalizeServerState(telemetry.MetricsExportState)}, logs {NormalizeServerState(telemetry.LogExportState)}";
+        var migrationCurrent = migrations is null
+            ? "unavailable"
+            : $"{NormalizeServerState(migrations.Status)}; pending {migrations.PendingScripts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+        return
+        [
+            new OperateCompatibilityRow(
+                "Server version contract",
+                serverVersion,
+                "GET /api/v1/admin/version",
+                EnvelopeStatus(versionFetch, $"Server time {FormatFreshness(NonDefault(version?.ServerTime))}."),
+                OperateAdminRoutes.Version),
+            new OperateCompatibilityRow(
+                "Metadata compatibility",
+                metadataCurrent,
+                "GET /api/v1/admin/capabilities",
+                EnvelopeStatus(capabilitiesFetch, "Server advertised admin metadata compatibility."),
+                OperateAdminRoutes.Capabilities),
+            new OperateCompatibilityRow(
+                "Telemetry export contract",
+                telemetryCurrent,
+                "GET /api/v1/admin/observability/telemetry",
+                telemetry is null
+                    ? FetchStatus(telemetryFetch.Status, telemetryFetch.Message, "Server advertised telemetry export state.")
+                    : TelemetryContractStatus(telemetry),
+                OperateAdminRoutes.Telemetry),
+            new OperateCompatibilityRow(
+                "Migration readiness",
+                migrationCurrent,
+                "ready without failed migrations",
+                migrations is null
+                    ? FetchStatus(migrationsFetch.Status, migrationsFetch.Message, "Server advertised migration readiness.")
+                    : MigrationStatus(migrations),
+                OperateAdminRoutes.Migrations),
+            new OperateCompatibilityRow(
+                "SDK contract projection",
+                "thin HttpClient shim",
+                "honua-sdk-dotnet Operate projection",
+                new OperateStatus("unknown", "Tracked as the SHIM swap target honua-sdk-dotnet#231."),
+                "Honua.Console.Contracts/OperateObservabilityContracts.cs")
+        ];
+    }
+
+    private static OperateStatus ResolveOverviewHealth(
+        FetchResult<ConsoleApiEnvelope<AdminVersionResponse>> versionFetch,
+        FetchResult<ConsoleApiEnvelope<AdminCapabilitiesResponse>> capabilitiesFetch,
+        FetchResult<OperateTelemetryStatusResponse> telemetryFetch,
+        FetchResult<OperateMigrationStatusResponse> migrationsFetch,
+        FetchResult<OperateRecentErrorsResponse> errorsFetch,
+        AdminVersionResponse? version,
+        AdminCapabilitiesResponse? capabilities,
+        OperateTelemetryStatusResponse? telemetry,
+        OperateMigrationStatusResponse? migrations,
+        OperateRecentErrorsResponse? recentErrors)
+    {
+        if (migrations?.IsFailed == true)
+        {
+            return new OperateStatus("failed", FirstNonBlank(migrations.Message, "Database migrations failed."));
+        }
+
+        if (telemetry is not null && HasTelemetryFailure(telemetry))
+        {
+            return new OperateStatus("degraded", FirstNonBlank(telemetry.LastExportError, "One or more telemetry exporters are misconfigured."));
+        }
+
+        if (migrations?.UpgradeRequired == true)
+        {
+            return new OperateStatus("warning", "The server reports pending database migrations.");
+        }
+
+        if (recentErrors is not null && recentErrors.Errors.Count > 0)
+        {
+            return new OperateStatus(
+                "warning",
+                $"{recentErrors.Errors.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} recent server errors are retained in the admin buffer.");
+        }
+
+        if (version is not null || capabilities is not null || telemetry is not null || migrations is not null || recentErrors is not null)
+        {
+            return new OperateStatus("healthy", "Server overview endpoints responded with live admin data.");
+        }
+
+        if (versionFetch.Status == OperateSectionStatus.Forbidden
+            || capabilitiesFetch.Status == OperateSectionStatus.Forbidden
+            || telemetryFetch.Status == OperateSectionStatus.Forbidden
+            || migrationsFetch.Status == OperateSectionStatus.Forbidden
+            || errorsFetch.Status == OperateSectionStatus.Forbidden)
+        {
+            return new OperateStatus("unsupported", "The active profile cannot read one or more admin overview endpoints.");
+        }
+
+        return new OperateStatus("unknown", "The admin overview endpoints are unavailable.");
+    }
+
+    private static string ResolveOverviewLastSeen(
+        ConsoleEnvironmentProfile profile,
+        AdminVersionResponse? version,
+        OperateTelemetryStatusResponse? telemetry,
+        OperateMigrationStatusResponse? migrations,
+        OperateRecentErrorsResponse? recentErrors)
+    {
+        var timestamps = new List<DateTimeOffset>
+        {
+            profile.UpdatedAt
+        };
+        AddIfPresent(timestamps, NonDefault(version?.ServerTime));
+        AddIfPresent(timestamps, NonDefault(telemetry?.GeneratedAt));
+        AddIfPresent(timestamps, NonDefault(migrations?.GeneratedAt));
+        AddIfPresent(
+            timestamps,
+            NonDefault(recentErrors?.Errors
+                .Select(item => item.Timestamp)
+                .Where(item => item != default)
+                .DefaultIfEmpty()
+                .Max()));
+
+        return OperateObservabilityMapper.FormatTimestamp(timestamps.Max());
+    }
+
+    private static string ResolveOverviewDriftSummary(
+        FetchResult<OperateMigrationStatusResponse> migrationsFetch,
+        OperateMigrationStatusResponse? migrations,
+        FetchResult<ConsoleApiEnvelope<AdminCapabilitiesResponse>> capabilitiesFetch,
+        AdminCapabilitiesResponse? capabilities)
+    {
+        if (migrations is not null)
+        {
+            if (migrations.IsFailed)
+            {
+                return FirstNonBlank(migrations.Message, migrations.PlanError, "Migration drift check failed.");
+            }
+
+            if (migrations.UpgradeRequired)
+            {
+                return $"{migrations.PendingScripts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} pending migration scripts reported by the server.";
+            }
+
+            if (!migrations.PlanAvailable)
+            {
+                return FirstNonBlank(migrations.PlanError, "Migration plan is unavailable on this server.");
+            }
+
+            return "Server migration plan reports no pending drift.";
+        }
+
+        if (capabilities is not null)
+        {
+            return $"Server reports metadata API {DisplayValue(capabilities.MetadataApiVersion)} and schema {DisplayValue(capabilities.MetadataSchemaVersion)}.";
+        }
+
+        return FirstNonBlank(migrationsFetch.Message, capabilitiesFetch.Message, "Server drift metadata is unavailable.");
+    }
+
+    private static (string Version, string BuildSha) ResolveServerVersion(
+        AdminVersionResponse? version,
+        AdminCapabilitiesResponse? capabilities)
+    {
+        var rawVersion = FirstNonBlank(version?.Version, capabilities?.ServerVersion, "unknown");
+        var buildSeparator = rawVersion.IndexOf('+', StringComparison.Ordinal);
+        if (buildSeparator < 0)
+        {
+            return (rawVersion, "unknown");
+        }
+
+        var displayVersion = rawVersion[..buildSeparator];
+        var buildSha = rawVersion[(buildSeparator + 1)..].Trim();
+        if (buildSha.Length > 12)
+        {
+            buildSha = buildSha[..12];
+        }
+
+        return (string.IsNullOrWhiteSpace(displayVersion) ? "unknown" : displayVersion, string.IsNullOrWhiteSpace(buildSha) ? "unknown" : buildSha);
+    }
+
+    private static OperateStatus EnvelopeStatus<T>(FetchResult<ConsoleApiEnvelope<T>> fetch, string successDescription)
+        where T : class
+    {
+        if (fetch.Ok && fetch.Value!.Success && fetch.Value.Data is not null)
+        {
+            return new OperateStatus("healthy", successDescription);
+        }
+
+        if (fetch.Ok)
+        {
+            return new OperateStatus("unknown", FirstNonBlank(fetch.Value!.Message, "The admin API returned an empty response envelope."));
+        }
+
+        return FetchStatus(fetch.Status, fetch.Message, successDescription);
+    }
+
+    private static OperateStatus FetchStatus(OperateSectionStatus status, string message, string successDescription) => status switch
+    {
+        OperateSectionStatus.Allowed => new OperateStatus("healthy", successDescription),
+        OperateSectionStatus.Forbidden => new OperateStatus("unsupported", FirstNonBlank(message, "The active profile is not permitted to read this endpoint.")),
+        OperateSectionStatus.Missing => new OperateStatus("unknown", FirstNonBlank(message, "The endpoint was not found on this server build.")),
+        OperateSectionStatus.Unsupported => new OperateStatus("unsupported", FirstNonBlank(message, "The server does not advertise this capability.")),
+        _ => new OperateStatus("unknown", FirstNonBlank(message, "The endpoint is unavailable."))
+    };
+
+    private static OperateStatus SubresourceStatus(OperateSectionStatus status, string message, string successDescription) => status switch
+    {
+        OperateSectionStatus.Allowed => new OperateStatus("healthy", successDescription),
+        OperateSectionStatus.Forbidden => new OperateStatus("forbidden", FirstNonBlank(message, "The active profile is not permitted to read this sub-resource.")),
+        OperateSectionStatus.Missing => new OperateStatus("missing", FirstNonBlank(message, "The sub-resource was not found on this server build.")),
+        OperateSectionStatus.Unsupported => new OperateStatus("unsupported", FirstNonBlank(message, "The server does not advertise this sub-resource.")),
+        _ => new OperateStatus("unknown", FirstNonBlank(message, "The sub-resource is unavailable."))
+    };
+
+    private static OperateStatus ExportStatus(string signal, bool enabled, string state, string? lastError)
+    {
+        if (!enabled)
+        {
+            return new OperateStatus("disabled", $"{signal} export is disabled by the server telemetry status.");
+        }
+
+        var normalized = NormalizeServerState(state);
+        var description = $"{signal} export state reported as {normalized}.";
+        if (!string.IsNullOrWhiteSpace(lastError) && IsTelemetryFailureState(normalized))
+        {
+            description = $"{description} Last exporter error: {lastError}";
+        }
+
+        return new OperateStatus(normalized, description);
+    }
+
+    private static OperateStatus RealtimeStatus(OperateRealtimeStatusResponse realtime)
+    {
+        if (!realtime.Supported)
+        {
+            return new OperateStatus("unsupported", "Admin realtime status is not supported by this server.");
+        }
+
+        var events = realtime.Events.Length == 0 ? "no events advertised" : string.Join(", ", realtime.Events);
+        return new OperateStatus(
+            "healthy",
+            $"Admin realtime uses {DisplayValue(realtime.Protocol)} at {DisplayValue(realtime.HubPath)} with {events}.");
+    }
+
+    private static OperateStatus MigrationStatus(OperateMigrationStatusResponse migrations)
+    {
+        if (migrations.IsFailed)
+        {
+            return new OperateStatus("failed", FirstNonBlank(migrations.Message, migrations.PlanError, "Database migrations failed."));
+        }
+
+        if (migrations.UpgradeRequired)
+        {
+            return new OperateStatus(
+                "warning",
+                $"{migrations.PendingScripts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} pending migration scripts reported by the server.");
+        }
+
+        if (!migrations.PlanAvailable)
+        {
+            return new OperateStatus("unknown", FirstNonBlank(migrations.PlanError, "Migration planning is unavailable."));
+        }
+
+        return new OperateStatus(NormalizeServerState(migrations.Status), FirstNonBlank(migrations.Message, "Migration status returned by honua-server."));
+    }
+
+    private static OperateStatus RecentErrorsStatus(OperateRecentErrorsResponse recentErrors)
+    {
+        if (recentErrors.Errors.Count == 0)
+        {
+            return new OperateStatus("healthy", $"Recent error buffer {DisplayValue(recentErrors.InstanceId)} has no retained errors.");
+        }
+
+        var newest = recentErrors.Errors.OrderByDescending(item => item.Timestamp).First();
+        return new OperateStatus(
+            "warning",
+            $"Newest retained error is HTTP {newest.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture)} at {newest.Path}.");
+    }
+
+    private static OperateStatus TelemetryContractStatus(OperateTelemetryStatusResponse telemetry)
+    {
+        if (HasTelemetryFailure(telemetry))
+        {
+            return new OperateStatus("degraded", FirstNonBlank(telemetry.LastExportError, "One or more telemetry exporters are misconfigured."));
+        }
+
+        if (!telemetry.TracingEnabled && !telemetry.MetricsEnabled && !telemetry.LogsEnabled)
+        {
+            return new OperateStatus("disabled", "Tracing, metrics, and log export are disabled.");
+        }
+
+        return new OperateStatus("healthy", "Telemetry export state returned by honua-server.");
+    }
+
+    private static bool HasTelemetryFailure(OperateTelemetryStatusResponse telemetry) =>
+        IsTelemetryFailureState(NormalizeServerState(telemetry.OtlpExporterState))
+        || IsTelemetryFailureState(NormalizeServerState(telemetry.TraceExportState))
+        || IsTelemetryFailureState(NormalizeServerState(telemetry.MetricsExportState))
+        || IsTelemetryFailureState(NormalizeServerState(telemetry.LogExportState));
+
+    private static bool IsTelemetryFailureState(string state) =>
+        state is "misconfigured" or "failed" or "failing" or "unhealthy";
+
+    private static string NormalizeServerState(string? state)
+    {
+        if (string.IsNullOrWhiteSpace(state))
+        {
+            return "unknown";
+        }
+
+        return state.Trim() switch
+        {
+            "notConfigured" => "not configured",
+            "not_configured" => "not configured",
+            "not-configured" => "not configured",
+            var value => value.Replace("_", " ", StringComparison.Ordinal).Replace("-", " ", StringComparison.Ordinal).ToLowerInvariant()
+        };
+    }
+
+    private static string FormatFreshness(DateTimeOffset? value) =>
+        value is { } resolved ? OperateObservabilityMapper.FormatTimestamp(resolved) : "unknown";
+
+    private static DateTimeOffset? NonDefault(DateTimeOffset? value) =>
+        value is { } resolved && resolved != default ? resolved : null;
+
+    private static void AddIfPresent(ICollection<DateTimeOffset> values, DateTimeOffset? value)
+    {
+        if (value is { } resolved)
+        {
+            values.Add(resolved);
+        }
+    }
+
+    private static string DisplayValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "unknown" : value.Trim();
+
+    private static string FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
+
+    private static OperateAlertRule MapRuleWithHealth(AlertRuleResponse rule, RuleHealthResult? health)
+    {
+        health ??= RuleHealthResult.Denied(
+            OperateSectionStatus.Unavailable,
+            "Rule health was not resolved by the server.");
+
+        if (health.Status == OperateSectionStatus.Allowed && health.Health is not null)
+        {
+            return OperateObservabilityMapper.MapRule(rule, health.Health);
+        }
+
+        var mapped = OperateObservabilityMapper.MapRule(rule, health.Health);
+        var status = SubresourceStatus(
+            health.Status,
+            health.Message,
+            "Rule health returned by honua-server.");
+        var message = $"Rule health unavailable: {FirstNonBlank(health.Message, OperateSectionPresentation.FallbackMessage(health.Status))}";
+        return mapped with
+        {
+            Status = status,
+            ValidationMessages = mapped.ValidationMessages
+                .Concat([message])
+                .ToArray()
+        };
+    }
+
+    private async Task<IReadOnlyDictionary<long, RuleHealthResult>> ResolveRuleHealthAsync(
         IReadOnlyList<AlertRuleResponse> rules,
         CancellationToken cancellationToken)
     {
         if (rules.Count == 0)
         {
-            return new Dictionary<long, AlertRuleHealthResponse>();
+            return new Dictionary<long, RuleHealthResult>();
         }
 
         var tasks = rules.Select(async rule =>
@@ -283,13 +820,21 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 OperateAdminRoutes.RuleHealth(rule.RuleId),
                 OperateObservabilityJsonContext.Default.AlertRuleHealthEnvelope,
                 cancellationToken).ConfigureAwait(false);
-            return (rule.RuleId, Health: health.Ok ? health.Value!.Data : null);
+            if (health.Ok && health.Value!.Success && health.Value.Data is not null)
+            {
+                return (rule.RuleId, Result: RuleHealthResult.Allowed(health.Value.Data));
+            }
+
+            var status = health.Ok ? OperateSectionStatus.Unavailable : health.Status;
+            var message = health.Ok
+                ? FirstNonBlank(health.Value!.Message, "The rule health endpoint returned an empty response envelope.")
+                : health.Message;
+            return (rule.RuleId, Result: RuleHealthResult.Denied(status, message));
         });
 
         var resolved = await Task.WhenAll(tasks).ConfigureAwait(false);
         return resolved
-            .Where(entry => entry.Health is not null)
-            .ToDictionary(entry => entry.RuleId, entry => entry.Health!);
+            .ToDictionary(entry => entry.RuleId, entry => entry.Result);
     }
 
     private async Task<IReadOnlyList<OperateInvestigation>> ResolveInvestigationDetailsAsync(
@@ -307,9 +852,26 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 OperateAdminRoutes.InvestigationDetail(summary.InvestigationId),
                 OperateObservabilityJsonContext.Default.InvestigationResponse,
                 cancellationToken).ConfigureAwait(false);
-            return detail.Ok
-                ? OperateObservabilityMapper.MapInvestigation(detail.Value!)
-                : OperateObservabilityMapper.MapInvestigation(summary);
+            if (detail.Ok)
+            {
+                return OperateObservabilityMapper.MapInvestigation(detail.Value!);
+            }
+
+            var projected = OperateObservabilityMapper.MapInvestigation(summary);
+            var message = FirstNonBlank(
+                detail.Message,
+                "Investigation detail, pins, and linked resources are unavailable from the server.");
+            return projected with
+            {
+                DetailStatus = SubresourceStatus(
+                    detail.Status,
+                    message,
+                    "Investigation detail returned by honua-server."),
+                DetailMessage = message,
+                Notes = projected.Notes
+                    .Concat([$"Investigation detail unavailable: {message}"])
+                    .ToArray()
+            };
         });
 
         return await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -397,14 +959,6 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         _ => OperateSectionStatus.Unavailable
     };
 
-    private static OperateStatus ProbeTelemetryStatus(OperateSectionStatus status) => status switch
-    {
-        OperateSectionStatus.Allowed => new OperateStatus("healthy", "Admin observability API responded."),
-        OperateSectionStatus.Forbidden => new OperateStatus("unsupported", "The active profile cannot read observability events."),
-        OperateSectionStatus.Missing => new OperateStatus("unknown", "The observability events endpoint was not found on this server build."),
-        _ => new OperateStatus("unknown", "The admin observability API did not respond.")
-    };
-
     private sealed class FetchResult<T>
         where T : class
     {
@@ -423,5 +977,17 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
         public static FetchResult<T> Failed(OperateSectionStatus status, string message, ConsoleEnvironmentProfile? profile) =>
             new() { Status = status, Message = message, Profile = profile };
+    }
+
+    private sealed record RuleHealthResult(
+        AlertRuleHealthResponse? Health,
+        OperateSectionStatus Status,
+        string Message)
+    {
+        public static RuleHealthResult Allowed(AlertRuleHealthResponse health) =>
+            new(health, OperateSectionStatus.Allowed, string.Empty);
+
+        public static RuleHealthResult Denied(OperateSectionStatus status, string message) =>
+            new(null, status, message);
     }
 }

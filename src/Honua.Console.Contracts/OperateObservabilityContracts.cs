@@ -13,6 +13,11 @@ namespace Honua.Console.Contracts;
 // catalog shim in SdkShims.cs.
 //
 // Route map (concrete v1), all under /api/v{version:apiVersion}/admin:
+//   GET  /version                           -> ApiResponse<AdminVersionResponse>
+//   GET  /capabilities                      -> ApiResponse<AdminCapabilitiesResponse>
+//   GET  /observability/errors              -> OperateRecentErrorsResponse
+//   GET  /observability/telemetry           -> OperateTelemetryStatusResponse
+//   GET  /observability/migrations          -> OperateMigrationStatusResponse
 //   GET  /observability/events              -> OperateEventPageResponse
 //   GET  /observability/logs                -> OperateLogPageResponse
 //   GET  /observability/audit               -> ObservabilityAuditPageResponse
@@ -35,6 +40,11 @@ public static class OperateAdminRoutes
 {
     public const string Prefix = "api/v1/admin";
 
+    public const string Version = Prefix + "/version";
+    public const string Capabilities = Prefix + "/capabilities";
+    public const string RecentErrors = Prefix + "/observability/errors";
+    public const string Telemetry = Prefix + "/observability/telemetry";
+    public const string Migrations = Prefix + "/observability/migrations";
     public const string Events = Prefix + "/observability/events";
     public const string Logs = Prefix + "/observability/logs";
     public const string Audit = Prefix + "/observability/audit";
@@ -143,6 +153,115 @@ public sealed record ConsoleApiEnvelope<T>
 
     [JsonPropertyName("message")]
     public string? Message { get; init; }
+}
+
+// --- Admin overview / telemetry -------------------------------------------------
+
+public sealed record AdminVersionResponse
+{
+    public string Version { get; init; } = string.Empty;
+
+    public string MetadataApiVersion { get; init; } = string.Empty;
+
+    public string MetadataSchemaVersion { get; init; } = string.Empty;
+
+    public DateTimeOffset ServerTime { get; init; }
+}
+
+public sealed record AdminCapabilitiesResponse
+{
+    public string MetadataApiVersion { get; init; } = string.Empty;
+
+    public string MetadataSchemaVersion { get; init; } = string.Empty;
+
+    public string ServerVersion { get; init; } = string.Empty;
+}
+
+public sealed record OperateRecentErrorsResponse
+{
+    public int Capacity { get; init; }
+
+    public string InstanceId { get; init; } = string.Empty;
+
+    public IReadOnlyList<OperateRecentErrorResponse> Errors { get; init; } = [];
+}
+
+public sealed record OperateRecentErrorResponse
+{
+    public DateTimeOffset Timestamp { get; init; }
+
+    public string CorrelationId { get; init; } = string.Empty;
+
+    public string Path { get; init; } = string.Empty;
+
+    public int StatusCode { get; init; }
+
+    public string Message { get; init; } = string.Empty;
+}
+
+public sealed record OperateTelemetryStatusResponse
+{
+    public DateTimeOffset GeneratedAt { get; init; }
+
+    public OperateRealtimeStatusResponse Realtime { get; init; } = new();
+
+    public bool TracingEnabled { get; init; }
+
+    public bool MetricsEnabled { get; init; }
+
+    public bool LogsEnabled { get; init; }
+
+    public bool OtlpConfigured { get; init; }
+
+    public bool OtlpEndpointValid { get; init; }
+
+    public string? OtlpEndpoint { get; init; }
+
+    public bool OtlpHeadersConfigured { get; init; }
+
+    public string OtlpExporterState { get; init; } = "notConfigured";
+
+    public string TraceExportState { get; init; } = "notConfigured";
+
+    public string MetricsExportState { get; init; } = "notConfigured";
+
+    public string LogExportState { get; init; } = "notConfigured";
+
+    public string? LastExportError { get; init; }
+}
+
+public sealed record OperateRealtimeStatusResponse
+{
+    public bool Supported { get; init; }
+
+    public string? HubPath { get; init; }
+
+    public string? Protocol { get; init; }
+
+    public string[] Events { get; init; } = [];
+}
+
+public sealed record OperateMigrationStatusResponse
+{
+    public string Status { get; init; } = string.Empty;
+
+    public bool IsReady { get; init; }
+
+    public bool IsFailed { get; init; }
+
+    public string? Message { get; init; }
+
+    public bool PlanAvailable { get; init; }
+
+    public bool UpgradeRequired { get; init; }
+
+    public IReadOnlyList<string> PendingScripts { get; init; } = [];
+
+    public IReadOnlyList<string> ExecutedButNotDiscoveredScripts { get; init; } = [];
+
+    public string? PlanError { get; init; }
+
+    public DateTimeOffset GeneratedAt { get; init; }
 }
 
 // --- Events / logs / audit ----------------------------------------------------
@@ -759,6 +878,11 @@ public sealed record InvestigationLinkResponse
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(ConsoleApiEnvelope<AdminVersionResponse>), TypeInfoPropertyName = "AdminVersionEnvelope")]
+[JsonSerializable(typeof(ConsoleApiEnvelope<AdminCapabilitiesResponse>), TypeInfoPropertyName = "AdminCapabilitiesEnvelope")]
+[JsonSerializable(typeof(OperateRecentErrorsResponse))]
+[JsonSerializable(typeof(OperateTelemetryStatusResponse))]
+[JsonSerializable(typeof(OperateMigrationStatusResponse))]
 [JsonSerializable(typeof(OperateEventPageResponse))]
 [JsonSerializable(typeof(OperateLogPageResponse))]
 [JsonSerializable(typeof(ObservabilityAuditPageResponse))]

@@ -15,21 +15,6 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 public static class OperateObservabilityMapper
 {
-    public static OperateEnvironmentOverview MapEnvironment(
-        ConsoleEnvironmentProfile profile,
-        OperateStatus health,
-        string driftSummary) =>
-        new(
-            EnvironmentId: profile.Id,
-            Name: string.IsNullOrWhiteSpace(profile.DisplayName) ? profile.Id : profile.DisplayName,
-            ServerName: profile.ServerBaseUri.Host,
-            Version: "unknown",
-            BuildSha: "unknown",
-            Health: health,
-            LastSeen: FormatTimestamp(profile.UpdatedAt),
-            OwnerTeam: string.IsNullOrWhiteSpace(profile.TenantId) ? profile.EnvironmentKind : profile.TenantId,
-            DriftSummary: driftSummary);
-
     // --- Events -------------------------------------------------------------
 
     public static IReadOnlyList<OperateEventRow> MapEvents(

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using DotNet.Testcontainers.Images;
 using DotNet.Testcontainers.Networks;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -18,17 +19,16 @@ namespace Honua.Console.Native.Core.Tests;
 public sealed class OperateObservabilityTestcontainersTests
 {
     private const string ServerImageEnvironmentVariable = "HONUA_CONSOLE_OPERATE_SERVER_IMAGE";
+    private const string ServerContextEnvironmentVariable = "HONUA_CONSOLE_OPERATE_SERVER_CONTEXT";
+    private const string ServerDockerfileEnvironmentVariable = "HONUA_CONSOLE_OPERATE_SERVER_DOCKERFILE";
 
     [SkippableFact]
     [Trait("Category", "Testcontainers")]
     public async Task OperatePageRendersLiveHonuaServerDataFromTestcontainers()
     {
-        var serverImage = Environment.GetEnvironmentVariable(ServerImageEnvironmentVariable);
-        Skip.If(
-            string.IsNullOrWhiteSpace(serverImage),
-            $"{ServerImageEnvironmentVariable} is not set. Set it to a honua-server image containing admin Operate endpoints to run this integration test.");
-
         var suffix = Guid.NewGuid().ToString("N");
+        string? serverImage = null;
+        IFutureDockerImage? builtServerImage = null;
         var database = "honua_console_operate";
         var username = "honua";
         var password = "honua_password";
@@ -40,6 +40,7 @@ public sealed class OperateObservabilityTestcontainersTests
 
         try
         {
+            (serverImage, builtServerImage) = await ResolveServerImageAsync(suffix);
             await network.CreateAsync();
             postgres = new PostgreSqlBuilder("postgis/postgis:16-3.4")
                 .WithDatabase(database)
@@ -50,7 +51,7 @@ public sealed class OperateObservabilityTestcontainersTests
                 .Build();
             await postgres.StartAsync();
 
-            server = new ContainerBuilder(serverImage)
+            server = new ContainerBuilder(serverImage!)
                 .WithNetwork(network)
                 .WithPortBinding(8080, assignRandomHostPort: true)
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Test")
@@ -71,6 +72,11 @@ public sealed class OperateObservabilityTestcontainersTests
             var baseUri = new Uri($"http://localhost:{server.GetMappedPublicPort(8080).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
             using var seedClient = new HttpClient { BaseAddress = baseUri };
             await SeedOperateFixtureAsync(seedClient);
+            await SeedRecentLogEvidenceAsync(seedClient);
+            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/observability/events", "events");
+            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/observability/alerts", "alerts");
+            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/jobs", "jobs");
+            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/observability/logs", "logs");
 
             var operateClient = new HttpConsoleOperateObservabilityClient(
                 new HttpClient(),
@@ -104,6 +110,8 @@ public sealed class OperateObservabilityTestcontainersTests
             });
 
             Assert.Contains("Testcontainers Honua Server", html);
+            Assert.Contains("alert_rule.create", html);
+            Assert.Contains("minSeverity", html);
             Assert.Contains("Harbor Entry Testcontainers", html);
             Assert.Contains("Honolulu Harbor Testcontainers", html);
             Assert.Contains("Live investigation Testcontainers", html);
@@ -127,7 +135,45 @@ public sealed class OperateObservabilityTestcontainersTests
             }
 
             await network.DisposeAsync();
+
+            if (builtServerImage is not null)
+            {
+                await builtServerImage.DeleteAsync();
+            }
         }
+    }
+
+    private static async Task<(string Image, IFutureDockerImage? BuiltImage)> ResolveServerImageAsync(string suffix)
+    {
+        var configuredImage = Environment.GetEnvironmentVariable(ServerImageEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(configuredImage))
+        {
+            return (configuredImage, null);
+        }
+
+        var contextDirectory = Environment.GetEnvironmentVariable(ServerContextEnvironmentVariable);
+        Skip.If(
+            string.IsNullOrWhiteSpace(contextDirectory),
+            $"{ServerImageEnvironmentVariable} is not set and {ServerContextEnvironmentVariable} is not set. Set one of them to run this integration test against a honua-server build containing admin Operate endpoints.");
+        Skip.If(
+            !Directory.Exists(contextDirectory),
+            $"{ServerContextEnvironmentVariable} points to a directory that does not exist: {contextDirectory}");
+
+        var dockerfile = Environment.GetEnvironmentVariable(ServerDockerfileEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(dockerfile))
+        {
+            dockerfile = "Dockerfile";
+        }
+
+        var imageName = $"honua-console-operate-server:{suffix}";
+        var image = new ImageFromDockerfileBuilder()
+            .WithName(imageName)
+            .WithContextDirectory(contextDirectory!)
+            .WithDockerfile(dockerfile)
+            .WithDeleteIfExists(true)
+            .Build();
+        await image.CreateAsync();
+        return (imageName, image);
     }
 
     private static async Task SeedOperateFixtureAsync(HttpClient client)
@@ -189,6 +235,22 @@ public sealed class OperateObservabilityTestcontainersTests
             note = "Linked synthetic job evidence from seeded fixture."
         });
         await EnsureSuccessAsync(linkResponse, "link investigation resource");
+    }
+
+    private static async Task SeedRecentLogEvidenceAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync("/api/v1/admin/observability/events?minSeverity=3");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    private static async Task AssertOperateSurfaceAvailableAsync(HttpClient client, string path, string surface)
+    {
+        using var response = await client.GetAsync(path);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.Fail($"Operate {surface} surface was unavailable at {path}: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
+        }
     }
 
     private static async Task<JsonElement> ReadDataElementAsync(HttpResponseMessage response)

@@ -169,19 +169,37 @@ Until parity is accepted, source behavior remains in:
 
 ## Operate Observability Usage
 
-The native Blazor Operate observability checkpoint is available at
+The native Blazor Operate observability workspace is available at
 `/operate` and `/operate/observability`, with deep links for
 `/operate/events/{eventId}`, `/operate/alerts/{alertId}`, and
 `/operate/jobs/{jobRunId}`.
 
-The current checkpoint is fixture-backed by `OperateObservabilityFixture`
-while the server and SDK Operate contracts land. It documents the
-response behavior Console must preserve: `unknown`, `unsupported`,
-`missing`, `disabled`, `not configured`, and `unconfigured` telemetry are
-neutral states; AI advisory text appears beside raw evidence links;
-invalid realtime/geofence rules cannot be enabled; and Studio,
-publishing, GitOps, temporal, alert delivery, import, and maintenance
-jobs share the `/operate/jobs/{jobRunId}` detail surface.
+Runtime data comes from the active environment profile's honua-server
+admin APIs through `IConsoleOperateObservabilityClient` and the temporary
+`src/Honua.Console.Contracts/OperateObservabilityContracts.cs` SDK shim.
+The client uses `/api/v1/admin/version`, `/api/v1/admin/capabilities`,
+`/api/v1/admin/observability/*`, `/api/v1/admin/alerts/*`,
+`/api/v1/admin/jobs/*`, and `/api/v1/admin/investigations/*`;
+`OperateObservabilityFixture` remains test/scaffolding data only.
+
+The response contract preserves the Console state vocabulary:
+`unknown`, `unsupported`, `missing`, `disabled`, `not configured`, and
+`unconfigured` telemetry are neutral states; missing, forbidden,
+unsupported, and unavailable admin reads render through the shared Operate
+section status surface; AI advisory text appears beside raw evidence
+links; invalid realtime/geofence rules cannot be enabled; and Studio,
+publishing, GitOps, temporal, alert delivery, import, and maintenance jobs
+share the `/operate/jobs/{jobRunId}` detail surface.
+
+The live server integration test is
+`OperateObservabilityTestcontainersTests`. Set
+`HONUA_CONSOLE_OPERATE_SERVER_IMAGE` to a honua-server image containing the
+admin Operate endpoints to run it. Alternatively set
+`HONUA_CONSOLE_OPERATE_SERVER_CONTEXT` to a honua-server checkout and,
+when needed, `HONUA_CONSOLE_OPERATE_SERVER_DOCKERFILE` to the Dockerfile
+path relative to that context; the test builds an ephemeral image before
+starting PostgreSQL and the server. It skips when neither an image nor a
+build context is configured, or when Docker is unavailable.
 
 ## Studio Contract Notes
 
