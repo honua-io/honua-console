@@ -24,10 +24,10 @@ Host-support routes are also shared:
 
 | Route | Web host behavior | Native host behavior |
 | --- | --- | --- |
-| `/environments` | Read-only profile list. Native gRPC, native mTLS, connect/disconnect, and trust validation render as "Native host only" unsupported states. | Multi-environment list with connect/disconnect, last-seen, transport indicators, trust pill, and acknowledge/revalidate. |
+| `/environments` | Seeded profile list and active-profile selection. Native gRPC, native mTLS, connect/disconnect, and trust validation render as "Native host only" unsupported states. | Multi-environment list with connect/disconnect, last-seen, transport indicators, trust pill, and acknowledge/revalidate. |
 | `/environments/new` | Renders an unsupported state (profile creation is native-only). | First-run / add-environment form persisting through `IConsoleEnvironmentProfileStore`. |
-| `/environments/{id}` | Read-only connection diagnostics. | Per-profile transport, trust state, server fingerprint, issuer, last-seen, resume token, and connect/acknowledge/revalidate actions. |
-| `/operate/native-stream` | Renders a native-proof unavailable state because the web host does not register native gRPC services. | Resolves the active profile, streams deterministic telemetry proof events, and saves resume diagnostics. |
+| `/environments/{id}` | Profile diagnostics without native connection actions. | Per-profile transport, trust state, server fingerprint, issuer, last-seen, resume token, and connect/acknowledge/revalidate actions. |
+| `/operate/native-stream` | Renders a native-proof unavailable state because the web host does not register native gRPC services. | Resolves the active profile, opens it through the trust gate, emits no events for blocked/unreachable outcomes, and saves resume diagnostics after a successful proof stream. |
 
 The browser host registers `AddHonuaConsoleShell()` only. The MAUI host registers `AddHonuaConsoleShell()` and `AddHonuaConsoleNativeCore()`, which replaces the shell's in-memory profile/session stores with JSON native-core stores and adds certificate, token, connection, trust, and streaming services. The test host keeps in-memory profile/secret adapters; the MAUI host binds those adapters to `NativeSecureStorage`. This keeps browser startup and deployment independent from MAUI workloads and native gRPC dependencies.
 

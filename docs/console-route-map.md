@@ -174,9 +174,10 @@ Groups feature ticket lands (tracked alongside `honua-portal#15`).
 Native host support navigation is always visible in the shared shell:
 Environments (`/environments`) and Native Stream
 (`/operate/native-stream`). On the web host these routes remain usable
-for read-only profile inspection and unsupported-state rendering; native
-profile creation, native gRPC, native mTLS, certificate selection,
-connect/disconnect, and trust validation require the MAUI host.
+for seeded profile inspection, active-profile selection, and
+unsupported-state rendering; native profile creation, native gRPC, native
+mTLS, certificate selection, connect/disconnect, and trust validation
+require the MAUI host.
 
 ### 2.3 Edition gates
 
@@ -607,9 +608,13 @@ seam: the web host keeps `SupportsNativeTransports = false`, does not
 register `IConsoleConnectionManager`, and renders native-only controls as
 "Native host only"; the MAUI host registers native profile storage,
 certificate resolution, connection management, server-certificate probe,
-and the honua-server#1171 validation client. Environment profile state is
-Console-owned local host state; server-validated trust results remain
-behind `Honua.Console.Contracts` until `honua-sdk-dotnet#166` is
+and the honua-server#1171 validation client. The native trust gate passes
+the accepted server fingerprint into both the validation call and the
+native HTTP/gRPC connection factory, so pinned private or self-signed
+server identities remain usable after acknowledgement; unreachable HTTPS
+probes preserve the previously persisted trust state. Environment profile
+state is Console-owned local host state; server-validated trust results
+remain behind `Honua.Console.Contracts` until `honua-sdk-dotnet#166` is
 consumable.
 
 ### 6.2 Studio

@@ -28,9 +28,10 @@ public static class NativeServerTrust
 
     /// <summary>
     /// Builds a server-certificate validation callback that captures the observed fingerprint and
-    /// accepts the connection when the OS chain is valid or the fingerprint matches a pinned/trusted
-    /// value (trust-on-first-use pinning). Used for the validate call so a self-signed or
-    /// privately-issued server identity that the operator already pinned is accepted.
+    /// accepts the connection when the fingerprint matches a pinned/trusted value, or when no pin was
+    /// supplied and the OS chain is valid. Used for the validate call so a self-signed or privately-issued
+    /// server identity that the operator already pinned is accepted without allowing an OS-trusted
+    /// certificate to bypass that pin.
     /// </summary>
     public static RemoteCertificateValidationCallback CreateServerValidationCallback(
         string? trustedFingerprint,
@@ -46,13 +47,12 @@ public static class NativeServerTrust
             var fingerprint = ComputeSha256Fingerprint(certificate);
             onObserved?.Invoke(fingerprint);
 
-            if (errors == SslPolicyErrors.None)
+            if (!string.IsNullOrWhiteSpace(trustedFingerprint))
             {
-                return true;
+                return string.Equals(fingerprint, trustedFingerprint, StringComparison.OrdinalIgnoreCase);
             }
 
-            return !string.IsNullOrEmpty(trustedFingerprint)
-                && string.Equals(fingerprint, trustedFingerprint, StringComparison.OrdinalIgnoreCase);
+            return errors == SslPolicyErrors.None;
         };
     }
 }
