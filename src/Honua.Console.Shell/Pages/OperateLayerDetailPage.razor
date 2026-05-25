@@ -2,7 +2,7 @@
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
-    @if (_layerRow is null)
+    @if (_exposures.Count == 0)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
     }
@@ -10,34 +10,37 @@
     {
         <div class="console-page-heading">
             <p class="console-kicker">Operate / Layers</p>
-            <h1>@_layerRow.Value.Layer.Name</h1>
-            <p>Layer @_layerRow.Value.Layer.LayerId is exposed by @_layerRow.Value.Service.DisplayName and reads metadata from @_layerRow.Value.Layer.CanonicalResourceName.</p>
+            <h1>@_exposures[0].Layer.Name</h1>
+            <p>Layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
         </div>
 
         <div class="console-panel-grid">
-            <article class="console-panel">
-                <p class="console-kicker">Exposure</p>
-                <h2>Service Layer</h2>
-                <dl class="console-definition-list">
-                    <dt>Service</dt>
-                    <dd><a href="@($"/operate/services/{_layerRow.Value.Service.Name}/settings")">@_layerRow.Value.Service.DisplayName</a></dd>
-                    <dt>Geometry</dt>
-                    <dd>@_layerRow.Value.Layer.Geometry</dd>
-                    <dt>Runtime</dt>
-                    <dd>@_layerRow.Value.Service.RuntimeStatus</dd>
-                </dl>
-            </article>
+            @foreach (var exposure in _exposures)
+            {
+                <article class="console-panel">
+                    <p class="console-kicker">Exposure</p>
+                    <h2>@exposure.Service.DisplayName</h2>
+                    <dl class="console-definition-list">
+                        <dt>Service</dt>
+                        <dd><a href="@($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
+                        <dt>Geometry</dt>
+                        <dd>@exposure.Layer.Geometry</dd>
+                        <dt>Runtime</dt>
+                        <dd>@exposure.Service.RuntimeStatus</dd>
+                    </dl>
+                </article>
+            }
 
             <article class="console-panel">
                 <p class="console-kicker">Canonical Metadata</p>
                 <h2>Resource Owner</h2>
                 <dl class="console-definition-list">
                     <dt>Resource</dt>
-                    <dd><a href="@($"/operate/resources/{_layerRow.Value.Layer.CanonicalResourceId}")">@_layerRow.Value.Layer.CanonicalResourceName</a></dd>
+                    <dd><a href="@($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
                     <dt>Resource ID</dt>
-                    <dd>@_layerRow.Value.Layer.CanonicalResourceId</dd>
+                    <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
                     <dt>Ownership</dt>
-                    <dd>@_layerRow.Value.Service.MetadataOwnership</dd>
+                    <dd>@_exposures[0].Service.MetadataOwnership</dd>
                 </dl>
             </article>
         </div>
@@ -50,17 +53,24 @@
     [Parameter]
     public int LayerId { get; set; }
 
-    private (OperateServiceDetail Service, OperateServiceLayerProjection Layer)? _layerRow;
+    // A single layerId can be exposed by more than one service (honua-server stores service exposure
+    // separately in honua.service_layers), and the layers list links every exposure row to the same
+    // /operate/layers/{LayerId} route. Render every matching exposure rather than an arbitrary first
+    // one, so the page never shows a different service's exposure than the operator selected.
+    private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _exposures =
+        Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
+    private string _serviceSummary = string.Empty;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     protected override async Task OnParametersSetAsync()
     {
         var view = await OperateData.GetLayersViewAsync();
-        _layerRow = view.Services
+        _exposures = view.Services
             .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
             .Where(row => row.Layer.LayerId == LayerId)
-            .Select(row => ((OperateServiceDetail Service, OperateServiceLayerProjection Layer)?)row)
-            .FirstOrDefault();
+            .OrderBy(row => row.Service.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
     }
 }

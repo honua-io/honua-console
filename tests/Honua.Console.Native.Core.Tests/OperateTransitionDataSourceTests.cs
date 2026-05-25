@@ -321,6 +321,49 @@ public sealed class OperateTransitionDataSourceTests
     }
 
     [Fact]
+    public async Task LayerDetailRendersAllServiceExposuresForSharedLayerId()
+    {
+        // Regression: layer 7 is published by both the planning and public services, and the layers
+        // list links every exposure row to the same /operate/layers/7 route. The detail page must
+        // render every matching service exposure, not an arbitrary first one.
+        var connectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var handler = new JsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/connections/"] = $$"""
+                {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
+                """,
+            ["/api/v1/admin/services/"] = """
+                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
+                {"success":true,"data":[]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=planning"] = """
+                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/?serviceName=public"] = """
+                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"public"}]}
+                """
+        });
+        var dataSource = CreateServerDataSource(handler);
+
+        var layerHtml = await RenderPageAsync<OperateLayerDetailPage>(
+            dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                ["LayerId"] = 7
+            }));
+
+        // Both service exposures render, so either layers-list row lands on a page that shows every
+        // service exposing layer 7 instead of silently collapsing to the first service.
+        Assert.Contains("/operate/services/planning/settings", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("/operate/services/public/settings", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("Planning Service", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("Public Service", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("Console Parcels", layerHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RedactorRemovesCredentialsTokensConnectionStringsAndSecretValues()
     {
         const string raw = """

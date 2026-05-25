@@ -6,9 +6,18 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#166): Operate/Admin projections are not yet available
-// through honua-sdk-dotnet. Keep these wire records and the thin HTTP client in
-// the Console contracts boundary until honua-console#7 swaps them for SDK types.
+// SHIM(honua-sdk-dotnet#166): the Honua.Sdk.Admin admin client (HonuaAdminClient with
+// ListConnectionsAsync/ListServicesAsync/GetServiceSettingsAsync/ListLayersAsync/
+// GetVersionAsync/GetCapabilitiesAsync/GetLicenseStatusAsync/ListOidcProvidersAsync)
+// exists in honua-sdk-dotnet source, but there is no consumable package: the only
+// restorable Honua.Sdk.Admin build is the prerelease 0.1.15-alpha.1 (the SDK ships a
+// stable Honua.Sdk.Abstractions 1.0.0 but no stable Admin counterpart), and honua-console
+// wires no SDK NuGet feed. Referencing it would pin Console to a prerelease through the
+// non-hermetic global package cache and break clean/CI restores and the single deployable
+// artifact, so per SDK_SHIM_POLICY.md the contract is treated as pending. Keep these wire
+// records and the thin HTTP client in the Console contracts boundary until honua-sdk-dotnet
+// publishes a consumable stable Admin package and honua-console#7 wires the feed and swaps
+// to SDK types. Do not add a sibling-repo ProjectReference. See SDK_SHIM_POLICY "Active Shims".
 public sealed record HonuaAdminOperateClientOptions(Uri BaseUri, string? ApiKey = null);
 
 public interface IHonuaAdminOperateClient

@@ -24,7 +24,7 @@ Temporary shims for SDK contracts are permitted in Console during the migration,
 3. Every shim has an inline `// SHIM(honua-sdk-dotnet#166): <reason>` (or `honua-sdk-js#225`, as appropriate) comment identifying the external ticket the shim is waiting on.
 4. Every shim has a corresponding entry in this document's "Active Shims" section below, with an owner, language, and a removal target ticket.
 5. No shim is imported from outside its boundary project/module. Razor and .NET feature code imports from `Honua.Console.Contracts`; JS interop bundles import from `wwwroot/interop/sdk-shims.ts`. This keeps the cleanup localized.
-6. No shim redefines a contract that already exists in `honua-sdk-dotnet` or `honua-sdk-js`. Existing contracts must be consumed directly.
+6. No shim redefines a contract that already exists in a **consumable published** `honua-sdk-dotnet` or `honua-sdk-js` package. Such contracts must be consumed directly. A contract that exists only in unmerged or prerelease SDK source — with no restorable stable package and no Console feed wired to it — is treated as pending, and a bounded shim is allowed until the package ships (see the Operate admin shim note under "Active Shims").
 7. [`honua-console#7`](https://github.com/honua-io/honua-console/issues/7) is gated on this document containing zero entries in "Active Shims". When `#7` is accepted, both boundary files are deleted along with this section.
 
 ## What A Shim Looks Like
@@ -110,7 +110,23 @@ The current active shims are bounded to catalog/viewer/share route parity, Studi
 | Studio workflow package projections in `src/Honua.Console.Shell/Models/StudioWorkflowPackage.cs` | .NET | honua-console#40 | honua-sdk-dotnet#166 workflow/package projections and honua-server#724 workflow DAG contracts | Studio | honua-console#7 replaces with shared SDK/server projections or moves through the dedicated contract boundary |
 | Environment trust contracts (`HonuaCertificateValidationStatus`, `HonuaEnvironmentTrustState`) in `src/Honua.Console.Contracts/EnvironmentTrustShims.cs` | .NET | honua-console#44 | honua-sdk-dotnet#166 (`Honua.Sdk.Abstractions.Environments`, merged on SDK trunk but not yet in a consumable package) | Console | honua-console#7 swaps to `global using …Environments.*` once the package ships #166 |
 | Client-certificate validate wire contracts (`ConsoleClientCertificateValidationRequest`, `ConsoleClientCertificateValidationResult`, `ConsoleServerEnvelope<T>`, `ConsoleCertificateValidationCodes`) in `src/Honua.Console.Contracts/EnvironmentTrustShims.cs` | .NET | honua-console#44 | honua-server#1171 (`POST /api/v1/admin/security/client-certificates/validate`) / honua-sdk-dotnet#166 | Console | honua-console#7 replaces with the SDK trust client when projected |
-| Operate admin HTTP shim (`HonuaAdminOperateHttpClient` and admin response records) | .NET | honua-console#60 | honua-sdk-dotnet#166 admin projections / honua-server#1162 Metadata v2 admin gaps | Operate | honua-console#7 |
+| Operate admin HTTP shim (`HonuaAdminOperateHttpClient` and admin response records) | .NET | honua-console#60 | honua-sdk-dotnet publishing a consumable stable `Honua.Sdk.Admin` package (only prerelease `0.1.15-alpha.1` is restorable today) / honua-server#1162 Metadata v2 admin gaps | Operate | honua-console#7 |
+
+The Operate admin shim is the one entry whose matching SDK contract
+(`Honua.Sdk.Admin.HonuaAdminClient`, with `ListConnectionsAsync`,
+`ListServicesAsync`, `GetServiceSettingsAsync`, `ListLayersAsync`,
+`GetVersionAsync`, `GetCapabilitiesAsync`, `GetLicenseStatusAsync`, and
+`ListOidcProvidersAsync`) already exists in `honua-sdk-dotnet` source. It is
+still shimmed because that source is not a consumable package: the only
+restorable `Honua.Sdk.Admin` build is the prerelease `0.1.15-alpha.1` (the SDK
+ships a stable `Honua.Sdk.Abstractions 1.0.0` but no stable Admin counterpart),
+and `honua-console` wires no SDK NuGet feed at all. Adding a `PackageReference`
+would resolve only from the non-hermetic global cache on a developer machine,
+pin Console to a prerelease, and break clean/CI restores and the single
+deployable artifact; a sibling-repo `ProjectReference` is likewise disallowed.
+Per clause 6 the contract is therefore treated as pending. Removal under
+`honua-console#7` depends on `honua-sdk-dotnet` cutting and publishing a
+consumable stable `Honua.Sdk.Admin` package, then wiring a Console feed to it.
 
 On rule 6 ("no shim redefines a contract that already exists in `honua-sdk-dotnet`"): "exists" means **consumable in a restorable package**. The `honua-sdk-dotnet#166` `Honua.Sdk.Abstractions.Environments` contracts are merged on the SDK trunk but are **not** in the latest published `Honua.Sdk.Abstractions` package, and `honua-console` has no SDK package reference yet. Until that package ships #166, the trust/environment shapes are mirrored exactly behind this boundary (matching the SDK shape so the `#7` swap is a `global using` alias), not consumed directly. This is the same "do not block porting on #166" stance this policy takes for the catalog/share shims.
 
