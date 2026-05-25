@@ -21,6 +21,8 @@ The goal is to give design enough structure to create flows, screen maps, and in
 - [Information Model Summary](information-model-summary.md)
 - [Workflow Catalog](workflow-catalog.md)
 - [UI Surface Briefs](ui-surface-briefs.md)
+- [Console Canvas Handoff](console-canvas/README.md)
+- [Console Canvas Model Decisions](console-canvas/decisions.md)
 
 ## Source Architecture
 
@@ -31,6 +33,8 @@ The goal is to give design enough structure to create flows, screen maps, and in
 - [Temporal Data Viewer Information Model](../architecture/temporal-data-viewer-information-model.md)
 - [Operate Observability Information Model](../architecture/operate-observability-information-model.md)
 - [Honua Console Migration Backlog](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
+- [Console Backend Capability Backlog](../roadmap/CONSOLE_BACKEND_CAPABILITY_BACKLOG.md)
+- [Console UI Implementation Backlog](../roadmap/CONSOLE_UI_IMPLEMENTATION_BACKLOG.md)
 
 ## Design Direction
 
@@ -71,4 +75,3 @@ The default web Console is Blazor Web with shared Razor components. An optional 
 5. Operate observability workspace for servers, event viewer, alerts, jobs, logs, and investigations.
 6. Temporal data viewer and sync conflict review surface.
 7. Native Console environment switcher and trust/profile state.
-
