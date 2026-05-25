@@ -33,6 +33,7 @@ routes. Path prefixes are frozen for downstream tickets:
 
 /studio                        Studio entry (AI-assisted creation)
 /studio/proof                  Legacy alias for current proof flow
+/studio/drafts                 Source-scoped draft start (source, id)
 /studio/apps/:itemId/preview   Generated-app preview / publish lifecycle
 
 /catalog                       Search / list (q, type, tag, owner, visibility, sort, cursor)
@@ -245,7 +246,7 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | 9 | `/catalog/:idOrSlug` | `/catalog/:idOrSlug` | `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:29` emits this for non-map items) | `auth` (+ server item read; `resolvePortalItemRole` only gates actions) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | catalog | catalog-detail |
 | 10 | `/maps` | `/catalog?type=map` (list) + `/studio` (create CTA) | preserves `from=:itemId` on the create path | `auth` | catalog (list), studio (create) | — |
 | 11 | `/maps/:mapId` | `/maps/:mapId` | `from=:itemId` (when transiting from Catalog); `?token=<value>` for public-link share tier (`honua-portal:src/share/snippet.ts:27`) | `auth` (+ server saved-map/package read) **or** `anonymous` (+ `ShareAccess` with `share-tier:public` or `share-tier:public-link` + valid token) | viewer | viewer |
-| 12 | `/app-builder/proof` | `/studio` (entry) + `/studio/proof` (legacy alias) | legacy 301 → `/studio?source=…&itemId=…` | `auth` | studio | studio-generation |
+| 12 | `/app-builder/proof` | `/studio` (entry) + `/studio/proof` (legacy alias) + `/studio/drafts` (source-scoped start) | legacy 301 → `/studio/drafts?source=…&id=…` | `auth` | studio | studio-generation |
 | 13 | `/apps/:itemId/preview` | `/studio/apps/:itemId/preview` | preserves `?revision=<n>` | `auth` (+ generated-app preview read) | studio | studio-generation |
 | 14 | `/data` | `/catalog` | — (Portal `/data` renders an `EmptyState` placeholder at `honua-portal:src/routes/Data.tsx:10` — "Data view is coming soon"; the legacy nav copy "Datasets, layers, and tables" at `honua-portal:src/shell/NavConfig.ts:53` has no single matching filter in the current `ListItemsRequest` contract — `type` is single-valued and `ItemType` does not include a `dataset` member — so Console drops `/data` as a dedicated surface and Catalog's type filter is the entry point; widening to a multi-type or "dataset-like" filter is deferred until a shared catalog filter contract change lands) | `auth` | catalog | — |
 | 15 | `/groups` | `/groups` | — | `auth` (any scope — member, operator, or admin, per `hasAnyScope(session, ["member", "operator", "admin"])` in `honua-portal:src/routes/Groups.tsx:10`) | shell | — |
@@ -549,7 +550,27 @@ Authenticated sessions without `member`, `operator`, or `admin` render
 |---|---|---|---|---|
 | `/studio` | `auth` | empty-studio (start a prompt) | unauth-redirect | studio |
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
+| `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
 | `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
+
+The current `/studio` implementation is the first package-first Studio
+shell slice. It runs in the shared Razor component library and exposes
+the Console-owned `studio-authoring-shell/v1` projection for prompt
+clarification, package inspection, preview state, saved-version state,
+and publish state. Workflow choices cover map, dashboard, report, form,
+app, query, analysis, workflow, GP service, and ETL. Ambiguous prompts
+produce structured clarification questions; while any question remains
+open, Preview, Save Version, and Publish controls are disabled. The
+inspector remains visible for the active package and must include
+assumptions, data bindings, warnings, validation, and provenance.
+
+`/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`, and
+`/studio/apps/:itemId/preview` are mounted to the same package shell for
+the current Console slice so smoke evidence, legacy proof links, and
+generated-app reopen paths resolve through an implemented Studio route.
+The route parameters are accepted but not yet used to hydrate a
+server-backed package. The package shell does not create server-owned
+content versions or publication records by itself.
 
 ### 6.3 Catalog
 
@@ -737,7 +758,8 @@ eligible for `/share/public/items/:idOrSlug` per §6.6).
 2. **`/catalog/:id`** (service) — the published service appears as a
    catalog item; Catalog detail loads. Smoke labels: `catalog-detail`
    (row 9), `catalog-list` (row 8) if the smoke walks the list first.
-3. **`/studio`** → **`/studio/apps/:itemId/preview`** — Studio prompt
+3. **`/studio/drafts?source=saved-map&id=:mapId`** →
+   **`/studio/apps/:itemId/preview`** — Studio prompt
    generates a saved map / dashboard / app from the catalog item; apply
    succeeds; preview renders. Smoke label: `studio-generation` (rows
    12–13).
@@ -816,7 +838,7 @@ the human review answers land in
 
 | # | Question | Default decision | Status |
 |---|---|---|---|
-| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias. Sub-routes (`/studio/maps`, `/studio/dashboards`, `/studio/reports`) added per generator in `#5`. | default |
+| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias, and `/studio/drafts` starts source-scoped drafts. Generator-specific sub-routes (`/studio/maps`, `/studio/dashboards`, `/studio/reports`) arrive in later Studio slices. | default |
 | Q2 | Saved-map list: `/catalog?type=map` vs `/studio/maps` vs `/catalog/maps` | `/catalog?type=map` (Catalog filter). Avoids two list surfaces; preserves existing query-param contract. | default |
 | Q3 | `/share/public` vs `/public` redirect semantics | 301 for `/public` collection root. No 3xx for `/embed/maps/:mapId`; 200-at-both-paths for open-data item detail URLs (`/public/items/:idOrSlug` plus `/share/public/items/:idOrSlug`) because item URLs appear in DCAT-US / data.json / schema.org contexts. | default |
 | Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |

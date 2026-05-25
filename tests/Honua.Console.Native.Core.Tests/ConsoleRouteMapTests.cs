@@ -1,4 +1,6 @@
+using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Models;
+using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.Native.Core.Tests;
 
@@ -14,5 +16,20 @@ public sealed class ConsoleRouteMapTests
         Assert.Contains(areas, area => area.Id == "operate" && area.WorkflowBoundary == "Operator");
         Assert.Contains(areas, area => area.Id == "share" && area.WorkflowBoundary == "Builder");
         Assert.Equal(4, areas.Select(area => area.Path).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void StudioShellOwnsSmokeAndLifecycleRouteAliases()
+    {
+        var routes = typeof(StudioPage)
+            .GetCustomAttributes(typeof(RouteAttribute), inherit: false)
+            .Cast<RouteAttribute>()
+            .Select(attribute => attribute.Template)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("/studio", routes);
+        Assert.Contains("/studio/proof", routes);
+        Assert.Contains("/studio/drafts", routes);
+        Assert.Contains("/studio/apps/{ItemId}/preview", routes);
     }
 }

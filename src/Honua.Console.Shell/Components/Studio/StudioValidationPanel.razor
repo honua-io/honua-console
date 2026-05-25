@@ -1,0 +1,45 @@
+<section class="studio-inspector-section" aria-labelledby="studio-validation-heading">
+    <h3 id="studio-validation-heading">Validation</h3>
+
+    @if (Warnings.Count > 0)
+    {
+        <ul class="studio-warning-list">
+            @foreach (var warning in Warnings)
+            {
+                <li>
+                    <strong>@warning.Target</strong>
+                    <span>@warning.Message</span>
+                </li>
+            }
+        </ul>
+    }
+
+    <ul class="studio-validation-list">
+        @foreach (var item in Items)
+        {
+            <li class="@GetValidationClass(item.Severity)">
+                <span>@item.Severity</span>
+                <div>
+                    <strong>@item.Label</strong>
+                    <small>@item.Detail</small>
+                </div>
+            </li>
+        }
+    </ul>
+</section>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<StudioValidationItem> Items { get; set; } = Array.Empty<StudioValidationItem>();
+
+    [Parameter]
+    public IReadOnlyList<StudioPackageWarning> Warnings { get; set; } = Array.Empty<StudioPackageWarning>();
+
+    private static string GetValidationClass(StudioValidationSeverity severity) => severity switch
+    {
+        StudioValidationSeverity.Blocker => "studio-validation-blocker",
+        StudioValidationSeverity.Warning => "studio-validation-warning",
+        StudioValidationSeverity.Passed => "studio-validation-passed",
+        _ => "studio-validation-info"
+    };
+}

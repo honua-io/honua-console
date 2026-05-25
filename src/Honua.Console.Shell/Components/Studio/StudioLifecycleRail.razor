@@ -1,0 +1,18 @@
+<div class="studio-lifecycle-rail" role="list" aria-label="Package lifecycle states">
+    @foreach (var descriptor in StudioAuthoringContract.LifecycleDescriptors)
+    {
+        var isCurrent = descriptor.State == CurrentState;
+
+        <span role="listitem"
+              class="studio-lifecycle-state @descriptor.CssClass @(isCurrent ? "studio-lifecycle-state-current" : string.Empty)"
+              aria-current="@(isCurrent ? "step" : null)">
+            <strong>@descriptor.Label</strong>
+            <small>@descriptor.Description</small>
+        </span>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public StudioPackageLifecycleState CurrentState { get; set; } = StudioPackageLifecycleState.Draft;
+}

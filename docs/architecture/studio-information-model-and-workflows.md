@@ -610,6 +610,63 @@ Validate, preview, publish, and run responses should consistently return:
 - `job_id` and job status refs for analysis, GP, ETL, scheduled, batch, export, heavy refresh, and asynchronous preview paths
 - route, visibility, embed, service, schedule, rollback, and invocation policy refs for publish responses
 
+## Current Console Package Shell Slice
+
+The first Console implementation uses the shared Razor component library
+for both the Blazor Web host and MAUI Blazor Hybrid host. The shell is
+mounted at `/studio`, `/studio/proof`,
+`/studio/drafts?source=<kind>&id=<itemId>`, and
+`/studio/apps/:itemId/preview` so entry, legacy proof, source-scoped
+draft, and generated-app preview paths resolve to one authoring surface.
+Those route parameters are accepted for compatibility, but the current
+slice does not yet hydrate a server-backed source package or create
+content versions. The Console-owned `studio-authoring-shell/v1`
+projection is intentionally a stable in-memory mock until the server
+package lifecycle API and SDK helpers are connected.
+
+The shell keeps the generated output visible as a package at all times:
+workflow selection produces a typed package draft, ambiguous prompts add
+structured clarification questions instead of applying hidden
+assumptions, and the inspector exposes assumptions, data bindings,
+warnings, validation, and provenance. Draft, Preview, Saved version, and
+Published states are represented as distinct lifecycle descriptors so
+the UI and smoke evidence can assert the state transition path without
+creating server-owned content versions prematurely.
+
+Current projection shape:
+
+- `StudioAuthoringContract.Name = "studio-authoring-shell"`.
+- `StudioAuthoringContract.Version = "v1"`.
+- `StudioAuthoringContract.PackageSchemaVersion = "package-shell/v1"`.
+- `StudioAuthoringSession` carries workflow options, the selected
+  workflow id, the current prompt, open clarification questions, the
+  active package snapshot, and recent projects.
+- Workflow options currently cover `map.package`, `dashboard.package`,
+  `report.package`, `form.package`, `app.package`, `query.package`,
+  `analysis.package`, and `workflow.package` slices for workflow, GP
+  service, and ETL authoring.
+- `StudioPackageSnapshot` carries the contract name/version, package ref,
+  package type, schema version, title, summary, lifecycle state,
+  assumptions, data binding summaries, warnings, validation items, and
+  provenance events.
+- `StudioClarificationQuestion` and `StudioClarificationChoice` are the
+  structured response surface for ambiguous prompts. Accepting one
+  answer removes that pending assumption, updates bindings and
+  provenance, and keeps any remaining clarification as a validation
+  blocker.
+- Preview, Save Version, and Publish controls stay blocked while any
+  clarification remains open. The service transition method also returns
+  the draft unchanged in that case, so tests cover the UI affordance and
+  the response contract.
+- Lifecycle transitions preserve the `PackageRef` and append provenance;
+  they do not create server-owned content versions or publication
+  records in this slice.
+
+This projection is a Console-owned authoring shell response contract, not
+the canonical server package schema. When the server lifecycle API and
+`honua-sdk-dotnet` package projections land, Console should map this
+shell state onto the SDK types rather than keeping parallel DTOs.
+
 Console surfaces should use the same error and empty-state patterns for missing items, missing permissions, unsupported service metadata, and unsupported package bindings across Studio, Catalog, Share, and Operate.
 
 ## Required User Journeys

@@ -231,6 +231,11 @@ p {
     color: var(--honua-muted);
 }
 
+.console-button-secondary {
+    background: var(--honua-surface);
+    color: var(--honua-accent-strong);
+}
+
 .console-profile-count {
     display: grid;
     place-items: center;
@@ -266,6 +271,390 @@ p {
     color: var(--honua-muted);
 }
 
+.studio-page {
+    width: min(1420px, calc(100vw - 48px));
+}
+
+.studio-page-heading {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.studio-shell {
+    display: grid;
+    grid-template-columns: 280px minmax(360px, 1fr) minmax(340px, 0.9fr);
+    grid-template-areas:
+        "workflow prompt inspector"
+        "workflow preview inspector";
+    gap: 16px;
+    align-items: start;
+}
+
+.studio-workflow-panel {
+    grid-area: workflow;
+}
+
+.studio-prompt-panel {
+    grid-area: prompt;
+}
+
+.studio-preview-panel {
+    grid-area: preview;
+}
+
+.studio-inspector {
+    grid-area: inspector;
+    background: var(--honua-surface);
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.studio-lifecycle-rail {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.studio-lifecycle-state,
+.studio-recent-list span,
+.studio-preview-stage {
+    border: 1px solid;
+    border-radius: 8px;
+}
+
+.studio-lifecycle-state {
+    display: grid;
+    gap: 2px;
+    min-height: 62px;
+    padding: 9px 10px;
+}
+
+.studio-lifecycle-state small {
+    color: inherit;
+    opacity: 0.82;
+}
+
+.studio-lifecycle-state-current {
+    box-shadow: 0 0 0 3px rgb(23 33 29 / 11%);
+}
+
+.studio-lifecycle-draft {
+    border-color: #7b8790;
+    background: #f2f5f3;
+    color: #2f3b37;
+}
+
+.studio-lifecycle-preview {
+    border-color: #2563eb;
+    background: #eef5ff;
+    color: #1d4ed8;
+}
+
+.studio-lifecycle-saved {
+    border-color: #7c3aed;
+    background: #f6f1ff;
+    color: #5b21b6;
+}
+
+.studio-lifecycle-published {
+    border-color: #15803d;
+    background: #edfdf4;
+    color: #166534;
+}
+
+.studio-workflow-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.studio-workflow-button,
+.studio-clarification-choice {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    min-height: 72px;
+    padding: 11px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #fbfdfc;
+    color: var(--honua-text);
+    font: inherit;
+    text-align: left;
+}
+
+.studio-workflow-button small,
+.studio-clarification-choice small,
+.studio-recent-list small,
+.studio-conversation-log small,
+.studio-provenance-list small,
+.studio-validation-list small,
+.studio-binding-list small {
+    color: var(--honua-muted);
+}
+
+.studio-workflow-button-active,
+.studio-workflow-button:hover,
+.studio-clarification-choice:hover {
+    border-color: var(--honua-accent);
+    background: #eef8f5;
+}
+
+.studio-recent-section,
+.studio-inspector-section,
+.studio-conversation-log {
+    margin-top: 22px;
+}
+
+.studio-recent-section h3,
+.studio-inspector-section h3,
+.studio-conversation-log h3,
+.studio-clarification-panel h3 {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+}
+
+.studio-recent-list,
+.studio-binding-list,
+.studio-warning-list,
+.studio-validation-list,
+.studio-conversation-log ol,
+.studio-provenance-list,
+.studio-compact-list {
+    display: grid;
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.studio-provenance-list {
+    list-style: decimal;
+    padding-left: 22px;
+}
+
+.studio-recent-list li,
+.studio-binding-list li,
+.studio-conversation-log li,
+.studio-provenance-list li {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.studio-recent-list li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    padding: 10px 0;
+    border-top: 1px solid var(--honua-border);
+}
+
+.studio-recent-list li > small {
+    grid-column: 1 / -1;
+}
+
+.studio-recent-list span {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.studio-prompt-label {
+    display: block;
+    margin-top: 16px;
+    font-weight: 800;
+}
+
+.studio-prompt-input {
+    width: 100%;
+    min-height: 132px;
+    margin-top: 8px;
+    padding: 12px;
+    resize: vertical;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #fbfdfc;
+    color: var(--honua-text);
+    font: inherit;
+    line-height: 1.45;
+}
+
+.studio-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.studio-clarification-panel {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px solid #d97706;
+    border-radius: 8px;
+    background: #fff8ed;
+}
+
+.studio-clarification-question {
+    margin: 14px 0 0;
+    padding: 0;
+    border: 0;
+}
+
+.studio-clarification-question legend {
+    font-weight: 900;
+}
+
+.studio-clarification-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+}
+
+.studio-preview-stage {
+    margin-top: 16px;
+    overflow: hidden;
+}
+
+.studio-preview-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid currentColor;
+}
+
+.studio-preview-canvas {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.9fr) minmax(180px, 1fr);
+    gap: 14px;
+    min-height: 240px;
+    padding: 16px;
+    background: #fbfdfc;
+    color: var(--honua-text);
+}
+
+.studio-preview-map {
+    position: relative;
+    min-height: 208px;
+    overflow: hidden;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background:
+        linear-gradient(90deg, rgb(23 33 29 / 7%) 1px, transparent 1px),
+        linear-gradient(rgb(23 33 29 / 7%) 1px, transparent 1px),
+        #edf7f5;
+    background-size: 34px 34px;
+}
+
+.studio-preview-map span {
+    position: absolute;
+    display: block;
+    border-radius: 999px;
+    background: #0f766e;
+    box-shadow: 0 0 0 5px rgb(15 118 110 / 18%);
+}
+
+.studio-preview-map span:nth-child(1) {
+    width: 16px;
+    height: 16px;
+    left: 18%;
+    top: 28%;
+}
+
+.studio-preview-map span:nth-child(2) {
+    width: 22px;
+    height: 22px;
+    left: 58%;
+    top: 24%;
+}
+
+.studio-preview-map span:nth-child(3) {
+    width: 12px;
+    height: 12px;
+    left: 45%;
+    top: 62%;
+}
+
+.studio-preview-map span:nth-child(4) {
+    width: 18px;
+    height: 18px;
+    left: 76%;
+    top: 68%;
+}
+
+.studio-preview-details {
+    display: grid;
+    align-content: center;
+    gap: 10px;
+}
+
+.studio-package-definition-list {
+    grid-template-columns: minmax(92px, 0.35fr) 1fr;
+}
+
+.studio-binding-list li,
+.studio-warning-list li,
+.studio-validation-list li {
+    padding: 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #fbfdfc;
+}
+
+.studio-warning-list {
+    margin-bottom: 10px;
+}
+
+.studio-warning-list li {
+    border-color: #d97706;
+    background: #fff8ed;
+}
+
+.studio-warning-list span {
+    display: block;
+    margin-top: 4px;
+}
+
+.studio-validation-list li {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 10px;
+}
+
+.studio-validation-list li > span {
+    align-self: start;
+    border-radius: 999px;
+    padding: 4px 7px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-align: center;
+}
+
+.studio-validation-blocker > span {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.studio-validation-warning > span {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.studio-validation-passed > span {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.studio-validation-info > span {
+    background: #e0f2fe;
+    color: #075985;
+}
+
 @media (max-width: 760px) {
     .console-shell {
         grid-template-columns: 1fr;
@@ -296,5 +685,38 @@ p {
 
     .console-event-list small {
         grid-column: auto;
+    }
+
+    .studio-page {
+        width: min(100vw - 28px, 720px);
+    }
+
+    .studio-page-heading,
+    .studio-shell,
+    .studio-preview-canvas {
+        grid-template-columns: 1fr;
+    }
+
+    .studio-shell {
+        grid-template-areas:
+            "workflow"
+            "prompt"
+            "preview"
+            "inspector";
+    }
+
+    .studio-lifecycle-rail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .studio-workflow-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .studio-preview-toolbar,
+    .studio-recent-list li,
+    .studio-validation-list li {
+        display: grid;
+        grid-template-columns: 1fr;
     }
 }
