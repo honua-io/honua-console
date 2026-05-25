@@ -4,8 +4,8 @@
 // One automated command (honua-console#9 AC1) that drives the cross-surface
 // chain: publish -> catalog -> Studio -> share/embed. The command runs
 // against the single deployable artifact (AC2) by fetching `/version.json`
-// for deployed origins, or by reading local `dist/version.json` with a
-// fixture fallback for offline runs. Every scenario step is tagged with
+// for deployed origins, or by reading local published artifact metadata
+// with a fixture fallback for offline runs. Every scenario step is tagged with
 // its owning layer; a failure prints a human-readable triage line that
 // points directly at the responsible repo (AC3). Evidence is written as
 // JSON containing URLs, item/package IDs, and contract versions (AC4).

@@ -51,7 +51,7 @@ export const SCENARIO_STEPS = [
     id: "devops/build-artifact",
     owningLayer: "devops",
     description:
-      "Verify the single deployable artifact metadata (dist/version.json) declares name=honua-console, the four areas, and the legacy block.",
+      "Verify the single deployable artifact metadata (version.json) declares name=honua-console, the four areas, and the legacy block.",
     async run(ctx) {
       const { metadata, source, path, contract } = await loadBuildArtifact({
         repoRoot: ctx.repoRoot,

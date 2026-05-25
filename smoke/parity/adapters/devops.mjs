@@ -7,13 +7,13 @@
 //     "looks deployed" evidence file against an unreachable artifact. This
 //     is the path CI uses when `--origin "$PREVIEW_ORIGIN"` is passed.
 //   - Local/offline mode (originUrl host is loopback, or no origin given):
-//     prefer `dist/version.json` (honua-console#8 writer); when absent, fall
-//     back to the committed fixture under
-//     `smoke/parity/fixtures/dist-version.json`. The fallback is reported
+//     prefer the local published artifact metadata; when absent, fall back
+//     to the committed fixture under
+//     `smoke/parity/fixtures/version.json`. The fallback is reported
 //     as `source: "fixture"` in evidence so a reviewer can tell the
 //     placeholder run from a real artifact verification.
 //
-// The evidence `buildArtifact.source` is `"origin"`, `"dist"`, or
+// The evidence `buildArtifact.source` is `"origin"`, `"artifact"`, or
 // `"fixture"`; downstream tooling can refuse to gate on `"fixture"`.
 
 import { readFile, stat } from "node:fs/promises";
@@ -90,7 +90,13 @@ async function fetchOriginVersion({ originUrl, fetchImpl }) {
   return { parsed, path: target };
 }
 
-export async function loadBuildArtifact({ repoRoot, originUrl, distPath, fixturePath, fetchImpl = globalThis.fetch } = {}) {
+export async function loadBuildArtifact({
+  repoRoot,
+  originUrl,
+  artifactPath,
+  fixturePath,
+  fetchImpl = globalThis.fetch,
+} = {}) {
   if (!repoRoot) throw new Error("loadBuildArtifact requires repoRoot");
 
   // Deployed-origin path: the AC2 promise is that the smoke runs against
@@ -111,12 +117,12 @@ export async function loadBuildArtifact({ repoRoot, originUrl, distPath, fixture
     return { metadata: parsed, source: "origin", path, contract: findContract("build-artifact") };
   }
 
-  const dist = distPath ?? resolve(repoRoot, "dist/version.json");
-  const fixture = fixturePath ?? resolve(repoRoot, "smoke/parity/fixtures/dist-version.json");
+  const artifact = artifactPath ?? resolve(repoRoot, "artifacts/honua-console-web/version.json");
+  const fixture = fixturePath ?? resolve(repoRoot, "smoke/parity/fixtures/version.json");
 
-  let source = "dist";
-  let path = dist;
-  if (!(await exists(dist))) {
+  let source = "artifact";
+  let path = artifact;
+  if (!(await exists(artifact))) {
     source = "fixture";
     path = fixture;
   }

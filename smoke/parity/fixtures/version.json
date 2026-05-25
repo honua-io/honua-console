@@ -9,5 +9,5 @@
     "portal": "active",
     "admin": "active"
   },
-  "areas": ["studio", "catalog", "share", "operate"]
+  "areas": ["studio", "catalog", "operate", "share"]
 }

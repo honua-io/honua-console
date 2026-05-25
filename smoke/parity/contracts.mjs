@@ -67,7 +67,7 @@ export const CONTRACT_VERSIONS = Object.freeze([
     version: "v1",
     owningLayer: OWNING_LAYERS.devops.id,
     sourceRepo: "honua-console",
-    note: "dist/version.json shape committed by honua-console#8 and consumed by devops promotion.",
+    note: "version.json shape emitted by the Blazor Console artifact and consumed by devops promotion.",
   }),
 ]);
 

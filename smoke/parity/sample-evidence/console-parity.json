@@ -5,7 +5,7 @@
   "repoRoot": "/home/makani/worktrees/honua-console/honua-console-38",
   "buildArtifact": {
     "source": "fixture",
-    "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/dist-version.json",
+    "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/version.json",
     "name": "honua-console",
     "version": "0.1.0",
     "commit": "0000000000000000000000000000000000000000",
@@ -29,7 +29,7 @@
       "version": "v1",
       "owningLayer": "devops",
       "sourceRepo": "honua-console",
-      "note": "dist/version.json shape committed by honua-console#8 and consumed by devops promotion."
+      "note": "version.json shape emitted by the Blazor Console artifact and consumed by devops promotion."
     },
     {
       "name": "publish-handoff",
@@ -103,11 +103,11 @@
       "owningLayer": "devops",
       "owningLayerLabel": "Devops / single deployable artifact",
       "status": "ok",
-      "durationMs": 2,
-      "description": "Verify the single deployable artifact metadata (dist/version.json) declares name=honua-console, the four areas, and the legacy block.",
+      "durationMs": 1,
+      "description": "Verify the single deployable artifact metadata (version.json) declares name=honua-console, the four areas, and the legacy block.",
       "evidence": {
         "source": "fixture",
-        "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/dist-version.json",
+        "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/version.json",
         "version": "0.1.0",
         "commit": "000000000000",
         "ref": "feature/honua-console-9",
