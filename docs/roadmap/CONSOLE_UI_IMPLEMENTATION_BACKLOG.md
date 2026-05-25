@@ -930,6 +930,8 @@ Acceptance:
 
 Parent: `honua-console#26`
 
+Status: implemented by `honua-console#44` for the shared Blazor shell and native core. Server trust validation binds to honua-server#1171 through the temporary `Honua.Console.Contracts` shim until `honua-sdk-dotnet#166` is available to `honua-console#7`.
+
 Design refs:
 
 - `console-canvas/screens-native-aidevops.jsx` (`NativeHostFirstRun`, `NativeHostProfiles`)
@@ -941,16 +943,19 @@ Build:
 - Multi-environment profile list, connect/disconnect, last-seen, diagnostics.
 - Transport indicators for browser HTTP, browser realtime, native gRPC, native mTLS.
 - Certificate selection/status/warning flows.
+- Server-bound client-certificate validation, trust-on-first-use server fingerprint pinning, and acknowledge/revalidate actions.
 
 Backend dependencies:
 
-- `honua-server#1171`.
-- Native capability manifest and trust profile contract.
+- `honua-server#1171` client-certificate validation endpoint.
+- `honua-sdk-dotnet#166` environment/trust projections; temporarily mirrored in `Honua.Console.Contracts`.
 
 Acceptance:
 
 - Web Console renders native-only capabilities as unsupported without taking a native dependency.
 - Certificate changes block connection until acknowledged or revalidated.
+- Environment profiles represent multiple managed servers with profile-scoped trust/session state.
+- mTLS/trust behavior is asserted in the opt-in Testcontainers lane (`tests/Honua.Console.IntegrationTests`, `scripts/integration-trust-check.sh`).
 
 ## Filed GitHub Issues
 

@@ -79,6 +79,7 @@ This backlog intentionally separates three decisions:
 ### P2 Native Console Work
 
 - [honua-console#26](https://github.com/honua-io/honua-console/issues/26): Optional MAUI Blazor Hybrid native Console host.
+- [honua-console#44](https://github.com/honua-io/honua-console/issues/44): Native environment profiles, host-capability fallbacks, trust diagnostics, native gRPC indicators, mTLS certificate references, and server-bound client-certificate validation. IA/contract: [Console Route Map](../console-route-map.md) §6.1 and [Optional MAUI Blazor Hybrid Host](../native/MAUI_BLAZOR_HOST.md).
 
 ### Cleanup
 
@@ -116,7 +117,7 @@ This backlog intentionally separates three decisions:
 - [honua-server#1168](https://github.com/honua-io/honua-server/issues/1168): Console Operate observability event query API for telemetry logs alerts and investigations.
 - [honua-server#1169](https://github.com/honua-io/honua-server/issues/1169): Realtime alert rule and geofence configuration APIs for Console Operate.
 - [honua-server#1170](https://github.com/honua-io/honua-server/issues/1170): Job runner observability API for Console job viewer.
-- [honua-server#1171](https://github.com/honua-io/honua-server/issues/1171): Native Console mTLS client authentication and multi-environment trust profiles.
+- [honua-server#1171](https://github.com/honua-io/honua-server/issues/1171): Native Console mTLS client authentication and multi-environment trust profiles; consumed by `honua-console#44` through `POST /api/v1/admin/security/client-certificates/validate`.
 - [honua-server#371](https://github.com/honua-io/honua-server/issues/371): Versioned editing named versions reconcile/post and multi-user concurrent editing.
 - [honua-server#393](https://github.com/honua-io/honua-server/issues/393): Geofencing and spatial alerts event triggers on feature entry exit and threshold breach.
 - [honua-server#339](https://github.com/honua-io/honua-server/issues/339): Real-time feature streaming WebSocket/SSE subscriptions with spatial filters.

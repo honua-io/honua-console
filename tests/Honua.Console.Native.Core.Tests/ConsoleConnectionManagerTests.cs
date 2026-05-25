@@ -22,6 +22,7 @@ public sealed class ConsoleConnectionManagerTests
 
         Assert.Equal(ConsoleConnectionStatus.Connected, outcome.Status);
         Assert.True(harness.Manager.IsConnected("dev-east"));
+        Assert.False(outcome.UsesMutualTls);
 
         var state = await harness.Store.GetStateAsync("dev-east");
         Assert.Equal("SERVER-AAA", state?.PinnedServerFingerprint);
@@ -42,9 +43,27 @@ public sealed class ConsoleConnectionManagerTests
 
         Assert.Equal(ConsoleConnectionStatus.Connected, outcome.Status);
         Assert.Equal(HonuaCertificateValidationStatus.Ready, outcome.Trust.Status);
+        Assert.True(outcome.UsesMutualTls);
 
         var state = await harness.Store.GetStateAsync("prod-west");
         Assert.Equal(NativeServerTrust.ComputeSha256Thumbprint(certificate), state?.PinnedClientCertificateThumbprint);
+    }
+
+    [Fact]
+    public async Task Connect_NonMtlsHttpsProfile_WhenServerFingerprintCannotBeObserved_ReportsUnreachable()
+    {
+        var harness = new Harness();
+        harness.Probe.Fingerprint = null;
+        await harness.Store.UpsertProfileAsync(NonMtlsProfile());
+
+        var outcome = await harness.Manager.ConnectAsync("dev-east");
+
+        Assert.Equal(ConsoleConnectionStatus.Unreachable, outcome.Status);
+        Assert.False(harness.Manager.IsConnected("dev-east"));
+        var state = await harness.Store.GetStateAsync("dev-east");
+        Assert.Null(state?.LastConnectedAt);
+        Assert.False(state!.TrustBlocked);
+        Assert.Equal(string.Empty, state.PinnedServerFingerprint);
     }
 
     [Fact]
@@ -113,6 +132,42 @@ public sealed class ConsoleConnectionManagerTests
         Assert.Equal(ConsoleConnectionStatus.Blocked, outcome.Status);
         Assert.Equal(HonuaCertificateValidationStatus.Missing, outcome.Trust.Status);
         Assert.False(harness.Manager.IsConnected("prod-west"));
+    }
+
+    [Fact]
+    public async Task Connect_MtlsProfileWithBadCertificateFileReference_PersistsMissingTrustState()
+    {
+        var store = new JsonConsoleEnvironmentProfileStore(new InMemoryConsoleProfileStorage());
+        var profile = MtlsProfile() with
+        {
+            ClientCertificate = new ConsoleClientCertificateBinding
+            {
+                Enabled = true,
+                Reference = new ConsoleClientCertificateReference
+                {
+                    Kind = ConsoleClientCertificateReferenceKind.FilePath,
+                    Value = Path.Combine(Path.GetTempPath(), $"honua-console-missing-client-cert-{Guid.NewGuid():N}.pfx")
+                }
+            }
+        };
+        await store.UpsertProfileAsync(profile);
+
+        var resolver = new StoreClientCertificateResolver(new InMemoryNativeSecretStore());
+        var manager = new ConsoleConnectionManager(
+            store,
+            resolver,
+            new FakeServerProbe { Fingerprint = "SERVER-AAA" },
+            new FakeValidationClient(),
+            new ConsoleTrustEvaluator(),
+            new NativeHonuaConnectionFactory(new NullTokenProvider(), resolver));
+
+        var outcome = await manager.ConnectAsync("prod-west");
+
+        Assert.Equal(ConsoleConnectionStatus.Blocked, outcome.Status);
+        Assert.Equal(HonuaCertificateValidationStatus.Missing, outcome.Trust.Status);
+        var state = await store.GetStateAsync("prod-west");
+        Assert.True(state!.TrustBlocked);
+        Assert.Equal(ConsoleCertificateValidationCodes.Missing, state.Trust?.ReasonCode);
     }
 
     [Fact]

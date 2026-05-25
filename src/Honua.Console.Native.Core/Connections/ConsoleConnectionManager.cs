@@ -89,7 +89,7 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
             {
                 Status = ConsoleConnectionStatus.Unreachable,
                 Trust = evaluation.Trust,
-                Message = "The server could not be reached to validate the client certificate."
+                Message = "The server could not be reached to validate trust."
             };
         }
 
@@ -101,6 +101,8 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
         {
             Status = ConsoleConnectionStatus.Connected,
             Trust = evaluation.Trust,
+            UsesMutualTls = profile.ClientCertificate.Enabled
+                && !string.IsNullOrEmpty(evaluation.ClientThumbprintToPin),
             Message = "Connected."
         };
     }
@@ -189,7 +191,7 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
             {
                 Status = ConsoleConnectionStatus.Unreachable,
                 Trust = evaluation.Trust,
-                Message = "The server could not be reached to validate the client certificate."
+                Message = "The server could not be reached to validate trust."
             };
         }
 
@@ -220,7 +222,11 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
                 .ConfigureAwait(false);
 
             ConsoleClientCertificateValidationResult? validation = null;
-            var unreachable = false;
+            var unreachable = string.Equals(
+                    profile.ServerBaseUri.Scheme,
+                    Uri.UriSchemeHttps,
+                    StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrEmpty(observedFingerprint);
             var pinnedServer = string.IsNullOrEmpty(state.PinnedServerFingerprint)
                 ? null
                 : state.PinnedServerFingerprint;
@@ -230,6 +236,7 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
 
             if (profile.ClientCertificate.Enabled
                 && certificate is not null
+                && !unreachable
                 && (!serverChanged || acknowledgeServerCertificate))
             {
                 var trustedFingerprint = acknowledgeServerCertificate && !string.IsNullOrEmpty(observedFingerprint)

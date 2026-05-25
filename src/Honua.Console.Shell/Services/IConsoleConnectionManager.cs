@@ -41,6 +41,9 @@ public sealed record ConsoleConnectionOutcome
     /// <summary>Sanitized operator-facing message.</summary>
     public string Message { get; init; } = string.Empty;
 
+    /// <summary>True when the established native connection attached a client certificate.</summary>
+    public bool UsesMutualTls { get; init; }
+
     public bool IsConnected => Status == ConsoleConnectionStatus.Connected;
 
     public bool IsBlocked => Status == ConsoleConnectionStatus.Blocked;

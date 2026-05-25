@@ -91,6 +91,31 @@ Certificate references are environment-local. File path references load a PKCS#1
 
 Private keys are never persisted; only certificate references and the sanitized `HonuaEnvironmentTrustState` (status, server fingerprint, issuer summary, reason code, sanitized message) are stored. Server-side mTLS policy, trust registration, revocation, and capability advertisement are honua-server#1171 (closed) and remain Scope Out of the Console UI work.
 
+### Server validation wire contract
+
+Until `honua-sdk-dotnet#166` ships the trust client, Console keeps the honua-server#1171 request/response shapes behind `src/Honua.Console.Contracts/EnvironmentTrustShims.cs`. No feature page or native service should redeclare these DTOs.
+
+The native validation client sends:
+
+| Field | Contract |
+| --- | --- |
+| `certificate` | Public client certificate only, exported as PEM. Private keys are never transmitted. |
+| `encoding` | `pem` today; the shim also allows the server-supported `urlEncodedPem` and `base64Der` values. |
+| `profileId` | Optional expected server trust profile id from `ConsoleClientCertificateBinding.TrustProfileId`. |
+
+The server returns the standard Honua envelope with `success`, `data`, and optional `message`. The `data` payload is projected as:
+
+| Field | Contract |
+| --- | --- |
+| `valid` | `true` when the certificate matches a configured trust profile and mapping. |
+| `code` | Stable validation code such as `success`, `client_certificate_untrusted_issuer`, `client_certificate_wrong_environment`, or `client_certificate_expired`. |
+| `detail` | Sanitized operator-facing detail. |
+| `principalId`, `trustProfileId`, `mappingId`, `environmentId` | Optional matched server identities. |
+| `fingerprintSha256` | Public certificate fingerprint reported by the server. |
+| `daysUntilExpiry` | Optional expiry horizon used to surface `ExpiringSoon`. |
+
+Console maps `success` to `Ready` or `ExpiringSoon`; missing or unresolved certificates to `Missing`; `client_certificate_expired` to `Expired`; `client_certificate_wrong_environment` to `WrongEnvironment`; untrusted issuer/chain/not-yet-valid responses to `Untrusted`; and revoked, unmapped, invalid EKU, forwarding, or insufficient-RBAC responses to `Rejected`. `Untrusted`, `Rejected`, `WrongEnvironment`, `Expired`, and `Missing` block native connection creation. `ExpiringSoon` is a warning and does not block.
+
 ## Streaming Proof Contract
 
 The native streaming seam is the shared `IConsoleNativeStreamingProof` interface:
@@ -112,7 +137,7 @@ The native streaming seam is the shared `IConsoleNativeStreamingProof` interface
 | `ResumeToken` | Profile-scoped resume token saved after the stream completes. |
 | `Timestamp` | Event timestamp. |
 
-`NativeGrpcTelemetryStreamingProof` returns no events when `TransportCapabilities.NativeGrpc` is disabled. For enabled profiles, the deterministic fixture emits three events and the route saves the final resume token, last route `/operate/native-stream`, connection timestamp, proof name, and final transport in profile state. This is CI/local smoke evidence for native host wiring until shared SDK/server job or telemetry streams are available.
+`NativeGrpcTelemetryStreamingProof` returns no events when `TransportCapabilities.NativeGrpc` is disabled or the connection manager reports a blocked/unreachable trust state. For enabled profiles, the deterministic fixture connects through `IConsoleConnectionManager`, emits three events only after the trust gate succeeds, and the route saves the final resume token, last route `/operate/native-stream`, connection timestamp, proof name, and final transport in profile state without clearing existing trust pins. This is CI/local smoke evidence for native host wiring until shared SDK/server job or telemetry streams are available.
 
 ## Capability Matrix
 
