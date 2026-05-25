@@ -162,6 +162,27 @@ public sealed record OperateAiAdvisory(
     public bool IsEvidenceLinked => EvidenceLinks.Count > 0;
 }
 
+public sealed record OperateEventFilter(
+    string EnvironmentId,
+    string EventType,
+    string CorrelationId)
+{
+    public static OperateEventFilter Empty { get; } = new(string.Empty, string.Empty, string.Empty);
+
+    public bool Matches(OperateEventRow item) =>
+        MatchesOptional(EnvironmentId, item.EnvironmentId)
+        && MatchesOptional(EventType, item.EventType)
+        && MatchesContains(CorrelationId, item.CorrelationId);
+
+    private static bool MatchesOptional(string filterValue, string value) =>
+        string.IsNullOrWhiteSpace(filterValue)
+        || string.Equals(filterValue.Trim(), value, StringComparison.OrdinalIgnoreCase);
+
+    private static bool MatchesContains(string filterValue, string value) =>
+        string.IsNullOrWhiteSpace(filterValue)
+        || value.Contains(filterValue.Trim(), StringComparison.OrdinalIgnoreCase);
+}
+
 public sealed record OperateEventRow(
     string EventId,
     string EventTime,
@@ -265,6 +286,11 @@ public sealed record OperateJobRun(
     IReadOnlyList<OperateRelatedObject> RelatedObjects)
 {
     public string DetailHref => OperateObservabilityRoutes.JobDetail(JobRunId);
+}
+
+public static class OperateActionPresentation
+{
+    public const string ActionApiUnavailableReason = "Action unavailable until the Operate action API is connected.";
 }
 
 public sealed record OperateInvestigation(

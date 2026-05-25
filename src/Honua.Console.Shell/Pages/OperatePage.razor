@@ -161,7 +161,7 @@
             </div>
         </div>
 
-        <form class="console-panel operate-filter-bar" aria-label="Operate evidence filters">
+        <form class="console-panel operate-filter-bar" aria-label="Operate evidence filters" @onsubmit="ApplyEventFilters" @onsubmit:preventDefault="true">
             <label>
                 <span>Time range</span>
                 <select>
@@ -170,29 +170,29 @@
             </label>
             <label>
                 <span>Environment</span>
-                <select>
-                    <option>All environments</option>
+                <select @bind="_pendingEnvironmentFilter">
+                    <option value="">All environments</option>
                     @foreach (var environment in Snapshot.Environments)
                     {
-                        <option>@environment.EnvironmentId</option>
+                        <option value="@environment.EnvironmentId">@environment.EnvironmentId</option>
                     }
                 </select>
             </label>
             <label>
                 <span>Event type</span>
-                <select>
-                    <option>All types</option>
+                <select @bind="_pendingEventTypeFilter">
+                    <option value="">All types</option>
                     @foreach (var type in Snapshot.Events.Select(item => item.EventType).Distinct(StringComparer.OrdinalIgnoreCase))
                     {
-                        <option>@type</option>
+                        <option value="@type">@type</option>
                     }
                 </select>
             </label>
             <label>
                 <span>Correlation id</span>
-                <input value="@SelectedEvent.CorrelationId" />
+                <input @bind="_pendingCorrelationFilter" @bind:event="oninput" />
             </label>
-            <button class="console-button" type="button">Apply</button>
+            <button class="console-button" type="submit">Apply</button>
         </form>
 
         <div class="operate-detail-grid">
@@ -209,9 +209,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var item in Snapshot.Events)
+                            @foreach (var item in FilteredEvents)
                             {
-                                <tr class="@(item.EventId == SelectedEvent.EventId ? "operate-selected-row" : null)">
+                                <tr class="@(item.EventId == SelectedFilteredEvent?.EventId ? "operate-selected-row" : null)">
                                     <td>@item.EventTime</td>
                                     <td>@item.EventType</td>
                                     <td><span class="console-status @item.SeverityStatus.CssClass">@item.SeverityStatus.Label</span></td>
@@ -224,7 +224,18 @@
                 </div>
             </div>
 
-            <EventDetailPanel Event="SelectedEvent" />
+            @if (SelectedFilteredEvent is { } selectedFilteredEvent)
+            {
+                <EventDetailPanel Event="selectedFilteredEvent" />
+            }
+            else
+            {
+                <aside class="console-panel operate-detail-panel" aria-labelledby="event-detail-heading">
+                    <p class="console-kicker">Event detail</p>
+                    <h3 id="event-detail-heading">No matching events</h3>
+                    <p class="console-muted">Adjust the evidence filters to inspect raw event detail.</p>
+                </aside>
+            }
         </div>
     </section>
 
@@ -322,7 +333,7 @@
                                 <td>@rule.DeliverySummary</td>
                                 <td>@rule.ActiveIncidentCount active, @rule.DeliveryFailureCount delivery failures</td>
                                 <td>
-                                    <button class="console-button" type="button" disabled="@(!rule.CanEnable)" title="@rule.EnableBlockReason">
+                                    <button class="console-button" type="button" disabled title="@RuleEnableTitle(rule)">
                                         @(rule.Enabled ? "Enabled" : "Enable")
                                     </button>
                                 </td>
@@ -438,9 +449,34 @@
 
     private static OperateObservabilitySnapshot Snapshot => OperateObservabilityFixture.Default;
 
-    private OperateEventRow SelectedEvent => Snapshot.SelectedEvent(SelectedEventId);
+    private string _pendingEnvironmentFilter = string.Empty;
+
+    private string _pendingEventTypeFilter = string.Empty;
+
+    private string _pendingCorrelationFilter = string.Empty;
+
+    private OperateEventFilter _activeEventFilter = OperateEventFilter.Empty;
+
+    private OperateEventRow SelectedEventFromRoute => Snapshot.SelectedEvent(SelectedEventId);
+
+    private IReadOnlyList<OperateEventRow> FilteredEvents =>
+        Snapshot.Events.Where(_activeEventFilter.Matches).ToArray();
+
+    private OperateEventRow? SelectedFilteredEvent =>
+        FilteredEvents.FirstOrDefault(item => item.EventId == SelectedEventFromRoute.EventId)
+        ?? FilteredEvents.FirstOrDefault();
 
     private OperateAlertRecord SelectedAlert => Snapshot.SelectedAlert(SelectedAlertId);
 
     private OperateJobRun SelectedJob => Snapshot.SelectedJob(SelectedJobRunId);
+
+    private void ApplyEventFilters()
+    {
+        _activeEventFilter = new(_pendingEnvironmentFilter, _pendingEventTypeFilter, _pendingCorrelationFilter);
+    }
+
+    private static string RuleEnableTitle(OperateAlertRule rule) =>
+        rule.Enabled ? "Already enabled"
+        : rule.CanEnable ? OperateActionPresentation.ActionApiUnavailableReason
+        : rule.EnableBlockReason;
 }

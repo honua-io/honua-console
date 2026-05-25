@@ -63,7 +63,7 @@
         <div class="operate-action-row">
             @foreach (var action in Job.AllowedActions)
             {
-                <button class="console-button" type="button" disabled="@(!action.IsAllowed)" title="@action.Reason">@action.Label</button>
+                <button class="console-button" type="button" disabled title="@JobActionTitle(action)">@action.Label</button>
             }
         </div>
     </section>
@@ -72,4 +72,7 @@
 @code {
     [Parameter]
     public OperateJobRun Job { get; set; } = OperateObservabilityFixture.Default.Jobs.First();
+
+    private static string JobActionTitle(OperateJobAction action) =>
+        action.IsAllowed ? OperateActionPresentation.ActionApiUnavailableReason : action.Reason;
 }

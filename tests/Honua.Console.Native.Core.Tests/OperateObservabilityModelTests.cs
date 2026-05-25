@@ -66,10 +66,12 @@ public sealed class OperateObservabilityModelTests
     {
         var snapshot = OperateObservabilityFixture.Default;
         var invalidRule = Assert.Single(snapshot.Rules, rule => rule.Status.Label == "invalid");
+        var enabledRules = snapshot.Rules.Where(rule => rule.Enabled).ToArray();
 
         Assert.False(invalidRule.IsValid);
         Assert.False(invalidRule.CanEnable);
         Assert.NotEmpty(invalidRule.ValidationMessages);
+        Assert.All(enabledRules, rule => Assert.False(rule.CanEnable));
 
         Assert.Contains(snapshot.Rules, rule => rule.Status.Label == "disabled" && rule.IsValid && rule.CanEnable);
     }
@@ -98,5 +100,67 @@ public sealed class OperateObservabilityModelTests
         {
             Assert.Contains(expectedType, eventTypes);
         }
+    }
+
+    [Fact]
+    public void EventFilterAppliesEnvironmentTypeAndCorrelation()
+    {
+        var snapshot = OperateObservabilityFixture.Default;
+        var filtered = snapshot.Events
+            .Where(new OperateEventFilter("prod", "job", "rel-20260524").Matches)
+            .ToArray();
+
+        var eventRow = Assert.Single(filtered);
+        Assert.Equal("evt-job-301", eventRow.EventId);
+        Assert.All(filtered, item =>
+        {
+            Assert.Equal("prod", item.EnvironmentId);
+            Assert.Equal("job", item.EventType);
+            Assert.Contains("rel-20260524", item.CorrelationId, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
+    public void EmptyEventFilterPreservesTheFullTimeline()
+    {
+        var snapshot = OperateObservabilityFixture.Default;
+
+        Assert.Equal(snapshot.Events.Count, snapshot.Events.Count(OperateEventFilter.Empty.Matches));
+    }
+
+    [Fact]
+    public void JobActionsFollowRetryCancelAndPromoteStateRules()
+    {
+        var snapshot = OperateObservabilityFixture.Default;
+
+        AssertAction(snapshot, "job-publish-001", "Retry", isAllowed: true);
+        AssertAction(snapshot, "job-publish-001", "Cancel", isAllowed: false);
+        AssertAction(snapshot, "job-publish-001", "Promote", isAllowed: false);
+
+        AssertAction(snapshot, "job-gitops-001", "Retry", isAllowed: false);
+        AssertAction(snapshot, "job-gitops-001", "Cancel", isAllowed: true);
+        AssertAction(snapshot, "job-gitops-001", "Promote", isAllowed: true);
+
+        AssertAction(snapshot, "job-alert-001", "Retry", isAllowed: false);
+        AssertAction(snapshot, "job-alert-001", "Cancel", isAllowed: true);
+        AssertAction(snapshot, "job-alert-001", "Promote", isAllowed: false);
+
+        Assert.All(snapshot.Jobs.Where(job => job.Status.Label is "succeeded" or "blocked"), job =>
+        {
+            Assert.All(job.AllowedActions, action => Assert.False(action.IsAllowed));
+        });
+    }
+
+    private static void AssertAction(
+        OperateObservabilitySnapshot snapshot,
+        string jobRunId,
+        string label,
+        bool isAllowed)
+    {
+        var job = Assert.Single(snapshot.Jobs, item => item.JobRunId == jobRunId);
+        var action = Assert.Single(job.AllowedActions, item => item.Label == label);
+
+        Assert.Equal(isAllowed, action.IsAllowed);
+        Assert.NotEmpty(action.Reason);
     }
 }
