@@ -76,7 +76,10 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/license               License + entitlement workspace
 /operate/observability         Top-level observability tile
 /operate/events/:eventId       Event timeline detail deep link
+/operate/alerts                Alerts list (firing, acknowledged, suppressed, resolved)
 /operate/alerts/:alertId       Alert evidence detail deep link
+/operate/alerts/rules          Realtime/geofence rule list
+/operate/alerts/rules/:ruleId  Rule detail and condition builder
 /operate/jobs/:jobRunId        Unified job-run detail deep link
 /operate/operations            Operations console
 /operate/control-center        Control center
@@ -90,7 +93,11 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)
 /operate/releases/:id          Release detail: proposal/semantic diff, environment matrix + drift, Git PR preview, CI/GitOps timeline, rollback readiness (bound to honua-server release package #1163 + release-operation lifecycle #1165)
-/operate/deploy                Deploy control
+/operate/deploy                Deploy control (GitOps metadata release)
+/operate/environments          Environment and fleet overview
+/operate/environments/:id      Environment detail (drift, fleet tasks)
+/operate/temporal              Temporal data viewer (capability-gated)
+/operate/sync                  Disconnected sync conflict review (capability-gated)
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
 /operate/events                Event evidence view (?jobId=<id>)
