@@ -152,7 +152,7 @@ Workflow smoke steps:
 | 2     | `console/studio-workflow-draft` | `console` | The editor can materialize a `workflow.package` draft with sources, transforms, sinks, parameters, schedule, worker profile, retry policy, failure edges, output schemas, and publication intent. |
 | 3     | `server/workflow-dry-run`       | `server`  | The server-owned dry-run response includes sample rows, logs, artifacts, and output schemas. |
 | 4     | `server/workflow-version-save`  | `server`  | The package is saved as a versioned workflow content item. |
-| 5     | `server/workflow-publish`       | `server`  | The publication uses a saved content version, queues a job-runner job, and exposes an invocation endpoint when parameter validation passes. |
+| 5     | `server/workflow-publish`       | `server`  | The publication uses a saved content version, queues a job-runner job, and exposes an invocation endpoint when requested and parameter validation passes. |
 | 6     | `console/operate-job-monitor`   | `console` | Dry-run and publish jobs deep-link to same-origin Operate job and event evidence. |
 
 The workflow smoke adds these contract names to evidence:
@@ -199,8 +199,8 @@ Response-contract notes worth keeping in sync with the registry:
 - `workflow-dry-run/v1` and queued `workflow-publication/v1` responses
   must carry Operate evidence URLs so a builder can move from Studio into
   job and event evidence without leaving the same Console origin. Blocked
-  process-endpoint publication responses carry parameter validation but no
-  job or Operate evidence URLs.
+  publication responses carry validation issues and parameter validation
+  but no job or Operate evidence URLs.
 
 The `Version` column is the exact string the registry emits into
 evidence. Some contracts intentionally report only the major family
@@ -231,12 +231,14 @@ real HTTP transport cannot silently accept a drifted payload:
   through `/operate/jobs/{jobId}` and `/operate/events?jobId={jobId}`.
 - **`workflow-publication/v1`** — Successful publication evidence contains
   `publicationId`, `contentItemId`, `versionId`, `mode`, `status`,
-  `jobId`, optional same-origin invocation endpoint, and per-parameter
-  validation. For `process-endpoint` mode, the invocation endpoint ends
-  in `/invoke` only when parameter validation passes; invalid endpoint
-  parameter contracts return `status="blocked"` with parameter validation
-  and without `publicationId`, `jobId`, Operate URLs, or an invocation
-  endpoint.
+  `jobId`, optional same-origin invocation endpoint, validation issues,
+  and per-parameter validation. An invocation endpoint is requested when
+  the mode is `process-endpoint` or the draft's explicit endpoint flag is
+  set, and the endpoint ends in `/invoke` only when parameter validation
+  passes.
+  Package validation errors return `status="blocked"` with validation
+  issues and parameter validation, and without `publicationId`, `jobId`,
+  job kind, Operate URLs, or an invocation endpoint.
 - **`publish-handoff/v1.1.0`** — The fixture at
   [`smoke/parity/fixtures/publish-handoff.json`](../../smoke/parity/fixtures/publish-handoff.json)
   matches every top-level required field in

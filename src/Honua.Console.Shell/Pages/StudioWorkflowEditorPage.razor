@@ -375,7 +375,7 @@
                     {
                         @if (IsBlockedPublish(_lastPublish))
                         {
-                            <p class="console-status">Publish blocked: parameter validation requires attention</p>
+                            <p class="console-status">Publish blocked: package validation requires attention</p>
                         }
                         <dl class="console-definition-list">
                             <dt>Status</dt>
@@ -397,6 +397,19 @@
                             <dt>Endpoint</dt>
                             <dd>@(_lastPublish.InvocationEndpoint ?? "not exposed")</dd>
                         </dl>
+                        @if (_lastPublish.ValidationIssues.Count > 0)
+                        {
+                            <ul class="workflow-compact-list">
+                                @foreach (var issue in _lastPublish.ValidationIssues)
+                                {
+                                    <li>
+                                        <span>@issue.Severity</span>
+                                        <strong>@issue.Scope</strong>
+                                        <small>@issue.Message</small>
+                                    </li>
+                                }
+                            </ul>
+                        }
                         @if (_lastPublish.ParameterValidation.Count > 0)
                         {
                             <ul class="workflow-compact-list">

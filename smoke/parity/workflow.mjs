@@ -242,6 +242,7 @@ export const WORKFLOW_SCENARIO_STEPS = [
       }));
       const publicationId = "pub-parcel-nightly-normalizer-002";
       const jobId = "job-publish-0002";
+      const validationIssues = [];
       const invocationEndpoint = `${ctx.originUrl}/api/workspaces/workspace-honua-demo/workflows/parcel-nightly-normalizer/invoke`;
       assertSameOrigin(ctx.originUrl, { invocationEndpoint });
       ctx.itemIds.workflowPublicationId = publicationId;
@@ -254,6 +255,7 @@ export const WORKFLOW_SCENARIO_STEPS = [
         status: "queued",
         jobId,
         invocationEndpoint,
+        validationIssues,
         parameterValidation,
       };
       return {

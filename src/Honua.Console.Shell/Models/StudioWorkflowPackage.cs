@@ -197,6 +197,7 @@ public sealed class StudioWorkflowPublishResult
     public string Status { get; set; } = "queued";
     public string Mode { get; set; } = StudioWorkflowContractValues.PublicationModeBatchWorkflow;
     public string? InvocationEndpoint { get; set; }
+    public IReadOnlyList<StudioWorkflowValidationIssue> ValidationIssues { get; set; } = [];
     public IReadOnlyList<StudioWorkflowParameterValidation> ParameterValidation { get; set; } = [];
     public string OperateJobUrl { get; set; } = string.Empty;
     public string OperateEventsUrl { get; set; } = string.Empty;

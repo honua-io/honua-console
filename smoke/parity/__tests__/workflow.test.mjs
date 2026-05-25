@@ -39,6 +39,7 @@ describe("Studio workflow smoke", () => {
     const publish = report.steps.find((step) => step.id === "server/workflow-publish");
     assert.equal(publish.evidence.status, "queued");
     assert.ok(publish.evidence.invocationEndpoint.endsWith("/invoke"));
+    assert.deepEqual(publish.evidence.validationIssues, []);
     assert.ok(publish.evidence.parameterValidation.every((parameter) => parameter.valid));
 
     for (const value of Object.values(report.urls)) {

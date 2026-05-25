@@ -121,7 +121,60 @@ public sealed class StudioWorkflowPackageClientTests
 
         Assert.Equal("blocked", publish.Status);
         Assert.Empty(publish.JobId);
+        Assert.Empty(publish.JobKind);
         Assert.Null(publish.InvocationEndpoint);
+        Assert.Contains(publish.ValidationIssues, issue => issue.Scope == "parameters" && issue.Severity == "error");
         Assert.Contains(publish.ParameterValidation, validation => !validation.Valid);
+    }
+
+    [Fact]
+    public async Task PublishBlocksScheduledJobWithoutCronBeforeQueueingOperateEvidence()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.PublicationIntent.Mode = StudioWorkflowContractValues.PublicationModeScheduledJob;
+        draft.Schedule.Cron = string.Empty;
+
+        var blocked = await client.PublishAsync(draft);
+
+        Assert.Equal("blocked", blocked.Status);
+        Assert.Empty(blocked.PublicationId);
+        Assert.Empty(blocked.JobId);
+        Assert.Empty(blocked.JobKind);
+        Assert.Empty(blocked.OperateJobUrl);
+        Assert.Empty(blocked.OperateEventsUrl);
+        Assert.Contains(blocked.ValidationIssues, issue =>
+            issue.Scope == "schedule" &&
+            issue.Severity == "error" &&
+            issue.Message.Contains("cron", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(draft.ValidationIssues, issue => issue.Scope == "schedule" && issue.Severity == "error");
+
+        draft.Schedule.Cron = "0 6 * * *";
+        var queued = await client.PublishAsync(draft);
+
+        Assert.Equal("queued", queued.Status);
+        Assert.Equal("job-publish-0001", queued.JobId);
+    }
+
+    [Fact]
+    public async Task PublishBlocksMissingOutputSchemaBeforeQueueingOperateEvidence()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.OutputSchemas.Clear();
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal("blocked", publish.Status);
+        Assert.Empty(publish.PublicationId);
+        Assert.Empty(publish.JobId);
+        Assert.Empty(publish.JobKind);
+        Assert.Empty(publish.OperateJobUrl);
+        Assert.Empty(publish.OperateEventsUrl);
+        Assert.Contains(publish.ValidationIssues, issue =>
+            issue.Scope == "output-schema" &&
+            issue.Severity == "error");
     }
 }

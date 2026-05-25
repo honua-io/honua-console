@@ -194,9 +194,10 @@ server boundary: dry-run returns `jobId`, `jobKind`, `status`, sample row
 count, logs, artifacts, output schemas, and Operate job/event URLs; save
 returns a versioned `workflow` content item. Queued publish responses
 return a publication id, content item/version ids, job id, publication
-mode, optional invocation endpoint, parameter validation, and Operate
-evidence links. Publish selects the current saved version when unchanged
-and saves unsaved package edits as a new version before queuing
-publication. Invalid process-endpoint parameter contracts return
-`status=blocked` with parameter validation and no job, Operate evidence
-URLs, or invocation endpoint.
+mode, optional invocation endpoint, validation issues, parameter
+validation, and Operate evidence links. Publish selects the current saved
+version when unchanged and saves unsaved package edits as a new version
+before queuing publication. Package validation errors, including missing
+scheduled cron, missing output schema, and invalid parameter contracts,
+return `status=blocked` with validation issues and no job, Operate
+evidence URLs, or invocation endpoint.

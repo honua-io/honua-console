@@ -182,16 +182,11 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
 
             var parameterValidation = ValidateParameters(prepared).ToArray();
             var endpointRequested = IsEndpointRequested(prepared.PublicationIntent);
-            if (endpointRequested && parameterValidation.Any(validation => !validation.Valid))
+            if (HasPackageValidationErrors(prepared) ||
+                (endpointRequested && parameterValidation.Any(validation => !validation.Valid)))
             {
-                return Task.FromResult(new StudioWorkflowPublishResult
-                {
-                    ContentItemId = prepared.ContentItemId,
-                    VersionId = prepared.CurrentVersionId,
-                    Mode = prepared.PublicationIntent.Mode,
-                    Status = "blocked",
-                    ParameterValidation = parameterValidation
-                });
+                draft.ValidationIssues = CloneList(prepared.ValidationIssues).ToList();
+                return Task.FromResult(CreateBlockedPublishResult(prepared, parameterValidation));
             }
 
             var jobId = NextJobId("publish");
@@ -210,6 +205,7 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
                 Status = "queued",
                 Mode = prepared.PublicationIntent.Mode,
                 InvocationEndpoint = endpoint,
+                ValidationIssues = CloneList(prepared.ValidationIssues),
                 ParameterValidation = parameterValidation,
                 OperateJobUrl = $"/operate/jobs/{jobId}",
                 OperateEventsUrl = $"/operate/events?jobId={jobId}"
@@ -436,6 +432,24 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
     private static bool IsEndpointRequested(StudioWorkflowPublicationIntent intent) =>
         intent.ExposeInvocationEndpoint ||
         intent.Mode == StudioWorkflowContractValues.PublicationModeProcessEndpoint;
+
+    private static bool HasPackageValidationErrors(StudioWorkflowPackageDraft draft) =>
+        draft.ValidationIssues.Any(issue =>
+            string.Equals(issue.Severity, "error", StringComparison.OrdinalIgnoreCase));
+
+    private static StudioWorkflowPublishResult CreateBlockedPublishResult(
+        StudioWorkflowPackageDraft draft,
+        IReadOnlyList<StudioWorkflowParameterValidation> parameterValidation) =>
+        new()
+        {
+            ContentItemId = draft.ContentItemId,
+            VersionId = draft.CurrentVersionId,
+            JobKind = string.Empty,
+            Mode = draft.PublicationIntent.Mode,
+            Status = "blocked",
+            ValidationIssues = CloneList(draft.ValidationIssues),
+            ParameterValidation = parameterValidation
+        };
 
     private static bool IsValidParameterType(string type) =>
         type is "string" or "date" or "number" or "boolean" or "geometry";
