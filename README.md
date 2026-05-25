@@ -192,10 +192,11 @@ replaceable `IStudioWorkflowPackageClient` adapter in
 The adapter response contract is intentionally shaped like the future
 server boundary: dry-run returns `jobId`, `jobKind`, `status`, sample row
 count, logs, artifacts, output schemas, and Operate job/event URLs; save
-returns a versioned `workflow` content item; publish returns a publication
-id, content item/version ids, job id, publication mode, optional
-invocation endpoint, parameter validation, and Operate evidence links.
-Publish selects the current saved version when unchanged and saves
-unsaved package edits as a new version before queuing publication.
-Invalid process-endpoint parameter contracts return a blocked publication
-without queuing a job.
+returns a versioned `workflow` content item. Queued publish responses
+return a publication id, content item/version ids, job id, publication
+mode, optional invocation endpoint, parameter validation, and Operate
+evidence links. Publish selects the current saved version when unchanged
+and saves unsaved package edits as a new version before queuing
+publication. Invalid process-endpoint parameter contracts return
+`status=blocked` with parameter validation and no job, Operate evidence
+URLs, or invocation endpoint.

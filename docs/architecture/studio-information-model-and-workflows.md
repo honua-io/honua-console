@@ -230,7 +230,7 @@ follows:
 | `CreateDraftAsync` / `GetDraftAsync` | `workflow.package/v1` draft | Returns draft identity, package/content metadata, graph nodes/edges, parameters, schedule, worker profile, retry policy, publication intent, output schemas, warnings, and validation issues. |
 | `SaveVersionAsync` | Content-version save | Returns `contentItemId`, `versionId`, `versionNumber`, `packageType=workflow.package`, `contentItemType=workflow`, a contract label, and validation issues. |
 | `DryRunAsync` | `workflow-dry-run/v1` job | Returns `jobId`, `jobKind=workflow_dry_run`, `status`, `sampleRows`, logs, artifacts, output schemas, `/operate/jobs/{jobId}`, and `/operate/events?jobId={jobId}`. |
-| `PublishAsync` | `workflow-publication/v1` | Selects the current saved version when the draft is unchanged, saves unsaved package edits as a new content version before publication, and returns `publicationId`, content item/version ids, `jobId`, `jobKind=batch_publication`, `status`, publication `mode`, optional `invocationEndpoint`, parameter validation, and Operate evidence links. |
+| `PublishAsync` | `workflow-publication/v1` | Selects the current saved version when the draft is unchanged and saves unsaved package edits as a new content version before publication. Queued responses return `publicationId`, content item/version ids, `jobId`, `jobKind=batch_publication`, `status`, publication `mode`, optional `invocationEndpoint`, parameter validation, and Operate evidence links. |
 | `GetJobEvidenceAsync` | Operate job/event projection | Returns job kind/status, draft/content/version ids, logs, artifacts, output schemas, evidence URLs, and creation time, or `null` for missing job evidence. |
 
 Publication modes are `batch-workflow`, `scheduled-job`, and
@@ -238,7 +238,10 @@ Publication modes are `batch-workflow`, `scheduled-job`, and
 `/api/workspaces/{workspaceId}/workflows/{routeSlug}/invoke` when
 parameter validation succeeds. Supported parameter types are `string`,
 `date`, `number`, `boolean`, and `geometry`; invalid endpoint parameters
-block publication and do not queue a job.
+block publication and do not queue a job. A blocked publication response
+still carries the saved content item/version ids, publication mode,
+`status=blocked`, and parameter validation, but it omits the publication
+id, job id, Operate evidence URLs, and invocation endpoint.
 
 The focused smoke command is `npm run smoke:workflow`; it records
 dry-run -> save version -> publish -> Operate monitor evidence under the

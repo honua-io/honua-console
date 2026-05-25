@@ -771,6 +771,8 @@ The workflow adapter may name the identifier `jobId`; Console treats it
 as the job-run route id for navigation. Missing or unauthorized job ids
 render the standard missing/forbidden surfaces once these routes switch
 from fixture and adapter lookups to server-backed job reads.
+Blocked process-endpoint publications do not queue jobs and therefore do
+not produce job-scoped Operate URLs.
 
 Other entitlement gates that surface inside Operate sub-pages but do
 not own a top-level route (so they appear as in-page upgrade tiles

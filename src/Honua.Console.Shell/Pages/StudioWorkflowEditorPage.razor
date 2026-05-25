@@ -373,18 +373,43 @@
                     }
                     else
                     {
+                        @if (IsBlockedPublish(_lastPublish))
+                        {
+                            <p class="console-status">Publish blocked: parameter validation requires attention</p>
+                        }
                         <dl class="console-definition-list">
-                            <dt>Publication</dt>
-                            <dd>@_lastPublish.PublicationId</dd>
+                            <dt>Status</dt>
+                            <dd>@_lastPublish.Status</dd>
                             <dt>Mode</dt>
                             <dd>@_lastPublish.Mode</dd>
-                            <dt>Job</dt>
-                            <dd><a href="@_lastPublish.OperateJobUrl">@_lastPublish.JobId</a></dd>
-                            <dt>Events</dt>
-                            <dd><a href="@_lastPublish.OperateEventsUrl">Open event evidence</a></dd>
+                            @if (!string.IsNullOrWhiteSpace(_lastPublish.PublicationId))
+                            {
+                                <dt>Publication</dt>
+                                <dd>@_lastPublish.PublicationId</dd>
+                            }
+                            @if (HasPublishJobEvidence(_lastPublish))
+                            {
+                                <dt>Job</dt>
+                                <dd><a href="@_lastPublish.OperateJobUrl">@_lastPublish.JobId</a></dd>
+                                <dt>Events</dt>
+                                <dd><a href="@_lastPublish.OperateEventsUrl">Open event evidence</a></dd>
+                            }
                             <dt>Endpoint</dt>
                             <dd>@(_lastPublish.InvocationEndpoint ?? "not exposed")</dd>
                         </dl>
+                        @if (_lastPublish.ParameterValidation.Count > 0)
+                        {
+                            <ul class="workflow-compact-list">
+                                @foreach (var validation in _lastPublish.ParameterValidation)
+                                {
+                                    <li>
+                                        <span>@(validation.Valid ? "Ready" : "Blocked")</span>
+                                        <strong>@validation.ParameterName</strong>
+                                        <small>@validation.Message</small>
+                                    </li>
+                                }
+                            </ul>
+                        }
                     }
                 </section>
             </aside>
@@ -524,6 +549,14 @@
                 _savedDraftFingerprint,
                 StudioWorkflowPackageDraftContent.CreateFingerprint(_draft),
                 StringComparison.Ordinal));
+
+    private static bool IsBlockedPublish(StudioWorkflowPublishResult publish) =>
+        string.Equals(publish.Status, "blocked", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasPublishJobEvidence(StudioWorkflowPublishResult publish) =>
+        !string.IsNullOrWhiteSpace(publish.JobId) &&
+        !string.IsNullOrWhiteSpace(publish.OperateJobUrl) &&
+        !string.IsNullOrWhiteSpace(publish.OperateEventsUrl);
 
     private void SelectNode(string nodeId)
     {
