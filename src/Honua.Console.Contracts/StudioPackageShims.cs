@@ -525,7 +525,14 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
                     cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (HttpRequestException ex)
+        {
+            return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server Studio endpoint could not be reached: {ex.Message}"));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
                 "Unavailable",

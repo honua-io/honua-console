@@ -48,7 +48,7 @@ public sealed class ServerStudioAuthoringShellTests
     }
 
     [Fact]
-    public async Task ValidateRefreshesDraftGenerationBeforeLaterClarificationUpdate()
+    public async Task ValidateRefreshesDraftGenerationAfterClarificationsAreResolved()
     {
         var client = new RecordingStudioPackageLifecycleClient();
         IStudioAuthoringShell shell = new ServerStudioAuthoringShell(client);
@@ -57,22 +57,18 @@ public sealed class ServerStudioAuthoringShellTests
             await shell.CreateInitialSessionAsync(),
             "map",
             "Make a map");
-        var validated = await shell.ValidateAsync(session);
-        var sourceQuestion = validated.Clarifications.First(question => question.Id == "source-binding");
+        var clarified = await ResolveAllClarificationsAsync(shell, session);
+        var validated = await shell.ValidateAsync(clarified);
 
-        var clarified = await shell.ApplyClarificationAsync(
-            validated,
-            sourceQuestion.Id,
-            sourceQuestion.Choices[0].Id);
-
-        Assert.Equal(2, validated.Draft?.Generation);
-        Assert.Single(client.UpdateRequests);
-        Assert.Equal(2, client.UpdateRequests[0].Generation);
+        Assert.Empty(clarified.Clarifications);
         Assert.Equal(3, clarified.Draft?.Generation);
+        Assert.Equal(4, validated.Draft?.Generation);
+        Assert.Equal(1, client.ValidateRequestCount);
+        Assert.Equal(2, client.UpdateRequests.Count);
     }
 
     [Fact]
-    public async Task PreviewPlanRefreshesDraftGenerationBeforeLaterClarificationUpdate()
+    public async Task PreviewPlanRefreshesDraftGenerationAfterClarificationsAreResolved()
     {
         var client = new RecordingStudioPackageLifecycleClient();
         IStudioAuthoringShell shell = new ServerStudioAuthoringShell(client);
@@ -81,18 +77,15 @@ public sealed class ServerStudioAuthoringShellTests
             await shell.CreateInitialSessionAsync(),
             "map",
             "Make a map");
-        var previewed = await shell.PreviewPlanAsync(session);
-        var sourceQuestion = previewed.Clarifications.First(question => question.Id == "source-binding");
+        var clarified = await ResolveAllClarificationsAsync(shell, session);
+        var previewed = await shell.PreviewPlanAsync(clarified);
 
-        var clarified = await shell.ApplyClarificationAsync(
-            previewed,
-            sourceQuestion.Id,
-            sourceQuestion.Choices[0].Id);
-
-        Assert.Equal(2, previewed.Draft?.Generation);
-        Assert.Single(client.UpdateRequests);
-        Assert.Equal(2, client.UpdateRequests[0].Generation);
+        Assert.Empty(clarified.Clarifications);
         Assert.Equal(3, clarified.Draft?.Generation);
+        Assert.Equal(4, previewed.Draft?.Generation);
+        Assert.NotNull(previewed.PreviewPlan);
+        Assert.Equal(1, client.PreviewPlanRequestCount);
+        Assert.Equal(2, client.UpdateRequests.Count);
     }
 
     [Fact]
@@ -117,6 +110,55 @@ public sealed class ServerStudioAuthoringShellTests
         Assert.Equal(3, clarified.Draft?.Generation);
     }
 
+    [Fact]
+    public async Task OpenClarificationsBlockValidationPreviewSaveAndPublishBeforeEndpointCalls()
+    {
+        var client = new RecordingStudioPackageLifecycleClient();
+        IStudioAuthoringShell shell = new ServerStudioAuthoringShell(client);
+
+        var session = await shell.GeneratePackageAsync(
+            await shell.CreateInitialSessionAsync(),
+            "map",
+            "Make a map");
+        var publishable = session with
+        {
+            ActivePackage = session.ActivePackage with { LifecycleState = StudioPackageLifecycleState.SavedVersion },
+            Draft = session.Draft! with { CurrentVersionId = Guid.NewGuid().ToString() }
+        };
+
+        var validated = await shell.ValidateAsync(session);
+        var previewed = await shell.PreviewPlanAsync(session);
+        var saved = await shell.SaveVersionAsync(session);
+        var published = await shell.PublishAsync(publishable);
+
+        Assert.NotEmpty(session.Clarifications);
+        Assert.Equal(0, client.ValidateRequestCount);
+        Assert.Equal(0, client.PreviewPlanRequestCount);
+        Assert.Equal(0, client.SaveContentVersionRequestCount);
+        Assert.Equal(0, client.PublishRequestCount);
+        Assert.Contains("clarifications", validated.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("clarifications", previewed.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("clarifications", saved.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("clarifications", published.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(session.Draft, validated.Draft);
+        Assert.Equal(session.Draft, previewed.Draft);
+        Assert.Equal(session.Draft, saved.Draft);
+        Assert.Equal(publishable.Draft, published.Draft);
+    }
+
+    private static async Task<StudioAuthoringSession> ResolveAllClarificationsAsync(
+        IStudioAuthoringShell shell,
+        StudioAuthoringSession session)
+    {
+        while (session.Clarifications.Count > 0)
+        {
+            var question = session.Clarifications[0];
+            session = await shell.ApplyClarificationAsync(session, question.Id, question.Choices[0].Id);
+        }
+
+        return session;
+    }
+
     private sealed class RecordingStudioPackageLifecycleClient : IStudioPackageLifecycleClient
     {
         private StudioPackageDraft? _draft;
@@ -128,6 +170,14 @@ public sealed class ServerStudioAuthoringShellTests
         public List<UpdateStudioPackageDraftRequest> UpdateRequests { get; } = [];
 
         public StudioPackageEnvelope? SavedVersionEnvelope { get; private set; }
+
+        public int ValidateRequestCount { get; private set; }
+
+        public int PreviewPlanRequestCount { get; private set; }
+
+        public int SaveContentVersionRequestCount { get; private set; }
+
+        public int PublishRequestCount { get; private set; }
 
         public Task<StudioEndpointResult<StudioPackageFamilyCapabilities>> ListPackageFamiliesAsync(
             CancellationToken cancellationToken = default) =>
@@ -231,6 +281,7 @@ public sealed class ServerStudioAuthoringShellTests
             Guid draftId,
             CancellationToken cancellationToken = default)
         {
+            ValidateRequestCount++;
             if (_draft is null || _draft.DraftId != draftId)
             {
                 return Task.FromResult(NotFound<StudioValidationSummary>("POST /api/v1/studio/package-drafts/{draftId}/validate"));
@@ -256,6 +307,7 @@ public sealed class ServerStudioAuthoringShellTests
             Guid draftId,
             CancellationToken cancellationToken = default)
         {
+            PreviewPlanRequestCount++;
             if (_draft is null || _draft.DraftId != draftId)
             {
                 return Task.FromResult(NotFound<StudioPreviewPlan>("POST /api/v1/studio/package-drafts/{draftId}/preview-plan"));
@@ -290,6 +342,7 @@ public sealed class ServerStudioAuthoringShellTests
             SaveStudioContentVersionRequest request,
             CancellationToken cancellationToken = default)
         {
+            SaveContentVersionRequestCount++;
             if (_draft is null || _draft.DraftId != draftId)
             {
                 return Task.FromResult(NotFound<StudioContentVersion>("POST /api/v1/studio/package-drafts/{draftId}/content-versions"));
@@ -325,8 +378,10 @@ public sealed class ServerStudioAuthoringShellTests
             Guid itemId,
             Guid versionId,
             CreateStudioPublicationRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioEndpointResult<StudioPublicationRequest>.FromData(new StudioPublicationRequest
+            CancellationToken cancellationToken = default)
+        {
+            PublishRequestCount++;
+            return Task.FromResult(StudioEndpointResult<StudioPublicationRequest>.FromData(new StudioPublicationRequest
             {
                 RequestId = Guid.NewGuid(),
                 ItemId = itemId,
@@ -335,6 +390,7 @@ public sealed class ServerStudioAuthoringShellTests
                 Validation = NotValidated(),
                 CreatedAt = DateTimeOffset.UtcNow
             }));
+        }
 
         private static StudioValidationSummary NotValidated() => new()
         {

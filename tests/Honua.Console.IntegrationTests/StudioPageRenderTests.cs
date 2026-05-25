@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -65,6 +66,68 @@ public sealed class StudioPageRenderTests
             () => Assert.Contains("Studio package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-authoring-contract", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StudioPage_WithOpenClarifications_DisablesTerminalPackageActions()
+    {
+        var shell = new ControllableStudioAuthoringShell();
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
+
+        var page = ctx.RenderComponent<StudioPage>();
+        shell.CompleteInitialSession(CreateSessionWithOpenClarification());
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Select the source binding", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.True(FindButton(page, "Validate").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Preview plan").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Save Version").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+    }
+
+    private static IElement FindButton(IRenderedComponent<StudioPage> page, string label) =>
+        page.FindAll("button").Single(button => button.TextContent.Contains(label, StringComparison.Ordinal));
+
+    private static StudioAuthoringSession CreateSessionWithOpenClarification()
+    {
+        var workflow = new StudioWorkflowOption(
+            "map.package",
+            "Map",
+            "map.package",
+            "Generated map",
+            "1.0",
+            SupportLevel: "Supported",
+            PreviewSupported: true,
+            PublishSupported: true);
+
+        return StudioAuthoringSession.Empty with
+        {
+            Workflows = [workflow],
+            SelectedWorkflowId = workflow.Id,
+            Clarifications =
+            [
+                new StudioClarificationQuestion(
+                    "source-binding",
+                    "Select the source binding",
+                    "Studio needs a source before terminal package actions.",
+                    [new StudioClarificationChoice("saved-map", "Use the current saved map", "Bind the saved map.")])
+            ],
+            ActivePackage = StudioAuthoringSession.Empty.ActivePackage with
+            {
+                PackageRef = "studio-draft:test",
+                PackageType = workflow.PackageType,
+                Title = "Clarification-gated map",
+                LifecycleState = StudioPackageLifecycleState.SavedVersion
+            },
+            Draft = new StudioDraftHandle(
+                Guid.NewGuid().ToString(),
+                Guid.NewGuid().ToString(),
+                "clarification-gated-map",
+                1,
+                Guid.NewGuid().ToString())
+        };
     }
 
     /// <summary>

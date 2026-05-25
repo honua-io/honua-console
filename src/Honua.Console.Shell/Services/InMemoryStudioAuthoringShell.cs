@@ -135,9 +135,12 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
-        var validation = session.Clarifications.Count > 0
-            ? CreateBlockedValidation(session.Clarifications)
-            : CreateReadyValidation();
+        if (session.Clarifications.Count > 0)
+        {
+            return Task.FromResult(session with { StatusMessage = "Resolve open clarifications before running validation." });
+        }
+
+        var validation = CreateReadyValidation();
         return Task.FromResult(session with
         {
             ActivePackage = session.ActivePackage with { ValidationItems = validation },
@@ -150,6 +153,11 @@ public sealed class InMemoryStudioAuthoringShell : IStudioAuthoringShell
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
+        if (session.Clarifications.Count > 0)
+        {
+            return Task.FromResult(session with { StatusMessage = "Resolve open clarifications before planning a preview." });
+        }
+
         return Task.FromResult(session with
         {
             PreviewPlan = new StudioPreviewPlanView(true, false, ["Resolve bindings", "Render demo preview plan"]),

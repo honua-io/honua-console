@@ -145,4 +145,28 @@ public sealed class StudioAuthoringShellTests
         Assert.Contains(blocked.ActivePackage.ValidationItems, item => item.Severity == StudioValidationSeverity.Blocker);
         Assert.DoesNotContain(blocked.ActivePackage.Provenance, item => item.Action == "Lifecycle state changed");
     }
+
+    [Fact]
+    public async Task OpenClarificationsBlockValidationPreviewAndPublish()
+    {
+        IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
+        var session = await shell.GeneratePackageAsync(await shell.CreateInitialSessionAsync(), "map", "Make a map");
+        var publishable = session with
+        {
+            ActivePackage = session.ActivePackage with { LifecycleState = StudioPackageLifecycleState.SavedVersion },
+            Draft = session.Draft! with { CurrentVersionId = Guid.NewGuid().ToString() }
+        };
+
+        var validated = await shell.ValidateAsync(session);
+        var previewed = await shell.PreviewPlanAsync(session);
+        var published = await shell.PublishAsync(publishable);
+
+        Assert.NotEmpty(session.Clarifications);
+        Assert.Contains("clarifications", validated.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("clarifications", previewed.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("clarifications", published.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(previewed.PreviewPlan);
+        Assert.Equal(StudioPackageLifecycleState.SavedVersion, published.ActivePackage.LifecycleState);
+        Assert.DoesNotContain(published.ActivePackage.Provenance, item => item.Action == "Lifecycle state changed");
+    }
 }

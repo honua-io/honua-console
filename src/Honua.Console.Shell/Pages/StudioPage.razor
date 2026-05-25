@@ -200,16 +200,16 @@
                 </div>
 
                 <div class="studio-action-row">
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft)" @onclick="Validate">
+                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft || HasOpenClarifications)" @onclick="Validate">
                         Validate
                     </button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft)" @onclick="PreviewPlan">
+                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft || HasOpenClarifications)" @onclick="PreviewPlan">
                         Preview plan
                     </button>
                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !_session.HasServerDraft || HasOpenClarifications)" @onclick="SaveVersion">
                         Save Version
                     </button>
-                    <button class="console-button" type="button" disabled="@(_busy || !HasSavedVersion)" @onclick="Publish">
+                    <button class="console-button" type="button" disabled="@(_busy || !HasSavedVersion || HasOpenClarifications)" @onclick="Publish">
                         Publish
                     </button>
                 </div>

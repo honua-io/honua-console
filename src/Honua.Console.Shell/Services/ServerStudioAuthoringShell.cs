@@ -239,6 +239,11 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             return session with { StatusMessage = "Generate a package before running validation." };
         }
 
+        if (session.Clarifications.Count > 0)
+        {
+            return session with { StatusMessage = "Resolve open clarifications before running validation." };
+        }
+
         var result = await _client.ValidatePackageDraftAsync(Guid.Parse(session.Draft.DraftId), cancellationToken)
             .ConfigureAwait(false);
         if (!result.IsSuccess || result.Data is null)
@@ -272,6 +277,11 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         if (session.Draft is null)
         {
             return session with { StatusMessage = "Generate a package before planning a preview." };
+        }
+
+        if (session.Clarifications.Count > 0)
+        {
+            return session with { StatusMessage = "Resolve open clarifications before planning a preview." };
         }
 
         var result = await _client.CreatePreviewPlanAsync(Guid.Parse(session.Draft.DraftId), cancellationToken)
@@ -352,6 +362,11 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         if (session.Draft?.CurrentVersionId is null)
         {
             return session with { StatusMessage = "Save a content version before publishing." };
+        }
+
+        if (session.Clarifications.Count > 0)
+        {
+            return session with { StatusMessage = "Resolve open clarifications before publishing." };
         }
 
         var result = await _client.CreatePublishRequestAsync(

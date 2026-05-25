@@ -43,9 +43,10 @@ public sealed class StudioPackageLifecycleIntegrationTests
         session = await shell.GeneratePackageAsync(
             session,
             session.SelectedWorkflowId,
-            "Create a map from the parcels layer");
+            "Create an org map from the parcels layer");
         Assert.Null(session.BindingState);
         Assert.NotNull(session.Draft);
+        Assert.Empty(session.Clarifications);
         Assert.StartsWith("studio-", session.ActivePackage.PackageRef, StringComparison.Ordinal);
         Assert.False(string.IsNullOrEmpty(session.ActivePackage.SchemaVersion));
 
