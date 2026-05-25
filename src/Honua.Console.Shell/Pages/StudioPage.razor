@@ -12,7 +12,7 @@
             <p>Author from prompt, resolve open questions, inspect the server package draft, validate, plan a preview, save a version, and publish from one shared Console surface.</p>
         </div>
 
-        @if (_session.BindingState is null)
+        @if (!_loading && _session.BindingState is null)
         {
             <StudioLifecycleRail CurrentState="_session.ActivePackage.LifecycleState" />
         }
@@ -283,7 +283,7 @@
 </section>
 
 @code {
-    private StudioAuthoringSession _session = default!;
+    private StudioAuthoringSession _session = StudioAuthoringSession.Empty;
     private bool _loading = true;
     private bool _busy;
     private string _prompt = "Create a map of permit activity near schools.";

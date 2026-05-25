@@ -44,7 +44,7 @@ Major views:
 - source context and data binding picker
 - package/spec inspector
 - preview canvas
-- lifecycle rail for Draft, Preview, Saved version, and Published states
+- lifecycle rail for Draft, Saved version, and Published states, with preview as a transient preview-plan action
 - editors for map, dashboard, report, form, app, workflow
 - validation and warnings
 - publish review
@@ -72,7 +72,7 @@ Current Console slice:
 
 - `/studio` starts with a shared Razor package shell used by the Blazor Web host and optional MAUI Blazor Hybrid host.
 - Workflow selection covers map, dashboard, report, form, app, query, analysis, workflow, GP service, and ETL package families.
-- The `studio-authoring-shell/v1` projection is a stable mock until the server package lifecycle API and SDK package helpers are connected.
+- The `/studio` shell binds the server-owned package lifecycle (draft, validation, preview-planning, content-version save, publish) to honua-server (`honua-server#1180`/`#1181`) through the `IStudioPackageLifecycleClient` shim in `Honua.Console.Contracts`; prompt and structured clarification stay Console-local UX. Draft, Saved version, and Published are the lifecycle states, Preview is a transient preview-plan action, and the shell renders a missing-binding surface (not mock data) when no server base address is configured. The in-memory shell is demo/test-only (`AddHonuaConsoleDemoStudioAuthoringShell`).
 - The package inspector must show assumptions, data bindings, warnings, validation, and provenance for the active draft, including partially answered clarification state.
 
 ## Catalog

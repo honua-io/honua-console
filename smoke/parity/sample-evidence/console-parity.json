@@ -264,7 +264,7 @@
           "contractVersion": "v1",
           "packageRef": "draft-app-clarify",
           "packageType": "app.package",
-          "schemaVersion": "package-shell/v1",
+          "schemaVersion": "1.0",
           "lifecycleState": "Draft",
           "sourceHydrated": false,
           "inspectorSections": [

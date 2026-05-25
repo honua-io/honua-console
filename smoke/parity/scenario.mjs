@@ -234,7 +234,10 @@ export const SCENARIO_STEPS = [
         contractVersion: "v1",
         packageRef: "draft-app-clarify",
         packageType: "app.package",
-        schemaVersion: "package-shell/v1",
+        // Server family schema version advertised by the bound honua-server lifecycle
+        // (StudioPackageFamilyCapabilities.currentSchemaVersion / ServerStudioAuthoringShell "1.0"
+        // fallback). The retired "package-shell/v1" was the pre-binding mock projection.
+        schemaVersion: "1.0",
         lifecycleState: "Draft",
         sourceHydrated: false,
         inspectorSections: ["assumptions", "dataBindings", "warnings", "validation", "provenance"],

@@ -146,4 +146,30 @@ public sealed record StudioAuthoringSession(
 {
     /// <summary>True when the active package is backed by a live server draft.</summary>
     public bool HasServerDraft => Draft is not null;
+
+    /// <summary>
+    /// A non-null, data-free placeholder used as the initial render state before the async server
+    /// session resolves, so render paths never dereference a null session during the loading window.
+    /// Carries no <see cref="BindingState"/> and an empty Draft package; the page keeps it behind its
+    /// loading guard until the real session arrives.
+    /// </summary>
+    public static StudioAuthoringSession Empty { get; } = new(
+        [],
+        string.Empty,
+        string.Empty,
+        [],
+        new StudioPackageSnapshot(
+            StudioAuthoringContract.Name,
+            StudioAuthoringContract.Version,
+            "studio-loading",
+            "package",
+            string.Empty,
+            "Studio package shell",
+            string.Empty,
+            StudioPackageLifecycleState.Draft,
+            [],
+            [],
+            [],
+            [],
+            []));
 }
