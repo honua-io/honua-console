@@ -1251,6 +1251,10 @@ p {
     align-items: end;
 }
 
+.operate-log-filter-bar {
+    grid-template-columns: minmax(220px, 1fr) auto;
+}
+
 .operate-filter-bar label {
     display: grid;
     gap: 6px;

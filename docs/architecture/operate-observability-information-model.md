@@ -268,12 +268,13 @@ Key fields:
 
 ### UI Implementation Checkpoint
 
-`honua-console#41` adds the first native Blazor Operate observability
+`honua-console#41` added the first native Blazor Operate observability
 surface at `/operate`, `/operate/observability`, `/operate/events/{eventId}`,
-`/operate/alerts/{alertId}`, and `/operate/jobs/{jobRunId}`. Until the
-server and SDK projections land, the route uses a single UI projection
-fixture in `OperateObservabilityFixture` rather than re-declaring server
-protocol DTOs across components.
+`/operate/alerts/{alertId}`, and `/operate/jobs/{jobRunId}`.
+`honua-console#24` replaces that runtime checkpoint with
+`IConsoleOperateObservabilityClient`, a thin `HttpClient` boundary over the
+honua-server admin APIs until honua-sdk-dotnet projects the Operate contracts.
+`OperateObservabilityFixture` remains scaffolding/test data only.
 
 The checkpoint proves these product behaviors:
 

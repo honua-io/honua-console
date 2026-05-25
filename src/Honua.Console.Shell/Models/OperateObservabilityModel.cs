@@ -33,6 +33,9 @@ public sealed record OperateObservabilitySnapshot(
         "Maintenance"
     ];
 
+    public static OperateObservabilitySnapshot Empty { get; } =
+        new([], [], [], [], [], [], [], []);
+
     public OperateEventRow SelectedEvent(string? eventId) =>
         FindEvent(eventId) ?? Events.First();
 
@@ -220,10 +223,26 @@ public sealed record OperateAlertRecord(
     string LastSeenAt,
     IReadOnlyList<string> AffectedResources,
     IReadOnlyList<OperateEvidenceLink> EvidenceLinks,
-    OperateAiAdvisory AiAdvisory)
+    OperateAiAdvisory? AiAdvisory,
+    IReadOnlyList<OperateAlertAction>? Actions = null)
 {
     public string DetailHref => OperateObservabilityRoutes.AlertDetail(AlertId);
+
+    public IReadOnlyList<OperateAlertAction> LifecycleActions => Actions ?? [];
+
+    public bool PreservesRawEvidenceWithAi => AiAdvisory is null || EvidenceLinks.Count > 0;
 }
+
+public sealed record OperateAlertAction(string Label, bool IsAllowed, string Reason);
+
+public sealed record OperateGeofenceZone(
+    string ZoneId,
+    string Name,
+    string ServiceId,
+    bool Active,
+    int Srid,
+    string GeometrySummary,
+    IReadOnlyList<string> Metadata);
 
 public sealed record OperateAlertRule(
     string RuleId,
@@ -236,7 +255,9 @@ public sealed record OperateAlertRule(
     string LastEvaluatedAt,
     int ActiveIncidentCount,
     int DeliveryFailureCount,
-    IReadOnlyList<string> ValidationMessages)
+    IReadOnlyList<string> ValidationMessages,
+    int RecentTriggerCount = 0,
+    string LastTriggeredAt = "")
 {
     public bool IsValid => !string.Equals(Status.NormalizedState, "invalid", StringComparison.OrdinalIgnoreCase)
         && ValidationMessages.Count == 0;
@@ -286,11 +307,21 @@ public sealed record OperateJobRun(
     IReadOnlyList<OperateRelatedObject> RelatedObjects)
 {
     public string DetailHref => OperateObservabilityRoutes.JobDetail(JobRunId);
+
+    public string ArtifactCountLabel =>
+        Metrics.FirstOrDefault(metric => string.Equals(metric.Name, "Artifacts", StringComparison.OrdinalIgnoreCase))?.Value
+        ?? Artifacts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 
 public static class OperateActionPresentation
 {
-    public const string ActionApiUnavailableReason = "Action unavailable until the Operate action API is connected.";
+    // Action gating is now server-driven (ConsoleJobActionDescriptor.Allowed,
+    // alert lifecycle state, rule health). Execution of mutating actions is a
+    // follow-on slice; allowed actions render disabled with this note so an
+    // operator can see the action is permitted but not yet wired in Console.
+    public const string ActionExecutionDeferredReason = "Allowed by the server; mutating actions are wired in a follow-on Console slice.";
+
+    public const string ActionApiUnavailableReason = ActionExecutionDeferredReason;
 }
 
 public sealed record OperateInvestigation(

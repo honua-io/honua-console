@@ -70,9 +70,8 @@
 </aside>
 
 @code {
-    [Parameter]
-    public OperateJobRun Job { get; set; } = OperateObservabilityFixture.Default.Jobs.First();
+    [Parameter, EditorRequired]
+    public required OperateJobRun Job { get; set; }
 
-    private static string JobActionTitle(OperateJobAction action) =>
-        action.IsAllowed ? OperateActionPresentation.ActionApiUnavailableReason : action.Reason;
+    private static string JobActionTitle(OperateJobAction action) => action.Reason;
 }
