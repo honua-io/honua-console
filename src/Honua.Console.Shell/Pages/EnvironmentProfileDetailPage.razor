@@ -146,9 +146,11 @@ else
     {
         // Reload whenever the route parameter changes, even when the previous render was a
         // not-found state (_profile is null), so navigating from a missing id to a valid one
-        // does not stay stuck on the stale not-found surface.
+        // does not stay stuck on the stale not-found surface. Clear the per-action status
+        // message on navigation so it does not leak from the previously viewed profile.
         if (!string.Equals(_loadedProfileId, ProfileId, StringComparison.Ordinal))
         {
+            _message = null;
             await LoadAsync();
         }
     }
