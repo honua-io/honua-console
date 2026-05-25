@@ -24,6 +24,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Honua Console Design Handoff](docs/design-handoff/README.md)
 - [Legacy Admin Route Disposition](docs/migration/legacy-admin-route-disposition.md)
 - [Operate Embed Contract](docs/operate/embed-contract.md)
+- [Native Operate Transition Surface](docs/operate/native-transition-surface.md)
 
 ## Migration Coordination
 
@@ -75,9 +76,11 @@ scenario, owning-layer triage taxonomy, and evidence format.
 
 This repo is the target home for porting current `honua-portal` logic and converging the long-term web surface. The Console IA is fixed in [docs/console-route-map.md](docs/console-route-map.md) ([honua-console#3](https://github.com/honua-io/honua-console/issues/3)); the Blazor Web Console shell and shared Razor component library scaffold lands under [honua-console#2](https://github.com/honua-io/honua-console/issues/2). The scaffold now also includes an independently deployable Blazor web host and an optional .NET MAUI Blazor Hybrid native host ([honua-console#26](https://github.com/honua-io/honua-console/issues/26)) for operator/power-user workflows.
 
+Native Operate transition routes for connections, resources, services, layers, and settings are documented in [Native Operate Transition Surface](docs/operate/native-transition-surface.md). They use bounded Console view models until `honua-sdk-dotnet` admin projections replace the in-memory transition data source.
+
 ## Project Layout
 
-- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, and native streaming proof interface.
+- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, native Operate transition surfaces, and native streaming proof interface.
 - `src/Honua.Console.Web`: default browser Console host. It references the shared shell and stays independently buildable/deployable without MAUI or native services.
 - `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation, and the deterministic telemetry streaming proof.
 - `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.

@@ -12,6 +12,18 @@ public static class ConsoleRouteMap
 
     public static ConsoleWorkflowArea? FindArea(string areaId) =>
         Areas.FirstOrDefault(area => string.Equals(area.Id, areaId, StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsOperateRoute(string relativePath)
+    {
+        ArgumentNullException.ThrowIfNull(relativePath);
+
+        var queryOrFragmentIndex = relativePath.IndexOfAny(['?', '#']);
+        var path = queryOrFragmentIndex >= 0 ? relativePath[..queryOrFragmentIndex] : relativePath;
+        path = path.Trim('/');
+
+        return string.Equals(path, "operate", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("operate/", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 public sealed record ConsoleWorkflowArea(

@@ -1,0 +1,88 @@
+@page "/operate/services"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Services</p>
+        <h1>Services And Layers</h1>
+        <p>Services expose runtime endpoints and layer projections. Canonical metadata remains owned by data resources.</p>
+    </div>
+
+    @if (_services.Count == 0)
+    {
+        <EmptyState Area="operate" Subject="services" />
+    }
+    else
+    {
+        <div class="console-panel-grid">
+            @foreach (var service in _services)
+            {
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@service.ServiceType</p>
+                            <h2><a href="@($"/operate/services/{service.Name}/settings")">@service.DisplayName</a></h2>
+                        </div>
+                        <span class="console-status">@service.RuntimeStatus</span>
+                    </div>
+                    <p class="console-muted">@service.MetadataOwnership</p>
+                    <dl class="console-definition-list">
+                        <dt>Layers</dt>
+                        <dd>@service.Layers.Count</dd>
+                        <dt>Slots</dt>
+                        <dd>@service.PublicationSlots.Count</dd>
+                        <dt>Restart settings</dt>
+                        <dd>@service.RuntimeSettings.Count(setting => setting.RequiresRestart)</dd>
+                    </dl>
+                </article>
+            }
+        </div>
+
+        <section class="console-section">
+            <div class="console-page-heading">
+                <p class="console-kicker">Explorer</p>
+                <h2>Service Layer Tree</h2>
+            </div>
+
+            <div class="console-table-wrap">
+                <table class="console-table">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Layer</th>
+                            <th>Geometry</th>
+                            <th>Canonical resource</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var service in _services)
+                        {
+                            @foreach (var layer in service.Layers)
+                            {
+                                <tr>
+                                    <td>@service.DisplayName</td>
+                                    <td>@layer.Name</td>
+                                    <td>@layer.Geometry</td>
+                                    <td>
+                                        <a href="@($"/operate/resources/{layer.CanonicalResourceId}")">@layer.CanonicalResourceName</a>
+                                        <small>@layer.CanonicalResourceId</small>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<OperateServiceDetail> _services = Array.Empty<OperateServiceDetail>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var workspace = await OperateData.GetWorkspaceAsync();
+        _services = workspace.Services;
+    }
+}

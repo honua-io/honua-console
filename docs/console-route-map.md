@@ -56,6 +56,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/new       Create
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
+/operate/resources             Data resources list and edit queue
+/operate/resources/new         Create resource from table/file or one-time remote-service migration
+/operate/resources/:id         Resource detail, validation, publish, access, presentation, and advanced tabs
 /operate/publishing            Publishing workspace
 /operate/identity/providers
 /operate/identity/status
@@ -67,9 +70,12 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/jobs/:jobRunId        Unified job-run detail deep link
 /operate/operations            Operations console
 /operate/control-center        Control center
+/operate/services              Service list and layer explorer
 /operate/services/:name/settings
+/operate/layers                Flat layer list
 /operate/layers/:id            Layer configuration (default + ?tab=configure)
 /operate/layers/:id/style      Layer style editor
+/operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
 /operate/deploy                Deploy control
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
@@ -127,9 +133,15 @@ will not see Operate while B is active. Confirmed default (§13, Q4).
 
 ### 2.2 Secondary navigation (within Operate)
 
-Connections, Publishing, Identity, License, Observability, Operations,
-Control Center, Services, Layers, Deploy, Server Info, Analytics,
-Legacy.
+Connections, Resources, Publishing, Identity, License, Observability,
+Operations, Control Center, Services, Layers, Settings, Deploy, Server
+Info, Analytics, Legacy.
+
+`honua-console#36` implements the first native Blazor transition group:
+Connections, Resources, Services, Layers, and Settings. These entries use
+the non-legacy `/operate/...` routes listed in §1. The Legacy submenu
+continues to expose remaining `/operate/legacy/...` Admin paths until
+their native replacements have parity evidence and retirement gates.
 
 The Legacy submenu contains the transitional iframe-embedded pages from
 §5 (EMBED rows) and disappears when those pages are retired.
@@ -644,6 +656,9 @@ or entitlement requirements on top.
 | `/operate/connections/new` | — | — | forbidden | operate |
 | `/operate/connections/:id` | — | missing-item | forbidden | operate |
 | `/operate/connections/:id/diagnostics` | — | missing-item | forbidden | operate |
+| `/operate/resources` | — | empty-operate (no resources) | forbidden | operate |
+| `/operate/resources/new` | — | — | forbidden | operate |
+| `/operate/resources/:id` | — | missing-item | forbidden | operate |
 | `/operate/publishing` | — | empty-operate | forbidden | operate |
 | `/operate/identity/providers` | `entitlement:identity.oidc` (gate the OIDC provider) | empty-operate | forbidden / upgrade | operate |
 | `/operate/identity/status` | — | empty-operate | forbidden | operate |
@@ -655,9 +670,12 @@ or entitlement requirements on top.
 | `/operate/jobs/:jobRunId` | — | fixture job fallback | forbidden | operate |
 | `/operate/operations` | — | empty-operate | forbidden | operate |
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
+| `/operate/services` | — | empty-operate (no services) | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
+| `/operate/layers` | — | empty-operate (no layers) | forbidden | operate |
 | `/operate/layers/:id` | — | missing-item | forbidden | operate |
 | `/operate/layers/:id/style` | — | missing-item | forbidden | operate |
+| `/operate/settings` | — | — | forbidden | operate |
 | `/operate/deploy` | — | empty-operate | forbidden | operate |
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |

@@ -72,6 +72,10 @@ This backlog intentionally separates three decisions:
   - [Operate Observability Information Model](../architecture/operate-observability-information-model.md)
 - [honua-console#41](https://github.com/honua-io/honua-console/issues/41): Operate observability event viewer alerts realtime rules and jobs workspace.
 
+### P1 Operate Transition Work
+
+- [honua-console#36](https://github.com/honua-io/honua-console/issues/36): Native Operate transition routes for connections, data resources, services, layers, and operator settings. IA: route-map §1, §2.2, §6.5. Contract: [Native Operate Transition Surface](../operate/native-transition-surface.md). Legacy Admin rows remain under `/operate/legacy/*` until SDK-backed parity smoke retires each successor.
+
 ### P2 Native Console Work
 
 - [honua-console#26](https://github.com/honua-io/honua-console/issues/26): Optional MAUI Blazor Hybrid native Console host.

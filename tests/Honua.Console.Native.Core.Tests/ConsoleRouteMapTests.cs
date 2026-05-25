@@ -43,4 +43,26 @@ public sealed class ConsoleRouteMapTests
         Assert.NotNull(registryAreas);
         Assert.Equal(registryAreas, ConsoleRouteMap.Areas.Select(area => area.Id).ToArray());
     }
+
+    [Theory]
+    [InlineData("operate")]
+    [InlineData("operate/connections")]
+    [InlineData("/operate/resources/table/ns/name?tab=validation")]
+    [InlineData("operate/settings#cors")]
+    public void OperateRoutesAreRecognizedForRouteLocalNavigation(string relativePath)
+    {
+        Assert.True(ConsoleRouteMap.IsOperateRoute(relativePath));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("studio")]
+    [InlineData("catalog")]
+    [InlineData("share")]
+    [InlineData("operate-preview")]
+    [InlineData("environments")]
+    public void BuilderAndNativeHostRoutesDoNotReceiveOperateNavigation(string relativePath)
+    {
+        Assert.False(ConsoleRouteMap.IsOperateRoute(relativePath));
+    }
 }

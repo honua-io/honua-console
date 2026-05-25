@@ -1,0 +1,78 @@
+@page "/operate/connections"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Connections</p>
+        <h1>Data Connections</h1>
+        <p>Connection tests report structured checks and safe evidence for operators before resources or services use the source.</p>
+    </div>
+
+    <div class="console-toolbar">
+        <a class="console-button-link" href="/operate/connections/new">Add Connection</a>
+    </div>
+
+    @if (_connections.Count == 0)
+    {
+        <EmptyState Area="operate" Subject="connections" ActionHref="/operate/connections/new" ActionText="Add Connection" />
+    }
+    else
+    {
+        <div class="console-table-wrap">
+            <table class="console-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Provider</th>
+                        <th>Target</th>
+                        <th>Status</th>
+                        <th>Last tested</th>
+                        <th>Diagnostics</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var connection in _connections)
+                    {
+                        <tr>
+                            <td>
+                                <a href="@($"/operate/connections/{connection.Id}")">@connection.Name</a>
+                                <small>@connection.Principal</small>
+                            </td>
+                            <td>@connection.Provider</td>
+                            <td>@connection.Target</td>
+                            <td><span class="@StatusClass(connection.Status)">@connection.Status</span></td>
+                            <td>@connection.LastTested</td>
+                            <td>
+                                @if (connection.LastDiagnostic is null)
+                                {
+                                    <span class="console-muted">No active diagnostic</span>
+                                }
+                                else
+                                {
+                                    <a href="@($"/operate/connections/{connection.Id}/diagnostics")">@connection.LastDiagnostic.FailureCode</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var workspace = await OperateData.GetWorkspaceAsync();
+        _connections = workspace.Connections;
+    }
+
+    private static string StatusClass(string status) =>
+        string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
+            ? "console-status console-status-danger"
+            : string.Equals(status, "Warning", StringComparison.OrdinalIgnoreCase)
+                ? "console-status console-status-warning"
+                : "console-status";
+}

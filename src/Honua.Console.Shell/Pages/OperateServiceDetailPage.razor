@@ -1,0 +1,112 @@
+@page "/operate/services/{ServiceName}/settings"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    @if (_service is null)
+    {
+        <MissingItemView Kind="service" AreaLabel="Operate / Services" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Services</p>
+            <h1>@_service.DisplayName</h1>
+            <p>@_service.MetadataOwnership</p>
+        </div>
+
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Runtime Settings</p>
+                        <h2>Service Controls</h2>
+                    </div>
+                    <span class="console-status">@_service.RuntimeStatus</span>
+                </div>
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Value</th>
+                                <th>Apply scope</th>
+                                <th>Restart</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var setting in _service.RuntimeSettings)
+                            {
+                                <tr>
+                                    <td>@setting.Name</td>
+                                    <td>@setting.Value</td>
+                                    <td>@setting.ApplyScope</td>
+                                    <td>@(setting.RequiresRestart ? "Required" : "Not required")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="console-panel">
+                <p class="console-kicker">Publication Slots</p>
+                <h2>Serving Targets</h2>
+                <dl class="console-definition-list">
+                    @foreach (var slot in _service.PublicationSlots)
+                    {
+                        <dt>@slot.Name</dt>
+                        <dd>
+                            <strong>@slot.Status</strong>
+                            <small>@slot.Url</small>
+                        </dd>
+                    }
+                </dl>
+            </article>
+        </div>
+
+        <section class="console-section">
+            <div class="console-page-heading">
+                <p class="console-kicker">Layers</p>
+                <h2>Exposed Resource Projections</h2>
+            </div>
+            <div class="console-table-wrap">
+                <table class="console-table">
+                    <thead>
+                        <tr>
+                            <th>Layer ID</th>
+                            <th>Name</th>
+                            <th>Geometry</th>
+                            <th>Canonical metadata owner</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var layer in _service.Layers)
+                        {
+                            <tr>
+                                <td>@layer.LayerId</td>
+                                <td>@layer.Name</td>
+                                <td>@layer.Geometry</td>
+                                <td>
+                                    <a href="@($"/operate/resources/{layer.CanonicalResourceId}")">@layer.CanonicalResourceName</a>
+                                    <small>@layer.CanonicalResourceId</small>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ServiceName { get; set; } = string.Empty;
+
+    private OperateServiceDetail? _service;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _service = await OperateData.FindServiceAsync(ServiceName);
+    }
+}

@@ -1,0 +1,36 @@
+<article class="console-panel">
+    @if (!string.IsNullOrWhiteSpace(Area))
+    {
+        <p class="console-kicker">@FormatArea(Area)</p>
+    }
+    <h2>No @Subject</h2>
+    <p class="console-muted">No @Subject are available in this @FormatArea(Area) environment.</p>
+    @if (!string.IsNullOrWhiteSpace(ActionHref) && !string.IsNullOrWhiteSpace(ActionText))
+    {
+        <a class="console-button-link" href="@ActionHref">@ActionText</a>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public string Area { get; set; } = "operate";
+
+    [Parameter]
+    public string Subject { get; set; } = "items";
+
+    [Parameter]
+    public string? ActionHref { get; set; }
+
+    [Parameter]
+    public string? ActionText { get; set; }
+
+    private static string FormatArea(string? area)
+    {
+        if (string.IsNullOrWhiteSpace(area))
+        {
+            return "Console";
+        }
+
+        return char.ToUpperInvariant(area[0]) + area[1..];
+    }
+}

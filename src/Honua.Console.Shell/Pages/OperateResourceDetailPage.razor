@@ -1,0 +1,100 @@
+@page "/operate/resources/{ResourceId}"
+@inject IOperateTransitionDataSource OperateData
+
+<section class="console-page">
+    @if (_resource is null)
+    {
+        <MissingItemView Kind="resource" AreaLabel="Operate / Resources" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Resources</p>
+            <h1>@_resource.Name</h1>
+            <p>@_resource.DraftChange</p>
+        </div>
+
+        <nav class="console-tab-row" aria-label="Resource edit tabs">
+            @foreach (var tab in _resource.EditTabs)
+            {
+                <a href="@($"/operate/resources/{_resource.ResourceId}#{tab.ToLowerInvariant()}")">@tab</a>
+            }
+        </nav>
+
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Validation</p>
+                        <h2>@_resource.ValidationState</h2>
+                    </div>
+                    <span class="console-status console-status-warning">Review required</span>
+                </div>
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr>
+                                <th>Severity</th>
+                                <th>Field</th>
+                                <th>Message</th>
+                                <th>Resolution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var issue in _resource.ValidationIssues)
+                            {
+                                <tr>
+                                    <td><span class="@StatusClass(issue.Severity)">@issue.Severity</span></td>
+                                    <td>@issue.Field</td>
+                                    <td>@issue.Message</td>
+                                    <td>@issue.OperatorResolution</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="console-panel">
+                <p class="console-kicker">Blast Radius</p>
+                <h2>Dependent Objects</h2>
+                <dl class="console-definition-list">
+                    <dt>Catalog items</dt>
+                    <dd>@FormatItems(_resource.BlastRadius.CatalogItems)</dd>
+                    <dt>Services</dt>
+                    <dd>@FormatItems(_resource.BlastRadius.Services)</dd>
+                    <dt>Layers</dt>
+                    <dd>@FormatItems(_resource.BlastRadius.Layers)</dd>
+                    <dt>Saved maps</dt>
+                    <dd>@FormatItems(_resource.BlastRadius.SavedMaps)</dd>
+                    <dt>Share links</dt>
+                    <dd>@FormatItems(_resource.BlastRadius.ShareLinks)</dd>
+                    <dt>Generated apps</dt>
+                    <dd>@FormatItems(_resource.BlastRadius.GeneratedApps)</dd>
+                </dl>
+            </article>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ResourceId { get; set; } = string.Empty;
+
+    private OperateResourceEditPreview? _resource;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _resource = await OperateData.FindResourceEditAsync(ResourceId);
+    }
+
+    private static string FormatItems(IReadOnlyList<string> items) =>
+        items.Count == 0 ? "None" : string.Join(", ", items);
+
+    private static string StatusClass(string severity) =>
+        string.Equals(severity, "Error", StringComparison.OrdinalIgnoreCase)
+            ? "console-status console-status-danger"
+            : string.Equals(severity, "Warning", StringComparison.OrdinalIgnoreCase)
+                ? "console-status console-status-warning"
+                : "console-status";
+}
