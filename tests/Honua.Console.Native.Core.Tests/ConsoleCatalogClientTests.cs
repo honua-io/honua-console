@@ -276,6 +276,66 @@ public sealed class ConsoleCatalogClientTests
     }
 
     [Fact]
+    public async Task MapViewerActionsFollowCatalogItemPolicy()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+        var viewerMap = await catalog.GetMapPackageAsync(
+            "public-field-map",
+            CatalogReadContext.Authenticated);
+        var ownerMap = await catalog.GetMapPackageAsync(
+            "storm-response-map",
+            CatalogReadContext.Authenticated);
+
+        var viewerActions = MapViewerPage.ResolveViewerActions(
+            viewerMap.MapPackage!.Summary,
+            isAuthenticated: true);
+        var ownerActions = MapViewerPage.ResolveViewerActions(
+            ownerMap.MapPackage!.Summary,
+            isAuthenticated: true);
+        var anonymousActions = MapViewerPage.ResolveViewerActions(
+            ownerMap.MapPackage!.Summary,
+            isAuthenticated: false);
+
+        Assert.Contains(viewerActions, action => action.Id == "detail");
+        Assert.DoesNotContain(viewerActions, action => action.Id is "studio" or "share");
+        Assert.Contains(
+            ownerActions,
+            action => action.Id == "studio" && action.Href == "/studio?source=map&itemId=map-storm-response");
+        Assert.Contains(ownerActions, action => action.Id == "share");
+        Assert.DoesNotContain(ownerActions, action => action.Id is "viewer" or "retire");
+        Assert.Empty(anonymousActions);
+    }
+
+    [Fact]
+    public async Task AnonymousReadLabelsDistinguishPublicReadsFromPublicLinkReads()
+    {
+        var catalog = new InMemoryConsoleCatalogClient();
+        var publicItem = await catalog.GetCatalogItemAsync(
+            "coastal-flood-service",
+            CatalogReadContext.AnonymousPublicLink(token: null));
+        var publicMap = await catalog.GetMapPackageAsync(
+            "public-field-map",
+            CatalogReadContext.AnonymousPublicLink(token: null));
+        var publicLinkItem = await catalog.GetCatalogItemAsync(
+            "utilities-layer",
+            CatalogReadContext.AnonymousPublicLink("pl-utilities"));
+        var publicLinkMap = await catalog.GetMapPackageAsync(
+            "storm-response-map",
+            CatalogReadContext.AnonymousPublicLink("pl-storm-map"));
+
+        Assert.Equal("Public read", ConsoleAnonymousReadLabels.ReadLabel(publicItem.Item!.Summary));
+        Assert.Equal("Public read", ConsoleAnonymousReadLabels.ReadLabel(publicMap.MapPackage!.Summary));
+        Assert.Equal("Public-link read", ConsoleAnonymousReadLabels.ReadLabel(publicLinkItem.Item!.Summary));
+        Assert.Equal("Public-link read", ConsoleAnonymousReadLabels.ReadLabel(publicLinkMap.MapPackage!.Summary));
+        Assert.Equal(
+            "Anonymous public reads do not expose workspace permission details.",
+            ConsoleAnonymousReadLabels.PermissionsHiddenMessage(publicItem.Item.Summary));
+        Assert.Equal(
+            "Anonymous public-link reads do not expose workspace permission details.",
+            ConsoleAnonymousReadLabels.PermissionsHiddenMessage(publicLinkItem.Item.Summary));
+    }
+
+    [Fact]
     public async Task PublicLinkAnonymousActionsPreserveTokenForFollowableRoutes()
     {
         var catalog = new InMemoryConsoleCatalogClient();

@@ -28,7 +28,7 @@ routes. Path prefixes are frozen for downstream tickets:
 
 ```
 /                              Workspace dashboard (post-auth landing)
-/auth/signin                   Sign in (anonymous; returnTo, as)
+/auth/signin                   Sign in (anonymous; returnTo)
 /auth/callback                 OIDC callback (anonymous)
 /auth/signed-out               Post-signout landing (anonymous)
 
@@ -265,7 +265,7 @@ Every current `honua-portal` route appears here. The Portal inventory is
 | # | Portal path | Console destination | Query / fragment contract | Gate | Code-split chunk | Smoke label |
 |---|---|---|---|---|---|---|
 | 1 | `/` | `/` | — | `auth` | shell | — |
-| 2 | `/auth/signin` | `/auth/signin` | `returnTo=<sanitized>`, `as=<preset>` (dev) | `anonymous` | shell+auth | — |
+| 2 | `/auth/signin` | `/auth/signin` | `returnTo=<sanitized>` | `anonymous` | shell+auth | — |
 | 3 | `/auth/callback` | `/auth/callback` | — | `anonymous` | shell+auth | — |
 | 4 | `/auth/signed-out` | `/auth/signed-out` | — | `anonymous` | shell+auth | — |
 | 5 | `/public` | `/share/public` (`/public` is accepted as a compatibility alias in the Blazor route slice) | collection includes only `isPublicOpenDataSummary` items (`sharing = public`, `openData = true`, type in `PUBLIC_OPEN_DATA_TYPES`); newly generated links use `/share/public` | `anonymous` | share | open-data |
@@ -602,13 +602,16 @@ open, Preview, Save Version, and Publish controls are disabled. The
 inspector remains visible for the active package and must include
 assumptions, data bindings, warnings, validation, and provenance.
 
-`/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`, and
+`/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`,
+`/studio?source=<kind>&itemId=<itemId>`, and
 `/studio/apps/:itemId/preview` are mounted to the same package shell for
-the current Console slice so smoke evidence, legacy proof links, and
-generated-app reopen paths resolve through an implemented Studio route.
-The route parameters are accepted but not yet used to hydrate a
-server-backed package. The package shell does not create server-owned
-content versions or publication records by itself.
+the current Console slice so smoke evidence, legacy proof links, viewer
+edit actions, and generated-app reopen paths resolve through an
+implemented Studio route. The `?source=...&itemId=...` spelling is the
+route-compatible action URL emitted by the `honua-console#34` map viewer
+and draft-map slice. The route parameters are accepted but not yet used
+to hydrate a server-backed package. The package shell does not create
+server-owned content versions or publication records by itself.
 
 The seven package editor routes above are the `honua-console#39`
 Console-native Studio slice. They render shared Razor editors from the
@@ -893,7 +896,7 @@ eligible for `/share/public/items/:idOrSlug` per §6.6).
 2. **`/catalog/:id`** (service) — the published service appears as a
    catalog item; Catalog detail loads. Smoke labels: `catalog-detail`
    (row 9), `catalog-list` (row 8) if the smoke walks the list first.
-3. **`/studio/drafts?source=saved-map&id=:mapId`** →
+3. **`/studio?source=map&itemId=:mapId`** →
    **`/studio/apps/:itemId/preview`** — Studio prompt
    generates a saved map / dashboard / app from the catalog item; apply
    succeeds; preview renders. Smoke label: `studio-generation` (rows

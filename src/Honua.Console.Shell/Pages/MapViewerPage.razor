@@ -25,15 +25,14 @@
                     <span>@VisibilityLabel(map.Summary.Access.Sharing)</span>
                     @if (_result.AnonymousRead)
                     {
-                        <span>Public-link read</span>
+                        <span>@ConsoleAnonymousReadLabels.ReadLabel(map.Summary)</span>
                     }
                 </div>
             </div>
             <div class="console-detail-actions">
-                @if (!_result.AnonymousRead)
+                @foreach (var action in ResolveViewerActions(map.Summary, isAuthenticated: !_result.AnonymousRead))
                 {
-                    <a class="console-button-link" href="/catalog/@SlugOrId(map.Summary)">Open Detail</a>
-                    <a class="console-button-link" href="/studio?source=map&itemId=@map.Summary.Id">Edit In Studio</a>
+                    <a class="console-button-link" href="@action.Href">@action.Label</a>
                 }
             </div>
         </div>
@@ -89,8 +88,24 @@
         builder.CloseComponent();
     };
 
-    private static string SlugOrId(ConsoleContentSummary item) =>
-        string.IsNullOrWhiteSpace(item.Slug) ? item.Id : item.Slug;
+    public static IReadOnlyList<ConsoleCatalogAction> ResolveViewerActions(
+        ConsoleContentSummary map,
+        bool isAuthenticated)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+
+        if (!isAuthenticated)
+        {
+            return [];
+        }
+
+        return ConsoleCatalogActionPolicy.Resolve(map, isAuthenticated: true)
+            .Where(action => action.Id is "detail" or "studio" or "share")
+            .Select(action => action.Id == "studio"
+                ? action with { Href = $"/studio?source=map&itemId={Uri.EscapeDataString(map.Id)}" }
+                : action)
+            .ToArray();
+    }
 
     private static string VisibilityLabel(string sharing) => sharing switch
     {

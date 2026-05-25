@@ -220,12 +220,12 @@ real HTTP transport cannot silently accept a drifted payload:
   assumptions, data bindings, warnings, validation, and provenance, and
   the lifecycle evidence names the distinct Draft, Preview, Saved version,
   and Published states. The current route is same-origin compatibility
-  evidence for `/studio/drafts?source=saved-map&id=<id>`; source hydration
-  and publication persistence remain server/SDK follow-up work, so the
-  package snapshot records `sourceHydrated: false` and uses the generic
-  mock binding rather than the saved-map id. This is a stable mock
-  projection until the server package lifecycle API and SDK package
-  helpers are wired into Console.
+  evidence for `/studio?source=map&itemId=<id>`; source hydration and
+  publication persistence remain server/SDK follow-up work, so the package
+  snapshot records `sourceHydrated: false` and uses the generic mock
+  binding rather than the saved-map id. This is a stable mock projection
+  until the server package lifecycle API and SDK package helpers are wired
+  into Console.
 - **`share-access/v1`** — `patchAccess` returns
   `{ sharing, embeddable, groupIds?, publicLinkToken? }` only; `groupIds`
   is emitted for `sharing="group"` and `publicLinkToken` is emitted for

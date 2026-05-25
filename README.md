@@ -126,7 +126,9 @@ The Blazor shell includes the catalog/share parity route slice for
   `?tab=overview|versions|lineage|bindings|publication|permissions|activity|usage`;
   unknown tabs fall back to overview.
 - `/maps/new?from=<itemId>` requires a signed-in workspace session and
-  hydrates an unsaved draft map from a supported catalog item.
+  hydrates an unsaved draft map from a supported service or layer catalog
+  item. Its Studio continuation URL is
+  `/studio?source=catalog&itemId=<itemId>`.
 - `/share`, `/share/public`, and `/public` list public open-data service,
   layer, and document items. `/share/public/items/{idOrSlug}` and
   `/public/items/{idOrSlug}` serve the eligible item detail page.

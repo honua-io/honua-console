@@ -27,7 +27,7 @@
                     <span>@VisibilityLabel(summary.Access.Sharing)</span>
                     @if (_result.AnonymousRead)
                     {
-                        <span>Public-link read</span>
+                        <span>@ConsoleAnonymousReadLabels.ReadLabel(summary)</span>
                     }
                     @foreach (var format in summary.Formats)
                     {
@@ -110,7 +110,7 @@
                     <h2>Permissions</h2>
                     @if (_result.AnonymousRead)
                     {
-                        <ConsoleStateView Kind="unavailable" Kicker="Unavailable" Title="Permissions are hidden" Message="Anonymous public-link reads do not expose workspace permission details." />
+                        <ConsoleStateView Kind="unavailable" Kicker="Unavailable" Title="Permissions are hidden" Message="@ConsoleAnonymousReadLabels.PermissionsHiddenMessage(summary)" />
                     }
                     else
                     {
