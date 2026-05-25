@@ -49,9 +49,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, settingsChangeStates);
 
         var resources = BuildResourceEdits(layerRows);
-        var services = summaries
-            .Select(service => MapService(service, serviceSettings, layerRows))
-            .ToArray();
+        var services = MapServices(summaries, serviceSettings, layerRows);
 
         return new OperateTransitionWorkspace(
             connections,
@@ -138,9 +136,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             serviceSettings = settings;
         }
 
-        var services = summaries
-            .Select(service => MapService(service, serviceSettings, layerRows))
-            .ToArray();
+        var services = MapServices(summaries, serviceSettings, layerRows);
 
         return new OperateServicesView(services, states);
     }
@@ -403,6 +399,47 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    private IReadOnlyList<OperateServiceDetail> MapServices(
+        IReadOnlyList<HonuaAdminServiceSummary> summaries,
+        IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
+        IReadOnlyList<LayerRow> layerRows)
+    {
+        // Services and layers render through the service summary list, but each published-layer row
+        // carries its own service name. When the admin services endpoint reports no rows (or omits a
+        // service that still owns published layers), derive the missing service entries from the layer
+        // rows so the layers do not disappear from the services and layers surfaces. These are projected
+        // from live published-layer data, not fabricated rows for an unsupported contract.
+        return CombineServiceSummaries(summaries, layerRows)
+            .Select(service => MapService(service, serviceSettings, layerRows))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<HonuaAdminServiceSummary> CombineServiceSummaries(
+        IReadOnlyList<HonuaAdminServiceSummary> summaries,
+        IReadOnlyList<LayerRow> layerRows)
+    {
+        var knownServiceNames = summaries
+            .Select(summary => summary.ServiceName?.Trim())
+            .Where(serviceName => !string.IsNullOrWhiteSpace(serviceName))
+            .Select(serviceName => serviceName!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var derivedServices = layerRows
+            .GroupBy(row => Coalesce(row.Source.ServiceName, "default"), StringComparer.OrdinalIgnoreCase)
+            .Where(group => !knownServiceNames.Contains(group.Key))
+            .Select(group => new HonuaAdminServiceSummary
+            {
+                ServiceName = group.Key,
+                LayerCount = group.Count(),
+                EnabledProtocols = []
+            });
+
+        return summaries
+            .Concat(derivedServices)
+            .OrderBy(summary => summary.ServiceName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 
     private OperateServiceDetail MapService(
         HonuaAdminServiceSummary service,

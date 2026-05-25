@@ -216,6 +216,40 @@ public sealed class OperateTransitionDataSourceTests
     }
 
     [Fact]
+    public async Task PublishedLayersRenderWhenServicesEndpointReturnsNoRows()
+    {
+        // Regression: a connection can return published layers from the default scope even when the
+        // admin services endpoint reports no rows (e.g. the Metadata v2 graph has not projected the
+        // service yet). The layers must not disappear from the services and layers surfaces.
+        var connectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var handler = new RecordingJsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/connections/"] = $$"""
+                {"success":true,"data":[{"connectionId":"{{connectionId}}","name":"Live PostGIS","host":"db.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
+                """,
+            ["/api/v1/admin/services/"] = """
+                {"success":true,"data":[]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/"] = """
+                {"success":true,"data":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+                """
+        });
+        var dataSource = CreateServerDataSource(handler);
+
+        var layersView = await dataSource.GetLayersViewAsync();
+        var servicesView = await dataSource.GetServicesViewAsync();
+        var workspace = await dataSource.GetWorkspaceAsync();
+
+        Assert.Contains(layersView.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        Assert.Contains(servicesView.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        Assert.Contains(workspace.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        // The service is derived from the layer's own service name, not the absent services endpoint.
+        Assert.Contains(servicesView.Services, service => service.Name == "planning");
+        // Resources read the same layer rows directly and must also keep the published layer.
+        Assert.Contains(workspace.ResourceEdits, resource => resource.Name == "Console Parcels");
+    }
+
+    [Fact]
     public async Task DetailPagesRenderMissingItemAndCapabilityState()
     {
         var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace(

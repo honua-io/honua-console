@@ -82,7 +82,18 @@ Only the `/operate` landing page composes the full workspace through
 independent top-level reads together to avoid a waterfall, then reads layer rows
 per connection across the default service scope and each non-default service
 reported by `GET /api/v1/admin/services/`. It does not fabricate rows for
-unsupported contracts.
+unsupported contracts. When `GET /api/v1/admin/services/` reports no row for a
+service that still owns published layers, the services and layers surfaces derive
+that service entry from the layer's own `serviceName` so live published layers are
+never dropped when the admin services projection lags behind the layer projection.
+
+Each route filters the view's `capabilityStates` through
+`OperateCapabilityStateFilters.ForSurface`, which always includes the global
+`Operate` surface (so the missing-binding state appears on every route) plus the
+surface(s) that route reads. Connections and Settings include only their own
+surface; Resources adds `Layers`, and Services and Layers each include the other,
+so capability states raised while reading the shared connection/service/layer
+endpoints surface on every route that depends on them.
 
 ## Response Contract
 
@@ -142,4 +153,4 @@ when the honua-server project path cannot be found.
 
 `AddHonuaConsoleShell()` now registers `UnsupportedOperateTransitionDataSource` unless a server base URL is provided. `AddHonuaConsoleShell(serverBaseUrl, adminApiKey)` registers `HonuaServerOperateTransitionDataSource`, which maps the temporary `Honua.Console.Contracts` HTTP shim records into Console view models. Replace `HonuaAdminOperateHttpClient` with `honua-sdk-dotnet` admin clients once those contracts are available, without moving server protocol DTOs into Shell pages or services.
 
-The SDK-backed replacement must preserve the redaction boundary in `IOperateTransitionDataSource` before values reach Razor rendering. Tests in `OperateTransitionDataSourceTests` cover runtime DI, server-response mapping, missing-contract states, diagnostic redaction, blast radius, service metadata ownership, and settings restart requirements. `OperateTransitionLiveServerTests` is an opt-in xUnit/Testcontainers integration test (`HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true`) that starts PostgreSQL, boots a real honua-server checkout, creates a connection/layer fixture, and renders Razor pages from live data; it skips cleanly when not opted in or when Docker/server checkout prerequisites are unavailable.
+The SDK-backed replacement must preserve the redaction boundary in `IOperateTransitionDataSource` before values reach Razor rendering. Tests in `OperateTransitionDataSourceTests` cover runtime DI, server-response mapping, missing-contract states, diagnostic redaction, blast radius, service metadata ownership, settings restart requirements, and route-scoped endpoint fan-out (the connections, settings, and layers views each read only the admin endpoints their route renders). `OperateTransitionLiveServerTests` is an opt-in xUnit/Testcontainers integration test (`HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true`) that starts PostgreSQL, boots a real honua-server checkout, creates a connection/layer fixture, and renders Razor pages from live data; it skips cleanly when not opted in or when Docker/server checkout prerequisites are unavailable.
