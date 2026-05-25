@@ -132,17 +132,13 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             Clarifications = clarifications,
             ActivePackage = MapDraft(draft, option, StudioPackageLifecycleState.Draft, clarifications, normalizedPrompt),
             PreviewPlan = null,
-            Draft = new StudioDraftHandle(
-                draft.DraftId.ToString(),
-                draft.ItemId.ToString(),
-                draft.PackageKey,
-                draft.Generation),
+            Draft = ToDraftHandle(draft),
             BindingState = null,
             StatusMessage = $"Server draft created ({draft.PackageKey})."
         };
     }
 
-    public Task<StudioAuthoringSession> ApplyClarificationAsync(
+    public async Task<StudioAuthoringSession> ApplyClarificationAsync(
         StudioAuthoringSession session,
         string questionId,
         string choiceId,
@@ -153,7 +149,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         var question = session.Clarifications.FirstOrDefault(q => string.Equals(q.Id, questionId, StringComparison.Ordinal));
         if (question is null)
         {
-            return Task.FromResult(session);
+            return session;
         }
 
         var choice = question.Choices.FirstOrDefault(c => string.Equals(c.Id, choiceId, StringComparison.Ordinal))
@@ -178,7 +174,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             .Append(new StudioProvenanceEvent("Builder", "Clarification accepted", $"{question.Label}: {choice.Label}"))
             .ToArray();
 
-        return Task.FromResult(session with
+        var updatedSession = session with
         {
             Clarifications = remaining,
             ActivePackage = package with
@@ -188,7 +184,49 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                 Assumptions = assumptions,
                 Provenance = provenance
             }
-        });
+        };
+
+        if (session.Draft is null)
+        {
+            return updatedSession;
+        }
+
+        var persisted = await PersistClarificationAsync(
+                session,
+                question,
+                choice,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!persisted.IsSuccess || persisted.Data is null)
+        {
+            return session with { BindingState = ToBindingState(persisted.Issue) };
+        }
+
+        var option = ResolveOption(session, session.SelectedWorkflowId);
+        var mappedPackage = MapDraft(
+            persisted.Data,
+            option,
+            session.ActivePackage.LifecycleState,
+            remaining,
+            session.Prompt);
+
+        return updatedSession with
+        {
+            ActivePackage = updatedSession.ActivePackage with
+            {
+                PackageRef = mappedPackage.PackageRef,
+                PackageType = mappedPackage.PackageType,
+                SchemaVersion = mappedPackage.SchemaVersion,
+                Summary = mappedPackage.Summary,
+                DataBindings = mappedPackage.DataBindings,
+                Warnings = mappedPackage.Warnings,
+                ValidationItems = mappedPackage.ValidationItems,
+                Provenance = mappedPackage.Provenance
+            },
+            Draft = ToDraftHandle(persisted.Data, session.Draft.CurrentVersionId),
+            BindingState = null,
+            StatusMessage = $"Server draft updated ({persisted.Data.PackageKey})."
+        };
     }
 
     public async Task<StudioAuthoringSession> ValidateAsync(
@@ -208,8 +246,15 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             return session with { BindingState = ToBindingState(result.Issue) };
         }
 
+        var refreshedDraft = await RefreshDraftAsync(session, cancellationToken).ConfigureAwait(false);
+        if (!refreshedDraft.IsSuccess || refreshedDraft.Data is null)
+        {
+            return session with { BindingState = ToBindingState(refreshedDraft.Issue) };
+        }
+
         return session with
         {
+            Draft = ToDraftHandle(refreshedDraft.Data, session.Draft.CurrentVersionId),
             ActivePackage = session.ActivePackage with
             {
                 ValidationItems = MapValidation(result.Data),
@@ -237,8 +282,15 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         }
 
         var plan = result.Data;
+        var refreshedDraft = await RefreshDraftAsync(session, cancellationToken).ConfigureAwait(false);
+        if (!refreshedDraft.IsSuccess || refreshedDraft.Data is null)
+        {
+            return session with { BindingState = ToBindingState(refreshedDraft.Issue) };
+        }
+
         return session with
         {
+            Draft = ToDraftHandle(refreshedDraft.Data, session.Draft.CurrentVersionId),
             PreviewPlan = new StudioPreviewPlanView(plan.Synchronous, plan.RequiresJob, plan.Steps),
             ActivePackage = session.ActivePackage with
             {
@@ -329,6 +381,187 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                 : $"Publication request {FormatPublicationStatus(publication.Status)}."
         };
     }
+
+    private async Task<StudioEndpointResult<StudioPackageDraft>> PersistClarificationAsync(
+        StudioAuthoringSession session,
+        StudioClarificationQuestion question,
+        StudioClarificationChoice choice,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(session.Draft?.DraftId, out var draftId))
+        {
+            return StudioEndpointResult<StudioPackageDraft>.FromIssue(new StudioEndpointIssue(
+                "Unavailable",
+                "PUT /api/v1/studio/package-drafts/{draftId}",
+                "The active Studio draft handle is missing or invalid."));
+        }
+
+        StudioEndpointResult<StudioPackageDraft>? lastUpdate = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var current = await _client.GetPackageDraftAsync(draftId, cancellationToken).ConfigureAwait(false);
+            if (!current.IsSuccess || current.Data is null)
+            {
+                return current.IsSuccess
+                    ? MissingDraftData("GET /api/v1/studio/package-drafts/{draftId}")
+                    : current;
+            }
+
+            var updatedEnvelope = ApplyClarificationToEnvelope(current.Data.Envelope, question, choice);
+            var update = new UpdateStudioPackageDraftRequest
+            {
+                PackageKey = current.Data.PackageKey,
+                WorkspaceId = current.Data.WorkspaceId,
+                OwnerId = current.Data.OwnerId,
+                Envelope = updatedEnvelope,
+                Generation = current.Data.Generation
+            };
+
+            lastUpdate = await _client.UpdatePackageDraftAsync(draftId, update, cancellationToken)
+                .ConfigureAwait(false);
+            if (lastUpdate.IsSuccess && lastUpdate.Data is not null)
+            {
+                return lastUpdate;
+            }
+
+            if (lastUpdate.Issue?.IsConflict != true)
+            {
+                return lastUpdate.IsSuccess
+                    ? MissingDraftData("PUT /api/v1/studio/package-drafts/{draftId}")
+                    : lastUpdate;
+            }
+        }
+
+        return lastUpdate ?? StudioEndpointResult<StudioPackageDraft>.FromIssue(new StudioEndpointIssue(
+            "Conflict",
+            "PUT /api/v1/studio/package-drafts/{draftId}",
+            "The Studio draft changed while applying clarification; refresh and retry.",
+            409));
+    }
+
+    private Task<StudioEndpointResult<StudioPackageDraft>> RefreshDraftAsync(
+        StudioAuthoringSession session,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(session.Draft?.DraftId, out var draftId))
+        {
+            return Task.FromResult(StudioEndpointResult<StudioPackageDraft>.FromIssue(new StudioEndpointIssue(
+                "Unavailable",
+                "GET /api/v1/studio/package-drafts/{draftId}",
+                "The active Studio draft handle is missing or invalid.")));
+        }
+
+        return _client.GetPackageDraftAsync(draftId, cancellationToken);
+    }
+
+    private static StudioEndpointResult<StudioPackageDraft> MissingDraftData(string contract) =>
+        StudioEndpointResult<StudioPackageDraft>.FromIssue(new StudioEndpointIssue(
+            "Unavailable",
+            contract,
+            "The Honua server did not return the updated Studio package draft."));
+
+    private static StudioPackageEnvelope ApplyClarificationToEnvelope(
+        StudioPackageEnvelope envelope,
+        StudioClarificationQuestion question,
+        StudioClarificationChoice choice)
+    {
+        var clarified = question.Id switch
+        {
+            "source-binding" => envelope with
+            {
+                Bindings = UpsertSourceBinding(envelope.Bindings, choice)
+            },
+            "publish-intent" => envelope with
+            {
+                PublicationIntent = BuildPublicationIntent(choice)
+            },
+            _ => envelope
+        };
+
+        return clarified with
+        {
+            Provenance = clarified.Provenance
+                .Append(new StudioProvenanceRef
+                {
+                    Kind = "clarification",
+                    Rel = "answered",
+                    Ref = $"{question.Id}:{choice.Id}",
+                    ActorId = "Builder",
+                    Timestamp = DateTimeOffset.UtcNow
+                })
+                .ToArray()
+        };
+    }
+
+    private static IReadOnlyList<StudioPackageBinding> UpsertSourceBinding(
+        IReadOnlyList<StudioPackageBinding> bindings,
+        StudioClarificationChoice choice)
+    {
+        var replacement = new StudioPackageBinding
+        {
+            Key = "source-binding",
+            Kind = choice.Id switch
+            {
+                "saved-map" => "content-item",
+                "upload" => "uploaded-table",
+                "catalog-search" => "catalog-search",
+                _ => "data-source"
+            },
+            Ref = choice.Label
+        };
+
+        var updated = false;
+        var result = bindings
+            .Select(binding =>
+            {
+                if (!string.Equals(binding.Key, replacement.Key, StringComparison.Ordinal))
+                {
+                    return binding;
+                }
+
+                updated = true;
+                return binding with
+                {
+                    Kind = replacement.Kind,
+                    Ref = replacement.Ref
+                };
+            })
+            .ToList();
+
+        if (!updated)
+        {
+            result.Add(replacement);
+        }
+
+        return result;
+    }
+
+    private static StudioPublicationIntent BuildPublicationIntent(StudioClarificationChoice choice) =>
+        choice.Id switch
+        {
+            "org-preview" => new StudioPublicationIntent
+            {
+                Visibility = "organization"
+            },
+            "public-review" => new StudioPublicationIntent
+            {
+                Visibility = "public",
+                Embed = true
+            },
+            _ => new StudioPublicationIntent
+            {
+                Visibility = "private",
+                Embed = false
+            }
+        };
+
+    private static StudioDraftHandle ToDraftHandle(StudioPackageDraft draft, string? currentVersionId = null) =>
+        new(
+            draft.DraftId.ToString(),
+            draft.ItemId.ToString(),
+            draft.PackageKey,
+            draft.Generation,
+            currentVersionId);
 
     private StudioWorkflowOption ResolveOption(StudioAuthoringSession session, string workflowId) =>
         session.Workflows.FirstOrDefault(option => string.Equals(option.Id, workflowId, StringComparison.Ordinal))
