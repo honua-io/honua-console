@@ -19,7 +19,7 @@ The native routes are the preferred Console navigation for connections, data res
 - `/operate/services`
 - `/operate/services/{serviceName}/settings`
 - `/operate/layers`
-- `/operate/layers/{layerId:int}`
+- `/operate/layers/{resourceId}`
 - `/operate/settings`
 
 ## Server Binding And Admin Shim
@@ -106,7 +106,7 @@ These are Console transition view models, not server protocol DTOs:
 | Connection diagnostics | The detail and `/diagnostics` routes share the same component and render `outcome`, `failureCode`, redacted `summary`, structured `signals`, redacted `operatorActions`, and redacted evidence key/value rows. |
 | Resource edits | `resourceId`, `name`, `source`, `draftChange`, `validationState`, `validationIssues`, `editTabs`, and blast-radius lists for catalog items, services, layers, saved maps, share links, and generated apps. |
 | Services | `name`, `displayName`, `serviceType`, `runtimeStatus`, `metadataOwnership`, layer projections, runtime settings, and publication slots. |
-| Layers | Flattened service-layer projections with `layerId`, `name`, `geometry`, service link, and canonical resource link. The list renders one row per service exposure; because a single `layerId` can be exposed by more than one service, the `/operate/layers/{layerId}` detail page aggregates and renders every service exposing that layer rather than an arbitrary first match. |
+| Layers | Flattened service-layer projections with `layerId`, `name`, `geometry`, service link, and canonical resource link. The list renders one row per service exposure and links each row by canonical resource id (`/operate/layers/{resourceId}`, the route-map `:id`). Because a `layerId` is unique only within its connection and one layer can be exposed by more than one service, the detail page groups by canonical resource id: it aggregates every service exposing that specific layer rather than an arbitrary first match, and never conflates a same-numbered layer from a different connection. |
 | Settings | `id`, `category`, `name`, `proposedChange`, `applyScope`, `requiresRestart`, `restartRequirement`, and `policyState`. |
 
 Missing detail records render the shared Console missing-item surface:

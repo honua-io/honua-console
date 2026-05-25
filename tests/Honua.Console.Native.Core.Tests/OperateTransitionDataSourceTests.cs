@@ -303,7 +303,7 @@ public sealed class OperateTransitionDataSourceTests
             dataSource,
             ParameterView.FromDictionary(new Dictionary<string, object?>
             {
-                ["LayerId"] = 404
+                ["ResourceId"] = "missing-resource"
             }));
 
         Assert.Contains("Connection Not Found", connectionHtml, StringComparison.Ordinal);
@@ -323,9 +323,10 @@ public sealed class OperateTransitionDataSourceTests
     [Fact]
     public async Task LayerDetailRendersAllServiceExposuresForSharedLayerId()
     {
-        // Regression: layer 7 is published by both the planning and public services, and the layers
-        // list links every exposure row to the same /operate/layers/7 route. The detail page must
-        // render every matching service exposure, not an arbitrary first one.
+        // Regression: layer 7 is published by both the planning and public services. Both exposures
+        // share one canonical resource id, the layers list links every exposure row to the same
+        // /operate/layers/{canonicalResourceId} route, and the detail page must render every matching
+        // service exposure, not an arbitrary first one.
         var connectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var handler = new JsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -347,11 +348,16 @@ public sealed class OperateTransitionDataSourceTests
         });
         var dataSource = CreateServerDataSource(handler);
 
+        var layersView = await dataSource.GetLayersViewAsync();
+        var resourceId = layersView.Services
+            .SelectMany(service => service.Layers)
+            .First(layer => layer.Name == "Console Parcels")
+            .CanonicalResourceId;
         var layerHtml = await RenderPageAsync<OperateLayerDetailPage>(
             dataSource,
             ParameterView.FromDictionary(new Dictionary<string, object?>
             {
-                ["LayerId"] = 7
+                ["ResourceId"] = resourceId
             }));
 
         // Both service exposures render, so either layers-list row lands on a page that shows every
@@ -361,6 +367,61 @@ public sealed class OperateTransitionDataSourceTests
         Assert.Contains("Planning Service", layerHtml, StringComparison.Ordinal);
         Assert.Contains("Public Service", layerHtml, StringComparison.Ordinal);
         Assert.Contains("Console Parcels", layerHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LayerDetailDoesNotConflateSameLayerIdAcrossConnections()
+    {
+        // Regression: layer ids are only unique within a connection, so connection A and connection B
+        // can both publish a layer 7 that point at different resources. Keying the detail route on the
+        // bare integer conflated them; keying on the canonical resource id must render only the layer
+        // belonging to the requested connection.
+        var connectionA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var connectionB = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var handler = new JsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/connections/"] = $$"""
+                {"success":true,"data":[{"connectionId":"{{connectionA}}","name":"Connection A","host":"a.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"},{"connectionId":"{{connectionB}}","name":"Connection B","host":"b.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
+                """,
+            ["/api/v1/admin/services/"] = """
+                {"success":true,"data":[{"serviceName":"planning","description":"Planning Service","layerCount":2,"enabledProtocols":["FeatureServer"]}]}
+                """,
+            [$"/api/v1/admin/connections/{connectionA}/layers/"] = """
+                {"success":true,"data":[]}
+                """,
+            [$"/api/v1/admin/connections/{connectionB}/layers/"] = """
+                {"success":true,"data":[]}
+                """,
+            [$"/api/v1/admin/connections/{connectionA}/layers/?serviceName=planning"] = """
+                {"success":true,"data":[{"layerId":7,"layerName":"Connection A Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}]}
+                """,
+            [$"/api/v1/admin/connections/{connectionB}/layers/?serviceName=planning"] = """
+                {"success":true,"data":[{"layerId":7,"layerName":"Connection B Roads","schema":"public","table":"roads","geometryType":"Line","enabled":true,"serviceName":"planning"}]}
+                """
+        });
+        var dataSource = CreateServerDataSource(handler);
+
+        var layersView = await dataSource.GetLayersViewAsync();
+        var connectionAResourceId = layersView.Services
+            .SelectMany(service => service.Layers)
+            .First(layer => layer.Name == "Connection A Parcels")
+            .CanonicalResourceId;
+        var connectionBResourceId = layersView.Services
+            .SelectMany(service => service.Layers)
+            .First(layer => layer.Name == "Connection B Roads")
+            .CanonicalResourceId;
+        var layerHtml = await RenderPageAsync<OperateLayerDetailPage>(
+            dataSource,
+            ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                ["ResourceId"] = connectionAResourceId
+            }));
+
+        // Both connections expose a layer 7, but the two layers resolve to distinct resource ids.
+        Assert.NotEqual(connectionAResourceId, connectionBResourceId);
+        // The page shows only the requested connection's layer, never the same-numbered layer next door.
+        Assert.Contains("Connection A Parcels", layerHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Connection B Roads", layerHtml, StringComparison.Ordinal);
     }
 
     [Fact]

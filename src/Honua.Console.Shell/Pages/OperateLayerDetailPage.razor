@@ -1,4 +1,4 @@
-@page "/operate/layers/{LayerId:int}"
+@page "/operate/layers/{ResourceId}"
 @inject IOperateTransitionDataSource OperateData
 
 <section class="console-page">
@@ -51,12 +51,13 @@
 
 @code {
     [Parameter]
-    public int LayerId { get; set; }
+    public string ResourceId { get; set; } = string.Empty;
 
-    // A single layerId can be exposed by more than one service (honua-server stores service exposure
-    // separately in honua.service_layers), and the layers list links every exposure row to the same
-    // /operate/layers/{LayerId} route. Render every matching exposure rather than an arbitrary first
-    // one, so the page never shows a different service's exposure than the operator selected.
+    // A raw layer id is only unique within its connection, so the route keys on the canonical resource
+    // id ({connection}-layer-{layerId}) instead — matching the route-map's /operate/layers/:id. That id
+    // is shared across every service exposing the same layer (honua-server stores service exposure
+    // separately in honua.service_layers) but differs per connection, so grouping by it renders all of
+    // this layer's exposures without conflating a same-numbered layer from another connection.
     private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayerProjection Layer)> _exposures =
         Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
     private string _serviceSummary = string.Empty;
@@ -67,7 +68,7 @@
         var view = await OperateData.GetLayersViewAsync();
         _exposures = view.Services
             .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
-            .Where(row => row.Layer.LayerId == LayerId)
+            .Where(row => string.Equals(row.Layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase))
             .OrderBy(row => row.Service.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
