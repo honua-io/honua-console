@@ -200,6 +200,31 @@ Every package should carry:
 - `warnings`
 - `provenance`
 
+### Workflow Package Editor Projection
+
+Implementation note for `honua-console#40`: Console exposes the first
+Studio workflow editor at `/studio/workflows/new` and
+`/studio/workflows/{draftId}`. The editor is a Blazor projection over a
+replaceable `IStudioWorkflowPackageClient` adapter, seeded in memory until
+the server and SDK workflow contracts land. The adapter models the
+server-owned boundaries Console must call rather than inventing a durable
+Console schema:
+
+- `workflow.package` draft graph with source, transform, sink, success,
+  and failure edges.
+- Parameter, schedule, worker profile, retry/failure behavior, output
+  schema, and publication intent edits.
+- Dry-run job response with sample rows, logs, artifacts, and output
+  schemas.
+- Content item version save response for package persistence.
+- Publication response for batch workflow, scheduled job, or eligible
+  process endpoint with parameter validation.
+- Operate job/event evidence links for dry-run and publish jobs.
+
+The focused smoke command is `npm run smoke:workflow`; it records
+dry-run -> save version -> publish -> Operate monitor evidence under the
+same owning-layer taxonomy as the Console parity smoke.
+
 ### Data Binding
 
 Portable reference from an artifact to a dataset, layer, query, workflow output, job artifact, or service endpoint.

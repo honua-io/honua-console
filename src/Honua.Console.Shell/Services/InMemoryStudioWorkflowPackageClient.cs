@@ -1,0 +1,721 @@
+using System.Text.Json;
+using Honua.Console.Shell.Models;
+
+namespace Honua.Console.Shell.Services;
+
+public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackageClient
+{
+    public const string SeedDraftId = "wf-draft-parcel-etl";
+
+    private static readonly JsonSerializerOptions CloneOptions = new(JsonSerializerDefaults.Web);
+
+    private readonly object _gate = new();
+    private readonly Dictionary<string, StudioWorkflowPackageDraft> _drafts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, StudioWorkflowJobEvidence> _jobs = new(StringComparer.Ordinal);
+    private readonly IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions;
+    private int _draftSequence = 1;
+    private int _jobSequence;
+
+    public InMemoryStudioWorkflowPackageClient(IEnumerable<StudioWorkflowPackageDraft>? seedDrafts = null)
+    {
+        _nodeDefinitions = CreateNodeDefinitions();
+
+        foreach (var draft in seedDrafts ?? [CreateSeedDraft()])
+        {
+            _drafts[draft.DraftId] = Clone(draft);
+        }
+    }
+
+    public static InMemoryStudioWorkflowPackageClient CreateSeeded() => new();
+
+    public Task<IReadOnlyList<StudioWorkflowDraftSummary>> ListDraftsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            return Task.FromResult<IReadOnlyList<StudioWorkflowDraftSummary>>(
+                _drafts.Values
+                    .OrderByDescending(draft => draft.UpdatedAt)
+                    .Select(draft => new StudioWorkflowDraftSummary
+                    {
+                        DraftId = draft.DraftId,
+                        ContentItemId = draft.ContentItemId,
+                        Title = draft.Title,
+                        PackageType = draft.PackageType,
+                        VersionNumber = draft.VersionNumber,
+                        PublicationMode = draft.PublicationIntent.Mode,
+                        UpdatedAt = draft.UpdatedAt
+                    })
+                    .ToArray());
+        }
+    }
+
+    public Task<IReadOnlyList<StudioWorkflowNodeDefinition>> ListNodeDefinitionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(CloneList(_nodeDefinitions));
+    }
+
+    public Task<StudioWorkflowPackageDraft> CreateDraftAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            var draft = CreateSeedDraft();
+            _draftSequence += 1;
+            draft.DraftId = $"wf-draft-new-{_draftSequence:000}";
+            draft.ContentItemId = string.Empty;
+            draft.CurrentVersionId = string.Empty;
+            draft.VersionNumber = 0;
+            draft.Title = "Untitled workflow package";
+            draft.Summary = "Draft workflow package for GP and ETL authoring.";
+            draft.CreatedAt = DateTimeOffset.UtcNow;
+            draft.UpdatedAt = draft.CreatedAt;
+            draft.LastSavedAt = null;
+            draft.PublicationIntent.RouteSlug = $"workflow-{_draftSequence:000}";
+            _drafts[draft.DraftId] = Clone(draft);
+            return Task.FromResult(Clone(draft));
+        }
+    }
+
+    public Task<StudioWorkflowPackageDraft?> GetDraftAsync(
+        string draftId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(draftId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            return Task.FromResult(_drafts.TryGetValue(draftId, out var draft) ? Clone(draft) : null);
+        }
+    }
+
+    public Task<StudioWorkflowSaveResult> SaveVersionAsync(
+        StudioWorkflowPackageDraft draft,
+        string changeNote,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        ArgumentException.ThrowIfNullOrWhiteSpace(draft.DraftId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            var stored = PrepareDraftForStorage(draft);
+            stored.ContentItemId = string.IsNullOrWhiteSpace(stored.ContentItemId)
+                ? $"workflow-{Slugify(stored.Title)}"
+                : stored.ContentItemId;
+            stored.VersionNumber = Math.Max(stored.VersionNumber + 1, 1);
+            stored.CurrentVersionId = $"{stored.ContentItemId}:v{stored.VersionNumber}";
+            stored.LastSavedAt = DateTimeOffset.UtcNow;
+            stored.UpdatedAt = stored.LastSavedAt.Value;
+            stored.ValidationIssues = ValidatePackage(stored);
+
+            _drafts[stored.DraftId] = Clone(stored);
+
+            draft.ContentItemId = stored.ContentItemId;
+            draft.VersionNumber = stored.VersionNumber;
+            draft.CurrentVersionId = stored.CurrentVersionId;
+            draft.LastSavedAt = stored.LastSavedAt;
+            draft.UpdatedAt = stored.UpdatedAt;
+            draft.ValidationIssues = CloneList(stored.ValidationIssues).ToList();
+
+            return Task.FromResult(new StudioWorkflowSaveResult
+            {
+                ContentItemId = stored.ContentItemId,
+                VersionId = stored.CurrentVersionId,
+                VersionNumber = stored.VersionNumber,
+                PackageType = stored.PackageType,
+                ContentItemType = StudioWorkflowContractValues.ContentItemType,
+                Contract = "content-version/v1 + workflow.package/v1",
+                ValidationIssues = CloneList(stored.ValidationIssues)
+            });
+        }
+    }
+
+    public Task<StudioWorkflowDryRunResult> DryRunAsync(
+        StudioWorkflowPackageDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            var prepared = PrepareDraftForStorage(draft);
+            var jobId = NextJobId("dryrun");
+            var result = new StudioWorkflowDryRunResult
+            {
+                JobId = jobId,
+                JobKind = StudioWorkflowContractValues.DryRunJobKind,
+                Status = "succeeded",
+                SampleRows = 48,
+                Logs =
+                [
+                    $"Loaded {prepared.Nodes.Count} workflow nodes from {prepared.PackageType}.",
+                    $"Validated {prepared.Parameters.Count} invocation parameters against sample data.",
+                    "Materialized output schema and sample artifacts without publishing."
+                ],
+                Artifacts =
+                [
+                    $"{prepared.DraftId}/dry-run/sample-output.geojson",
+                    $"{prepared.DraftId}/dry-run/output-schema.json",
+                    $"{prepared.DraftId}/dry-run/execution-log.txt"
+                ],
+                OutputSchemas = CloneList(prepared.OutputSchemas),
+                OperateJobUrl = $"/operate/jobs/{jobId}",
+                OperateEventsUrl = $"/operate/events?jobId={jobId}"
+            };
+
+            _jobs[jobId] = new StudioWorkflowJobEvidence
+            {
+                JobId = jobId,
+                JobKind = result.JobKind,
+                Status = result.Status,
+                DraftId = prepared.DraftId,
+                ContentItemId = prepared.ContentItemId,
+                VersionId = prepared.CurrentVersionId,
+                Logs = result.Logs,
+                Artifacts = result.Artifacts,
+                OutputSchemas = result.OutputSchemas,
+                OperateJobUrl = result.OperateJobUrl,
+                OperateEventsUrl = result.OperateEventsUrl,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<StudioWorkflowPublishResult> PublishAsync(
+        StudioWorkflowPackageDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            var prepared = PrepareDraftForStorage(draft);
+            if (string.IsNullOrWhiteSpace(prepared.CurrentVersionId))
+            {
+                prepared.ContentItemId = string.IsNullOrWhiteSpace(prepared.ContentItemId)
+                    ? $"workflow-{Slugify(prepared.Title)}"
+                    : prepared.ContentItemId;
+                prepared.VersionNumber = Math.Max(prepared.VersionNumber + 1, 1);
+                prepared.CurrentVersionId = $"{prepared.ContentItemId}:v{prepared.VersionNumber}";
+            }
+
+            var parameterValidation = ValidateParameters(prepared).ToArray();
+            var endpointRequested = IsEndpointRequested(prepared.PublicationIntent);
+            if (endpointRequested && parameterValidation.Any(validation => !validation.Valid))
+            {
+                return Task.FromResult(new StudioWorkflowPublishResult
+                {
+                    ContentItemId = prepared.ContentItemId,
+                    VersionId = prepared.CurrentVersionId,
+                    Mode = prepared.PublicationIntent.Mode,
+                    Status = "blocked",
+                    ParameterValidation = parameterValidation
+                });
+            }
+
+            var jobId = NextJobId("publish");
+            var publicationId = $"pub-{Slugify(prepared.Title)}-{prepared.VersionNumber:000}";
+            var endpoint = endpointRequested
+                ? $"/api/workspaces/{prepared.WorkspaceId}/workflows/{Slugify(prepared.PublicationIntent.RouteSlug)}/invoke"
+                : null;
+
+            var result = new StudioWorkflowPublishResult
+            {
+                PublicationId = publicationId,
+                ContentItemId = prepared.ContentItemId,
+                VersionId = prepared.CurrentVersionId,
+                JobId = jobId,
+                JobKind = StudioWorkflowContractValues.PublicationJobKind,
+                Status = "queued",
+                Mode = prepared.PublicationIntent.Mode,
+                InvocationEndpoint = endpoint,
+                ParameterValidation = parameterValidation,
+                OperateJobUrl = $"/operate/jobs/{jobId}",
+                OperateEventsUrl = $"/operate/events?jobId={jobId}"
+            };
+
+            prepared.UpdatedAt = DateTimeOffset.UtcNow;
+            _drafts[prepared.DraftId] = Clone(prepared);
+
+            _jobs[jobId] = new StudioWorkflowJobEvidence
+            {
+                JobId = jobId,
+                JobKind = result.JobKind,
+                Status = "queued",
+                DraftId = prepared.DraftId,
+                ContentItemId = prepared.ContentItemId,
+                VersionId = prepared.CurrentVersionId,
+                Logs =
+                [
+                    $"Queued publication {publicationId} for {prepared.PublicationIntent.Mode}.",
+                    endpoint is null
+                        ? "Invocation endpoint not requested for this publication."
+                        : $"Invocation endpoint staged at {endpoint}.",
+                    $"Operate event stream linked to {jobId}."
+                ],
+                Artifacts =
+                [
+                    $"{prepared.ContentItemId}/{prepared.CurrentVersionId}/workflow.package.json",
+                    $"{prepared.ContentItemId}/{prepared.CurrentVersionId}/publication-review.json"
+                ],
+                OutputSchemas = CloneList(prepared.OutputSchemas),
+                OperateJobUrl = result.OperateJobUrl,
+                OperateEventsUrl = result.OperateEventsUrl,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<StudioWorkflowJobEvidence?> GetJobEvidenceAsync(
+        string jobId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_gate)
+        {
+            return Task.FromResult(_jobs.TryGetValue(jobId, out var evidence) ? Clone(evidence) : null);
+        }
+    }
+
+    private static StudioWorkflowPackageDraft PrepareDraftForStorage(StudioWorkflowPackageDraft draft)
+    {
+        var stored = Clone(draft);
+        stored.PackageType = StudioWorkflowContractValues.PackageType;
+        stored.SchemaVersion = StudioWorkflowContractValues.SchemaVersion;
+        stored.UpdatedAt = DateTimeOffset.UtcNow;
+        stored.ValidationIssues = ValidatePackage(stored);
+        return stored;
+    }
+
+    private string NextJobId(string prefix)
+    {
+        _jobSequence += 1;
+        return $"job-{prefix}-{_jobSequence:0000}";
+    }
+
+    private static List<StudioWorkflowValidationIssue> ValidatePackage(StudioWorkflowPackageDraft draft)
+    {
+        var issues = new List<StudioWorkflowValidationIssue>();
+
+        if (!draft.Nodes.Any(node => node.Category == StudioWorkflowContractValues.NodeCategorySource))
+        {
+            issues.Add(new StudioWorkflowValidationIssue
+            {
+                Severity = "error",
+                Scope = "graph",
+                Message = "Workflow must include at least one source node."
+            });
+        }
+
+        if (!draft.Nodes.Any(node => node.Category == StudioWorkflowContractValues.NodeCategorySink))
+        {
+            issues.Add(new StudioWorkflowValidationIssue
+            {
+                Severity = "error",
+                Scope = "graph",
+                Message = "Workflow must include at least one sink node."
+            });
+        }
+
+        if (!draft.Edges.Any(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure))
+        {
+            issues.Add(new StudioWorkflowValidationIssue
+            {
+                Severity = "warning",
+                Scope = "failure-routing",
+                Message = "No failure edge is configured; retries will end in a terminal failed job."
+            });
+        }
+
+        if (draft.OutputSchemas.Count == 0)
+        {
+            issues.Add(new StudioWorkflowValidationIssue
+            {
+                Severity = "error",
+                Scope = "output-schema",
+                Message = "At least one output schema must be visible before publish."
+            });
+        }
+
+        if (draft.PublicationIntent.Mode == StudioWorkflowContractValues.PublicationModeScheduledJob &&
+            string.IsNullOrWhiteSpace(draft.Schedule.Cron))
+        {
+            issues.Add(new StudioWorkflowValidationIssue
+            {
+                Severity = "error",
+                Scope = "schedule",
+                Message = "Scheduled job publication requires a cron expression."
+            });
+        }
+
+        issues.AddRange(ValidateParameters(draft)
+            .Where(validation => !validation.Valid)
+            .Select(validation => new StudioWorkflowValidationIssue
+            {
+                Severity = "error",
+                Scope = "parameters",
+                Message = validation.Message
+            }));
+
+        return issues;
+    }
+
+    private static IEnumerable<StudioWorkflowParameterValidation> ValidateParameters(StudioWorkflowPackageDraft draft)
+    {
+        var endpointRequested = IsEndpointRequested(draft.PublicationIntent);
+
+        foreach (var parameter in draft.Parameters)
+        {
+            var validName = !string.IsNullOrWhiteSpace(parameter.Name);
+            var validType = IsValidParameterType(parameter.Type);
+            var valid = validName && validType;
+            var message = valid
+                ? endpointRequested
+                    ? "Valid for invocation endpoint binding."
+                    : "Valid for dry-run and job submission."
+                : $"{(validName ? parameter.Name : "Unnamed parameter")} must declare a name and one of the supported parameter types.";
+
+            yield return new StudioWorkflowParameterValidation
+            {
+                ParameterName = parameter.Name,
+                Type = parameter.Type,
+                Required = parameter.Required,
+                Valid = valid,
+                Message = message
+            };
+        }
+    }
+
+    private static bool IsEndpointRequested(StudioWorkflowPublicationIntent intent) =>
+        intent.ExposeInvocationEndpoint ||
+        intent.Mode == StudioWorkflowContractValues.PublicationModeProcessEndpoint;
+
+    private static bool IsValidParameterType(string type) =>
+        type is "string" or "date" or "number" or "boolean" or "geometry";
+
+    private static string Slugify(string value)
+    {
+        var chars = value
+            .Trim()
+            .ToLowerInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+            .ToArray();
+
+        var compact = string.Join(
+            '-',
+            new string(chars)
+                .Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+        return string.IsNullOrWhiteSpace(compact) ? "workflow-package" : compact;
+    }
+
+    private static IReadOnlyList<StudioWorkflowNodeDefinition> CreateNodeDefinitions() =>
+    [
+        new()
+        {
+            Type = "honua.source.feature-layer",
+            Category = StudioWorkflowContractValues.NodeCategorySource,
+            Label = "Feature layer source",
+            Summary = "Reads a server-owned feature layer or query result.",
+            OutputPorts = ["features"]
+        },
+        new()
+        {
+            Type = "honua.transform.filter",
+            Category = StudioWorkflowContractValues.NodeCategoryTransform,
+            Label = "Filter rows",
+            Summary = "Applies attribute, temporal, or spatial predicates.",
+            InputPorts = ["features"],
+            OutputPorts = ["matched", "rejected"]
+        },
+        new()
+        {
+            Type = "honua.transform.field-map",
+            Category = StudioWorkflowContractValues.NodeCategoryTransform,
+            Label = "Field mapper",
+            Summary = "Renames, casts, and derives output fields.",
+            InputPorts = ["features"],
+            OutputPorts = ["features", "error"]
+        },
+        new()
+        {
+            Type = "honua.transform.gp-buffer",
+            Category = StudioWorkflowContractValues.NodeCategoryTransform,
+            Label = "GP buffer",
+            Summary = "Runs a parameterized geoprocessing buffer operation.",
+            InputPorts = ["features", "distance"],
+            OutputPorts = ["features", "error"]
+        },
+        new()
+        {
+            Type = "honua.sink.feature-service",
+            Category = StudioWorkflowContractValues.NodeCategorySink,
+            Label = "Feature service sink",
+            Summary = "Writes a versioned service output through server publication.",
+            InputPorts = ["features"]
+        },
+        new()
+        {
+            Type = "honua.sink.failure-queue",
+            Category = StudioWorkflowContractValues.NodeCategorySink,
+            Label = "Failure queue",
+            Summary = "Captures rejected rows, transform errors, and retry exhaustion.",
+            InputPorts = ["error"]
+        }
+    ];
+
+    private static StudioWorkflowPackageDraft CreateSeedDraft()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        return new StudioWorkflowPackageDraft
+        {
+            DraftId = SeedDraftId,
+            ContentItemId = "workflow-parcel-nightly-normalizer",
+            CurrentVersionId = "workflow-parcel-nightly-normalizer:v1",
+            VersionNumber = 1,
+            Title = "Parcel nightly normalizer",
+            Summary = "Normalize parcel attributes, route rejected records, and publish validated service output.",
+            CreatedAt = now,
+            UpdatedAt = now,
+            LastSavedAt = now,
+            Nodes =
+            [
+                new()
+                {
+                    Id = "source-parcels",
+                    Type = "honua.source.feature-layer",
+                    Category = StudioWorkflowContractValues.NodeCategorySource,
+                    Label = "County parcels",
+                    Column = 1,
+                    Row = 1,
+                    OutputPorts = ["features"],
+                    Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["binding"] = "content-item:city-parcels-2026",
+                        ["sample"] = "48 rows"
+                    }
+                },
+                new()
+                {
+                    Id = "transform-filter",
+                    Type = "honua.transform.filter",
+                    Category = StudioWorkflowContractValues.NodeCategoryTransform,
+                    Label = "Active parcel filter",
+                    Column = 2,
+                    Row = 1,
+                    InputPorts = ["features"],
+                    OutputPorts = ["matched", "rejected"],
+                    Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["where"] = "status = 'active'",
+                        ["spatialReference"] = "EPSG:2784"
+                    }
+                },
+                new()
+                {
+                    Id = "transform-field-map",
+                    Type = "honua.transform.field-map",
+                    Category = StudioWorkflowContractValues.NodeCategoryTransform,
+                    Label = "Normalize parcel fields",
+                    Column = 3,
+                    Row = 1,
+                    InputPorts = ["features"],
+                    OutputPorts = ["features", "error"],
+                    Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["parcel_id"] = "apn",
+                        ["owner_name"] = "owner"
+                    }
+                },
+                new()
+                {
+                    Id = "sink-service",
+                    Type = "honua.sink.feature-service",
+                    Category = StudioWorkflowContractValues.NodeCategorySink,
+                    Label = "Validated parcel service",
+                    Column = 4,
+                    Row = 1,
+                    InputPorts = ["features"],
+                    Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["serviceName"] = "parcel-normalized",
+                        ["writeMode"] = "replace"
+                    }
+                },
+                new()
+                {
+                    Id = "sink-failures",
+                    Type = "honua.sink.failure-queue",
+                    Category = StudioWorkflowContractValues.NodeCategorySink,
+                    Label = "Rejected parcel records",
+                    Column = 4,
+                    Row = 2,
+                    InputPorts = ["error"],
+                    Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["retention"] = "30d",
+                        ["notify"] = "operate"
+                    }
+                }
+            ],
+            Edges =
+            [
+                new()
+                {
+                    Id = "edge-source-filter",
+                    FromNodeId = "source-parcels",
+                    ToNodeId = "transform-filter",
+                    FromPort = "features",
+                    ToPort = "features",
+                    Kind = StudioWorkflowContractValues.EdgeKindSuccess,
+                    Label = "features"
+                },
+                new()
+                {
+                    Id = "edge-filter-map",
+                    FromNodeId = "transform-filter",
+                    ToNodeId = "transform-field-map",
+                    FromPort = "matched",
+                    ToPort = "features",
+                    Kind = StudioWorkflowContractValues.EdgeKindSuccess,
+                    Label = "matched"
+                },
+                new()
+                {
+                    Id = "edge-map-service",
+                    FromNodeId = "transform-field-map",
+                    ToNodeId = "sink-service",
+                    FromPort = "features",
+                    ToPort = "features",
+                    Kind = StudioWorkflowContractValues.EdgeKindSuccess,
+                    Label = "validated"
+                },
+                new()
+                {
+                    Id = "edge-filter-rejected",
+                    FromNodeId = "transform-filter",
+                    ToNodeId = "sink-failures",
+                    FromPort = "rejected",
+                    ToPort = "error",
+                    Kind = StudioWorkflowContractValues.EdgeKindFailure,
+                    Label = "rejected"
+                },
+                new()
+                {
+                    Id = "edge-map-errors",
+                    FromNodeId = "transform-field-map",
+                    ToNodeId = "sink-failures",
+                    FromPort = "error",
+                    ToPort = "error",
+                    Kind = StudioWorkflowContractValues.EdgeKindFailure,
+                    Label = "transform errors"
+                }
+            ],
+            Parameters =
+            [
+                new()
+                {
+                    Name = "county",
+                    Type = "string",
+                    Required = true,
+                    DefaultValue = "honolulu",
+                    Description = "County code used by source binding and route naming."
+                },
+                new()
+                {
+                    Name = "effective_date",
+                    Type = "date",
+                    Required = true,
+                    DefaultValue = "2026-05-24",
+                    Description = "Effective date applied to temporal filters and output metadata."
+                }
+            ],
+            Schedule = new StudioWorkflowSchedule
+            {
+                Mode = "cron",
+                Cron = "0 6 * * *",
+                TimeZone = "Pacific/Honolulu"
+            },
+            WorkerProfile = new StudioWorkflowWorkerProfile
+            {
+                ProfileId = "standard-geospatial",
+                Runtime = "dotnet-gdal",
+                Cpu = 4,
+                MemoryGb = 16,
+                MaxParallelism = 4
+            },
+            RetryPolicy = new StudioWorkflowRetryPolicy
+            {
+                MaxAttempts = 3,
+                BackoffSeconds = 60,
+                FailureMode = "route-failure-edges"
+            },
+            PublicationIntent = new StudioWorkflowPublicationIntent
+            {
+                Mode = StudioWorkflowContractValues.PublicationModeScheduledJob,
+                Visibility = "org",
+                RouteSlug = "parcel-nightly-normalizer",
+                ExposeInvocationEndpoint = false,
+                RequiresApproval = true
+            },
+            OutputSchemas =
+            [
+                new()
+                {
+                    Name = "validated_parcels",
+                    SinkNodeId = "sink-service",
+                    Fields =
+                    [
+                        new() { Name = "parcel_id", Type = "string", Nullable = false },
+                        new() { Name = "owner_name", Type = "string", Nullable = true },
+                        new() { Name = "zoning_code", Type = "string", Nullable = true },
+                        new() { Name = "geometry", Type = "geometry", Nullable = false }
+                    ]
+                },
+                new()
+                {
+                    Name = "rejected_parcels",
+                    SinkNodeId = "sink-failures",
+                    Fields =
+                    [
+                        new() { Name = "source_row_id", Type = "string", Nullable = false },
+                        new() { Name = "failure_reason", Type = "string", Nullable = false },
+                        new() { Name = "payload", Type = "json", Nullable = false }
+                    ]
+                }
+            ],
+            Warnings =
+            [
+                "Process endpoint eligibility requires every required parameter to have a supported scalar type.",
+                "Failure edges will be preserved as server-owned job event routing metadata."
+            ]
+        };
+    }
+
+    private static T Clone<T>(T value)
+    {
+        var json = JsonSerializer.Serialize(value, CloneOptions);
+        return JsonSerializer.Deserialize<T>(json, CloneOptions) ??
+            throw new InvalidOperationException($"Could not clone {typeof(T).Name}.");
+    }
+
+    private static IReadOnlyList<T> CloneList<T>(IEnumerable<T> values) =>
+        values.Select(Clone).ToArray();
+}

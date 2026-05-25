@@ -24,6 +24,9 @@ npm run smoke:parity -- --origin https://console.staging.honua.example
 # Run the smoke's own unit tests (taxonomy, contract registry, scenario,
 # evidence emitter). Used by CI to gate the harness itself.
 npm run smoke:parity:test
+
+# Run the focused Studio workflow smoke added for honua-console#40.
+npm run smoke:workflow
 ```
 
 Runner options:
@@ -122,6 +125,43 @@ The registry lives in
 [`smoke/parity/contracts.mjs`](../../smoke/parity/contracts.mjs). When a
 contract version changes in its source repo, bump the `version` field
 there in the same PR so the smoke evidence stays truthful.
+
+## Studio Workflow Smoke (`honua-console#40`)
+
+The workflow editor has a focused smoke alongside the broader parity
+chain. It exercises the route and contract path introduced for
+`workflow.package` authoring:
+
+> Studio workflow draft -> dry-run -> version save -> publish -> Operate monitor
+
+Run it with:
+
+```sh
+npm run smoke:workflow
+npm run smoke:workflow -- --origin https://console.staging.honua.example
+```
+
+By default it writes `smoke-evidence/studio-workflow.json`. The same
+`--origin`, `--output`, `--quiet`, and `--help` options are supported.
+
+Workflow smoke steps:
+
+| Order | Step id                         | Layer     | What it verifies |
+| ----- | ------------------------------- | --------- | ---------------- |
+| 1     | `devops/build-artifact`         | `devops`  | The same Console artifact is serving the Studio workflow route. |
+| 2     | `console/studio-workflow-draft` | `console` | The editor can materialize a `workflow.package` draft with sources, transforms, sinks, parameters, schedule, worker profile, retry policy, failure edges, output schemas, and publication intent. |
+| 3     | `server/workflow-dry-run`       | `server`  | The server-owned dry-run response includes sample rows, logs, artifacts, and output schemas. |
+| 4     | `server/workflow-version-save`  | `server`  | The package is saved as a versioned workflow content item. |
+| 5     | `server/workflow-publish`       | `server`  | The publication queues a job-runner job and exposes an invocation endpoint when parameter validation passes. |
+| 6     | `console/operate-job-monitor`   | `console` | Dry-run and publish jobs deep-link to same-origin Operate job and event evidence. |
+
+The workflow smoke adds these contract names to evidence:
+
+| Contract                 | Version | Owning layer | Source repo |
+| ------------------------ | ------- | ------------ | ----------- |
+| `workflow-package`       | `v1`    | `server`     | `honua-server` |
+| `workflow-dry-run`       | `v1`    | `server`     | `honua-server` |
+| `workflow-publication`   | `v1`    | `server`     | `honua-server` |
 
 Response-contract notes worth keeping in sync with the registry:
 

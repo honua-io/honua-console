@@ -1,0 +1,82 @@
+@page "/operate/jobs/{JobId}"
+@inject IStudioWorkflowPackageClient Workflows
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate job evidence</p>
+        <h1>Workflow Job Monitor</h1>
+        <p>Server-owned workflow dry-runs and publications deep-link into Operate for job state, logs, artifacts, output schemas, and event evidence.</p>
+    </div>
+
+    @if (_evidence is null)
+    {
+        <article class="console-panel">
+            <h2>Job evidence unavailable</h2>
+            <p class="console-muted">This job id is not present in the Console workflow adapter.</p>
+        </article>
+    }
+    else
+    {
+        <div class="console-panel-grid">
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">@_evidence.JobKind</p>
+                        <h2>@_evidence.JobId</h2>
+                    </div>
+                    <span class="console-status">@_evidence.Status</span>
+                </div>
+                <dl class="console-definition-list">
+                    <dt>Draft</dt>
+                    <dd>@_evidence.DraftId</dd>
+                    <dt>Content item</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(_evidence.ContentItemId) ? "not saved" : _evidence.ContentItemId)</dd>
+                    <dt>Version</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(_evidence.VersionId) ? "draft only" : _evidence.VersionId)</dd>
+                    <dt>Events</dt>
+                    <dd><a href="@_evidence.OperateEventsUrl">Open event evidence</a></dd>
+                </dl>
+            </article>
+
+            <article class="console-panel">
+                <h2>Logs</h2>
+                <ol class="console-event-list">
+                    @foreach (var log in _evidence.Logs)
+                    {
+                        <li>
+                            <span>workflow</span>
+                            <strong>@log</strong>
+                        </li>
+                    }
+                </ol>
+            </article>
+
+            <article class="console-panel">
+                <h2>Artifacts</h2>
+                <ul class="workflow-compact-list">
+                    @foreach (var artifact in _evidence.Artifacts)
+                    {
+                        <li>
+                            <span>artifact</span>
+                            <strong>@artifact</strong>
+                        </li>
+                    }
+                </ul>
+            </article>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string JobId { get; set; } = string.Empty;
+
+    private StudioWorkflowJobEvidence? _evidence;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _evidence = string.IsNullOrWhiteSpace(JobId)
+            ? null
+            : await Workflows.GetJobEvidenceAsync(JobId);
+    }
+}

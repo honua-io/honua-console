@@ -1,0 +1,600 @@
+@page "/studio/workflows/new"
+@page "/studio/workflows/{DraftId}"
+@inject IStudioWorkflowPackageClient Workflows
+@inject NavigationManager Navigation
+
+<section class="console-page workflow-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio workflow.package</p>
+        <h1>Workflow Editor</h1>
+        <p>Author a unified GP/ETL workflow package, dry-run it through job contracts, save a versioned content item, and publish to job runner or an eligible process endpoint.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <article class="console-panel">
+            <h2>Loading workflow draft</h2>
+            <p class="console-muted">Resolving the Studio workflow package projection.</p>
+        </article>
+    }
+    else if (_draft is null)
+    {
+        <article class="console-panel">
+            <h2>Workflow draft unavailable</h2>
+            <p class="console-muted">The requested workflow draft was not found or cannot be opened in this workspace.</p>
+            <a class="console-button-link" href="/studio/workflows/new">Create Workflow Draft</a>
+        </article>
+    }
+    else
+    {
+        <div class="workflow-command-bar" aria-label="Workflow package actions">
+            <button class="console-button" type="button" disabled="@_busy" @onclick="SaveAsync">Save Version</button>
+            <button class="console-button" type="button" disabled="@_busy" @onclick="DryRunAsync">Dry Run</button>
+            <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">Publish</button>
+            <a class="console-button-link console-button-secondary" href="/studio">Studio Home</a>
+        </div>
+
+        <div class="workflow-editor-shell">
+            <aside class="workflow-sidebar" aria-label="Node palette">
+                <div class="workflow-section-heading">
+                    <p class="console-kicker">Node library</p>
+                    <h2>Palette</h2>
+                </div>
+                <div class="workflow-palette">
+                    @foreach (var definition in _nodeDefinitions)
+                    {
+                        <button class="workflow-palette-item" type="button" @onclick="() => AddNode(definition.Type)">
+                            <strong>@definition.Label</strong>
+                            <span>@definition.Category</span>
+                            <small>@definition.Summary</small>
+                        </button>
+                    }
+                </div>
+            </aside>
+
+            <main class="workflow-main">
+                <section class="console-panel workflow-package-panel" aria-label="Package metadata">
+                    <div class="workflow-form-grid">
+                        <label>
+                            <span>Title</span>
+                            <input class="console-input" @bind="_draft.Title" @bind:event="oninput" />
+                        </label>
+                        <label>
+                            <span>Summary</span>
+                            <textarea class="console-input" rows="3" @bind="_draft.Summary" @bind:event="oninput"></textarea>
+                        </label>
+                        <dl class="console-definition-list">
+                            <dt>Package</dt>
+                            <dd>@_draft.PackageType</dd>
+                            <dt>Schema</dt>
+                            <dd>@_draft.SchemaVersion</dd>
+                            <dt>Content item</dt>
+                            <dd>@(string.IsNullOrWhiteSpace(_draft.ContentItemId) ? "not saved" : _draft.ContentItemId)</dd>
+                            <dt>Current version</dt>
+                            <dd>@(string.IsNullOrWhiteSpace(_draft.CurrentVersionId) ? "draft only" : _draft.CurrentVersionId)</dd>
+                        </dl>
+                    </div>
+                </section>
+
+                <section class="workflow-canvas-band" aria-label="Workflow graph">
+                    <div class="workflow-section-heading">
+                        <p class="console-kicker">Graph</p>
+                        <h2>Sources, Transforms, Sinks</h2>
+                    </div>
+                    <div class="workflow-graph">
+                        @foreach (var node in _draft.Nodes.OrderBy(node => node.Column).ThenBy(node => node.Row))
+                        {
+                            var selected = string.Equals(node.Id, SelectedNode?.Id, StringComparison.Ordinal);
+                            <button class="workflow-node workflow-node-@node.Category @(selected ? "workflow-node-selected" : string.Empty)" type="button" @onclick="() => SelectNode(node.Id)">
+                                <span>@node.Category</span>
+                                <strong>@node.Label</strong>
+                                <small>@node.Type</small>
+                            </button>
+                        }
+                    </div>
+                    <ol class="workflow-edge-list" aria-label="Workflow edges">
+                        @foreach (var edge in _draft.Edges)
+                        {
+                            <li class="workflow-edge workflow-edge-@edge.Kind">
+                                <span>@edge.Kind</span>
+                                <strong>@GetNodeLabel(edge.FromNodeId) to @GetNodeLabel(edge.ToNodeId)</strong>
+                                <small>@edge.FromPort -> @edge.ToPort: @edge.Label</small>
+                            </li>
+                        }
+                    </ol>
+                </section>
+
+                <div class="workflow-lower-grid">
+                    <section class="console-panel" aria-label="Node inspector">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Inspector</p>
+                            <h2>@(SelectedNode?.Label ?? "No node selected")</h2>
+                        </div>
+                        @if (SelectedNode is not null)
+                        {
+                            <label>
+                                <span>Node label</span>
+                                <input class="console-input" @bind="SelectedNode.Label" @bind:event="oninput" />
+                            </label>
+                            <dl class="console-definition-list">
+                                <dt>Type</dt>
+                                <dd>@SelectedNode.Type</dd>
+                                <dt>Inputs</dt>
+                                <dd>@FormatPorts(SelectedNode.InputPorts)</dd>
+                                <dt>Outputs</dt>
+                                <dd>@FormatPorts(SelectedNode.OutputPorts)</dd>
+                            </dl>
+                            <ul class="workflow-compact-list">
+                                @foreach (var entry in SelectedNode.Configuration)
+                                {
+                                    <li>
+                                        <span>@entry.Key</span>
+                                        <strong>@entry.Value</strong>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
+
+                    <section class="console-panel" aria-label="Parameters and invocation validation">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Parameters</p>
+                            <h2>Invocation Contract</h2>
+                        </div>
+                        <div class="workflow-table">
+                            @foreach (var parameter in _draft.Parameters)
+                            {
+                                <div class="workflow-table-row">
+                                    <input class="console-input" aria-label="Parameter name" @bind="parameter.Name" @bind:event="oninput" />
+                                    <select class="console-input" aria-label="Parameter type" @bind="parameter.Type">
+                                        @foreach (var type in ParameterTypes)
+                                        {
+                                            <option value="@type">@type</option>
+                                        }
+                                    </select>
+                                    <label class="workflow-checkbox">
+                                        <input type="checkbox" @bind="parameter.Required" />
+                                        <span>Required</span>
+                                    </label>
+                                    <input class="console-input" aria-label="Parameter default value" @bind="parameter.DefaultValue" @bind:event="oninput" />
+                                </div>
+                            }
+                        </div>
+                        <button class="console-button console-button-secondary" type="button" @onclick="AddParameter">Add Parameter</button>
+                        <ul class="workflow-compact-list">
+                            @foreach (var validation in ParameterValidationPreview)
+                            {
+                                <li>
+                                    <span>@(validation.Valid ? "Ready" : "Blocked")</span>
+                                    <strong>@validation.ParameterName</strong>
+                                    <small>@validation.Message</small>
+                                </li>
+                            }
+                        </ul>
+                    </section>
+
+                    <section class="console-panel" aria-label="Schedule and worker profile">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Runtime</p>
+                            <h2>Schedule And Worker</h2>
+                        </div>
+                        <div class="workflow-form-grid workflow-form-grid-compact">
+                            <label>
+                                <span>Schedule mode</span>
+                                <select class="console-input" @bind="_draft.Schedule.Mode">
+                                    <option value="manual">manual</option>
+                                    <option value="cron">cron</option>
+                                    <option value="event">event</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>Cron</span>
+                                <input class="console-input" @bind="_draft.Schedule.Cron" @bind:event="oninput" />
+                            </label>
+                            <label>
+                                <span>Time zone</span>
+                                <input class="console-input" @bind="_draft.Schedule.TimeZone" @bind:event="oninput" />
+                            </label>
+                            <label>
+                                <span>Worker profile</span>
+                                <select class="console-input" @bind="_draft.WorkerProfile.ProfileId">
+                                    <option value="standard-geospatial">standard-geospatial</option>
+                                    <option value="memory-optimized">memory-optimized</option>
+                                    <option value="high-throughput">high-throughput</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>Runtime</span>
+                                <input class="console-input" @bind="_draft.WorkerProfile.Runtime" @bind:event="oninput" />
+                            </label>
+                            <label>
+                                <span>CPU</span>
+                                <input class="console-input" type="number" min="1" max="32" @bind="_draft.WorkerProfile.Cpu" />
+                            </label>
+                            <label>
+                                <span>Memory GB</span>
+                                <input class="console-input" type="number" min="2" max="256" @bind="_draft.WorkerProfile.MemoryGb" />
+                            </label>
+                            <label>
+                                <span>Max parallelism</span>
+                                <input class="console-input" type="number" min="1" max="64" @bind="_draft.WorkerProfile.MaxParallelism" />
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="console-panel" aria-label="Retry and failure behavior">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Failure behavior</p>
+                            <h2>Retries And Failure Edges</h2>
+                        </div>
+                        <div class="workflow-form-grid workflow-form-grid-compact">
+                            <label>
+                                <span>Attempts</span>
+                                <input class="console-input" type="number" min="0" max="10" @bind="_draft.RetryPolicy.MaxAttempts" />
+                            </label>
+                            <label>
+                                <span>Backoff seconds</span>
+                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" />
+                            </label>
+                            <label>
+                                <span>Failure mode</span>
+                                <select class="console-input" @bind="_draft.RetryPolicy.FailureMode">
+                                    <option value="route-failure-edges">route-failure-edges</option>
+                                    <option value="fail-fast">fail-fast</option>
+                                    <option value="quarantine-artifacts">quarantine-artifacts</option>
+                                </select>
+                            </label>
+                        </div>
+                        <ul class="workflow-compact-list">
+                            @foreach (var edge in _draft.Edges.Where(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure))
+                            {
+                                <li>
+                                    <span>@edge.Label</span>
+                                    <strong>@GetNodeLabel(edge.FromNodeId) to @GetNodeLabel(edge.ToNodeId)</strong>
+                                </li>
+                            }
+                        </ul>
+                    </section>
+                </div>
+            </main>
+
+            <aside class="workflow-inspector" aria-label="Publish and dry-run review">
+                <section class="console-panel">
+                    <div class="workflow-section-heading">
+                        <p class="console-kicker">Publication intent</p>
+                        <h2>Review</h2>
+                    </div>
+                    <div class="workflow-form-grid workflow-form-grid-compact">
+                        <label>
+                            <span>Mode</span>
+                            <select class="console-input" @bind="_draft.PublicationIntent.Mode">
+                                <option value="@StudioWorkflowContractValues.PublicationModeBatchWorkflow">Batch workflow</option>
+                                <option value="@StudioWorkflowContractValues.PublicationModeScheduledJob">Scheduled job</option>
+                                <option value="@StudioWorkflowContractValues.PublicationModeProcessEndpoint">Process endpoint</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Visibility</span>
+                            <select class="console-input" @bind="_draft.PublicationIntent.Visibility">
+                                <option value="private">private</option>
+                                <option value="org">org</option>
+                                <option value="group">group</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Route slug</span>
+                            <input class="console-input" @bind="_draft.PublicationIntent.RouteSlug" @bind:event="oninput" />
+                        </label>
+                        <label class="workflow-checkbox">
+                            <input type="checkbox" @bind="_draft.PublicationIntent.ExposeInvocationEndpoint" />
+                            <span>Expose invocation endpoint</span>
+                        </label>
+                        <label class="workflow-checkbox">
+                            <input type="checkbox" @bind="_draft.PublicationIntent.RequiresApproval" />
+                            <span>Require approval before publish</span>
+                        </label>
+                    </div>
+                    <p class="console-status">@EndpointEligibilityText</p>
+                    @if (_lastSave is not null)
+                    {
+                        <dl class="console-definition-list">
+                            <dt>Saved version</dt>
+                            <dd>@_lastSave.VersionId</dd>
+                            <dt>Contract</dt>
+                            <dd>@_lastSave.Contract</dd>
+                        </dl>
+                    }
+                </section>
+
+                <section class="console-panel">
+                    <div class="workflow-section-heading">
+                        <p class="console-kicker">Output schema</p>
+                        <h2>Before Publish</h2>
+                    </div>
+                    @foreach (var schema in _draft.OutputSchemas)
+                    {
+                        <div class="workflow-schema">
+                            <strong>@schema.Name</strong>
+                            <span>@GetNodeLabel(schema.SinkNodeId)</span>
+                            <ul>
+                                @foreach (var field in schema.Fields)
+                                {
+                                    <li>@field.Name <small>@field.Type@(field.Nullable ? "?" : string.Empty)</small></li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                </section>
+
+                <section class="console-panel">
+                    <div class="workflow-section-heading">
+                        <p class="console-kicker">Dry run</p>
+                        <h2>Sample Evidence</h2>
+                    </div>
+                    @if (_lastDryRun is null)
+                    {
+                        <p class="console-muted">Run a sample execution to inspect logs, artifacts, and output schema before publishing.</p>
+                    }
+                    else
+                    {
+                        <dl class="console-definition-list">
+                            <dt>Job</dt>
+                            <dd><a href="@_lastDryRun.OperateJobUrl">@_lastDryRun.JobId</a></dd>
+                            <dt>Status</dt>
+                            <dd>@_lastDryRun.Status</dd>
+                            <dt>Rows</dt>
+                            <dd>@_lastDryRun.SampleRows</dd>
+                            <dt>Events</dt>
+                            <dd><a href="@_lastDryRun.OperateEventsUrl">Open event evidence</a></dd>
+                        </dl>
+                        <ul class="workflow-compact-list">
+                            @foreach (var log in _lastDryRun.Logs)
+                            {
+                                <li><span>log</span><strong>@log</strong></li>
+                            }
+                        </ul>
+                        <ul class="workflow-compact-list">
+                            @foreach (var artifact in _lastDryRun.Artifacts)
+                            {
+                                <li><span>artifact</span><strong>@artifact</strong></li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                <section class="console-panel">
+                    <div class="workflow-section-heading">
+                        <p class="console-kicker">Publish</p>
+                        <h2>Job Monitor</h2>
+                    </div>
+                    @if (_lastPublish is null)
+                    {
+                        <p class="console-muted">Publish after review to queue the server-owned job runner and publication record.</p>
+                    }
+                    else
+                    {
+                        <dl class="console-definition-list">
+                            <dt>Publication</dt>
+                            <dd>@_lastPublish.PublicationId</dd>
+                            <dt>Mode</dt>
+                            <dd>@_lastPublish.Mode</dd>
+                            <dt>Job</dt>
+                            <dd><a href="@_lastPublish.OperateJobUrl">@_lastPublish.JobId</a></dd>
+                            <dt>Events</dt>
+                            <dd><a href="@_lastPublish.OperateEventsUrl">Open event evidence</a></dd>
+                            <dt>Endpoint</dt>
+                            <dd>@(_lastPublish.InvocationEndpoint ?? "not exposed")</dd>
+                        </dl>
+                    }
+                </section>
+            </aside>
+        </div>
+    }
+</section>
+
+@code {
+    private static readonly string[] ParameterTypes = ["string", "date", "number", "boolean", "geometry"];
+
+    [Parameter]
+    public string? DraftId { get; set; }
+
+    private bool _loading = true;
+    private bool _busy;
+    private StudioWorkflowPackageDraft? _draft;
+    private IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions = [];
+    private string? _selectedNodeId;
+    private StudioWorkflowSaveResult? _lastSave;
+    private StudioWorkflowDryRunResult? _lastDryRun;
+    private StudioWorkflowPublishResult? _lastPublish;
+
+    private StudioWorkflowNode? SelectedNode =>
+        _draft?.Nodes.FirstOrDefault(node => string.Equals(node.Id, _selectedNodeId, StringComparison.Ordinal)) ??
+        _draft?.Nodes.FirstOrDefault();
+
+    private IReadOnlyList<StudioWorkflowParameterValidation> ParameterValidationPreview =>
+        _draft is null
+            ? []
+            : _draft.Parameters.Select(parameter => new StudioWorkflowParameterValidation
+            {
+                ParameterName = string.IsNullOrWhiteSpace(parameter.Name) ? "unnamed" : parameter.Name,
+                Type = parameter.Type,
+                Required = parameter.Required,
+                Valid = !string.IsNullOrWhiteSpace(parameter.Name) && ParameterTypes.Contains(parameter.Type),
+                Message = !string.IsNullOrWhiteSpace(parameter.Name) && ParameterTypes.Contains(parameter.Type)
+                    ? "Valid for dry-run, scheduled job, and invocation endpoint binding."
+                    : "Parameter must declare a name and supported type."
+            }).ToArray();
+
+    private string EndpointEligibilityText
+    {
+        get
+        {
+            if (_draft is null)
+            {
+                return "Endpoint eligibility unavailable";
+            }
+
+            var requested = _draft.PublicationIntent.ExposeInvocationEndpoint ||
+                _draft.PublicationIntent.Mode == StudioWorkflowContractValues.PublicationModeProcessEndpoint;
+
+            if (!requested)
+            {
+                return "Invocation endpoint not requested";
+            }
+
+            return ParameterValidationPreview.All(validation => validation.Valid)
+                ? "Endpoint eligible: parameter validation passes"
+                : "Endpoint blocked: parameter validation requires attention";
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _nodeDefinitions = await Workflows.ListNodeDefinitionsAsync();
+
+        if (string.IsNullOrWhiteSpace(DraftId) ||
+            string.Equals(DraftId, "new", StringComparison.OrdinalIgnoreCase))
+        {
+            _draft = await Workflows.CreateDraftAsync();
+            _selectedNodeId = _draft.Nodes.FirstOrDefault()?.Id;
+            _loading = false;
+            Navigation.NavigateTo($"/studio/workflows/{_draft.DraftId}", replace: true);
+            return;
+        }
+
+        _draft = await Workflows.GetDraftAsync(DraftId);
+        _selectedNodeId = _draft?.Nodes.FirstOrDefault()?.Id;
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved from Studio workflow editor.");
+        _busy = false;
+    }
+
+    private async Task DryRunAsync()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _lastDryRun = await Workflows.DryRunAsync(_draft);
+        _busy = false;
+    }
+
+    private async Task PublishAsync()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        if (string.IsNullOrWhiteSpace(_draft.CurrentVersionId))
+        {
+            _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved before workflow publication.");
+        }
+
+        _lastPublish = await Workflows.PublishAsync(_draft);
+        _busy = false;
+    }
+
+    private void SelectNode(string nodeId)
+    {
+        _selectedNodeId = nodeId;
+    }
+
+    private void AddNode(string nodeType)
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        var definition = _nodeDefinitions.FirstOrDefault(item => item.Type == nodeType);
+        if (definition is null)
+        {
+            return;
+        }
+
+        var existingCount = _draft.Nodes.Count(node => node.Type == nodeType) + 1;
+        var node = new StudioWorkflowNode
+        {
+            Id = $"{definition.Category}-{existingCount}-{_draft.Nodes.Count + 1}",
+            Type = definition.Type,
+            Category = definition.Category,
+            Label = definition.Label,
+            Column = _draft.Nodes.Count == 0 ? 1 : _draft.Nodes.Max(item => item.Column) + 1,
+            Row = definition.Category == StudioWorkflowContractValues.NodeCategorySink ? 2 : 1,
+            InputPorts = definition.InputPorts.ToList(),
+            OutputPorts = definition.OutputPorts.ToList(),
+            Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["source"] = "console-palette",
+                ["status"] = "draft"
+            }
+        };
+
+        var previous = _draft.Nodes.LastOrDefault(item => item.Category != StudioWorkflowContractValues.NodeCategorySink);
+        _draft.Nodes.Add(node);
+        _selectedNodeId = node.Id;
+
+        if (previous is not null && node.Category != StudioWorkflowContractValues.NodeCategorySource)
+        {
+            _draft.Edges.Add(new StudioWorkflowEdge
+            {
+                Id = $"edge-{previous.Id}-{node.Id}",
+                FromNodeId = previous.Id,
+                ToNodeId = node.Id,
+                FromPort = previous.OutputPorts.FirstOrDefault() ?? "out",
+                ToPort = node.InputPorts.FirstOrDefault() ?? "in",
+                Kind = node.Type.Contains("failure", StringComparison.Ordinal)
+                    ? StudioWorkflowContractValues.EdgeKindFailure
+                    : StudioWorkflowContractValues.EdgeKindSuccess,
+                Label = node.Category
+            });
+        }
+
+        if (node.Category == StudioWorkflowContractValues.NodeCategorySink &&
+            !_draft.OutputSchemas.Any(schema => schema.SinkNodeId == node.Id))
+        {
+            _draft.OutputSchemas.Add(new StudioWorkflowOutputSchema
+            {
+                Name = $"{node.Id}_schema",
+                SinkNodeId = node.Id,
+                Fields =
+                [
+                    new() { Name = "id", Type = "string", Nullable = false },
+                    new() { Name = "status", Type = "string", Nullable = false }
+                ]
+            });
+        }
+    }
+
+    private void AddParameter()
+    {
+        _draft?.Parameters.Add(new StudioWorkflowParameter
+        {
+            Name = $"param_{(_draft.Parameters.Count + 1):00}",
+            Type = "string",
+            Required = false,
+            Description = "Workflow parameter."
+        });
+    }
+
+    private string GetNodeLabel(string nodeId) =>
+        _draft?.Nodes.FirstOrDefault(node => node.Id == nodeId)?.Label ?? nodeId;
+
+    private static string FormatPorts(IReadOnlyCollection<string> ports) =>
+        ports.Count == 0 ? "none" : string.Join(", ", ports);
+}

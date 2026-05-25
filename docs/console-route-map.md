@@ -43,6 +43,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /studio/proof                  Legacy alias for current proof flow
 /studio/drafts                 Source-scoped draft start (source, id)
 /studio/apps/:itemId/preview   Generated-app preview / publish lifecycle
+/studio/workflows/new          New unified GP/ETL workflow package draft
+/studio/workflows/:draftId     Reopen a workflow.package draft editor
 
 /catalog                       Search / list (q, type, tag, owner, visibility, sort, cursor)
 /catalog/:idOrSlug             Catalog item detail
@@ -80,6 +82,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/deploy                Deploy control
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
+/operate/jobs/:jobId           Job monitor for workflow dry-run and publish evidence
+/operate/events                Event evidence view (?jobId=<id>)
 /operate/legacy/<path>         Transitional iframe container for legacy Admin pages
 
 /share                         Share area entry; current slice renders the public open-data collection
@@ -590,6 +594,8 @@ Authenticated sessions without `member`, `operator`, or `admin` render
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
 | `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
+| `/studio/workflows/new` | `auth` (+ workflow author permission) | empty-studio | forbidden / unsupported-package | studio |
+| `/studio/workflows/:draftId` | `auth` (+ workflow draft read/write) | missing-item | forbidden / unsupported-package | studio |
 
 The current `/studio` implementation is the first package-first Studio
 shell slice. It runs in the shared Razor component library and exposes
@@ -695,9 +701,11 @@ catalog detail.
 
 ### 6.5 Operate
 
-All Operate routes require `auth` and `canSeeOperatorLinks(session)`
-(scope `operator` or higher). Per-route gates listed below add edition
-or entitlement requirements on top.
+Operate landing and administration routes require `auth` and
+`canSeeOperatorLinks(session)` (scope `operator` or higher). Job and
+event evidence routes can also be entered from builder workflows when the
+server authorizes read access to the specific job. Per-route gates listed
+below add edition or entitlement requirements on top.
 
 | Route | Additional gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
@@ -729,6 +737,8 @@ or entitlement requirements on top.
 | `/operate/deploy` | — | empty-operate | forbidden | operate |
 | `/operate/server-info` | — | — | forbidden | operate |
 | `/operate/analytics` | `edition:Pro` | empty-operate | forbidden / upgrade | operate |
+| `/operate/jobs/:jobId` | — | missing-item | forbidden | operate |
+| `/operate/events` | — | missing-item | forbidden | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
 
 `honua-console#41` adds the native Blazor observability checkpoint for

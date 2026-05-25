@@ -3,6 +3,7 @@
 @page "/studio/drafts"
 @page "/studio/apps/{ItemId}/preview"
 @inject IStudioAuthoringShell AuthoringShell
+@inject IStudioWorkflowPackageClient Workflows
 
 <section class="console-page studio-page">
     <div class="console-page-heading studio-page-heading">
@@ -52,6 +53,26 @@
                             </div>
                             <span class="@GetLifecycleClass(project.State)">@FormatLifecycle(project.State)</span>
                             <small>@project.UpdatedLabel</small>
+                        </li>
+                    }
+                </ul>
+            </section>
+
+            <section class="studio-recent-section" aria-labelledby="studio-workflow-package-heading">
+                <h3 id="studio-workflow-package-heading">Workflow Packages</h3>
+                <div class="studio-action-row">
+                    <a class="console-button-link" href="/studio/workflows/new">Create Workflow Package</a>
+                </div>
+                <ul class="studio-recent-list">
+                    @foreach (var draft in _workflowDrafts)
+                    {
+                        <li>
+                            <div>
+                                <a href="/studio/workflows/@draft.DraftId"><strong>@draft.Title</strong></a>
+                                <small>@draft.PackageType</small>
+                            </div>
+                            <span>v@draft.VersionNumber</span>
+                            <small>@draft.PublicationMode</small>
                         </li>
                     }
                 </ul>
@@ -236,6 +257,7 @@
 
 @code {
     private StudioAuthoringSession _session = default!;
+    private IReadOnlyList<StudioWorkflowDraftSummary> _workflowDrafts = [];
     private string _prompt = "Create a map of permit activity near schools.";
 
     [Parameter]
@@ -252,9 +274,10 @@
 
     private bool HasOpenClarifications => _session.Clarifications.Count > 0;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _session = AuthoringShell.CreateInitialSession();
+        _workflowDrafts = await Workflows.ListDraftsAsync();
     }
 
     private void SelectWorkflow(string workflowId)
