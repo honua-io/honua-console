@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Honua.Console.Contracts/Honua.Console.Contracts.csproj" />
     <Project Path="src/Honua.Console.Native.Core/Honua.Console.Native.Core.csproj" />
     <Project Path="src/Honua.Console.Native/Honua.Console.Native.csproj" />
     <Project Path="src/Honua.Console.Shell/Honua.Console.Shell.csproj" />

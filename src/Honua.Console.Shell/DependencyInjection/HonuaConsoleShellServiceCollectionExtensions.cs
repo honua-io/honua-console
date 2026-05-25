@@ -16,6 +16,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>();
         services.TryAddSingleton<IOperateTransitionDataSource>(
             _ => InMemoryOperateTransitionDataSource.CreateSeeded());
+        services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
+        services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
 
         return services;
     }

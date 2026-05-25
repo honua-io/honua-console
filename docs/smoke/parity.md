@@ -101,7 +101,7 @@ failure short-circuits and the remaining steps are recorded as
 | 8     | `console/studio-draft`           | `console`      | Studio accepts the source-scoped draft route, records prompt clarification, and exposes a route-compatible package snapshot. |
 | 9     | `sdk/app-package-build`          | `sdk`          | SDK builds the BuilderPlan and AppPackage from the draft.                                       |
 | 10    | `server/generated-app-publish`   | `server`       | Server records the generated app as a content item with provenance back to the source saved map or catalog item. |
-| 11    | `console/share-publish`          | `console`      | Share dialog promotes the generated app to org-tier and marks it embeddable.                    |
+| 11    | `console/share-publish`          | `console`      | Share dialog promotes the saved map for embed and the generated app for catalog publication.    |
 | 12    | `server/embed-token-mint`        | `server`       | Server mints a same-origin embed token descriptor.                                              |
 | 13    | `console/embed-render`           | `console`      | Console assembles the same-origin embed URL using the minted token.                             |
 
@@ -142,6 +142,16 @@ Response-contract notes worth keeping in sync with the registry:
   the Console embed URL must carry the minted bearer in
   `#embedToken=<token>`, not in the query string. Smoke evidence and log
   summaries store only the token hash/redacted fragment.
+- Console route compatibility pins public-link browser reads separately
+  from embed reads: `/catalog/:id?token=<token>` and
+  `/maps/:mapId?token=<token>` use the query token emitted by Portal
+  share links. Tokenless public reads use `/catalog/:id` and
+  `/maps/:mapId`; public embeddable maps may also render at
+  `/embed/maps/:mapId` without a token. Token-authorized embeds use
+  `/embed/maps/:mapId#embedToken=<token>` so the iframe bearer stays in
+  the fragment and query-string bearer tokens are rejected. Embed controls
+  preserve Portal snippet spellings such as `chrome=none`, `legend=off`,
+  and `zoom=off`; invalid WGS84 extents fall back to the saved map extent.
 
 The `Version` column is the exact string the registry emits into
 evidence. Some contracts intentionally report only the major family
@@ -210,12 +220,12 @@ real HTTP transport cannot silently accept a drifted payload:
   assumptions, data bindings, warnings, validation, and provenance, and
   the lifecycle evidence names the distinct Draft, Preview, Saved version,
   and Published states. The current route is same-origin compatibility
-  evidence for `/studio/drafts?source=saved-map&id=<id>`; source hydration
-  and publication persistence remain server/SDK follow-up work, so the
-  package snapshot records `sourceHydrated: false` and uses the generic
-  mock binding rather than the saved-map id. This is a stable mock
-  projection until the server package lifecycle API and SDK package
-  helpers are wired into Console.
+  evidence for `/studio?source=map&itemId=<id>`; source hydration and
+  publication persistence remain server/SDK follow-up work, so the package
+  snapshot records `sourceHydrated: false` and uses the generic mock
+  binding rather than the saved-map id. This is a stable mock projection
+  until the server package lifecycle API and SDK package helpers are wired
+  into Console.
 - **`share-access/v1`** — `patchAccess` returns
   `{ sharing, embeddable, groupIds?, publicLinkToken? }` only; `groupIds`
   is emitted for `sharing="group"` and `publicLinkToken` is emitted for
@@ -231,8 +241,8 @@ real HTTP transport cannot silently accept a drifted payload:
   `kind:"closureBlocked"` when any resolved dependency is narrower than
   the proposed tier, when a dependency is missing, or when traversal is
   truncated. The generated-app smoke path therefore promotes the source
-  service and saved map to `org` before promoting the generated app to
-  `org`.
+  service and saved map to `org`, marks the saved map embeddable for
+  `/embed/maps/:mapId`, then promotes the generated app to `org`.
 - **`content-item/v1.1.0` re-publish ownership** — Server `publishService`
   upserts on `(source.kind, source.sourceId)` and, on re-publish, preserves
   the portal-owned fields `access`, `preview`, `dependencies`, `extensions`,
@@ -249,8 +259,8 @@ real HTTP transport cannot silently accept a drifted payload:
   runner keeps the raw token only in memory while assembling the route;
   JSON evidence and text summaries write `embedTokenHash` plus a redacted
   embed URL fragment. Minting snapshots the transitive dependency closure
-  at token time; for the generated-app path the closure evidence includes
-  both the saved map and the underlying service item.
+  at token time; for the saved-map embed path the closure evidence includes
+  the underlying service item.
 - **`webmap-doc/v1`** — `saveMap` produces a document with
   `version: "honua-webmap/v1"` plus `operationalLayers[]`, `baseMap`,
   and `initialState.viewpoint.extent`. The adapter also records the saved

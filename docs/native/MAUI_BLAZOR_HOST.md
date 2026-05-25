@@ -18,7 +18,7 @@ The shared shell owns the route map and workflow boundaries:
 | Studio | `/studio` | Builder |
 | Catalog | `/catalog` | Builder |
 | Operate | `/operate` | Operator |
-| Share | `/share` | Builder |
+| Share | `/share/public` (entry alias `/share`) | Builder |
 
 Two host-support routes are also shared:
 

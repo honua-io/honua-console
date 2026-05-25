@@ -174,17 +174,17 @@ Routes:
 Build:
 
 - Catalog search/list with the route-map query contract: `q`, `type`, `tag`, `owner`, `visibility`, `sort`, `cursor`.
-- Content type strip for datasets, layers, maps, dashboards, reports, forms, apps, workflows, analyses, GP services, ETL pipelines, connectors, templates.
+- Content type strip for datasets, services, layers, documents, maps, dashboards, reports, forms, apps, workflows, analyses, GP services, ETL pipelines, connectors, templates.
 - Status/version/validation/publication columns.
 
 Backend dependencies:
 
 - Content item list contract from `honua-server#1162`.
-- SDK projection from `honua-sdk-js#225`.
+- SDK projection from `honua-sdk-dotnet#166` for the Blazor shell.
 
 Acceptance:
 
-- Existing Portal catalog queries map to Console without unknown query params.
+- Existing Portal catalog queries map to Console without unknown query params; `visibility` maps to the SDK/server `sharing` field and `sharing` is not a public URL key.
 - User can open content detail, map viewer, Studio edit, and Share actions based on policy.
 
 ### UI-011: Catalog Item Detail, Versions, Lineage, Bindings, And Usage
@@ -204,6 +204,7 @@ Build:
 - Overview, versions, lineage, bindings, publication, permissions, activity tabs.
 - Usage/risk view before editing or retiring a resource.
 - Public-link `?token=` support for anonymous-capable catalog items.
+- Detail tab state uses `tab=overview|versions|lineage|bindings|publication|permissions|activity|usage`.
 
 Backend dependencies:
 
@@ -212,7 +213,7 @@ Backend dependencies:
 Acceptance:
 
 - Authenticated and anonymous public-link reads follow the route map.
-- Edit actions are disabled with policy evidence when the user cannot mutate current content.
+- Anonymous reads hide Studio, Share, and permissions details; signed-in reads do not propagate stale public-link tokens into action URLs.
 
 ### UI-012: Map Viewer, Embed Route, And Share-Link Compatibility
 
@@ -226,6 +227,7 @@ Design refs:
 Routes:
 
 - `/maps/:mapId`
+- `/maps/new`
 - `/embed/maps/:mapId`
 
 Build:
@@ -233,6 +235,7 @@ Build:
 - Interactive map viewer host for Catalog, Studio, and Share targets.
 - Iframe-safe embed route with `chrome`, `legend`, `zoom`, `extent`, and `#embedToken=` contract.
 - Public-link `?token=` support for `/maps/:mapId`.
+- Authenticated `/maps/new?from=:itemId` draft hydration from supported service/layer catalog items.
 
 Backend dependencies:
 
@@ -241,7 +244,7 @@ Backend dependencies:
 Acceptance:
 
 - Existing Portal share snippets continue to resolve.
-- Embed route omits full Console shell and only exposes allowed controls.
+- Embed route omits full Console shell, only exposes allowed controls, permits tokenless public embeddable maps, and rejects query-string bearer tokens.
 
 ### UI-013: Share Surface, Public Links, Embeds, Open Data, And Exports
 
@@ -253,14 +256,17 @@ Design refs:
 
 Routes:
 
+- `/share`
 - `/share/public`
+- `/public`
 - `/share/public/items/:idOrSlug`
+- `/public/items/:idOrSlug`
 
 Build:
 
 - Share home with shared items, traffic, visibility, embed status, and open-data status.
 - Per-item public link, embed snippet, token links, expiration, and traffic panels.
-- Open-data page editor and live preview with DCAT/schema.org evidence.
+- Current #34 slice lists and serves public open-data service/layer/document items at the collection and detail aliases; the full open-data page editor and DCAT/schema.org evidence remain in the broader Share work.
 - Scheduled export list and export detail hooks.
 
 Backend dependencies:

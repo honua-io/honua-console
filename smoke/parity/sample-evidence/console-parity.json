@@ -1,11 +1,11 @@
 {
   "scenario": "console-parity-publish-to-embed",
-  "ranAt": "2026-05-24T20:38:26.054Z",
+  "ranAt": "2026-05-24T21:52:01.210Z",
   "originUrl": "http://127.0.0.1:4174",
-  "repoRoot": "/home/makani/worktrees/honua-console/honua-console-38",
+  "repoRoot": "/home/makani/worktrees/honua-console/honua-console-34",
   "buildArtifact": {
     "source": "fixture",
-    "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/version.json",
+    "path": "/home/makani/worktrees/honua-console/honua-console-34/smoke/parity/fixtures/version.json",
     "name": "honua-console",
     "version": "0.1.0",
     "commit": "0000000000000000000000000000000000000000",
@@ -86,16 +86,16 @@
     "savedMapId": "01KS923C02F5XEMWXKBW2AB1SA",
     "generatedAppId": "01KS923C0340N28KA6V8ESGC1E",
     "shareTier": "org",
-    "embedTokenHash": "sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e"
+    "embedTokenHash": "sha256:65379c3a5d379805d03d1cbf4a4c4a3d8042d01684dd208678f5bd5035d504eb"
   },
   "urls": {
     "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
     "viewerHydration": "http://127.0.0.1:4174/maps/new?from=01KS923C01MRXBKM6AFX56RW1F",
     "viewer": "http://127.0.0.1:4174/maps/01KS923C02F5XEMWXKBW2AB1SA",
-    "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+    "studio": "http://127.0.0.1:4174/studio?source=map&itemId=01KS923C02F5XEMWXKBW2AB1SA",
     "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
-    "share": "http://127.0.0.1:4174/share/items/01KS923C0340N28KA6V8ESGC1E",
-    "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e"
+    "share": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E?tab=publication",
+    "embed": "http://127.0.0.1:4174/embed/maps/01KS923C02F5XEMWXKBW2AB1SA#embedToken=sha256:65379c3a5d379805d03d1cbf4a4c4a3d8042d01684dd208678f5bd5035d504eb"
   },
   "steps": [
     {
@@ -103,11 +103,11 @@
       "owningLayer": "devops",
       "owningLayerLabel": "Devops / single deployable artifact",
       "status": "ok",
-      "durationMs": 1,
+      "durationMs": 32,
       "description": "Verify the single deployable artifact metadata (version.json) declares name=honua-console, the four areas, and the legacy block.",
       "evidence": {
         "source": "fixture",
-        "path": "/home/makani/worktrees/honua-console/honua-console-38/smoke/parity/fixtures/version.json",
+        "path": "/home/makani/worktrees/honua-console/honua-console-34/smoke/parity/fixtures/version.json",
         "version": "0.1.0",
         "commit": "000000000000",
         "ref": "feature/honua-console-9",
@@ -129,7 +129,7 @@
       "owningLayer": "legacy-admin",
       "owningLayerLabel": "Legacy Admin transition surface",
       "status": "ok",
-      "durationMs": 1,
+      "durationMs": 3,
       "description": "Operator triggers a publish from the transitional legacy admin surface; emits a publish-handoff/v1.1.0 payload into Console catalog.",
       "evidence": {
         "type": "service",
@@ -147,7 +147,7 @@
       "owningLayer": "server",
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 2,
       "description": "Server upserts the publish-handoff into the catalog and returns a stable content item id.",
       "evidence": {
         "itemId": "01KS923C01MRXBKM6AFX56RW1F",
@@ -163,7 +163,7 @@
       "owningLayer": "sdk",
       "owningLayerLabel": "Honua SDK (@honua/sdk-js)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "SDK projects the server catalog row into the canonical content-item/v1.1.0 ContentItemSummary Console consumes.",
       "evidence": {
         "itemId": "01KS923C01MRXBKM6AFX56RW1F",
@@ -223,7 +223,7 @@
       "owningLayer": "console",
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "Save a map that references the published service; saved-map document conforms to webmap-doc/v1.",
       "evidence": {
         "savedMapId": "01KS923C02F5XEMWXKBW2AB1SA",
@@ -241,7 +241,7 @@
       "durationMs": 0,
       "description": "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
       "evidence": {
-        "draftUrl": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+        "draftUrl": "http://127.0.0.1:4174/studio?source=map&itemId=01KS923C02F5XEMWXKBW2AB1SA",
         "routeCompatibility": {
           "sourceKind": "saved-map",
           "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
@@ -296,7 +296,7 @@
       "owningLayer": "sdk",
       "owningLayerLabel": "Honua SDK (@honua/sdk-js)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "SDK builds the BuilderPlan and AppPackage from the draft using shared contracts.",
       "evidence": {
         "planId": "plan-01KS923C02F5XEMWXKBW2AB1SA-01KS923C02F5XEMWXKBW2AB1SA",
@@ -321,7 +321,7 @@
       "owningLayer": "server",
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 1,
       "description": "Server records the generated app as a published content item with target.url/framework and a saved-map/catalog-item dependency back to the source.",
       "evidence": {
         "generatedAppId": "01KS923C0340N28KA6V8ESGC1E",
@@ -343,8 +343,8 @@
       "owningLayer": "console",
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
-      "durationMs": 0,
-      "description": "Console share dialog promotes the dependency closure, then promotes the generated app to org-tier and marks it embeddable.",
+      "durationMs": 2,
+      "description": "Console share dialog promotes the saved map for embed and the generated app for catalog publication.",
       "evidence": {
         "itemId": "01KS923C0340N28KA6V8ESGC1E",
         "sharing": "org",
@@ -353,12 +353,14 @@
           {
             "itemId": "01KS923C01MRXBKM6AFX56RW1F",
             "role": "source-service",
-            "sharing": "org"
+            "sharing": "org",
+            "embeddable": false
           },
           {
             "itemId": "01KS923C02F5XEMWXKBW2AB1SA",
             "role": "saved-map",
-            "sharing": "org"
+            "sharing": "org",
+            "embeddable": true
           }
         ]
       },
@@ -369,17 +371,16 @@
       "owningLayer": "server",
       "owningLayerLabel": "Honua Server (metadata, content, publish, share, embed)",
       "status": "ok",
-      "durationMs": 1,
-      "description": "Server mints a same-origin embed-token/v1 descriptor for the generated app.",
+      "durationMs": 2,
+      "description": "Server mints a same-origin embed-token/v1 descriptor for the saved map.",
       "evidence": {
-        "tokenHash": "sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e",
+        "tokenHash": "sha256:65379c3a5d379805d03d1cbf4a4c4a3d8042d01684dd208678f5bd5035d504eb",
         "audience": "pilot",
-        "closureSize": 2,
+        "closureSize": 1,
         "closure": [
-          "01KS923C02F5XEMWXKBW2AB1SA",
           "01KS923C01MRXBKM6AFX56RW1F"
         ],
-        "expiresAt": "2026-05-24T21:08:26.060Z"
+        "expiresAt": "2026-05-24T22:22:01.282Z"
       },
       "error": null
     },
@@ -388,17 +389,17 @@
       "owningLayer": "console",
       "owningLayerLabel": "Honua Console (Studio, Catalog, Operate, Share UI)",
       "status": "ok",
-      "durationMs": 0,
+      "durationMs": 3,
       "description": "Console assembles the same-origin embed URL using the minted token; evidence keeps the same-origin route while redacting the bearer fragment.",
       "evidence": {
         "urls": {
           "catalog": "http://127.0.0.1:4174/catalog/01KS923C01MRXBKM6AFX56RW1F",
           "viewerHydration": "http://127.0.0.1:4174/maps/new?from=01KS923C01MRXBKM6AFX56RW1F",
           "viewer": "http://127.0.0.1:4174/maps/01KS923C02F5XEMWXKBW2AB1SA",
-          "studio": "http://127.0.0.1:4174/studio/drafts?source=saved-map&id=01KS923C02F5XEMWXKBW2AB1SA",
+          "studio": "http://127.0.0.1:4174/studio?source=map&itemId=01KS923C02F5XEMWXKBW2AB1SA",
           "generatedApp": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E",
-          "share": "http://127.0.0.1:4174/share/items/01KS923C0340N28KA6V8ESGC1E",
-          "embed": "http://127.0.0.1:4174/embed/items/01KS923C0340N28KA6V8ESGC1E#embedToken=sha256:8a196c56a4b31d38be0515117f7eca087803152dddb545328c7ecb35652a0a1e"
+          "share": "http://127.0.0.1:4174/catalog/01KS923C0340N28KA6V8ESGC1E?tab=publication",
+          "embed": "http://127.0.0.1:4174/embed/maps/01KS923C02F5XEMWXKBW2AB1SA#embedToken=sha256:65379c3a5d379805d03d1cbf4a4c4a3d8042d01684dd208678f5bd5035d504eb"
         }
       },
       "error": null

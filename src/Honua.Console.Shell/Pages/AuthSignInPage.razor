@@ -1,0 +1,94 @@
+@page "/auth/signin"
+@inject IConsoleEnvironmentProfileStore Profiles
+@inject IConsoleAccountSessionStore Sessions
+@inject NavigationManager Navigation
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Workspace session</p>
+        <h1>Sign In</h1>
+        <p>Continue with the active environment profile before opening authenticated Console routes.</p>
+    </div>
+
+    @if (_profile is null)
+    {
+        <ConsoleStateView Kind="unavailable" Kicker="Unavailable" Title="No environment profile" Message="Create or activate an environment profile before signing in." ActionHref="/environments" ActionLabel="Manage Environments" />
+    }
+    else
+    {
+        <div class="console-panel">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">@_profile.EnvironmentKind</p>
+                    <h2>@_profile.DisplayName</h2>
+                </div>
+                <span class="console-status">@_profile.Account.AuthMode</span>
+            </div>
+
+            <dl class="console-definition-list">
+                <dt>Server</dt>
+                <dd>@_profile.ServerBaseUri</dd>
+                <dt>Tenant</dt>
+                <dd>@_profile.TenantId</dd>
+                <dt>Account</dt>
+                <dd>@AccountLabel(_profile)</dd>
+                <dt>Return to</dt>
+                <dd>@_returnTo</dd>
+            </dl>
+
+            <div class="console-detail-actions">
+                <button class="console-button" type="button" @onclick="SignInAsync">Continue</button>
+                <a class="console-button-link" href="@_returnTo">Cancel</a>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private ConsoleEnvironmentProfile? _profile;
+    private string _returnTo = "/";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _returnTo = SanitizeReturnTo(ConsoleUrlQuery.GetValue(Navigation.Uri, "returnTo"));
+        _profile = await Profiles.GetActiveProfileAsync();
+    }
+
+    private async Task SignInAsync()
+    {
+        if (_profile is null)
+        {
+            return;
+        }
+
+        await Sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = _profile.Id,
+            AccountId = string.IsNullOrWhiteSpace(_profile.Account.AccountId) ? "console-user" : _profile.Account.AccountId,
+            DisplayName = _profile.Account.DisplayName,
+            TenantId = string.IsNullOrWhiteSpace(_profile.Account.TenantId) ? _profile.TenantId : _profile.Account.TenantId,
+            PermissionIds = _profile.Account.PermissionHints,
+            AccessToken = $"profile-session:{_profile.Id}"
+        });
+
+        Navigation.NavigateTo(_returnTo);
+    }
+
+    private static string AccountLabel(ConsoleEnvironmentProfile profile) =>
+        string.IsNullOrWhiteSpace(profile.Account.DisplayName)
+            ? profile.Account.AccountId
+            : profile.Account.DisplayName;
+
+    private static string SanitizeReturnTo(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || !value.StartsWith("/", StringComparison.Ordinal)
+            || value.StartsWith("//", StringComparison.Ordinal)
+            || value.Contains("://", StringComparison.Ordinal))
+        {
+            return "/";
+        }
+
+        return value;
+    }
+}

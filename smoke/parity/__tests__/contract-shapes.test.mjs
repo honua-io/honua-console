@@ -507,7 +507,7 @@ describe("embed URL placement", () => {
   test("query-string token failures do not echo the bearer", () => {
     const raw = "tok-secret-value";
     assert.throws(
-      () => assertEmbedTokenInFragment(`https://console.smoke.example/embed/items/app-1?token=${raw}`),
+      () => assertEmbedTokenInFragment(`https://console.smoke.example/embed/maps/map-1?token=${raw}`),
       (error) => {
         assert.match(error.message, /query string/);
         assert.equal(error.message.includes(raw), false);

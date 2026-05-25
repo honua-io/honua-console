@@ -1,3 +1,64 @@
 @page "/share"
+@page "/share/public"
+@page "/public"
+@inject IConsoleCatalogClient Catalog
 
-<WorkflowAreaPage AreaId="share" />
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Share workflow</p>
+        <h1>Public Open Data</h1>
+        <p>Public services, layers, and documents with open-data publication metadata.</p>
+    </div>
+
+    @if (_items is null)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading public items" Message="Open-data catalog items are loading." />
+    }
+    else if (_items.Count == 0)
+    {
+        <ConsoleStateView Kind="empty" Kicker="Empty share" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." />
+    }
+    else
+    {
+        <div class="console-panel-grid">
+            @foreach (var item in _items)
+            {
+                <article class="console-panel">
+                    <p class="console-kicker">@CatalogContentTypes.LabelFor(item.Type)</p>
+                    <h2><a href="/share/public/items/@SlugOrId(item)">@item.Title</a></h2>
+                    <p>@item.Summary</p>
+                    <div class="console-chip-row">
+                        <span>@item.Owner</span>
+                        <span>Open data</span>
+                        @foreach (var format in item.Formats)
+                        {
+                            <span>@format</span>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<ConsoleContentSummary>? _items;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var result = await Catalog.SearchAsync(new CatalogListRequest
+        {
+            Sharing = CatalogSharingTiers.Public,
+            Sort = CatalogSortOptions.ModifiedDesc
+        }, CatalogReadContext.AnonymousPublicLink(token: null));
+        _items = result.Items
+            .Where(item => item.Access.OpenData
+                && (string.Equals(item.Type, "service", StringComparison.Ordinal)
+                    || string.Equals(item.Type, "layer", StringComparison.Ordinal)
+                    || string.Equals(item.Type, "document", StringComparison.Ordinal)))
+            .ToArray();
+    }
+
+    private static string SlugOrId(ConsoleContentSummary item) =>
+        string.IsNullOrWhiteSpace(item.Slug) ? item.Id : item.Slug;
+}

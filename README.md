@@ -80,7 +80,8 @@ Native Operate transition routes for connections, resources, services, layers, a
 
 ## Project Layout
 
-- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, native Operate transition surfaces, and native streaming proof interface.
+- `src/Honua.Console.Shell`: shared Razor routes, layout, route map, environment profile models, account session interfaces, native Operate transition surfaces, catalog/share route-slice surfaces, and native streaming proof interface.
+- `src/Honua.Console.Contracts`: temporary SDK shim boundary for Console-side contracts until the shared .NET SDK projections replace them.
 - `src/Honua.Console.Web`: default browser Console host. It references the shared shell and stays independently buildable/deployable without MAUI or native services.
 - `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation, and the deterministic telemetry streaming proof.
 - `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.
@@ -106,6 +107,36 @@ That script runs the same host-independent checks directly:
 dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj
 dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj
 ```
+
+## Catalog, Share, And Embed Route Slice
+
+The Blazor shell includes the catalog/share parity route slice for
+`honua-console#34` behind the temporary .NET SDK shim boundary in
+`src/Honua.Console.Contracts`.
+
+- `/catalog` requires a signed-in workspace session and accepts the
+  Portal-compatible query keys `q`, `type`, `tag`, `owner`, `visibility`,
+  `sort`, and `cursor`. `visibility` is mapped to the SDK request field
+  `sharing`; do not add `sharing` to the public URL query.
+- `/catalog/{idOrSlug}` and `/maps/{mapId}` accept anonymous public reads
+  without a token and public-link reads with `?token=<value>`.
+  Authenticated reads continue to expose Studio and Share actions according
+  to item policy, and do not preserve stale public-link tokens in action
+  URLs. Anonymous reads hide those actions. Catalog detail tabs use
+  `?tab=overview|versions|lineage|bindings|publication|permissions|activity|usage`;
+  unknown tabs fall back to overview.
+- `/maps/new?from=<itemId>` requires a signed-in workspace session and
+  hydrates an unsaved draft map from a supported service or layer catalog
+  item. Its Studio continuation URL is
+  `/studio?source=catalog&itemId=<itemId>`.
+- `/share`, `/share/public`, and `/public` list public open-data service,
+  layer, and document items. `/share/public/items/{idOrSlug}` and
+  `/public/items/{idOrSlug}` serve the eligible item detail page.
+- `/embed/maps/{mapId}` uses the shellless embed layout. It accepts
+  Portal-compatible `chrome`, `legend`, `zoom`, and `extent=W,S,E,N`
+  query options. Public embeddable maps may render without a token;
+  token-authorized embeds must put the bearer in `#embedToken=<value>`.
+  Query-string `token` or `embedToken` is rejected by the route contract.
 
 The optional native host targets Windows and macOS desktop builds. See [Optional MAUI Blazor Hybrid Host](docs/native/MAUI_BLAZOR_HOST.md) for workload, publish, profile, mTLS, and streaming-proof details.
 

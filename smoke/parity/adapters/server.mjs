@@ -505,7 +505,7 @@ export function createServerAdapter({ originUrl } = {}) {
 
     /** Mint a same-origin embed-token/v1 descriptor for an item id. */
     mintEmbedToken({ itemId, audience }) {
-      const item = items.get(itemId);
+      const item = lookupDependencyItem(itemId);
       if (!item) return { kind: "missing" };
       if (!item.access.embeddable) {
         return { kind: "forbidden", reason: "item is not embeddable" };

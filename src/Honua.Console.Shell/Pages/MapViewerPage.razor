@@ -1,0 +1,118 @@
+@page "/maps/{MapId}"
+@inject IConsoleCatalogClient Catalog
+@inject IConsoleCatalogReadContextResolver ReadContexts
+@inject NavigationManager Navigation
+
+<section class="console-page console-viewer-page">
+    @if (_result is null)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading map" Message="The saved map package is loading." />
+    }
+    else if (_result.Status != CatalogReadStatus.Allowed || _result.MapPackage is null)
+    {
+        @RenderReadState(_result.Status, _result.Message)
+    }
+    else
+    {
+        var map = _result.MapPackage;
+        <div class="console-page-heading console-detail-heading">
+            <div>
+                <p class="console-kicker">Map viewer</p>
+                <h1>@map.Summary.Title</h1>
+                <p>@map.Summary.Summary</p>
+                <div class="console-chip-row">
+                    <span>@map.Basemap</span>
+                    <span>@VisibilityLabel(map.Summary.Access.Sharing)</span>
+                    @if (_result.AnonymousRead)
+                    {
+                        <span>@ConsoleAnonymousReadLabels.ReadLabel(map.Summary)</span>
+                    }
+                </div>
+            </div>
+            <div class="console-detail-actions">
+                @foreach (var action in ResolveViewerActions(map.Summary, isAuthenticated: !_result.AnonymousRead))
+                {
+                    <a class="console-button-link" href="@action.Href">@action.Label</a>
+                }
+            </div>
+        </div>
+
+        <div class="console-map-surface" aria-label="Saved map preview">
+            <div class="console-map-canvas">
+                <span>@map.Summary.Title</span>
+                <small>Extent @map.InitialExtent</small>
+            </div>
+            <aside class="console-map-panel" aria-label="Map layers">
+                <h2>Layers</h2>
+                <ul>
+                    @foreach (var layer in map.Layers)
+                    {
+                        <li>@layer</li>
+                    }
+                </ul>
+            </aside>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string MapId { get; set; } = string.Empty;
+
+    private MapPackageReadResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var token = ConsoleUrlQuery.GetValue(Navigation.Uri, "token") ?? string.Empty;
+        var context = await ReadContexts.ResolveAsync(token);
+        _result = await Catalog.GetMapPackageAsync(MapId, context);
+    }
+
+    private RenderFragment RenderReadState(CatalogReadStatus status, string message) => builder =>
+    {
+        var (kind, kicker, title, body) = status switch
+        {
+            CatalogReadStatus.Missing => ("missing", "Missing map", "Map not found", "The requested saved map does not exist or is no longer available."),
+            CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated saved-map read was denied by policy."),
+            CatalogReadStatus.UnsupportedPackageBinding => ("unsupported-package", "Unsupported package", "Unsupported map package", message),
+            _ => ("unavailable", "Unavailable", "This map link is unavailable", "This anonymous map link is missing, expired, or not allowed to reveal protected content.")
+        };
+
+        builder.OpenComponent<ConsoleStateView>(0);
+        builder.AddAttribute(1, "Kind", kind);
+        builder.AddAttribute(2, "Kicker", kicker);
+        builder.AddAttribute(3, "Title", title);
+        builder.AddAttribute(4, "Message", body);
+        builder.AddAttribute(5, "ActionHref", "/catalog?type=map");
+        builder.AddAttribute(6, "ActionLabel", "Browse Maps");
+        builder.CloseComponent();
+    };
+
+    public static IReadOnlyList<ConsoleCatalogAction> ResolveViewerActions(
+        ConsoleContentSummary map,
+        bool isAuthenticated)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+
+        if (!isAuthenticated)
+        {
+            return [];
+        }
+
+        return ConsoleCatalogActionPolicy.Resolve(map, isAuthenticated: true)
+            .Where(action => action.Id is "detail" or "studio" or "share")
+            .Select(action => action.Id == "studio"
+                ? action with { Href = $"/studio?source=map&itemId={Uri.EscapeDataString(map.Id)}" }
+                : action)
+            .ToArray();
+    }
+
+    private static string VisibilityLabel(string sharing) => sharing switch
+    {
+        CatalogSharingTiers.Organization => "Organization",
+        CatalogSharingTiers.PublicLink => "Public link",
+        CatalogSharingTiers.Public => "Public",
+        CatalogSharingTiers.Group => "Group",
+        _ => "Private"
+    };
+}

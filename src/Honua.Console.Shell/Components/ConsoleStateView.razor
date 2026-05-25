@@ -1,0 +1,29 @@
+<section class="console-state console-state-@Kind" aria-live="polite">
+    <p class="console-kicker">@Kicker</p>
+    <h1>@Title</h1>
+    <p>@Message</p>
+    @if (!string.IsNullOrWhiteSpace(ActionHref) && !string.IsNullOrWhiteSpace(ActionLabel))
+    {
+        <a class="console-button-link" href="@ActionHref">@ActionLabel</a>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string Kind { get; set; } = "empty";
+
+    [Parameter]
+    public string Kicker { get; set; } = "Console state";
+
+    [Parameter]
+    public string Title { get; set; } = "Nothing to show";
+
+    [Parameter]
+    public string Message { get; set; } = "This route did not return content.";
+
+    [Parameter]
+    public string ActionHref { get; set; } = string.Empty;
+
+    [Parameter]
+    public string ActionLabel { get; set; } = string.Empty;
+}

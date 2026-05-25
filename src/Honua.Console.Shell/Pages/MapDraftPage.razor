@@ -1,0 +1,114 @@
+@page "/maps/new"
+@inject IConsoleCatalogClient Catalog
+@inject IConsoleCatalogReadContextResolver ReadContexts
+@inject NavigationManager Navigation
+
+<section class="console-page console-viewer-page">
+    @if (!_accessResolved)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking map access" Message="The workspace session is being checked before draft map hydration starts." />
+    }
+    else if (_requiresAuthentication)
+    {
+        <ConsoleStateView Kind="unauthenticated" Kicker="Sign in required" Title="Sign in to create a map" Message="Draft map hydration requires a signed-in workspace session." ActionHref="@BuildSignInHref()" ActionLabel="Sign In" />
+    }
+    else if (string.IsNullOrWhiteSpace(_sourceItemId))
+    {
+        <ConsoleStateView Kind="empty" Kicker="New map" Title="Choose a catalog item" Message="Start a draft map from a supported catalog service or layer." ActionHref="/catalog?type=service" ActionLabel="Browse Catalog" />
+    }
+    else if (_result is null)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading draft map" Message="The draft map is hydrating from the catalog item." />
+    }
+    else if (_result.Status != CatalogReadStatus.Allowed || _result.MapPackage is null)
+    {
+        @RenderReadState(_result.Status, _result.Message)
+    }
+    else
+    {
+        var map = _result.MapPackage;
+        <div class="console-page-heading console-detail-heading">
+            <div>
+                <p class="console-kicker">Draft map</p>
+                <h1>@map.Summary.Title</h1>
+                <p>@map.Summary.Summary</p>
+            </div>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="/studio?source=catalog&itemId=@_sourceItemId">Continue In Studio</a>
+            </div>
+        </div>
+
+        <div class="console-map-surface" aria-label="Draft map preview">
+            <div class="console-map-canvas">
+                <span>@map.Summary.Title</span>
+                <small>Unsaved draft · Extent @map.InitialExtent</small>
+            </div>
+            <aside class="console-map-panel" aria-label="Draft map layers">
+                <h2>Layers</h2>
+                <ul>
+                    @foreach (var layer in map.Layers)
+                    {
+                        <li>@layer</li>
+                    }
+                </ul>
+            </aside>
+        </div>
+    }
+</section>
+
+@code {
+    private string _sourceItemId = string.Empty;
+    private MapPackageReadResult? _result;
+    private bool _accessResolved;
+    private bool _requiresAuthentication;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _sourceItemId = ConsoleUrlQuery.GetValue(Navigation.Uri, "from") ?? string.Empty;
+        _accessResolved = false;
+        _requiresAuthentication = false;
+        _result = null;
+
+        var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
+        _accessResolved = true;
+        if (context.Anonymous)
+        {
+            _requiresAuthentication = true;
+            return;
+        }
+
+        _result = string.IsNullOrWhiteSpace(_sourceItemId)
+            ? null
+            : await Catalog.GetDraftMapAsync(_sourceItemId, context);
+    }
+
+    private string BuildSignInHref()
+    {
+        var returnTo = $"/{Navigation.ToBaseRelativePath(Navigation.Uri)}";
+        return $"/auth/signin?returnTo={Uri.EscapeDataString(returnTo)}";
+    }
+
+    public static (string Kind, string Kicker, string Title, string Body) ResolveReadState(CatalogReadStatus status, string message) =>
+        status switch
+        {
+            CatalogReadStatus.Missing => ("missing", "Missing source", "Source item not found", "The source item for this draft map does not exist or is no longer available."),
+            CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated draft-map read was denied by item policy."),
+            CatalogReadStatus.UnsupportedPackageBinding => ("unsupported-package", "Unsupported package", "Unsupported package binding", message),
+            CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported source", "Cannot hydrate map draft", message),
+            _ => ("unavailable", "Unavailable", "Cannot hydrate map draft", "Sign in or choose a catalog item that can be opened in the viewer.")
+        };
+
+    private RenderFragment RenderReadState(CatalogReadStatus status, string message) => builder =>
+    {
+        var (kind, kicker, title, body) = ResolveReadState(status, message);
+
+        builder.OpenComponent<ConsoleStateView>(0);
+        builder.AddAttribute(1, "Kind", kind);
+        builder.AddAttribute(2, "Kicker", kicker);
+        builder.AddAttribute(3, "Title", title);
+        builder.AddAttribute(4, "Message", body);
+        builder.AddAttribute(5, "ActionHref", "/catalog?type=service");
+        builder.AddAttribute(6, "ActionLabel", "Browse Catalog");
+        builder.CloseComponent();
+    };
+}

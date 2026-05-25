@@ -9,7 +9,7 @@
 //   3. Open the item in the map viewer and save a map.
 //   4. Studio creates a dashboard/app/report draft from the same source.
 //   5. Publish/reopen the generated artifact as a content item.
-//   6. Share/embed the generated artifact from the same Console origin.
+//   6. Share the generated artifact and embed the saved map from the same Console origin.
 //
 // Each step declares the owningLayer that owns the contract it exercises,
 // so a failure points the smoke triage at the right repo:
@@ -27,6 +27,7 @@
 
 import { loadPublishHandoff } from "./adapters/admin.mjs";
 import {
+  CONSOLE_ROUTES,
   assertEmbedTokenInFragment,
   assertSameOrigin,
   buildConsoleUrls,
@@ -225,7 +226,7 @@ export const SCENARIO_STEPS = [
     description:
       "Studio accepts the source-scoped draft route, clarifies an ambiguous prompt, and keeps the route-compatible mock package inspectable.",
     async run(ctx) {
-      const draftUrl = `${ctx.originUrl}/studio/drafts?source=saved-map&id=${ctx.savedMap.id}`;
+      const draftUrl = `${ctx.originUrl}${CONSOLE_ROUTES.studioDraftForMap(ctx.savedMap.id)}`;
       assertSameOrigin(ctx.originUrl, { draft: draftUrl });
       const sourceContext = { kind: "saved-map", itemId: ctx.savedMap.id, itemType: "map", title: ctx.savedMap.title };
       const authoringPackage = {
@@ -361,17 +362,17 @@ export const SCENARIO_STEPS = [
     id: "console/share-publish",
     owningLayer: "console",
     description:
-      "Console share dialog promotes the dependency closure, then promotes the generated app to org-tier and marks it embeddable.",
+      "Console share dialog promotes the saved map for embed and the generated app for catalog publication.",
     async run(ctx) {
       const dependencyPromotions = [
-        { itemId: ctx.serviceItem.id, role: "source-service" },
-        { itemId: ctx.savedMap.id, role: "saved-map" },
-      ].map(({ itemId, role }) => {
-        const promotion = ctx.server.patchAccess({ itemId, tier: "org", embeddable: false });
+        { itemId: ctx.serviceItem.id, role: "source-service", embeddable: false },
+        { itemId: ctx.savedMap.id, role: "saved-map", embeddable: true },
+      ].map(({ itemId, role, embeddable }) => {
+        const promotion = ctx.server.patchAccess({ itemId, tier: "org", embeddable });
         if (promotion.kind !== "ok") {
           throw new Error(`dependency share patch returned ${promotion.kind} for ${role} ${itemId}`);
         }
-        return { itemId, role, sharing: promotion.access.sharing };
+        return { itemId, role, sharing: promotion.access.sharing, embeddable: promotion.access.embeddable };
       });
       const result = ctx.server.patchAccess({ itemId: ctx.generatedApp.id, tier: "org", embeddable: true });
       if (result.kind !== "ok") {
@@ -398,11 +399,11 @@ export const SCENARIO_STEPS = [
     id: "server/embed-token-mint",
     owningLayer: "server",
     description:
-      "Server mints a same-origin embed-token/v1 descriptor for the generated app.",
+      "Server mints a same-origin embed-token/v1 descriptor for the saved map.",
     async run(ctx) {
-      const result = ctx.server.mintEmbedToken({ itemId: ctx.generatedApp.id, audience: "pilot" });
+      const result = ctx.server.mintEmbedToken({ itemId: ctx.savedMap.id, audience: "pilot" });
       if (result.kind !== "ok") {
-        throw new Error(`embed-token mint returned ${result.kind} for generated app ${ctx.generatedApp.id}`);
+        throw new Error(`embed-token mint returned ${result.kind} for saved map ${ctx.savedMap.id}`);
       }
       ctx.embedToken = result.descriptor.token;
       ctx.itemIds.embedTokenHash = redactEmbedToken(result.descriptor.token);
