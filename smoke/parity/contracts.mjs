@@ -60,7 +60,7 @@ export const CONTRACT_VERSIONS = Object.freeze([
     version: "v1",
     owningLayer: OWNING_LAYERS.console.id,
     sourceRepo: "honua-console",
-    note: "Console-owned authoring projection for prompt clarification, package inspection, preview, saved-version, and publish state.",
+    note: "Console authoring projection for prompt clarification and package inspection; draft/validation/preview-plan/saved-version/publish bind to the honua-server package lifecycle (#1180/#1181). Preview is a planning action, not a stored lifecycle state.",
   }),
   Object.freeze({
     name: "build-artifact",

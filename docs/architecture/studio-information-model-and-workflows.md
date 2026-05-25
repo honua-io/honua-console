@@ -687,19 +687,26 @@ The shell keeps the generated output visible as a package at all times:
 workflow selection produces a typed package draft, ambiguous prompts add
 structured clarification questions instead of applying hidden
 assumptions, and the inspector exposes assumptions, data bindings,
-warnings, validation, and provenance. Draft, Preview, Saved version, and
-Published states are represented as distinct lifecycle descriptors so
-the UI and smoke evidence can assert the state transition path without
-creating server-owned content versions prematurely.
+warnings, validation, and provenance. The shared `/studio` shell binds
+the honua-server package lifecycle (honua-server#1180/#1181) through the
+`IStudioPackageLifecycleClient` shim: draft create/read/update,
+validation, preview-planning, content-version save, and publish are
+server-owned. Draft, Saved version, and Published are represented as
+distinct lifecycle descriptors; Preview is a transient preview-plan
+action, not a stored lifecycle state. Rendered preview output /
+generated-app preview has no server contract yet and is surfaced as a
+missing-binding state, never a fabricated canvas. When no server base
+address is configured the shell renders a missing-binding surface
+instead of mock package data.
 
 Current projection shape:
 
 - `StudioAuthoringContract.Name = "studio-authoring-shell"`.
 - `StudioAuthoringContract.Version = "v1"`.
-- `StudioAuthoringContract.PackageSchemaVersion = "package-shell/v1"`.
-- `StudioAuthoringSession` carries workflow options, the selected
-  workflow id, the current prompt, open clarification questions, the
-  active package snapshot, and recent projects.
+- `StudioAuthoringSession` carries workflow options (with server family
+  capabilities), the selected workflow id, the current prompt, open
+  clarification questions, the active package snapshot, an optional
+  binding state, an optional preview plan, and the live draft handle.
 - Workflow options currently cover `map.package`, `dashboard.package`,
   `report.package`, `form.package`, `app.package`, `query.package`,
   `analysis.package`, and `workflow.package` slices for workflow, GP

@@ -24,6 +24,9 @@ public sealed record ConsoleTrustIntegrationOptions
     /// <summary>Bearer token granting admin access to the client-certificate validate endpoint.</summary>
     public string? AdminToken { get; init; }
 
+    /// <summary>Admin API key sent as <c>X-API-Key</c> to the admin-protected Studio package endpoints.</summary>
+    public string? StudioAdminApiKey { get; init; }
+
     /// <summary>Optional expected server-side trust profile id.</summary>
     public string? TrustProfileId { get; init; }
 
@@ -58,6 +61,7 @@ public sealed record ConsoleTrustIntegrationOptions
             ServerScheme = ReadString("HONUA_CONSOLE_SERVER_SCHEME") ?? "https",
             ServerHealthPath = ReadString("HONUA_CONSOLE_SERVER_HEALTH_PATH") ?? "/health",
             AdminToken = ReadString("HONUA_CONSOLE_ADMIN_TOKEN"),
+            StudioAdminApiKey = ReadString("HONUA_CONSOLE_ADMIN_API_KEY"),
             TrustProfileId = ReadString("HONUA_CONSOLE_TRUST_PROFILE_ID"),
             DbConnectionEnvKey = ReadString("HONUA_CONSOLE_DB_CONNECTION_ENV") ?? "ConnectionStrings__Postgres",
             TrustedCertificatePfxPath = ReadString("HONUA_CONSOLE_TRUSTED_CERT_PFX"),
@@ -99,6 +103,20 @@ public sealed record ConsoleTrustIntegrationOptions
 
         return string.IsNullOrWhiteSpace(Load().AdminToken)
             ? "Set HONUA_CONSOLE_ADMIN_TOKEN to exercise the admin-protected client-certificate validate endpoint."
+            : null;
+    }
+
+    /// <summary>Reason the live Studio package-lifecycle facts cannot run (need an admin API key).</summary>
+    public static string? GetStudioSkipReason()
+    {
+        var baseReason = GetSkipReason();
+        if (baseReason is not null)
+        {
+            return baseReason;
+        }
+
+        return string.IsNullOrWhiteSpace(Load().StudioAdminApiKey)
+            ? "Set HONUA_CONSOLE_ADMIN_API_KEY to exercise the admin-protected Studio package lifecycle endpoints."
             : null;
     }
 

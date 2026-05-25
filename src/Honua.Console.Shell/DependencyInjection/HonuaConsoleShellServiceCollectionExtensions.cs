@@ -18,7 +18,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleEnvironmentProfileStore>(
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
-        services.TryAddSingleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>();
+        AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
         services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
@@ -36,6 +36,44 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryOperateTransitionDataSource.CreateSeeded()));
 
         return services;
+    }
+
+    /// <summary>
+    /// Swaps the Studio authoring shell for the local in-memory simulator. For explicit demo/local
+    /// composition only — never the merged runtime path for server-owned Studio package data.
+    /// </summary>
+    public static IServiceCollection AddHonuaConsoleDemoStudioAuthoringShell(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Singleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>());
+
+        return services;
+    }
+
+    // Binds the Studio package draft/lifecycle/validation/preview-plan surface to honua-server
+    // (#1180/#1181) through the Honua.Console.Contracts shim when a server base address is configured;
+    // otherwise the shell renders a missing-binding state (never mock package data).
+    private static void AddStudioAuthoringShell(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IStudioPackageLifecycleClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HttpStudioPackageLifecycleClient(
+                    httpClient,
+                    new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioAuthoringShell, ServerStudioAuthoringShell>();
+            return;
+        }
+
+        services.TryAddSingleton<IStudioAuthoringShell, UnsupportedStudioAuthoringShell>();
     }
 
     private static void AddOperateTransitionDataSource(

@@ -1,13 +1,9 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-using DotNet.Testcontainers.Networks;
 using Honua.Console.Native.Core.Connections;
 using Honua.Console.Native.Core.Security;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
-using Testcontainers.PostgreSql;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -26,9 +22,7 @@ public sealed class ConsoleTrustIntegrationCollection : ICollectionFixture<Honua
 /// </summary>
 public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
 {
-    private INetwork? _network;
-    private PostgreSqlContainer? _postgres;
-    private IContainer? _server;
+    private HonuaServerTestcontainer? _container;
 
     public ConsoleTrustIntegrationOptions Options { get; } = ConsoleTrustIntegrationOptions.Load();
 
@@ -54,58 +48,9 @@ public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
 
         try
         {
-            _network = new NetworkBuilder().Build();
-
-            _postgres = new PostgreSqlBuilder()
-                .WithImage("postgis/postgis:16-3.4")
-                .WithNetwork(_network)
-                .WithNetworkAliases("postgres")
-                .WithDatabase("honua")
-                .WithUsername("honua")
-                .WithPassword("honua")
-                .Build();
-            await _postgres.StartAsync().ConfigureAwait(false);
-
-            var connectionString = "Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua";
-
-            var useTls = string.Equals(Options.ServerScheme, "https", StringComparison.OrdinalIgnoreCase);
-            var builder = new ContainerBuilder(Options.ServerImage!)
-                .WithNetwork(_network)
-                .WithPortBinding(Options.ServerPort, assignRandomHostPort: true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request =>
-                {
-                    request = request
-                        .ForPort(Options.ServerPort)
-                        .ForPath(Options.ServerHealthPath)
-                        .ForStatusCodeMatching(code => (int)code is >= 200 and < 500);
-
-                    if (useTls)
-                    {
-                        // The fixture server presents a self-signed/dev certificate; accept it for the readiness probe only.
-                        request = request
-                            .UsingTls()
-                            .UsingHttpMessageHandler(new HttpClientHandler
-                            {
-                                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-                            });
-                    }
-
-                    return request;
-                }));
-
-            foreach (var (key, value) in Options.BuildServerEnvironment(connectionString))
-            {
-                builder = builder.WithEnvironment(key, value);
-            }
-
-            _server = builder.Build();
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-            await _server.StartAsync(timeout.Token).ConfigureAwait(false);
-
-            BaseAddress = new UriBuilder(
-                Options.ServerScheme,
-                _server.Hostname,
-                _server.GetMappedPublicPort(Options.ServerPort)).Uri;
+            _container = await HonuaServerTestcontainer.StartAsync(Options, timeout.Token).ConfigureAwait(false);
+            BaseAddress = _container.BaseAddress;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -125,22 +70,10 @@ public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
 
     private async Task DisposeStartedContainersAsync()
     {
-        if (_server is not null)
+        if (_container is not null)
         {
-            await _server.DisposeAsync().ConfigureAwait(false);
-            _server = null;
-        }
-
-        if (_postgres is not null)
-        {
-            await _postgres.DisposeAsync().ConfigureAwait(false);
-            _postgres = null;
-        }
-
-        if (_network is not null)
-        {
-            await _network.DisposeAsync().ConfigureAwait(false);
-            _network = null;
+            await _container.DisposeAsync().ConfigureAwait(false);
+            _container = null;
         }
     }
 

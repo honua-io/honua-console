@@ -97,7 +97,7 @@ describe("parity scenario", () => {
       "validation",
       "provenance",
     ]);
-    assert.deepEqual(studioStep.evidence.lifecycleStates, ["Draft", "Preview", "Saved version", "Published"]);
+    assert.deepEqual(studioStep.evidence.lifecycleStates, ["Draft", "Saved version", "Published"]);
 
     // Contract-version table includes the Console-parity contracts.
     const contractNames = report.contractVersions.map((c) => c.name).sort();

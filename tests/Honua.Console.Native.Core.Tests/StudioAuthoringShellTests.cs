@@ -3,20 +3,26 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Native.Core.Tests;
 
+/// <summary>
+/// Unit tests for the local <see cref="InMemoryStudioAuthoringShell"/> demo simulator. The simulator is
+/// permitted only in tests/explicit demo composition; server-owned Studio package data binds to
+/// honua-server through <c>ServerStudioAuthoringShell</c> at runtime.
+/// </summary>
 public sealed class StudioAuthoringShellTests
 {
     [Fact]
-    public void AmbiguousPromptProducesInspectablePackageWithClarification()
+    public async Task AmbiguousPromptProducesInspectablePackageWithClarification()
     {
         IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
-        var session = shell.CreateInitialSession();
+        var session = await shell.CreateInitialSessionAsync();
 
-        var result = shell.SubmitPrompt(session, "map", "Make a map");
+        var result = await shell.GeneratePackageAsync(session, "map", "Make a map");
 
         Assert.NotNull(result.ActivePackage);
         Assert.Equal(StudioAuthoringContract.Name, result.ActivePackage.ContractName);
         Assert.Equal(StudioAuthoringContract.Version, result.ActivePackage.ContractVersion);
         Assert.Equal("map.package", result.ActivePackage.PackageType);
+        Assert.NotNull(result.Draft);
         Assert.NotEmpty(result.Clarifications);
         Assert.Contains(result.Clarifications, question => question.Id == "source-binding");
         Assert.Contains(result.ActivePackage.ValidationItems, item => item.Severity == StudioValidationSeverity.Blocker);
@@ -24,13 +30,13 @@ public sealed class StudioAuthoringShellTests
     }
 
     [Fact]
-    public void ClarificationUpdatesPackageWithoutHidingInspectorData()
+    public async Task ClarificationUpdatesPackageWithoutHidingInspectorData()
     {
         IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
-        var session = shell.SubmitPrompt(shell.CreateInitialSession(), "map", "Make a map");
+        var session = await shell.GeneratePackageAsync(await shell.CreateInitialSessionAsync(), "map", "Make a map");
         var sourceQuestion = session.Clarifications.First(question => question.Id == "source-binding");
 
-        var clarified = shell.ApplyClarification(session, sourceQuestion.Id, sourceQuestion.Choices[0].Id);
+        var clarified = await shell.ApplyClarificationAsync(session, sourceQuestion.Id, sourceQuestion.Choices[0].Id);
 
         Assert.DoesNotContain(clarified.Clarifications, question => question.Id == "source-binding");
         Assert.Contains(clarified.ActivePackage.DataBindings, binding => binding.Status == "Bound after clarification");
@@ -40,13 +46,13 @@ public sealed class StudioAuthoringShellTests
     }
 
     [Fact]
-    public void PartialClarificationKeepsPendingAssumptionsForRemainingQuestions()
+    public async Task PartialClarificationKeepsPendingAssumptionsForRemainingQuestions()
     {
         IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
-        var session = shell.SubmitPrompt(shell.CreateInitialSession(), "app", "Build an app");
+        var session = await shell.GeneratePackageAsync(await shell.CreateInitialSessionAsync(), "app", "Build an app");
         var sourceQuestion = session.Clarifications.First(question => question.Id == "source-binding");
 
-        var clarified = shell.ApplyClarification(session, sourceQuestion.Id, sourceQuestion.Choices[0].Id);
+        var clarified = await shell.ApplyClarificationAsync(session, sourceQuestion.Id, sourceQuestion.Choices[0].Id);
 
         Assert.DoesNotContain(clarified.ActivePackage.Assumptions, assumption => assumption == "Pending: Select the source binding");
         Assert.Contains(clarified.ActivePackage.Assumptions, assumption => assumption == "Pending: Choose the publication intent");
@@ -58,12 +64,12 @@ public sealed class StudioAuthoringShellTests
     }
 
     [Fact]
-    public void PublishIntentClarificationUsesPublicationWarning()
+    public async Task PublishIntentClarificationUsesPublicationWarning()
     {
         IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
 
-        var session = shell.SubmitPrompt(
-            shell.CreateInitialSession(),
+        var session = await shell.GeneratePackageAsync(
+            await shell.CreateInitialSessionAsync(),
             "app",
             "Build an app using the permits layer");
 
@@ -76,15 +82,15 @@ public sealed class StudioAuthoringShellTests
     }
 
     [Fact]
-    public void WorkflowSelectionRebuildsClarificationsForCurrentPrompt()
+    public async Task WorkflowSelectionRebuildsClarificationsForCurrentPrompt()
     {
         IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
-        var session = shell.SubmitPrompt(
-            shell.CreateInitialSession(),
+        var session = await shell.GeneratePackageAsync(
+            await shell.CreateInitialSessionAsync(),
             "map",
             "Create a map from parcels");
 
-        var selected = shell.SelectWorkflow(session, "query");
+        var selected = await shell.SelectWorkflowAsync(session, "query");
 
         Assert.Equal("query", selected.SelectedWorkflowId);
         Assert.Equal("query.package", selected.ActivePackage.PackageType);
@@ -98,9 +104,8 @@ public sealed class StudioAuthoringShellTests
     {
         var descriptors = StudioAuthoringContract.LifecycleDescriptors;
 
-        Assert.Equal(4, descriptors.Count);
+        Assert.Equal(3, descriptors.Count);
         Assert.Contains(descriptors, descriptor => descriptor.State == StudioPackageLifecycleState.Draft);
-        Assert.Contains(descriptors, descriptor => descriptor.State == StudioPackageLifecycleState.Preview);
         Assert.Contains(descriptors, descriptor => descriptor.State == StudioPackageLifecycleState.SavedVersion);
         Assert.Contains(descriptors, descriptor => descriptor.State == StudioPackageLifecycleState.Published);
         Assert.Equal(descriptors.Count, descriptors.Select(descriptor => descriptor.CssClass).Distinct(StringComparer.Ordinal).Count());
@@ -108,32 +113,32 @@ public sealed class StudioAuthoringShellTests
     }
 
     [Fact]
-    public void PackageTransitionsPreservePackageIdentity()
+    public async Task SaveAndPublishPreservePackageIdentity()
     {
         IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
-        var session = shell.SubmitPrompt(
-            shell.CreateInitialSession(),
+        var session = await shell.GeneratePackageAsync(
+            await shell.CreateInitialSessionAsync(),
             "dashboard",
             "Create an org dashboard using the permits layer");
 
-        var preview = shell.TransitionPackage(session, StudioPackageLifecycleState.Preview);
-        var saved = shell.TransitionPackage(preview, StudioPackageLifecycleState.SavedVersion);
-        var published = shell.TransitionPackage(saved, StudioPackageLifecycleState.Published);
+        var saved = await shell.SaveVersionAsync(session);
+        var published = await shell.PublishAsync(saved);
 
-        Assert.Equal(session.ActivePackage.PackageRef, preview.ActivePackage.PackageRef);
-        Assert.Equal(preview.ActivePackage.PackageRef, saved.ActivePackage.PackageRef);
+        Assert.Empty(session.Clarifications);
+        Assert.Equal(session.ActivePackage.PackageRef, saved.ActivePackage.PackageRef);
         Assert.Equal(saved.ActivePackage.PackageRef, published.ActivePackage.PackageRef);
+        Assert.Equal(StudioPackageLifecycleState.SavedVersion, saved.ActivePackage.LifecycleState);
         Assert.Equal(StudioPackageLifecycleState.Published, published.ActivePackage.LifecycleState);
         Assert.Contains(published.ActivePackage.Provenance, item => item.Evidence == "Published");
     }
 
     [Fact]
-    public void OpenClarificationsBlockLifecycleTransition()
+    public async Task OpenClarificationsBlockSaveVersion()
     {
         IStudioAuthoringShell shell = new InMemoryStudioAuthoringShell();
-        var session = shell.SubmitPrompt(shell.CreateInitialSession(), "map", "Make a map");
+        var session = await shell.GeneratePackageAsync(await shell.CreateInitialSessionAsync(), "map", "Make a map");
 
-        var blocked = shell.TransitionPackage(session, StudioPackageLifecycleState.Preview);
+        var blocked = await shell.SaveVersionAsync(session);
 
         Assert.Equal(StudioPackageLifecycleState.Draft, blocked.ActivePackage.LifecycleState);
         Assert.NotEmpty(blocked.Clarifications);
