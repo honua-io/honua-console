@@ -662,6 +662,27 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_WithAllSubmitOperationsUnchecked_DoesNotDefaultToCreate()
+    {
+        // Regression: unchecking every submit operation must persist an empty operation set, not a silent
+        // `create`. The saved document has to reflect exactly what the editor shows.
+        var state = new StudioFormEditorState
+        {
+            Title = "No-op form",
+            ServiceId = "inspections",
+            LayerId = 1,
+            AllowCreate = false,
+            AllowUpdate = false,
+            AllowDelete = false
+        };
+        state.Fields.Add(new StudioFormFieldEditor { FieldId = "asset_id", Label = "Asset", TargetField = "asset_id" });
+
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        Assert.Empty(saved.SubmitPolicy.AllowedOperations);
+    }
+
+    [Fact]
     public void PublishEvaluator_BlocksUntilTargetOfflineAndValidationSatisfied()
     {
         var state = new StudioFormEditorState();
@@ -697,6 +718,22 @@ public sealed class StudioFormPackageMapperTests
 
         Assert.True(readiness.CanPublish);
         Assert.Empty(readiness.UnmetRequirements);
+    }
+
+    [Fact]
+    public void PublishEvaluator_BlocksWhenNoSubmitOperationSelected()
+    {
+        var state = ReadyToPublishState();
+        state.AllowCreate = false;
+        state.AllowUpdate = false;
+        state.AllowDelete = false;
+
+        var readiness = StudioFormPublishEvaluator.Evaluate(state);
+
+        Assert.False(readiness.CanPublish);
+        Assert.Contains(
+            readiness.UnmetRequirements,
+            requirement => requirement.Contains("submit operation", StringComparison.OrdinalIgnoreCase));
     }
 
     private static StudioFormEditorState ReadyToPublishState()

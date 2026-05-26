@@ -283,6 +283,14 @@ public static class StudioFormPublishEvaluator
             unmet.Add("Configure a submit target service and layer.");
         }
 
+        // AC#3: a submit target with no enabled operation cannot accept submissions. Require an explicit
+        // choice here rather than letting the mapper default to create, so the operator's selection is what
+        // gets published.
+        if (!state.AllowCreate && !state.AllowUpdate && !state.AllowDelete)
+        {
+            unmet.Add("Enable at least one submit operation (create, update, or delete).");
+        }
+
         // AC#2: offline/sync policy is an explicit, reviewed decision before publish.
         if (!state.OfflinePolicyReviewed)
         {
