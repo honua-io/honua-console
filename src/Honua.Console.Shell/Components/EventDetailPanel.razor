@@ -43,6 +43,6 @@
 </aside>
 
 @code {
-    [Parameter]
-    public OperateEventRow Event { get; set; } = OperateObservabilityFixture.Default.Events.First();
+    [Parameter, EditorRequired]
+    public required OperateEventRow Event { get; set; }
 }

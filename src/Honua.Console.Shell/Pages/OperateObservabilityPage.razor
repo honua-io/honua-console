@@ -2,19 +2,22 @@
 @page "/operate/events/{SelectedEventId}"
 @page "/operate/alerts/{SelectedAlertId}"
 @page "/operate/jobs/{SelectedJobRunId}"
+@inject IConsoleOperateObservabilityClient OperateClient
 
 <section class="console-page console-operate-page">
     <div class="console-page-heading operate-heading">
         <p class="console-kicker">Operator workflow</p>
         <h1>Operate Observability</h1>
         <p>
-            One evidence surface for environment health, telemetry status, events, alerts, realtime rules, jobs, and investigations.
+            One evidence surface for environment health, telemetry status, events, alerts, realtime rules, jobs, and investigations,
+            bound to the connected honua-server admin observability APIs.
         </p>
     </div>
 
     <nav class="operate-section-nav" aria-label="Operate observability sections">
         <a href="#fleet">Fleet</a>
         <a href="#events">Events</a>
+        <a href="#logs">Logs</a>
         <a href="#alerts">Alerts</a>
         <a href="#rules">Rules</a>
         <a href="#jobs">Jobs</a>
@@ -24,23 +27,23 @@
     <section class="operate-summary-grid" aria-label="Operate summary">
         <article class="console-panel operate-summary-tile">
             <span class="console-kicker">Environments</span>
-            <strong>@Snapshot.Environments.Count</strong>
+            <strong>@Overview.Environments.Count</strong>
             <span class="console-muted">connected profiles</span>
         </article>
         <article class="console-panel operate-summary-tile">
             <span class="console-kicker">Neutral telemetry</span>
-            <strong>@Snapshot.TelemetryFacts.Count(item => item.IsNeutralTelemetry)</strong>
+            <strong>@Overview.TelemetryFacts.Count(item => item.IsNeutralTelemetry)</strong>
             <span class="console-muted">unknown, unsupported, disabled, or not configured</span>
         </article>
         <article class="console-panel operate-summary-tile">
             <span class="console-kicker">Events</span>
-            <strong>@Snapshot.Events.Count</strong>
-            <span class="console-muted">logs, audit, jobs, alerts, releases, sync, data, telemetry</span>
+            <strong>@EventRows.Count</strong>
+            <span class="console-muted">logs, audit, jobs, alerts, releases, sync, data</span>
         </article>
         <article class="console-panel operate-summary-tile">
-            <span class="console-kicker">Job sources</span>
-            <strong>@Snapshot.Jobs.Select(job => job.Source).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
-            <span class="console-muted">deep-link into /operate/jobs</span>
+            <span class="console-kicker">Logs</span>
+            <strong>@LogRows.Count</strong>
+            <span class="console-muted">structured recent server entries</span>
         </article>
     </section>
 
@@ -53,103 +56,114 @@
             <a class="console-button-link" href="@OperateObservabilityRoutes.Observability">Open observability route</a>
         </div>
 
-        <div class="console-panel-grid">
-            @foreach (var environment in Snapshot.Environments)
-            {
-                <article class="console-panel operate-environment-card">
-                    <div class="console-panel-heading">
-                        <div>
-                            <h3>@environment.Name</h3>
-                            <p class="console-muted">@environment.ServerName</p>
+        @if (!_loaded || _overview is null)
+        {
+            <OperateSectionStatusPanel Heading="Fleet" Loading="true" />
+        }
+        else if (!_overview.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Fleet" Status="_overview.Status" Message="@_overview.Message" />
+        }
+        else
+        {
+            <div class="console-panel-grid">
+                @foreach (var environment in Overview.Environments)
+                {
+                    <article class="console-panel operate-environment-card">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>@environment.Name</h3>
+                                <p class="console-muted">@environment.ServerName</p>
+                            </div>
+                            <span class="console-status @environment.Health.CssClass">@environment.Health.Label</span>
                         </div>
-                        <span class="console-status @environment.Health.CssClass">@environment.Health.Label</span>
+
+                        <dl class="console-definition-list">
+                            <dt>Version</dt>
+                            <dd>@environment.Version</dd>
+                            <dt>Build</dt>
+                            <dd>@environment.BuildSha</dd>
+                            <dt>Last seen</dt>
+                            <dd>@environment.LastSeen</dd>
+                            <dt>Owner</dt>
+                            <dd>@environment.OwnerTeam</dd>
+                        </dl>
+
+                        <p class="console-muted">@environment.DriftSummary</p>
+                    </article>
+                }
+            </div>
+
+            <div id="telemetry" class="console-panel operate-table-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <h3>Telemetry Status</h3>
+                        <p class="console-muted">Missing or unconfigured signals stay neutral and do not mark the environment failed.</p>
                     </div>
+                </div>
 
-                    <dl class="console-definition-list">
-                        <dt>Version</dt>
-                        <dd>@environment.Version</dd>
-                        <dt>Build</dt>
-                        <dd>@environment.BuildSha</dd>
-                        <dt>Last seen</dt>
-                        <dd>@environment.LastSeen</dd>
-                        <dt>Owner</dt>
-                        <dd>@environment.OwnerTeam</dd>
-                    </dl>
-
-                    <p class="console-muted">@environment.DriftSummary</p>
-                </article>
-            }
-        </div>
-
-        <div id="telemetry" class="console-panel operate-table-panel">
-            <div class="console-panel-heading">
-                <div>
-                    <h3>Telemetry Status</h3>
-                    <p class="console-muted">Missing or unconfigured signals stay neutral and do not mark the environment failed.</p>
+                <div class="operate-table-scroll">
+                    <table class="operate-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Environment</th>
+                                <th scope="col">Signal</th>
+                                <th scope="col">State</th>
+                                <th scope="col">Freshness</th>
+                                <th scope="col">Evidence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var fact in Overview.TelemetryFacts)
+                            {
+                                <tr>
+                                    <td>@fact.EnvironmentId</td>
+                                    <td>@fact.Signal</td>
+                                    <td><span class="console-status @fact.State.CssClass">@fact.State.Label</span></td>
+                                    <td>@fact.Freshness</td>
+                                    <td><a href="@fact.EvidenceHref">Open event</a></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <div class="operate-table-scroll">
-                <table class="operate-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Environment</th>
-                            <th scope="col">Signal</th>
-                            <th scope="col">State</th>
-                            <th scope="col">Freshness</th>
-                            <th scope="col">Evidence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var fact in Snapshot.TelemetryFacts)
-                        {
-                            <tr>
-                                <td>@fact.EnvironmentId</td>
-                                <td>@fact.Signal</td>
-                                <td><span class="console-status @fact.State.CssClass">@fact.State.Label</span></td>
-                                <td>@fact.Freshness</td>
-                                <td><a href="@fact.EvidenceHref">Open event</a></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
+            <div class="console-panel operate-table-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <h3>Drift And Compatibility</h3>
+                        <p class="console-muted">Compatibility blockers are separate from unsupported or not configured telemetry.</p>
+                    </div>
+                </div>
 
-        <div class="console-panel operate-table-panel">
-            <div class="console-panel-heading">
-                <div>
-                    <h3>Drift And Compatibility</h3>
-                    <p class="console-muted">Compatibility blockers are separate from unsupported or not configured telemetry.</p>
+                <div class="operate-table-scroll">
+                    <table class="operate-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Capability</th>
+                                <th scope="col">Current</th>
+                                <th scope="col">Required</th>
+                                <th scope="col">State</th>
+                                <th scope="col">Evidence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Overview.CompatibilityRows)
+                            {
+                                <tr>
+                                    <td>@row.Capability</td>
+                                    <td>@row.Current</td>
+                                    <td>@row.Required</td>
+                                    <td><span class="console-status @row.State.CssClass">@row.State.Label</span></td>
+                                    <td>@row.Evidence</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
-
-            <div class="operate-table-scroll">
-                <table class="operate-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Capability</th>
-                            <th scope="col">Current</th>
-                            <th scope="col">Required</th>
-                            <th scope="col">State</th>
-                            <th scope="col">Evidence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in Snapshot.CompatibilityRows)
-                        {
-                            <tr>
-                                <td>@row.Capability</td>
-                                <td>@row.Current</td>
-                                <td>@row.Required</td>
-                                <td><span class="console-status @row.State.CssClass">@row.State.Label</span></td>
-                                <td>@row.Evidence</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        }
     </section>
 
     <section id="events" class="operate-section" aria-labelledby="events-heading">
@@ -171,7 +185,7 @@
                 <span>Environment</span>
                 <select @bind="_pendingEnvironmentFilter">
                     <option value="">All environments</option>
-                    @foreach (var environment in Snapshot.Environments)
+                    @foreach (var environment in Overview.Environments)
                     {
                         <option value="@environment.EnvironmentId">@environment.EnvironmentId</option>
                     }
@@ -181,7 +195,7 @@
                 <span>Event type</span>
                 <select @bind="_pendingEventTypeFilter">
                     <option value="">All types</option>
-                    @foreach (var type in Snapshot.Events.Select(item => item.EventType).Distinct(StringComparer.OrdinalIgnoreCase))
+                    @foreach (var type in _eventTypeOptions)
                     {
                         <option value="@type">@type</option>
                     }
@@ -195,47 +209,176 @@
         </form>
 
         <div class="operate-detail-grid">
-            <div class="console-panel operate-table-panel">
-                <div class="operate-table-scroll">
-                    <table class="operate-table operate-event-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Time</th>
-                                <th scope="col">Type</th>
-                                <th scope="col">Severity</th>
-                                <th scope="col">Message</th>
-                                <th scope="col">Correlation</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in FilteredEvents)
-                            {
-                                <tr class="@(item.EventId == SelectedFilteredEvent?.EventId ? "operate-selected-row" : null)">
-                                    <td>@item.EventTime</td>
-                                    <td>@item.EventType</td>
-                                    <td><span class="console-status @item.SeverityStatus.CssClass">@item.SeverityStatus.Label</span></td>
-                                    <td><a href="@item.DetailHref">@item.Message</a></td>
-                                    <td>@item.CorrelationId</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            @if (SelectedFilteredEvent is { } selectedFilteredEvent)
+            @if (!_loaded || _events is null)
             {
-                <EventDetailPanel Event="selectedFilteredEvent" />
+                <OperateSectionStatusPanel Heading="Event viewer" Loading="true" />
+            }
+            else if (!_events.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Event viewer" Status="_events.Status" Message="@_events.Message" />
+            }
+            else if (EventRows.Count == 0)
+            {
+                <OperateSectionStatusPanel Heading="Event viewer" Empty="true"
+                    EmptyTitle="No matching events"
+                    EmptyMessage="The server returned no events for the current filters." />
+
+                @* A deep link to a specific event id must still surface the missing-detail
+                   state. Without this, an empty event page would swallow the deep link and
+                   render only the generic "no events" surface. *@
+                @if (SelectedEventMissing)
+                {
+                    <OperateSectionStatusPanel Heading="Event detail"
+                        Status="OperateSectionStatus.Missing"
+                        Message="@SelectedEventMissingMessage" />
+                }
             }
             else
             {
-                <aside class="console-panel operate-detail-panel" aria-labelledby="event-detail-heading">
-                    <p class="console-kicker">Event detail</p>
-                    <h3 id="event-detail-heading">No matching events</h3>
-                    <p class="console-muted">Adjust the evidence filters to inspect raw event detail.</p>
-                </aside>
+                <div class="console-panel operate-table-panel">
+                    @if (_events.PartialResult)
+                    {
+                        <p class="console-muted">@_events.Message</p>
+                    }
+                    <div class="operate-table-scroll">
+                        <table class="operate-table operate-event-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Time</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Severity</th>
+                                    <th scope="col">Message</th>
+                                    <th scope="col">Correlation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in EventRows)
+                                {
+                                    <tr class="@(item.EventId == SelectedEvent?.EventId ? "operate-selected-row" : null)">
+                                        <td>@item.EventTime</td>
+                                        <td>@item.EventType</td>
+                                        <td><span class="console-status @item.SeverityStatus.CssClass">@item.SeverityStatus.Label</span></td>
+                                        <td><a href="@item.DetailHref">@item.Message</a></td>
+                                        <td>@item.CorrelationId</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @if (SelectedEvent is { } selectedEvent)
+                {
+                    <EventDetailPanel Event="selectedEvent" />
+                }
+                else if (SelectedEventMissing)
+                {
+                    <OperateSectionStatusPanel Heading="Event detail"
+                        Status="OperateSectionStatus.Missing"
+                        Message="@SelectedEventMissingMessage" />
+                }
             }
         </div>
+    </section>
+
+    <section id="logs" class="operate-section" aria-labelledby="logs-heading">
+        <div class="operate-section-heading">
+            <div>
+                <p class="console-kicker">Structured logs</p>
+                <h2 id="logs-heading">Server Log Search</h2>
+            </div>
+        </div>
+
+        <form class="console-panel operate-filter-bar operate-log-filter-bar" aria-label="Operate log filters" @onsubmit="ApplyLogFilter" @onsubmit:preventDefault="true">
+            <label>
+                <span>Search</span>
+                <input @bind="_pendingLogSearch" @bind:event="oninput" />
+            </label>
+            <button class="console-button" type="submit">Apply</button>
+        </form>
+
+        @if (!_loaded || _logs is null)
+        {
+            <OperateSectionStatusPanel Heading="Logs" Loading="true" />
+        }
+        else if (!_logs.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Logs" Status="_logs.Status" Message="@_logs.Message" />
+        }
+        else if (LogRows.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Logs" Empty="true"
+                EmptyTitle="No matching logs"
+                EmptyMessage="The server recent log buffer returned no entries for the current search." />
+        }
+        else
+        {
+            <div class="operate-detail-grid">
+                <div class="console-panel operate-table-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>@LogsView.InstanceId</h3>
+                            <p class="console-muted">Recent buffer capacity @LogsView.Capacity entries; raw entries come from /api/v1/admin/observability/logs.</p>
+                        </div>
+                    </div>
+                    <div class="operate-table-scroll">
+                        <table class="operate-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Time</th>
+                                    <th scope="col">Level</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Path</th>
+                                    <th scope="col">Message</th>
+                                    <th scope="col">Correlation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var log in LogRows)
+                                {
+                                    <tr>
+                                        <td>@log.Timestamp</td>
+                                        <td><span class="console-status @log.Severity.CssClass">@log.Severity.Label</span></td>
+                                        <td>@log.StatusCode</td>
+                                        <td>@log.Path</td>
+                                        <td>@log.Message</td>
+                                        <td>@log.CorrelationId</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <aside class="console-panel operate-detail-panel" aria-labelledby="log-groups-heading">
+                    <p class="console-kicker">Log analysis</p>
+                    <h3 id="log-groups-heading">Histogram And Groups</h3>
+                    <section class="operate-evidence-section">
+                        <h4>Severity histogram</h4>
+                        <div class="operate-metric-grid">
+                            @foreach (var bucket in LogsView.SeverityBuckets)
+                            {
+                                <div>
+                                    <span>@bucket.Label</span>
+                                    <strong>@bucket.Count</strong>
+                                    <small class="@bucket.Status.CssClass">@bucket.Status.Label</small>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                    <section class="operate-evidence-section">
+                        <h4>Exception groups</h4>
+                        <ul class="operate-note-list">
+                            @foreach (var group in LogsView.ExceptionGroups)
+                            {
+                                <li>@group.Label (@group.Count)</li>
+                            }
+                        </ul>
+                    </section>
+                    <EvidenceList Heading="Raw provider links" Items="LogProviderLinks" />
+                </aside>
+            </div>
+        }
     </section>
 
     <section id="alerts" class="operate-section" aria-labelledby="alerts-heading">
@@ -246,51 +389,96 @@
             </div>
         </div>
 
-        <div class="operate-detail-grid">
-            <div class="console-panel operate-table-panel">
-                <div class="operate-table-scroll">
-                    <table class="operate-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Alert</th>
-                                <th scope="col">Severity</th>
-                                <th scope="col">Status</th>
-                                <th scope="col">Owner</th>
-                                <th scope="col">Source</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var alert in Snapshot.Alerts)
-                            {
-                                <tr class="@(alert.AlertId == SelectedAlert.AlertId ? "operate-selected-row" : null)">
-                                    <td><a href="@alert.DetailHref">@alert.Title</a></td>
-                                    <td>@alert.Severity</td>
-                                    <td><span class="console-status @alert.Status.CssClass">@alert.Status.Label</span></td>
-                                    <td>@alert.OwnerTeam</td>
-                                    <td>@alert.Source</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        @if (!_loaded || _alerts is null)
+        {
+            <OperateSectionStatusPanel Heading="Alerts" Loading="true" />
+        }
+        else if (!_alerts.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Alerts" Status="_alerts.Status" Message="@_alerts.Message" />
+        }
+        else if (AlertRows.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Alerts" Empty="true"
+                EmptyTitle="No active alerts"
+                EmptyMessage="The connected server reported no realtime or geofence alerts." />
 
-            <aside class="console-panel operate-detail-panel" aria-labelledby="alert-detail-heading">
-                <p class="console-kicker">Alert detail</p>
-                <h3 id="alert-detail-heading">@SelectedAlert.Title</h3>
-                <p>@SelectedAlert.Status.Description</p>
-                <dl class="console-definition-list">
-                    <dt>Started</dt>
-                    <dd>@SelectedAlert.StartedAt</dd>
-                    <dt>Last seen</dt>
-                    <dd>@SelectedAlert.LastSeenAt</dd>
-                    <dt>Resources</dt>
-                    <dd>@string.Join(", ", SelectedAlert.AffectedResources)</dd>
-                </dl>
-                <EvidenceList Heading="Raw alert evidence" Items="SelectedAlert.EvidenceLinks" />
-                <AiAdvisoryPanel Advisory="SelectedAlert.AiAdvisory" />
-            </aside>
-        </div>
+            @* A deep link to a specific alert id must still surface the missing-detail
+               state instead of being swallowed by the empty alert page. *@
+            @if (SelectedAlertMissing)
+            {
+                <OperateSectionStatusPanel Heading="Alert detail"
+                    Status="OperateSectionStatus.Missing"
+                    Message="@SelectedAlertMissingMessage" />
+            }
+        }
+        else
+        {
+            <div class="operate-detail-grid">
+                <div class="console-panel operate-table-panel">
+                    <div class="operate-table-scroll">
+                        <table class="operate-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Alert</th>
+                                    <th scope="col">Severity</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Owner</th>
+                                    <th scope="col">Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var alert in AlertRows)
+                                {
+                                    <tr class="@(alert.AlertId == SelectedAlert?.AlertId ? "operate-selected-row" : null)">
+                                        <td><a href="@alert.DetailHref">@alert.Title</a></td>
+                                        <td>@alert.Severity</td>
+                                        <td><span class="console-status @alert.Status.CssClass">@alert.Status.Label</span></td>
+                                        <td>@alert.OwnerTeam</td>
+                                        <td>@alert.Source</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @if (SelectedAlert is { } selectedAlert)
+                {
+                    <aside class="console-panel operate-detail-panel" aria-labelledby="alert-detail-heading">
+                        <p class="console-kicker">Alert detail</p>
+                        <h3 id="alert-detail-heading">@selectedAlert.Title</h3>
+                        <p>@selectedAlert.Status.Description</p>
+                        <dl class="console-definition-list">
+                            <dt>Started</dt>
+                            <dd>@selectedAlert.StartedAt</dd>
+                            <dt>Last seen</dt>
+                            <dd>@selectedAlert.LastSeenAt</dd>
+                            <dt>Resources</dt>
+                            <dd>@string.Join(", ", selectedAlert.AffectedResources)</dd>
+                        </dl>
+                        <EvidenceList Heading="Raw alert evidence" Items="selectedAlert.EvidenceLinks" />
+                        <AiAdvisoryPanel Advisory="selectedAlert.AiAdvisory" />
+
+                        <section class="operate-evidence-section">
+                            <h4>Lifecycle actions</h4>
+                            <div class="operate-action-row">
+                                @foreach (var action in selectedAlert.LifecycleActions)
+                                {
+                                    <button class="console-button" type="button" disabled title="@action.Reason">@action.Label</button>
+                                }
+                            </div>
+                        </section>
+                    </aside>
+                }
+                else if (SelectedAlertMissing)
+                {
+                    <OperateSectionStatusPanel Heading="Alert detail"
+                        Status="OperateSectionStatus.Missing"
+                        Message="@SelectedAlertMissingMessage" />
+                }
+            </div>
+        }
     </section>
 
     <section id="rules" class="operate-section" aria-labelledby="rules-heading">
@@ -301,47 +489,115 @@
             </div>
         </div>
 
-        <div class="console-panel operate-table-panel">
-            <div class="operate-table-scroll">
-                <table class="operate-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Rule</th>
-                            <th scope="col">Type</th>
-                            <th scope="col">State</th>
-                            <th scope="col">Condition</th>
-                            <th scope="col">Delivery</th>
-                            <th scope="col">Incidents</th>
-                            <th scope="col">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var rule in Snapshot.Rules)
-                        {
-                            <tr>
-                                <td>
-                                    <strong>@rule.Name</strong>
-                                    @if (!rule.IsValid)
-                                    {
-                                        <small>@rule.EnableBlockReason</small>
-                                    }
-                                </td>
-                                <td>@rule.RuleType</td>
-                                <td><span class="console-status @rule.Status.CssClass">@rule.Status.Label</span></td>
-                                <td>@rule.ConditionSummary</td>
-                                <td>@rule.DeliverySummary</td>
-                                <td>@rule.ActiveIncidentCount active, @rule.DeliveryFailureCount delivery failures</td>
-                                <td>
-                                    <button class="console-button" type="button" disabled title="@RuleEnableTitle(rule)">
-                                        @(rule.Enabled ? "Enabled" : "Enable")
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+        @if (!_loaded || _rules is null)
+        {
+            <OperateSectionStatusPanel Heading="Realtime rules" Loading="true" />
+        }
+        else if (!_rules.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Realtime rules" Status="_rules.Status" Message="@_rules.Message" />
+        }
+        else
+        {
+            <div class="console-panel operate-table-panel">
+                @if (RulesView.Rules.Count == 0)
+                {
+                    <p class="console-muted">The connected server has no realtime alert rules configured.</p>
+                }
+                else
+                {
+                    <div class="operate-table-scroll">
+                        <table class="operate-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Rule</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">State</th>
+                                    <th scope="col">Condition</th>
+                                    <th scope="col">Delivery</th>
+                                    <th scope="col">Activity</th>
+                                    <th scope="col">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var rule in RulesView.Rules)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@rule.Name</strong>
+                                            @if (!rule.IsValid)
+                                            {
+                                                <small>@rule.EnableBlockReason</small>
+                                            }
+                                        </td>
+                                        <td>@rule.RuleType</td>
+                                        <td><span class="console-status @rule.Status.CssClass">@rule.Status.Label</span></td>
+                                        <td>@rule.ConditionSummary</td>
+                                        <td>@rule.DeliverySummary</td>
+                                        <td>@rule.ActiveIncidentCount active, @rule.DeliveryFailureCount delivery failures, @rule.RecentTriggerCount recent triggers</td>
+                                        <td>
+                                            <button class="console-button" type="button" disabled title="@RuleEnableTitle(rule)">
+                                                @(rule.Enabled ? "Enabled" : "Enable")
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
             </div>
-        </div>
+
+            @if (!RulesView.ZonesAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Geofence zones"
+                    Status="RulesView.ZonesStatus"
+                    Message="@RulesView.ZonesMessage" />
+            }
+            else
+            {
+                <div class="console-panel operate-table-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Geofence Zones</h3>
+                            <p class="console-muted">Zone geometry is echoed from server metadata; Console performs no client-side geodesy.</p>
+                        </div>
+                    </div>
+                    @if (RulesView.Zones.Count == 0)
+                    {
+                        <p class="console-muted">No geofence zones are defined on the connected server.</p>
+                    }
+                    else
+                    {
+                        <div class="operate-table-scroll">
+                            <table class="operate-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Zone</th>
+                                        <th scope="col">Service</th>
+                                        <th scope="col">Active</th>
+                                        <th scope="col">SRID</th>
+                                        <th scope="col">Geometry</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var zone in RulesView.Zones)
+                                    {
+                                        <tr>
+                                            <td>@zone.Name</td>
+                                            <td>@zone.ServiceId</td>
+                                            <td>@(zone.Active ? "yes" : "no")</td>
+                                            <td>@zone.Srid</td>
+                                            <td>@zone.GeometrySummary</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+        }
     </section>
 
     <section id="jobs" class="operate-section" aria-labelledby="jobs-heading">
@@ -352,43 +608,87 @@
             </div>
         </div>
 
-        <div class="operate-detail-grid">
-            <div class="console-panel operate-table-panel">
-                <div class="operate-table-scroll">
-                    <table class="operate-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Job</th>
-                                <th scope="col">Source</th>
-                                <th scope="col">Type</th>
-                                <th scope="col">Status</th>
-                                <th scope="col">Progress</th>
-                                <th scope="col">Submitted</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var job in Snapshot.Jobs)
-                            {
-                                <tr class="@(job.JobRunId == SelectedJob.JobRunId ? "operate-selected-row" : null)">
-                                    <td><a href="@job.DetailHref">@job.JobRunId</a></td>
-                                    <td>@job.Source</td>
-                                    <td>@job.JobType</td>
-                                    <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
-                                    <td>
-                                        <div class="operate-progress" aria-label="@($"{job.ProgressPercent} percent complete")">
-                                            <span style="@($"width: {job.ProgressPercent}%")"></span>
-                                        </div>
-                                    </td>
-                                    <td>@job.SubmittedAt</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        @if (!_loaded || _jobs is null)
+        {
+            <OperateSectionStatusPanel Heading="Jobs" Loading="true" />
+        }
+        else if (!_jobs.IsAllowed && string.IsNullOrWhiteSpace(SelectedJobRunId))
+        {
+            @* With no deep link to resolve on its own, a failed list read is the whole surface. *@
+            <OperateSectionStatusPanel Heading="Jobs" Status="_jobs.Status" Message="@_jobs.Message" />
+        }
+        else
+        {
+            @* The job detail is an independent server read keyed on the route id, so a deep
+               link to /operate/jobs/{id} must resolve its own detail/missing/forbidden surface
+               even when the job list page is empty, omits that id, or the list read itself failed. *@
+            <div class="operate-detail-grid">
+                @if (!_jobs.IsAllowed)
+                {
+                    <OperateSectionStatusPanel Heading="Jobs" Status="_jobs.Status" Message="@_jobs.Message" />
+                }
+                else if (JobRows.Count > 0)
+                {
+                    <div class="console-panel operate-table-panel">
+                        <div class="operate-table-scroll">
+                            <table class="operate-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Job</th>
+                                        <th scope="col">Source</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Progress</th>
+                                        <th scope="col">Artifacts</th>
+                                        <th scope="col">Submitted</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var job in JobRows)
+                                    {
+                                        <tr class="@(job.JobRunId == SelectedJobRowId ? "operate-selected-row" : null)">
+                                            <td><a href="@job.DetailHref">@job.JobRunId</a></td>
+                                            <td>@job.Source</td>
+                                            <td>@job.JobType</td>
+                                            <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
+                                            <td>
+                                                <div class="operate-progress" aria-label="@($"{job.ProgressPercent} percent complete")">
+                                                    <span style="@($"width: {job.ProgressPercent}%")"></span>
+                                                </div>
+                                            </td>
+                                            <td>@job.ArtifactCountLabel</td>
+                                            <td>@job.SubmittedAt</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <OperateSectionStatusPanel Heading="Jobs" Empty="true"
+                        EmptyTitle="No jobs"
+                        EmptyMessage="The connected server reported no durable jobs." />
+                }
 
-            <JobDetailPanel Job="SelectedJob" />
-        </div>
+                @if (JobRows.Count > 0 || !string.IsNullOrWhiteSpace(SelectedJobRunId))
+                {
+                    @if (_selectedJob is null)
+                    {
+                        <OperateSectionStatusPanel Heading="Job detail" Loading="true" />
+                    }
+                    else if (!_selectedJob.IsAllowed || _selectedJob.Value is null)
+                    {
+                        <OperateSectionStatusPanel Heading="Job detail" Status="_selectedJob.Status" Message="@_selectedJob.Message" />
+                    }
+                    else
+                    {
+                        <JobDetailPanel Job="_selectedJob.Value" />
+                    }
+                }
+            </div>
+        }
     </section>
 
     <section id="investigations" class="operate-section" aria-labelledby="investigations-heading">
@@ -399,40 +699,67 @@
             </div>
         </div>
 
-        <div class="console-panel-grid">
-            @foreach (var investigation in Snapshot.Investigations)
-            {
-                <article class="console-panel operate-investigation-card">
-                    <div class="console-panel-heading">
-                        <div>
-                            <h3>@investigation.Title</h3>
-                            <p class="console-muted">@investigation.TimeRange</p>
+        @if (!_loaded || _investigations is null)
+        {
+            <OperateSectionStatusPanel Heading="Investigations" Loading="true" />
+        }
+        else if (!_investigations.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Investigations" Status="_investigations.Status" Message="@_investigations.Message" />
+        }
+        else if (InvestigationRows.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Investigations" Empty="true"
+                EmptyTitle="No investigations"
+                EmptyMessage="No investigations have been opened on the connected server." />
+        }
+        else
+        {
+            <div class="console-panel-grid">
+                @foreach (var investigation in InvestigationRows)
+                {
+                    <article class="console-panel operate-investigation-card">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>@investigation.Title</h3>
+                                <p class="console-muted">@investigation.TimeRange</p>
+                            </div>
+                            <span class="console-status @investigation.Status.CssClass">@investigation.Status.Label</span>
                         </div>
-                        <span class="console-status @investigation.Status.CssClass">@investigation.Status.Label</span>
-                    </div>
-                    <dl class="console-definition-list">
-                        <dt>Owner</dt>
-                        <dd>@investigation.Owner</dd>
-                        <dt>Alerts</dt>
-                        <dd>@string.Join(", ", investigation.LinkedAlertIds)</dd>
-                        <dt>Jobs</dt>
-                        <dd>@string.Join(", ", investigation.LinkedJobRunIds)</dd>
-                    </dl>
-                    <div class="console-chip-row">
-                        @foreach (var eventId in investigation.PinnedEventIds)
+                        @if (investigation.HasIncompleteDetails)
                         {
-                            <a href="@OperateObservabilityRoutes.EventDetail(eventId)">@eventId</a>
+                            <p class="console-muted">
+                                <span class="console-status @investigation.EffectiveDetailStatus.CssClass">@investigation.EffectiveDetailStatus.Label</span>
+                                @investigation.DetailMessage
+                            </p>
                         }
-                    </div>
-                    <ul class="operate-note-list">
-                        @foreach (var note in investigation.Notes)
+                        <dl class="console-definition-list">
+                            <dt>Owner</dt>
+                            <dd>@investigation.Owner</dd>
+                            <dt>Alerts</dt>
+                            <dd>@(investigation.LinkedAlertIds.Count == 0 ? "none" : string.Join(", ", investigation.LinkedAlertIds))</dd>
+                            <dt>Jobs</dt>
+                            <dd>@(investigation.LinkedJobRunIds.Count == 0 ? "none" : string.Join(", ", investigation.LinkedJobRunIds))</dd>
+                        </dl>
+                        @if (investigation.PinnedEventIds.Count > 0)
                         {
-                            <li>@note</li>
+                            <div class="console-chip-row">
+                                @foreach (var eventId in investigation.PinnedEventIds)
+                                {
+                                    <a href="@OperateObservabilityRoutes.EventDetail(eventId)">@eventId</a>
+                                }
+                            </div>
                         }
-                    </ul>
-                </article>
-            }
-        </div>
+                        <ul class="operate-note-list">
+                            @foreach (var note in investigation.Notes)
+                            {
+                                <li>@note</li>
+                            }
+                        </ul>
+                    </article>
+                }
+            </div>
+        }
     </section>
 </section>
 
@@ -446,36 +773,163 @@
     [Parameter]
     public string? SelectedJobRunId { get; set; }
 
-    private static OperateObservabilitySnapshot Snapshot => OperateObservabilityFixture.Default;
+    private bool _loaded;
+    private OperateSectionResult<OperateFleetOverview>? _overview;
+    private OperateSectionResult<IReadOnlyList<OperateEventRow>>? _events;
+    private OperateSectionResult<OperateLogsView>? _logs;
+    private OperateSectionResult<IReadOnlyList<OperateAlertRecord>>? _alerts;
+    private OperateSectionResult<OperateRulesView>? _rules;
+    private OperateSectionResult<IReadOnlyList<OperateJobRun>>? _jobs;
+    private OperateSectionResult<IReadOnlyList<OperateInvestigation>>? _investigations;
+    private OperateSectionResult<OperateJobRun>? _selectedJob;
+    private string? _selectedJobLoadedFor;
 
     private string _pendingEnvironmentFilter = string.Empty;
-
     private string _pendingEventTypeFilter = string.Empty;
-
     private string _pendingCorrelationFilter = string.Empty;
+    private string _pendingLogSearch = string.Empty;
+    private string _activeLogSearch = string.Empty;
+    private IReadOnlyList<string> _eventTypeOptions = [];
 
-    private OperateEventFilter _activeEventFilter = OperateEventFilter.Empty;
+    private OperateFleetOverview Overview => _overview?.Value ?? OperateFleetOverview.Empty;
 
-    private OperateEventRow SelectedEventFromRoute => Snapshot.SelectedEvent(SelectedEventId);
+    private IReadOnlyList<OperateEventRow> EventRows => _events?.Value ?? [];
 
-    private IReadOnlyList<OperateEventRow> FilteredEvents =>
-        Snapshot.Events.Where(_activeEventFilter.Matches).ToArray();
+    private OperateLogsView LogsView => _logs?.Value ?? OperateLogsView.Empty;
 
-    private OperateEventRow? SelectedFilteredEvent =>
-        FilteredEvents.FirstOrDefault(item => item.EventId == SelectedEventFromRoute.EventId)
-        ?? FilteredEvents.FirstOrDefault();
+    private IReadOnlyList<OperateLogRecord> LogRows =>
+        string.IsNullOrWhiteSpace(_activeLogSearch)
+            ? LogsView.Logs
+            : LogsView.Logs.Where(LogMatchesSearch).ToArray();
 
-    private OperateAlertRecord SelectedAlert => Snapshot.SelectedAlert(SelectedAlertId);
+    private IReadOnlyList<OperateEvidenceLink> LogProviderLinks =>
+        LogRows.SelectMany(log => log.ProviderLinks)
+            .GroupBy(link => link.Href, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
 
-    private OperateJobRun SelectedJob => Snapshot.SelectedJob(SelectedJobRunId);
+    private IReadOnlyList<OperateAlertRecord> AlertRows => _alerts?.Value ?? [];
 
-    private void ApplyEventFilters()
+    private OperateRulesView RulesView => _rules?.Value ?? OperateRulesView.Empty;
+
+    private IReadOnlyList<OperateJobRun> JobRows => _jobs?.Value ?? [];
+
+    private IReadOnlyList<OperateInvestigation> InvestigationRows => _investigations?.Value ?? [];
+
+    private string? SelectedJobRowId => SelectedJobRunId ?? _selectedJobLoadedFor;
+
+    private bool HasSelectedEventRoute => !string.IsNullOrWhiteSpace(SelectedEventId);
+
+    private bool HasSelectedAlertRoute => !string.IsNullOrWhiteSpace(SelectedAlertId);
+
+    private bool SelectedEventMissing => HasSelectedEventRoute && SelectedEvent is null;
+
+    private bool SelectedAlertMissing => HasSelectedAlertRoute && SelectedAlert is null;
+
+    private string SelectedEventMissingMessage =>
+        $"Event '{SelectedEventId?.Trim()}' was not found in the loaded server event page.";
+
+    private string SelectedAlertMissingMessage =>
+        $"Alert '{SelectedAlertId?.Trim()}' was not found in the loaded server alert page.";
+
+    private OperateEventRow? SelectedEvent =>
+        HasSelectedEventRoute
+            ? EventRows.FirstOrDefault(item => string.Equals(item.EventId, SelectedEventId, StringComparison.OrdinalIgnoreCase))
+            : EventRows.FirstOrDefault();
+
+    private OperateAlertRecord? SelectedAlert =>
+        HasSelectedAlertRoute
+            ? AlertRows.FirstOrDefault(item => string.Equals(item.AlertId, SelectedAlertId, StringComparison.OrdinalIgnoreCase))
+            : AlertRows.FirstOrDefault();
+
+    protected override async Task OnInitializedAsync()
     {
-        _activeEventFilter = new(_pendingEnvironmentFilter, _pendingEventTypeFilter, _pendingCorrelationFilter);
+        // Load each independently permissioned section in parallel rather than
+        // through a single blocking aggregate, protecting the Operate path from
+        // a request waterfall.
+        var overviewTask = OperateClient.GetOverviewAsync();
+        var eventsTask = OperateClient.QueryEventsAsync(OperateEventQuery.Empty);
+        var logsTask = OperateClient.GetLogsAsync();
+        var alertsTask = OperateClient.GetAlertsAsync();
+        var rulesTask = OperateClient.GetRulesAsync();
+        var jobsTask = OperateClient.GetJobsAsync();
+        var investigationsTask = OperateClient.GetInvestigationsAsync();
+
+        await Task.WhenAll(overviewTask, eventsTask, logsTask, alertsTask, rulesTask, jobsTask, investigationsTask);
+
+        _overview = await overviewTask;
+        _events = await eventsTask;
+        _logs = await logsTask;
+        _alerts = await alertsTask;
+        _rules = await rulesTask;
+        _jobs = await jobsTask;
+        _investigations = await investigationsTask;
+        _eventTypeOptions = EventRows
+            .Select(item => item.EventType)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _loaded = true;
+        await ResolveSelectedJobAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded)
+        {
+            await ResolveSelectedJobAsync();
+        }
+    }
+
+    private async Task ResolveSelectedJobAsync()
+    {
+        var targetId = !string.IsNullOrWhiteSpace(SelectedJobRunId)
+            ? SelectedJobRunId
+            : JobRows.FirstOrDefault()?.JobRunId;
+
+        if (string.IsNullOrWhiteSpace(targetId))
+        {
+            _selectedJob = null;
+            _selectedJobLoadedFor = null;
+            return;
+        }
+
+        if (string.Equals(targetId, _selectedJobLoadedFor, StringComparison.Ordinal) && _selectedJob is not null)
+        {
+            return;
+        }
+
+        _selectedJobLoadedFor = targetId;
+        _selectedJob = await OperateClient.GetJobDetailAsync(targetId);
+    }
+
+    private async Task ApplyEventFilters()
+    {
+        _events = await OperateClient.QueryEventsAsync(new OperateEventQuery
+        {
+            EnvironmentId = _pendingEnvironmentFilter,
+            EventType = _pendingEventTypeFilter,
+            CorrelationId = _pendingCorrelationFilter
+        });
+    }
+
+    private void ApplyLogFilter()
+    {
+        _activeLogSearch = _pendingLogSearch.Trim();
+    }
+
+    private bool LogMatchesSearch(OperateLogRecord log)
+    {
+        var search = _activeLogSearch.Trim();
+        return log.Message.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || log.Path.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || log.CorrelationId.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || log.Level.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || log.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture).Contains(search, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string RuleEnableTitle(OperateAlertRule rule) =>
         rule.Enabled ? "Already enabled"
-        : rule.CanEnable ? OperateActionPresentation.ActionApiUnavailableReason
+        : rule.CanEnable ? OperateActionPresentation.ActionExecutionDeferredReason
         : rule.EnableBlockReason;
 }

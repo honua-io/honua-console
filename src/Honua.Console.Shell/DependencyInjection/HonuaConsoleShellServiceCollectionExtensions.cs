@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,18 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
         services.TryAddSingleton<IStudioWorkflowPackageClient>(
             _ => InMemoryStudioWorkflowPackageClient.CreateSeeded());
+
+        // Operate observability binds to a real honua-server through a thin
+        // typed HttpClient behind Honua.Console.Contracts (the sanctioned interim
+        // until honua-sdk-dotnet projects the Operate contracts). Server-owned
+        // telemetry/events/alerts/rules/jobs/investigations are no longer wired
+        // to OperateObservabilityFixture.Default at runtime. TryAdd keeps an
+        // explicit test/demo provider overridable.
+        services.TryAddSingleton<IConsoleOperateObservabilityClient>(serviceProvider =>
+            new HttpConsoleOperateObservabilityClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
 
         return services;
     }
@@ -123,4 +136,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
     }
+
+    private static HttpClient CreateOperateObservabilityHttpClient() =>
+        new(new SocketsHttpHandler
+        {
+            // Refresh pooled connections so a long-lived singleton client does
+            // not pin stale DNS for the active environment's server.
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
 }

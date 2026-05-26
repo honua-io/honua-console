@@ -1,0 +1,56 @@
+@using Honua.Console.Shell.Services
+
+@* Shared empty/loading/forbidden/unsupported/unavailable surface for the
+   Operate sections, so every section degrades the same way per the Console
+   exception-handling constraint. *@
+<div class="console-panel operate-status-panel @StateClass">
+    <p class="console-kicker">@Heading</p>
+    <h3>@ResolvedTitle</h3>
+    <p class="console-muted">@ResolvedMessage</p>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required string Heading { get; set; }
+
+    /// <summary>When true the panel renders a neutral loading state.</summary>
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public OperateSectionStatus Status { get; set; } = OperateSectionStatus.Unavailable;
+
+    /// <summary>Server-provided message; falls back to the shared status copy.</summary>
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Title/message for the allowed-but-empty case.</summary>
+    [Parameter]
+    public bool Empty { get; set; }
+
+    [Parameter]
+    public string EmptyTitle { get; set; } = "Nothing to show yet";
+
+    [Parameter]
+    public string EmptyMessage { get; set; } = "The connected server returned no records for this surface.";
+
+    private string StateClass => Loading
+        ? "operate-status-loading"
+        : Empty
+            ? "operate-status-empty"
+            : "operate-status-denied";
+
+    private string ResolvedTitle => Loading
+        ? "Loading..."
+        : Empty
+            ? EmptyTitle
+            : OperateSectionPresentation.Title(Status);
+
+    private string ResolvedMessage => Loading
+        ? "Reading live data from the connected honua-server."
+        : Empty
+            ? EmptyMessage
+            : string.IsNullOrWhiteSpace(Message)
+                ? OperateSectionPresentation.FallbackMessage(Status)
+                : Message;
+}

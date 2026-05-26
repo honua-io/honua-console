@@ -805,9 +805,9 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/identity/diagnostics` | `entitlement:identity.claims-mapping` (gate claims tab) | — | forbidden / upgrade | operate |
 | `/operate/license` | — | — | forbidden | operate |
 | `/operate/observability` | — | empty-operate | forbidden | operate |
-| `/operate/events/:eventId` | — | fixture event fallback | forbidden | operate |
-| `/operate/alerts/:alertId` | — | fixture alert fallback | forbidden | operate |
-| `/operate/jobs/:jobRunId` | — | fixture job fallback | forbidden | operate |
+| `/operate/events/:eventId` | — | no matching events | forbidden | operate |
+| `/operate/alerts/:alertId` | — | no active alerts | forbidden | operate |
+| `/operate/jobs/:jobRunId` | — | missing job | forbidden | operate |
 | `/operate/operations` | — | empty-operate | forbidden | operate |
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
 | `/operate/services` | — | empty-operate (no services) | forbidden | operate |
@@ -823,24 +823,36 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/native-stream` | `host-support`; native gRPC service + active profile for event stream | native proof unavailable / no active environment | — | operate |
 | `/operate/legacy/<path>` | — | — | forbidden | operate |
 
-`honua-console#41` adds the native Blazor observability checkpoint for
-`/operate`, `/operate/observability`, and the event, alert, and job
-detail routes above. The checkpoint is backed by
-`OperateObservabilityFixture.Default`, so unmatched event, alert, or job
-ids currently select the first fixture row in that collection rather than
-issuing a backend read. Once `honua-server#1168`, `honua-server#1169`,
-`honua-server#1170`, and the SDK projections land, these routes should
-resolve by id and map not-found, permission, and unsupported states
-through the §7 exception surfaces.
+`honua-console#24` replaces the native Blazor observability checkpoint
+runtime binding for `/operate/observability` and the event, alert, and
+job detail routes above. Server-owned Operate data now resolves through
+`IConsoleOperateObservabilityClient`, a thin `HttpClient` boundary over
+the live honua-server admin APIs under `/api/v1/admin/version`,
+`/api/v1/admin/capabilities`, `/api/v1/admin/observability`,
+`/api/v1/admin/alerts`, `/api/v1/admin/jobs`, and
+`/api/v1/admin/investigations`. `OperateObservabilityFixture.Default`
+remains test/scaffolding data only; runtime missing, forbidden,
+unsupported, and unavailable states render through the shared Operate
+section status surface.
 
-The checkpoint status contract treats `unknown`, `unsupported`,
+Job detail routes issue a server read for the requested job id and map
+server 404/403/501 responses to the shared missing/forbidden/unsupported
+surfaces. Event and alert detail routes are page-scoped in this slice:
+they select the matching live row from the loaded event or alert page and
+only default to the first returned live row when no route id is supplied.
+If the route id is present but missing from the loaded page, the detail
+panel renders the shared missing surface instead of unrelated live data.
+
+The current runtime status contract treats `unknown`, `unsupported`,
 `missing`, `disabled`, `not configured`, and `unconfigured` as neutral
 states. `missing` displays as `unknown`; `unconfigured` displays as
 `not configured`. `error` event severities and `firing` alert states
 render as failures. AI advisory panels render beside raw evidence links,
-invalid realtime/geofence rules keep their enable action disabled, and
-Studio, publishing, GitOps, temporal, alert delivery, import, and
-maintenance jobs all use `/operate/jobs/:jobRunId` as the detail URL.
+invalid realtime/geofence rules keep their enable action disabled, job
+actions use the server-declared action descriptors, structured logs render
+from `/api/v1/admin/observability/logs`, and Studio, publishing, GitOps,
+temporal, alert delivery, import, and maintenance jobs all use
+`/operate/jobs/:jobRunId` as the detail URL.
 
 Workflow dry-run and publish results reuse `/operate/jobs/:jobRunId` and
 `/operate/events?jobId=<id>` as evidence views, not workflow editors.
@@ -848,8 +860,7 @@ They may be opened from Studio dry-run or publish results when the server
 authorizes the caller to read that job. The workflow adapter may name the
 identifier `jobId`; Console treats it as the job-run route id for
 navigation. Missing or unauthorized job ids render the standard
-missing/forbidden surfaces once these routes switch from fixture and
-adapter lookups to server-backed job reads. Blocked workflow
+missing/forbidden surfaces from server-backed job reads. Blocked workflow
 publications do not queue jobs and therefore do not produce job-scoped
 Operate URLs, whether the blocker is endpoint parameter validation,
 schedule validation, graph coverage, failure routing, or output schema
@@ -1046,6 +1057,7 @@ work consumes the route map but is not edited by `#3`:
 |---|---|
 | `honua-server#1162` | Metadata v2 / content / RBAC API baseline backing `/catalog/:idOrSlug` and Studio open-from-catalog. License snapshot DTO contract for `/operate/license` (avoid leaking `System.*` types through trimmer). |
 | `honua-sdk-dotnet#166` | Projects the server-owned Console client contracts for the Blazor Web shell and optional MAUI host, including metadata/content/package, route guard, RBAC, license, transport, and environment-profile DTOs. Until landed, Portal helpers remain behavior references (§4.7). |
+| `honua-sdk-dotnet#231` | Projects the Operate observability admin contracts currently mirrored by `OperateObservabilityContracts.cs` for events, logs, alerts, rules, zones, jobs, and investigations. |
 | `honua-sdk-js#225` | Projects `resolvePortalItemRole`, `evaluateShareEscalation`, `resolveEmbedAuthorization`, `buildShareLink`, open-data predicates/constants, and metadata/content/package DTOs for generated apps, embeds, MCP/QGIS/browser integrations, and map/chart/editor interop. Until landed, Portal helpers remain behavior references (§4.7). |
 | `honua-server#1171` | Backs native mTLS/client-certificate validation for `/environments*` diagnostics. Console calls `POST /api/v1/admin/security/client-certificates/validate` through the temporary `Honua.Console.Contracts` shim until the .NET SDK projects the trust client. |
 | `honua-server-admin#96` | Prepare legacy Admin for the `/operate/legacy/*` iframe container; ensure session cookie domain and CSP frame-ancestors allow the Console origin. |
@@ -1068,6 +1080,7 @@ PRs that touch each ticket should link to its section number(s).
 | `honua-console#9` — Console parity smoke | §10 (smoke evidence map), §3 rows carrying smoke labels. |
 | `honua-console#41` — Native Blazor Operate observability checkpoint | §1 (`/operate/observability`, `/operate/events/:eventId`, `/operate/alerts/:alertId`, `/operate/jobs/:jobRunId`), §6.5 (Operate detail-route and neutral-state behavior), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
 | `honua-console#44` — Native Console profiles trust diagnostics and mTLS | §1 (`/environments`, `/environments/new`, `/environments/:profileId`, `/operate/native-stream`), §2.2 (native host support navigation), §6.1 (host-capability seam and profile routes), §6.5 (`/operate/native-stream` exception), §7 (unsupported native capability), and [Optional MAUI Blazor Hybrid Host](./native/MAUI_BLAZOR_HOST.md). |
+| `honua-console#24` — Server-backed Operate observability binding | §6.5 (`IConsoleOperateObservabilityClient`, admin API status contract, event/alert/job detail behavior), §11 (`honua-sdk-dotnet#231` consumer note), and [Operate Observability Information Model](./architecture/operate-observability-information-model.md). |
 
 `honua-console#2` (scaffold) seeds the `<RouteGuard>`, the exception
 surface components in §7, the chunk boundaries in §9, the redirect
