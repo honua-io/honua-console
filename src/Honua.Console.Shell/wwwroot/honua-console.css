@@ -1946,3 +1946,56 @@ p {
         grid-template-columns: 1fr;
     }
 }
+
+/* Saved query editor (/studio/query, honua-console#52) */
+.saved-query-predicate {
+    margin: 14px 0 0;
+    padding: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.saved-query-predicate .studio-action-row {
+    margin-top: 12px;
+}
+
+.saved-query-readout {
+    margin: 0;
+    padding: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface-strong);
+    color: var(--honua-text);
+    font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+.saved-query-reopen {
+    margin-top: 18px;
+}
+
+.saved-query-map-summary {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.saved-query-table-scroll {
+    margin-top: 16px;
+    max-height: 360px;
+    overflow: auto;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+}
+
+.saved-query-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+}

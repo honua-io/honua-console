@@ -27,6 +27,12 @@ public sealed record ConsoleTrustIntegrationOptions
     /// <summary>Admin API key sent as <c>X-API-Key</c> to the admin-protected Studio package endpoints.</summary>
     public string? StudioAdminApiKey { get; init; }
 
+    /// <summary>Seeded queryable layer id used by the saved-query preview integration test.</summary>
+    public int AnalysisLayerId { get; init; }
+
+    /// <summary>Seeded service name used by the saved-query preview integration test.</summary>
+    public string AnalysisServiceName { get; init; } = "test";
+
     /// <summary>Optional expected server-side trust profile id.</summary>
     public string? TrustProfileId { get; init; }
 
@@ -63,6 +69,8 @@ public sealed record ConsoleTrustIntegrationOptions
             AdminToken = ReadString("HONUA_CONSOLE_ADMIN_TOKEN"),
             StudioAdminApiKey = ReadString("HONUA_CONSOLE_ADMIN_API_KEY"),
             TrustProfileId = ReadString("HONUA_CONSOLE_TRUST_PROFILE_ID"),
+            AnalysisLayerId = (int)ReadUShort("HONUA_CONSOLE_ANALYSIS_LAYER_ID", 0),
+            AnalysisServiceName = ReadString("HONUA_CONSOLE_ANALYSIS_SERVICE") ?? "test",
             DbConnectionEnvKey = ReadString("HONUA_CONSOLE_DB_CONNECTION_ENV") ?? "ConnectionStrings__Postgres",
             TrustedCertificatePfxPath = ReadString("HONUA_CONSOLE_TRUSTED_CERT_PFX"),
             TrustedCertificatePassword = ReadString("HONUA_CONSOLE_TRUSTED_CERT_PASSWORD"),
@@ -117,6 +125,20 @@ public sealed record ConsoleTrustIntegrationOptions
 
         return string.IsNullOrWhiteSpace(Load().StudioAdminApiKey)
             ? "Set HONUA_CONSOLE_ADMIN_API_KEY to exercise the admin-protected Studio package lifecycle endpoints."
+            : null;
+    }
+
+    /// <summary>Reason the live saved-query (Analysis Content) facts cannot run (need an admin API key).</summary>
+    public static string? GetAnalysisContentSkipReason()
+    {
+        var baseReason = GetSkipReason();
+        if (baseReason is not null)
+        {
+            return baseReason;
+        }
+
+        return string.IsNullOrWhiteSpace(Load().StudioAdminApiKey)
+            ? "Set HONUA_CONSOLE_ADMIN_API_KEY to exercise the admin-protected Analysis Content (saved-query) endpoints."
             : null;
     }
 

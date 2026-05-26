@@ -316,6 +316,13 @@ Acceptance:
 
 ### UI-021: Natural-Language To Spatial Query Builder
 
+Status: implemented by `honua-console#52` (`/studio/query` → `SavedQueryEditorPage`) bound to the
+honua-server Analysis Content API (`honua-server#1182`). Delivered: source binding, attribute/spatial/
+temporal predicate builder, Console-rendered filter readout, parameter editor, table preview + map
+summary, and save/reopen as a server-owned content item/version. Deferred to follow-ons: geometry-on-map
+preview (the preview contract returns no geometry payload), NL→FilterPlan planning (server emits no SQL/no
+NL planner on this contract), and a saved-query browse/list (no list route yet).
+
 Parent: `honua-console#5`, `honua-console#16`
 
 Design refs:

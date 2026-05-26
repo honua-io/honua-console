@@ -34,7 +34,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /auth/signed-out               Post-signout landing (anonymous)
 
 /studio                        Studio entry (AI-assisted creation)
-/studio/query                  Generated query.package editor
+/studio/query                  Server-bound saved-query editor (honua-server#1182)
 /studio/analysis               Generated analysis.package editor
 /studio/map                    Generated map.package editor
 /studio/dashboard              Generated dashboard.package editor
@@ -628,7 +628,7 @@ until `honua-sdk-dotnet#166` is consumable.
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
 | `/studio` | `auth` | empty-studio (start a prompt); missing-binding when no server base address is configured | unauth-redirect | studio |
-| `/studio/query` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/query` | `auth` | missing-binding when no server base address is configured; empty-result when a preview returns no features | unauth-redirect / missing-permission / not-found | studio |
 | `/studio/analysis` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/map` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
@@ -676,8 +676,12 @@ honua-server package lifecycle.
 
 The seven package editor routes above are the `honua-console#39`
 Console-native Studio slice and per-editor families `honua-console#52`–
-`#58`. They render shared Razor editors from the Studio package editor
-catalog and still use the local lifecycle simulator, but their
+`#58`. `/studio/query` is **server-bound** as of `honua-console#52`: it is a
+functional saved-query editor (`SavedQueryEditorPage`) over the honua-server
+Analysis Content API (`honua-server#1182`) and renders a missing-binding
+state when no server base address is configured — never mock query data. The
+remaining six routes render shared Razor editors from the Studio package
+editor catalog and still use the local lifecycle simulator, but their
 validate/preview actions surface a missing-binding state rather than mock
 validation success until each editor's backend contract lands. The local
 projection is documented in
@@ -918,7 +922,7 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` |
+| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` (the server-bound `/studio/query` instead surfaces missing-binding / missing-permission / not-found from the Analysis Content API) |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |

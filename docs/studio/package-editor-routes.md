@@ -1,6 +1,8 @@
 # Studio Package Editor Routes
 
-Status: implemented for `honua-console#39` with stable Console mock lifecycle refs.
+Status: implemented for `honua-console#39` with stable Console mock lifecycle refs. The **query** family
+is server-bound as of `honua-console#52` (functional saved-query editor over the honua-server Analysis
+Content API, `honua-server#1182`); the remaining families keep the mock lifecycle until their contracts land.
 
 The first Console-native Studio editor set lives in the shared Razor shell library and is served by the same Blazor Web and future native host surface as the rest of Console.
 
@@ -10,7 +12,7 @@ The `/studio` entry page links to every route below. Each editor is a projection
 
 | Route | Package family | Editor coverage |
 | --- | --- | --- |
-| `/studio/query` | `query.package` | Source binding, predicate builder, generated SQL/filter readout, parameters, map/table preview, save-as-content lifecycle. |
+| `/studio/query` | `query.package` | **Server-bound** (`SavedQueryEditorPage`): source binding, predicate builder (attribute/spatial/temporal), generated filter readout, parameter editor, table preview + map summary, save/reopen as a server-owned content item/version via the Analysis Content API. |
 | `/studio/analysis` | `analysis.package` | Plan card, parameters, output schema, compute estimate, DAG/pipeline preview, job/result artifact review. |
 | `/studio/map` | `map.package` | Layer stack, filters, style, popup, legend, basemap, extent, interactions, publish/share/embed/rollback review. |
 | `/studio/dashboard` | `dashboard.package` | Data bindings, layout, Vega-Lite chart spec editor, map panels, tables, filters, version pinning, responsive preview. |
@@ -20,13 +22,30 @@ The `/studio` entry page links to every route below. Each editor is a projection
 
 ## Backend Boundary
 
-These per-editor package families (`honua-console#52`–`#58`) are still out of scope for backend binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of `honua-console#61` the editor's validate/preview actions surface a **missing-binding** state rather than reporting mock validation success, so the editors never imply mock refs are valid runtime package data.
+The **query** family (`honua-console#52`) is bound to the server-owned Analysis Content API
+(`honua-server#1182`): `/studio/query` is served by `SavedQueryEditorPage` through
+`ISavedQueryEditorService` (`HonuaServerSavedQueryEditorService` → `IAnalysisContentClient` shim), not the
+local simulator. When no `Honua:Server:BaseUrl` is configured it renders an explicit missing-binding
+state (`UnsupportedSavedQueryEditorService`); it never falls back to mock query data.
 
-The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`) through `IStudioPackageLifecycleClient`; when the per-editor backend projections land, the simulator boundary should be replaced behind the same editor model instead of introducing a second Console package schema.
+The remaining per-editor package families (`honua-console#53`–`#58`) are still out of scope for backend
+binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of
+`honua-console#61` those editors' validate/preview actions surface a **missing-binding** state rather than
+reporting mock validation success, so they never imply mock refs are valid runtime package data.
+
+The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`)
+through `IStudioPackageLifecycleClient`; when the remaining per-editor backend projections land, the
+simulator boundary should be replaced behind the same editor model instead of introducing a second
+Console package schema — the way `#52` replaced the query mock.
 
 ## Mock Response Contract
 
-The package inspector renders the temporary `studio-package-mock/v1` projection. It is a UI mock contract for this Console slice only; it must not become the server or SDK wire schema.
+The package inspector renders the temporary `studio-package-mock/v1` projection for the families that are
+still mock-backed. It is a UI mock contract for this Console slice only; it must not become the server or
+SDK wire schema. The **query** family no longer uses this projection — `/studio/query` reads and writes the
+server-owned `SavedQueryContent` (layer/service binding, `FilterPlan`, out-fields, output SRID/units,
+preview limit, metadata) through the Analysis Content shim; its row below is retained only to document the
+superseded mock that `#52` replaced.
 
 Top-level fields:
 
@@ -42,7 +61,7 @@ Family-specific editor payloads:
 
 | Package family | `editor` fields |
 | --- | --- |
-| Query | `predicate`, `parameter`, `generated_sql`, `result_limit` |
+| Query _(superseded by `#52`; now server-bound)_ | `predicate`, `parameter`, `generated_sql`, `result_limit` |
 | Analysis | `operation`, `distance`, `worker_profile`, `output_schema` |
 | Map | `basemap`, `layer_style`, `popup_fields`, `initial_extent` |
 | Dashboard / Report | `chart_standard = "vega-lite/v5"`, `chart_title`, `measure`, `dimension`, `version_pin`, `vega_lite_spec` |
@@ -59,6 +78,12 @@ Share, embed, and rollback require `published = true` and a non-zero `published_
 
 ## Acceptance Notes
 
+- The server-bound query editor (`#52`) is covered by Docker-free unit facts in
+  `SavedQueryEditorServiceTests` (DI binds the real service when configured and the unsupported service
+  otherwise; shim create/reopen/preview mapping and error states; filter-readout rendering) and by the
+  opt-in real-server Testcontainers facts in `SavedQueryEditorIntegrationTests` (create + reopen-render +
+  preview a seeded layer from a live honua-server; skips when Docker/opt-in/admin key is unavailable). Run
+  the live lane with `scripts/integration-analysis-check.sh`.
 - Map lifecycle coverage is pinned by `GeneratedMapLifecycleSupportsPublishShareEmbedAndRollback`.
 - Dashboard and report chart standard coverage is pinned by `DashboardAndReportChartsUseVegaLite`.
 - Form publish gating is pinned by `FormPublishRequiresOfflinePolicyReview`.

@@ -1,0 +1,537 @@
+@page "/studio/query"
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject ISavedQueryEditorService Editor
+@inject NavigationManager Navigation
+
+<section class="console-page studio-page" data-editor="saved-query" data-content-type="query">
+    <div class="console-page-heading studio-page-heading">
+        <div>
+            <p class="console-kicker">Builder workflow · Studio</p>
+            <h1>Saved query</h1>
+            <p>
+                Bind a source, build attribute, spatial, and temporal predicates, preview the result, and
+                save the query as a server-owned content item/version that map, dashboard, report, app, and
+                workflow editors can reuse.
+            </p>
+        </div>
+        @if (_bindingState is null && _handle is not null)
+        {
+            <span class="console-status">@_handle.ReuseRef</span>
+        }
+    </div>
+
+    @if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Saved query editor is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else
+    {
+        @if (_issue is not null)
+        {
+            <ConsoleStateView Kind="error"
+                              Kicker="@_issue.State"
+                              Title="The last action did not complete"
+                              Message="@($"{_issue.Detail} (contract: {_issue.Contract})")" />
+        }
+
+        <div class="studio-shell" data-saved-query-state="@(_handle is null ? "unsaved" : "saved")">
+            <section class="console-panel" aria-labelledby="saved-query-source-heading">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Source binding</p>
+                        <h2 id="saved-query-source-heading">Source</h2>
+                    </div>
+                    <span class="console-status">layer @_draft.LayerId</span>
+                </div>
+
+                <div class="studio-field-grid">
+                    <label>
+                        <span>Layer id</span>
+                        <input type="number" class="console-input" @bind="_draft.LayerId" />
+                    </label>
+                    <label>
+                        <span>Service name</span>
+                        <input class="console-input" @bind="_draft.ServiceName" placeholder="e.g. public-safety" />
+                    </label>
+                </div>
+                <label class="studio-stacked-field">
+                    <span>Output fields</span>
+                    <input class="console-input" @bind="_draft.OutFields" placeholder="comma-separated, blank for all fields" />
+                </label>
+                <label class="studio-stacked-field">
+                    <span>Natural-language intent</span>
+                    <textarea class="console-input" rows="2" @bind="_draft.NaturalLanguageQuery"
+                              placeholder="Describe the query in plain language (stored with the saved query)."></textarea>
+                </label>
+            </section>
+
+            <section class="console-panel" aria-labelledby="saved-query-params-heading">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Parameters</p>
+                        <h2 id="saved-query-params-heading">Output</h2>
+                    </div>
+                </div>
+                <div class="studio-field-grid">
+                    <label>
+                        <span>Output SRID</span>
+                        <input type="number" class="console-input" @bind="_draft.OutputSrid" placeholder="e.g. 4326" />
+                    </label>
+                    <label>
+                        <span>Units</span>
+                        <input class="console-input" @bind="_draft.Units" placeholder="e.g. meters" />
+                    </label>
+                    <label>
+                        <span>Preview limit</span>
+                        <input type="number" class="console-input" @bind="_draft.PreviewLimit" placeholder="default 25, max 200" />
+                    </label>
+                </div>
+            </section>
+
+            <section class="console-panel" aria-labelledby="saved-query-predicates-heading">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Predicate builder</p>
+                        <h2 id="saved-query-predicates-heading">Filter</h2>
+                    </div>
+                    <div class="console-chip-row" role="group" aria-label="Clause combinator">
+                        <button type="button"
+                                class="@(_draft.Combinator == FilterPlanCombinator.And ? "console-button" : "console-button console-button-secondary")"
+                                aria-pressed="@(_draft.Combinator == FilterPlanCombinator.And)"
+                                @onclick="() => _draft.Combinator = FilterPlanCombinator.And">Match all (AND)</button>
+                        <button type="button"
+                                class="@(_draft.Combinator == FilterPlanCombinator.Or ? "console-button" : "console-button console-button-secondary")"
+                                aria-pressed="@(_draft.Combinator == FilterPlanCombinator.Or)"
+                                @onclick="() => _draft.Combinator = FilterPlanCombinator.Or">Match any (OR)</button>
+                    </div>
+                </div>
+
+                @if (_draft.Predicates.Count == 0)
+                {
+                    <p class="console-muted">No predicates — the query returns all features from the bound source.</p>
+                }
+
+                @foreach (var predicate in _draft.Predicates)
+                {
+                    <fieldset class="saved-query-predicate" @key="predicate.Key">
+                        <div class="studio-field-grid">
+                            <label>
+                                <span>Clause type</span>
+                                <select class="console-input" @bind="predicate.Kind">
+                                    <option value="@SavedQueryPredicateKind.Attribute">Attribute</option>
+                                    <option value="@SavedQueryPredicateKind.Spatial">Spatial</option>
+                                    <option value="@SavedQueryPredicateKind.Temporal">Temporal</option>
+                                </select>
+                            </label>
+
+                            @if (predicate.Kind == SavedQueryPredicateKind.Attribute)
+                            {
+                                <label>
+                                    <span>Property</span>
+                                    <input class="console-input" @bind="predicate.Property" placeholder="field name" />
+                                </label>
+                                <label>
+                                    <span>Operator</span>
+                                    <select class="console-input" @bind="predicate.Operator">
+                                        <option value="eq">= (eq)</option>
+                                        <option value="ne">≠ (ne)</option>
+                                        <option value="lt">&lt; (lt)</option>
+                                        <option value="le">≤ (le)</option>
+                                        <option value="gt">&gt; (gt)</option>
+                                        <option value="ge">≥ (ge)</option>
+                                        <option value="like">LIKE</option>
+                                        <option value="in">IN</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Value</span>
+                                    <input class="console-input" @bind="predicate.Value" placeholder="value (comma-separated for IN)" />
+                                </label>
+                            }
+                            else if (predicate.Kind == SavedQueryPredicateKind.Spatial)
+                            {
+                                <label>
+                                    <span>Relation</span>
+                                    <select class="console-input" @bind="predicate.Operator">
+                                        <option value="intersects">intersects</option>
+                                        <option value="within">within</option>
+                                        <option value="contains">contains</option>
+                                        <option value="dwithin">dwithin</option>
+                                    </select>
+                                </label>
+                                @if (string.Equals(predicate.Operator, "dwithin", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <label>
+                                        <span>Distance</span>
+                                        <input type="number" class="console-input" @bind="predicate.Distance" />
+                                    </label>
+                                    <label>
+                                        <span>Distance unit</span>
+                                        <input class="console-input" @bind="predicate.DistanceUnit" placeholder="meters" />
+                                    </label>
+                                }
+                            }
+                            else
+                            {
+                                <label>
+                                    <span>Property</span>
+                                    <input class="console-input" @bind="predicate.Property" placeholder="time field" />
+                                </label>
+                                <label>
+                                    <span>Operator</span>
+                                    <select class="console-input" @bind="predicate.Operator">
+                                        <option value="before">before</option>
+                                        <option value="after">after</option>
+                                        <option value="during">during</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Start (ISO 8601)</span>
+                                    <input class="console-input" @bind="predicate.Start" placeholder="2026-01-01T00:00:00Z" />
+                                </label>
+                                @if (string.Equals(predicate.Operator, "during", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <label>
+                                        <span>End (ISO 8601)</span>
+                                        <input class="console-input" @bind="predicate.End" placeholder="2026-12-31T23:59:59Z" />
+                                    </label>
+                                }
+                            }
+                        </div>
+
+                        @if (predicate.Kind == SavedQueryPredicateKind.Spatial)
+                        {
+                            <label class="studio-stacked-field">
+                                <span>Geometry (GeoJSON)</span>
+                                <textarea class="console-input" rows="2" @bind="predicate.GeometryGeoJson"
+                                          placeholder='{ "type": "Polygon", "coordinates": [...] }'></textarea>
+                            </label>
+                        }
+
+                        <button type="button" class="console-button console-button-secondary" @onclick="() => RemovePredicate(predicate)">
+                            Remove clause
+                        </button>
+                    </fieldset>
+                }
+
+                <div class="studio-action-row">
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => AddPredicate(SavedQueryPredicateKind.Attribute)">Add attribute</button>
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => AddPredicate(SavedQueryPredicateKind.Spatial)">Add spatial</button>
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => AddPredicate(SavedQueryPredicateKind.Temporal)">Add temporal</button>
+                </div>
+            </section>
+
+            <section class="console-panel" aria-labelledby="saved-query-readout-heading">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Generated filter</p>
+                        <h2 id="saved-query-readout-heading">Readout</h2>
+                    </div>
+                    <span class="console-status">Console render</span>
+                </div>
+                <p class="console-muted">
+                    A readable rendering of the bound source and predicates. The server compiles the filter
+                    plan into a feature query and does not emit SQL, so this is a filter readout — not the
+                    executed query.
+                </p>
+                <pre class="saved-query-readout" data-testid="filter-readout">@FilterReadout</pre>
+            </section>
+
+            <section class="console-panel" aria-labelledby="saved-query-save-heading">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Save as content</p>
+                        <h2 id="saved-query-save-heading">Lifecycle</h2>
+                    </div>
+                    @if (_handle is not null)
+                    {
+                        <span class="console-status">v@_handle.CurrentVersion</span>
+                    }
+                </div>
+
+                <div class="studio-field-grid">
+                    <label>
+                        <span>Content name</span>
+                        <input class="console-input" @bind="_draft.Name" placeholder="machine name (slug)" />
+                    </label>
+                    <label>
+                        <span>Title</span>
+                        <input class="console-input" @bind="_draft.Title" placeholder="display title" />
+                    </label>
+                </div>
+
+                <div class="studio-action-row">
+                    <button type="button" class="console-button" disabled="@_busy" @onclick="SaveAsync">
+                        @(_handle is null ? "Save query" : "Save new version")
+                    </button>
+                </div>
+
+                @if (_handle is not null)
+                {
+                    <dl class="console-definition-list" data-testid="saved-query-handle">
+                        <dt>Item id</dt>
+                        <dd>@_handle.ItemId</dd>
+                        <dt>Current version</dt>
+                        <dd>v@_handle.CurrentVersion (@_handle.CurrentVersionId)</dd>
+                        <dt>Reuse reference</dt>
+                        <dd>@_handle.ReuseRef</dd>
+                        <dt>Visibility</dt>
+                        <dd>@_handle.Visibility</dd>
+                    </dl>
+                    <p class="console-muted">
+                        Reuse this saved query as an input to map, dashboard, report, app, and workflow editors
+                        by its item id and version (those editors are tracked on their own tickets).
+                    </p>
+                }
+
+                <label class="studio-stacked-field saved-query-reopen">
+                    <span>Reopen by item id</span>
+                    <input class="console-input" @bind="_reopenId" placeholder="analysis-content-..." />
+                </label>
+                <div class="studio-action-row">
+                    <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="ReopenAsync">Reopen</button>
+                </div>
+            </section>
+
+            <section class="console-panel studio-preview-panel" aria-labelledby="saved-query-preview-heading">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Preview</p>
+                        <h2 id="saved-query-preview-heading">Result</h2>
+                    </div>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(_busy || _handle is null)" @onclick="PreviewAsync">
+                        Run preview
+                    </button>
+                </div>
+
+                @if (_handle is null)
+                {
+                    <p class="console-muted">Save the query to preview it against the live server. Preview runs against the saved version.</p>
+                }
+                else if (_preview is null)
+                {
+                    <p class="console-muted">Run a preview to fetch sample rows and a map summary from honua-server.</p>
+                }
+                else
+                {
+                    <div class="saved-query-map-summary" data-testid="map-summary">
+                        <p class="console-kicker">Map summary</p>
+                        <dl class="console-definition-list">
+                            <dt>Features</dt>
+                            <dd>@_preview.FeatureCount@(_preview.TotalCount is { } total ? $" of {total}" : string.Empty)</dd>
+                            <dt>With geometry</dt>
+                            <dd>@_preview.GeometryCount</dd>
+                            <dt>Preview limit</dt>
+                            <dd>@(_preview.ExceededPreviewLimit ? "exceeded — showing a sample" : "within limit")</dd>
+                        </dl>
+                        <p class="console-muted">
+                            The preview contract returns attributes and a has-geometry flag but no geometry
+                            payload, so geometry-on-map rendering is deferred to a follow-on.
+                        </p>
+                    </div>
+
+                    @if (_preview.Rows.Count == 0)
+                    {
+                        <ConsoleStateView Kind="empty"
+                                          Kicker="Preview"
+                                          Title="No matching features"
+                                          Message="The saved query returned no rows for the bound source and predicates." />
+                    }
+                    else
+                    {
+                        <div class="saved-query-table-scroll">
+                            <table class="console-table saved-query-table" data-testid="preview-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">id</th>
+                                        @foreach (var column in _preview.Columns)
+                                        {
+                                            <th scope="col">@column</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in _preview.Rows)
+                                    {
+                                        <tr>
+                                            <td>@row.Id</td>
+                                            @foreach (var column in _preview.Columns)
+                                            {
+                                                <td>@(row.Cells.TryGetValue(column, out var cell) ? cell : string.Empty)</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </section>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <p class="console-status studio-status-message" role="status" aria-live="polite">@_status</p>
+    }
+</section>
+
+@code {
+    private readonly SavedQueryDefinitionDraft _draft = new() { LayerId = 0, PreviewLimit = 25 };
+    private SavedQueryBindingState? _bindingState;
+    private SavedQueryBindingState? _issue;
+    private SavedQueryHandle? _handle;
+    private SavedQueryPreviewView? _preview;
+    private string? _status;
+    private string _reopenId = string.Empty;
+    private bool _busy;
+
+    [SupplyParameterFromQuery(Name = "id")]
+    public string? ItemId { get; set; }
+
+    private string FilterReadout => SavedQueryContentMapper.RenderFilterReadout(_draft);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _bindingState = Editor.GetBindingStatus();
+        if (_bindingState is not null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ItemId))
+        {
+            _reopenId = ItemId.Trim();
+            await OpenItemAsync(_reopenId);
+        }
+    }
+
+    private void AddPredicate(SavedQueryPredicateKind kind)
+    {
+        var predicate = new SavedQueryPredicateDraft
+        {
+            Kind = kind,
+            Operator = kind switch
+            {
+                SavedQueryPredicateKind.Spatial => "intersects",
+                SavedQueryPredicateKind.Temporal => "during",
+                _ => "eq"
+            }
+        };
+        _draft.Predicates.Add(predicate);
+    }
+
+    private void RemovePredicate(SavedQueryPredicateDraft predicate) => _draft.Predicates.Remove(predicate);
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        var result = _handle is null
+            ? await Editor.CreateAsync(_draft)
+            : await Editor.SaveNewVersionAsync(_handle.ItemId, _handle.CurrentVersionId, _draft);
+
+        if (result.IsSuccess && result.Handle is not null)
+        {
+            _handle = result.Handle;
+            _reopenId = result.Handle.ItemId;
+            _preview = null;
+            _issue = null;
+            _status = $"Saved {result.Handle.Name} as v{result.Handle.CurrentVersion}.";
+            Navigation.NavigateTo($"/studio/query?id={Uri.EscapeDataString(result.Handle.ItemId)}", forceLoad: false);
+        }
+        else
+        {
+            _issue = result.BindingState;
+            _status = "Save did not complete.";
+        }
+    });
+
+    private Task ReopenAsync() => RunAsync(() => OpenItemAsync(_reopenId));
+
+    private async Task OpenItemAsync(string itemId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            _issue = new SavedQueryBindingState(
+                "Unavailable",
+                "GET /api/v1/analysis/content/items/{itemId}",
+                "Enter a saved-query item id to reopen.");
+            return;
+        }
+
+        var result = await Editor.OpenAsync(itemId);
+        if (result.IsSuccess && result is { Definition: not null, Handle: not null })
+        {
+            CopyInto(result.Definition);
+            _handle = result.Handle;
+            _preview = null;
+            _issue = null;
+            _status = $"Reopened {result.Handle.Name} (v{result.Handle.CurrentVersion}).";
+        }
+        else
+        {
+            _issue = result.BindingState;
+            _status = "Reopen did not complete.";
+        }
+    }
+
+    private Task PreviewAsync() => RunAsync(async () =>
+    {
+        if (_handle is null)
+        {
+            return;
+        }
+
+        var outcome = await Editor.PreviewAsync(_handle.ItemId, _handle.CurrentVersion, _draft.PreviewLimit);
+        if (outcome.IsSuccess && outcome.Preview is not null)
+        {
+            _preview = outcome.Preview;
+            _issue = null;
+            _status = $"Preview returned {outcome.Preview.FeatureCount} feature(s).";
+        }
+        else
+        {
+            _issue = outcome.BindingState;
+            _status = "Preview did not complete.";
+        }
+    });
+
+    private async Task RunAsync(Func<Task> operation)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await operation();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void CopyInto(SavedQueryDefinitionDraft source)
+    {
+        _draft.Name = source.Name;
+        _draft.Title = source.Title;
+        _draft.NaturalLanguageQuery = source.NaturalLanguageQuery;
+        _draft.LayerId = source.LayerId;
+        _draft.ServiceName = source.ServiceName;
+        _draft.OutFields = source.OutFields;
+        _draft.OutputSrid = source.OutputSrid;
+        _draft.Units = source.Units;
+        _draft.PreviewLimit = source.PreviewLimit;
+        _draft.Combinator = source.Combinator;
+        _draft.Predicates.Clear();
+        _draft.Predicates.AddRange(source.Predicates);
+    }
+}
