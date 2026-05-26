@@ -77,7 +77,8 @@ public sealed record WorkflowSchemaDefinition
     [JsonPropertyName("crs")] public string? Crs { get; init; }
     [JsonPropertyName("enumValues")] public IReadOnlyList<string> EnumValues { get; init; } = [];
     [JsonPropertyName("items")] public WorkflowSchemaDefinition? Items { get; init; }
-    [JsonPropertyName("properties")] public IReadOnlyDictionary<string, WorkflowSchemaDefinition> Properties { get; init; } =
+    [JsonPropertyName("properties")]
+    public IReadOnlyDictionary<string, WorkflowSchemaDefinition> Properties { get; init; } =
         new Dictionary<string, WorkflowSchemaDefinition>();
 }
 
@@ -159,10 +160,12 @@ public sealed record WorkflowNode
 {
     [JsonPropertyName("nodeId")] public string NodeId { get; init; } = string.Empty;
     [JsonPropertyName("nodeTypeId")] public string NodeTypeId { get; init; } = string.Empty;
-    [JsonPropertyName("parameters")] public IReadOnlyDictionary<string, string> Parameters { get; init; } =
+    [JsonPropertyName("parameters")]
+    public IReadOnlyDictionary<string, string> Parameters { get; init; } =
         new Dictionary<string, string>();
     [JsonPropertyName("workerProfile")] public string? WorkerProfile { get; init; }
-    [JsonPropertyName("metadata")] public IReadOnlyDictionary<string, string> Metadata { get; init; } =
+    [JsonPropertyName("metadata")]
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } =
         new Dictionary<string, string>();
 }
 
@@ -189,7 +192,8 @@ public sealed record WorkflowGraph
     [JsonPropertyName("edges")] public IReadOnlyList<WorkflowEdge> Edges { get; init; } = [];
     [JsonPropertyName("schedule")] public WorkflowSchedule? Schedule { get; init; }
     [JsonPropertyName("workerProfile")] public string? WorkerProfile { get; init; }
-    [JsonPropertyName("editorMetadata")] public IReadOnlyDictionary<string, string> EditorMetadata { get; init; } =
+    [JsonPropertyName("editorMetadata")]
+    public IReadOnlyDictionary<string, string> EditorMetadata { get; init; } =
         new Dictionary<string, string>();
 }
 
@@ -205,7 +209,8 @@ public sealed record WorkflowPackage
     [JsonPropertyName("updatedAt")] public DateTimeOffset UpdatedAt { get; init; }
     [JsonPropertyName("createdBy")] public string? CreatedBy { get; init; }
     [JsonPropertyName("updatedBy")] public string? UpdatedBy { get; init; }
-    [JsonPropertyName("metadata")] public IReadOnlyDictionary<string, string> Metadata { get; init; } =
+    [JsonPropertyName("metadata")]
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } =
         new Dictionary<string, string>();
 }
 
@@ -283,7 +288,8 @@ public sealed record WorkflowPublication
     [JsonPropertyName("eligibility")] public WorkflowPackageValidationResult Eligibility { get; init; } = new();
     [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
     [JsonPropertyName("createdBy")] public string? CreatedBy { get; init; }
-    [JsonPropertyName("provenance")] public IReadOnlyDictionary<string, string> Provenance { get; init; } =
+    [JsonPropertyName("provenance")]
+    public IReadOnlyDictionary<string, string> Provenance { get; init; } =
         new Dictionary<string, string>();
 }
 
@@ -295,7 +301,8 @@ public sealed record WorkflowPublicationRunResult
     [JsonPropertyName("target")] public WorkflowPublicationTarget Target { get; init; }
     [JsonPropertyName("jobId")] public string? JobId { get; init; }
     [JsonPropertyName("workflowRunId")] public string? WorkflowRunId { get; init; }
-    [JsonPropertyName("provenance")] public IReadOnlyDictionary<string, string> Provenance { get; init; } =
+    [JsonPropertyName("provenance")]
+    public IReadOnlyDictionary<string, string> Provenance { get; init; } =
         new Dictionary<string, string>();
 }
 
@@ -325,7 +332,8 @@ public sealed record SaveWorkflowPackageRequest
     [JsonPropertyName("description")] public string? Description { get; init; }
     [JsonPropertyName("namespace")] public string? Namespace { get; init; }
     [JsonPropertyName("graph")] public WorkflowGraph Graph { get; init; } = new();
-    [JsonPropertyName("metadata")] public IReadOnlyDictionary<string, string> Metadata { get; init; } =
+    [JsonPropertyName("metadata")]
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } =
         new Dictionary<string, string>();
 }
 
@@ -341,7 +349,8 @@ public sealed record PublishWorkflowPackageRequest
 public sealed record RunWorkflowPublicationRequest
 {
     [JsonPropertyName("idempotencyKey")] public string? IdempotencyKey { get; init; }
-    [JsonPropertyName("parameters")] public IReadOnlyDictionary<string, string> Parameters { get; init; } =
+    [JsonPropertyName("parameters")]
+    public IReadOnlyDictionary<string, string> Parameters { get; init; } =
         new Dictionary<string, string>();
 }
 
