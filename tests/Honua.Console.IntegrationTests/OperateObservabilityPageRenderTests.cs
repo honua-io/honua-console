@@ -88,6 +88,37 @@ public sealed class OperateObservabilityPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void JobDeepLink_WhenJobListReadFails_StillRendersDetailFromIndependentRead()
+    {
+        // The job list read is forbidden, but the deep-linked job detail is a separate read
+        // that the active profile is allowed to make.
+        var stub = new StubOperateClient
+        {
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Denied(
+                OperateSectionStatus.Forbidden,
+                "Jobs list is forbidden for this profile."),
+            JobDetail = jobRunId => OperateSectionResult<OperateJobRun>.Allowed(BuildJob(jobRunId)),
+        };
+
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(stub);
+
+        var page = ctx.RenderComponent<OperateObservabilityPage>(parameters =>
+            parameters.Add(p => p.SelectedJobRunId, "job-deep-002"));
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // The failed list read is still surfaced as context...
+                Assert.Contains("Jobs list is forbidden for this profile.", page.Markup, StringComparison.Ordinal);
+                // ...and the independently-read job detail is no longer hidden by the list failure.
+                Assert.Contains("job-deep-002", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("Deep-linked job is running.", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
     private static OperateJobRun BuildJob(string jobRunId) => new(
         JobRunId: jobRunId,
         Source: "Publishing",
@@ -114,6 +145,9 @@ public sealed class OperateObservabilityPageRenderTests
     /// </summary>
     private sealed class StubOperateClient : IConsoleOperateObservabilityClient
     {
+        public OperateSectionResult<IReadOnlyList<OperateJobRun>> Jobs { get; init; } =
+            OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([]);
+
         public Func<string, OperateSectionResult<OperateJobRun>> JobDetail { get; init; } =
             _ => OperateSectionResult<OperateJobRun>.Denied(OperateSectionStatus.Missing, "Job not found.");
 
@@ -133,7 +167,7 @@ public sealed class OperateObservabilityPageRenderTests
             Task.FromResult(OperateSectionResult<OperateRulesView>.Allowed(OperateRulesView.Empty));
 
         public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([]));
+            Task.FromResult(Jobs);
 
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(JobDetail(jobRunId));

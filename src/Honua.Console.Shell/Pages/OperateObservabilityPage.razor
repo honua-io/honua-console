@@ -612,17 +612,22 @@
         {
             <OperateSectionStatusPanel Heading="Jobs" Loading="true" />
         }
-        else if (!_jobs.IsAllowed)
+        else if (!_jobs.IsAllowed && string.IsNullOrWhiteSpace(SelectedJobRunId))
         {
+            @* With no deep link to resolve on its own, a failed list read is the whole surface. *@
             <OperateSectionStatusPanel Heading="Jobs" Status="_jobs.Status" Message="@_jobs.Message" />
         }
         else
         {
             @* The job detail is an independent server read keyed on the route id, so a deep
                link to /operate/jobs/{id} must resolve its own detail/missing/forbidden surface
-               even when the job list page is empty or does not contain that id. *@
+               even when the job list page is empty, omits that id, or the list read itself failed. *@
             <div class="operate-detail-grid">
-                @if (JobRows.Count > 0)
+                @if (!_jobs.IsAllowed)
+                {
+                    <OperateSectionStatusPanel Heading="Jobs" Status="_jobs.Status" Message="@_jobs.Message" />
+                }
+                else if (JobRows.Count > 0)
                 {
                     <div class="console-panel operate-table-panel">
                         <div class="operate-table-scroll">
