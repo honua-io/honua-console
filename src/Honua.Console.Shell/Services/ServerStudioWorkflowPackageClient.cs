@@ -228,7 +228,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             return new StudioWorkflowPublishResult { Status = "blocked", BindingState = ToBindingState(ensureIssue) };
         }
 
-        var target = MapPublicationTarget(draft.PublicationIntent.Mode);
+        var target = MapPublicationTarget(draft.PublicationIntent);
         var request = new PublishWorkflowPackageRequest
         {
             Target = target,
@@ -265,8 +265,8 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
 
         var result = MapPublication(draft, publication.Data);
 
-        // Start the first run so the publish links to real Operate job/event evidence (deliverable: publish
-        // jobs land in Operate, not editor-local fake runs).
+        // Start the first run so job-backed publications link to real Operate evidence instead of
+        // editor-local fake runs.
         var run = await _api.RunPublicationAsync(
                 publication.Data.PublicationId,
                 new RunWorkflowPublicationRequest { IdempotencyKey = $"console-publish-{publication.Data.PublicationId}" },
@@ -607,16 +607,29 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
 
     private static void ApplyRunToPublishResult(StudioWorkflowPublishResult result, WorkflowPublicationRunResult run)
     {
-        var operateId = run.JobId ?? run.WorkflowRunId;
-        if (string.IsNullOrWhiteSpace(operateId))
+        if (!string.IsNullOrWhiteSpace(run.JobId))
         {
+            result.JobId = run.JobId;
+            result.Status = "queued";
+            result.OperateJobUrl = $"/operate/jobs/{run.JobId}";
+            result.OperateEventsUrl = $"/operate/events?jobId={run.JobId}";
             return;
         }
 
-        result.JobId = operateId;
-        result.Status = "queued";
-        result.OperateJobUrl = $"/operate/jobs/{operateId}";
-        result.OperateEventsUrl = $"/operate/events?jobId={operateId}";
+        if (!string.IsNullOrWhiteSpace(run.WorkflowRunId))
+        {
+            result.Status = "queued";
+            result.ValidationIssues =
+            [
+                .. result.ValidationIssues,
+                new StudioWorkflowValidationIssue
+                {
+                    Severity = "warning",
+                    Scope = "run",
+                    Message = "The publication run was queued, but this workflow-run evidence does not expose an Operate job link yet."
+                }
+            ];
+        }
     }
 
     private static StudioWorkflowOutputSchema ToOutputSchema(WorkflowNodePortSchema port)
@@ -693,12 +706,20 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         return issues;
     }
 
-    private static WorkflowPublicationTarget MapPublicationTarget(string mode) => mode switch
+    private static WorkflowPublicationTarget MapPublicationTarget(StudioWorkflowPublicationIntent intent)
     {
-        StudioWorkflowContractValues.PublicationModeScheduledJob => WorkflowPublicationTarget.Schedule,
-        StudioWorkflowContractValues.PublicationModeProcessEndpoint => WorkflowPublicationTarget.ProcessEndpoint,
-        _ => WorkflowPublicationTarget.Job
-    };
+        if (intent.ExposeInvocationEndpoint ||
+            string.Equals(intent.Mode, StudioWorkflowContractValues.PublicationModeProcessEndpoint, StringComparison.Ordinal))
+        {
+            return WorkflowPublicationTarget.ProcessEndpoint;
+        }
+
+        return intent.Mode switch
+        {
+            StudioWorkflowContractValues.PublicationModeScheduledJob => WorkflowPublicationTarget.Schedule,
+            _ => WorkflowPublicationTarget.Job
+        };
+    }
 
     private static WorkflowSchedule? ToSchedule(StudioWorkflowSchedule schedule)
     {

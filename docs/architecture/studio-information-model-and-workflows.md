@@ -227,8 +227,10 @@ server-owned boundaries rather than inventing a durable Console schema:
 - Content item version save response for package persistence.
 - Publication response for batch workflow, scheduled job, or eligible
   process endpoint with parameter validation.
-- Operate job/event evidence links for published runs (the synchronous
-  `#1185` dry-run estimation creates no Operate job, so it emits no links).
+- Operate job/event evidence links for job-backed published runs (the
+  synchronous `#1185` dry-run estimation creates no Operate job, and
+  scheduled workflow runs expose `workflowRunId` rather than a job link until
+  Operate has that projection).
 
 The adapter methods map to the honua-server `#1185` boundary
 (`/api/v1/console/workflow-*`, admin-authorized) as follows:
@@ -240,19 +242,19 @@ The adapter methods map to the honua-server `#1185` boundary
 | `CreateDraftAsync` / `GetDraftAsync` | `GET workflow-packages/{id}` | A new package is a local draft until the first save (no server write, no fabricated id). An existing draft maps the server graph (nodes joined to the registry for category/label/ports, edges, schedule, worker) into the editor model; editor-only authoring fields (invocation parameters, retry policy, publication intent, authored output schemas, node layout) round-trip through the server graph's opaque editor metadata. A reopened draft surfaces the latest committed version number for display but is **not** pinned to it as a reusable version: the server persists the mutable graph independently of immutable versions (a prior save that failed graph validation still persisted the graph but created no version), so the loaded graph may be ahead of the latest version. The editor therefore re-saves and re-validates the loaded graph before any dry-run/publish rather than reusing a possibly-stale version. |
 | `SaveVersionAsync` | `POST`/`PUT workflow-packages` then `POST .../versions` | Persists the draft graph, then creates an immutable version. Returns `contentItemId`, `versionId` (`{packageId}:v{n}`), `versionNumber`, and the server version's validation. A 400 is surfaced as in-place validation issues with **no `versionId`** (a bound-surface outcome). Because the preceding `PUT` already overwrote the server's mutable graph with the rejected edits, any version-create failure also **clears the draft's version pin** (`CurrentVersionId`, keeping `versionNumber` for display), so a follow-on dry-run/publish re-persists and re-versions the current graph through `EnsureVersionAsync` instead of reusing a stale prior version — the editor independently keeps the draft dirty. Other failures surface as a binding state. |
 | `DryRunAsync` | `POST .../versions/{v}/dry-run` | Reuses the saved version (the page saves dirty edits first). Returns server estimate logs, artifacts, and output schemas with `status` from the server validation. The `#1185` dry-run is synchronous estimation and creates **no** Operate job, so no job/event links are emitted for dry-runs. |
-| `PublishAsync` | `POST .../versions/{v}/publish` then `POST workflow-publications/{id}/runs` | Maps publication intent mode to the server target (`scheduled-job`→`Schedule`, `process-endpoint`→`ProcessEndpoint`, else `Job`), publishes the version, then starts the first run so the publish links to live Operate job/event evidence (`/operate/jobs/{jobId}`). A 400/409 eligibility failure is surfaced as a blocked publish with the server rules. |
+| `PublishAsync` | `POST .../versions/{v}/publish` then `POST workflow-publications/{id}/runs` | Maps publication intent to the server target (`ExposeInvocationEndpoint` or `process-endpoint` mode→`ProcessEndpoint`, `scheduled-job`→`Schedule`, else `Job`), publishes the version, then starts the first run. When the run returns a `jobId`, Console links to live Operate job/event evidence (`/operate/jobs/{jobId}`); scheduled workflow-run ids are not mislabeled as jobs and surface without job links until Operate projects them. A 400/409 eligibility failure is surfaced as a blocked publish with the server rules. |
 | `GetJobEvidenceAsync` | — | `#1185` exposes no workflow job-evidence read; published-run evidence lives in the Operate surfaces (`#60`) via the publish result's `OperateJobUrl`. Returns `null`. |
 
 Publication modes are the editor's publication intent: `batch-workflow`,
-`scheduled-job`, and `process-endpoint`, mapped to the server publication
-target as in the table above (`scheduled-job`→`Schedule`,
-`process-endpoint`→`ProcessEndpoint`, else `Job`). The invocation endpoint
-is **server-owned**: an eligible process-endpoint publication returns its
-route as the publication `endpointPath`, which Console surfaces as the
-publish result's invocation endpoint (otherwise "not exposed"). The editor
-keeps the "expose invocation endpoint" toggle and a client-side
-parameter-eligibility preview as authoring affordances, but the
-authoritative endpoint and the eligibility decision come from the server.
+`scheduled-job`, and `process-endpoint`. The explicit "expose invocation
+endpoint" toggle also requests the server `ProcessEndpoint` target, even when
+the selected mode is still `batch-workflow`; otherwise `scheduled-job` maps to
+`Schedule` and the default maps to `Job`. The invocation endpoint is
+**server-owned**: an eligible process-endpoint publication returns its route as
+the publication `endpointPath`, which Console surfaces as the publish result's
+invocation endpoint (otherwise "not exposed"). The client-side
+parameter-eligibility preview is an authoring affordance; the authoritative
+endpoint path and the eligibility decision come from the server.
 
 Package and publication validation are **server-owned** (honua-server#1185
 `WorkflowPackageValidationResult`): the server returns the failing rules —
@@ -266,9 +268,9 @@ id/kind, Operate evidence URLs, or invocation endpoint. The saved content
 item/version ids persist on the draft from the preceding save, which the
 editor performs before every dry-run and publish.
 
-The focused smoke command is `npm run smoke:workflow`; it records
-dry-run -> save version -> publish -> Operate monitor evidence under the
-same owning-layer taxonomy as the Console parity smoke.
+The focused smoke command is `npm run smoke:workflow`; it records the
+in-memory stand-in dry-run -> save version -> publish -> Operate monitor
+evidence under the same owning-layer taxonomy as the Console parity smoke.
 
 ### Data Binding
 

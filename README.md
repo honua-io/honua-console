@@ -214,8 +214,10 @@ demo/test-only.
 Save persists the draft and creates an immutable server version with the
 server-owned validation result. Dry-run is a synchronous server estimation
 (logs, artifacts, output schemas, validation) and creates no Operate job.
-Publish maps the publication intent mode to the server target (job, schedule,
-or eligible process endpoint), publishes the version, and starts the first run
-so the publish links to live Operate job/event evidence. Server validation or
-publication-eligibility failures surface as `status=blocked` with the server
-rules rather than a fabricated success or a standing mock.
+Publish maps the publication intent to the server target (job, schedule, or
+eligible process endpoint; the explicit endpoint toggle also requests a process
+endpoint), publishes the version, and starts the first run. When the run returns
+a `jobId`, the publish links to live Operate job/event evidence; workflow-run
+ids are not routed as job ids. Server validation or publication-eligibility
+failures surface as `status=blocked` with the server rules rather than a
+fabricated success or a standing mock.

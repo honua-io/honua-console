@@ -242,6 +242,40 @@ public sealed class ServerStudioWorkflowPackageClientTests
     }
 
     [Fact]
+    public async Task Publish_ExposeInvocationEndpoint_RequestsProcessEndpointTarget()
+    {
+        var api = new FakeWorkflowApi();
+        var client = new ServerStudioWorkflowPackageClient(api);
+        var draft = await NewDraftWithSinkAsync(client);
+        draft.PublicationIntent.ExposeInvocationEndpoint = true;
+        await client.SaveVersionAsync(draft, "save before publish");
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal(WorkflowPublicationTarget.ProcessEndpoint, api.Publications[0].Target);
+        Assert.False(string.IsNullOrEmpty(publish.InvocationEndpoint));
+    }
+
+    [Fact]
+    public async Task Publish_ScheduledWorkflowRun_DoesNotTreatWorkflowRunIdAsOperateJob()
+    {
+        var api = new FakeWorkflowApi();
+        var client = new ServerStudioWorkflowPackageClient(api);
+        var draft = await NewDraftWithSinkAsync(client);
+        draft.PublicationIntent.Mode = StudioWorkflowContractValues.PublicationModeScheduledJob;
+        await client.SaveVersionAsync(draft, "save before publish");
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal(WorkflowPublicationTarget.Schedule, api.Publications[0].Target);
+        Assert.Equal("queued", publish.Status);
+        Assert.Empty(publish.JobId);
+        Assert.Empty(publish.OperateJobUrl);
+        Assert.Empty(publish.OperateEventsUrl);
+        Assert.Contains(publish.ValidationIssues, issue => issue.Scope == "run" && issue.Severity == "warning");
+    }
+
+    [Fact]
     public async Task Publish_SurfacesBlockedState_OnServerEligibilityFailure()
     {
         var api = new FakeWorkflowApi { PublishStatusCode = 400 };
@@ -529,7 +563,8 @@ public sealed class ServerStudioWorkflowPackageClientTests
                 PackageId = publication.PackageId,
                 PackageVersion = publication.PackageVersion,
                 Target = publication.Target,
-                JobId = $"job-{RunCount}",
+                JobId = publication.Target == WorkflowPublicationTarget.Schedule ? null : $"job-{RunCount}",
+                WorkflowRunId = publication.Target == WorkflowPublicationTarget.Schedule ? $"workflow-run-{RunCount}" : null,
                 Provenance = new Dictionary<string, string>()
             }));
         }

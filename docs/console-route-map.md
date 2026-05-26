@@ -690,8 +690,8 @@ Workflow routes are builder-owned Studio surfaces. The real-server revisit
 (`honua-server#1185`) through the `IWorkflowPackageApiClient` HTTP shim in
 `Honua.Console.Contracts`: the node registry, package drafts, immutable
 versions, dry-runs, and publications/runs render from live
-`/api/v1/console/workflow-*` data, and published runs link into Operate with
-job-scoped URLs. They do not move workflow authoring into the Operate
+`/api/v1/console/workflow-*` data, and job-backed published runs link into
+Operate with job-scoped URLs. They do not move workflow authoring into the Operate
 information architecture. When no server base address is configured the editor
 renders the shared missing-binding surface instead of seeded workflow data; the
 in-memory seeded client (`AddHonuaConsoleDemoStudioWorkflowPackages`) is
@@ -846,15 +846,15 @@ Studio, publishing, GitOps, temporal, alert delivery, import, and
 maintenance jobs all use `/operate/jobs/:jobRunId` as the detail URL.
 
 Workflow publish results reuse `/operate/jobs/:jobRunId` and
-`/operate/events?jobId=<id>` as evidence views, not workflow editors.
-They may be opened from a Studio published run when the server
-authorizes the caller to read that job. The `#1185` dry-run is a
-synchronous estimation that creates no Operate job, so it emits no
-job-scoped URLs. The workflow adapter may name the
-identifier `jobId`; Console treats it as the job-run route id for
-navigation. Missing or unauthorized job ids render the standard
-missing/forbidden surfaces once these routes switch from fixture and
-adapter lookups to server-backed job reads. Blocked workflow
+`/operate/events?jobId=<id>` as evidence views only when the server returns a
+`jobId`, not workflow-run ids or workflow editors. They may be opened from a
+Studio published run when the server authorizes the caller to read that job.
+The `#1185` dry-run is a synchronous estimation that creates no Operate job,
+so it emits no job-scoped URLs. Scheduled workflow publications can return a
+`workflowRunId`; Console must not route that id through `/operate/jobs/*`
+until Operate owns a workflow-run projection. Missing or unauthorized job ids
+render the standard missing/forbidden surfaces once these routes switch from
+fixture and adapter lookups to server-backed job reads. Blocked workflow
 publications do not queue jobs and therefore do not produce job-scoped
 Operate URLs, whether the blocker is endpoint parameter validation,
 schedule validation, graph coverage, failure routing, or output schema
