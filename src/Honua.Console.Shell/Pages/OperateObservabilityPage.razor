@@ -222,6 +222,16 @@
                 <OperateSectionStatusPanel Heading="Event viewer" Empty="true"
                     EmptyTitle="No matching events"
                     EmptyMessage="The server returned no events for the current filters." />
+
+                @* A deep link to a specific event id must still surface the missing-detail
+                   state. Without this, an empty event page would swallow the deep link and
+                   render only the generic "no events" surface. *@
+                @if (SelectedEventMissing)
+                {
+                    <OperateSectionStatusPanel Heading="Event detail"
+                        Status="OperateSectionStatus.Missing"
+                        Message="@SelectedEventMissingMessage" />
+                }
             }
             else
             {
@@ -392,6 +402,15 @@
             <OperateSectionStatusPanel Heading="Alerts" Empty="true"
                 EmptyTitle="No active alerts"
                 EmptyMessage="The connected server reported no realtime or geofence alerts." />
+
+            @* A deep link to a specific alert id must still surface the missing-detail
+               state instead of being swallowed by the empty alert page. *@
+            @if (SelectedAlertMissing)
+            {
+                <OperateSectionStatusPanel Heading="Alert detail"
+                    Status="OperateSectionStatus.Missing"
+                    Message="@SelectedAlertMissingMessage" />
+            }
         }
         else
         {
@@ -597,62 +616,71 @@
         {
             <OperateSectionStatusPanel Heading="Jobs" Status="_jobs.Status" Message="@_jobs.Message" />
         }
-        else if (JobRows.Count == 0)
-        {
-            <OperateSectionStatusPanel Heading="Jobs" Empty="true"
-                EmptyTitle="No jobs"
-                EmptyMessage="The connected server reported no durable jobs." />
-        }
         else
         {
+            @* The job detail is an independent server read keyed on the route id, so a deep
+               link to /operate/jobs/{id} must resolve its own detail/missing/forbidden surface
+               even when the job list page is empty or does not contain that id. *@
             <div class="operate-detail-grid">
-                <div class="console-panel operate-table-panel">
-                    <div class="operate-table-scroll">
-                        <table class="operate-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Job</th>
-                                    <th scope="col">Source</th>
-                                    <th scope="col">Type</th>
-                                    <th scope="col">Status</th>
-                                    <th scope="col">Progress</th>
-                                    <th scope="col">Artifacts</th>
-                                    <th scope="col">Submitted</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var job in JobRows)
-                                {
-                                    <tr class="@(job.JobRunId == SelectedJobRowId ? "operate-selected-row" : null)">
-                                        <td><a href="@job.DetailHref">@job.JobRunId</a></td>
-                                        <td>@job.Source</td>
-                                        <td>@job.JobType</td>
-                                        <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
-                                        <td>
-                                            <div class="operate-progress" aria-label="@($"{job.ProgressPercent} percent complete")">
-                                                <span style="@($"width: {job.ProgressPercent}%")"></span>
-                                            </div>
-                                        </td>
-                                        <td>@job.ArtifactCountLabel</td>
-                                        <td>@job.SubmittedAt</td>
+                @if (JobRows.Count > 0)
+                {
+                    <div class="console-panel operate-table-panel">
+                        <div class="operate-table-scroll">
+                            <table class="operate-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Job</th>
+                                        <th scope="col">Source</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Progress</th>
+                                        <th scope="col">Artifacts</th>
+                                        <th scope="col">Submitted</th>
                                     </tr>
-                                }
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    @foreach (var job in JobRows)
+                                    {
+                                        <tr class="@(job.JobRunId == SelectedJobRowId ? "operate-selected-row" : null)">
+                                            <td><a href="@job.DetailHref">@job.JobRunId</a></td>
+                                            <td>@job.Source</td>
+                                            <td>@job.JobType</td>
+                                            <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
+                                            <td>
+                                                <div class="operate-progress" aria-label="@($"{job.ProgressPercent} percent complete")">
+                                                    <span style="@($"width: {job.ProgressPercent}%")"></span>
+                                                </div>
+                                            </td>
+                                            <td>@job.ArtifactCountLabel</td>
+                                            <td>@job.SubmittedAt</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-
-                @if (_selectedJob is null)
-                {
-                    <OperateSectionStatusPanel Heading="Job detail" Loading="true" />
-                }
-                else if (!_selectedJob.IsAllowed || _selectedJob.Value is null)
-                {
-                    <OperateSectionStatusPanel Heading="Job detail" Status="_selectedJob.Status" Message="@_selectedJob.Message" />
                 }
                 else
                 {
-                    <JobDetailPanel Job="_selectedJob.Value" />
+                    <OperateSectionStatusPanel Heading="Jobs" Empty="true"
+                        EmptyTitle="No jobs"
+                        EmptyMessage="The connected server reported no durable jobs." />
+                }
+
+                @if (JobRows.Count > 0 || !string.IsNullOrWhiteSpace(SelectedJobRunId))
+                {
+                    @if (_selectedJob is null)
+                    {
+                        <OperateSectionStatusPanel Heading="Job detail" Loading="true" />
+                    }
+                    else if (!_selectedJob.IsAllowed || _selectedJob.Value is null)
+                    {
+                        <OperateSectionStatusPanel Heading="Job detail" Status="_selectedJob.Status" Message="@_selectedJob.Message" />
+                    }
+                    else
+                    {
+                        <JobDetailPanel Job="_selectedJob.Value" />
+                    }
                 }
             </div>
         }
