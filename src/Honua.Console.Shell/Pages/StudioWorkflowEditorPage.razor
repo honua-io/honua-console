@@ -10,7 +10,24 @@
         <p>Author a unified GP/ETL workflow package, dry-run it through job contracts, save a versioned content item, and publish to job runner or an eligible process endpoint.</p>
     </div>
 
-    @if (_loading)
+    @if (_binding is not null)
+    {
+        <article class="console-panel workflow-binding-state">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">@_binding.State</p>
+                    <h2>@_binding.Surface</h2>
+                </div>
+            </div>
+            <p class="console-muted">@_binding.Detail</p>
+            <dl class="console-definition-list">
+                <dt>Contract</dt>
+                <dd>@_binding.Contract</dd>
+            </dl>
+            <a class="console-button-link console-button-secondary" href="/studio">Studio Home</a>
+        </article>
+    }
+    else if (_loading)
     {
         <article class="console-panel">
             <h2>Loading workflow draft</h2>
@@ -297,12 +314,32 @@
                     <p class="console-status">@EndpointEligibilityText</p>
                     @if (_lastSave is not null)
                     {
-                        <dl class="console-definition-list">
-                            <dt>Saved version</dt>
-                            <dd>@_lastSave.VersionId</dd>
-                            <dt>Contract</dt>
-                            <dd>@_lastSave.Contract</dd>
-                        </dl>
+                        @if (!string.IsNullOrWhiteSpace(_lastSave.VersionId))
+                        {
+                            <dl class="console-definition-list">
+                                <dt>Saved version</dt>
+                                <dd>@_lastSave.VersionId</dd>
+                                <dt>Contract</dt>
+                                <dd>@_lastSave.Contract</dd>
+                            </dl>
+                        }
+                        else
+                        {
+                            <p class="console-status">Save blocked: server validation requires attention</p>
+                        }
+                        @if (_lastSave.ValidationIssues.Count > 0)
+                        {
+                            <ul class="workflow-compact-list">
+                                @foreach (var issue in _lastSave.ValidationIssues)
+                                {
+                                    <li>
+                                        <span>@issue.Severity</span>
+                                        <strong>@issue.Scope</strong>
+                                        <small>@issue.Message</small>
+                                    </li>
+                                }
+                            </ul>
+                        }
                     }
                 </section>
 
@@ -338,14 +375,20 @@
                     else
                     {
                         <dl class="console-definition-list">
-                            <dt>Job</dt>
-                            <dd><a href="@_lastDryRun.OperateJobUrl">@_lastDryRun.JobId</a></dd>
                             <dt>Status</dt>
                             <dd>@_lastDryRun.Status</dd>
-                            <dt>Rows</dt>
-                            <dd>@_lastDryRun.SampleRows</dd>
-                            <dt>Events</dt>
-                            <dd><a href="@_lastDryRun.OperateEventsUrl">Open event evidence</a></dd>
+                            @if (_lastDryRun.SampleRows > 0)
+                            {
+                                <dt>Rows</dt>
+                                <dd>@_lastDryRun.SampleRows</dd>
+                            }
+                            @if (HasDryRunJobEvidence(_lastDryRun))
+                            {
+                                <dt>Job</dt>
+                                <dd><a href="@_lastDryRun.OperateJobUrl">@_lastDryRun.JobId</a></dd>
+                                <dt>Events</dt>
+                                <dd><a href="@_lastDryRun.OperateEventsUrl">Open event evidence</a></dd>
+                            }
                         </dl>
                         <ul class="workflow-compact-list">
                             @foreach (var log in _lastDryRun.Logs)
@@ -439,6 +482,7 @@
     private bool _loading = true;
     private bool _busy;
     private StudioWorkflowPackageDraft? _draft;
+    private StudioWorkflowBindingState? _binding;
     private IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions = [];
     private string? _activeDraftRouteId;
     private string? _selectedNodeId;
@@ -498,20 +542,12 @@
             _activeDraftRouteId = draftRouteId;
         }
 
-        _nodeDefinitions = await Workflows.ListNodeDefinitionsAsync();
-
-        if (string.IsNullOrWhiteSpace(DraftId) ||
-            string.Equals(DraftId, "new", StringComparison.OrdinalIgnoreCase))
-        {
-            _draft = await Workflows.CreateDraftAsync();
-            _selectedNodeId = _draft.Nodes.FirstOrDefault()?.Id;
-            _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
-            _loading = false;
-            Navigation.NavigateTo($"/studio/workflows/{_draft.DraftId}", replace: true);
-            return;
-        }
-
-        _draft = await Workflows.GetDraftAsync(DraftId);
+        // Single bound/blocked load: the server-backed client returns the node palette and the draft, or a
+        // missing-binding state when workflow data cannot bind to honua-server (#1185).
+        var context = await Workflows.OpenEditorAsync(DraftId);
+        _binding = context.BindingState;
+        _nodeDefinitions = context.NodeDefinitions;
+        _draft = context.Draft;
         _selectedNodeId = _draft?.Nodes.FirstOrDefault()?.Id;
         _savedDraftFingerprint = _draft is null
             ? null
@@ -530,7 +566,14 @@
         try
         {
             _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved from Studio workflow editor.");
+            if (_lastSave.BindingState is not null)
+            {
+                _binding = _lastSave.BindingState;
+                return;
+            }
+
             _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
+            NavigateToPersistedDraft();
         }
         finally
         {
@@ -548,7 +591,18 @@
         _busy = true;
         try
         {
+            // Dry-run/publish operate on an immutable server version; snapshot dirty edits first so the run
+            // reflects the current draft and reuses that version instead of creating a redundant one.
+            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync("Saved before workflow dry-run."))
+            {
+                return;
+            }
+
             _lastDryRun = await Workflows.DryRunAsync(_draft);
+            if (_lastDryRun.BindingState is not null)
+            {
+                _binding = _lastDryRun.BindingState;
+            }
         }
         finally
         {
@@ -566,13 +620,18 @@
         _busy = true;
         try
         {
-            if (NeedsSaveBeforePublish())
+            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync("Saved before workflow publication."))
             {
-                _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved before workflow publication.");
-                _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
+                return;
             }
 
             _lastPublish = await Workflows.PublishAsync(_draft);
+            if (_lastPublish.BindingState is not null)
+            {
+                _binding = _lastPublish.BindingState;
+                return;
+            }
+
             _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         }
         finally
@@ -581,12 +640,47 @@
         }
     }
 
+    // Saves a version before a dry-run/publish. Returns false (and surfaces the blocked state) when the save
+    // could not bind, so the caller stops before issuing the dependent server call.
+    private async Task<bool> EnsureSavedAsync(string changeNote)
+    {
+        _lastSave = await Workflows.SaveVersionAsync(_draft!, changeNote);
+        if (_lastSave.BindingState is not null)
+        {
+            _binding = _lastSave.BindingState;
+            return false;
+        }
+
+        _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft!);
+        return true;
+    }
+
+    private void NavigateToPersistedDraft()
+    {
+        if (_draft is null || string.IsNullOrWhiteSpace(_draft.ContentItemId))
+        {
+            return;
+        }
+
+        // A new package gets its server id on the first save; move the route off "new" so refresh/bookmark
+        // resolves the persisted draft. Existing drafts stay put.
+        if (!string.Equals(_activeDraftRouteId, _draft.ContentItemId, StringComparison.Ordinal))
+        {
+            Navigation.NavigateTo($"/studio/workflows/{_draft.ContentItemId}", replace: true);
+        }
+    }
+
     private void ClearOperationState()
     {
         _lastSave = null;
         _lastDryRun = null;
         _lastPublish = null;
+        _binding = null;
     }
+
+    private static bool HasDryRunJobEvidence(StudioWorkflowDryRunResult dryRun) =>
+        !string.IsNullOrWhiteSpace(dryRun.OperateJobUrl) &&
+        !string.IsNullOrWhiteSpace(dryRun.OperateEventsUrl);
 
     private bool NeedsSaveBeforePublish() =>
         _draft is not null &&

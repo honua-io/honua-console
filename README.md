@@ -195,27 +195,25 @@ The shared Razor shell currently exposes the first Console-native package editor
 
 Console should consume server/SDK projections for validate, preview, publish, and run responses. Do not duplicate server or SDK DTOs in this repo when a shared contract exists.
 
-The first unified GP/ETL workflow editor lives at
-`/studio/workflows/new` and `/studio/workflows/{draftId}`. It edits a
-`workflow.package/v1` draft graph with source, transform, sink, success,
-and failure edges; parameters; schedule; worker profile; retry behavior;
-output schemas; and publication intent. Until the server and
-`honua-sdk-dotnet` workflow projections are available, Console uses the
-replaceable `IStudioWorkflowPackageClient` adapter in
-`src/Honua.Console.Shell/Services`.
+The unified GP/ETL workflow editor lives at `/studio/workflows/new` and
+`/studio/workflows/{draftId}`. It edits a `workflow.package/v1` draft graph
+with source, transform, sink, success, and failure edges; parameters;
+schedule; worker profile; retry behavior; output schemas; and publication
+intent. The merged runtime binds the `IStudioWorkflowPackageClient` adapter to
+honua-server (`honua-server#1185`) through the `IWorkflowPackageApiClient` HTTP
+shim in `Honua.Console.Contracts` (`ServerStudioWorkflowPackageClient`): the
+node palette, package drafts, immutable versions, dry-runs, and
+publications/runs render from live `/api/v1/console/workflow-*` data
+(`honua-console#62`). When no server base address is configured the editor
+renders the shared missing-binding surface instead of seeded workflow data;
+the in-memory seeded client (`AddHonuaConsoleDemoStudioWorkflowPackages`) is
+demo/test-only.
 
-The adapter response contract is intentionally shaped like the future
-server boundary: dry-run returns `jobId`, `jobKind`, `status`, sample row
-count, logs, artifacts, output schemas, and Operate job/event URLs; save
-returns a versioned `workflow` content item with the
-`content-version/v1 + workflow.package/v1` contract label. Queued publish
-responses return a publication id, content item/version ids, job id, job
-kind, publication mode, optional invocation endpoint, validation issues,
-parameter validation, and Operate evidence links. Publish selects the
-current saved version when unchanged and saves unsaved package edits as a
-new version before queuing publication. Package validation errors,
-including missing source/transform/sink graph coverage, missing failure
-routing, missing scheduled cron, missing output schema, and invalid
-parameter contracts, return `status=blocked` with saved content
-item/version ids, validation issues, parameter validation, and no
-publication id, job, Operate evidence URLs, or invocation endpoint.
+Save persists the draft and creates an immutable server version with the
+server-owned validation result. Dry-run is a synchronous server estimation
+(logs, artifacts, output schemas, validation) and creates no Operate job.
+Publish maps the publication intent mode to the server target (job, schedule,
+or eligible process endpoint), publishes the version, and starts the first run
+so the publish links to live Operate job/event evidence. Server validation or
+publication-eligibility failures surface as `status=blocked` with the server
+rules rather than a fabricated success or a standing mock.

@@ -203,13 +203,20 @@ Every package should carry:
 
 ### Workflow Package Editor Projection
 
-Implementation note for `honua-console#40`: Console exposes the first
-Studio workflow editor at `/studio/workflows/new` and
-`/studio/workflows/{draftId}`. The editor is a Blazor projection over a
-replaceable `IStudioWorkflowPackageClient` adapter, seeded in memory until
-the server and SDK workflow contracts land. The adapter models the
-server-owned boundaries Console must call rather than inventing a durable
-Console schema:
+Implementation note for `honua-console#40`, real-server revisit
+`honua-console#62`: Console exposes the unified GP/ETL workflow editor at
+`/studio/workflows/new` and `/studio/workflows/{draftId}`. The editor is a
+Blazor projection over the `IStudioWorkflowPackageClient` adapter. The merged
+runtime now binds that adapter to honua-server (`honua-server#1185`) through the
+`IWorkflowPackageApiClient` HTTP shim in `Honua.Console.Contracts`
+(`ServerStudioWorkflowPackageClient`): the node palette, package drafts,
+immutable versions, dry-runs, and publications/runs come from live
+`/api/v1/console/workflow-*` data. When no server base address is configured the
+editor renders the shared missing-binding surface
+(`UnsupportedStudioWorkflowPackageClient`) instead of seeded workflow data; the
+in-memory seeded client (`AddHonuaConsoleDemoStudioWorkflowPackages`) is
+demo/test-only (Console Patterns Charter §11). The adapter maps the
+server-owned boundaries rather than inventing a durable Console schema:
 
 - `workflow.package` draft graph with source, transform, sink, success,
   and failure edges.
@@ -222,17 +229,18 @@ Console schema:
   process endpoint with parameter validation.
 - Operate job/event evidence links for dry-run and publish jobs.
 
-The current adapter methods map to the expected server/SDK boundary as
-follows:
+The adapter methods map to the honua-server `#1185` boundary
+(`/api/v1/console/workflow-*`, admin-authorized) as follows:
 
-| Adapter call | Contract surface | Required response notes |
+| Adapter call | Server contract surface | Mapping notes |
 | --- | --- | --- |
-| `ListNodeDefinitionsAsync` | Node registry projection | Returns node `type`, `category`, `label`, `summary`, and declared input/output ports. Current categories are `source`, `transform`, and `sink`. |
-| `CreateDraftAsync` / `GetDraftAsync` | `workflow.package/v1` draft | Returns draft identity, package/content metadata, graph nodes/edges, parameters, schedule, worker profile, retry policy, publication intent, output schemas, warnings, and validation issues. |
-| `SaveVersionAsync` | Content-version save | Returns `contentItemId`, `versionId`, `versionNumber`, `packageType=workflow.package`, `contentItemType=workflow`, `contract=content-version/v1 + workflow.package/v1`, and validation issues. |
-| `DryRunAsync` | `workflow-dry-run/v1` job | Returns `jobId`, `jobKind=workflow_dry_run`, `status`, `sampleRows`, logs, artifacts, output schemas, `/operate/jobs/{jobId}`, and `/operate/events?jobId={jobId}`. |
-| `PublishAsync` | `workflow-publication/v1` | Selects the current saved version when the draft is unchanged and saves unsaved package edits as a new content version before publication. Queued responses return `publicationId`, content item/version ids, `jobId`, `jobKind=batch_publication`, `status`, publication `mode`, optional `invocationEndpoint`, validation issues, parameter validation, and Operate evidence links. |
-| `GetJobEvidenceAsync` | Operate job/event projection | Returns job kind/status, draft/content/version ids, logs, artifacts, output schemas, evidence URLs, and creation time, or `null` for missing job evidence. |
+| `OpenEditorAsync` | `GET workflow-node-registry` + `GET workflow-packages/{id}` | Single bound/blocked load. Returns the node palette and the draft, or a `StudioWorkflowBindingState` when the registry probe cannot bind (missing binding / forbidden / unsupported / unavailable). A 404 on the package id is a missing draft, not a binding failure. |
+| `ListNodeDefinitionsAsync` | `GET workflow-node-registry` | Maps each server node to `type`=`nodeTypeId`, `label`=`title`, `summary`=`description`, declared input/output ports, and a `source`/`transform`/`sink` category **derived from port presence** (no inputs → source, no outputs → sink). |
+| `CreateDraftAsync` / `GetDraftAsync` | `GET workflow-packages/{id}` | A new package is a local draft until the first save (no server write, no fabricated id). An existing draft maps the server graph (nodes joined to the registry for category/label/ports, edges, schedule, worker) into the editor model; editor-only authoring fields (invocation parameters, retry policy, publication intent, authored output schemas, node layout) round-trip through the server graph's opaque editor metadata. |
+| `SaveVersionAsync` | `POST`/`PUT workflow-packages` then `POST .../versions` | Persists the draft graph, then creates an immutable version. Returns `contentItemId`, `versionId` (`{packageId}:v{n}`), `versionNumber`, and the server version's validation. A 400 is surfaced as in-place validation issues (a bound-surface outcome), other failures as a binding state. |
+| `DryRunAsync` | `POST .../versions/{v}/dry-run` | Reuses the saved version (the page saves dirty edits first). Returns server estimate logs, artifacts, and output schemas with `status` from the server validation. The `#1185` dry-run is synchronous estimation and creates **no** Operate job, so no job/event links are emitted for dry-runs. |
+| `PublishAsync` | `POST .../versions/{v}/publish` then `POST workflow-publications/{id}/runs` | Maps publication intent mode to the server target (`scheduled-job`→`Schedule`, `process-endpoint`→`ProcessEndpoint`, else `Job`), publishes the version, then starts the first run so the publish links to live Operate job/event evidence (`/operate/jobs/{jobId}`). A 400/409 eligibility failure is surfaced as a blocked publish with the server rules. |
+| `GetJobEvidenceAsync` | — | `#1185` exposes no workflow job-evidence read; published-run evidence lives in the Operate surfaces (`#60`) via the publish result's `OperateJobUrl`. Returns `null`. |
 
 Publication modes are `batch-workflow`, `scheduled-job`, and
 `process-endpoint`. An invocation endpoint is requested when the mode is

@@ -7,9 +7,12 @@
 //   Studio workflow draft -> dry-run -> version save -> publish ->
 //   Operate job/event monitor
 //
-// The transport is still an in-memory stand-in, but every server-owned
-// package, dry-run, publication, and job shape is tagged with a contract
-// version so the adapter can be replaced by live server/SDK calls later.
+// The merged Console runtime now binds the workflow editor to honua-server
+// (#1185) through the Honua.Console.Contracts workflow shim (honua-console#62);
+// the xUnit Testcontainers suite is the live-data evidence for that path. This
+// cross-surface parity smoke remains an in-memory contract-shape stand-in: every
+// server-owned package, dry-run, publication, and job shape is tagged with a
+// contract version so the chain stays asserted across surfaces.
 
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";

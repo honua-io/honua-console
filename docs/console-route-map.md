@@ -638,8 +638,8 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
 | `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
-| `/studio/workflows/new` | `auth` (+ workflow author permission) | empty-studio | forbidden / unsupported-package | studio |
-| `/studio/workflows/:draftId` | `auth` (+ workflow draft read/write) | missing-item | forbidden / unsupported-package | studio |
+| `/studio/workflows/new` | `auth` (+ workflow author permission) | empty-studio | forbidden / missing-binding | studio |
+| `/studio/workflows/:draftId` | `auth` (+ workflow draft read/write) | missing-item | forbidden / missing-binding | studio |
 
 The current `/studio` implementation is the package-first Studio shell
 (real-server revisit `honua-console#61` of the `honua-console#38`
@@ -685,10 +685,17 @@ projection is documented in
 and must be replaced behind the same editor model when shared contracts
 land; the shared `/studio` shell already binds that lifecycle.
 
-Workflow routes are builder-owned Studio surfaces. They edit the
-`workflow.package/v1` projection through the workflow package client and
-link dry-run/publish evidence into Operate with job-scoped URLs; they do
-not move workflow authoring into the Operate information architecture.
+Workflow routes are builder-owned Studio surfaces. The real-server revisit
+(`honua-console#62`) binds the `workflow.package/v1` editor to honua-server
+(`honua-server#1185`) through the `IWorkflowPackageApiClient` HTTP shim in
+`Honua.Console.Contracts`: the node registry, package drafts, immutable
+versions, dry-runs, and publications/runs render from live
+`/api/v1/console/workflow-*` data, and published runs link into Operate with
+job-scoped URLs. They do not move workflow authoring into the Operate
+information architecture. When no server base address is configured the editor
+renders the shared missing-binding surface instead of seeded workflow data; the
+in-memory seeded client (`AddHonuaConsoleDemoStudioWorkflowPackages`) is
+demo/test-only.
 
 ### 6.3 Catalog
 

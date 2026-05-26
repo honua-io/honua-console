@@ -28,6 +28,20 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
 
     public static InMemoryStudioWorkflowPackageClient CreateSeeded() => new();
 
+    public async Task<StudioWorkflowEditorContext> OpenEditorAsync(
+        string? draftId,
+        CancellationToken cancellationToken = default)
+    {
+        var nodeDefinitions = await ListNodeDefinitionsAsync(cancellationToken).ConfigureAwait(false);
+        var draft = string.IsNullOrWhiteSpace(draftId) ||
+            string.Equals(draftId, "new", StringComparison.OrdinalIgnoreCase)
+            ? await CreateDraftAsync(cancellationToken).ConfigureAwait(false)
+            : await GetDraftAsync(draftId, cancellationToken).ConfigureAwait(false);
+
+        // The in-memory simulator is always "bound" to its seeded data, so it never carries a binding state.
+        return new StudioWorkflowEditorContext(BindingState: null, nodeDefinitions, draft);
+    }
+
     public Task<IReadOnlyList<StudioWorkflowDraftSummary>> ListDraftsAsync(
         CancellationToken cancellationToken = default)
     {

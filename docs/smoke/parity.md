@@ -134,6 +134,16 @@ chain. It exercises the route and contract path introduced for
 
 > Studio workflow draft -> dry-run -> version save -> publish -> Operate monitor
 
+> **Real-server retrofit (`honua-console#62`).** The merged Console runtime now
+> binds the workflow editor to honua-server (`honua-server#1185`) through the
+> `IWorkflowPackageApiClient` HTTP shim; the live-data evidence is the xUnit
+> Testcontainers suite (`StudioWorkflowPackageIntegrationTests`). This
+> cross-surface parity smoke stays an in-memory contract-shape stand-in. On the
+> live server the dry-run is a synchronous estimation that creates **no** Operate
+> job (only the published run links to Operate job/event evidence), and an
+> unbound editor renders the shared missing-binding surface instead of seeded
+> workflow data.
+
 Run it with:
 
 ```sh
