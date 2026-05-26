@@ -330,9 +330,9 @@ Key fields:
 
 ### Console Implementation Slice
 
-`honua-console#39` implements the first Console-native package editor slice for `query.package`, `analysis.package`, `map.package`, `dashboard.package`, `report.package`, `form.package`, and `app.package` at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, and `/studio/app`.
+`honua-console#39` implements the first Console-native package editor slice for `query.package`, `analysis.package`, `map.package`, `dashboard.package`, `report.package`, and `app.package` at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, and `/studio/app`. The form family has been split out: `honua-console#57` now owns `/studio/form` as a server-bound form package builder over `honua-server#1184`.
 
-The slice uses the temporary `studio-package-mock/v1` inspector and `StudioPackageLifecycleSimulator` lifecycle evidence until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs. Those mock refs are documented in [Studio Package Editor Routes](../studio/package-editor-routes.md) and do not change the server-owned package schema guidance below.
+The remaining `honua-console#39` editor routes use the temporary `studio-package-mock/v1` inspector and `StudioPackageLifecycleSimulator` lifecycle evidence until honua-server and honua-sdk-dotnet expose the content-version, publication, share, embed, and rollback APIs. `/studio/form` does not use that mock lifecycle; it maps to the server-owned `honua.form-package.v1` contract through the temporary `IHonuaFormPackageClient` shim until the SDK projection lands. Those refs are documented in [Studio Package Editor Routes](../studio/package-editor-routes.md) and do not change the server-owned package schema guidance below.
 
 ### Query Package
 
@@ -652,6 +652,8 @@ Publishing always creates or updates a server-owned content item version before 
 | App | `app.package` | `app` content item | Saves routes, pages, panels, component references, actions, navigation, permissions, theme tokens, stable routes, and embed policy. | Generated-app runtime consumes SDK projections. App actions that invoke analysis, GP, ETL, scheduled, or batch work create job runs. |
 | Workflow | `workflow.package` | `workflow`, `gp_service`, `etl_pipeline`, or `job_definition` content item | Saves sources, transforms, sinks, parameters, triggers, schedules, worker profile, dry-run policy, artifact policy, rollback policy, and publication mode. | Manual jobs, scheduled jobs, event jobs, GP service invocations, ETL pipelines, dry-runs, and batch runs route through Honua's job runner. |
 | Publication | `publication.package` | Publication record for a versioned content item | Captures release instructions, route, visibility, embed/service/schedule policy, rollback target, validation evidence, and acknowledged warnings. | Batch publication and any release step requiring analysis, GP, ETL, scheduled, or batch work creates job runs. |
+
+Current Console implementation note: `/studio/form` publishes server-owned form package versions through the honua-server form package lifecycle (`honua-server#1184`) rather than the temporary `studio-package-mock/v1` lifecycle. Content-item route/embed publication linkage, submission ingestion, attachment storage, and audit runtime remain server/runtime follow-ons for the form family.
 
 The browser is never the authoritative execution runtime for analysis, GP, ETL, scheduled, or batch work. Console submits validation, preview, publish, and run requests to server/SDK APIs and follows the resulting `Job Run` state.
 

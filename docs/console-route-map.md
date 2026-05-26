@@ -2,7 +2,8 @@
 
 Status: filed 2026-05-23 for `honua-console#3`; reconciled
 2026-05-24 for the catalog/share route slice in `honua-console#34`
-and native host profile/trust routes in `honua-console#44`.
+and native host profile/trust routes in `honua-console#44`; reconciled
+2026-05-26 for the server-bound Studio form route in `honua-console#57`.
 
 Decision sources:
 
@@ -39,7 +40,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /studio/map                    Generated map.package editor
 /studio/dashboard              Generated dashboard.package editor
 /studio/report                 Generated report.package editor
-/studio/form                   Generated form.package editor
+/studio/form                   Server-bound form package builder (honua-server#1184)
 /studio/app                    Generated app.package editor
 /studio/proof                  Legacy alias for current proof flow
 /studio/drafts                 Source-scoped draft start (source, id)
@@ -633,7 +634,7 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio/map` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/report` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
-| `/studio/form` | `auth` | mock draft package; publish blocked until offline/sync policy selection and review | unauth-redirect / unsupported-package | studio |
+| `/studio/form` | `auth` | missing-binding when no server base address; empty form-package list when bound; publish blocked until the offline/sync policy is reviewed and the submit target validates | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/app` | `auth` | mock draft package; reopened edits create new content versions | unauth-redirect / unsupported-package | studio |
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
@@ -674,13 +675,16 @@ to hydrate a server-backed package. Save Version and Publish do create
 server-owned content versions and publication requests through the
 honua-server package lifecycle.
 
-The seven package editor routes above are the `honua-console#39`
+The package editor routes above started as the `honua-console#39`
 Console-native Studio slice and per-editor families `honua-console#52`–
-`#58`. They render shared Razor editors from the Studio package editor
-catalog and still use the local lifecycle simulator, but their
-validate/preview actions surface a missing-binding state rather than mock
-validation success until each editor's backend contract lands. The local
-projection is documented in
+`#58`. `/studio/form` is now the `honua-console#57` server-bound form
+package builder over `honua-server#1184`; it uses its own
+missing-binding and capability-state surface instead of the local package
+simulator. The remaining generated-package editor routes render shared
+Razor editors from the Studio package editor catalog and still use the
+local lifecycle simulator, but their validate/preview actions surface a
+missing-binding state rather than mock validation success until each
+editor's backend contract lands. The local projection is documented in
 [`docs/studio/package-editor-routes.md`](studio/package-editor-routes.md)
 and must be replaced behind the same editor model when shared contracts
 land; the shared `/studio` shell already binds that lifecycle.
@@ -918,7 +922,7 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` |
+| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/form` is server-bound and renders its own missing-binding / capability-state surface instead) |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
@@ -1082,7 +1086,7 @@ the human review answers land in
 
 | # | Question | Default decision | Status |
 |---|---|---|---|
-| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias, and `/studio/drafts` starts source-scoped drafts. The first Console-native package editor sub-routes are `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, and `/studio/app` from `honua-console#39`; broader list/marketplace generator routes stay deferred to their owning tickets. | default |
+| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias, and `/studio/drafts` starts source-scoped drafts. The first Console-native package editor sub-routes from `honua-console#39` are `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, and `/studio/app`; `/studio/form` is the server-bound `honua-console#57` form builder. Broader list/marketplace generator routes stay deferred to their owning tickets. | default |
 | Q2 | Saved-map list: `/catalog?type=map` vs `/studio/maps` vs `/catalog/maps` | `/catalog?type=map` (Catalog filter). Avoids two list surfaces; preserves existing query-param contract. | default |
 | Q3 | `/share/public` vs `/public` redirect semantics | `honua-console#34` serves `/public` as a compatibility alias for `/share/public` in the Blazor route slice. No 3xx for `/embed/maps/:mapId`; 200-at-both-paths for open-data item detail URLs (`/public/items/:idOrSlug` plus `/share/public/items/:idOrSlug`) because item URLs appear in DCAT-US / data.json / schema.org contexts. | default updated by #34 |
 | Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |

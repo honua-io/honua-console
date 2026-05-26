@@ -1,6 +1,6 @@
 # Studio Package Editor Routes
 
-Status: implemented for `honua-console#39` with stable Console mock lifecycle refs.
+Status: implemented for the remaining `honua-console#39` editor routes. `/studio/form` is server-bound by `honua-console#57`; the other editor routes retain stable Console mock lifecycle refs.
 
 The first Console-native Studio editor set lives in the shared Razor shell library and is served by the same Blazor Web and future native host surface as the rest of Console.
 
@@ -15,18 +15,44 @@ The `/studio` entry page links to every route below. Each editor is a projection
 | `/studio/map` | `map.package` | Layer stack, filters, style, popup, legend, basemap, extent, interactions, publish/share/embed/rollback review. |
 | `/studio/dashboard` | `dashboard.package` | Data bindings, layout, Vega-Lite chart spec editor, map panels, tables, filters, version pinning, responsive preview. |
 | `/studio/report` | `report.package` | Narrative sections, data bindings, Vega-Lite chart spec editor, maps, tables, export/refresh policy, responsive preview. |
-| `/studio/form` | `form.package` | Fields, groups, validation, domains, conditional visibility, attachments, privacy, submit target, required offline/sync policy selection and review. |
+| `/studio/form` | `form.package` | Fields, groups, validation, domains, conditional visibility, attachments, privacy, submit target, required offline/sync policy review. **Server-bound to honua-server#1184 (`honua-console#57`)** — a dedicated builder, not the mock simulator below. |
 | `/studio/app` | `app.package` | Pages, components, navigation, bindings, actions, permissions, preview/reopen, share/embed policy, versioned reopened edits. |
 
 ## Backend Boundary
 
-These per-editor package families (`honua-console#52`–`#58`) are still out of scope for backend binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of `honua-console#61` the editor's validate/preview actions surface a **missing-binding** state rather than reporting mock validation success, so the editors never imply mock refs are valid runtime package data.
+`/studio/form` is now its own server-bound surface (`honua-console#57`): `StudioFormBuilderPage` binds the honua-server form package lifecycle (`honua-server#1184`) through `IStudioFormPackageDataSource` over the `Honua.Console.Contracts` shim (`IHonuaFormPackageClient`). It authors fields, groups, validation, domains, conditional visibility, attachments, and privacy, then enforces an explicit reviewed offline/sync policy and a validated submit target before publish. When no server base address is configured it renders a missing-binding state — never mock form data (Console Patterns Charter section 11).
 
-The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`) through `IStudioPackageLifecycleClient`; when the per-editor backend projections land, the simulator boundary should be replaced behind the same editor model instead of introducing a second Console package schema.
+### `/studio/form` server contract
+
+The builder maps editor state to and from the server-owned `honua.form-package.v1` document; no `studio-package-mock/v1` ref is involved. The `IHonuaFormPackageClient` shim (`src/Honua.Console.Contracts/FormPackageShims.cs`) speaks the real lifecycle:
+
+| Operation | Verb + path |
+| --- | --- |
+| List packages | `GET /api/v1/admin/forms/packages` |
+| Create draft | `POST /api/v1/admin/forms/packages` |
+| Get current version | `GET /api/v1/admin/forms/packages/{formId}` |
+| List / get versions | `GET /api/v1/admin/forms/packages/{formId}/versions[/{version}]` |
+| Update draft (`If-Match` ETag) | `PUT /api/v1/admin/forms/packages/{formId}/versions/{version}` |
+| Validate / publish / reopen | `POST /api/v1/admin/forms/packages/{formId}/versions/{version}/{validate\|publish\|reopen}` |
+| Offline/sync policy | `GET /api/v1/forms/packages/{formId}/offline-policy` (runtime, not admin) |
+
+The authoring UI models a subset of `honua.form-package.v1`. On an existing package the builder merges the modeled fields onto the document it loaded, so server-owned fields it does not surface — document `metadata`, attachment byte limits, `maxOfflineAgeSeconds`, `preferredTransports`, per-field `hint`/`defaultValue`/`readOnly`, per-attachment `allowedContentTypes`, the server-assigned section `sectionId`/`description`, recorded `provenance`, and validation rules beyond the first — survive a load → edit → save round-trip instead of being dropped. Loaded fields carry their original `sectionId` as hidden editor state, so sections with duplicate labels stay distinct and valid empty sections are preserved; new sections synthesize a slug id from the entered group label. A brand-new draft is built from a fresh contract document (Console stamps its own provenance only then).
+
+The merge also preserves the JSON *type* of server-owned values the editor renders only as text. Coded-domain choice codes and conditional-visibility comparison values are written back with their original JSON kind — number, boolean, array, or object — whenever the operator leaves the displayed value unchanged, and a newly typed value is saved as a string. Range `min`/`max` bounds and numeric validation parameters are preserved verbatim when unchanged (including high-precision integers such as `9007199254740993`) and otherwise re-parsed, so a numeric entry stays a JSON number instead of being coerced to text. For the single validation rule the editor models, an unchanged rule — or one whose value or message was edited — keeps its server `ruleId` and any unmodeled parameter keys (for example a `mode` beside `value`) rather than minting a new `{fieldId}-{type}` id and dropping siblings, and a server-only rule type the editor does not understand is left untouched when the operator does not change it. Finally, `submitPolicy.allowedOperations` is saved as exactly the create/update/delete set the operator selected: Console never fabricates a `create` for an empty selection, which is instead surfaced as a fixable requirement at the pre-publish gate below.
+
+The binding is enabled by `Honua:Server:BaseUrl` (or `HONUA_SERVER_BASE_URL`); without an absolute http(s) base address Console registers `UnsupportedStudioFormPackageDataSource` and every action returns a missing-binding state. The forms endpoints return the contract DTO directly (no `{success,data,message}` wrapper) and use optimistic concurrency — an existing draft sends its server `ETag` on `PUT`, a new one posts a create. Endpoint failures surface as a shared `StudioFormCapabilityState` (the Operate capability-state pattern) rather than exceptions: **missing binding** (no base address), **missing permission** (401/403 server RBAC), **unsupported** (404/405/501 or unexpected body), **conflict** (409/412/428 ETag / missing `If-Match`), **rejected** (400 — run validation), and **unavailable** (transport fault, timeout, or empty body). Caller-requested cancellation propagates to the caller rather than surfacing as `unavailable`, matching the Studio package lifecycle client.
+
+Publish is gated Console-side on top of the server's own publish validation; the builder offers publish only when a title and at least one field exist, a submit-target service is configured with at least one submit operation (create/update/delete) enabled (AC#3), the offline/sync policy has been explicitly reviewed and — when offline use is enabled — at least one sync transport is on (AC#2), and server validation has run for the open version with no errors (AC#3). Because validation runs against the *saved* version, the builder tracks the editor against the content signature captured at load/save: any later edit marks the draft dirty, which disables Validate (save first) and re-gates publish until the draft is saved and re-validated — so a stale "valid" result can never publish content that has since changed. If server-side publish validation still rejects the draft with HTTP 400, Console preserves the returned `FormPackageValidationResult` and renders those issues in the validation panel rather than flattening them into a generic rejected state. A published version is terminal in the builder: Save, Validate, and Publish are refused at the data source and disabled in the UI (the server mutates only the open draft), so the sole forward action is Reopen as draft — this also closes the path where toggling the offline-review flag (excluded from the dirty signature) on a published form re-satisfied the gate.
+
+The remaining per-editor package families (`honua-console#52`–`#56`, `#58`) are still out of scope for backend binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of `honua-console#61` the editor's validate/preview actions surface a **missing-binding** state rather than reporting mock validation success, so the editors never imply mock refs are valid runtime package data.
+
+The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`) through `IStudioPackageLifecycleClient`; when the remaining per-editor backend projections land, the simulator boundary should be replaced behind the same editor model instead of introducing a second Console package schema.
 
 ## Mock Response Contract
 
 The package inspector renders the temporary `studio-package-mock/v1` projection. It is a UI mock contract for this Console slice only; it must not become the server or SDK wire schema.
+
+> **`/studio/form` is server-bound and does not use this mock contract** (see [Backend Boundary](#backend-boundary) above). The `form.package` family is retained below only as the Studio directory family descriptor and the `studio-package-mock/v1` lifecycle test fixture — it no longer backs a live editor route.
 
 Top-level fields:
 
@@ -61,6 +87,6 @@ Share, embed, and rollback require `published = true` and a non-zero `published_
 
 - Map lifecycle coverage is pinned by `GeneratedMapLifecycleSupportsPublishShareEmbedAndRollback`.
 - Dashboard and report chart standard coverage is pinned by `DashboardAndReportChartsUseVegaLite`.
-- Form publish gating is pinned by `FormPublishRequiresOfflinePolicyReview`.
+- Form publish gating in the retained mock-catalog family is pinned by `FormPublishRequiresOfflinePolicyReview`. The live server-bound `/studio/form` builder (`honua-console#57`) is verified separately by `Honua.Console.IntegrationTests` (`StudioFormBuilder*`, `StudioFormPackage*`), not by this mock contract.
 - Reopened app version behavior is pinned by `ReopenedAppEditsCreateNewContentVersionsWithoutMutatingPublishedVersion`.
 - Save, reopen, edit, and publish smoke coverage across all seven package families is pinned by `StableMockLifecycleCoversSaveReopenEditPublishForEveryPackageFamily`.
