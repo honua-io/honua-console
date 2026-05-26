@@ -236,6 +236,64 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_PreservesServerSectionIdentityWhenIdIsNotLabelSlug()
+    {
+        // A server section whose id is NOT the slug of its label (an opaque server-assigned id). The editor
+        // only carries the section's label (as the field Group), so a save that re-slugs the label would mint
+        // a new id ("site-inspection") and drop the description — losing server section identity.
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-9",
+            Title = "Server form",
+            Target = new HonuaFormTargetDefinition { ServiceId = "svc", LayerId = 1 },
+            Sections =
+            [
+                new HonuaFormSectionDefinition
+                {
+                    SectionId = "sec-7f3a9c",
+                    Label = "Site Inspection",
+                    Description = "Server-authored section description",
+                    FieldIds = ["condition"]
+                }
+            ],
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "condition",
+                    Label = "Condition",
+                    Type = "text",
+                    TargetField = "condition",
+                    SectionId = "sec-7f3a9c"
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-9",
+            Version = 3,
+            Status = HonuaFormPackageStatus.Draft,
+            ETag = "etag-3",
+            Package = serverDocument
+        };
+
+        // Load, make a modeled edit that does not touch the section, then save back to the wire document.
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        state.Title = "Edited title";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        // The server-assigned section id and description survive instead of being re-derived from the label.
+        var section = Assert.Single(saved.Sections);
+        Assert.Equal("sec-7f3a9c", section.SectionId);
+        Assert.Equal("Site Inspection", section.Label);
+        Assert.Equal("Server-authored section description", section.Description);
+
+        // The field still references the preserved section id, so field → section linkage stays consistent.
+        var field = saved.Fields.Single(mapped => mapped.FieldId == "condition");
+        Assert.Equal("sec-7f3a9c", field.SectionId);
+    }
+
+    [Fact]
     public void PublishEvaluator_BlocksUntilTargetOfflineAndValidationSatisfied()
     {
         var state = new StudioFormEditorState();

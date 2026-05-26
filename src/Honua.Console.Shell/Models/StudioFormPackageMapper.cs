@@ -61,9 +61,16 @@ public static class StudioFormPackageMapper
         // fields the builder does not model survive a load → edit → save round-trip rather than being
         // dropped: the record `with` updates carry SchemaVersion, Metadata, the attachment byte limits,
         // SubmitPolicy.MaxOfflineAgeSeconds, OfflinePolicy.PreferredTransports, and (via the field/section
-        // merges) per-field hints/defaults/read-only, section descriptions, and extra validation rules. A
-        // never-loaded draft has no baseline, so it builds from a fresh contract document.
+        // merges) per-field hints/defaults/read-only, the server-assigned section ids and descriptions, and
+        // extra validation rules. A never-loaded draft has no baseline, so it builds from a fresh contract
+        // document.
         var baseDocument = state.OriginalDocument ?? new HonuaFormPackageDocument();
+
+        // The editor only carries a section's label (as each field's Group), not its server-assigned id, so
+        // index the loaded sections by that same group key to recover the original id + description on save.
+        // Shared by the section and field merges so a field's SectionId stays consistent with the section it
+        // lands in (see BuildSectionLookup / ResolveSectionId).
+        var sectionsByGroup = BuildSectionLookup(baseDocument.Sections);
 
         return baseDocument with
         {
@@ -75,8 +82,8 @@ public static class StudioFormPackageMapper
                 ServiceId = NullIfBlank(state.ServiceId),
                 LayerId = state.LayerId
             },
-            Sections = BuildSections(state.Fields, baseDocument.Sections),
-            Fields = BuildFields(state.Fields, baseDocument.Fields),
+            Sections = BuildSections(state.Fields, sectionsByGroup),
+            Fields = BuildFields(state.Fields, baseDocument.Fields, sectionsByGroup),
             SubmitPolicy = baseDocument.SubmitPolicy with
             {
                 AllowedOperations = BuildOperations(state),
@@ -243,32 +250,35 @@ public static class StudioFormPackageMapper
 
     private static HonuaFormFieldDefinition[] BuildFields(
         IReadOnlyList<StudioFormFieldEditor> fields,
-        IReadOnlyList<HonuaFormFieldDefinition> originalFields)
+        IReadOnlyList<HonuaFormFieldDefinition> originalFields,
+        IReadOnlyDictionary<string, HonuaFormSectionDefinition> sectionsByGroup)
     {
         var originalById = originalFields
             .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
             .GroupBy(field => field.FieldId!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
-        return fields.Select(field => ToFieldDefinition(field, originalById)).ToArray();
+        return fields.Select(field => ToFieldDefinition(field, originalById, sectionsByGroup)).ToArray();
     }
 
     private static HonuaFormFieldDefinition ToFieldDefinition(
         StudioFormFieldEditor field,
-        IReadOnlyDictionary<string, HonuaFormFieldDefinition> originalById)
+        IReadOnlyDictionary<string, HonuaFormFieldDefinition> originalById,
+        IReadOnlyDictionary<string, HonuaFormSectionDefinition> sectionsByGroup)
     {
         var fieldId = NullIfBlank(field.FieldId);
         var original = fieldId is not null && originalById.TryGetValue(fieldId, out var match) ? match : null;
 
         // Merge onto the original field so its unmodeled server attributes (hint, read-only, default value)
-        // survive; the modeled attributes below are replaced from the editor.
+        // survive; the modeled attributes below are replaced from the editor. SectionId resolves through the
+        // same shared lookup the sections use, so the field references the section's preserved server id.
         return (original ?? new HonuaFormFieldDefinition()) with
         {
             FieldId = fieldId,
             Label = NullIfBlank(field.Label),
             Type = NullIfBlank(field.Type) ?? "text",
             TargetField = field.IsAttachment ? null : NullIfBlank(field.TargetField),
-            SectionId = string.IsNullOrWhiteSpace(field.Group) ? null : Slug(field.Group),
+            SectionId = ResolveSectionId(field.Group, sectionsByGroup),
             Required = field.Required,
             Private = field.Private,
             Domain = ToDomain(field),
@@ -423,25 +433,22 @@ public static class StudioFormPackageMapper
 
     private static HonuaFormSectionDefinition[] BuildSections(
         IReadOnlyList<StudioFormFieldEditor> fields,
-        IReadOnlyList<HonuaFormSectionDefinition> originalSections)
+        IReadOnlyDictionary<string, HonuaFormSectionDefinition> sectionsByGroup)
     {
-        var originalById = originalSections
-            .Where(section => !string.IsNullOrWhiteSpace(section.SectionId))
-            .GroupBy(section => section.SectionId!, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-
         return fields
             .Where(field => !string.IsNullOrWhiteSpace(field.Group))
             .GroupBy(field => field.Group.Trim(), StringComparer.Ordinal)
             .Select(group =>
             {
-                var sectionId = Slug(group.Key);
-                // Merge onto the original section (matched by id) so its server-owned description survives;
-                // the label and membership come from the current authoring grouping.
-                return (originalById.TryGetValue(sectionId, out var original) ? original : new HonuaFormSectionDefinition()) with
+                var label = group.Key;
+                // Merge onto the original section matched by the group label the editor carries — not the
+                // slug of that label — so the server-assigned section id and description survive a round-trip
+                // even when the id is not the slug of the label; a brand-new group label synthesizes a slug id.
+                sectionsByGroup.TryGetValue(label, out var original);
+                return (original ?? new HonuaFormSectionDefinition()) with
                 {
-                    SectionId = sectionId,
-                    Label = group.Key,
+                    SectionId = ResolveSectionId(label, sectionsByGroup),
+                    Label = label,
                     FieldIds = group
                         .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
                         .Select(field => field.FieldId.Trim())
@@ -449,6 +456,35 @@ public static class StudioFormPackageMapper
                 };
             })
             .ToArray();
+    }
+
+    // Index the loaded sections by the same key ToEditorState projects into a field's Group — the section
+    // label, or its id when the label is blank — so a save recovers each section's server-assigned id and
+    // description by the group the editor still carries, even when that id is not the slug of the label.
+    // First-wins on a duplicate group key, matching the editor's lossy label-based grouping.
+    private static Dictionary<string, HonuaFormSectionDefinition> BuildSectionLookup(
+        IReadOnlyList<HonuaFormSectionDefinition> originalSections) =>
+        originalSections
+            .Where(section => !string.IsNullOrWhiteSpace(section.SectionId))
+            .GroupBy(section => NullIfBlank(section.Label) ?? section.SectionId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+    // Resolve the wire SectionId for an editor group: reuse the server-assigned id of the section the group
+    // came from when it still matches, otherwise synthesize a slug id for a new group. Shared by the section
+    // and field merges so a field's SectionId always matches the section it is placed in.
+    private static string? ResolveSectionId(
+        string? group,
+        IReadOnlyDictionary<string, HonuaFormSectionDefinition> sectionsByGroup)
+    {
+        if (string.IsNullOrWhiteSpace(group))
+        {
+            return null;
+        }
+
+        var label = group.Trim();
+        return sectionsByGroup.TryGetValue(label, out var original) && !string.IsNullOrWhiteSpace(original.SectionId)
+            ? original.SectionId
+            : Slug(label);
     }
 
     private static HonuaFormFieldAttachmentPolicy[] BuildAttachmentFields(
