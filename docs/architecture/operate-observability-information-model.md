@@ -536,8 +536,9 @@ Events accept these query parameters when present:
 - `to`
 - `pageSize`
 
-The Console client requests `pageSize=50` for event and alert pages and
-`limit=50` for jobs. Alert rules and zones use the server
+The Console client requests `pageSize=50` for event, alert, and
+investigation pages, `limit=50` for jobs, and `limit=5` for the recent-error
+overview signal. Alert rules and zones use the server
 `success/data/message` envelope; the other page responses use direct
 camelCase JSON payloads. `OperateObservabilityJsonContext` is the
 source-generated serialization context for trim/AOT safety.
