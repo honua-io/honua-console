@@ -58,6 +58,24 @@ public sealed class StudioWorkflowDraftSummary
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>
+/// Missing-binding / unsupported / forbidden surface for the workflow editor. Mirrors
+/// <c>OperateCapabilityState</c> and <c>StudioAuthoringBindingState</c>: when the workflow package data
+/// cannot bind to a real honua-server (#1185), the editor renders this shared blocked surface (charter
+/// §5/§11) instead of seeded workflow data.
+/// </summary>
+public sealed record StudioWorkflowBindingState(string Surface, string State, string Contract, string Detail);
+
+/// <summary>
+/// Result of opening the workflow editor for a draft. Carries the server node registry and the draft when
+/// bound, or a <see cref="StudioWorkflowBindingState"/> when the surface is blocked - in a single call so
+/// the page does not chain a separate binding probe.
+/// </summary>
+public sealed record StudioWorkflowEditorContext(
+    StudioWorkflowBindingState? BindingState,
+    IReadOnlyList<StudioWorkflowNodeDefinition> NodeDefinitions,
+    StudioWorkflowPackageDraft? Draft);
+
 public sealed class StudioWorkflowNodeDefinition
 {
     public string Type { get; set; } = string.Empty;
@@ -172,6 +190,9 @@ public sealed class StudioWorkflowSaveResult
     public string ContentItemType { get; set; } = StudioWorkflowContractValues.ContentItemType;
     public string Contract { get; set; } = "content-version/v1";
     public IReadOnlyList<StudioWorkflowValidationIssue> ValidationIssues { get; set; } = [];
+
+    /// <summary>Set when the server-backed save could not bind; drives the shared blocked surface.</summary>
+    public StudioWorkflowBindingState? BindingState { get; set; }
 }
 
 public sealed class StudioWorkflowDryRunResult
@@ -185,6 +206,9 @@ public sealed class StudioWorkflowDryRunResult
     public IReadOnlyList<StudioWorkflowOutputSchema> OutputSchemas { get; set; } = [];
     public string OperateJobUrl { get; set; } = string.Empty;
     public string OperateEventsUrl { get; set; } = string.Empty;
+
+    /// <summary>Set when the server-backed dry-run could not bind; drives the shared blocked surface.</summary>
+    public StudioWorkflowBindingState? BindingState { get; set; }
 }
 
 public sealed class StudioWorkflowPublishResult
@@ -201,6 +225,9 @@ public sealed class StudioWorkflowPublishResult
     public IReadOnlyList<StudioWorkflowParameterValidation> ParameterValidation { get; set; } = [];
     public string OperateJobUrl { get; set; } = string.Empty;
     public string OperateEventsUrl { get; set; } = string.Empty;
+
+    /// <summary>Set when the server-backed publish could not bind; drives the shared blocked surface.</summary>
+    public StudioWorkflowBindingState? BindingState { get; set; }
 }
 
 public sealed class StudioWorkflowJobEvidence

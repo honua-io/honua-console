@@ -11,8 +11,14 @@
     @if (_evidence is null)
     {
         <article class="console-panel">
-            <h2>Job evidence unavailable</h2>
-            <p class="console-muted">This job id is not present in the Console workflow adapter.</p>
+            <h2>Job evidence not projected to this route</h2>
+            <p class="console-muted">
+                Server-owned workflow job evidence is owned by honua-server's Operate job APIs
+                (<code>/api/v1/admin/jobs/{JobId}</code>); honua-server#1185 exposes no workflow
+                job-evidence read, so the workflow editor links here with the live job id while a
+                server job-evidence projection for this route is a pending follow-on. The in-memory
+                demo adapter renders evidence inline.
+            </p>
         </article>
     }
     else

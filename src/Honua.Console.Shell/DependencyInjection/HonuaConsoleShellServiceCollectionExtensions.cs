@@ -21,11 +21,10 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
         services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
-        services.TryAddSingleton<IStudioWorkflowPackageClient>(
-            _ => InMemoryStudioWorkflowPackageClient.CreateSeeded());
 
         // Operate observability binds to a real honua-server through a thin
         // typed HttpClient behind Honua.Console.Contracts (the sanctioned interim
@@ -61,6 +60,21 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.Replace(ServiceDescriptor.Singleton<IStudioAuthoringShell, InMemoryStudioAuthoringShell>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Swaps the Studio workflow package client for the local in-memory seeded simulator. For explicit
+    /// demo/local composition only — never the merged runtime path for server-owned workflow package data
+    /// (#1185). Mirrors <see cref="AddHonuaConsoleDemoStudioAuthoringShell"/>.
+    /// </summary>
+    public static IServiceCollection AddHonuaConsoleDemoStudioWorkflowPackages(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Singleton<IStudioWorkflowPackageClient>(
+            _ => InMemoryStudioWorkflowPackageClient.CreateSeeded()));
 
         return services;
     }
@@ -113,6 +127,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>();
+    }
+
+    // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)
+    // to honua-server (#1185) through the Honua.Console.Contracts shim when a server base address is
+    // configured; otherwise the editor renders a missing-binding state (never seeded workflow data).
+    private static void AddStudioWorkflowPackageClient(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IWorkflowPackageApiClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HttpWorkflowPackageApiClient(
+                    httpClient,
+                    new WorkflowPackageClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioWorkflowPackageClient, ServerStudioWorkflowPackageClient>();
+            return;
+        }
+
+        services.TryAddSingleton<IStudioWorkflowPackageClient, UnsupportedStudioWorkflowPackageClient>();
     }
 
     private static void AddOperateTransitionDataSource(

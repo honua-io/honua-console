@@ -57,7 +57,8 @@ public sealed class OperateObservabilityModelTests
         Assert.All(snapshot.Alerts, alert =>
         {
             Assert.NotEmpty(alert.EvidenceLinks);
-            Assert.True(alert.AiAdvisory.IsEvidenceLinked);
+            Assert.NotNull(alert.AiAdvisory);
+            Assert.True(alert.AiAdvisory!.IsEvidenceLinked);
         });
     }
 

@@ -639,8 +639,8 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
 | `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
-| `/studio/workflows/new` | `auth` (+ workflow author permission) | empty-studio | forbidden / unsupported-package | studio |
-| `/studio/workflows/:draftId` | `auth` (+ workflow draft read/write) | missing-item | forbidden / unsupported-package | studio |
+| `/studio/workflows/new` | `auth` (+ workflow author permission) | empty-studio | forbidden / missing-binding | studio |
+| `/studio/workflows/:draftId` | `auth` (+ workflow draft read/write) | missing-item | forbidden / missing-binding | studio |
 
 The current `/studio` implementation is the package-first Studio shell
 (real-server revisit `honua-console#61` of the `honua-console#38`
@@ -689,10 +689,17 @@ editor's backend contract lands. The local projection is documented in
 and must be replaced behind the same editor model when shared contracts
 land; the shared `/studio` shell already binds that lifecycle.
 
-Workflow routes are builder-owned Studio surfaces. They edit the
-`workflow.package/v1` projection through the workflow package client and
-link dry-run/publish evidence into Operate with job-scoped URLs; they do
-not move workflow authoring into the Operate information architecture.
+Workflow routes are builder-owned Studio surfaces. The real-server revisit
+(`honua-console#62`) binds the `workflow.package/v1` editor to honua-server
+(`honua-server#1185`) through the `IWorkflowPackageApiClient` HTTP shim in
+`Honua.Console.Contracts`: the node registry, package drafts, immutable
+versions, dry-runs, and publications/runs render from live
+`/api/v1/console/workflow-*` data, and job-backed published runs link into
+Operate with job-scoped URLs. They do not move workflow authoring into the Operate
+information architecture. When no server base address is configured the editor
+renders the shared missing-binding surface instead of seeded workflow data; the
+in-memory seeded client (`AddHonuaConsoleDemoStudioWorkflowPackages`) is
+demo/test-only.
 
 ### 6.3 Catalog
 
@@ -854,13 +861,16 @@ from `/api/v1/admin/observability/logs`, and Studio, publishing, GitOps,
 temporal, alert delivery, import, and maintenance jobs all use
 `/operate/jobs/:jobRunId` as the detail URL.
 
-Workflow dry-run and publish results reuse `/operate/jobs/:jobRunId` and
-`/operate/events?jobId=<id>` as evidence views, not workflow editors.
-They may be opened from Studio dry-run or publish results when the server
-authorizes the caller to read that job. The workflow adapter may name the
-identifier `jobId`; Console treats it as the job-run route id for
-navigation. Missing or unauthorized job ids render the standard
-missing/forbidden surfaces from server-backed job reads. Blocked workflow
+Workflow publish results reuse `/operate/jobs/:jobRunId` and
+`/operate/events?jobId=<id>` as evidence views only when the server returns a
+`jobId`, not workflow-run ids or workflow editors. They may be opened from a
+Studio published run when the server authorizes the caller to read that job.
+The `#1185` dry-run is a synchronous estimation that creates no Operate job,
+so it emits no job-scoped URLs. Scheduled workflow publications can return a
+`workflowRunId`; Console must not route that id through `/operate/jobs/*`
+until Operate owns a workflow-run projection. Missing or unauthorized job ids
+render the standard missing/forbidden surfaces from server-backed job reads.
+Blocked workflow
 publications do not queue jobs and therefore do not produce job-scoped
 Operate URLs, whether the blocker is endpoint parameter validation,
 schedule validation, graph coverage, failure routing, or output schema
