@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Honua.Console.Contracts;
@@ -361,8 +360,8 @@ public static class StudioFormPackageMapper
 
         if (string.Equals(field.DomainKind, "range", StringComparison.OrdinalIgnoreCase))
         {
-            var min = ParseNumberElement(field.RangeMin);
-            var max = ParseNumberElement(field.RangeMax);
+            var min = ParseNumberElement(field.RangeMin, original?.Min);
+            var max = ParseNumberElement(field.RangeMax, original?.Max);
             if (min is null && max is null)
             {
                 return null;
@@ -381,6 +380,7 @@ public static class StudioFormPackageMapper
         // The editor hydrates a single rule from the server's first rule (ToFieldEditor reads
         // Validation.FirstOrDefault), so it owns rule[0]; preserve any further server rules it never
         // modeled rather than dropping them on save.
+        var originalFirst = originalRules.FirstOrDefault();
         var preserved = originalRules.Skip(1).ToArray();
 
         if (string.IsNullOrWhiteSpace(field.ValidationType)
@@ -389,24 +389,56 @@ public static class StudioFormPackageMapper
             return preserved;
         }
 
-        var numeric = field.ValidationType is "minLength" or "maxLength" or "min" or "max";
-        JsonElement? parameters = field.ValidationType switch
+        var validationType = field.ValidationType.Trim();
+        if (!IsSupportedValidationType(validationType))
         {
-            "regex" => string.IsNullOrWhiteSpace(field.ValidationValue)
-                ? null
-                : JsonSerializer.SerializeToElement(new { pattern = field.ValidationValue }),
-            _ when numeric => ParseNumberElement(field.ValidationValue) is { } number
-                ? JsonSerializer.SerializeToElement(new { value = number })
-                : null,
+            return originalFirst is not null
+                && string.Equals(validationType, originalFirst.Type, StringComparison.Ordinal)
+                ? [originalFirst, .. preserved]
+                : preserved;
+        }
+
+        if (originalFirst is not null && IsValidationRuleUnchanged(field, originalFirst))
+        {
+            return originalRules.ToArray();
+        }
+
+        if (originalFirst is not null
+            && string.Equals(validationType, originalFirst.Type, StringComparison.Ordinal)
+            && !IsSupportedValidationRule(originalFirst))
+        {
+            return [originalFirst, .. preserved];
+        }
+
+        var sameSupportedOriginal = originalFirst is not null
+            && string.Equals(validationType, originalFirst.Type, StringComparison.Ordinal)
+            && IsSupportedValidationRule(originalFirst);
+        var numeric = validationType is "minLength" or "maxLength" or "min" or "max";
+        JsonElement? parameters = validationType switch
+        {
+            "regex" => MergeValidationParameter(
+                sameSupportedOriginal ? originalFirst?.Parameters : null,
+                "pattern",
+                string.IsNullOrWhiteSpace(field.ValidationValue)
+                    ? null
+                    : JsonSerializer.SerializeToElement(field.ValidationValue)),
+            _ when numeric => MergeValidationParameter(
+                sameSupportedOriginal ? originalFirst?.Parameters : null,
+                "value",
+                ParseNumberElement(
+                    field.ValidationValue,
+                    sameSupportedOriginal ? GetModeledParameter(originalFirst?.Parameters, "value") : null)),
             _ => null
         };
 
         return
         [
-            new HonuaFormValidationRule
+            (originalFirst ?? new HonuaFormValidationRule()) with
             {
-                RuleId = $"{field.FieldId}-{field.ValidationType}",
-                Type = field.ValidationType,
+                RuleId = sameSupportedOriginal && !string.IsNullOrWhiteSpace(originalFirst!.RuleId)
+                    ? originalFirst.RuleId
+                    : $"{field.FieldId}-{validationType}",
+                Type = validationType,
                 Message = NullIfBlank(field.ValidationMessage),
                 Parameters = parameters
             },
@@ -667,16 +699,95 @@ public static class StudioFormPackageMapper
         return string.Empty;
     }
 
-    private static JsonElement? ParseNumberElement(string raw)
+    private static bool IsValidationRuleUnchanged(StudioFormFieldEditor field, HonuaFormValidationRule original) =>
+        string.Equals(field.ValidationType.Trim(), original.Type, StringComparison.Ordinal)
+        && string.Equals(NullIfBlank(field.ValidationMessage), NullIfBlank(original.Message), StringComparison.Ordinal)
+        && string.Equals(field.ValidationValue, ExtractRuleValue(original.Parameters), StringComparison.Ordinal);
+
+    private static bool IsSupportedValidationType(string? type) =>
+        type is "regex" or "minLength" or "maxLength" or "min" or "max";
+
+    private static bool IsSupportedValidationRule(HonuaFormValidationRule rule)
+    {
+        var type = NullIfBlank(rule.Type);
+        if (!IsSupportedValidationType(type))
+        {
+            return false;
+        }
+
+        if (type == "regex")
+        {
+            return rule.Parameters is null
+                || rule.Parameters.Value.ValueKind == JsonValueKind.Null
+                || rule.Parameters.Value.ValueKind == JsonValueKind.Undefined
+                || (rule.Parameters.Value.ValueKind == JsonValueKind.Object
+                    && rule.Parameters.Value.TryGetProperty("pattern", out var pattern)
+                    && pattern.ValueKind == JsonValueKind.String);
+        }
+
+        return HasModeledParameter(rule.Parameters, "value");
+    }
+
+    private static bool HasModeledParameter(JsonElement? parameters, string propertyName) =>
+        parameters is null
+        || parameters.Value.ValueKind == JsonValueKind.Null
+        || parameters.Value.ValueKind == JsonValueKind.Undefined
+        || (parameters.Value.ValueKind == JsonValueKind.Object
+            && parameters.Value.TryGetProperty(propertyName, out _));
+
+    private static JsonElement? MergeValidationParameter(
+        JsonElement? originalParameters,
+        string propertyName,
+        JsonElement? value)
+    {
+        var properties = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (originalParameters is { } original && original.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in original.EnumerateObject())
+            {
+                properties[property.Name] = property.Value.Clone();
+            }
+        }
+
+        if (value is { } modeledValue)
+        {
+            properties[propertyName] = modeledValue;
+        }
+
+        return properties.Count == 0 ? null : JsonSerializer.SerializeToElement(properties);
+    }
+
+    private static JsonElement? GetModeledParameter(JsonElement? parameters, string propertyName) =>
+        parameters is { ValueKind: JsonValueKind.Object } element
+            && element.TryGetProperty(propertyName, out var property)
+            ? property
+            : null;
+
+    private static JsonElement? ParseNumberElement(string raw, JsonElement? original = null)
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
             return null;
         }
 
-        return double.TryParse(raw.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
-            ? JsonSerializer.SerializeToElement(number)
-            : JsonSerializer.SerializeToElement(raw.Trim());
+        var trimmed = raw.Trim();
+        if (original is { } originalValue
+            && string.Equals(trimmed, JsonElementToString(originalValue), StringComparison.Ordinal))
+        {
+            return originalValue;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(trimmed);
+            return document.RootElement.ValueKind == JsonValueKind.Number
+                ? document.RootElement.Clone()
+                : JsonSerializer.SerializeToElement(trimmed);
+        }
+        catch (JsonException)
+        {
+            return JsonSerializer.SerializeToElement(trimmed);
+        }
     }
 
     private static string JsonElementToString(JsonElement element) =>

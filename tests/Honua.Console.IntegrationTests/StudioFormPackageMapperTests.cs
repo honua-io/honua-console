@@ -355,6 +355,105 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_PreservesRangeAndValidationServerJson()
+    {
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-rules",
+            Title = "Server rules",
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "rating",
+                    Label = "Rating",
+                    Type = "number",
+                    Domain = new HonuaFormFieldDomainDefinition
+                    {
+                        Type = "range",
+                        Min = Json("9007199254740993"),
+                        Max = Json("1.0")
+                    }
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "asset_id",
+                    Label = "Asset",
+                    Type = "text",
+                    Validation =
+                    [
+                        new HonuaFormValidationRule
+                        {
+                            RuleId = "stable-min",
+                            Type = "minLength",
+                            Message = "Keep length",
+                            Parameters = JsonSerializer.SerializeToElement(new { value = 3, mode = "grapheme" })
+                        }
+                    ]
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "custom_check",
+                    Label = "Custom check",
+                    Type = "text",
+                    Validation =
+                    [
+                        new HonuaFormValidationRule
+                        {
+                            RuleId = "custom-rule",
+                            Type = "serverOnly",
+                            Message = "Server check",
+                            Parameters = JsonSerializer.SerializeToElement(new { expression = "value IS NOT NULL", severity = "warning" })
+                        }
+                    ]
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-rules",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        Assert.False(StudioFormPackageMapper.HasUnsavedEdits(state));
+
+        state.Title = "Edited title";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        var range = saved.Fields.Single(field => field.FieldId == "rating").Domain!;
+        Assert.Equal("9007199254740993", range.Min!.Value.GetRawText());
+        Assert.Equal("1.0", range.Max!.Value.GetRawText());
+
+        var unchangedRule = Assert.Single(saved.Fields.Single(field => field.FieldId == "asset_id").Validation);
+        Assert.Equal("stable-min", unchangedRule.RuleId);
+        Assert.Equal("grapheme", unchangedRule.Parameters!.Value.GetProperty("mode").GetString());
+        Assert.Equal(3, unchangedRule.Parameters.Value.GetProperty("value").GetInt32());
+
+        var customRule = Assert.Single(saved.Fields.Single(field => field.FieldId == "custom_check").Validation);
+        Assert.Equal("custom-rule", customRule.RuleId);
+        Assert.Equal("serverOnly", customRule.Type);
+        Assert.Equal("value IS NOT NULL", customRule.Parameters!.Value.GetProperty("expression").GetString());
+
+        var editedState = StudioFormPackageMapper.ToEditorState(version);
+        var editedRule = editedState.Fields.Single(field => field.FieldId == "asset_id");
+        editedRule.ValidationValue = "4";
+        editedRule.ValidationMessage = "Longer asset id";
+        var savedEditedRule = StudioFormPackageMapper.ToDocument(editedState)
+            .Fields
+            .Single(field => field.FieldId == "asset_id")
+            .Validation
+            .Single();
+
+        Assert.Equal("stable-min", savedEditedRule.RuleId);
+        Assert.Equal("Longer asset id", savedEditedRule.Message);
+        Assert.Equal("grapheme", savedEditedRule.Parameters!.Value.GetProperty("mode").GetString());
+        Assert.Equal(4, savedEditedRule.Parameters.Value.GetProperty("value").GetInt32());
+    }
+
+    [Fact]
     public void ToDocument_OnExistingPackage_PreservesServerSectionIdentityWhenIdIsNotLabelSlug()
     {
         // A server section whose id is NOT the slug of its label (an opaque server-assigned id). The editor
@@ -659,5 +758,11 @@ public sealed class StudioFormPackageMapperTests
         var pristine = StudioFormPackageMapper.ToEditorState(version);
         pristine.OfflinePolicyReviewed = !pristine.OfflinePolicyReviewed;
         Assert.False(StudioFormPackageMapper.HasUnsavedEdits(pristine));
+    }
+
+    private static JsonElement Json(string raw)
+    {
+        using var document = JsonDocument.Parse(raw);
+        return document.RootElement.Clone();
     }
 }
