@@ -466,6 +466,141 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_PreservesLosslessCodedChoiceLines()
+    {
+        // Server-coded choices are valid even when semicolons, significant whitespace, or empty/null
+        // labels appear in codes or labels. An unrelated save must not normalize those values.
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-lossless-choices",
+            Title = "Server form",
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "condition",
+                    Label = "Condition",
+                    Type = "choice",
+                    Domain = new HonuaFormFieldDomainDefinition
+                    {
+                        Type = "codedValue",
+                        Choices =
+                        [
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("semi;colon"), Label = "Label; With; Semis" },
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement(" spaced "), Label = " Label " },
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("blank"), Label = string.Empty },
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("null-label"), Label = null }
+                        ]
+                    }
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-lossless-choices",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        state.Title = "Edited title";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        var choices = saved.Fields.Single(field => field.FieldId == "condition").Domain!.Choices;
+        Assert.Equal(4, choices.Length);
+
+        var semicolon = choices.Single(choice => choice.Code.GetString() == "semi;colon");
+        Assert.Equal("Label; With; Semis", semicolon.Label);
+
+        var spaced = choices.Single(choice => choice.Code.GetString() == " spaced ");
+        Assert.Equal(" Label ", spaced.Label);
+
+        var blank = choices.Single(choice => choice.Code.GetString() == "blank");
+        Assert.Equal(string.Empty, blank.Label);
+
+        var nullLabel = choices.Single(choice => choice.Code.GetString() == "null-label");
+        Assert.Null(nullLabel.Label);
+    }
+
+    [Fact]
+    public void ToDocument_OnExistingPackage_PreservesVisibilityJsonTypeWhenEdited()
+    {
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-visibility-types",
+            Title = "Visibility type form",
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "numeric_visible",
+                    Label = "Numeric visibility",
+                    Type = "text",
+                    Visibility = new HonuaFormConditionalRule
+                    {
+                        DependsOnFieldId = "condition",
+                        Operator = "greaterThan",
+                        Value = JsonSerializer.SerializeToElement(1)
+                    }
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "boolean_visible",
+                    Label = "Boolean visibility",
+                    Type = "text",
+                    Visibility = new HonuaFormConditionalRule
+                    {
+                        DependsOnFieldId = "condition",
+                        Operator = "equals",
+                        Value = JsonSerializer.SerializeToElement(true)
+                    }
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "array_visible",
+                    Label = "Array visibility",
+                    Type = "text",
+                    Visibility = new HonuaFormConditionalRule
+                    {
+                        DependsOnFieldId = "condition",
+                        Operator = "in",
+                        Value = JsonSerializer.SerializeToElement(new[] { 1, 2 })
+                    }
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-visibility-types",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        state.Fields.Single(field => field.FieldId == "numeric_visible").VisibilityValue = "2";
+        state.Fields.Single(field => field.FieldId == "boolean_visible").VisibilityValue = "false";
+        state.Fields.Single(field => field.FieldId == "array_visible").VisibilityValue = "[3,4]";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        var numericVisibility = saved.Fields.Single(field => field.FieldId == "numeric_visible").Visibility!.Value;
+        Assert.True(numericVisibility.HasValue);
+        Assert.Equal(JsonValueKind.Number, numericVisibility.Value.ValueKind);
+        Assert.Equal(2, numericVisibility.Value.GetInt32());
+
+        var booleanVisibility = saved.Fields.Single(field => field.FieldId == "boolean_visible").Visibility!.Value;
+        Assert.True(booleanVisibility.HasValue);
+        Assert.Equal(JsonValueKind.False, booleanVisibility.Value.ValueKind);
+        Assert.False(booleanVisibility.Value.GetBoolean());
+
+        var arrayVisibility = saved.Fields.Single(field => field.FieldId == "array_visible").Visibility!.Value;
+        Assert.True(arrayVisibility.HasValue);
+        Assert.Equal(JsonValueKind.Array, arrayVisibility.Value.ValueKind);
+        Assert.Equal([3, 4], arrayVisibility.Value.EnumerateArray().Select(item => item.GetInt32()).ToArray());
+    }
+
+    [Fact]
     public void ToDocument_OnExistingPackage_PreservesRangeAndValidationServerJson()
     {
         var serverDocument = new HonuaFormPackageDocument

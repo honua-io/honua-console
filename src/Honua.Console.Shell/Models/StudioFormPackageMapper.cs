@@ -317,11 +317,7 @@ public static class StudioFormPackageMapper
                 editor.DomainKind = "coded";
                 editor.Choices = string.Join(
                     '\n',
-                    domain.Choices.Select(choice =>
-                    {
-                        var code = JsonElementToString(choice.Code);
-                        return string.IsNullOrWhiteSpace(choice.Label) ? code : $"{code}={choice.Label}";
-                    }));
+                    domain.Choices.Select(ToChoiceEditorLine));
             }
             else if (domain.Min is not null || domain.Max is not null)
             {
@@ -645,6 +641,12 @@ public static class StudioFormPackageMapper
             return [];
         }
 
+        var originalByEditorLine = originalChoices
+            .Select(choice => new { Line = ToChoiceEditorLine(choice), Choice = choice })
+            .GroupBy(item => item.Line, StringComparer.Ordinal)
+            .Where(group => group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.First().Choice, StringComparer.Ordinal);
+
         var originalByDisplayValue = originalChoices
             .GroupBy(choice => JsonElementToString(choice.Code), StringComparer.Ordinal)
             .Where(group => group.Count() == 1)
@@ -660,9 +662,14 @@ public static class StudioFormPackageMapper
             .ToArray();
 
         return raw
-            .Split(['\n', '\r', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
             .Select(line =>
             {
+                if (originalByEditorLine.TryGetValue(line, out var originalChoice))
+                {
+                    return originalChoice;
+                }
+
                 var (code, label) = SplitChoiceLine(line, knownCodes);
                 return new HonuaFormDomainChoice
                 {
@@ -672,8 +679,13 @@ public static class StudioFormPackageMapper
                     Label = label
                 };
             })
-            .Where(choice => !string.IsNullOrWhiteSpace(choice.Label))
             .ToArray();
+    }
+
+    private static string ToChoiceEditorLine(HonuaFormDomainChoice choice)
+    {
+        var code = JsonElementToString(choice.Code);
+        return string.IsNullOrWhiteSpace(choice.Label) ? code : $"{code}={choice.Label}";
     }
 
     // Recover the (code, label) that a "code=label" editor line was built from. A known server code is
@@ -694,22 +706,52 @@ public static class StudioFormPackageMapper
                 && line[code.Length] == '='
                 && line.StartsWith(code, StringComparison.Ordinal))
             {
-                return (code, line[(code.Length + 1)..].Trim());
+                return (code, line[(code.Length + 1)..]);
             }
         }
 
         var separator = line.IndexOf('=', StringComparison.Ordinal);
         return separator > 0
-            ? (line[..separator].Trim(), line[(separator + 1)..].Trim())
+            ? (line[..separator], line[(separator + 1)..])
             : (line, line);
     }
 
     private static JsonElement ParseValueElement(string raw, JsonElement? original)
     {
-        return original is { } originalValue
-            && string.Equals(raw, JsonElementToString(originalValue), StringComparison.Ordinal)
-            ? originalValue
-            : JsonSerializer.SerializeToElement(raw);
+        if (original is not { } originalValue)
+        {
+            return JsonSerializer.SerializeToElement(raw);
+        }
+
+        if (string.Equals(raw, JsonElementToString(originalValue), StringComparison.Ordinal))
+        {
+            return originalValue;
+        }
+
+        return originalValue.ValueKind switch
+        {
+            JsonValueKind.Number when TryParseJsonElement(raw, out var parsed) && parsed.ValueKind == JsonValueKind.Number => parsed,
+            JsonValueKind.True or JsonValueKind.False when bool.TryParse(raw, out var parsedBool) => JsonSerializer.SerializeToElement(parsedBool),
+            JsonValueKind.Array when TryParseJsonElement(raw, out var parsed) && parsed.ValueKind == JsonValueKind.Array => parsed,
+            JsonValueKind.Object when TryParseJsonElement(raw, out var parsed) && parsed.ValueKind == JsonValueKind.Object => parsed,
+            JsonValueKind.Null when string.Equals(raw, "null", StringComparison.OrdinalIgnoreCase) => JsonSerializer.SerializeToElement<string?>(null),
+            _ => JsonSerializer.SerializeToElement(raw)
+        };
+    }
+
+    private static bool TryParseJsonElement(string raw, out JsonElement element)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(raw);
+            element = document.RootElement.Clone();
+            return true;
+        }
+        catch (JsonException)
+        {
+            element = default;
+            return false;
+        }
     }
 
     private static bool HasOperation(HonuaFormSubmitPolicy policy, string operation) =>
