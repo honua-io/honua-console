@@ -663,8 +663,14 @@ public static class StudioFormPackageMapper
 
         return raw
             .Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(line =>
+            .Select((line, index) =>
             {
+                if (index < originalChoices.Count
+                    && string.Equals(line, ToChoiceEditorLine(originalChoices[index]), StringComparison.Ordinal))
+                {
+                    return originalChoices[index];
+                }
+
                 if (originalByEditorLine.TryGetValue(line, out var originalChoice))
                 {
                     return originalChoice;
@@ -688,11 +694,11 @@ public static class StudioFormPackageMapper
         return string.IsNullOrWhiteSpace(choice.Label) ? code : $"{code}={choice.Label}";
     }
 
-    // Recover the (code, label) that a "code=label" editor line was built from. A known server code is
-    // matched whole (longest first, so a code that is a prefix of another still wins its own line) which
-    // lets a code containing '=' survive intact; a line the operator typed that matches no known code
-    // splits on the first '='. A line that is exactly a known code (a choice the server stored with a
-    // blank label) keeps the prior "label defaults to the code" behavior.
+    // Recover the (code, label) that a new or edited "code=label" line was built from. Unchanged server
+    // lines are preserved by position before this fallback. A known server code is matched whole (longest
+    // first, so a code that is a prefix of another still wins its own line), which lets a code containing
+    // '=' survive intact; a line the operator typed that matches no known code splits on the first '='.
+    // A line that is exactly a known code defaults the label to the code.
     private static (string Code, string Label) SplitChoiceLine(string line, string[] knownCodes)
     {
         foreach (var code in knownCodes)

@@ -524,6 +524,60 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_PreservesDuplicateRenderedCodedChoiceLines()
+    {
+        // Distinct valid choices can render to the same "code=label" line. An untouched save must preserve
+        // the original choices by position before falling back to parsing ambiguous editor text.
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-colliding-choices",
+            Title = "Server form",
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "condition",
+                    Label = "Condition",
+                    Type = "choice",
+                    Domain = new HonuaFormFieldDomainDefinition
+                    {
+                        Type = "codedValue",
+                        Choices =
+                        [
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("a=b"), Label = null },
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("a"), Label = "b" },
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("c=d"), Label = string.Empty },
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("c"), Label = "d" }
+                        ]
+                    }
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-colliding-choices",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        state.Title = "Edited title";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        var choices = saved.Fields.Single(field => field.FieldId == "condition").Domain!.Choices;
+        Assert.Equal(4, choices.Length);
+        Assert.Equal("a=b", choices[0].Code.GetString());
+        Assert.Null(choices[0].Label);
+        Assert.Equal("a", choices[1].Code.GetString());
+        Assert.Equal("b", choices[1].Label);
+        Assert.Equal("c=d", choices[2].Code.GetString());
+        Assert.Equal(string.Empty, choices[2].Label);
+        Assert.Equal("c", choices[3].Code.GetString());
+        Assert.Equal("d", choices[3].Label);
+    }
+
+    [Fact]
     public void ToDocument_OnExistingPackage_PreservesVisibilityJsonTypeWhenEdited()
     {
         var serverDocument = new HonuaFormPackageDocument
