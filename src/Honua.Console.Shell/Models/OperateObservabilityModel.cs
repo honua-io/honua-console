@@ -1,3 +1,5 @@
+using Honua.Console.Shell.Services;
+
 namespace Honua.Console.Shell.Models;
 
 public static class OperateObservabilityRoutes
@@ -305,13 +307,21 @@ public sealed record OperateJobRun(
     IReadOnlyList<OperateEvidenceLink> Artifacts,
     IReadOnlyList<OperateJobMetric> Metrics,
     IReadOnlyList<OperateJobAction> AllowedActions,
-    IReadOnlyList<OperateRelatedObject> RelatedObjects)
+    IReadOnlyList<OperateRelatedObject> RelatedObjects,
+    OperateSectionStatus LogsStatus = OperateSectionStatus.Allowed,
+    string LogsMessage = "",
+    OperateSectionStatus ArtifactsStatus = OperateSectionStatus.Allowed,
+    string ArtifactsMessage = "")
 {
     public string DetailHref => OperateObservabilityRoutes.JobDetail(JobRunId);
 
     public string ArtifactCountLabel =>
         Metrics.FirstOrDefault(metric => string.Equals(metric.Name, "Artifacts", StringComparison.OrdinalIgnoreCase))?.Value
         ?? Artifacts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public bool LogsAllowed => LogsStatus == OperateSectionStatus.Allowed;
+
+    public bool ArtifactsAllowed => ArtifactsStatus == OperateSectionStatus.Allowed;
 }
 
 public static class OperateActionPresentation

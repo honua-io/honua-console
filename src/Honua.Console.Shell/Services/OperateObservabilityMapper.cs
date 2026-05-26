@@ -344,7 +344,11 @@ public static class OperateObservabilityMapper
         ConsoleJobDetail detail,
         IReadOnlyList<string> logs,
         IReadOnlyList<OperateEvidenceLink> artifacts,
-        ConsoleEnvironmentProfile profile) =>
+        ConsoleEnvironmentProfile profile,
+        OperateSectionStatus logsStatus = OperateSectionStatus.Allowed,
+        string logsMessage = "",
+        OperateSectionStatus artifactsStatus = OperateSectionStatus.Allowed,
+        string artifactsMessage = "") =>
         new(
             JobRunId: detail.JobId,
             Source: detail.Kind,
@@ -363,7 +367,11 @@ public static class OperateObservabilityMapper
             Artifacts: artifacts,
             Metrics: BuildDetailMetrics(detail),
             AllowedActions: detail.Actions.Select(MapJobAction).ToArray(),
-            RelatedObjects: BuildJobRelated(detail));
+            RelatedObjects: BuildJobRelated(detail),
+            LogsStatus: logsStatus,
+            LogsMessage: logsMessage,
+            ArtifactsStatus: artifactsStatus,
+            ArtifactsMessage: artifactsMessage);
 
     public static OperateJobAction MapJobAction(ConsoleJobActionDescriptor action) =>
         new(

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -234,6 +235,102 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Contains(result.Value.SeverityBuckets, bucket => bucket.Label == "Error" && bucket.Count == 1);
         Assert.Contains(result.Value.ExceptionGroups, group => group.Label == "Live provider exception");
         Assert.All(result.Value.Logs, log => Assert.NotEmpty(log.ProviderLinks));
+    }
+
+    [Fact]
+    public async Task JobDetailCarriesLogAndArtifactFetchFailures()
+    {
+        var now = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/jobs/live-job-1" => JsonResponse(
+                new ConsoleJobDetail
+                {
+                    JobId = "live-job-1",
+                    Kind = "Publishing",
+                    Backend = "preview",
+                    TargetKind = "map",
+                    WorkloadName = "Publish live package",
+                    Status = "Running",
+                    RequestedBy = "operator.live",
+                    CreatedAt = now,
+                    UpdatedAt = now.AddMinutes(1),
+                    PercentComplete = 0.5,
+                    AttemptCount = 1,
+                    MaxAttempts = 3,
+                    ResourceRefs = ["service:svc-live"],
+                    ArtifactCount = 2,
+                    Stages =
+                    [
+                        new ConsoleJobStage
+                        {
+                            Name = "Validate",
+                            Status = "Succeeded",
+                            StartedAt = now,
+                            CompletedAt = now.AddMinutes(1),
+                            PercentComplete = 1
+                        }
+                    ]
+                },
+                OperateObservabilityJsonContext.Default.ConsoleJobDetail),
+            "/api/v1/admin/jobs/live-job-1/logs" => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                ReasonPhrase = "Forbidden"
+            },
+            "/api/v1/admin/jobs/live-job-1/artifacts" => new HttpResponseMessage(HttpStatusCode.NotImplemented)
+            {
+                ReasonPhrase = "Not Implemented"
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetJobDetailAsync("live-job-1");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var job = result.Value!;
+        Assert.Equal(OperateSectionStatus.Forbidden, job.LogsStatus);
+        Assert.Contains("403", job.LogsMessage);
+        Assert.Empty(job.Logs);
+        Assert.Equal(OperateSectionStatus.Unsupported, job.ArtifactsStatus);
+        Assert.Contains("501", job.ArtifactsMessage);
+        Assert.Empty(job.Artifacts);
+    }
+
+    [Fact]
+    public async Task JobDetailPanelRendersSubresourceFailureStatus()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        var provider = services.BuildServiceProvider();
+
+        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
+        var job = BuildRenderingJob(
+            stages: [],
+            logs: [],
+            artifacts: []) with
+        {
+            LogsStatus = OperateSectionStatus.Forbidden,
+            LogsMessage = "403 Forbidden from live job logs endpoint.",
+            ArtifactsStatus = OperateSectionStatus.Unsupported,
+            ArtifactsMessage = "501 Not Implemented from live job artifact endpoint."
+        };
+
+        var html = await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var output = await renderer.RenderComponentAsync<JobDetailPanel>(
+                ParameterView.FromDictionary(new Dictionary<string, object?>
+                {
+                    [nameof(JobDetailPanel.Job)] = job
+                }));
+            return output.ToHtmlString();
+        });
+
+        Assert.Contains("403 Forbidden from live job logs endpoint.", html);
+        Assert.Contains("501 Not Implemented from live job artifact endpoint.", html);
+        Assert.Contains("Permission required", html);
+        Assert.Contains("Unsupported by this server", html);
+        Assert.DoesNotContain("Job logs are not available.", html);
     }
 
     [Fact]
@@ -550,10 +647,10 @@ public sealed class ConsoleOperateObservabilityClientTests
                 ])));
 
         public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([BuildJob(stages: [], logs: [], artifacts: [])]));
+            Task.FromResult(OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([BuildRenderingJob(stages: [], logs: [], artifacts: [])]));
 
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<OperateJobRun>.Allowed(BuildJob(
+            Task.FromResult(OperateSectionResult<OperateJobRun>.Allowed(BuildRenderingJob(
                 stages: [new OperateJobStage("Validate", new OperateStatus("succeeded", "Done"), 100, "completed")],
                 logs: ["Live job detail log"],
                 artifacts: [new OperateEvidenceLink("artifact", "Live artifact", "/operate/jobs/live-job-1#artifacts", "Live report")])));
@@ -573,28 +670,29 @@ public sealed class ConsoleOperateObservabilityClientTests
                     ["Live investigation note"])
             ]));
 
-        private static OperateJobRun BuildJob(
-            IReadOnlyList<OperateJobStage> stages,
-            IReadOnlyList<string> logs,
-            IReadOnlyList<OperateEvidenceLink> artifacts) =>
-            new(
-                "live-job-1",
-                "Publishing",
-                "preview",
-                "default",
-                new OperateStatus("running", "Live job running"),
-                "operator.live",
-                "2026-05-24 20:00 UTC",
-                "live",
-                "server.example",
-                45,
-                "none",
-                ["service:svc-live"],
-                stages,
-                logs,
-                artifacts,
-                [new OperateJobMetric("Artifacts", "1", new OperateStatus("info", "Artifact count"))],
-                [new OperateJobAction("Cancel", false, "Server policy disabled in test")],
-                [new OperateRelatedObject("events", "Events for this job", "/api/v1/admin/observability/events?kind=job&operationId=live-job-1")]);
     }
+
+    private static OperateJobRun BuildRenderingJob(
+        IReadOnlyList<OperateJobStage> stages,
+        IReadOnlyList<string> logs,
+        IReadOnlyList<OperateEvidenceLink> artifacts) =>
+        new(
+            "live-job-1",
+            "Publishing",
+            "preview",
+            "default",
+            new OperateStatus("running", "Live job running"),
+            "operator.live",
+            "2026-05-24 20:00 UTC",
+            "live",
+            "server.example",
+            45,
+            "none",
+            ["service:svc-live"],
+            stages,
+            logs,
+            artifacts,
+            [new OperateJobMetric("Artifacts", "1", new OperateStatus("info", "Artifact count"))],
+            [new OperateJobAction("Cancel", false, "Server policy disabled in test")],
+            [new OperateRelatedObject("events", "Events for this job", "/api/v1/admin/observability/events?kind=job&operationId=live-job-1")]);
 }

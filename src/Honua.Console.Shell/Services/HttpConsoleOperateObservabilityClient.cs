@@ -302,13 +302,21 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
         var logs = logsFetch.Ok
             ? OperateObservabilityMapper.MapJobLogs(logsFetch.Value!)
-            : (IReadOnlyList<string>)["Job logs are not available."];
+            : [];
         var artifacts = artifactsFetch.Ok
             ? OperateObservabilityMapper.MapJobArtifacts(artifactsFetch.Value!)
             : [];
 
         return OperateSectionResult<OperateJobRun>.Allowed(
-            OperateObservabilityMapper.MapJobDetail(detailFetch.Value!, logs, artifacts, detailFetch.Profile!));
+            OperateObservabilityMapper.MapJobDetail(
+                detailFetch.Value!,
+                logs,
+                artifacts,
+                detailFetch.Profile!,
+                logsFetch.Status,
+                logsFetch.Message,
+                artifactsFetch.Status,
+                artifactsFetch.Message));
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(

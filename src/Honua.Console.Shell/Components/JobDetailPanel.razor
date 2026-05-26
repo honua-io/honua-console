@@ -39,10 +39,33 @@
 
     <section class="operate-evidence-section">
         <h4>Logs</h4>
-        <pre class="operate-log-lines">@string.Join(Environment.NewLine, Job.Logs)</pre>
+        @if (Job.LogsAllowed)
+        {
+            <pre class="operate-log-lines">@string.Join(Environment.NewLine, Job.Logs)</pre>
+        }
+        else
+        {
+            <div class="operate-subresource-status">
+                <span class="console-status @SubresourceStatusClass(Job.LogsStatus)">@OperateSectionPresentation.Title(Job.LogsStatus)</span>
+                <p class="console-muted">@SubresourceMessage(Job.LogsStatus, Job.LogsMessage)</p>
+            </div>
+        }
     </section>
 
-    <EvidenceList Heading="Artifacts" Items="Job.Artifacts" />
+    @if (Job.ArtifactsAllowed)
+    {
+        <EvidenceList Heading="Artifacts" Items="Job.Artifacts" />
+    }
+    else
+    {
+        <section class="operate-evidence-section">
+            <h4>Artifacts</h4>
+            <div class="operate-subresource-status">
+                <span class="console-status @SubresourceStatusClass(Job.ArtifactsStatus)">@OperateSectionPresentation.Title(Job.ArtifactsStatus)</span>
+                <p class="console-muted">@SubresourceMessage(Job.ArtifactsStatus, Job.ArtifactsMessage)</p>
+            </div>
+        </section>
+    }
 
     <section class="operate-evidence-section">
         <h4>Metrics</h4>
@@ -74,4 +97,17 @@
     public required OperateJobRun Job { get; set; }
 
     private static string JobActionTitle(OperateJobAction action) => action.Reason;
+
+    private static string SubresourceMessage(OperateSectionStatus status, string message) =>
+        string.IsNullOrWhiteSpace(message)
+            ? OperateSectionPresentation.FallbackMessage(status)
+            : message;
+
+    private static string SubresourceStatusClass(OperateSectionStatus status) => status switch
+    {
+        OperateSectionStatus.Forbidden => "console-state-danger",
+        OperateSectionStatus.Missing or OperateSectionStatus.Unsupported => "console-state-warning",
+        OperateSectionStatus.Allowed => "console-state-success",
+        _ => "console-state-neutral"
+    };
 }
