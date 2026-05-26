@@ -366,6 +366,11 @@ Current runtime response contract:
   `ConsoleJobDetail.Actions`; the current read-only slice does not issue a
   separate `/api/v1/admin/jobs/{jobRunId}/actions` read. Action controls
   stay disabled when the server says the action is unavailable.
+- Job logs and artifacts are sub-resources of the job detail surface. A
+  failed log or artifact read carries its `OperateSectionStatus` and message
+  onto `OperateJobRun`, and the job detail panel renders the shared
+  forbidden/missing/unsupported/unavailable status beside the logs and
+  artifacts sections instead of substituting generic or empty data.
 
 ### Server Overview
 

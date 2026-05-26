@@ -198,9 +198,9 @@ shared missing state rather than unrelated data; only the route without an
 id defaults to the first returned row. Job deep links read live job detail
 plus logs and artifacts, while job action buttons render from the
 server-declared descriptors on the detail response and remain non-mutating
-in this slice. Rule-health, geofence-zone, and investigation-detail
-sub-resource failures are surfaced beside the surrounding live data instead
-of being collapsed into empty states.
+in this slice. Rule-health, geofence-zone, investigation-detail, and job
+log/artifact sub-resource failures are surfaced beside the surrounding live
+data instead of being collapsed into empty states.
 
 The live server integration test is
 `OperateObservabilityTestcontainersTests`. Set
