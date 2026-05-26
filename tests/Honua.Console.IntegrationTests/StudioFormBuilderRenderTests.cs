@@ -82,6 +82,68 @@ public sealed class StudioFormBuilderRenderTests
         Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void FormBuilder_EditAfterValidation_ReGatesPublishAndValidate()
+    {
+        var data = new FakeFormDataSource
+        {
+            Workspace = new StudioFormWorkspace(
+                [new StudioFormPackageListItem("form-1", "Hydrant inspection", "inspections", 7, 2, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioFormBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Hydrant inspection"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Hydrant inspection").Click();
+        page.WaitForAssertion(
+            () => Assert.False(FindButton(page, "Publish").HasAttribute("disabled")),
+            TimeSpan.FromSeconds(5));
+
+        // Editing a bound field after the server validation invalidates that result: publish and the
+        // (server-saved) validate must re-gate until the draft is saved and validated again.
+        page.Find("input[placeholder='Field inspection form']").Change("Hydrant inspection v2");
+
+        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Validate").HasAttribute("disabled"));
+        Assert.Contains("out of date", page.Markup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FormBuilder_BackToForms_ReloadsListAfterAsyncCompletion()
+    {
+        var data = new FakeFormDataSource
+        {
+            SimulateAsyncWorkspace = true,
+            Workspace = new StudioFormWorkspace(
+                [new StudioFormPackageListItem("form-1", "Hydrant inspection", "inspections", 7, 2, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioFormBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Hydrant inspection"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Hydrant inspection").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-form-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        FindButton(page, "Back to forms").Click();
+
+        // The reload completes asynchronously; the awaited handler must rerender back to the list.
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.DoesNotContain("data-form-builder", page.Markup, StringComparison.Ordinal);
+                Assert.NotNull(FindButton(page, "New form"));
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioFormBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -101,6 +163,8 @@ public sealed class StudioFormBuilderRenderTests
             LastValidation = new StudioFormValidationView(true, [])
         };
         state.Fields.Add(new StudioFormFieldEditor { FieldId = "asset_id", Label = "Asset ID", TargetField = "asset_id", Required = true });
+        // Represent a draft freshly loaded from the server (validated, with no unsaved edits).
+        state.SavedSignature = StudioFormPackageMapper.ComputeContentSignature(state);
         return state;
     }
 
@@ -116,8 +180,18 @@ public sealed class StudioFormBuilderRenderTests
 
         public StudioFormEditorLoad EditorLoad { get; set; } = new(null, []);
 
-        public Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(Workspace);
+        /// <summary>When set, the workspace fetch completes asynchronously to mimic the real HTTP path.</summary>
+        public bool SimulateAsyncWorkspace { get; set; }
+
+        public async Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        {
+            if (SimulateAsyncWorkspace)
+            {
+                await Task.Yield();
+            }
+
+            return Workspace;
+        }
 
         public Task<StudioFormEditorLoad> LoadAsync(string? formId, CancellationToken cancellationToken = default) =>
             Task.FromResult(EditorLoad);

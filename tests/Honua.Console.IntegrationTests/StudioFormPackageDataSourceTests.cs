@@ -104,6 +104,28 @@ public sealed class StudioFormPackageDataSourceTests
     }
 
     [Fact]
+    public async Task Validate_WhenEditedSinceSave_DoesNotCallServer()
+    {
+        var client = new FakeFormPackageClient();
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+
+        // A draft loaded from the server carries its saved baseline, so it is not dirty and validates.
+        var load = await source.LoadAsync("form-1");
+        var state = load.State!;
+        var clean = await source.ValidateAsync(state);
+        Assert.True(clean.Succeeded);
+        Assert.Equal(1, client.ValidateCallCount);
+
+        // A local edit after the save must block server validation (it runs against the saved version).
+        state.Title = "Edited after save";
+        var dirty = await source.ValidateAsync(state);
+
+        Assert.False(dirty.Succeeded);
+        Assert.Equal(1, client.ValidateCallCount);
+        Assert.Contains("Save your latest edits", dirty.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Unsupported_Source_SurfacesMissingBinding_Everywhere()
     {
         var source = new UnsupportedStudioFormPackageDataSource();
@@ -137,6 +159,8 @@ public sealed class StudioFormPackageDataSourceTests
 
         public bool PublishCalled { get; private set; }
 
+        public int ValidateCallCount { get; private set; }
+
         public Task<HonuaAdminEndpointResult<HonuaFormPackageSummary[]>> ListPackagesAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Packages);
 
@@ -164,8 +188,11 @@ public sealed class StudioFormPackageDataSourceTests
             return Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion { FormId = formId, Version = packageVersion, ETag = etag }));
         }
 
-        public Task<HonuaAdminEndpointResult<HonuaFormPackageValidationResult>> ValidateAsync(string formId, int packageVersion, CancellationToken cancellationToken = default) =>
-            Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageValidationResult>.FromData(new HonuaFormPackageValidationResult { IsValid = true }));
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageValidationResult>> ValidateAsync(string formId, int packageVersion, CancellationToken cancellationToken = default)
+        {
+            ValidateCallCount++;
+            return Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageValidationResult>.FromData(new HonuaFormPackageValidationResult { IsValid = true }));
+        }
 
         public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> PublishAsync(string formId, int packageVersion, CancellationToken cancellationToken = default)
         {

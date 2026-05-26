@@ -97,6 +97,7 @@
         else
         {
             var editor = _editor;
+            var hasUnsavedEdits = StudioFormPackageMapper.HasUnsavedEdits(editor);
             var readiness = StudioFormPublishEvaluator.Evaluate(editor);
 
             <div class="studio-form-editor" data-form-builder="form.package" data-form-status="@editor.Status">
@@ -111,7 +112,7 @@
                 <div class="console-action-row">
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to forms</button>
                     <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished)" @onclick="Validate">Validate</button>
+                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished || hasUnsavedEdits)" @onclick="Validate">Validate</button>
                     <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">Publish</button>
                     @if (editor.IsPublished)
                     {
@@ -138,7 +139,11 @@
                     </article>
                 }
 
-                @if (editor.LastValidation is { } validation)
+                @if (hasUnsavedEdits && editor.LastValidation is not null)
+                {
+                    <p class="console-warning" role="status" aria-live="polite">Server validation is out of date after your latest edits. Save the draft and validate again before publish.</p>
+                }
+                else if (editor.LastValidation is { } validation)
                 {
                     <article class="console-panel" aria-labelledby="form-validation-heading">
                         <div class="console-panel-heading">
@@ -401,12 +406,14 @@
         }
     }
 
-    private void BackToList()
+    private async Task BackToList()
     {
         _editor = null;
         _status = null;
         _statusFailed = false;
-        _ = LoadWorkspaceAsync();
+        // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
+        // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
+        await LoadWorkspaceAsync();
     }
 
     private void AddField() => _editor?.Fields.Add(new StudioFormFieldEditor());

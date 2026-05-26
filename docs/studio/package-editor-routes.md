@@ -22,6 +22,24 @@ The `/studio` entry page links to every route below. Each editor is a projection
 
 `/studio/form` is now its own server-bound surface (`honua-console#57`): `StudioFormBuilderPage` binds the honua-server form package lifecycle (`honua-server#1184`) through `IStudioFormPackageDataSource` over the `Honua.Console.Contracts` shim (`IHonuaFormPackageClient`). It authors fields, groups, validation, domains, conditional visibility, attachments, and privacy, then enforces an explicit reviewed offline/sync policy and a validated submit target before publish. When no server base address is configured it renders a missing-binding state — never mock form data (Console Patterns Charter section 11).
 
+### `/studio/form` server contract
+
+The builder maps editor state to and from the server-owned `honua.form-package.v1` document; no `studio-package-mock/v1` ref is involved. The `IHonuaFormPackageClient` shim (`src/Honua.Console.Contracts/FormPackageShims.cs`) speaks the real lifecycle:
+
+| Operation | Verb + path |
+| --- | --- |
+| List packages | `GET /api/v1/admin/forms/packages` |
+| Create draft | `POST /api/v1/admin/forms/packages` |
+| Get current version | `GET /api/v1/admin/forms/packages/{formId}` |
+| List / get versions | `GET /api/v1/admin/forms/packages/{formId}/versions[/{version}]` |
+| Update draft (`If-Match` ETag) | `PUT /api/v1/admin/forms/packages/{formId}/versions/{version}` |
+| Validate / publish / reopen | `POST /api/v1/admin/forms/packages/{formId}/versions/{version}/{validate\|publish\|reopen}` |
+| Offline/sync policy | `GET /api/v1/forms/packages/{formId}/offline-policy` (runtime, not admin) |
+
+The binding is enabled by `Honua:Server:BaseUrl` (or `HONUA_SERVER_BASE_URL`); without an absolute http(s) base address Console registers `UnsupportedStudioFormPackageDataSource` and every action returns a missing-binding state. The forms endpoints return the contract DTO directly (no `{success,data,message}` wrapper) and use optimistic concurrency — an existing draft sends its server `ETag` on `PUT`, a new one posts a create. Endpoint failures surface as a shared `StudioFormCapabilityState` (the Operate capability-state pattern) rather than exceptions: **missing binding** (no base address), **missing permission** (401/403 server RBAC), **unsupported** (404/405/501 or unexpected body), **conflict** (409/412/428 ETag / missing `If-Match`), **rejected** (400 — run validation), and **unavailable** (transport/empty body).
+
+Publish is gated Console-side on top of the server's own publish validation; the builder offers publish only when a title and at least one field exist, a submit-target service is configured (AC#3), the offline/sync policy has been explicitly reviewed and — when offline use is enabled — at least one sync transport is on (AC#2), and server validation has run for the open version with no errors (AC#3). Because validation runs against the *saved* version, the builder tracks the editor against the content signature captured at load/save: any later edit marks the draft dirty, which disables Validate (save first) and re-gates publish until the draft is saved and re-validated — so a stale "valid" result can never publish content that has since changed.
+
 The remaining per-editor package families (`honua-console#52`–`#56`, `#58`) are still out of scope for backend binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of `honua-console#61` the editor's validate/preview actions surface a **missing-binding** state rather than reporting mock validation success, so the editors never imply mock refs are valid runtime package data.
 
 The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`) through `IStudioPackageLifecycleClient`; when the remaining per-editor backend projections land, the simulator boundary should be replaced behind the same editor model instead of introducing a second Console package schema.

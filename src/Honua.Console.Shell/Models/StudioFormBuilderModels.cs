@@ -88,6 +88,15 @@ public sealed class StudioFormEditorState
     /// <summary>The most recent server validation result for the open version, or null when stale.</summary>
     public StudioFormValidationView? LastValidation { get; set; }
 
+    /// <summary>
+    /// Content signature of the package as last loaded from or saved to honua-server, captured by
+    /// <see cref="StudioFormPackageMapper.ToEditorState"/>. Local edits that change the publishable
+    /// content (fields, submit target, policies) move the editor off this baseline; the publish gate
+    /// then treats any earlier server validation as stale and re-requires a save + server validation
+    /// (see <see cref="StudioFormPublishEvaluator"/>). Empty for a never-saved draft.
+    /// </summary>
+    public string SavedSignature { get; set; } = string.Empty;
+
     public bool IsExistingPackage => !string.IsNullOrWhiteSpace(FormId);
 
     public bool IsPublished =>
@@ -266,8 +275,15 @@ public static class StudioFormPublishEvaluator
             unmet.Add("Enable at least one offline sync transport, or turn offline use off.");
         }
 
-        // AC#3: the submit target must validate against the live server before publish.
-        if (state.LastValidation is null)
+        // AC#3: the submit target must validate against the live server before publish, and that
+        // validation must still match what is in the editor. Edits after the validated save move the
+        // draft off its saved baseline, so re-require a save + server validation rather than trusting
+        // the now-stale result (a validate runs against the saved version, not unsaved local edits).
+        if (StudioFormPackageMapper.HasUnsavedEdits(state))
+        {
+            unmet.Add("Save your latest edits, then validate the draft against the server before publish.");
+        }
+        else if (state.LastValidation is null)
         {
             unmet.Add("Validate the draft against the server before publish.");
         }

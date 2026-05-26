@@ -15,6 +15,10 @@ public static class StudioFormPackageMapper
 {
     private const string ProvenanceSource = "honua-console.studio.form-builder";
 
+    // Options for the content-signature serialization. Only ever compared to another signature built
+    // the same way, so the exact format is irrelevant — it just needs to be stable for equal content.
+    private static readonly JsonSerializerOptions SignatureOptions = new(JsonSerializerDefaults.Web);
+
     public static StudioFormEditorState CreateTemplate()
     {
         var state = new StudioFormEditorState
@@ -168,7 +172,33 @@ public static class StudioFormPackageMapper
             state.Fields.Add(ToFieldEditor(field, privateIds, attachmentByField, sectionLabels));
         }
 
+        // Capture the baseline content signature so later local edits register as unsaved (dirty).
+        state.SavedSignature = ComputeContentSignature(state);
         return state;
+    }
+
+    /// <summary>
+    /// Deterministic signature of the publishable content of <paramref name="state"/> — everything the
+    /// server document carries (title, target, fields, and the submit/attachment/privacy/offline
+    /// policies). Used to detect edits made after a save or validate so the publish gate can re-require
+    /// a fresh server validation. The operator's offline-policy review acknowledgment is intentionally
+    /// excluded: it is a Console-side decision, not part of the server document the validate runs over.
+    /// </summary>
+    public static string ComputeContentSignature(StudioFormEditorState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return JsonSerializer.Serialize(ToDocument(state), SignatureOptions);
+    }
+
+    /// <summary>
+    /// True when the editor's current content differs from the baseline captured the last time it was
+    /// loaded from or saved to the server (<see cref="StudioFormEditorState.SavedSignature"/>). A
+    /// never-saved draft (empty baseline) is always treated as having unsaved edits.
+    /// </summary>
+    public static bool HasUnsavedEdits(StudioFormEditorState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return !string.Equals(ComputeContentSignature(state), state.SavedSignature, StringComparison.Ordinal);
     }
 
     public static StudioFormValidationView? ToValidationView(HonuaFormPackageValidationResult? result)

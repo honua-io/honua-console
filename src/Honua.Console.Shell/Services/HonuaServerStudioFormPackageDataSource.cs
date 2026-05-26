@@ -118,6 +118,13 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
             return Failure("Save the draft before running server validation.");
         }
 
+        // Validation runs against the saved server version, so validating with unsaved local edits would
+        // report on stale content. Require a save first so the result reflects what publish will use.
+        if (StudioFormPackageMapper.HasUnsavedEdits(state))
+        {
+            return Failure("Save your latest edits before validating; server validation runs against the saved draft.");
+        }
+
         var result = await _client
             .ValidateAsync(state.FormId!, state.Version, cancellationToken)
             .ConfigureAwait(false);

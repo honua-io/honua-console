@@ -174,6 +174,50 @@ public sealed class StudioFormPackageMapperTests
             LastValidation = new StudioFormValidationView(true, [])
         };
         state.Fields.Add(new StudioFormFieldEditor { FieldId = "asset_id", Label = "Asset", TargetField = "asset_id" });
+        // Represent a draft freshly loaded/saved from the server with no unsaved edits.
+        state.SavedSignature = StudioFormPackageMapper.ComputeContentSignature(state);
         return state;
+    }
+
+    [Fact]
+    public void PublishEvaluator_ReGatesPublish_AfterEditFollowingValidation()
+    {
+        var state = ReadyToPublishState();
+        Assert.True(StudioFormPublishEvaluator.Evaluate(state).CanPublish);
+
+        // Editing the submit target after the validated save moves the draft off its saved baseline, so
+        // the gate must re-require a save + server validation instead of trusting the stale result.
+        state.ServiceId = "different-service";
+
+        var readiness = StudioFormPublishEvaluator.Evaluate(state);
+
+        Assert.False(readiness.CanPublish);
+        Assert.Contains(
+            readiness.UnmetRequirements,
+            requirement => requirement.Contains("Save your latest edits", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void HasUnsavedEdits_TracksEditsAgainstSavedBaseline()
+    {
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-1",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = StudioFormPackageMapper.ToDocument(StudioFormPackageMapper.CreateTemplate())
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        Assert.False(StudioFormPackageMapper.HasUnsavedEdits(state));
+
+        state.Fields[0].Label = "Edited label";
+        Assert.True(StudioFormPackageMapper.HasUnsavedEdits(state));
+
+        // The offline-policy review is a Console-side acknowledgment, not server content, so it does not
+        // by itself make the draft dirty.
+        var pristine = StudioFormPackageMapper.ToEditorState(version);
+        pristine.OfflinePolicyReviewed = !pristine.OfflinePolicyReviewed;
+        Assert.False(StudioFormPackageMapper.HasUnsavedEdits(pristine));
     }
 }

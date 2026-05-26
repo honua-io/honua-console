@@ -89,7 +89,7 @@ Native Operate transition routes for connections, resources, services, layers, a
 - `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation that enforces pinned server fingerprints when present, the server-bound trust gate (cert-changed blocking, acknowledge/revalidate, unreachable-state preservation), and the deterministic telemetry streaming proof.
 - `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.
 - `tests/Honua.Console.Native.Core.Tests`: host-independent coverage for route boundaries, profile persistence, native connection setup, the trust gate, and the streaming proof contract, plus opt-in Testcontainers coverage for the live honua-server Operate binding.
-- `tests/Honua.Console.IntegrationTests`: opt-in Testcontainers suite asserting mTLS/trust behavior against a real honua-server (Console Patterns Charter section 11); skips without Docker.
+- `tests/Honua.Console.IntegrationTests`: opt-in Testcontainers suite asserting mTLS/trust behavior and that the server-bound Studio form builder (`/studio/form`, `honua-console#57`) renders from live honua-server form package data (`honua-server#1184`) against a real honua-server (Console Patterns Charter section 11); skips without Docker.
 
 ## Local Usage
 
