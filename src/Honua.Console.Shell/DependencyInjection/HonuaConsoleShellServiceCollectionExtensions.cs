@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,10 +20,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
         services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
+
+        // Operate observability binds to a real honua-server through a thin
+        // typed HttpClient behind Honua.Console.Contracts (the sanctioned interim
+        // until honua-sdk-dotnet projects the Operate contracts). Server-owned
+        // telemetry/events/alerts/rules/jobs/investigations are no longer wired
+        // to OperateObservabilityFixture.Default at runtime. TryAdd keeps an
+        // explicit test/demo provider overridable.
+        services.TryAddSingleton<IConsoleOperateObservabilityClient>(serviceProvider =>
+            new HttpConsoleOperateObservabilityClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
 
         return services;
     }
@@ -90,6 +104,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioAuthoringShell, UnsupportedStudioAuthoringShell>();
     }
 
+    // Binds the Studio form-builder surface (/studio/form) to honua-server's form package lifecycle
+    // (#1184) through the Honua.Console.Contracts shim when a server base address is configured;
+    // otherwise the builder renders a missing-binding state (never mock form data).
+    private static void AddStudioFormPackageDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaFormPackageClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaFormPackageHttpClient(
+                    httpClient,
+                    new HonuaFormPackageClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioFormPackageDataSource, HonuaServerStudioFormPackageDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>();
+    }
+
     // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)
     // to honua-server (#1185) through the Honua.Console.Contracts shim when a server base address is
     // configured; otherwise the editor renders a missing-binding state (never seeded workflow data).
@@ -136,4 +175,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
     }
+
+    private static HttpClient CreateOperateObservabilityHttpClient() =>
+        new(new SocketsHttpHandler
+        {
+            // Refresh pooled connections so a long-lived singleton client does
+            // not pin stale DNS for the active environment's server.
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
 }

@@ -1251,6 +1251,10 @@ p {
     align-items: end;
 }
 
+.operate-log-filter-bar {
+    grid-template-columns: minmax(220px, 1fr) auto;
+}
+
 .operate-filter-bar label {
     display: grid;
     gap: 6px;
@@ -1945,4 +1949,64 @@ p {
     .workflow-graph {
         grid-template-columns: 1fr;
     }
+}
+
+/* Studio form builder (/studio/form) */
+.studio-form-editor {
+    display: grid;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.studio-form-label {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    min-width: 0;
+    font-weight: 700;
+}
+
+.studio-form-label > span {
+    font-size: 0.85rem;
+}
+
+.studio-form-toggles {
+    align-items: center;
+    gap: 14px;
+    margin-top: 12px;
+}
+
+.studio-form-toggles label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.studio-form-inline {
+    margin-top: 0;
+}
+
+.studio-form-field {
+    margin: 14px 0 0;
+    padding: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #fbfdfc;
+}
+
+.studio-form-offline {
+    border-left: 3px solid #d97706;
+}
+
+.studio-form-review {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #fff8ed;
+    font-weight: 700;
 }

@@ -1,3 +1,5 @@
+using Honua.Console.Shell.Services;
+
 namespace Honua.Console.Shell.Models;
 
 public static class OperateObservabilityRoutes
@@ -32,6 +34,9 @@ public sealed record OperateObservabilitySnapshot(
         "Import",
         "Maintenance"
     ];
+
+    public static OperateObservabilitySnapshot Empty { get; } =
+        new([], [], [], [], [], [], [], []);
 
     public OperateEventRow SelectedEvent(string? eventId) =>
         FindEvent(eventId) ?? Events.First();
@@ -83,6 +88,7 @@ public sealed record OperateStatus(string State, string Description)
         "failing",
         "firing",
         "invalid",
+        "misconfigured",
         "unhealthy",
         "blocked"
     };
@@ -102,7 +108,7 @@ public sealed record OperateStatus(string State, string Description)
 
     public string CssClass => NormalizedState switch
     {
-        "healthy" or "succeeded" or "resolved" or "valid" => "console-state-success",
+        "configured" or "healthy" or "succeeded" or "resolved" or "valid" => "console-state-success",
         "running" or "info" or "notice" => "console-state-info",
         "warning" or "degraded" or "acknowledged" or "retrying" or "waiting" => "console-state-warning",
         _ when IsNeutral => "console-state-neutral",
@@ -220,10 +226,26 @@ public sealed record OperateAlertRecord(
     string LastSeenAt,
     IReadOnlyList<string> AffectedResources,
     IReadOnlyList<OperateEvidenceLink> EvidenceLinks,
-    OperateAiAdvisory AiAdvisory)
+    OperateAiAdvisory? AiAdvisory,
+    IReadOnlyList<OperateAlertAction>? Actions = null)
 {
     public string DetailHref => OperateObservabilityRoutes.AlertDetail(AlertId);
+
+    public IReadOnlyList<OperateAlertAction> LifecycleActions => Actions ?? [];
+
+    public bool PreservesRawEvidenceWithAi => AiAdvisory is null || EvidenceLinks.Count > 0;
 }
+
+public sealed record OperateAlertAction(string Label, bool IsAllowed, string Reason);
+
+public sealed record OperateGeofenceZone(
+    string ZoneId,
+    string Name,
+    string ServiceId,
+    bool Active,
+    int Srid,
+    string GeometrySummary,
+    IReadOnlyList<string> Metadata);
 
 public sealed record OperateAlertRule(
     string RuleId,
@@ -236,7 +258,9 @@ public sealed record OperateAlertRule(
     string LastEvaluatedAt,
     int ActiveIncidentCount,
     int DeliveryFailureCount,
-    IReadOnlyList<string> ValidationMessages)
+    IReadOnlyList<string> ValidationMessages,
+    int RecentTriggerCount = 0,
+    string LastTriggeredAt = "")
 {
     public bool IsValid => !string.Equals(Status.NormalizedState, "invalid", StringComparison.OrdinalIgnoreCase)
         && ValidationMessages.Count == 0;
@@ -283,14 +307,32 @@ public sealed record OperateJobRun(
     IReadOnlyList<OperateEvidenceLink> Artifacts,
     IReadOnlyList<OperateJobMetric> Metrics,
     IReadOnlyList<OperateJobAction> AllowedActions,
-    IReadOnlyList<OperateRelatedObject> RelatedObjects)
+    IReadOnlyList<OperateRelatedObject> RelatedObjects,
+    OperateSectionStatus LogsStatus = OperateSectionStatus.Allowed,
+    string LogsMessage = "",
+    OperateSectionStatus ArtifactsStatus = OperateSectionStatus.Allowed,
+    string ArtifactsMessage = "")
 {
     public string DetailHref => OperateObservabilityRoutes.JobDetail(JobRunId);
+
+    public string ArtifactCountLabel =>
+        Metrics.FirstOrDefault(metric => string.Equals(metric.Name, "Artifacts", StringComparison.OrdinalIgnoreCase))?.Value
+        ?? Artifacts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public bool LogsAllowed => LogsStatus == OperateSectionStatus.Allowed;
+
+    public bool ArtifactsAllowed => ArtifactsStatus == OperateSectionStatus.Allowed;
 }
 
 public static class OperateActionPresentation
 {
-    public const string ActionApiUnavailableReason = "Action unavailable until the Operate action API is connected.";
+    // Action gating is now server-driven (ConsoleJobActionDescriptor.Allowed,
+    // alert lifecycle state, rule health). Execution of mutating actions is a
+    // follow-on slice; allowed actions render disabled with this note so an
+    // operator can see the action is permitted but not yet wired in Console.
+    public const string ActionExecutionDeferredReason = "Allowed by the server; mutating actions are wired in a follow-on Console slice.";
+
+    public const string ActionApiUnavailableReason = ActionExecutionDeferredReason;
 }
 
 public sealed record OperateInvestigation(
@@ -302,7 +344,18 @@ public sealed record OperateInvestigation(
     IReadOnlyList<string> PinnedEventIds,
     IReadOnlyList<string> LinkedAlertIds,
     IReadOnlyList<string> LinkedJobRunIds,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    OperateStatus? DetailStatus = null,
+    string DetailMessage = "")
+{
+    public OperateStatus EffectiveDetailStatus => DetailStatus ?? new("healthy", "Investigation detail loaded.");
+
+    public bool HasIncompleteDetails => EffectiveDetailStatus.IsFailure
+        || EffectiveDetailStatus.IsNeutral
+        || string.Equals(EffectiveDetailStatus.NormalizedState, "forbidden", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(EffectiveDetailStatus.NormalizedState, "warning", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(EffectiveDetailStatus.NormalizedState, "degraded", StringComparison.OrdinalIgnoreCase);
+}
 
 public static class OperateObservabilityFixture
 {

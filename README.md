@@ -16,7 +16,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 - [Honua Console Route Map, RBAC, and Navigation](docs/console-route-map.md) — IA source of truth for Studio, Catalog, Operate, Share routes, gates, and exception surfaces. Migration tickets cite this map for URL shapes, gates, empty states, and smoke evidence.
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
-- [Studio Package Editor Routes](docs/studio/package-editor-routes.md) — Console-native editor routes, package-family coverage, and the temporary lifecycle mock contract for `honua-console#39`.
+- [Studio Package Editor Routes](docs/studio/package-editor-routes.md) — Console-native editor routes, package-family coverage, the temporary lifecycle mock contract for the remaining `honua-console#39` editors, and the server-bound `/studio/form` exception from `honua-console#57`.
 - [GitOps Metadata Publishing Information Model](docs/architecture/gitops-metadata-publishing-information-model.md)
 - [GitOps Metadata Publishing Visualization Design](docs/architecture/gitops-metadata-publishing-visualization-design.md)
 - [Temporal Data Viewer Information Model](docs/architecture/temporal-data-viewer-information-model.md)
@@ -91,7 +91,7 @@ Native Operate transition routes for connections, resources, services, layers, a
 - `src/Honua.Console.Native.Core`: testable native host services for persisted environment profiles, account-token sessions, certificate references, HTTP/gRPC connection creation that enforces pinned server fingerprints when present, the server-bound trust gate (cert-changed blocking, acknowledge/revalidate, unreachable-state preservation), and the deterministic telemetry streaming proof.
 - `src/Honua.Console.Native`: optional MAUI Blazor Hybrid host for desktop operator workflows. It renders the shared shell in a `BlazorWebView` and backs profile/session storage with MAUI secure storage.
 - `tests/Honua.Console.Native.Core.Tests`: host-independent coverage for route boundaries, profile persistence, native connection setup, the trust gate, and the streaming proof contract, plus opt-in Testcontainers coverage for the live honua-server Operate binding.
-- `tests/Honua.Console.IntegrationTests`: opt-in Testcontainers suite asserting mTLS/trust behavior against a real honua-server (Console Patterns Charter section 11); skips without Docker.
+- `tests/Honua.Console.IntegrationTests`: opt-in Testcontainers suite asserting mTLS/trust behavior and that the server-bound Studio form builder (`/studio/form`, `honua-console#57`) renders from live honua-server form package data (`honua-server#1184`) against a real honua-server (Console Patterns Charter section 11); skips without Docker.
 
 ## Local Usage
 
@@ -171,19 +171,48 @@ Until parity is accepted, source behavior remains in:
 
 ## Operate Observability Usage
 
-The native Blazor Operate observability checkpoint is available at
+The native Blazor Operate observability workspace is available at
 `/operate` and `/operate/observability`, with deep links for
 `/operate/events/{eventId}`, `/operate/alerts/{alertId}`, and
 `/operate/jobs/{jobRunId}`.
 
-The current checkpoint is fixture-backed by `OperateObservabilityFixture`
-while the server and SDK Operate contracts land. It documents the
-response behavior Console must preserve: `unknown`, `unsupported`,
-`missing`, `disabled`, `not configured`, and `unconfigured` telemetry are
-neutral states; AI advisory text appears beside raw evidence links;
-invalid realtime/geofence rules cannot be enabled; and Studio,
-publishing, GitOps, temporal, alert delivery, import, and maintenance
-jobs share the `/operate/jobs/{jobRunId}` detail surface.
+Runtime data comes from the active environment profile's honua-server
+admin APIs through `IConsoleOperateObservabilityClient` and the temporary
+`src/Honua.Console.Contracts/OperateObservabilityContracts.cs` SDK shim.
+The client uses `/api/v1/admin/version`, `/api/v1/admin/capabilities`,
+`/api/v1/admin/observability/*`, `/api/v1/admin/alerts/*`,
+`/api/v1/admin/jobs/*`, and `/api/v1/admin/investigations/*`;
+`OperateObservabilityFixture` remains test/scaffolding data only.
+
+The response contract preserves the Console state vocabulary:
+`unknown`, `unsupported`, `missing`, `disabled`, `not configured`, and
+`unconfigured` telemetry are neutral states; missing, forbidden,
+unsupported, and unavailable admin reads render through the shared Operate
+section status surface; AI advisory text appears beside raw evidence
+links; invalid realtime/geofence rules cannot be enabled; and Studio,
+publishing, GitOps, temporal, alert delivery, import, and maintenance jobs
+share the `/operate/jobs/{jobRunId}` detail surface.
+
+Event and alert deep links select the matching row from the loaded live
+server page. If `/operate/events/{eventId}` or `/operate/alerts/{alertId}`
+contains an id that is not in that live page, the detail panel renders the
+shared missing state rather than unrelated data; only the route without an
+id defaults to the first returned row. Job deep links read live job detail
+plus logs and artifacts, while job action buttons render from the
+server-declared descriptors on the detail response and remain non-mutating
+in this slice. Rule-health, geofence-zone, investigation-detail, and job
+log/artifact sub-resource failures are surfaced beside the surrounding live
+data instead of being collapsed into empty states.
+
+The live server integration test is
+`OperateObservabilityTestcontainersTests`. Set
+`HONUA_CONSOLE_OPERATE_SERVER_IMAGE` to a honua-server image containing the
+admin Operate endpoints to run it. Alternatively set
+`HONUA_CONSOLE_OPERATE_SERVER_CONTEXT` to a honua-server checkout and,
+when needed, `HONUA_CONSOLE_OPERATE_SERVER_DOCKERFILE` to the Dockerfile
+path relative to that context; the test builds an ephemeral image before
+starting PostgreSQL and the server. It skips when neither an image nor a
+build context is configured, or when Docker is unavailable.
 
 ## Studio Contract Notes
 
@@ -191,9 +220,9 @@ Studio authoring is modeled as shared package contracts, not separate Console-on
 
 The `/studio` route is the shared Razor package shell (real-server revisit `honua-console#61` of the merged `honua-console#38` slice); the same shell is also mounted for `/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`, and `/studio/apps/:itemId/preview` route compatibility. It lets a builder choose a workflow family, submit a prompt, answer structured clarification questions, inspect the active package, run server validation and preview-planning, save a content version, and publish. Draft/validation/preview-plan/content-version/publish bind to the honua-server package lifecycle (`honua-server#1180`/`#1181`) through the `IStudioPackageLifecycleClient` shim in `Honua.Console.Contracts`; prompt and clarification stay Console-local UX. Draft, Saved version, and Published are the lifecycle states; Preview is a transient preview-plan action, and rendered preview output / generated-app preview remains a labeled missing-binding state. When no server base address is configured the shell renders a missing-binding surface instead of mock package data; the in-memory authoring shell is demo/test-only (`AddHonuaConsoleDemoStudioAuthoringShell`).
 
-Package families include query, analysis, map, dashboard, report, form, app, workflow, and publication packages. Publishing always creates or updates server-owned content item versions and publication records; analysis, GP, ETL, scheduled, batch, export, and heavy refresh work routes through Honua's job runner.
+Package families include query, analysis, map, dashboard, report, form, app, workflow, and publication packages. The shared Studio package lifecycle creates or updates server-owned content item versions and publication records for the generated-package shell; `/studio/form` uses the dedicated honua-server form package lifecycle from `honua-server#1184` until the SDK projection lands. Analysis, GP, ETL, scheduled, batch, export, and heavy refresh work routes through Honua's job runner.
 
-The shared Razor shell currently exposes the first Console-native package editor set at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, and `/studio/app`. These per-editor families (`honua-console#52`–`#58`) still use the local `studio-package-mock/v1` lifecycle projection documented in [Studio Package Editor Routes](docs/studio/package-editor-routes.md) and surface a missing-binding state for validate/preview rather than mock success; they bind to the honua-server package lifecycle on their own tickets. The shared `/studio` shell already binds that lifecycle (`honua-server#1180`/`#1181`).
+The shared Razor shell currently exposes the first Console-native package editor set at `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, and `/studio/app`. These per-editor families (`honua-console#52`–`#56`, `#58`) still use the local `studio-package-mock/v1` lifecycle projection documented in [Studio Package Editor Routes](docs/studio/package-editor-routes.md) and surface a missing-binding state for validate/preview rather than mock success; they bind to the honua-server package lifecycle on their own tickets. `/studio/form` (`honua-console#57`) is the exception: it is its own server-bound form builder wired to the honua-server form package lifecycle (`honua-server#1184`) through `Honua.Console.Contracts`, and renders a missing-binding state — never mock form data — when no server base address is configured. The shared `/studio` shell already binds the package lifecycle (`honua-server#1180`/`#1181`).
 
 Console should consume server/SDK projections for validate, preview, publish, and run responses. Do not duplicate server or SDK DTOs in this repo when a shared contract exists.
 

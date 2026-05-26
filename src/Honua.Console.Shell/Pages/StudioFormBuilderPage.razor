@@ -1,0 +1,466 @@
+@page "/studio/form"
+@inject IStudioFormPackageDataSource FormData
+
+<section class="console-page studio-form-builder">
+    <div class="console-page-heading">
+        <p class="console-kicker">Builder workflow</p>
+        <h1>Form builder</h1>
+        <p>Author a server-owned form package — fields, groups, validation, domains, conditional visibility, attachments, and privacy — then set an explicit offline/sync policy and a validated submit target before publishing to honua-server.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Form builder"
+                          Title="Loading form packages"
+                          Message="Reading the form package lifecycle from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Form package lifecycle is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else
+    {
+        @if (_states.Count > 0)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Form binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_editor is null)
+        {
+            <div class="console-toolbar">
+                <button class="console-button" type="button" disabled="@_busy" @onclick="NewForm">New form</button>
+            </div>
+
+            @if (_workspace.Packages.Count == 0)
+            {
+                <EmptyState Area="studio" Subject="form packages" />
+            }
+            else
+            {
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Submit target</th>
+                                <th>Draft</th>
+                                <th>Published</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var package in _workspace.Packages)
+                            {
+                                <tr>
+                                    <td>
+                                        <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="() => OpenForm(package.FormId)">@package.Title</button>
+                                        <small>@package.FormId</small>
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(package.ServiceId) ? "unset" : package.ServiceId) / layer @package.LayerId</td>
+                                    <td>@(package.DraftVersion?.ToString() ?? "—")</td>
+                                    <td>@(package.PublishedVersion?.ToString() ?? "—")</td>
+                                    <td>@package.UpdatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+        else
+        {
+            var editor = _editor;
+            var hasUnsavedEdits = StudioFormPackageMapper.HasUnsavedEdits(editor);
+            var readiness = StudioFormPublishEvaluator.Evaluate(editor);
+
+            <div class="studio-form-editor" data-form-builder="form.package" data-form-status="@editor.Status">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">@(editor.IsExistingPackage ? $"{editor.FormId} · v{editor.Version}" : "New draft")</p>
+                        <h2>@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled form" : editor.Title)</h2>
+                    </div>
+                    <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
+                </div>
+
+                <div class="console-action-row">
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to forms</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
+                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished || hasUnsavedEdits)" @onclick="Validate">Validate</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
+                    @if (editor.IsPublished)
+                    {
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_status))
+                {
+                    <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+                }
+
+                @if (!editor.IsPublished && !readiness.CanPublish)
+                {
+                    <article class="console-panel" aria-labelledby="form-publish-readiness-heading">
+                        <p class="console-kicker">Pre-publish gate</p>
+                        <h3 id="form-publish-readiness-heading">Resolve before publish</h3>
+                        <ul class="studio-compact-list">
+                            @foreach (var requirement in readiness.UnmetRequirements)
+                            {
+                                <li>@requirement</li>
+                            }
+                        </ul>
+                    </article>
+                }
+
+                @if (hasUnsavedEdits && editor.LastValidation is not null)
+                {
+                    <p class="console-warning" role="status" aria-live="polite">Server validation is out of date after your latest edits. Save the draft and validate again before publish.</p>
+                }
+                else if (editor.LastValidation is { } validation)
+                {
+                    <article class="console-panel" aria-labelledby="form-validation-heading">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Server validation</p>
+                                <h3 id="form-validation-heading">@(validation.IsValid ? "Valid" : "Issues reported")</h3>
+                            </div>
+                            <span class="console-status @(validation.IsValid ? string.Empty : "console-status-danger")">@(validation.IsValid ? "valid" : $"{validation.Issues.Count} issue(s)")</span>
+                        </div>
+                        @if (validation.Issues.Count > 0)
+                        {
+                            <ul class="studio-compact-list">
+                                @foreach (var issue in validation.Issues)
+                                {
+                                    <li><strong>@issue.Severity</strong> @issue.Message @(string.IsNullOrWhiteSpace(issue.FieldId) ? string.Empty : $"({issue.FieldId})")</li>
+                                }
+                            </ul>
+                        }
+                    </article>
+                }
+
+                <div class="console-panel-grid">
+                    <article class="console-panel">
+                        <p class="console-kicker">Details</p>
+                        <h3>Form</h3>
+                        <label class="studio-form-label">
+                            <span>Title</span>
+                            <input class="console-input" @bind="editor.Title" placeholder="Field inspection form" />
+                        </label>
+                        <label class="studio-form-label">
+                            <span>Description</span>
+                            <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
+                        </label>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Submit target</p>
+                        <h3>Feature service</h3>
+                        <p class="console-muted">The feature service and layer that accept submissions. Required and server-validated before publish.</p>
+                        <label class="studio-form-label">
+                            <span>Service id</span>
+                            <input class="console-input" @bind="editor.ServiceId" placeholder="inspections" />
+                        </label>
+                        <label class="studio-form-label">
+                            <span>Layer id</span>
+                            <input class="console-input" type="number" @bind="editor.LayerId" />
+                        </label>
+                        <div class="console-chip-row studio-form-toggles">
+                            <label><input type="checkbox" @bind="editor.AllowCreate" /> <span>Create</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowUpdate" /> <span>Update</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowDelete" /> <span>Delete</span></label>
+                            <label><input type="checkbox" @bind="editor.RequiresGeometry" /> <span>Requires geometry</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowAttachments" /> <span>Allow attachments</span></label>
+                        </div>
+                    </article>
+                </div>
+
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Fields and groups</p>
+                            <h3>Fields</h3>
+                        </div>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="AddField">Add field</button>
+                    </div>
+
+                    @if (editor.Fields.Count == 0)
+                    {
+                        <p class="console-muted">No fields yet. Add at least one field before publishing.</p>
+                    }
+
+                    @foreach (var field in editor.Fields)
+                    {
+                        <fieldset class="studio-form-field" @key="field">
+                            <div class="console-panel-grid">
+                                <label class="studio-form-label"><span>Field id</span><input class="console-input" @bind="field.FieldId" placeholder="asset_id" /></label>
+                                <label class="studio-form-label"><span>Label</span><input class="console-input" @bind="field.Label" placeholder="Asset ID" /></label>
+                                <label class="studio-form-label"><span>Group / section</span><input class="console-input" @bind="field.Group" placeholder="Identification" /></label>
+                                <label class="studio-form-label">
+                                    <span>Type</span>
+                                    <select class="console-input" @bind="field.Type">
+                                        @foreach (var type in StudioFormFieldTypes.All)
+                                        {
+                                            <option value="@type">@type</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="studio-form-label"><span>Target field</span><input class="console-input" @bind="field.TargetField" placeholder="asset_id" disabled="@field.IsAttachment" /></label>
+                                <label class="studio-form-label">
+                                    <span>Domain</span>
+                                    <select class="console-input" @bind="field.DomainKind">
+                                        <option value="none">No domain</option>
+                                        <option value="coded">Coded values</option>
+                                        <option value="range">Range</option>
+                                    </select>
+                                </label>
+                            </div>
+
+                            <div class="console-chip-row studio-form-toggles">
+                                <label><input type="checkbox" @bind="field.Required" /> <span>Required</span></label>
+                                <label><input type="checkbox" @bind="field.Private" /> <span>Private</span></label>
+                                @if (field.IsAttachment)
+                                {
+                                    <label class="studio-form-label studio-form-inline"><span>Max attachments</span><input class="console-input" type="number" @bind="field.AttachmentMaxCount" /></label>
+                                }
+                            </div>
+
+                            @if (string.Equals(field.DomainKind, "coded", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <label class="studio-form-label">
+                                    <span>Coded values (one per line, <code>code=label</code>)</span>
+                                    <textarea class="console-input" rows="2" @bind="field.Choices" placeholder="good=Good&#10;needs-repair=Needs repair"></textarea>
+                                </label>
+                            }
+                            else if (string.Equals(field.DomainKind, "range", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="console-panel-grid">
+                                    <label class="studio-form-label"><span>Min</span><input class="console-input" @bind="field.RangeMin" /></label>
+                                    <label class="studio-form-label"><span>Max</span><input class="console-input" @bind="field.RangeMax" /></label>
+                                </div>
+                            }
+
+                            <div class="console-panel-grid">
+                                <label class="studio-form-label">
+                                    <span>Validation</span>
+                                    <select class="console-input" @bind="field.ValidationType">
+                                        <option value="none">None</option>
+                                        <option value="minLength">Min length</option>
+                                        <option value="maxLength">Max length</option>
+                                        <option value="min">Min value</option>
+                                        <option value="max">Max value</option>
+                                        <option value="regex">Regex</option>
+                                    </select>
+                                </label>
+                                @if (!string.Equals(field.ValidationType, "none", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <label class="studio-form-label"><span>Rule value</span><input class="console-input" @bind="field.ValidationValue" /></label>
+                                    <label class="studio-form-label"><span>Message</span><input class="console-input" @bind="field.ValidationMessage" placeholder="Enter a valid value" /></label>
+                                }
+                            </div>
+
+                            <div class="console-panel-grid">
+                                <label class="studio-form-label"><span>Visible when field</span><input class="console-input" @bind="field.VisibilityDependsOn" placeholder="condition" /></label>
+                                <label class="studio-form-label">
+                                    <span>Operator</span>
+                                    <select class="console-input" @bind="field.VisibilityOperator">
+                                        @foreach (var op in StudioFormVisibilityOperators.All)
+                                        {
+                                            <option value="@op">@op</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="studio-form-label"><span>Compares to</span><input class="console-input" @bind="field.VisibilityValue" /></label>
+                            </div>
+
+                            <div class="console-action-row">
+                                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemoveField(field)">Remove field</button>
+                            </div>
+                        </fieldset>
+                    }
+                </article>
+
+                <div class="console-panel-grid">
+                    <article class="console-panel">
+                        <p class="console-kicker">Attachments</p>
+                        <h3>Attachment policy</h3>
+                        <div class="console-chip-row studio-form-toggles">
+                            <label><input type="checkbox" @bind="editor.AttachmentsEnabled" /> <span>Enabled</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireExifStripping" /> <span>Strip EXIF</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireFaceBlur" /> <span>Face blur</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireRedaction" /> <span>Redaction</span></label>
+                        </div>
+                        <label class="studio-form-label"><span>Max attachments / submission</span><input class="console-input" type="number" @bind="editor.MaxAttachmentsPerSubmission" /></label>
+                        <label class="studio-form-label"><span>Allowed content types</span><input class="console-input" @bind="editor.AllowedContentTypes" placeholder="image/*, application/pdf" /></label>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Privacy</p>
+                        <h3>Privacy policy</h3>
+                        <div class="console-chip-row studio-form-toggles">
+                            <label><input type="checkbox" @bind="editor.CaptureActor" /> <span>Capture actor</span></label>
+                            <label><input type="checkbox" @bind="editor.CaptureDeviceId" /> <span>Capture device id</span></label>
+                        </div>
+                        <label class="studio-form-label"><span>Retention (days)</span><input class="console-input" type="number" @bind="editor.PrivacyRetentionDays" /></label>
+                        <label class="studio-form-label"><span>Required transformations</span><input class="console-input" @bind="editor.RequiredTransformations" placeholder="auditOnly" /></label>
+                    </article>
+                </div>
+
+                <article class="console-panel studio-form-offline" aria-labelledby="form-offline-heading">
+                    <p class="console-kicker">Offline and sync</p>
+                    <h3 id="form-offline-heading">Offline policy</h3>
+                    <p class="console-muted">Field clients sync through honua-server transports. The offline policy must be an explicit, reviewed decision before publish.</p>
+                    <div class="console-chip-row studio-form-toggles">
+                        <label><input type="checkbox" @bind="editor.OfflineEnabled" /> <span>Offline capture enabled</span></label>
+                        <label><input type="checkbox" @bind="editor.ReplicaTransportEnabled" /> <span>FeatureServer replica</span></label>
+                        <label><input type="checkbox" @bind="editor.FieldCollectionTransportEnabled" /> <span>FieldCollection sync</span></label>
+                    </div>
+                    <label class="studio-form-label">
+                        <span>Conflict review mode</span>
+                        <select class="console-input" @bind="editor.ConflictReviewMode">
+                            @foreach (var mode in StudioFormConflictModes.All)
+                            {
+                                <option value="@mode">@mode</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="studio-form-review">
+                        <input type="checkbox" @bind="editor.OfflinePolicyReviewed" />
+                        <span>I reviewed the offline/sync policy for this form (required before publish).</span>
+                    </label>
+                </article>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private StudioFormWorkspace _workspace = new([], []);
+    private StudioFormCapabilityState? _bindingState;
+    private IReadOnlyList<StudioFormCapabilityState> _states = [];
+    private StudioFormEditorState? _editor;
+    private string? _status;
+    private bool _statusFailed;
+
+    protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+
+    private async Task LoadWorkspaceAsync()
+    {
+        _loading = true;
+        _workspace = await FormData.GetWorkspaceAsync();
+        ApplyStates(_workspace.CapabilityStates);
+        _loading = false;
+    }
+
+    private Task NewForm() => RunLoadAsync(() => FormData.LoadAsync(null));
+
+    private Task OpenForm(string formId) => RunLoadAsync(() => FormData.LoadAsync(formId));
+
+    private async Task RunLoadAsync(Func<Task<StudioFormEditorLoad>> load)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _status = null;
+        _statusFailed = false;
+        try
+        {
+            var result = await load();
+            ApplyStates(result.CapabilityStates);
+            _editor = result.State;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task BackToList()
+    {
+        _editor = null;
+        _status = null;
+        _statusFailed = false;
+        // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
+        // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
+        await LoadWorkspaceAsync();
+    }
+
+    private void AddField() => _editor?.Fields.Add(new StudioFormFieldEditor());
+
+    private void RemoveField(StudioFormFieldEditor field) => _editor?.Fields.Remove(field);
+
+    private Task Save() => RunCommandAsync(() => FormData.SaveDraftAsync(_editor!));
+
+    private Task Validate() => RunCommandAsync(() => FormData.ValidateAsync(_editor!));
+
+    private Task Publish() => RunCommandAsync(() => FormData.PublishAsync(_editor!));
+
+    private Task Reopen() => RunCommandAsync(() => FormData.ReopenAsync(_editor!.FormId!, _editor.Version));
+
+    private async Task RunCommandAsync(Func<Task<StudioFormCommandResult>> command)
+    {
+        if (_busy || _editor is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await command();
+            _status = result.Message;
+            _statusFailed = !result.Succeeded;
+
+            if (result.State is not null)
+            {
+                _editor = result.State;
+            }
+
+            ApplyStates(result.Issue is null ? [] : [result.Issue]);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ApplyStates(IReadOnlyList<StudioFormCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
+        _states = states
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+    }
+}
