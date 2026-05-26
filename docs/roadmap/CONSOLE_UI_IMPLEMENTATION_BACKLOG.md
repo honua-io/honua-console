@@ -430,9 +430,9 @@ Design refs:
 
 Build:
 
-- Form package editor with fields, groups, validation, domains, conditional visibility, attachment rules, privacy rules, offline policy, and submit target.
-- Desktop/tablet/mobile preview.
-- Publish review for field workflow and optional app package.
+- Implemented in this slice: form package editor with fields, groups, validation, domains, conditional visibility, attachment rules, privacy rules, offline policy, and submit target.
+- Implemented in this slice: save, reopen, server validation, and publish gating through the honua-server form package lifecycle.
+- Deferred from the original design: desktop/tablet/mobile preview and optional app package publish review remain generated-app/runtime follow-ons.
 
 Backend dependencies:
 
@@ -442,7 +442,9 @@ Backend dependencies:
 Acceptance:
 
 - Offline/sync policy is explicit before publish.
+- Submit target is configured, saved, and server-validated before publish; edits after validation require another save and validation pass.
 - Published form packages declare server-owned submission, attachment, and offline policy; submission ingestion and audit evidence remain backend/runtime follow-ons.
+- Published versions are terminal in the builder until reopened as a draft.
 
 ### UI-026: App Builder And Generated App Lifecycle
 

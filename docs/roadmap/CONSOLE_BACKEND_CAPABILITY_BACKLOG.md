@@ -65,7 +65,7 @@ These were filed as GitHub issues and projected from Specifica items under `agen
 
 1. Land the metadata/content/RBAC baseline and SDK projections.
 2. Define the package lifecycle and validation/preview APIs.
-3. Wire Studio query, analysis, map, dashboard, report, app, and form packages to content versions.
+3. Wire Studio query, analysis, map, dashboard, report, and app packages to content versions; keep `/studio/form` bound to the honua-server form package lifecycle until the SDK projection lands.
 4. Wire GP/ETL workflow packages to job-runner execution and eligible process endpoints.
 5. Complete GitOps release lifecycle, compatibility prevalidation, operation monitoring, and rollback.
 6. Complete Operate observability, realtime/geofence rules, and jobs.
@@ -77,7 +77,7 @@ These were filed as GitHub issues and projected from Specifica items under `agen
 The existing Console parity gate should be expanded to prove:
 
 - Open data, STAC, and DCAT publication are served by the unified Console runtime.
-- A generated Studio map, dashboard, report, form, app, query, analysis, and workflow can each be saved as a content item/version and reopened.
+- A generated Studio map, dashboard, report, app, query, analysis, and workflow can each be saved as a content item/version and reopened; a Studio form can be saved, reopened, validated, and published through the server-owned form package lifecycle.
 - A package validation response is identical in shape across Console, MCP, QGIS, and SDK clients.
 - A Studio publication creates job, event, audit, provenance, publication, and content-version records linked by stable IDs.
 - A rollback or republish uses server-owned records rather than UI-local state.

@@ -1,6 +1,6 @@
 # Studio Package Editor Routes
 
-Status: implemented for the `honua-console#39` editor set. `/studio/form` is server-bound by `honua-console#57`; the remaining editor routes retain stable Console mock lifecycle refs.
+Status: implemented for the remaining `honua-console#39` editor routes. `/studio/form` is server-bound by `honua-console#57`; the other editor routes retain stable Console mock lifecycle refs.
 
 The first Console-native Studio editor set lives in the shared Razor shell library and is served by the same Blazor Web and future native host surface as the rest of Console.
 

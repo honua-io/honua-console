@@ -236,6 +236,125 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_PreservesJsonDomainAndVisibilityValues()
+    {
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-json",
+            Title = "JSON form",
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "condition",
+                    Label = "Condition",
+                    Type = "choice",
+                    Domain = new HonuaFormFieldDomainDefinition
+                    {
+                        Type = "codedValue",
+                        Choices =
+                        [
+                            new HonuaFormDomainChoice
+                            {
+                                Code = JsonSerializer.SerializeToElement(1),
+                                Label = "One"
+                            },
+                            new HonuaFormDomainChoice
+                            {
+                                Code = JsonSerializer.SerializeToElement(true),
+                                Label = "Enabled"
+                            },
+                            new HonuaFormDomainChoice
+                            {
+                                Code = JsonSerializer.SerializeToElement(new { code = "nested" }),
+                                Label = "Nested"
+                            }
+                        ]
+                    }
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "numeric_visible",
+                    Label = "Numeric visibility",
+                    Type = "text",
+                    Visibility = new HonuaFormConditionalRule
+                    {
+                        DependsOnFieldId = "condition",
+                        Operator = "equals",
+                        Value = JsonSerializer.SerializeToElement(1)
+                    }
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "boolean_visible",
+                    Label = "Boolean visibility",
+                    Type = "text",
+                    Visibility = new HonuaFormConditionalRule
+                    {
+                        DependsOnFieldId = "condition",
+                        Operator = "equals",
+                        Value = JsonSerializer.SerializeToElement(true)
+                    }
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "array_visible",
+                    Label = "Array visibility",
+                    Type = "text",
+                    Visibility = new HonuaFormConditionalRule
+                    {
+                        DependsOnFieldId = "condition",
+                        Operator = "in",
+                        Value = JsonSerializer.SerializeToElement(new[] { 1, 2 })
+                    }
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-json",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        Assert.False(StudioFormPackageMapper.HasUnsavedEdits(state));
+
+        var condition = state.Fields.Single(field => field.FieldId == "condition");
+        condition.Choices = condition.Choices.Replace("1=One", "1=First", StringComparison.Ordinal);
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        var choices = saved.Fields.Single(field => field.FieldId == "condition").Domain!.Choices;
+        var numericChoice = choices.Single(choice => choice.Label == "First");
+        Assert.Equal(JsonValueKind.Number, numericChoice.Code.ValueKind);
+        Assert.Equal(1, numericChoice.Code.GetInt32());
+
+        var booleanChoice = choices.Single(choice => choice.Label == "Enabled");
+        Assert.Equal(JsonValueKind.True, booleanChoice.Code.ValueKind);
+        Assert.True(booleanChoice.Code.GetBoolean());
+
+        var objectChoice = choices.Single(choice => choice.Label == "Nested");
+        Assert.Equal(JsonValueKind.Object, objectChoice.Code.ValueKind);
+        Assert.Equal("nested", objectChoice.Code.GetProperty("code").GetString());
+
+        var numericVisibility = saved.Fields.Single(field => field.FieldId == "numeric_visible").Visibility!.Value;
+        Assert.True(numericVisibility.HasValue);
+        Assert.Equal(JsonValueKind.Number, numericVisibility.Value.ValueKind);
+        Assert.Equal(1, numericVisibility.Value.GetInt32());
+
+        var booleanVisibility = saved.Fields.Single(field => field.FieldId == "boolean_visible").Visibility!.Value;
+        Assert.True(booleanVisibility.HasValue);
+        Assert.Equal(JsonValueKind.True, booleanVisibility.Value.ValueKind);
+        Assert.True(booleanVisibility.Value.GetBoolean());
+
+        var arrayVisibility = saved.Fields.Single(field => field.FieldId == "array_visible").Visibility!.Value;
+        Assert.True(arrayVisibility.HasValue);
+        Assert.Equal(JsonValueKind.Array, arrayVisibility.Value.ValueKind);
+        Assert.Equal([1, 2], arrayVisibility.Value.EnumerateArray().Select(item => item.GetInt32()).ToArray());
+    }
+
+    [Fact]
     public void ToDocument_OnExistingPackage_PreservesServerSectionIdentityWhenIdIsNotLabelSlug()
     {
         // A server section whose id is NOT the slug of its label (an opaque server-assigned id). The editor

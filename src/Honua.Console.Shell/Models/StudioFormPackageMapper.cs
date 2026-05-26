@@ -280,9 +280,9 @@ public static class StudioFormPackageMapper
             SectionId = ResolveSectionId(field, sections),
             Required = field.Required,
             Private = field.Private,
-            Domain = ToDomain(field),
+            Domain = ToDomain(field, original?.Domain),
             Validation = ToValidationRules(field, original?.Validation ?? []),
-            Visibility = ToVisibility(field)
+            Visibility = ToVisibility(field, original?.Visibility)
         };
     }
 
@@ -347,11 +347,13 @@ public static class StudioFormPackageMapper
         return editor;
     }
 
-    private static HonuaFormFieldDomainDefinition? ToDomain(StudioFormFieldEditor field)
+    private static HonuaFormFieldDomainDefinition? ToDomain(
+        StudioFormFieldEditor field,
+        HonuaFormFieldDomainDefinition? original)
     {
         if (string.Equals(field.DomainKind, "coded", StringComparison.OrdinalIgnoreCase))
         {
-            var choices = ParseChoices(field.Choices);
+            var choices = ParseChoices(field.Choices, original?.Choices ?? []);
             return choices.Length == 0
                 ? null
                 : new HonuaFormFieldDomainDefinition { Type = "codedValue", Choices = choices };
@@ -412,7 +414,9 @@ public static class StudioFormPackageMapper
         ];
     }
 
-    private static HonuaFormConditionalRule? ToVisibility(StudioFormFieldEditor field)
+    private static HonuaFormConditionalRule? ToVisibility(
+        StudioFormFieldEditor field,
+        HonuaFormConditionalRule? original)
     {
         if (string.IsNullOrWhiteSpace(field.VisibilityDependsOn))
         {
@@ -426,7 +430,7 @@ public static class StudioFormPackageMapper
             DependsOnFieldId = field.VisibilityDependsOn.Trim(),
             Operator = op,
             Value = needsValue && !string.IsNullOrWhiteSpace(field.VisibilityValue)
-                ? JsonSerializer.SerializeToElement(field.VisibilityValue)
+                ? ParseValueElement(field.VisibilityValue, original?.Value)
                 : null
         };
     }
@@ -589,12 +593,19 @@ public static class StudioFormPackageMapper
         return operations.Count == 0 ? [HonuaFormSubmissionOperations.Create] : operations.ToArray();
     }
 
-    private static HonuaFormDomainChoice[] ParseChoices(string raw)
+    private static HonuaFormDomainChoice[] ParseChoices(
+        string raw,
+        IReadOnlyList<HonuaFormDomainChoice> originalChoices)
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
             return [];
         }
+
+        var originalByDisplayValue = originalChoices
+            .GroupBy(choice => JsonElementToString(choice.Code), StringComparer.Ordinal)
+            .Where(group => group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.First().Code, StringComparer.Ordinal);
 
         return raw
             .Split(['\n', '\r', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -605,12 +616,22 @@ public static class StudioFormPackageMapper
                 var label = separator > 0 ? line[(separator + 1)..].Trim() : line.Trim();
                 return new HonuaFormDomainChoice
                 {
-                    Code = JsonSerializer.SerializeToElement(code),
+                    Code = originalByDisplayValue.TryGetValue(code, out var originalCode)
+                        ? originalCode
+                        : JsonSerializer.SerializeToElement(code),
                     Label = label
                 };
             })
             .Where(choice => !string.IsNullOrWhiteSpace(choice.Label))
             .ToArray();
+    }
+
+    private static JsonElement ParseValueElement(string raw, JsonElement? original)
+    {
+        return original is { } originalValue
+            && string.Equals(raw, JsonElementToString(originalValue), StringComparison.Ordinal)
+            ? originalValue
+            : JsonSerializer.SerializeToElement(raw);
     }
 
     private static bool HasOperation(HonuaFormSubmitPolicy policy, string operation) =>
