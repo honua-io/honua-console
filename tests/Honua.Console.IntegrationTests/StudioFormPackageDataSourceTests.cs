@@ -107,6 +107,63 @@ public sealed class StudioFormPackageDataSourceTests
     }
 
     [Fact]
+    public async Task Publish_WhenServerReturnsValidationFailure_SurfacesValidationIssues()
+    {
+        var client = new FakeFormPackageClient
+        {
+            PublishResult = new HonuaAdminEndpointResult<HonuaFormPackageVersion>(
+                new HonuaFormPackageVersion
+                {
+                    FormId = "form-1",
+                    Version = 2,
+                    Validation = new HonuaFormPackageValidationResult
+                    {
+                        IsValid = false,
+                        Issues =
+                        [
+                            new HonuaFormValidationIssue
+                            {
+                                Code = "target.missing",
+                                Severity = "error",
+                                FieldId = "asset_id",
+                                Message = "Target field asset_id is missing."
+                            }
+                        ]
+                    }
+                },
+                new HonuaAdminEndpointIssue(
+                    "Rejected",
+                    "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish",
+                    "The Honua server rejected the form package document.",
+                    400))
+        };
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+        var state = new StudioFormEditorState
+        {
+            FormId = "form-1",
+            Version = 2,
+            Status = HonuaFormStatuses.Draft,
+            Title = "Ready form",
+            ServiceId = "svc",
+            OfflinePolicyReviewed = true,
+            LastValidation = new StudioFormValidationView(true, [])
+        };
+        state.Fields.Add(new StudioFormFieldEditor { FieldId = "asset_id", Label = "Asset", TargetField = "asset_id" });
+        state.SavedSignature = StudioFormPackageMapper.ComputeContentSignature(state);
+
+        var result = await source.PublishAsync(state);
+
+        Assert.False(result.Succeeded);
+        Assert.True(client.PublishCalled);
+        Assert.NotNull(result.Validation);
+        Assert.False(result.Validation!.IsValid);
+        Assert.Equal("target.missing", Assert.Single(result.Validation.Issues).Code);
+        Assert.Same(state, result.State);
+        Assert.Equal(result.Validation, state.LastValidation);
+        Assert.Equal("Rejected", result.Issue!.State);
+    }
+
+    [Fact]
     public async Task Validate_WhenAlreadyPublished_DoesNotCallServer()
     {
         var client = new FakeFormPackageClient();
@@ -194,6 +251,14 @@ public sealed class StudioFormPackageDataSourceTests
         public HonuaAdminEndpointResult<HonuaFormPackageVersion> CreateResult { get; set; } =
             HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion());
 
+        public HonuaAdminEndpointResult<HonuaFormPackageVersion> PublishResult { get; set; } =
+            HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion
+            {
+                FormId = "form-1",
+                Version = 1,
+                Status = HonuaFormPackageStatus.Published
+            });
+
         public bool GetCurrentCalled { get; private set; }
 
         public bool CreateCalled { get; private set; }
@@ -240,7 +305,7 @@ public sealed class StudioFormPackageDataSourceTests
         public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> PublishAsync(string formId, int packageVersion, CancellationToken cancellationToken = default)
         {
             PublishCalled = true;
-            return Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion { FormId = formId, Version = packageVersion, Status = HonuaFormPackageStatus.Published }));
+            return Task.FromResult(PublishResult);
         }
 
         public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> ReopenAsync(string formId, int packageVersion, CancellationToken cancellationToken = default) =>

@@ -180,6 +180,17 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
             .ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
+            if (StudioFormPackageMapper.ToValidationView(result.Data?.Validation) is { } validation)
+            {
+                state.LastValidation = validation;
+                return new StudioFormCommandResult(
+                    false,
+                    $"Server publish validation reported {validation.Issues.Count.ToString(CultureInfo.InvariantCulture)} issue(s).",
+                    state,
+                    validation,
+                    ToCapabilityState(PublishContract, issue));
+            }
+
             return Failure(issue.Detail, ToCapabilityState(PublishContract, issue));
         }
 

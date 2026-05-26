@@ -211,7 +211,8 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
             HttpMethod.Post,
             $"{AdminBase}/{Uri.EscapeDataString(formId)}/versions/{Version(packageVersion)}/publish",
             "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish",
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken,
+            errorHandler: (response, token) => ReadPublishValidationAsync(response, formId, packageVersion, token));
     }
 
     public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> ReopenAsync(
@@ -252,7 +253,8 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
         string contract,
         object? body = null,
         string? ifMatch = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<HttpResponseMessage, CancellationToken, Task<HonuaAdminEndpointResult<T>?>>? errorHandler = null)
     {
         using var request = new HttpRequestMessage(method, path);
         if (!string.IsNullOrWhiteSpace(_apiKey))
@@ -302,6 +304,15 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
         {
             if (!response.IsSuccessStatusCode)
             {
+                if (errorHandler is not null)
+                {
+                    var handled = await errorHandler(response, cancellationToken).ConfigureAwait(false);
+                    if (handled is not null)
+                    {
+                        return handled;
+                    }
+                }
+
                 return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, response.StatusCode));
             }
 
@@ -329,6 +340,49 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
                     (int)response.StatusCode))
                 : HonuaAdminEndpointResult<T>.FromData(payload);
         }
+    }
+
+    private static async Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>?> ReadPublishValidationAsync(
+        HttpResponseMessage response,
+        string formId,
+        int packageVersion,
+        CancellationToken cancellationToken)
+    {
+        if (response.StatusCode != HttpStatusCode.BadRequest)
+        {
+            return null;
+        }
+
+        const string contract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish";
+        HonuaFormPackageValidationResult? validation;
+        try
+        {
+            validation = await response.Content
+                .ReadFromJsonAsync<HonuaFormPackageValidationResult>(JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException ex)
+        {
+            return HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported",
+                contract,
+                $"The Honua server publish validation response did not match the expected contract: {ex.Message}",
+                (int)response.StatusCode));
+        }
+
+        if (validation is null)
+        {
+            return null;
+        }
+
+        return new HonuaAdminEndpointResult<HonuaFormPackageVersion>(
+            new HonuaFormPackageVersion
+            {
+                FormId = formId,
+                Version = packageVersion,
+                Validation = validation
+            },
+            CreateIssue(contract, response.StatusCode));
     }
 
     private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)

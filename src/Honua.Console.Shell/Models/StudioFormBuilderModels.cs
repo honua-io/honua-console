@@ -96,9 +96,9 @@ public sealed class StudioFormEditorState
     /// subset of that contract, so <see cref="StudioFormPackageMapper.ToDocument"/> merges the modeled
     /// fields onto this baseline — server-owned fields the builder never models (document metadata,
     /// attachment byte limits, max offline age, preferred offline transports, per-field hints / defaults /
-    /// read-only, section descriptions, and validation rules beyond the first) survive a load → edit → save
-    /// round-trip instead of being silently dropped. Null for a never-loaded draft (a fresh template builds
-    /// from a default document).
+    /// read-only, section ids / descriptions, and validation rules beyond the first) survive a load → edit
+    /// → save round-trip instead of being silently dropped. Null for a never-loaded draft (a fresh template
+    /// builds from a default document).
     /// </summary>
     public HonuaFormPackageDocument? OriginalDocument { get; set; }
 
@@ -131,8 +131,14 @@ public sealed class StudioFormFieldEditor
 
     public string Label { get; set; } = string.Empty;
 
-    /// <summary>Section / group label. Sections are derived from distinct group labels on save.</summary>
+    /// <summary>Editable section / group label shown in the builder.</summary>
     public string Group { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Server section id captured when loading an existing package. Hidden from the UI; it keeps sections
+    /// with duplicate labels or no modeled fields from being collapsed or re-created on save.
+    /// </summary>
+    public string OriginalSectionId { get; set; } = string.Empty;
 
     public string Type { get; set; } = "text";
 

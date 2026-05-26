@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
@@ -38,6 +39,40 @@ public sealed class FormPackageHttpClientTests
         Assert.Equal("Unavailable", result.Issue!.State);
     }
 
+    [Fact]
+    public async Task Publish_WhenServerReturnsValidationFailure_PreservesValidationBody()
+    {
+        var validation = new HonuaFormPackageValidationResult
+        {
+            IsValid = false,
+            Issues =
+            [
+                new HonuaFormValidationIssue
+                {
+                    Code = "target.missing",
+                    Severity = "error",
+                    FieldId = "asset_id",
+                    Message = "Target field asset_id is missing."
+                }
+            ]
+        };
+        using var client = CreateClient(new StaticResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = JsonContent.Create(validation)
+        }));
+
+        var result = await client.PublishAsync("form-1", 2);
+
+        Assert.NotNull(result.Issue);
+        Assert.Equal("Rejected", result.Issue!.State);
+        Assert.Equal(400, result.Issue.StatusCode);
+        Assert.NotNull(result.Data?.Validation);
+        Assert.False(result.Data!.Validation!.IsValid);
+        var issue = Assert.Single(result.Data.Validation.Issues);
+        Assert.Equal("target.missing", issue.Code);
+        Assert.Equal("asset_id", issue.FieldId);
+    }
+
     private static HonuaFormPackageHttpClient CreateClient(HttpMessageHandler handler, TimeSpan? timeout = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
@@ -58,5 +93,18 @@ public sealed class FormPackageHttpClientTests
             await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
             return new HttpResponseMessage(HttpStatusCode.OK);
         }
+    }
+
+    private sealed class StaticResponseHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
+
+        public StaticResponseHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
+        {
+            _responseFactory = responseFactory;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(_responseFactory(request));
     }
 }

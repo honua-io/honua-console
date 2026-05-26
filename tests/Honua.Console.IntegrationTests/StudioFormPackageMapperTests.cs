@@ -294,6 +294,89 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_PreservesDuplicateLabelAndEmptySections()
+    {
+        // Duplicate section labels are valid server content; section identity is the sectionId. The editor
+        // displays only the label, so the hidden OriginalSectionId must keep these from collapsing together.
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-10",
+            Title = "Server form",
+            Sections =
+            [
+                new HonuaFormSectionDefinition
+                {
+                    SectionId = "sec-a",
+                    Label = "Inspection",
+                    Description = "First inspection section",
+                    FieldIds = ["condition"]
+                },
+                new HonuaFormSectionDefinition
+                {
+                    SectionId = "sec-b",
+                    Label = "Inspection",
+                    Description = "Second inspection section",
+                    FieldIds = ["photo"]
+                },
+                new HonuaFormSectionDefinition
+                {
+                    SectionId = "sec-empty",
+                    Label = "Office review",
+                    Description = "Server-authored empty section"
+                }
+            ],
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "condition",
+                    Label = "Condition",
+                    Type = "text",
+                    SectionId = "sec-a"
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "photo",
+                    Label = "Photo",
+                    Type = "attachment",
+                    SectionId = "sec-b"
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-10",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        state.Title = "Edited title";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        Assert.Equal(3, saved.Sections.Length);
+
+        var first = saved.Sections.Single(section => section.SectionId == "sec-a");
+        Assert.Equal("Inspection", first.Label);
+        Assert.Equal("First inspection section", first.Description);
+        Assert.Equal(["condition"], first.FieldIds);
+
+        var second = saved.Sections.Single(section => section.SectionId == "sec-b");
+        Assert.Equal("Inspection", second.Label);
+        Assert.Equal("Second inspection section", second.Description);
+        Assert.Equal(["photo"], second.FieldIds);
+
+        var empty = saved.Sections.Single(section => section.SectionId == "sec-empty");
+        Assert.Equal("Office review", empty.Label);
+        Assert.Equal("Server-authored empty section", empty.Description);
+        Assert.Empty(empty.FieldIds);
+
+        Assert.Equal("sec-a", saved.Fields.Single(field => field.FieldId == "condition").SectionId);
+        Assert.Equal("sec-b", saved.Fields.Single(field => field.FieldId == "photo").SectionId);
+    }
+
+    [Fact]
     public void PublishEvaluator_BlocksUntilTargetOfflineAndValidationSatisfied()
     {
         var state = new StudioFormEditorState();
