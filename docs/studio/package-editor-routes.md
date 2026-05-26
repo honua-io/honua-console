@@ -15,14 +15,16 @@ The `/studio` entry page links to every route below. Each editor is a projection
 | `/studio/map` | `map.package` | Layer stack, filters, style, popup, legend, basemap, extent, interactions, publish/share/embed/rollback review. |
 | `/studio/dashboard` | `dashboard.package` | Data bindings, layout, Vega-Lite chart spec editor, map panels, tables, filters, version pinning, responsive preview. |
 | `/studio/report` | `report.package` | Narrative sections, data bindings, Vega-Lite chart spec editor, maps, tables, export/refresh policy, responsive preview. |
-| `/studio/form` | `form.package` | Fields, groups, validation, domains, conditional visibility, attachments, privacy, submit target, required offline/sync policy selection and review. |
+| `/studio/form` | `form.package` | Fields, groups, validation, domains, conditional visibility, attachments, privacy, submit target, required offline/sync policy review. **Server-bound to honua-server#1184 (`honua-console#57`)** — a dedicated builder, not the mock simulator below. |
 | `/studio/app` | `app.package` | Pages, components, navigation, bindings, actions, permissions, preview/reopen, share/embed policy, versioned reopened edits. |
 
 ## Backend Boundary
 
-These per-editor package families (`honua-console#52`–`#58`) are still out of scope for backend binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of `honua-console#61` the editor's validate/preview actions surface a **missing-binding** state rather than reporting mock validation success, so the editors never imply mock refs are valid runtime package data.
+`/studio/form` is now its own server-bound surface (`honua-console#57`): `StudioFormBuilderPage` binds the honua-server form package lifecycle (`honua-server#1184`) through `IStudioFormPackageDataSource` over the `Honua.Console.Contracts` shim (`IHonuaFormPackageClient`). It authors fields, groups, validation, domains, conditional visibility, attachments, and privacy, then enforces an explicit reviewed offline/sync policy and a validated submit target before publish. When no server base address is configured it renders a missing-binding state — never mock form data (Console Patterns Charter section 11).
 
-The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`) through `IStudioPackageLifecycleClient`; when the per-editor backend projections land, the simulator boundary should be replaced behind the same editor model instead of introducing a second Console package schema.
+The remaining per-editor package families (`honua-console#52`–`#56`, `#58`) are still out of scope for backend binding and use a single local lifecycle model in `StudioPackageLifecycleSimulator`. As of `honua-console#61` the editor's validate/preview actions surface a **missing-binding** state rather than reporting mock validation success, so the editors never imply mock refs are valid runtime package data.
+
+The shared `/studio` shell already binds the honua-server package lifecycle (`honua-server#1180`/`#1181`) through `IStudioPackageLifecycleClient`; when the remaining per-editor backend projections land, the simulator boundary should be replaced behind the same editor model instead of introducing a second Console package schema.
 
 ## Mock Response Contract
 

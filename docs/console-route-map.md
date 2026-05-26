@@ -39,7 +39,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /studio/map                    Generated map.package editor
 /studio/dashboard              Generated dashboard.package editor
 /studio/report                 Generated report.package editor
-/studio/form                   Generated form.package editor
+/studio/form                   Server-bound form package builder (honua-server#1184)
 /studio/app                    Generated app.package editor
 /studio/proof                  Legacy alias for current proof flow
 /studio/drafts                 Source-scoped draft start (source, id)
@@ -633,7 +633,7 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio/map` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/report` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
-| `/studio/form` | `auth` | mock draft package; publish blocked until offline/sync policy selection and review | unauth-redirect / unsupported-package | studio |
+| `/studio/form` | `auth` | missing-binding when no server base address; empty form-package list when bound; publish blocked until the offline/sync policy is reviewed and the submit target validates | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/app` | `auth` | mock draft package; reopened edits create new content versions | unauth-redirect / unsupported-package | studio |
 | `/studio/proof` | `auth` | empty-studio | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
@@ -918,7 +918,7 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` |
+| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/form` is server-bound and renders its own missing-binding / capability-state surface instead) |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |

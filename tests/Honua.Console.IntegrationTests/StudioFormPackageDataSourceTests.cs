@@ -1,0 +1,182 @@
+using Honua.Console.Contracts;
+using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Services;
+
+namespace Honua.Console.IntegrationTests;
+
+/// <summary>
+/// Docker-free coverage for the form-builder data sources: the server-backed source maps live shim
+/// results and surfaces endpoint issues as capability states (never throwing or fabricating), enforces
+/// the pre-publish gate before calling the server, and the unsupported source renders a missing-binding
+/// state instead of mock data (Console Patterns Charter section 11).
+/// </summary>
+public sealed class StudioFormPackageDataSourceTests
+{
+    [Fact]
+    public async Task GetWorkspace_MapsSummaries_NewestFirst()
+    {
+        var client = new FakeFormPackageClient
+        {
+            Packages = HonuaAdminEndpointResult<HonuaFormPackageSummary[]>.FromData(
+            [
+                new HonuaFormPackageSummary { FormId = "older", Title = "Older", UpdatedAt = DateTimeOffset.UnixEpoch },
+                new HonuaFormPackageSummary { FormId = "newer", Title = "Newer", UpdatedAt = DateTimeOffset.UnixEpoch.AddDays(1) }
+            ])
+        };
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.CapabilityStates);
+        Assert.Equal(["Newer", "Older"], workspace.Packages.Select(package => package.Title));
+    }
+
+    [Fact]
+    public async Task GetWorkspace_MapsEndpointIssue_ToCapabilityState()
+    {
+        var client = new FakeFormPackageClient
+        {
+            Packages = HonuaAdminEndpointResult<HonuaFormPackageSummary[]>.FromIssue(
+                new HonuaAdminEndpointIssue("Missing permission", "GET /api/v1/admin/forms/packages", "Forbidden.", 403))
+        };
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.Packages);
+        var state = Assert.Single(workspace.CapabilityStates);
+        Assert.Equal("Form builder", state.Surface);
+        Assert.Equal("Missing permission", state.State);
+        Assert.Contains("HTTP 403", state.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Load_WithNullFormId_ReturnsBlankTemplate_WithoutServerCall()
+    {
+        var client = new FakeFormPackageClient();
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+
+        var load = await source.LoadAsync(null);
+
+        Assert.True(load.HasEditor);
+        Assert.Null(load.State!.FormId);
+        Assert.False(client.GetCurrentCalled);
+    }
+
+    [Fact]
+    public async Task Publish_WhenGateUnmet_DoesNotCallServer()
+    {
+        var client = new FakeFormPackageClient();
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+        var state = new StudioFormEditorState { FormId = "form-1", Title = "Incomplete" };
+
+        var result = await source.PublishAsync(state);
+
+        Assert.False(result.Succeeded);
+        Assert.False(client.PublishCalled);
+        Assert.Contains("before publish", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SaveDraft_NewForm_CreatesDraft_AndPreservesOfflineReview()
+    {
+        var client = new FakeFormPackageClient
+        {
+            CreateResult = HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion
+            {
+                FormId = "form-9",
+                Version = 1,
+                Status = HonuaFormPackageStatus.Draft,
+                ETag = "etag-1"
+            })
+        };
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+        var state = new StudioFormEditorState { Title = "Fresh", OfflinePolicyReviewed = true };
+
+        var result = await source.SaveDraftAsync(state);
+
+        Assert.True(result.Succeeded);
+        Assert.True(client.CreateCalled);
+        Assert.False(client.UpdateCalled);
+        Assert.Equal("form-9", result.State!.FormId);
+        Assert.True(result.State.OfflinePolicyReviewed);
+        Assert.Null(result.State.LastValidation);
+    }
+
+    [Fact]
+    public async Task Unsupported_Source_SurfacesMissingBinding_Everywhere()
+    {
+        var source = new UnsupportedStudioFormPackageDataSource();
+
+        var workspace = await source.GetWorkspaceAsync();
+        var load = await source.LoadAsync("form-1");
+        var save = await source.SaveDraftAsync(new StudioFormEditorState());
+
+        Assert.Equal("Missing binding", Assert.Single(workspace.CapabilityStates).State);
+        Assert.False(load.HasEditor);
+        Assert.Equal("Missing binding", Assert.Single(load.CapabilityStates).State);
+        Assert.False(save.Succeeded);
+        Assert.Equal("Missing binding", save.Issue!.State);
+    }
+
+    private sealed class FakeFormPackageClient : IHonuaFormPackageClient
+    {
+        public Uri BaseUri { get; } = new("https://honua.test");
+
+        public HonuaAdminEndpointResult<HonuaFormPackageSummary[]> Packages { get; set; } =
+            HonuaAdminEndpointResult<HonuaFormPackageSummary[]>.FromData([]);
+
+        public HonuaAdminEndpointResult<HonuaFormPackageVersion> CreateResult { get; set; } =
+            HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion());
+
+        public bool GetCurrentCalled { get; private set; }
+
+        public bool CreateCalled { get; private set; }
+
+        public bool UpdateCalled { get; private set; }
+
+        public bool PublishCalled { get; private set; }
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageSummary[]>> ListPackagesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Packages);
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> CreateDraftAsync(HonuaFormPackageDocument document, CancellationToken cancellationToken = default)
+        {
+            CreateCalled = true;
+            return Task.FromResult(CreateResult);
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> GetCurrentAsync(string formId, CancellationToken cancellationToken = default)
+        {
+            GetCurrentCalled = true;
+            return Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion { FormId = formId }));
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion[]>> ListVersionsAsync(string formId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion[]>.FromData([]));
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> GetVersionAsync(string formId, int packageVersion, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion { FormId = formId, Version = packageVersion }));
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> UpdateDraftAsync(string formId, int packageVersion, string etag, HonuaFormPackageDocument document, CancellationToken cancellationToken = default)
+        {
+            UpdateCalled = true;
+            return Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion { FormId = formId, Version = packageVersion, ETag = etag }));
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageValidationResult>> ValidateAsync(string formId, int packageVersion, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageValidationResult>.FromData(new HonuaFormPackageValidationResult { IsValid = true }));
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> PublishAsync(string formId, int packageVersion, CancellationToken cancellationToken = default)
+        {
+            PublishCalled = true;
+            return Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion { FormId = formId, Version = packageVersion, Status = HonuaFormPackageStatus.Published }));
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> ReopenAsync(string formId, int packageVersion, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaFormPackageVersion>.FromData(new HonuaFormPackageVersion { FormId = formId, Version = packageVersion + 1 }));
+
+        public Task<HonuaAdminEndpointResult<HonuaFormOfflinePolicyResponse>> GetOfflinePolicyAsync(string formId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaFormOfflinePolicyResponse>.FromData(new HonuaFormOfflinePolicyResponse { FormId = formId }));
+    }
+}

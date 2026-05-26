@@ -19,6 +19,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
         services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
@@ -74,6 +75,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioAuthoringShell, UnsupportedStudioAuthoringShell>();
+    }
+
+    // Binds the Studio form-builder surface (/studio/form) to honua-server's form package lifecycle
+    // (#1184) through the Honua.Console.Contracts shim when a server base address is configured;
+    // otherwise the builder renders a missing-binding state (never mock form data).
+    private static void AddStudioFormPackageDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaFormPackageClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaFormPackageHttpClient(
+                    httpClient,
+                    new HonuaFormPackageClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioFormPackageDataSource, HonuaServerStudioFormPackageDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>();
     }
 
     private static void AddOperateTransitionDataSource(
