@@ -377,6 +377,73 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_AllowsLoadedFieldToMoveToExistingSection()
+    {
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-11",
+            Title = "Server form",
+            Sections =
+            [
+                new HonuaFormSectionDefinition
+                {
+                    SectionId = "sec-inspection",
+                    Label = "Inspection",
+                    Description = "Original section",
+                    FieldIds = ["condition", "photo"]
+                },
+                new HonuaFormSectionDefinition
+                {
+                    SectionId = "sec-evidence",
+                    Label = "Evidence",
+                    Description = "Target section"
+                }
+            ],
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "condition",
+                    Label = "Condition",
+                    Type = "text",
+                    SectionId = "sec-inspection"
+                },
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "photo",
+                    Label = "Photo",
+                    Type = "attachment",
+                    SectionId = "sec-inspection"
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-11",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        state.Fields.Single(field => field.FieldId == "photo").Group = "Evidence";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        var original = saved.Sections.Single(section => section.SectionId == "sec-inspection");
+        Assert.Equal("Inspection", original.Label);
+        Assert.Equal("Original section", original.Description);
+        Assert.Equal(["condition"], original.FieldIds);
+
+        var moved = saved.Sections.Single(section => section.SectionId == "sec-evidence");
+        Assert.Equal("Evidence", moved.Label);
+        Assert.Equal("Target section", moved.Description);
+        Assert.Equal(["photo"], moved.FieldIds);
+
+        Assert.Equal("sec-inspection", saved.Fields.Single(field => field.FieldId == "condition").SectionId);
+        Assert.Equal("sec-evidence", saved.Fields.Single(field => field.FieldId == "photo").SectionId);
+    }
+
+    [Fact]
     public void PublishEvaluator_BlocksUntilTargetOfflineAndValidationSatisfied()
     {
         var state = new StudioFormEditorState();

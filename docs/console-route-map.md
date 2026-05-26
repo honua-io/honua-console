@@ -2,7 +2,8 @@
 
 Status: filed 2026-05-23 for `honua-console#3`; reconciled
 2026-05-24 for the catalog/share route slice in `honua-console#34`
-and native host profile/trust routes in `honua-console#44`.
+and native host profile/trust routes in `honua-console#44`; reconciled
+2026-05-26 for the server-bound Studio form route in `honua-console#57`.
 
 Decision sources:
 

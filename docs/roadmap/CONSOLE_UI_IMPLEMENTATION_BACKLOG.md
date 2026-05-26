@@ -436,13 +436,13 @@ Build:
 
 Backend dependencies:
 
-- Form package/submission/offline policy API.
+- Form package lifecycle/offline-policy API is satisfied for the builder by `honua-server#1184`; form submission, attachment ingestion, and audit runtime stay server-owned follow-ons outside this authoring slice.
 - Back-office field workflow parity from `honua-server#1158` if it owns reusable contracts.
 
 Acceptance:
 
 - Offline/sync policy is explicit before publish.
-- Form submissions and attachments route through server-owned policy and audit.
+- Published form packages declare server-owned submission, attachment, and offline policy; submission ingestion and audit evidence remain backend/runtime follow-ons.
 
 ### UI-026: App Builder And Generated App Lifecycle
 

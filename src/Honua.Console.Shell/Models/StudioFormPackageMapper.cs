@@ -514,9 +514,14 @@ public static class StudioFormPackageMapper
         }
 
         var originalSectionId = NullIfBlank(field.OriginalSectionId);
-        if (originalSectionId is not null && sections.ById.ContainsKey(originalSectionId))
+        if (originalSectionId is not null
+            && sections.ById.TryGetValue(originalSectionId, out var originalSection))
         {
-            return originalSectionId;
+            var originalLabel = NullIfBlank(originalSection.Label) ?? originalSectionId;
+            if (string.Equals(label, originalLabel, StringComparison.Ordinal))
+            {
+                return originalSectionId;
+            }
         }
 
         if (sections.UniqueByGroup.TryGetValue(label, out var original)
