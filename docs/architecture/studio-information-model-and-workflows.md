@@ -237,25 +237,33 @@ The adapter methods map to the honua-server `#1185` boundary
 | `OpenEditorAsync` | `GET workflow-node-registry` + `GET workflow-packages/{id}` | Single bound/blocked load. Returns the node palette and the draft, or a `StudioWorkflowBindingState` when the registry probe cannot bind (missing binding / forbidden / unsupported / unavailable). A 404 on the package id is a missing draft, not a binding failure. |
 | `ListNodeDefinitionsAsync` | `GET workflow-node-registry` | Maps each server node to `type`=`nodeTypeId`, `label`=`title`, `summary`=`description`, declared input/output ports, and a `source`/`transform`/`sink` category **derived from port presence** (no inputs → source, no outputs → sink). |
 | `CreateDraftAsync` / `GetDraftAsync` | `GET workflow-packages/{id}` | A new package is a local draft until the first save (no server write, no fabricated id). An existing draft maps the server graph (nodes joined to the registry for category/label/ports, edges, schedule, worker) into the editor model; editor-only authoring fields (invocation parameters, retry policy, publication intent, authored output schemas, node layout) round-trip through the server graph's opaque editor metadata. |
-| `SaveVersionAsync` | `POST`/`PUT workflow-packages` then `POST .../versions` | Persists the draft graph, then creates an immutable version. Returns `contentItemId`, `versionId` (`{packageId}:v{n}`), `versionNumber`, and the server version's validation. A 400 is surfaced as in-place validation issues (a bound-surface outcome), other failures as a binding state. |
+| `SaveVersionAsync` | `POST`/`PUT workflow-packages` then `POST .../versions` | Persists the draft graph, then creates an immutable version. Returns `contentItemId`, `versionId` (`{packageId}:v{n}`), `versionNumber`, and the server version's validation. A 400 is surfaced as in-place validation issues with **no `versionId`** (a bound-surface outcome): the draft stays dirty, so a follow-on dry-run/publish re-validates instead of reusing a stale prior version. Other failures surface as a binding state. |
 | `DryRunAsync` | `POST .../versions/{v}/dry-run` | Reuses the saved version (the page saves dirty edits first). Returns server estimate logs, artifacts, and output schemas with `status` from the server validation. The `#1185` dry-run is synchronous estimation and creates **no** Operate job, so no job/event links are emitted for dry-runs. |
 | `PublishAsync` | `POST .../versions/{v}/publish` then `POST workflow-publications/{id}/runs` | Maps publication intent mode to the server target (`scheduled-job`→`Schedule`, `process-endpoint`→`ProcessEndpoint`, else `Job`), publishes the version, then starts the first run so the publish links to live Operate job/event evidence (`/operate/jobs/{jobId}`). A 400/409 eligibility failure is surfaced as a blocked publish with the server rules. |
 | `GetJobEvidenceAsync` | — | `#1185` exposes no workflow job-evidence read; published-run evidence lives in the Operate surfaces (`#60`) via the publish result's `OperateJobUrl`. Returns `null`. |
 
-Publication modes are `batch-workflow`, `scheduled-job`, and
-`process-endpoint`. An invocation endpoint is requested when the mode is
-`process-endpoint` or the draft's explicit endpoint flag is set; eligible
-publications may expose
-`/api/workspaces/{workspaceId}/workflows/{routeSlug}/invoke` when
-parameter validation succeeds. Supported parameter types are `string`,
-`date`, `number`, `boolean`, and `geometry`; invalid parameter contracts,
-missing source/transform/sink graph coverage, missing failure routing,
-missing scheduled cron expressions, and missing output schemas are
-package validation errors that block publication and do not queue a job.
-A blocked publication response still carries the saved content
-item/version ids, publication mode, `status=blocked`, validation issues,
-and parameter validation, but it omits the publication id, job id, job
-kind, Operate evidence URLs, and invocation endpoint.
+Publication modes are the editor's publication intent: `batch-workflow`,
+`scheduled-job`, and `process-endpoint`, mapped to the server publication
+target as in the table above (`scheduled-job`→`Schedule`,
+`process-endpoint`→`ProcessEndpoint`, else `Job`). The invocation endpoint
+is **server-owned**: an eligible process-endpoint publication returns its
+route as the publication `endpointPath`, which Console surfaces as the
+publish result's invocation endpoint (otherwise "not exposed"). The editor
+keeps the "expose invocation endpoint" toggle and a client-side
+parameter-eligibility preview as authoring affordances, but the
+authoritative endpoint and the eligibility decision come from the server.
+
+Package and publication validation are **server-owned** (honua-server#1185
+`WorkflowPackageValidationResult`): the server returns the failing rules —
+graph coverage, failure routing, schedule, output schema, parameter
+contracts, and publication eligibility — as `failures`/`warnings`, which
+Console maps into in-editor validation issues rather than enumerating its
+own rules. A blocked publish (server `400`/`409` eligibility failure)
+returns `status=blocked`, the publication `mode`, and those server
+eligibility rules as validation issues; it carries no publication id, job
+id/kind, Operate evidence URLs, or invocation endpoint. The saved content
+item/version ids persist on the draft from the preceding save, which the
+editor performs before every dry-run and publish.
 
 The focused smoke command is `npm run smoke:workflow`; it records
 dry-run -> save version -> publish -> Operate monitor evidence under the

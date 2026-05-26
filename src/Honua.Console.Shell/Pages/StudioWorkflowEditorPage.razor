@@ -572,6 +572,14 @@
                 return;
             }
 
+            // A save that fails server validation creates no version. Leave the draft dirty (do not refresh
+            // the fingerprint or move the route) so a later publish cannot reuse a stale prior version and
+            // silently drop the current edits; the validation issues render in-place from _lastSave.
+            if (!SaveProducedVersion(_lastSave))
+            {
+                return;
+            }
+
             _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
             NavigateToPersistedDraft();
         }
@@ -640,8 +648,9 @@
         }
     }
 
-    // Saves a version before a dry-run/publish. Returns false (and surfaces the blocked state) when the save
-    // could not bind, so the caller stops before issuing the dependent server call.
+    // Saves a version before a dry-run/publish. Returns false when the save could not bind (surfaces the
+    // blocked state) or failed server validation (no version created), so the caller stops before issuing
+    // the dependent server call against a stale or non-existent version.
     private async Task<bool> EnsureSavedAsync(string changeNote)
     {
         _lastSave = await Workflows.SaveVersionAsync(_draft!, changeNote);
@@ -651,9 +660,21 @@
             return false;
         }
 
+        // No version means the save failed server validation: keep the draft dirty (do not refresh the
+        // fingerprint) and report failure so dry-run/publish do not proceed on a stale prior version.
+        if (!SaveProducedVersion(_lastSave))
+        {
+            return false;
+        }
+
         _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft!);
         return true;
     }
+
+    // A save produced a durable immutable version only when the server returned a version id; a validation
+    // failure carries issues with no version id (and no binding state) and must not be treated as clean.
+    private static bool SaveProducedVersion(StudioWorkflowSaveResult save) =>
+        save.BindingState is null && !string.IsNullOrWhiteSpace(save.VersionId);
 
     private void NavigateToPersistedDraft()
     {

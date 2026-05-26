@@ -72,8 +72,10 @@ deployed artifact check from a local harness run.
 
 See [docs/smoke/parity.md](docs/smoke/parity.md) for the CLI options,
 scenario, owning-layer triage taxonomy, and evidence format. The focused
-`smoke:workflow` command covers the Studio workflow-package path added
-for `honua-console#40`.
+`smoke:workflow` command covers the Studio workflow-package contract path
+(`honua-console#40`; real-server retrofit `honua-console#62`). It stays an
+in-memory contract-shape stand-in; the live-data evidence is the xUnit
+Testcontainers suite (`StudioWorkflowPackageIntegrationTests`).
 
 ## Current Status
 
