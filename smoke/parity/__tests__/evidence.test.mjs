@@ -27,6 +27,10 @@ describe("evidence emitter", () => {
     assert.equal(onDisk.scenario, "console-parity-publish-to-embed");
     assert.equal(onDisk.result, "ok");
     assert.equal(onDisk.originUrl, ORIGIN);
+    // The in-memory run is not hydrated from a real server, so the #9 gate
+    // signal must be present and false with no server provenance.
+    assert.equal(onDisk.sourceHydrated, false);
+    assert.equal(onDisk.server, null);
     assert.ok(Array.isArray(onDisk.steps));
     assert.ok(Array.isArray(onDisk.contractVersions));
     assert.ok(onDisk.items);

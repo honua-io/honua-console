@@ -1,6 +1,6 @@
 # Honua Console Patterns Charter
 
-Status: filed 2026-05-23, reconciled with ADR-0001 .NET-first amendment.
+Status: filed 2026-05-23, reconciled with ADR-0001 .NET-first amendment; amended 2026-05-24 to add §11 (real-server integration, no standing mocks) per [`honua-console#59`](https://github.com/honua-io/honua-console/issues/59).
 
 Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
 Backlog source: [Honua Console Migration Backlog](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md).
@@ -170,10 +170,12 @@ The `Honua.Console.Components` project is the same one a future MAUI Blazor Hybr
 
 ### 11. Real-server integration and standing-mock prohibition
 
-Per project constraints, server-owned Console data binds to a real server, and every server-backed slice proves it against live data.
+Per project constraints, server-owned Console data binds to a real server, and every server-backed slice proves it against live data. Console proves itself against the real system, not against its own fixtures.
 
 - **No standing mocks for server-owned data.** Console does not merge a standing in-memory or mock data source for server-owned responses (metadata, content, packages, RBAC, jobs, telemetry, **trust/capability/certificate validation**, …). Bind through `honua-sdk-dotnet`, or - only until the SDK projection lands - through a thin `HttpClient` behind the single [`Honua.Console.Contracts`](./SDK_SHIM_POLICY.md) shim boundary. If the **server** contract is still open, the ticket stays blocked rather than mocking it.
 - **Real-server integration test required.** Every server-backed Console slice ships an xUnit Testcontainers test that boots a real `honua-server` (with PostgreSQL), seeds a fixture, and asserts the surface renders/behaves from live data. The suite is **opt-in** and **skips gracefully** when Docker or the server image is unavailable; it is not a default PR gate until stable, and it lives in a lane separate from the Docker-free `scripts/fast-local-check.sh`.
+- **The cross-surface gate at [`honua-console#9`](https://github.com/honua-io/honua-console/issues/9) is satisfied only by real-server evidence.** A run of the chain (publish → catalog → Studio → share/embed, plus open-data publication and unauthenticated embed) counts toward the gate only when its evidence records `sourceHydrated: true` together with the `honua-server` image + commit and the seed profile applied. The gate checker [`smoke/parity/check-gate.mjs`](../../smoke/parity/check-gate.mjs) enforces this; see [`docs/smoke/real-server-gate.md`](../smoke/real-server-gate.md).
+- **In-memory and fixture adapters are dev-time contract-shape aids, not standing data sources.** The Node `smoke/parity/adapters/*` projections and the .NET `InMemory*` services exist to pin wire shapes and choreography cheaply. They are scaffolds removed as the real bindings land ([`honua-console#7`](https://github.com/honua-io/honua-console/issues/7)); they **never** satisfy a server-backed gate, and a mock-only parity run is reported **PENDING**, never green-for-the-gate.
 - **Local-state carve-out.** Host-owned local UI/client state is explicitly **exempt** from the no-mock rule: native **environment profiles**, the **account session cache**, last-route/resume tokens, and client-side trust pins (acknowledged server fingerprint, bound client-certificate thumbprint) may be stored locally (in-memory or JSON) and seeded locally. These are not server-owned DTOs; they are the host's own selection/persistence state. Server-validated trust *results* (`HonuaCertificateValidationStatus` / `HonuaEnvironmentTrustState`) are server-owned and fall under the no-mock rule above.
 - **Telemetry parity.** A server-backed slice that changes a flow carries forward its smoke/integration evidence (section 8); the real-server suite is the evidence for trust/mTLS behavior.
 

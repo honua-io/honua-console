@@ -2,6 +2,8 @@
   "scenario": "console-parity-publish-to-embed",
   "ranAt": "2026-05-24T21:52:01.210Z",
   "originUrl": "http://127.0.0.1:4174",
+  "sourceHydrated": false,
+  "server": null,
   "repoRoot": "/home/makani/worktrees/honua-console/honua-console-34",
   "buildArtifact": {
     "source": "fixture",

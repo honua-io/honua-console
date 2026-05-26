@@ -61,8 +61,18 @@ jobs:
           HONUA_CONSOLE_COMMIT_SHA: ${{ github.sha }}
           HONUA_CONSOLE_REF: ${{ github.ref_name }}
 
-      - name: Run local parity smoke
+      # Contract-shape pre-check: the in-memory parity chain. Cheap and useful,
+      # but per Console Patterns Charter §11 it does NOT satisfy the #9 gate.
+      - name: Run parity contract-shape pre-check (non-gating)
         run: npm run smoke:parity
+
+      # honua-console#9 real-server gate. The evidence above is mock-only, so
+      # the gate is reported PENDING (blocked on honua-server#1162 +
+      # honua-sdk-dotnet#166). --pending-ok keeps CI green while surfacing the
+      # unmet gate as a warning; drop the flag once a real-server run lands and
+      # emits sourceHydrated:true. See docs/smoke/real-server-gate.md.
+      - name: "Evaluate honua-console#9 real-server gate"
+        run: npm run smoke:gate -- --pending-ok smoke-evidence/console-parity.json
 
       - name: Upload Console artifact
         uses: actions/upload-artifact@v4

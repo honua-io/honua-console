@@ -49,11 +49,21 @@ function parseArgs(argv) {
   return args;
 }
 
-export async function runParitySmoke({ originUrl, repoRoot = REPO_ROOT, steps = SCENARIO_STEPS, fetchImpl } = {}) {
+export async function runParitySmoke({
+  originUrl,
+  repoRoot = REPO_ROOT,
+  steps = SCENARIO_STEPS,
+  fetchImpl,
+  // Real-server runs (Console Patterns Charter §11) set sourceHydrated=true and
+  // pass serverProvenance={ image, commit, seedProfile }. The default in-memory
+  // contract-shape run leaves these unset, so the #9 gate stays unsatisfied.
+  sourceHydrated = false,
+  serverProvenance = null,
+} = {}) {
   if (!originUrl) throw new Error("runParitySmoke requires originUrl");
   const normalizedOriginUrl = new URL(originUrl).origin;
   const ranAt = new Date().toISOString();
-  const ctx = { repoRoot, originUrl: normalizedOriginUrl, itemIds: {}, fetchImpl };
+  const ctx = { repoRoot, originUrl: normalizedOriginUrl, itemIds: {}, fetchImpl, sourceHydrated, serverProvenance };
   const executed = [];
   let failure = null;
 

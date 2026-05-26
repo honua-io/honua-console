@@ -23,6 +23,14 @@ export function buildEvidenceReport({ scenarioId, ranAt, ctx, steps, result, fai
     ranAt,
     originUrl: ctx.originUrl,
     repoRoot: ctx.repoRoot,
+    // honua-console#9 gate signal (Console Patterns Charter §11). `true` only
+    // when the chain ran against a real honua-server booted from a known
+    // image/seed; the in-memory contract-shape runners leave it `false`. The
+    // gate checker (check-gate.mjs) refuses to be satisfied by `false`.
+    sourceHydrated: ctx.sourceHydrated === true,
+    // Real-server provenance the gate records: honua-server image + commit and
+    // the seed profile applied. `null` for in-memory runs.
+    server: ctx.serverProvenance ?? null,
     buildArtifact: ctx.buildArtifact
       ? {
           source: ctx.buildArtifact.source,
@@ -80,6 +88,12 @@ export function formatTextSummary(report) {
   lines.push(`# Console parity smoke — ${report.scenario}`);
   lines.push(`ranAt: ${report.ranAt}`);
   lines.push(`originUrl: ${report.originUrl}`);
+  lines.push(`sourceHydrated: ${report.sourceHydrated === true}`);
+  if (report.server) {
+    lines.push(
+      `server: image=${report.server.image ?? "?"} commit=${report.server.commit ?? "?"} seedProfile=${report.server.seedProfile ?? "?"}`,
+    );
+  }
   if (report.buildArtifact) {
     lines.push(
       `buildArtifact: ${report.buildArtifact.name}@${report.buildArtifact.version} (${report.buildArtifact.shortCommit}, ${report.buildArtifact.ref}) [source=${report.buildArtifact.source}]`,

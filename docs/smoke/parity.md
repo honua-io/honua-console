@@ -12,6 +12,17 @@ It is the acceptance gate called out in the migration backlog
 ([HONUA_CONSOLE_MIGRATION_BACKLOG.md](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md))
 under "Pass the cross-surface smoke."
 
+> **The gate requires a real honua-server.** Per
+> [Console Patterns Charter §11](../migration/CONSOLE_PATTERNS_CHARTER.md) and
+> [`honua-console#59`](https://github.com/honua-io/honua-console/issues/59), the
+> in-memory chain documented below is a **contract-shape pre-check** — it proves
+> wire shapes and choreography but does **not** satisfy the `#9` gate. The gate
+> is satisfied only by evidence from a run against a real honua-server
+> (`sourceHydrated: true` + server image/commit + seed profile), scored by
+> [`smoke/parity/check-gate.mjs`](../../smoke/parity/check-gate.mjs). See
+> [real-server-gate.md](./real-server-gate.md) for that contract and its current
+> blockers.
+
 ## Running the smoke
 
 ```sh
@@ -27,6 +38,11 @@ npm run smoke:parity:test
 
 # Run the focused Studio workflow smoke added for honua-console#40.
 npm run smoke:workflow
+
+# Score evidence against the honua-console#9 real-server gate. Mock-only
+# evidence is reported PENDING (exit 1); pass --pending-ok to downgrade that
+# to a warning. See docs/smoke/real-server-gate.md.
+npm run smoke:gate -- smoke-evidence/console-parity.json
 ```
 
 Runner options:
@@ -361,6 +377,11 @@ Top-level fields:
 - `ranAt` — ISO-8601 timestamp.
 - `originUrl` — The normalized origin the smoke ran against
   (`new URL(<origin>).origin`).
+- `sourceHydrated` — `true` only when the chain ran against a real
+  honua-server; the in-memory contract-shape run reports `false`. This is the
+  signal the `#9` gate keys on (Charter §11, `honua-console#59`).
+- `server` — Real-server provenance `{ image, commit, seedProfile }` for a
+  hydrated run, or `null` for an in-memory run.
 - `repoRoot` — Local repository root used by the runner. The committed
   sample sanitizes this path.
 - `buildArtifact` — Deployed `<origin>/version.json`, local published
@@ -394,6 +415,10 @@ The smoke ships with fixture/in-memory adapters today so the scenario can
 run green before all dependencies merge. When the porting tickets land,
 replace the remaining in-memory adapter implementations with their real
 counterparts — the scenario steps and the evidence format stay the same.
+Replacing the gated chain's adapters with a real honua-server (Testcontainers)
+run is tracked by [`honua-console#59`](https://github.com/honua-io/honua-console/issues/59);
+its boot + seed contract and current blockers are in
+[real-server-gate.md](./real-server-gate.md).
 
 | Adapter                                          | Replace with                                                                 |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- |
@@ -410,19 +435,25 @@ can happen one layer at a time without changing the scenario.
 
 `honua-devops` owns the CI pipeline (see
 [`honua-devops#56`](https://github.com/honua-io/honua-devops/issues/56)).
-The Console parity smoke is the gate the release-promotion job should
-run after the Blazor artifact is published and previewed, before promotion:
+The in-memory parity smoke runs as a **non-gating contract-shape pre-check**
+after the Blazor artifact is published and previewed. The release-promotion
+**gate** is the real-server run scored by `npm run smoke:gate`; until that run
+lands (see [real-server-gate.md](./real-server-gate.md)) the gate step uses
+`--pending-ok` so it surfaces a warning instead of blocking:
 
 ```yaml
 # Sketch — owned by honua-devops, included here so a reviewer can see
-# how Console expects the parity smoke to land in CI.
+# how Console expects the parity pre-check and #9 gate to land in CI.
 - name: Build Console artifact
   run: |
     dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web
     HONUA_CONSOLE_ARTIFACT_DIR=artifacts/honua-console-web node scripts/write-build-metadata.mjs
 
-- name: Console parity smoke
+- name: Console parity contract-shape pre-check (non-gating)
   run: npm run smoke:parity -- --origin "$PREVIEW_ORIGIN"
+
+- name: "Console #9 real-server gate (PENDING until honua-server#1162 + honua-sdk-dotnet#166)"
+  run: npm run smoke:gate -- --pending-ok smoke-evidence/console-parity.json
 
 - name: Upload parity evidence
   if: always()
