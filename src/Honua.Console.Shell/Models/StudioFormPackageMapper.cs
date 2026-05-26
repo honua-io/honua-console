@@ -63,6 +63,9 @@ public static class StudioFormPackageMapper
         // merges) per-field hints/defaults/read-only, the server-assigned section ids and descriptions, and
         // extra validation rules. A never-loaded draft has no baseline, so it builds from a fresh contract
         // document.
+        // The absence of a loaded baseline — not a null provenance value — is what marks a brand-new
+        // draft for the Console provenance stamp below.
+        var isNewDraft = state.OriginalDocument is null;
         var baseDocument = state.OriginalDocument ?? new HonuaFormPackageDocument();
 
         // Loaded fields carry their original section id as hidden editor state. Use that stable id for the
@@ -117,13 +120,17 @@ public static class StudioFormPackageMapper
                 FieldCollectionTransportEnabled = state.FieldCollectionTransportEnabled,
                 ConflictReviewMode = NullIfBlank(state.ConflictReviewMode) ?? "defer"
             },
-            // Preserve the server-recorded provenance of an existing package; stamp Console provenance only
-            // when authoring a brand-new draft that has none (the builder does not model provenance).
-            Provenance = baseDocument.Provenance ?? new HonuaFormProvenanceRef
-            {
-                Source = ProvenanceSource,
-                SourceVersion = "1"
-            }
+            // Stamp Console provenance only when authoring a brand-new draft. An existing server-owned
+            // package keeps exactly the provenance the server recorded — including none — so loading a
+            // package the server never attributed to Console is not silently relabeled as Console-authored
+            // on save (the builder does not model provenance).
+            Provenance = isNewDraft
+                ? new HonuaFormProvenanceRef
+                {
+                    Source = ProvenanceSource,
+                    SourceVersion = "1"
+                }
+                : baseDocument.Provenance
         };
     }
 

@@ -236,6 +236,57 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackageWithNullProvenance_PreservesNullInsteadOfStampingConsole()
+    {
+        // Regression: a server package the server never attributed carries null provenance. Saving an
+        // authoring edit must not relabel it as Console-authored — provenance is server-owned and the
+        // builder does not model it, so "existing package" (a loaded baseline), not "null provenance",
+        // is what decides whether the Console stamp applies.
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-noprov",
+            Title = "Server form",
+            Target = new HonuaFormTargetDefinition { ServiceId = "svc", LayerId = 1 },
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "asset_id",
+                    Label = "Asset",
+                    Type = "text",
+                    TargetField = "asset_id"
+                }
+            ]
+            // Provenance intentionally left null: the server never recorded one.
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-noprov",
+            Version = 4,
+            Status = HonuaFormPackageStatus.Draft,
+            ETag = "etag-4",
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        state.Title = "Edited title";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        Assert.Equal("Edited title", saved.Title);
+        Assert.Null(saved.Provenance);
+    }
+
+    [Fact]
+    public void ToDocument_OnBrandNewDraft_StampsConsoleProvenance()
+    {
+        // The only case Console stamps its own provenance: a never-loaded draft with no OriginalDocument.
+        var saved = StudioFormPackageMapper.ToDocument(StudioFormPackageMapper.CreateTemplate());
+
+        Assert.NotNull(saved.Provenance);
+        Assert.Equal("honua-console.studio.form-builder", saved.Provenance!.Source);
+    }
+
+    [Fact]
     public void ToDocument_OnExistingPackage_PreservesJsonDomainAndVisibilityValues()
     {
         var serverDocument = new HonuaFormPackageDocument
