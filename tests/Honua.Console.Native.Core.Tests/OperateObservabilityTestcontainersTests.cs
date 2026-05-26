@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -21,6 +20,11 @@ public sealed class OperateObservabilityTestcontainersTests
     private const string ServerImageEnvironmentVariable = "HONUA_CONSOLE_OPERATE_SERVER_IMAGE";
     private const string ServerContextEnvironmentVariable = "HONUA_CONSOLE_OPERATE_SERVER_CONTEXT";
     private const string ServerDockerfileEnvironmentVariable = "HONUA_CONSOLE_OPERATE_SERVER_DOCKERFILE";
+    private const string FixtureProfile = "console-testcontainers-v1";
+    private const string FixtureServiceId = "operate-fixture-console";
+    private const string FixtureCorrelationId = "corr-operate-fixture-001";
+    private const string FixtureFailedJobId = "operate-fixture-job-failed";
+    private const string FixtureInvestigationId = "inv-operate-fixture-console";
 
     [SkippableFact]
     [Trait("Category", "Testcontainers")]
@@ -59,6 +63,9 @@ public sealed class OperateObservabilityTestcontainersTests
                 .WithEnvironment("HONUA_DEV_AUTH_ALLOW_BYPASS", "true")
                 .WithEnvironment("Alerts__Enabled", "true")
                 .WithEnvironment("Alerts__Edition", "Enterprise")
+                .WithEnvironment("OperateObservabilityFixture__Enabled", "true")
+                .WithEnvironment("OperateObservabilityFixture__Profile", FixtureProfile)
+                .WithEnvironment("OperateObservabilityFixture__SeedOnStartup", "false")
                 .WithEnvironment(
                     "ConnectionStrings__DefaultConnection",
                     $"Host=postgres;Port=5432;Database={database};Username={username};Password={password}")
@@ -71,12 +78,14 @@ public sealed class OperateObservabilityTestcontainersTests
 
             var baseUri = new Uri($"http://localhost:{server.GetMappedPublicPort(8080).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
             using var seedClient = new HttpClient { BaseAddress = baseUri };
-            await SeedOperateFixtureAsync(seedClient);
-            await SeedRecentLogEvidenceAsync(seedClient);
-            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/observability/events", "events");
-            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/observability/alerts", "alerts");
-            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/jobs", "jobs");
-            await AssertOperateSurfaceAvailableAsync(seedClient, "/api/v1/admin/observability/logs", "logs");
+            var fixture = await SeedOperateFixtureAsync(seedClient);
+            Assert.True(fixture.GetProperty("sourceHydrated").GetBoolean());
+            Assert.Equal(FixtureServiceId, fixture.GetProperty("serviceId").GetString());
+            Assert.Equal(FixtureCorrelationId, fixture.GetProperty("correlationId").GetString());
+            await AssertOperateSurfaceContainsAsync(seedClient, fixture.GetProperty("links").GetProperty("events").GetString(), "events", "audit");
+            await AssertOperateSurfaceContainsAsync(seedClient, fixture.GetProperty("links").GetProperty("alerts").GetString(), "alerts", FixtureServiceId);
+            await AssertOperateSurfaceContainsAsync(seedClient, fixture.GetProperty("links").GetProperty("jobs").GetString(), "jobs", FixtureFailedJobId);
+            await AssertOperateSurfaceContainsAsync(seedClient, fixture.GetProperty("links").GetProperty("logs").GetString(), "logs", FixtureCorrelationId);
 
             var operateClient = new HttpConsoleOperateObservabilityClient(
                 new HttpClient(),
@@ -114,7 +123,9 @@ public sealed class OperateObservabilityTestcontainersTests
             Assert.Contains("minSeverity", html);
             Assert.Contains("Harbor Entry Testcontainers", html);
             Assert.Contains("Honolulu Harbor Testcontainers", html);
-            Assert.Contains("Live investigation Testcontainers", html);
+            Assert.Contains(FixtureFailedJobId, html);
+            Assert.Contains(FixtureInvestigationId, html);
+            Assert.Contains(FixtureCorrelationId, html);
             Assert.DoesNotContain("OperateObservabilityFixture.Default", html);
             Assert.DoesNotContain("job-publish-001", html);
         }
@@ -176,87 +187,25 @@ public sealed class OperateObservabilityTestcontainersTests
         return (imageName, image);
     }
 
-    private static async Task SeedOperateFixtureAsync(HttpClient client)
+    private static async Task<JsonElement> SeedOperateFixtureAsync(HttpClient client)
     {
-        var serviceId = $"console-{Guid.NewGuid():N}";
-        var zoneResponse = await client.PostAsJsonAsync("/api/v1/admin/alerts/zones", new
-        {
-            serviceId,
-            zoneName = "Honolulu Harbor Testcontainers",
-            wkt = "POLYGON((-157.88 21.29,-157.88 21.31,-157.85 21.31,-157.85 21.29,-157.88 21.29))",
-            srid = 4326,
-            metadata = new Dictionary<string, string?> { ["owner"] = "Console integration" },
-            isActive = true
-        });
-        await EnsureSuccessAsync(zoneResponse, "create geofence zone");
-
-        var zone = await ReadDataElementAsync(zoneResponse);
-        var zoneId = zone.GetProperty("zoneId").GetInt64();
-        var ruleResponse = await client.PostAsJsonAsync("/api/v1/admin/alerts/rules", new
-        {
-            serviceId,
-            layerId = 1,
-            zoneId = (long?)zoneId,
-            ruleName = "Harbor Entry Testcontainers",
-            triggerType = "enter",
-            conditionsJson = "{\"speedKmh\":30}",
-            cooldownSeconds = 60,
-            severity = "warning",
-            editionRequired = "enterprise",
-            channels = new[] { "websocket" },
-            isActive = true
-        });
-        await EnsureSuccessAsync(ruleResponse, "create realtime rule");
-
-        var investigationResponse = await client.PostAsJsonAsync("/api/v1/admin/investigations", new
-        {
-            title = "Live investigation Testcontainers",
-            summary = "Seeded by honua-console Operate Testcontainers integration."
-        });
-        await EnsureSuccessAsync(investigationResponse, "create investigation");
-
-        var investigation = await ReadRootElementAsync(investigationResponse);
-        var investigationId = investigation.GetProperty("investigationId").GetString();
-        Assert.False(string.IsNullOrWhiteSpace(investigationId));
-
-        var pinResponse = await client.PostAsJsonAsync($"/api/v1/admin/investigations/{Uri.EscapeDataString(investigationId!)}/pins", new
-        {
-            eventRef = "audit:testcontainers",
-            eventKind = "audit",
-            occurredAt = DateTimeOffset.UtcNow,
-            note = "Pinned seeded audit event."
-        });
-        await EnsureSuccessAsync(pinResponse, "pin event to investigation");
-
-        var linkResponse = await client.PostAsJsonAsync($"/api/v1/admin/investigations/{Uri.EscapeDataString(investigationId!)}/links", new
-        {
-            resourceKind = "job",
-            resourceId = "testcontainers-job",
-            note = "Linked synthetic job evidence from seeded fixture."
-        });
-        await EnsureSuccessAsync(linkResponse, "link investigation resource");
+        using var response = await client.PostAsync($"/api/v1/admin/dev/fixtures/operate-observability/{FixtureProfile}", content: null);
+        await EnsureSuccessAsync(response, "seed Operate observability fixture");
+        return await ReadRootElementAsync(response);
     }
 
-    private static async Task SeedRecentLogEvidenceAsync(HttpClient client)
+    private static async Task AssertOperateSurfaceContainsAsync(HttpClient client, string? path, string surface, string expected)
     {
-        using var response = await client.GetAsync("/api/v1/admin/observability/events?minSeverity=3");
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    private static async Task AssertOperateSurfaceAvailableAsync(HttpClient client, string path, string surface)
-    {
+        Assert.False(string.IsNullOrWhiteSpace(path));
         using var response = await client.GetAsync(path);
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync();
             Assert.Fail($"Operate {surface} surface was unavailable at {path}: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
         }
-    }
 
-    private static async Task<JsonElement> ReadDataElementAsync(HttpResponseMessage response)
-    {
-        var root = await ReadRootElementAsync(response);
-        return root.GetProperty("data").Clone();
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.Contains(expected, text, StringComparison.Ordinal);
     }
 
     private static async Task<JsonElement> ReadRootElementAsync(HttpResponseMessage response)

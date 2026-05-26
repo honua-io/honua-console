@@ -362,7 +362,9 @@ Current runtime response contract:
   intentional empty state.
 - `OperateJobRun.DetailHref` is the single job detail link for Studio,
   publishing, GitOps, temporal, alert delivery, import, and maintenance
-  work. Job actions render from server-declared action descriptors and
+  work. Job actions render from server-declared descriptors on
+  `ConsoleJobDetail.Actions`; the current read-only slice does not issue a
+  separate `/api/v1/admin/jobs/{jobRunId}/actions` read. Action controls
   stay disabled when the server says the action is unavailable.
 
 ### Server Overview
