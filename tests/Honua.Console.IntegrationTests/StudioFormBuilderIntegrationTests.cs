@@ -36,10 +36,13 @@ public sealed class StudioFormBuilderIntegrationTests
         seed.ServiceId = "console-form-fixture";
         seed.LayerId = 0;
 
+        // The environment/auth precondition (opt-in flag, server target, Docker, admin API key) is already
+        // gated by _fixture.SkipReason above (GetStudioSkipReason). Once we are past it the live server with
+        // a valid admin key must accept a known-valid template seed, so a rejection is a real regression that
+        // must fail the smoke — never a skip that reports false-green evidence (the only sanctioned skip is the
+        // environment-unavailable gate).
         var saved = await dataSource.SaveDraftAsync(seed);
-        Skip.If(
-            !saved.Succeeded,
-            $"The live server rejected the seeded form draft: {saved.Message}");
+        Assert.True(saved.Succeeded, $"The live server rejected the seeded form draft: {saved.Message}");
         Assert.NotNull(saved.State);
         var formId = saved.State!.FormId;
         Assert.False(string.IsNullOrWhiteSpace(formId));
