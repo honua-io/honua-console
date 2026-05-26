@@ -845,10 +845,12 @@ invalid realtime/geofence rules keep their enable action disabled, and
 Studio, publishing, GitOps, temporal, alert delivery, import, and
 maintenance jobs all use `/operate/jobs/:jobRunId` as the detail URL.
 
-Workflow dry-run and publish results reuse `/operate/jobs/:jobRunId` and
+Workflow publish results reuse `/operate/jobs/:jobRunId` and
 `/operate/events?jobId=<id>` as evidence views, not workflow editors.
-They may be opened from Studio dry-run or publish results when the server
-authorizes the caller to read that job. The workflow adapter may name the
+They may be opened from a Studio published run when the server
+authorizes the caller to read that job. The `#1185` dry-run is a
+synchronous estimation that creates no Operate job, so it emits no
+job-scoped URLs. The workflow adapter may name the
 identifier `jobId`; Console treats it as the job-run route id for
 navigation. Missing or unauthorized job ids render the standard
 missing/forbidden surfaces once these routes switch from fixture and

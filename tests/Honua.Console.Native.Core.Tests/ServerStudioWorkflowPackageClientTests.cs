@@ -101,6 +101,46 @@ public sealed class ServerStudioWorkflowPackageClientTests
     }
 
     [Fact]
+    public async Task OpenEditor_DoesNotPinReopenedDraftToLatestVersion()
+    {
+        // Regression for honua-console#62: the server persists the mutable package graph independently of
+        // immutable versions, so a reopened package's graph can be AHEAD of LatestVersion (e.g. a prior save
+        // whose POST .../versions failed graph validation still PUT the graph but created no version). The
+        // reopened draft must surface the latest committed version for display, but must NOT carry it as a
+        // reusable CurrentVersionId - otherwise a dry-run/publish reuses a stale version that differs from
+        // the loaded graph.
+        var api = new FakeWorkflowApi();
+        var client = new ServerStudioWorkflowPackageClient(api);
+        var draft = await NewDraftWithSinkAsync(client);
+        await client.SaveVersionAsync(draft, "v1"); // LatestVersion => 1
+
+        var reopened = await client.OpenEditorAsync(draft.ContentItemId);
+
+        Assert.NotNull(reopened.Draft);
+        Assert.Equal(1, reopened.Draft!.VersionNumber); // latest committed version still shown
+        Assert.Empty(reopened.Draft.CurrentVersionId);  // ...but not pinned for blind reuse
+    }
+
+    [Fact]
+    public async Task DryRun_OnReopenedDraft_CreatesFreshVersion_InsteadOfReusingStaleLatest()
+    {
+        // The loaded graph is not proven to equal the latest committed version, so a run re-saves and
+        // re-versions the loaded graph rather than reusing a potentially stale version. Regression for
+        // honua-console#62 (reopened validation-failed drafts reusing stale versions).
+        var api = new FakeWorkflowApi();
+        var client = new ServerStudioWorkflowPackageClient(api);
+        var draft = await NewDraftWithSinkAsync(client);
+        await client.SaveVersionAsync(draft, "v1");
+
+        var reopened = (await client.OpenEditorAsync(draft.ContentItemId)).Draft!;
+        var dryRun = await client.DryRunAsync(reopened);
+
+        Assert.Null(dryRun.BindingState);
+        Assert.Equal(2, api.Versions.Count); // v1 + the freshly created v2, not a reuse of v1
+        Assert.EndsWith(":v2", reopened.CurrentVersionId, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DryRun_RendersServerEstimateLogsAndOutputSchemas_WithoutOperateJobLink()
     {
         var api = new FakeWorkflowApi();

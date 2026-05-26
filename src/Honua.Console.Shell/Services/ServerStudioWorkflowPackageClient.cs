@@ -422,9 +422,15 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         {
             DraftId = package.PackageId,
             ContentItemId = package.PackageId,
-            CurrentVersionId = package.LatestVersion.HasValue
-                ? FormatVersionId(package.PackageId, package.LatestVersion.Value)
-                : string.Empty,
+            // Do NOT pin CurrentVersionId to LatestVersion on reopen. The server persists the mutable package
+            // graph independently of immutable versions (a save whose POST .../versions failed graph
+            // validation still PUT the graph but created no version), so a reopened package's graph can be
+            // AHEAD of LatestVersion. Treating LatestVersion as the draft's current version would let a
+            // dry-run/publish reuse a stale version whose graph differs from what is loaded (see
+            // EnsureVersionAsync and the page's NeedsSaveBeforePublish gate, both keyed on CurrentVersionId).
+            // Leaving it empty forces the loaded graph to be re-saved and re-validated before any run;
+            // VersionNumber still carries the latest committed version for display.
+            CurrentVersionId = string.Empty,
             VersionNumber = package.LatestVersion ?? 0,
             PackageType = StudioWorkflowContractValues.PackageType,
             SchemaVersion = package.Graph.SchemaVersion,

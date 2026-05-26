@@ -88,7 +88,7 @@
                             <dt>Content item</dt>
                             <dd>@(string.IsNullOrWhiteSpace(_draft.ContentItemId) ? "not saved" : _draft.ContentItemId)</dd>
                             <dt>Current version</dt>
-                            <dd>@(string.IsNullOrWhiteSpace(_draft.CurrentVersionId) ? "draft only" : _draft.CurrentVersionId)</dd>
+                            <dd>@DescribeCurrentVersion(_draft)</dd>
                         </dl>
                     </div>
                 </section>
@@ -710,6 +710,22 @@
                 _savedDraftFingerprint,
                 StudioWorkflowPackageDraftContent.CreateFingerprint(_draft),
                 StringComparison.Ordinal));
+
+    // CurrentVersionId is set only by an in-session save (it pins the draft to a version known to match the
+    // current graph). A draft just loaded from the server has no such pin, but it may already have committed
+    // versions: show the precise pinned id when present, otherwise the latest committed version number, and
+    // "draft only" for a never-saved local draft.
+    private static string DescribeCurrentVersion(StudioWorkflowPackageDraft draft)
+    {
+        if (!string.IsNullOrWhiteSpace(draft.CurrentVersionId))
+        {
+            return draft.CurrentVersionId;
+        }
+
+        return draft.VersionNumber > 0
+            ? $"v{draft.VersionNumber} (latest committed)"
+            : "draft only";
+    }
 
     private static bool IsBlockedPublish(StudioWorkflowPublishResult publish) =>
         string.Equals(publish.Status, "blocked", StringComparison.OrdinalIgnoreCase);
