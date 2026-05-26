@@ -19,6 +19,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioAnalysisContentDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
         services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
@@ -74,6 +75,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioAuthoringShell, UnsupportedStudioAuthoringShell>();
+    }
+
+    // Binds the Studio analysis builder (/studio/analysis) to the honua-server Analysis Content API
+    // (#1182) through the Honua.Console.Contracts shim when an absolute HTTP(S) server base address is
+    // configured; otherwise registers the missing-binding fallback (never a standing in-memory analysis
+    // client). Mirrors AddOperateTransitionDataSource / AddStudioAuthoringShell.
+    private static void AddStudioAnalysisContentDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IStudioAnalysisContentClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HttpStudioAnalysisContentClient(
+                    httpClient,
+                    new StudioAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            return;
+        }
+
+        services.TryAddSingleton<IStudioAnalysisContentClient, UnsupportedStudioAnalysisContentClient>();
     }
 
     private static void AddOperateTransitionDataSource(

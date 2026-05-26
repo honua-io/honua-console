@@ -1,0 +1,1074 @@
+@using System.Globalization
+@using System.Text.Json
+@inject IStudioAnalysisContentClient AnalysisClient
+@inject NavigationManager Navigation
+
+@* Studio analysis builder (honua-console#53). Binds the server-owned Analysis Content API (honua-server
+   #1182) through the IStudioAnalysisContentClient shim: author/edit an analysis package or saved query,
+   preview a saved query, submit an analysis package as a job, observe the job/result artifact, and hand the
+   stable ArtifactBindingRef downstream. Unbacked slivers (compute/cost estimate, analysis-package dry-run,
+   natural-language plan compilation) render explicit "unavailable" states — never a mock. *@
+
+<section class="console-page studio-editor-page" data-analysis-builder>
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio authoring</p>
+        <h1>Analysis Builder</h1>
+        <p>@(_definition?.Summary ?? "Author a server-owned analysis package or saved query, preview it, submit it as a geoprocessing job, and wire its output downstream.")</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Analysis"
+                          Title="Loading analysis content"
+                          Message="Reading the analysis item and version from honua-server." />
+    }
+    else if (_issue is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_issue.State"
+                          Title="Analysis content is not bound"
+                          Message="@($"{_issue.Detail} (contract: {_issue.Contract})")"
+                          ActionHref="/studio/analysis"
+                          ActionLabel="Start a new analysis" />
+    }
+    else if (_snapshot is null)
+    {
+        @* ---------------- Authoring mode (no item loaded) ---------------- *@
+        <div class="studio-editor-shell">
+            <div class="studio-editor-main">
+                <article class="console-panel studio-editor-card">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h2>Author analysis content</h2>
+                            <p class="console-muted">Create a server-owned <code>savedQuery</code> or <code>analysisPackage</code> item plus version 1.</p>
+                        </div>
+                        <span class="console-status">@_status</span>
+                    </div>
+
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Content kind</span>
+                            <select @bind="_draftKind">
+                                <option value="@AnalysisContentKind.AnalysisPackage">analysisPackage</option>
+                                <option value="@AnalysisContentKind.SavedQuery">savedQuery</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Name</span>
+                            <input @bind="_draftName" />
+                        </label>
+                        <label>
+                            <span>Title</span>
+                            <input @bind="_draftTitle" />
+                        </label>
+                    </div>
+
+                    @if (_draftKind == AnalysisContentKind.SavedQuery)
+                    {
+                        <div class="studio-editor-section">
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Layer id</span>
+                                    <input type="number" min="0" @bind="_draftLayerId" />
+                                </label>
+                                <label>
+                                    <span>Service name</span>
+                                    <input @bind="_draftServiceName" />
+                                </label>
+                                <label>
+                                    <span>Preview limit</span>
+                                    <input type="number" min="1" max="200" @bind="_draftPreviewLimit" />
+                                </label>
+                                <label>
+                                    <span>Output fields (comma-separated)</span>
+                                    <input @bind="_draftOutFields" />
+                                </label>
+                            </div>
+                            <label class="studio-stacked-field">
+                                <span>Natural-language query</span>
+                                <textarea rows="2" @bind="_draftNaturalLanguage"></textarea>
+                            </label>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="studio-editor-section">
+                            <label class="studio-stacked-field">
+                                <span>Intent goal</span>
+                                <textarea rows="2" @bind="_draftGoal"></textarea>
+                            </label>
+                            <div class="studio-field-grid">
+                                <label>
+                                    <span>Parameters (key=value per line)</span>
+                                    <textarea rows="3" @bind="_draftParameters"></textarea>
+                                </label>
+                                <label>
+                                    <span>Requested output artifacts</span>
+                                    <select multiple @bind="_draftRequestedArtifacts">
+                                        @foreach (var kind in Enum.GetValues<ArtifactKind>())
+                                        {
+                                            <option value="@kind">@kind</option>
+                                        }
+                                    </select>
+                                </label>
+                            </div>
+
+                            <div class="studio-plan-steps">
+                                <div class="console-panel-heading">
+                                    <h3>Plan steps</h3>
+                                    <button type="button" class="console-button console-button-secondary" @onclick="AddStep">Add step</button>
+                                </div>
+                                <p class="console-muted">Each step is a DAG node; <code>depends on</code> declares the edges. A plan needs at least one step.</p>
+                                @for (var i = 0; i < _draftSteps.Count; i++)
+                                {
+                                    var index = i;
+                                    var step = _draftSteps[index];
+                                    <div class="studio-plan-step-row">
+                                        <div class="studio-field-grid">
+                                            <label>
+                                                <span>Step id</span>
+                                                <input @bind="step.StepId" />
+                                            </label>
+                                            <label>
+                                                <span>Kind</span>
+                                                <select @bind="step.Kind">
+                                                    @foreach (var kind in Enum.GetValues<AnalysisPlanStepKind>())
+                                                    {
+                                                        <option value="@kind">@kind</option>
+                                                    }
+                                                </select>
+                                            </label>
+                                            <label>
+                                                <span>Process id</span>
+                                                <input @bind="step.ProcessId" />
+                                            </label>
+                                            <label>
+                                                <span>Depends on (comma-separated)</span>
+                                                <input @bind="step.DependsOn" />
+                                            </label>
+                                        </div>
+                                        <label class="studio-stacked-field">
+                                            <span>Inputs (key=value per line)</span>
+                                            <textarea rows="2" @bind="step.Inputs"></textarea>
+                                        </label>
+                                        <button type="button" class="console-button console-button-secondary" disabled="@(_draftSteps.Count <= 1)" @onclick="() => RemoveStep(index)">Remove step</button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="studio-action-grid">
+                        <button type="button" class="console-button" disabled="@_busy" @onclick="CreateItemAsync">Create analysis item</button>
+                    </div>
+                    @if (_createIssue is not null)
+                    {
+                        <p class="console-warning">@_createIssue.State: @_createIssue.Detail</p>
+                    }
+                    <p class="console-muted">@_status</p>
+                </article>
+
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <h2>Open existing analysis</h2>
+                    </div>
+                    <p class="console-muted">The analysis API reopens content by known item id (no list route yet). Paste an item id to open its latest version.</p>
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Analysis item id</span>
+                            <input @bind="_openItemId" placeholder="analysis-content-..." />
+                        </label>
+                    </div>
+                    <div class="studio-action-grid">
+                        <button type="button" class="console-button console-button-secondary" disabled="@string.IsNullOrWhiteSpace(_openItemId)" @onclick="OpenExisting">Open item</button>
+                    </div>
+                </article>
+            </div>
+
+            @RenderCoverageAside
+        </div>
+    }
+    else
+    {
+        @* ---------------- Loaded mode (item + version bound) ---------------- *@
+        var item = _snapshot.Item;
+        var version = _snapshot.Version;
+        <div class="studio-editor-shell">
+            <div class="studio-editor-main">
+                <article class="console-panel studio-editor-card" data-analysis-item-id="@item.ItemId">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h2>@(string.IsNullOrWhiteSpace(item.Title) ? item.Name : item.Title)</h2>
+                            <p class="console-muted">@item.Kind • v@(version.Version) • @item.CurrentVersionId</p>
+                        </div>
+                        <span class="console-status">@item.Lifecycle</span>
+                    </div>
+
+                    <dl class="console-definition-list">
+                        <dt>Item id</dt>
+                        <dd>@item.ItemId</dd>
+                        <dt>Kind</dt>
+                        <dd>@item.Kind</dd>
+                        <dt>Current version</dt>
+                        <dd>v@(item.CurrentVersion) (@item.CurrentVersionId)</dd>
+                        <dt>Visibility</dt>
+                        <dd>@item.Visibility</dd>
+                        <dt>Content hash</dt>
+                        <dd>@version.ContentHash</dd>
+                    </dl>
+
+                    @if (version.Kind == AnalysisContentKind.SavedQuery && version.SavedQuery is { } savedQuery)
+                    {
+                        <div class="studio-editor-section">
+                            <h3>Saved query plan</h3>
+                            <dl class="console-definition-list">
+                                <dt>Layer id</dt>
+                                <dd>@savedQuery.LayerId</dd>
+                                <dt>Service</dt>
+                                <dd>@(savedQuery.ServiceName ?? "—")</dd>
+                                <dt>Output fields</dt>
+                                <dd>@(savedQuery.OutFields.Count == 0 ? "(all)" : string.Join(", ", savedQuery.OutFields))</dd>
+                                <dt>Preview limit</dt>
+                                <dd>@(savedQuery.PreviewLimit?.ToString(CultureInfo.InvariantCulture) ?? "default")</dd>
+                                <dt>Natural-language query</dt>
+                                <dd>@(savedQuery.NaturalLanguageQuery ?? "—")</dd>
+                            </dl>
+                        </div>
+                    }
+                    else if (version.Kind == AnalysisContentKind.AnalysisPackage && version.AnalysisPackage is { } package)
+                    {
+                        <div class="studio-editor-section">
+                            <h3>Analysis plan</h3>
+                            <dl class="console-definition-list">
+                                <dt>Plan id</dt>
+                                <dd>@package.Plan.PlanId</dd>
+                                <dt>Goal</dt>
+                                <dd>@(package.Intent?.Goal ?? "—")</dd>
+                                <dt>Parameters</dt>
+                                <dd>@(package.Parameters.Count == 0 ? "—" : string.Join(", ", package.Parameters.Select(p => $"{p.Key}={p.Value}")))</dd>
+                            </dl>
+
+                            <h3 class="studio-dag-heading">Pipeline (DAG)</h3>
+                            @if (package.Plan.Steps.Count == 0)
+                            {
+                                <p class="console-muted">This plan declares no steps.</p>
+                            }
+                            else
+                            {
+                                <div class="studio-dag" role="img" aria-label="Analysis plan dependency graph">
+                                    @foreach (var level in BuildDagLevels(package.Plan.Steps))
+                                    {
+                                        <div class="studio-dag-level">
+                                            @foreach (var step in level)
+                                            {
+                                                <div class="studio-dag-node">
+                                                    <strong>@step.StepId</strong>
+                                                    <span class="console-status">@step.Kind</span>
+                                                    @if (!string.IsNullOrWhiteSpace(step.ProcessId))
+                                                    {
+                                                        <small>@step.ProcessId</small>
+                                                    }
+                                                    @if (step.Inputs.Count > 0)
+                                                    {
+                                                        <div class="console-chip-row">
+                                                            @foreach (var input in step.Inputs)
+                                                            {
+                                                                <span>@input.Key=@input.Value</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                    @if (step.DependsOn.Count > 0)
+                                                    {
+                                                        <small class="studio-dag-depends">depends on: @string.Join(", ", step.DependsOn)</small>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                @if (package.Plan.Warnings.Count > 0)
+                                {
+                                    <ul class="studio-check-list">
+                                        @foreach (var warning in package.Plan.Warnings)
+                                        {
+                                            <li class="console-warning">@warning</li>
+                                        }
+                                    </ul>
+                                }
+                            }
+                        </div>
+                    }
+
+                    <div class="studio-editor-section">
+                        <h3>Output schema</h3>
+                        @{
+                            var declaredOutputs = DeclaredOutputs(version);
+                        }
+                        @if (declaredOutputs.Count == 0)
+                        {
+                            <p class="console-muted">No output artifacts are declared on this version.</p>
+                        }
+                        else
+                        {
+                            <div class="console-chip-row">
+                                @foreach (var output in declaredOutputs)
+                                {
+                                    <span>@output</span>
+                                }
+                            </div>
+                        }
+                        <p class="console-muted">
+                            Declared artifact kinds are known before submit. Field-level output schema is only
+                            available post-run from the result artifact record.
+                        </p>
+                    </div>
+
+                    <div class="studio-editor-section">
+                        <h3>Compute &amp; cost estimate</h3>
+                        <ConsoleStateView Kind="unavailable"
+                                          Kicker="Estimate"
+                                          Title="Estimate unavailable"
+                                          Message="honua-server #1182 exposes no pre-submit compute/cost estimate for analysis content. A bounded honua-server estimate contract is tracked as a follow-on; Console does not fabricate one." />
+                    </div>
+                </article>
+
+                <div class="studio-preview-grid">
+                    @if (version.Kind == AnalysisContentKind.SavedQuery)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <h2>Preview</h2>
+                                <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="PreviewAsync">Run preview</button>
+                            </div>
+                            @if (_previewIssue is not null)
+                            {
+                                <p class="console-warning">@_previewIssue.State: @_previewIssue.Detail</p>
+                            }
+                            else if (_preview is not null)
+                            {
+                                <p class="console-muted">
+                                    @_preview.Features.Count feature(s) shown@(_preview.TotalCount is { } total ? $" of {total}" : string.Empty)@(_preview.ExceededPreviewLimit ? " (preview limit exceeded)" : string.Empty).
+                                </p>
+                                <pre class="studio-code">@PreviewJson(_preview)</pre>
+                            }
+                            else
+                            {
+                                <p class="console-muted">Run the saved-query preview through the canonical feature-query pipeline.</p>
+                            }
+                        </article>
+                    }
+                    else
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <h2>Preview</h2>
+                            </div>
+                            <ConsoleStateView Kind="unavailable"
+                                              Kicker="Package preview"
+                                              Title="Package preview unsupported"
+                                              Message="honua-server #1182 previews saved queries only; analysis packages have no dry-run/preview before a real run. A package dry-run contract is tracked as a follow-on." />
+                        </article>
+                    }
+
+                    <article class="console-panel">
+                        <div class="console-panel-heading">
+                            <h2>Submit job</h2>
+                            @if (version.Kind == AnalysisContentKind.AnalysisPackage)
+                            {
+                                <div class="operate-action-row">
+                                    <button type="button" class="console-button" disabled="@_busy" @onclick="SubmitRunAsync">Submit run</button>
+                                    <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="SubmitRerunAsync">Rerun</button>
+                                </div>
+                            }
+                        </div>
+                        @if (version.Kind != AnalysisContentKind.AnalysisPackage)
+                        {
+                            <p class="console-muted">Only analysis packages submit geoprocessing jobs. Saved queries use the preview path above.</p>
+                        }
+                        else if (_jobIssue is not null)
+                        {
+                            <p class="console-warning">@_jobIssue.State: @_jobIssue.Detail</p>
+                        }
+                        else if (_job is not null)
+                        {
+                            <dl class="console-definition-list">
+                                <dt>Job id</dt>
+                                <dd>@_job.JobId</dd>
+                                <dt>Status</dt>
+                                <dd>@_job.Status</dd>
+                                <dt>Submitted version</dt>
+                                <dd>v@(_job.Version.Version)</dd>
+                            </dl>
+                            <p class="console-muted">
+                                Terminal job state is observed on the Operate job surface (analysis runs return only the initial status).
+                            </p>
+                            <a class="console-button-link" href="@($"/operate/jobs/{_job.JobId}")">Open job in Operate</a>
+                        }
+                        else
+                        {
+                            <p class="console-muted">Submit the stored plan through the canonical geoprocessing runtime.</p>
+                        }
+                    </article>
+                </div>
+
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <h2>Result artifact &amp; job diagnostics</h2>
+                    </div>
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Artifact id</span>
+                            <input @bind="_artifactIdInput" placeholder="analysis-..." />
+                        </label>
+                        <label>
+                            <span>Job id</span>
+                            <input @bind="_jobIdInput" placeholder="@(_job?.JobId ?? "run-...")" />
+                        </label>
+                    </div>
+                    <div class="operate-action-row">
+                        <button type="button" class="console-button console-button-secondary" disabled="@(_busy || string.IsNullOrWhiteSpace(_artifactIdInput))" @onclick="ResolveArtifactAsync">Resolve artifact</button>
+                        <button type="button" class="console-button console-button-secondary" disabled="@(_busy || string.IsNullOrWhiteSpace(_jobIdInput))" @onclick="LoadLogsAsync">View logs</button>
+                        <button type="button" class="console-button console-button-secondary" disabled="@(_busy || string.IsNullOrWhiteSpace(_jobIdInput))" @onclick="LoadFailureAsync">View failure</button>
+                    </div>
+
+                    @if (_artifactIssue is not null)
+                    {
+                        <p class="console-warning">@_artifactIssue.State: @_artifactIssue.Detail</p>
+                    }
+                    else if (_artifact is not null)
+                    {
+                        <dl class="console-definition-list">
+                            <dt>Artifact</dt>
+                            <dd>@_artifact.Artifact.ArtifactId (@_artifact.Artifact.Kind)</dd>
+                            <dt>Label</dt>
+                            <dd>@_artifact.Artifact.Label</dd>
+                            <dt>URI</dt>
+                            <dd>@(_artifact.Artifact.Uri ?? "—")</dd>
+                            <dt>Retention</dt>
+                            <dd>@(_artifact.Artifact.RetentionState ?? "—") / @(_artifact.Artifact.PromotionState ?? "—")</dd>
+                        </dl>
+                    }
+
+                    @if (_failure is not null)
+                    {
+                        <p class="console-warning">Failure (@_failure.Classification): @_failure.Message</p>
+                    }
+                    @if (_logs is not null)
+                    {
+                        <pre class="operate-log-lines">@FormatLogs(_logs)</pre>
+                    }
+                </article>
+
+                @if (_binding is not null)
+                {
+                    <article class="console-panel" data-analysis-binding="@_binding.ArtifactId">
+                        <div class="console-panel-heading">
+                            <h2>Send output downstream</h2>
+                        </div>
+                        <p class="console-muted">
+                            The analysis output is referenced by a stable binding (artifact @_binding.ArtifactId from
+                            @(_binding.SourceItemId ?? item.ItemId)@(_binding.SourceVersion is { } sv ? $" v{sv}" : string.Empty)).
+                            Downstream maps, dashboards, reports, and workflows reference this binding instead of copying job state.
+                        </p>
+                        <dl class="console-definition-list">
+                            <dt>Artifact id</dt>
+                            <dd>@_binding.ArtifactId</dd>
+                            <dt>Source</dt>
+                            <dd>@(_binding.SourceItemId ?? "—") @(_binding.SourceVersionId is null ? string.Empty : $"({_binding.SourceVersionId})")</dd>
+                            <dt>Role / target</dt>
+                            <dd>@_binding.Role → @_binding.TargetKind / @_binding.TargetSlot</dd>
+                        </dl>
+                        <div class="operate-action-row">
+                            <a class="console-button-link" href="@DownstreamHref("map")">Use in map</a>
+                            <a class="console-button-link" href="@DownstreamHref("dashboard")">Use in dashboard</a>
+                            <a class="console-button-link" href="@DownstreamHref("report")">Use in report</a>
+                            <a class="console-button-link" href="@WorkflowHref()">Use in workflow</a>
+                        </div>
+                        <p class="console-muted">Targets receive <code>?source=analysis&amp;artifact=&amp;item=&amp;version=</code>; consuming the binding inside each editor is tracked per-editor.</p>
+                    </article>
+                }
+
+                <div class="studio-action-grid">
+                    <button type="button" class="console-button console-button-secondary" @onclick="ResetToAuthoring">New analysis</button>
+                </div>
+            </div>
+
+            @RenderCoverageAside
+        </div>
+    }
+</section>
+
+@code {
+    private static readonly JsonSerializerOptions PreviewJsonOptions = new() { WriteIndented = true };
+
+    [Parameter] public string? ItemId { get; set; }
+
+    [Parameter] public int? Version { get; set; }
+
+    private readonly StudioPackageEditorDefinition? _definition = StudioPackageEditorCatalog.Find("analysis");
+
+    private bool _loading;
+    private bool _busy;
+    private string _status = "Author a new analysis item, or open an existing one by id.";
+    private AnalysisEndpointIssue? _issue;
+    private AnalysisEndpointIssue? _createIssue;
+    private AnalysisContentSnapshot? _snapshot;
+    private string? _loadedKey;
+
+    // Authoring draft state.
+    private AnalysisContentKind _draftKind = AnalysisContentKind.AnalysisPackage;
+    private string _draftName = "analysis-package";
+    private string _draftTitle = "Analysis package";
+    private int _draftLayerId;
+    private string _draftServiceName = string.Empty;
+    private int _draftPreviewLimit = 25;
+    private string _draftOutFields = string.Empty;
+    private string _draftNaturalLanguage = string.Empty;
+    private string _draftGoal = "Describe the analysis goal";
+    private string _draftParameters = "distance=10";
+    private string[] _draftRequestedArtifacts = [nameof(ArtifactKind.FeatureLayer)];
+    private readonly List<PlanStepDraft> _draftSteps =
+    [
+        new() { StepId = "step-1", Kind = AnalysisPlanStepKind.Geoprocess, ProcessId = "geometry.buffer", Inputs = "distance=10" }
+    ];
+    private string _openItemId = string.Empty;
+
+    // Preview / job / artifact state.
+    private SavedQueryPreviewResult? _preview;
+    private AnalysisEndpointIssue? _previewIssue;
+    private AnalysisContentJobResponse? _job;
+    private AnalysisEndpointIssue? _jobIssue;
+    private string _artifactIdInput = string.Empty;
+    private string _jobIdInput = string.Empty;
+    private AnalysisArtifactResolution? _artifact;
+    private AnalysisEndpointIssue? _artifactIssue;
+    private AnalysisJobLogs? _logs;
+    private AnalysisJobFailure? _failure;
+    private ArtifactBindingRef? _binding;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = string.IsNullOrWhiteSpace(ItemId) ? null : $"{ItemId}@{Version?.ToString(CultureInfo.InvariantCulture) ?? "latest"}";
+        if (key == _loadedKey)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        ResetTransientState();
+
+        if (string.IsNullOrWhiteSpace(ItemId))
+        {
+            _snapshot = null;
+            _issue = null;
+            return;
+        }
+
+        await LoadItemAsync(ItemId!, Version).ConfigureAwait(false);
+    }
+
+    private async Task LoadItemAsync(string itemId, int? version)
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var result = version is { } v
+            ? await AnalysisClient.GetVersionAsync(itemId, v).ConfigureAwait(false)
+            : await AnalysisClient.GetItemAsync(itemId).ConfigureAwait(false);
+
+        _loading = false;
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _snapshot = result.Data;
+            _issue = null;
+            _jobIdInput = string.Empty;
+            _status = $"Loaded {_snapshot.Item.ItemId} v{_snapshot.Version.Version}.";
+        }
+        else
+        {
+            _snapshot = null;
+            _issue = result.Issue;
+        }
+    }
+
+    private async Task CreateItemAsync()
+    {
+        _busy = true;
+        _createIssue = null;
+        _status = "Creating analysis item…";
+        try
+        {
+            var request = BuildCreateRequest();
+            var result = await AnalysisClient.CreateItemAsync(request).ConfigureAwait(false);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                // Navigate so the created item is the addressable, reload-safe builder state.
+                Navigation.NavigateTo($"/studio/analysis?item={Uri.EscapeDataString(result.Data.Item.ItemId)}");
+            }
+            else
+            {
+                // Keep the authoring form mounted and surface the create failure inline; the page-level
+                // _issue surface is reserved for load failures when an item id is supplied.
+                _createIssue = result.Issue;
+                _status = "Create failed; adjust the draft and retry.";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void OpenExisting()
+    {
+        if (!string.IsNullOrWhiteSpace(_openItemId))
+        {
+            Navigation.NavigateTo($"/studio/analysis?item={Uri.EscapeDataString(_openItemId.Trim())}");
+        }
+    }
+
+    private async Task PreviewAsync()
+    {
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _previewIssue = null;
+        try
+        {
+            var result = await AnalysisClient
+                .PreviewSavedQueryAsync(_snapshot.Item.ItemId, _snapshot.Version.Version, new PreviewSavedQueryRequest())
+                .ConfigureAwait(false);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _preview = result.Data;
+                _binding = result.Data.Binding;
+                _artifactIdInput = result.Data.PreviewArtifactId;
+            }
+            else
+            {
+                _previewIssue = result.Issue;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SubmitRunAsync()
+    {
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _jobIssue = null;
+        try
+        {
+            var result = await AnalysisClient
+                .SubmitRunAsync(_snapshot.Item.ItemId, _snapshot.Version.Version, new RunAnalysisContentVersionRequest())
+                .ConfigureAwait(false);
+            HandleJobResult(result);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SubmitRerunAsync()
+    {
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _jobIssue = null;
+        try
+        {
+            var result = await AnalysisClient
+                .SubmitRerunAsync(_snapshot.Item.ItemId, _snapshot.Version.Version, new RerunAnalysisContentVersionRequest())
+                .ConfigureAwait(false);
+            HandleJobResult(result);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void HandleJobResult(AnalysisEndpointResult<AnalysisContentJobResponse> result)
+    {
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _job = result.Data;
+            _jobIdInput = result.Data.JobId;
+        }
+        else
+        {
+            _jobIssue = result.Issue;
+        }
+    }
+
+    private async Task ResolveArtifactAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_artifactIdInput))
+        {
+            return;
+        }
+
+        _busy = true;
+        _artifactIssue = null;
+        try
+        {
+            var result = await AnalysisClient.GetArtifactAsync(_artifactIdInput.Trim()).ConfigureAwait(false);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _artifact = result.Data;
+                _binding = result.Data.Binding;
+            }
+            else
+            {
+                _artifactIssue = result.Issue;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_jobIdInput))
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await AnalysisClient.GetJobLogsAsync(_jobIdInput.Trim()).ConfigureAwait(false);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _logs = result.Data;
+            }
+            else
+            {
+                _jobIssue = result.Issue;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task LoadFailureAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_jobIdInput))
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await AnalysisClient.GetJobFailureAsync(_jobIdInput.Trim()).ConfigureAwait(false);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                _failure = result.Data;
+            }
+            else
+            {
+                _jobIssue = result.Issue;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ResetToAuthoring()
+    {
+        Navigation.NavigateTo("/studio/analysis");
+    }
+
+    private void AddStep()
+    {
+        _draftSteps.Add(new PlanStepDraft
+        {
+            StepId = $"step-{_draftSteps.Count + 1}",
+            Kind = AnalysisPlanStepKind.Geoprocess
+        });
+    }
+
+    private void RemoveStep(int index)
+    {
+        if (index >= 0 && index < _draftSteps.Count && _draftSteps.Count > 1)
+        {
+            _draftSteps.RemoveAt(index);
+        }
+    }
+
+    private CreateAnalysisContentItemRequest BuildCreateRequest()
+    {
+        if (_draftKind == AnalysisContentKind.SavedQuery)
+        {
+            return new CreateAnalysisContentItemRequest
+            {
+                Kind = AnalysisContentKind.SavedQuery,
+                Name = _draftName,
+                Title = string.IsNullOrWhiteSpace(_draftTitle) ? null : _draftTitle,
+                SavedQuery = new SavedQueryContent
+                {
+                    LayerId = _draftLayerId,
+                    ServiceName = string.IsNullOrWhiteSpace(_draftServiceName) ? null : _draftServiceName,
+                    NaturalLanguageQuery = string.IsNullOrWhiteSpace(_draftNaturalLanguage) ? null : _draftNaturalLanguage,
+                    PreviewLimit = _draftPreviewLimit,
+                    OutFields = SplitCsv(_draftOutFields)
+                }
+            };
+        }
+
+        var parameters = ParseKeyValues(_draftParameters);
+        var requested = _draftRequestedArtifacts
+            .Select(value => Enum.TryParse<ArtifactKind>(value, out var kind) ? kind : (ArtifactKind?)null)
+            .Where(kind => kind is not null)
+            .Select(kind => kind!.Value)
+            .ToArray();
+        var intentId = "intent-1";
+        var steps = _draftSteps
+            .Where(step => !string.IsNullOrWhiteSpace(step.StepId))
+            .Select(step => new AnalysisPlanStep
+            {
+                StepId = step.StepId.Trim(),
+                Kind = step.Kind,
+                ProcessId = string.IsNullOrWhiteSpace(step.ProcessId) ? null : step.ProcessId.Trim(),
+                Inputs = ParseKeyValues(step.Inputs),
+                DependsOn = SplitCsv(step.DependsOn)
+            })
+            .ToArray();
+
+        return new CreateAnalysisContentItemRequest
+        {
+            Kind = AnalysisContentKind.AnalysisPackage,
+            Name = _draftName,
+            Title = string.IsNullOrWhiteSpace(_draftTitle) ? null : _draftTitle,
+            AnalysisPackage = new AnalysisPackageContent
+            {
+                Intent = new AnalysisIntent
+                {
+                    IntentId = intentId,
+                    Goal = _draftGoal,
+                    RequestedOutputs = requested
+                },
+                Plan = new AnalysisPlan
+                {
+                    PlanId = "plan-1",
+                    IntentId = intentId,
+                    Steps = steps,
+                    Outputs = requested
+                },
+                Parameters = parameters,
+                RequestedArtifacts = requested
+            }
+        };
+    }
+
+    private void ResetTransientState()
+    {
+        _createIssue = null;
+        _preview = null;
+        _previewIssue = null;
+        _job = null;
+        _jobIssue = null;
+        _artifact = null;
+        _artifactIssue = null;
+        _logs = null;
+        _failure = null;
+        _binding = null;
+        _artifactIdInput = string.Empty;
+    }
+
+    private static IReadOnlyList<string> DeclaredOutputs(AnalysisContentVersion version) =>
+        version.AnalysisPackage is { } package
+            ? package.RequestedArtifacts.Count > 0
+                ? package.RequestedArtifacts.Select(kind => kind.ToString()).ToArray()
+                : package.Plan.Outputs.Select(kind => kind.ToString()).ToArray()
+            : [];
+
+    // Topologically levels the plan steps so the DAG renders left-to-right by dependency depth. Missing
+    // dependency ids are treated as depth 0; cycles are capped so a malformed plan still renders.
+    private static IReadOnlyList<IReadOnlyList<AnalysisPlanStep>> BuildDagLevels(IReadOnlyList<AnalysisPlanStep> steps)
+    {
+        var byId = steps
+            .Where(step => !string.IsNullOrWhiteSpace(step.StepId))
+            .GroupBy(step => step.StepId)
+            .ToDictionary(group => group.Key, group => group.First());
+        var depth = new Dictionary<string, int>();
+
+        int ResolveDepth(AnalysisPlanStep step, HashSet<string> visiting)
+        {
+            if (depth.TryGetValue(step.StepId, out var cached))
+            {
+                return cached;
+            }
+
+            if (!visiting.Add(step.StepId))
+            {
+                return 0; // cycle guard
+            }
+
+            var level = 0;
+            foreach (var dependency in step.DependsOn)
+            {
+                if (byId.TryGetValue(dependency, out var parent))
+                {
+                    level = Math.Max(level, ResolveDepth(parent, visiting) + 1);
+                }
+            }
+
+            visiting.Remove(step.StepId);
+            depth[step.StepId] = level;
+            return level;
+        }
+
+        foreach (var step in steps)
+        {
+            if (!string.IsNullOrWhiteSpace(step.StepId))
+            {
+                ResolveDepth(step, []);
+            }
+        }
+
+        return steps
+            .Where(step => !string.IsNullOrWhiteSpace(step.StepId))
+            .GroupBy(step => depth.TryGetValue(step.StepId, out var level) ? level : 0)
+            .OrderBy(group => group.Key)
+            .Select(group => (IReadOnlyList<AnalysisPlanStep>)group.ToArray())
+            .ToArray();
+    }
+
+    private static string PreviewJson(SavedQueryPreviewResult preview) =>
+        JsonSerializer.Serialize(
+            preview.Features.Take(5).Select(feature => new
+            {
+                id = feature.Id,
+                hasGeometry = feature.HasGeometry,
+                attributes = feature.Attributes.ToDictionary(pair => pair.Key, pair => pair.Value.ToString())
+            }),
+            PreviewJsonOptions);
+
+    private static string FormatLogs(AnalysisJobLogs logs) =>
+        logs.Entries.Count == 0
+            ? "(no log entries)"
+            : string.Join(
+                "\n",
+                logs.Entries.Select(entry =>
+                    $"{entry.Timestamp:O} [{entry.Level}]{(entry.Phase is null ? string.Empty : $" ({entry.Phase})")} {entry.Message}"));
+
+    private string DownstreamHref(string editor)
+    {
+        var binding = _binding;
+        if (binding is null)
+        {
+            return $"/studio/{editor}";
+        }
+
+        var query = $"?source=analysis&artifact={Uri.EscapeDataString(binding.ArtifactId)}";
+        if (!string.IsNullOrWhiteSpace(binding.SourceItemId))
+        {
+            query += $"&item={Uri.EscapeDataString(binding.SourceItemId)}";
+        }
+
+        if (binding.SourceVersion is { } version)
+        {
+            query += $"&version={version.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        return $"/studio/{editor}{query}";
+    }
+
+    private string WorkflowHref() => DownstreamHref("workflows/new");
+
+    private RenderFragment RenderCoverageAside => builder =>
+    {
+        // Reuse the editor catalog's analysis coverage descriptors so the builder's "what this editor covers"
+        // copy stays in step with the shared Studio catalog.
+        if (_definition is null)
+        {
+            return;
+        }
+
+        builder.OpenElement(0, "aside");
+        builder.AddAttribute(1, "class", "studio-editor-side");
+        builder.OpenElement(2, "article");
+        builder.AddAttribute(3, "class", "console-panel");
+        builder.OpenElement(4, "h2");
+        builder.AddContent(5, "Editor Coverage");
+        builder.CloseElement();
+        builder.OpenElement(6, "div");
+        builder.AddAttribute(7, "class", "studio-capability-list");
+        var seq = 8;
+        foreach (var capability in _definition.RequiredEditors)
+        {
+            builder.OpenElement(seq++, "section");
+            builder.OpenElement(seq++, "h3");
+            builder.AddContent(seq++, capability.Title);
+            builder.CloseElement();
+            builder.OpenElement(seq++, "p");
+            builder.AddAttribute(seq++, "class", "console-muted");
+            builder.AddContent(seq++, capability.Summary);
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private sealed class PlanStepDraft
+    {
+        public string StepId { get; set; } = string.Empty;
+        public AnalysisPlanStepKind Kind { get; set; }
+        public string ProcessId { get; set; } = string.Empty;
+        public string Inputs { get; set; } = string.Empty;
+        public string DependsOn { get; set; } = string.Empty;
+    }
+
+    private static IReadOnlyList<string> SplitCsv(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static IReadOnlyDictionary<string, string> ParseKeyValues(string? text)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return result;
+        }
+
+        foreach (var line in text.Split(['\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separator = line.IndexOf('=', StringComparison.Ordinal);
+            if (separator <= 0)
+            {
+                continue;
+            }
+
+            result[line[..separator].Trim()] = line[(separator + 1)..].Trim();
+        }
+
+        return result;
+    }
+}

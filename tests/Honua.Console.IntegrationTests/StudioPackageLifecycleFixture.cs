@@ -88,4 +88,24 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
             httpClient,
             new StudioPackageLifecycleClientOptions(BaseAddress, Options.StudioAdminApiKey));
     }
+
+    /// <summary>
+    /// Builds the production analysis-content client against the same live server. The Analysis Content API
+    /// (#1182) shares the admin-key seam with the Studio package lifecycle, so it reuses
+    /// <see cref="ConsoleTrustIntegrationOptions.StudioAdminApiKey"/> and the same dev-certificate handling.
+    /// </summary>
+    public IStudioAnalysisContentClient CreateAnalysisClient()
+    {
+        var handler = new HttpClientHandler();
+        if (string.Equals(BaseAddress.Scheme, "https", StringComparison.OrdinalIgnoreCase))
+        {
+            handler.ServerCertificateCustomValidationCallback =
+                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+        }
+
+        var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
+        return new HttpStudioAnalysisContentClient(
+            httpClient,
+            new StudioAnalysisContentClientOptions(BaseAddress, Options.StudioAdminApiKey));
+    }
 }

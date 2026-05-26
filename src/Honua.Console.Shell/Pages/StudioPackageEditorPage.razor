@@ -7,7 +7,14 @@
 @page "/studio/app"
 @inject NavigationManager Navigation
 
-@if (_editor is null)
+@if (_isAnalysis)
+{
+    @* honua-console#53 carved the analysis editor out to a real honua-server binding (#1182). The other six
+       package editors stay on the shared StudioPackageEditor + local lifecycle simulator until their own
+       backend contracts land. *@
+    <StudioAnalysisBuilder ItemId="AnalysisItemId" Version="AnalysisVersion" />
+}
+else if (_editor is null)
 {
     <section class="console-page">
         <div class="console-page-heading">
@@ -24,7 +31,14 @@ else
 }
 
 @code {
+    [Parameter, SupplyParameterFromQuery(Name = "item")]
+    public string? AnalysisItemId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "version")]
+    public int? AnalysisVersion { get; set; }
+
     private StudioPackageEditorDefinition? _editor;
+    private bool _isAnalysis;
 
     protected override void OnParametersSet()
     {
@@ -32,6 +46,7 @@ else
             .Split(new[] { '?', '#' }, StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault() ?? string.Empty;
         var routeSegment = relativePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
-        _editor = StudioPackageEditorCatalog.Find(routeSegment);
+        _isAnalysis = string.Equals(routeSegment, "analysis", StringComparison.OrdinalIgnoreCase);
+        _editor = _isAnalysis ? null : StudioPackageEditorCatalog.Find(routeSegment);
     }
 }

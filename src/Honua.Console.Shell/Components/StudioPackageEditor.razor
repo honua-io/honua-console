@@ -73,44 +73,6 @@
                         </div>
                         break;
 
-                    case StudioPackageFamily.Analysis:
-                        <div class="studio-editor-section">
-                            <div class="studio-field-grid">
-                                <label>
-                                    <span>Operation</span>
-                                    <select @bind="_analysisOperation">
-                                        <option>buffer</option>
-                                        <option>overlay</option>
-                                        <option>dissolve</option>
-                                        <option>spatial_join</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    <span>Distance</span>
-                                    <input @bind="_analysisDistance" />
-                                </label>
-                                <label>
-                                    <span>Worker profile</span>
-                                    <select @bind="_workerProfile">
-                                        <option>standard</option>
-                                        <option>memory-optimized</option>
-                                        <option>batch</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    <span>Output schema</span>
-                                    <input @bind="_outputSchema" />
-                                </label>
-                            </div>
-                            <ol class="studio-pipeline">
-                                <li>Bind source</li>
-                                <li>@_analysisOperation</li>
-                                <li>Validate output schema</li>
-                                <li>Submit preview job</li>
-                            </ol>
-                        </div>
-                        break;
-
                     case StudioPackageFamily.Map:
                         <div class="studio-editor-section">
                             <div class="studio-field-grid">
@@ -368,10 +330,6 @@
     private string _predicateOperator = "within";
     private string _parameterValue = "500 feet";
     private int _resultLimit = 250;
-    private string _analysisOperation = "buffer";
-    private string _analysisDistance = "500 feet";
-    private string _workerProfile = "standard";
-    private string _outputSchema = "id,status,geometry,score";
     private string _basemap = "honua-light";
     private string _layerStyle = "teal circles";
     private string _popupFields = "asset_id,status,last_inspected";
@@ -517,13 +475,6 @@
                 ["parameter"] = _parameterValue,
                 ["generated_sql"] = GeneratedSql,
                 ["result_limit"] = _resultLimit
-            },
-            StudioPackageFamily.Analysis => new()
-            {
-                ["operation"] = _analysisOperation,
-                ["distance"] = _analysisDistance,
-                ["worker_profile"] = _workerProfile,
-                ["output_schema"] = _outputSchema
             },
             StudioPackageFamily.Map => new()
             {

@@ -1558,6 +1558,62 @@ p {
     max-height: 480px;
 }
 
+/* Studio analysis builder (honua-console#53): DAG/pipeline view + plan-step authoring rows. */
+.studio-dag-heading {
+    margin: 18px 0 0;
+}
+
+.studio-dag {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    margin-top: 12px;
+    padding-bottom: 6px;
+    align-items: stretch;
+}
+
+.studio-dag-level {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    min-width: 180px;
+}
+
+.studio-dag-node {
+    display: grid;
+    gap: 6px;
+    padding: 12px;
+    border: 1px solid #9cc8c1;
+    border-radius: 8px;
+    background: #f4faf8;
+}
+
+.studio-dag-node strong {
+    font-size: 0.95rem;
+}
+
+.studio-dag-node .console-status {
+    width: fit-content;
+}
+
+.studio-dag-depends {
+    color: var(--honua-muted);
+}
+
+.studio-plan-steps {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.studio-plan-step-row {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+}
+
 .studio-map-preview {
     display: grid;
     gap: 6px;

@@ -35,7 +35,7 @@ routes. Path prefixes are frozen for downstream tickets:
 
 /studio                        Studio entry (AI-assisted creation)
 /studio/query                  Generated query.package editor
-/studio/analysis               Generated analysis.package editor
+/studio/analysis               Server-bound analysis builder (honua-server#1182)
 /studio/map                    Generated map.package editor
 /studio/dashboard              Generated dashboard.package editor
 /studio/report                 Generated report.package editor
@@ -629,7 +629,7 @@ until `honua-sdk-dotnet#166` is consumable.
 |---|---|---|---|---|
 | `/studio` | `auth` | empty-studio (start a prompt); missing-binding when no server base address is configured | unauth-redirect | studio |
 | `/studio/query` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
-| `/studio/analysis` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/analysis` | `auth` | author a new analysis item, or missing-binding when no server base address is configured | unauth-redirect / forbidden / not-found / unsupported | studio |
 | `/studio/map` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/report` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
@@ -674,13 +674,26 @@ to hydrate a server-backed package. Save Version and Publish do create
 server-owned content versions and publication requests through the
 honua-server package lifecycle.
 
-The seven package editor routes above are the `honua-console#39`
+The package editor routes above are the `honua-console#39`
 Console-native Studio slice and per-editor families `honua-console#52`–
-`#58`. They render shared Razor editors from the Studio package editor
-catalog and still use the local lifecycle simulator, but their
-validate/preview actions surface a missing-binding state rather than mock
-validation success until each editor's backend contract lands. The local
-projection is documented in
+`#58`. `/studio/analysis` is the first of these carved out to a real
+honua-server binding (`honua-console#53`): it renders the dedicated
+`StudioAnalysisBuilder` against the Analysis Content API
+(`honua-server#1182`) through the `IStudioAnalysisContentClient` shim in
+`Honua.Console.Contracts` — author/edit a `savedQuery` or
+`analysisPackage`, render the plan card and DAG/pipeline view, preview a
+saved query, submit an analysis package as a job, observe the job and
+result-artifact record, and hand the stable `ArtifactBindingRef`
+downstream. With no absolute server base address it falls back to a named
+missing-binding surface (`UnsupportedStudioAnalysisContentClient`), never
+an in-memory analysis client; unbacked slivers (pre-submit compute/cost
+estimate, analysis-package dry-run, natural-language→plan compilation)
+render explicit "unavailable" states pending bounded honua-server
+follow-ons. The other six editors (`#52`, `#54`–`#58`) still render shared
+Razor editors from the Studio package editor catalog and use the local
+lifecycle simulator, with validate/preview surfacing a missing-binding
+state rather than mock validation success until each editor's backend
+contract lands. The local projection is documented in
 [`docs/studio/package-editor-routes.md`](studio/package-editor-routes.md)
 and must be replaced behind the same editor model when shared contracts
 land; the shared `/studio` shell already binds that lifecycle.
@@ -918,7 +931,7 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` |
+| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/query`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` (the server-bound `/studio/analysis` instead surfaces missing-binding / forbidden / not-found / unsupported states from the Analysis Content API) |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
