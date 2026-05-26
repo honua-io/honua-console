@@ -279,8 +279,19 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
                     cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (HttpRequestException ex)
         {
+            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server form package endpoint could not be reached: {ex.Message}"));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // A TaskCanceledException whose token is not the caller's is an HttpClient timeout, not caller
+            // cancellation, so surface it as Unavailable. Caller-requested cancellation is left to propagate
+            // (not caught) so it cancels the calling operation instead of being masked as a transport
+            // failure — mirrors HttpStudioPackageLifecycleClient.
             return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
                 "Unavailable",
                 contract,

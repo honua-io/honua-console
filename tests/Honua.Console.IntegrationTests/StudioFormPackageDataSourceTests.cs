@@ -78,6 +78,49 @@ public sealed class StudioFormPackageDataSourceTests
     }
 
     [Fact]
+    public async Task Publish_WhenAlreadyPublished_DoesNotCallServer()
+    {
+        var client = new FakeFormPackageClient();
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+
+        // A published version is terminal: even with every other publish requirement met (title, field,
+        // submit target, reviewed offline policy, valid server validation, no unsaved edits), publish must
+        // not reach the server because publish only applies to the open draft — the only action is Reopen.
+        var state = new StudioFormEditorState
+        {
+            FormId = "form-1",
+            Version = 3,
+            Status = HonuaFormStatuses.Published,
+            Title = "Published form",
+            ServiceId = "svc",
+            OfflinePolicyReviewed = true,
+            LastValidation = new StudioFormValidationView(true, [])
+        };
+        state.Fields.Add(new StudioFormFieldEditor { FieldId = "f1", Label = "Field 1" });
+        state.SavedSignature = StudioFormPackageMapper.ComputeContentSignature(state);
+
+        var result = await source.PublishAsync(state);
+
+        Assert.False(result.Succeeded);
+        Assert.False(client.PublishCalled);
+        Assert.Contains("Reopen", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Validate_WhenAlreadyPublished_DoesNotCallServer()
+    {
+        var client = new FakeFormPackageClient();
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+        var state = new StudioFormEditorState { FormId = "form-1", Version = 3, Status = HonuaFormStatuses.Published };
+
+        var result = await source.ValidateAsync(state);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, client.ValidateCallCount);
+        Assert.Contains("Reopen", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SaveDraft_NewForm_CreatesDraft_AndPreservesOfflineReview()
     {
         var client = new FakeFormPackageClient

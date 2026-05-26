@@ -113,6 +113,13 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
     {
         ArgumentNullException.ThrowIfNull(state);
 
+        // Validation, like save and publish, applies only to the open draft. A published version is terminal
+        // in the builder, so refuse rather than validating an immutable version (matches SaveDraftAsync).
+        if (state.IsPublished)
+        {
+            return Failure("This version is published. Reopen it as a draft before validating.");
+        }
+
         if (!state.IsExistingPackage)
         {
             return Failure("Save the draft before running server validation.");
@@ -148,6 +155,15 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(state);
+
+        // A published version is terminal in the builder: publish applies only to the open draft, so refuse
+        // here rather than sending a request the server rejects for an immutable version. The only forward
+        // action is Reopen (matches the SaveDraftAsync guard). This also closes the path where editing the
+        // offline-review flag (excluded from the dirty signature) on a published form re-satisfied the gate.
+        if (state.IsPublished)
+        {
+            return Failure("This version is published. Reopen it as a draft before publishing a new version.");
+        }
 
         // AC#2/AC#3: enforce the explicit offline-policy review and a configured + validated submit
         // target before the Console offers publish to the server.

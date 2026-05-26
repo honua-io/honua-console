@@ -59,6 +59,35 @@ public sealed class StudioFormBuilderRenderTests
     }
 
     [Fact]
+    public void FormBuilder_OpenPublishedForm_DisablesPublishAndOffersReopen()
+    {
+        var data = new FakeFormDataSource
+        {
+            Workspace = new StudioFormWorkspace(
+                [new StudioFormPackageListItem("form-1", "Hydrant inspection", "inspections", 7, 2, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioFormEditorLoad(PublishedEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioFormBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Hydrant inspection"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Hydrant inspection").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-form-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // A published version is terminal in the builder: Publish stays disabled even though the offline-review
+        // flag is still editable (the case that previously re-enabled it), the only forward action is Reopen,
+        // and the draft-only pre-publish gate is not shown.
+        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.NotNull(FindButton(page, "Reopen as draft"));
+        Assert.DoesNotContain("Resolve before publish", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FormBuilder_OpenIncompleteForm_GatesPublishWithUnmetRequirements()
     {
         var incomplete = new StudioFormEditorState { FormId = "form-2", Title = "Incomplete" };
@@ -164,6 +193,18 @@ public sealed class StudioFormBuilderRenderTests
         };
         state.Fields.Add(new StudioFormFieldEditor { FieldId = "asset_id", Label = "Asset ID", TargetField = "asset_id", Required = true });
         // Represent a draft freshly loaded from the server (validated, with no unsaved edits).
+        state.SavedSignature = StudioFormPackageMapper.ComputeContentSignature(state);
+        return state;
+    }
+
+    private static StudioFormEditorState PublishedEditor()
+    {
+        var state = ReadyEditor();
+        state.Status = HonuaFormStatuses.Published;
+        // A published version carries no server-side offline-review acknowledgment, so a freshly opened
+        // published form loads unreviewed — the exact case where checking the box used to re-enable Publish.
+        // Recompute the baseline signature after flipping status so the form is not treated as dirty.
+        state.OfflinePolicyReviewed = false;
         state.SavedSignature = StudioFormPackageMapper.ComputeContentSignature(state);
         return state;
     }
