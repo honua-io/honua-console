@@ -1,3 +1,5 @@
+using Honua.Console.Contracts;
+
 namespace Honua.Console.Shell.Models;
 
 /// <summary>
@@ -87,6 +89,18 @@ public sealed class StudioFormEditorState
 
     /// <summary>The most recent server validation result for the open version, or null when stale.</summary>
     public StudioFormValidationView? LastValidation { get; set; }
+
+    /// <summary>
+    /// The server-owned <c>honua.form-package.v1</c> document this state was last loaded from or saved to,
+    /// captured by <see cref="StudioFormPackageMapper.ToEditorState"/>. The authoring UI models only a
+    /// subset of that contract, so <see cref="StudioFormPackageMapper.ToDocument"/> merges the modeled
+    /// fields onto this baseline — server-owned fields the builder never models (document metadata,
+    /// attachment byte limits, max offline age, preferred offline transports, per-field hints / defaults /
+    /// read-only, section descriptions, and validation rules beyond the first) survive a load → edit → save
+    /// round-trip instead of being silently dropped. Null for a never-loaded draft (a fresh template builds
+    /// from a default document).
+    /// </summary>
+    public HonuaFormPackageDocument? OriginalDocument { get; set; }
 
     /// <summary>
     /// Content signature of the package as last loaded from or saved to honua-server, captured by

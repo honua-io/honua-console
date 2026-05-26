@@ -57,38 +57,43 @@ public static class StudioFormPackageMapper
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        var sections = BuildSections(state.Fields);
-        var fields = state.Fields.Select(ToFieldDefinition).ToArray();
+        // Merge the modeled authoring fields onto the document this state was loaded from, so server-owned
+        // fields the builder does not model survive a load → edit → save round-trip rather than being
+        // dropped: the record `with` updates carry SchemaVersion, Metadata, the attachment byte limits,
+        // SubmitPolicy.MaxOfflineAgeSeconds, OfflinePolicy.PreferredTransports, and (via the field/section
+        // merges) per-field hints/defaults/read-only, section descriptions, and extra validation rules. A
+        // never-loaded draft has no baseline, so it builds from a fresh contract document.
+        var baseDocument = state.OriginalDocument ?? new HonuaFormPackageDocument();
 
-        return new HonuaFormPackageDocument
+        return baseDocument with
         {
             FormId = string.IsNullOrWhiteSpace(state.FormId) ? null : state.FormId,
             Title = NullIfBlank(state.Title),
             Description = NullIfBlank(state.Description),
-            Target = new HonuaFormTargetDefinition
+            Target = (baseDocument.Target ?? new HonuaFormTargetDefinition()) with
             {
                 ServiceId = NullIfBlank(state.ServiceId),
                 LayerId = state.LayerId
             },
-            Sections = sections,
-            Fields = fields,
-            SubmitPolicy = new HonuaFormSubmitPolicy
+            Sections = BuildSections(state.Fields, baseDocument.Sections),
+            Fields = BuildFields(state.Fields, baseDocument.Fields),
+            SubmitPolicy = baseDocument.SubmitPolicy with
             {
                 AllowedOperations = BuildOperations(state),
                 RequiresGeometry = state.RequiresGeometry,
                 AllowAttachments = state.AllowAttachments
             },
-            AttachmentPolicy = new HonuaFormAttachmentPolicy
+            AttachmentPolicy = baseDocument.AttachmentPolicy with
             {
                 Enabled = state.AttachmentsEnabled,
                 MaxAttachmentsPerSubmission = state.MaxAttachmentsPerSubmission,
                 AllowedContentTypes = SplitList(state.AllowedContentTypes),
-                Fields = BuildAttachmentFields(state.Fields),
+                Fields = BuildAttachmentFields(state.Fields, baseDocument.AttachmentPolicy.Fields),
                 RequireExifStripping = state.RequireExifStripping,
                 RequireFaceBlur = state.RequireFaceBlur,
                 RequireRedaction = state.RequireRedaction
             },
-            PrivacyPolicy = new HonuaFormPrivacyPolicy
+            PrivacyPolicy = baseDocument.PrivacyPolicy with
             {
                 PrivateFieldIds = state.Fields
                     .Where(field => field.Private && !string.IsNullOrWhiteSpace(field.FieldId))
@@ -100,14 +105,16 @@ public static class StudioFormPackageMapper
                 CaptureDeviceId = state.CaptureDeviceId,
                 RetentionDays = state.PrivacyRetentionDays
             },
-            OfflinePolicy = new HonuaFormOfflinePolicy
+            OfflinePolicy = baseDocument.OfflinePolicy with
             {
                 Enabled = state.OfflineEnabled,
                 ReplicaTransportEnabled = state.ReplicaTransportEnabled,
                 FieldCollectionTransportEnabled = state.FieldCollectionTransportEnabled,
                 ConflictReviewMode = NullIfBlank(state.ConflictReviewMode) ?? "defer"
             },
-            Provenance = new HonuaFormProvenanceRef
+            // Preserve the server-recorded provenance of an existing package; stamp Console provenance only
+            // when authoring a brand-new draft that has none (the builder does not model provenance).
+            Provenance = baseDocument.Provenance ?? new HonuaFormProvenanceRef
             {
                 Source = ProvenanceSource,
                 SourceVersion = "1"
@@ -172,6 +179,11 @@ public static class StudioFormPackageMapper
             state.Fields.Add(ToFieldEditor(field, privateIds, attachmentByField, sectionLabels));
         }
 
+        // Keep the loaded server document so a later ToDocument merges modeled edits onto it instead of
+        // dropping server-owned fields the authoring UI never models. Set before the signature is computed
+        // so the dirty baseline reflects the same merged document a save would send.
+        state.OriginalDocument = document;
+
         // Capture the baseline content signature so later local edits register as unsaved (dirty).
         state.SavedSignature = ComputeContentSignature(state);
         return state;
@@ -229,10 +241,30 @@ public static class StudioFormPackageMapper
             summary.CurrentPublishedVersion,
             summary.UpdatedAt);
 
-    private static HonuaFormFieldDefinition ToFieldDefinition(StudioFormFieldEditor field) =>
-        new()
+    private static HonuaFormFieldDefinition[] BuildFields(
+        IReadOnlyList<StudioFormFieldEditor> fields,
+        IReadOnlyList<HonuaFormFieldDefinition> originalFields)
+    {
+        var originalById = originalFields
+            .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
+            .GroupBy(field => field.FieldId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        return fields.Select(field => ToFieldDefinition(field, originalById)).ToArray();
+    }
+
+    private static HonuaFormFieldDefinition ToFieldDefinition(
+        StudioFormFieldEditor field,
+        IReadOnlyDictionary<string, HonuaFormFieldDefinition> originalById)
+    {
+        var fieldId = NullIfBlank(field.FieldId);
+        var original = fieldId is not null && originalById.TryGetValue(fieldId, out var match) ? match : null;
+
+        // Merge onto the original field so its unmodeled server attributes (hint, read-only, default value)
+        // survive; the modeled attributes below are replaced from the editor.
+        return (original ?? new HonuaFormFieldDefinition()) with
         {
-            FieldId = NullIfBlank(field.FieldId),
+            FieldId = fieldId,
             Label = NullIfBlank(field.Label),
             Type = NullIfBlank(field.Type) ?? "text",
             TargetField = field.IsAttachment ? null : NullIfBlank(field.TargetField),
@@ -240,9 +272,10 @@ public static class StudioFormPackageMapper
             Required = field.Required,
             Private = field.Private,
             Domain = ToDomain(field),
-            Validation = ToValidationRules(field),
+            Validation = ToValidationRules(field, original?.Validation ?? []),
             Visibility = ToVisibility(field)
         };
+    }
 
     private static StudioFormFieldEditor ToFieldEditor(
         HonuaFormFieldDefinition field,
@@ -329,12 +362,19 @@ public static class StudioFormPackageMapper
         return null;
     }
 
-    private static HonuaFormValidationRule[] ToValidationRules(StudioFormFieldEditor field)
+    private static HonuaFormValidationRule[] ToValidationRules(
+        StudioFormFieldEditor field,
+        IReadOnlyList<HonuaFormValidationRule> originalRules)
     {
+        // The editor hydrates a single rule from the server's first rule (ToFieldEditor reads
+        // Validation.FirstOrDefault), so it owns rule[0]; preserve any further server rules it never
+        // modeled rather than dropping them on save.
+        var preserved = originalRules.Skip(1).ToArray();
+
         if (string.IsNullOrWhiteSpace(field.ValidationType)
             || string.Equals(field.ValidationType, "none", StringComparison.OrdinalIgnoreCase))
         {
-            return [];
+            return preserved;
         }
 
         var numeric = field.ValidationType is "minLength" or "maxLength" or "min" or "max";
@@ -357,7 +397,8 @@ public static class StudioFormPackageMapper
                 Type = field.ValidationType,
                 Message = NullIfBlank(field.ValidationMessage),
                 Parameters = parameters
-            }
+            },
+            .. preserved
         ];
     }
 
@@ -380,32 +421,58 @@ public static class StudioFormPackageMapper
         };
     }
 
-    private static HonuaFormSectionDefinition[] BuildSections(IReadOnlyList<StudioFormFieldEditor> fields)
+    private static HonuaFormSectionDefinition[] BuildSections(
+        IReadOnlyList<StudioFormFieldEditor> fields,
+        IReadOnlyList<HonuaFormSectionDefinition> originalSections)
     {
+        var originalById = originalSections
+            .Where(section => !string.IsNullOrWhiteSpace(section.SectionId))
+            .GroupBy(section => section.SectionId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
         return fields
             .Where(field => !string.IsNullOrWhiteSpace(field.Group))
             .GroupBy(field => field.Group.Trim(), StringComparer.Ordinal)
-            .Select(group => new HonuaFormSectionDefinition
+            .Select(group =>
             {
-                SectionId = Slug(group.Key),
-                Label = group.Key,
-                FieldIds = group
-                    .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
-                    .Select(field => field.FieldId.Trim())
-                    .ToArray()
+                var sectionId = Slug(group.Key);
+                // Merge onto the original section (matched by id) so its server-owned description survives;
+                // the label and membership come from the current authoring grouping.
+                return (originalById.TryGetValue(sectionId, out var original) ? original : new HonuaFormSectionDefinition()) with
+                {
+                    SectionId = sectionId,
+                    Label = group.Key,
+                    FieldIds = group
+                        .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
+                        .Select(field => field.FieldId.Trim())
+                        .ToArray()
+                };
             })
             .ToArray();
     }
 
-    private static HonuaFormFieldAttachmentPolicy[] BuildAttachmentFields(IReadOnlyList<StudioFormFieldEditor> fields)
+    private static HonuaFormFieldAttachmentPolicy[] BuildAttachmentFields(
+        IReadOnlyList<StudioFormFieldEditor> fields,
+        IReadOnlyList<HonuaFormFieldAttachmentPolicy> originalFields)
     {
+        var originalById = originalFields
+            .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
+            .GroupBy(field => field.FieldId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
         return fields
             .Where(field => field.IsAttachment && !string.IsNullOrWhiteSpace(field.FieldId))
-            .Select(field => new HonuaFormFieldAttachmentPolicy
+            .Select(field =>
             {
-                FieldId = field.FieldId.Trim(),
-                Required = field.Required,
-                MaxCount = field.AttachmentMaxCount
+                var fieldId = field.FieldId.Trim();
+                // Merge onto the original per-field attachment policy so its server-owned allowed content
+                // types survive; the count/required come from the editor.
+                return (originalById.TryGetValue(fieldId, out var original) ? original : new HonuaFormFieldAttachmentPolicy()) with
+                {
+                    FieldId = fieldId,
+                    Required = field.Required,
+                    MaxCount = field.AttachmentMaxCount
+                };
             })
             .ToArray();
     }
