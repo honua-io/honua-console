@@ -222,7 +222,9 @@ public sealed class ServerStudioWorkflowPackageClientTests
         Assert.False(string.IsNullOrEmpty(publish.JobId));
         Assert.StartsWith("/operate/jobs/", publish.OperateJobUrl, StringComparison.Ordinal);
         Assert.StartsWith("/operate/events?jobId=", publish.OperateEventsUrl, StringComparison.Ordinal);
+        Assert.Null(publish.InvocationEndpoint);
         Assert.Single(api.Publications);
+        Assert.Null(api.Publications[0].ProcessId);
         Assert.Equal(1, api.RunCount);
     }
 
@@ -233,11 +235,13 @@ public sealed class ServerStudioWorkflowPackageClientTests
         var client = new ServerStudioWorkflowPackageClient(api);
         var draft = await NewDraftWithSinkAsync(client);
         draft.PublicationIntent.Mode = StudioWorkflowContractValues.PublicationModeProcessEndpoint;
+        draft.PublicationIntent.RouteSlug = "daily-parcel-normalizer";
         await client.SaveVersionAsync(draft, "save before publish");
 
         var publish = await client.PublishAsync(draft);
 
         Assert.Equal(WorkflowPublicationTarget.ProcessEndpoint, api.Publications[0].Target);
+        Assert.Equal("daily-parcel-normalizer", api.Publications[0].ProcessId);
         Assert.False(string.IsNullOrEmpty(publish.InvocationEndpoint));
     }
 
@@ -535,9 +539,8 @@ public sealed class ServerStudioWorkflowPackageClientTests
                 PackageHash = $"hash-{version}",
                 Target = request.Target,
                 Status = WorkflowPublicationStatus.Active,
-                EndpointPath = request.Target == WorkflowPublicationTarget.ProcessEndpoint
-                    ? $"/api/v1/console/workflow-publications/pub-{Publications.Count + 1}/runs"
-                    : null,
+                ProcessId = request.ProcessId,
+                EndpointPath = $"/api/v1/console/workflow-publications/pub-{Publications.Count + 1}/runs",
                 Eligibility = new WorkflowPackageValidationResult { IsValid = true },
                 CreatedAt = DateTimeOffset.UtcNow
             };

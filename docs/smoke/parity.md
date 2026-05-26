@@ -140,7 +140,7 @@ chain. It exercises the route and contract path introduced for
 > Testcontainers suite (`StudioWorkflowPackageIntegrationTests`). This
 > cross-surface parity smoke stays an in-memory contract-shape stand-in. On the
 > live server the dry-run is a synchronous estimation that creates **no** Operate
-> job (only the published run links to Operate job/event evidence), and an
+> job (only job-backed published runs link to Operate job/event evidence), and an
 > unbound editor renders the shared missing-binding surface instead of seeded
 > workflow data.
 
@@ -160,7 +160,7 @@ Workflow smoke steps:
 | ----- | ------------------------------- | --------- | ---------------- |
 | 1     | `devops/build-artifact`         | `devops`  | The same Console artifact is serving the Studio workflow route. |
 | 2     | `console/studio-workflow-draft` | `console` | The editor can materialize a `workflow.package` draft with sources, transforms, sinks, parameters, schedule, worker profile, retry policy, failure edges, output schemas, and publication intent. |
-| 3     | `server/workflow-dry-run`       | `server`  | The server-owned dry-run response includes sample rows, logs, artifacts, and output schemas. |
+| 3     | `server/workflow-dry-run`       | `server`  | The in-memory stand-in dry-run evidence includes sample rows, logs, artifacts, and output schemas; live `#1185` returns an inline estimate with no Operate job URLs. |
 | 4     | `server/workflow-version-save`  | `server`  | The package is saved as a versioned workflow content item. |
 | 5     | `server/workflow-publish`       | `server`  | The in-memory stand-in publication uses a saved content version, queues job evidence, and exposes an invocation endpoint when requested and parameter validation passes; live `#1185` uses server `endpointPath` and may return `jobId` or `workflowRunId` depending on target. |
 | 6     | `console/operate-job-monitor`   | `console` | The stand-in dry-run/publish jobs deep-link to same-origin Operate evidence; live `#1185` dry-runs are inline estimates, and only job-backed published runs emit Operate job/event URLs. |
@@ -212,9 +212,11 @@ Response-contract notes worth keeping in sync with the registry:
   assert same-origin navigation. Live `#1185` dry-runs are synchronous estimates
   and carry no Operate URLs; live publications carry job/event URLs only when
   the run result contains `jobId` (scheduled `workflowRunId` values are not
-  routed as jobs). Blocked publication responses carry saved content
-  item/version ids, validation issues, and parameter validation, but no
-  publication id, job, Operate evidence URLs, or invocation endpoint.
+  routed as jobs). In-memory blocked publication stand-ins may carry saved
+  content item/version ids from the draft plus validation issues and parameter
+  validation; live `#1185` blocked publish results carry the blocked status,
+  mode, and server validation only. Neither shape carries a publication id,
+  job, Operate evidence URLs, or invocation endpoint.
 
 The `Version` column is the exact string the registry emits into
 evidence. Some contracts intentionally report only the major family
@@ -253,10 +255,12 @@ real HTTP transport cannot silently accept a drifted payload:
   set. The stand-in endpoint ends in `/invoke`; live Console surfaces the
   server-owned publication `endpointPath` and only emits Operate URLs when
   the run result contains `jobId`.
-  Package validation errors return `status="blocked"` with saved content
-  item/version ids, validation issues, and parameter validation, and
-  without `publicationId`, `jobId`, job kind, Operate URLs, or an
-  invocation endpoint.
+  Package validation errors return `status="blocked"` with validation issues
+  and parameter validation in the stand-in; live `#1185` blocked publish
+  results carry the blocked status, mode, and server validation while the
+  saved content item/version ids remain on the draft from the preceding save.
+  Neither shape returns `publicationId`, `jobId`, job kind, Operate URLs, or
+  an invocation endpoint.
 - **`publish-handoff/v1.1.0`** — The fixture at
   [`smoke/parity/fixtures/publish-handoff.json`](../../smoke/parity/fixtures/publish-handoff.json)
   matches every top-level required field in

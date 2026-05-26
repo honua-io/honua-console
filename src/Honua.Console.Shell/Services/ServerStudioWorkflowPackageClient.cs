@@ -232,6 +232,9 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         var request = new PublishWorkflowPackageRequest
         {
             Target = target,
+            ProcessId = target == WorkflowPublicationTarget.ProcessEndpoint
+                ? NormalizeProcessId(draft.PublicationIntent.RouteSlug)
+                : null,
             Enabled = true,
             Schedule = target == WorkflowPublicationTarget.Schedule ? ToSchedule(draft.Schedule) : null
         };
@@ -598,7 +601,9 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             JobKind = StudioWorkflowContractValues.PublicationJobKind,
             Status = publication.Status == WorkflowPublicationStatus.Active ? "published" : "disabled",
             Mode = draft.PublicationIntent.Mode,
-            InvocationEndpoint = publication.EndpointPath,
+            InvocationEndpoint = publication.Target == WorkflowPublicationTarget.ProcessEndpoint
+                ? publication.EndpointPath
+                : null,
             ValidationIssues = MapValidation(publication.Eligibility),
             OperateJobUrl = string.Empty,
             OperateEventsUrl = string.Empty
@@ -720,6 +725,9 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             _ => WorkflowPublicationTarget.Job
         };
     }
+
+    private static string? NormalizeProcessId(string? routeSlug) =>
+        string.IsNullOrWhiteSpace(routeSlug) ? null : routeSlug.Trim();
 
     private static WorkflowSchedule? ToSchedule(StudioWorkflowSchedule schedule)
     {
