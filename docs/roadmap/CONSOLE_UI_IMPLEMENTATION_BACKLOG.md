@@ -421,6 +421,8 @@ Acceptance:
 
 Parent: `honua-console#16`
 
+Status: implemented by `honua-console#57` as the server-bound `/studio/form` builder. The form package lifecycle binds to honua-server#1184 through the temporary `Honua.Console.Contracts` shim (`IHonuaFormPackageClient`) until `honua-sdk-dotnet#166` is available to `honua-console#7`; renders a missing-binding state when no server base address is configured.
+
 Design refs:
 
 - `console-canvas/screens-studio-form-workflow.jsx` (`StudioFormAI`, `StudioFormBuilder`)
