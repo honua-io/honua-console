@@ -30,6 +30,8 @@ The shared `/studio` shell already binds the honua-server package lifecycle (`ho
 
 The package inspector renders the temporary `studio-package-mock/v1` projection. It is a UI mock contract for this Console slice only; it must not become the server or SDK wire schema.
 
+> **`/studio/form` is server-bound and does not use this mock contract** (see [Backend Boundary](#backend-boundary) above). The `form.package` family is retained below only as the Studio directory family descriptor and the `studio-package-mock/v1` lifecycle test fixture — it no longer backs a live editor route.
+
 Top-level fields:
 
 - `schema_version`: currently `studio-package-mock/v1`.
@@ -63,6 +65,6 @@ Share, embed, and rollback require `published = true` and a non-zero `published_
 
 - Map lifecycle coverage is pinned by `GeneratedMapLifecycleSupportsPublishShareEmbedAndRollback`.
 - Dashboard and report chart standard coverage is pinned by `DashboardAndReportChartsUseVegaLite`.
-- Form publish gating is pinned by `FormPublishRequiresOfflinePolicyReview`.
+- Form publish gating in the retained mock-catalog family is pinned by `FormPublishRequiresOfflinePolicyReview`. The live server-bound `/studio/form` builder (`honua-console#57`) is verified separately by `Honua.Console.IntegrationTests` (`StudioFormBuilder*`, `StudioFormPackage*`), not by this mock contract.
 - Reopened app version behavior is pinned by `ReopenedAppEditsCreateNewContentVersionsWithoutMutatingPublishedVersion`.
 - Save, reopen, edit, and publish smoke coverage across all seven package families is pinned by `StableMockLifecycleCoversSaveReopenEditPublishForEveryPackageFamily`.
