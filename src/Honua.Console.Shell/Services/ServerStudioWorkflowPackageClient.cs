@@ -148,6 +148,12 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         var version = await _api.CreateVersionAsync(package.PackageId, cancellationToken).ConfigureAwait(false);
         if (!version.IsSuccess || version.Data is null)
         {
+            // PersistPackageAsync already PUT the (rejected) graph to the server's mutable package, so the
+            // prior immutable version no longer matches the draft. Invalidate the version pin: leaving it set
+            // would let EnsureVersionAsync (dry-run/publish) reuse a stale version and silently ship the old
+            // graph. Cleared for any post-persist version-create failure; VersionNumber stays for display.
+            draft.CurrentVersionId = string.Empty;
+
             // A 400 means the graph is structurally invalid - that is a validation outcome on a bound
             // surface, not a missing binding, so surface the server rules in-place rather than blocking.
             if (version.Issue?.StatusCode == 400)

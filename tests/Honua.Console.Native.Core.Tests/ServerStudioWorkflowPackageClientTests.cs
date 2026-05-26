@@ -141,6 +141,52 @@ public sealed class ServerStudioWorkflowPackageClientTests
     }
 
     [Fact]
+    public async Task SaveVersion_OnServerValidationFailure_ClearsStaleVersionPin()
+    {
+        // Regression for honua-console#62 "Validation-failed saves leave stale version pins reusable": a save
+        // PUTs the mutable graph (PersistPackageAsync) before POST .../versions, so a version-create failure
+        // leaves the server graph holding the rejected edits while the prior version no longer matches. The
+        // save must invalidate the version pin so EnsureVersionAsync cannot reuse the stale version.
+        var api = new FakeWorkflowApi();
+        var client = new ServerStudioWorkflowPackageClient(api);
+        var draft = await NewDraftWithSinkAsync(client);
+        await client.SaveVersionAsync(draft, "v1");
+        Assert.EndsWith(":v1", draft.CurrentVersionId, StringComparison.Ordinal); // pinned to the good version
+
+        api.VersionStatusCode = 400; // the next version-create fails server graph validation
+        var failed = await client.SaveVersionAsync(draft, "invalid edit");
+
+        Assert.Null(failed.BindingState); // a 400 is a bound-surface validation outcome, not a missing binding
+        Assert.True(string.IsNullOrEmpty(failed.VersionId)); // no immutable version was created
+        Assert.NotEmpty(failed.ValidationIssues);
+        Assert.Empty(draft.CurrentVersionId); // ...and the stale pin is cleared
+        Assert.Equal(1, draft.VersionNumber); // latest committed version still carried for display
+    }
+
+    [Fact]
+    public async Task Publish_AfterValidationFailedSave_CreatesFreshVersion_InsteadOfReusingStalePin()
+    {
+        // With the pin cleared by the failed save, EnsureVersionAsync re-persists and re-versions the current
+        // graph rather than reusing the stale prior version - so a later publish ships a fresh version, never
+        // the superseded prior one. Without the pin-clearing fix this would publish the stale v1.
+        var api = new FakeWorkflowApi();
+        var client = new ServerStudioWorkflowPackageClient(api);
+        var draft = await NewDraftWithSinkAsync(client);
+        await client.SaveVersionAsync(draft, "v1");
+
+        api.VersionStatusCode = 400;
+        await client.SaveVersionAsync(draft, "invalid edit"); // clears the stale pin
+
+        api.VersionStatusCode = null; // server graph validation passes again
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Null(publish.BindingState);
+        Assert.Equal("queued", publish.Status);
+        Assert.Equal(2, api.Versions.Count); // v1 + a freshly created v2, not a reuse of v1
+        Assert.EndsWith(":v2", draft.CurrentVersionId, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DryRun_RendersServerEstimateLogsAndOutputSchemas_WithoutOperateJobLink()
     {
         var api = new FakeWorkflowApi();
@@ -241,6 +287,9 @@ public sealed class ServerStudioWorkflowPackageClientTests
 
         public bool RegistryReachable { get; init; } = true;
         public int? PublishStatusCode { get; init; }
+
+        // Settable so a single test can fail one version-create (e.g. a 400) and then succeed on a later save.
+        public int? VersionStatusCode { get; set; }
         public List<WorkflowPackage> Packages { get; } = [];
         public List<WorkflowPackageVersion> Versions { get; } = [];
         public List<WorkflowPublication> Publications { get; } = [];
@@ -365,6 +414,14 @@ public sealed class ServerStudioWorkflowPackageClientTests
             {
                 return Task.FromResult(WorkflowEndpointResult<WorkflowPackageVersion>.FromIssue(
                     new WorkflowEndpointIssue("Unsupported", "POST versions", "missing", 404)));
+            }
+
+            // The graph is PUT by UpdatePackageAsync before this call; a non-success here mirrors honua-server
+            // rejecting the version (e.g. a 400 graph-validation failure) after the mutable graph was persisted.
+            if (VersionStatusCode is int code)
+            {
+                return Task.FromResult(WorkflowEndpointResult<WorkflowPackageVersion>.FromIssue(
+                    new WorkflowEndpointIssue("Validation failed", "POST versions", "Workflow graph invalid: missing sink node.", code)));
             }
 
             var next = (Packages[index].LatestVersion ?? 0) + 1;
