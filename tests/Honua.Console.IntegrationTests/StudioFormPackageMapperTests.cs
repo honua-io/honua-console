@@ -406,6 +406,66 @@ public sealed class StudioFormPackageMapperTests
     }
 
     [Fact]
+    public void ToDocument_OnExistingPackage_PreservesCodedChoicesContainingEquals()
+    {
+        // Regression: a string coded value can itself contain '=' (valid server content). The editor
+        // encodes choices as "code=label" lines, so a naive split on the first '=' would truncate such a
+        // code and bleed the remainder into the label. An untouched choice must survive a load → save.
+        var serverDocument = new HonuaFormPackageDocument
+        {
+            FormId = "form-eq",
+            Title = "Server form",
+            Fields =
+            [
+                new HonuaFormFieldDefinition
+                {
+                    FieldId = "ratio",
+                    Label = "Ratio",
+                    Type = "choice",
+                    Domain = new HonuaFormFieldDomainDefinition
+                    {
+                        Type = "codedValue",
+                        Choices =
+                        [
+                            // Code embeds '=' — the corruption case.
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("a=b"), Label = "A to B" },
+                            // Plain code, and a code whose label embeds '=' — must also stay intact.
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("c"), Label = "Plain C" },
+                            new HonuaFormDomainChoice { Code = JsonSerializer.SerializeToElement("d"), Label = "w=2" }
+                        ]
+                    }
+                }
+            ]
+        };
+        var version = new HonuaFormPackageVersion
+        {
+            FormId = "form-eq",
+            Version = 1,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = serverDocument
+        };
+
+        var state = StudioFormPackageMapper.ToEditorState(version);
+        // A modeled edit elsewhere; the coded domain is left untouched.
+        state.Title = "Edited title";
+        var saved = StudioFormPackageMapper.ToDocument(state);
+
+        var choices = saved.Fields.Single(field => field.FieldId == "ratio").Domain!.Choices;
+        Assert.Equal(3, choices.Length);
+
+        var embedded = choices.Single(choice => choice.Label == "A to B");
+        Assert.Equal(JsonValueKind.String, embedded.Code.ValueKind);
+        Assert.Equal("a=b", embedded.Code.GetString());
+
+        var plain = choices.Single(choice => choice.Label == "Plain C");
+        Assert.Equal("c", plain.Code.GetString());
+
+        // A label containing '=' is preserved whole alongside its plain code.
+        var labelWithEquals = choices.Single(choice => choice.Code.GetString() == "d");
+        Assert.Equal("w=2", labelWithEquals.Label);
+    }
+
+    [Fact]
     public void ToDocument_OnExistingPackage_PreservesRangeAndValidationServerJson()
     {
         var serverDocument = new HonuaFormPackageDocument

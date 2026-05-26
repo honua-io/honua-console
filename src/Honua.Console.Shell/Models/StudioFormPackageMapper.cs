@@ -650,13 +650,20 @@ public static class StudioFormPackageMapper
             .Where(group => group.Count() == 1)
             .ToDictionary(group => group.Key, group => group.First().Code, StringComparer.Ordinal);
 
+        // Known server codes, longest first. A coded value is an arbitrary JSON value, so a string code can
+        // itself contain '=' (valid server content). The editor encodes choices as "code=label" lines, so
+        // match a whole known code before falling back to splitting on the first '=' — otherwise an
+        // untouched choice whose code embeds '=' would be truncated and its remainder bled into the label
+        // on save.
+        var knownCodes = originalByDisplayValue.Keys
+            .OrderByDescending(value => value.Length)
+            .ToArray();
+
         return raw
             .Split(['\n', '\r', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(line =>
             {
-                var separator = line.IndexOf('=', StringComparison.Ordinal);
-                var code = separator > 0 ? line[..separator].Trim() : line.Trim();
-                var label = separator > 0 ? line[(separator + 1)..].Trim() : line.Trim();
+                var (code, label) = SplitChoiceLine(line, knownCodes);
                 return new HonuaFormDomainChoice
                 {
                     Code = originalByDisplayValue.TryGetValue(code, out var originalCode)
@@ -667,6 +674,34 @@ public static class StudioFormPackageMapper
             })
             .Where(choice => !string.IsNullOrWhiteSpace(choice.Label))
             .ToArray();
+    }
+
+    // Recover the (code, label) that a "code=label" editor line was built from. A known server code is
+    // matched whole (longest first, so a code that is a prefix of another still wins its own line) which
+    // lets a code containing '=' survive intact; a line the operator typed that matches no known code
+    // splits on the first '='. A line that is exactly a known code (a choice the server stored with a
+    // blank label) keeps the prior "label defaults to the code" behavior.
+    private static (string Code, string Label) SplitChoiceLine(string line, string[] knownCodes)
+    {
+        foreach (var code in knownCodes)
+        {
+            if (string.Equals(line, code, StringComparison.Ordinal))
+            {
+                return (code, code);
+            }
+
+            if (line.Length > code.Length
+                && line[code.Length] == '='
+                && line.StartsWith(code, StringComparison.Ordinal))
+            {
+                return (code, line[(code.Length + 1)..].Trim());
+            }
+        }
+
+        var separator = line.IndexOf('=', StringComparison.Ordinal);
+        return separator > 0
+            ? (line[..separator].Trim(), line[(separator + 1)..].Trim())
+            : (line, line);
     }
 
     private static JsonElement ParseValueElement(string raw, JsonElement? original)
