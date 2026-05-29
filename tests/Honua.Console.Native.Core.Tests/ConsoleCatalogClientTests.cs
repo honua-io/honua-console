@@ -430,4 +430,40 @@ public sealed class ConsoleCatalogClientTests
         Assert.DoesNotContain(mapActions, action => action.Id is "studio" or "share");
         Assert.DoesNotContain(layerActions, action => action.Id is "studio" or "share");
     }
+
+    [Fact]
+    public void ShareLinkBuilderThrowsForPublicLinkItemMissingToken()
+    {
+        var summary = new ConsoleContentSummary
+        {
+            Id = "lyr-orphan",
+            Slug = "orphan-layer",
+            Type = "layer",
+            Title = "Orphan Layer",
+            Access = new ConsoleShareAccess
+            {
+                Sharing = CatalogSharingTiers.PublicLink,
+                PublicLinkToken = string.Empty
+            }
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ConsoleShareLinkBuilder.BuildRelativeShareLink(summary));
+        Assert.Contains("public-link token", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ShareLinkBuilderUsesIdWhenSlugMissing()
+    {
+        var summary = new ConsoleContentSummary
+        {
+            Id = "lyr-no-slug",
+            Slug = string.Empty,
+            Type = "layer",
+            Title = "No Slug Layer",
+            Access = new ConsoleShareAccess { Sharing = CatalogSharingTiers.Organization }
+        };
+
+        Assert.Equal("/catalog/lyr-no-slug", ConsoleShareLinkBuilder.BuildRelativeShareLink(summary));
+    }
 }

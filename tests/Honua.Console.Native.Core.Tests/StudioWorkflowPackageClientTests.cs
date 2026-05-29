@@ -234,6 +234,65 @@ public sealed class StudioWorkflowPackageClientTests
     }
 
     [Fact]
+    public async Task PublishBlocksEdgeReferencingMissingNode()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.Edges.Add(new StudioWorkflowEdge
+        {
+            Id = "edge-dangling",
+            FromNodeId = "source-parcels",
+            ToNodeId = "node-that-does-not-exist",
+            Kind = StudioWorkflowContractValues.EdgeKindSuccess
+        });
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal("blocked", publish.Status);
+        Assert.Empty(publish.JobId);
+        Assert.Contains(publish.ValidationIssues, issue =>
+            issue.Scope == "graph" &&
+            issue.Severity == "error" &&
+            issue.Message.Contains("not part of the workflow graph", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task PublishBlocksUnsupportedEdgeKind()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.Edges[0].Kind = "side-channel";
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal("blocked", publish.Status);
+        Assert.Contains(publish.ValidationIssues, issue =>
+            issue.Scope == "graph" &&
+            issue.Severity == "error" &&
+            issue.Message.Contains("unsupported kind", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task PublishBlocksUnsupportedPublicationMode()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.PublicationIntent.Mode = "fire-and-forget";
+
+        var publish = await client.PublishAsync(draft);
+
+        Assert.Equal("blocked", publish.Status);
+        Assert.Empty(publish.PublicationId);
+        Assert.Contains(publish.ValidationIssues, issue =>
+            issue.Scope == "publication" &&
+            issue.Severity == "error" &&
+            issue.Message.Contains("publication mode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task DryRunAndPublishRecordRunHistoryWithStateRejectedRowsAndProvenance()
     {
         var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
@@ -265,5 +324,62 @@ public sealed class StudioWorkflowPackageClientTests
         Assert.True(publishedRun.RejectedRows > 0);
         Assert.Equal($"/catalog/{save.ContentItemId}", publishedRun.ProvenanceUrl);
         Assert.StartsWith("/operate/jobs/", publishedRun.OperateJobUrl, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SaveVersionRejectsBlankChangeNote()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => client.SaveVersionAsync(draft, "   "));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task DryRunAndPublishRejectBlankDraftId(string draftId)
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.DraftId = draftId;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => client.DryRunAsync(draft));
+        await Assert.ThrowsAsync<ArgumentException>(() => client.PublishAsync(draft));
+    }
+
+    [Fact]
+    public async Task SaveVersionNumberIsMonotonicAcrossRepeatedSaves()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+
+        var first = await client.SaveVersionAsync(draft, "first save");
+        var second = await client.SaveVersionAsync(draft, "second save");
+        var third = await client.SaveVersionAsync(draft, "third save");
+
+        Assert.True(second.VersionNumber > first.VersionNumber);
+        Assert.True(third.VersionNumber > second.VersionNumber);
+    }
+
+    [Fact]
+    public async Task BlockedPublishDoesNotQueueOperateJobEvidence()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+        draft.OutputSchemas.Clear();
+
+        var publish = await client.PublishAsync(draft);
+        Assert.Equal("blocked", publish.Status);
+
+        // A blocked publish must not have minted a job id, so there is no Operate
+        // evidence to retrieve. The first real job id stays available for the next
+        // (valid) publish, confirming the blocked path did not advance the sequence.
+        var evidence = await client.GetJobEvidenceAsync("job-publish-0001");
+        Assert.Null(evidence);
     }
 }
