@@ -26,6 +26,11 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Operate Embed Contract](docs/operate/embed-contract.md)
 - [Native Operate Transition Surface](docs/operate/native-transition-surface.md)
 
+## Contributor Reference
+
+- [Route Implementation Checklist](docs/reference/ROUTE_IMPLEMENTATION_CHECKLIST.md) — end-to-end guide for adding a new route/feature slice (route-map entry → IA/nav → component → guards → data-client seam → tests → parity smoke), with the `/catalog` route as a worked example.
+- [Shared Component API Reference](docs/reference/SHARED_COMPONENT_API.md) — reusable Razor components in the shared library, their public parameters/events, and usage notes.
+
 ## Migration Coordination
 
 The Console migration spans the in-repo child-ticket backlog and external owner tickets. Cross-cutting decisions are made once and reused; do not re-decide them per ticket.
