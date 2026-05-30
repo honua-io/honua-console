@@ -86,22 +86,46 @@ public sealed class OperateReleasesPageRenderTests
         page.WaitForAssertion(
             () =>
             {
-                // Proposal summary + semantic diff.
+                // Header title row with the design's status badge (preflight, not applied/blocked).
                 Assert.Contains("Promote parcels", page.Markup, StringComparison.Ordinal);
+                var badge = page.Find(".operate-release-title-row .console-status");
+                Assert.Equal("preflight", badge.TextContent.Trim());
+                // Design section tab strip is present for the major views.
+                var tabs = page.FindAll(".operate-release-tabs a");
+                Assert.Equal(5, tabs.Count);
+                Assert.Contains(tabs, t => t.TextContent.Contains("Semantic diff", StringComparison.Ordinal));
+                Assert.Contains(tabs, t => t.TextContent.Contains("Environment matrix", StringComparison.Ordinal));
+                Assert.Contains(tabs, t => t.TextContent.Contains("CI timeline", StringComparison.Ordinal));
+                Assert.Contains(tabs, t => t.TextContent.Contains("Rollback", StringComparison.Ordinal));
+                // Two-column detail grid with a main column and a context side rail.
+                Assert.NotNull(page.Find(".operate-release-grid .operate-release-main"));
+                Assert.NotNull(page.Find(".operate-release-grid .operate-release-side"));
+                // Semantic diff table region.
+                Assert.NotNull(page.Find("#semantic-diff table.operate-diff-table"));
                 Assert.Contains("field contract", page.Markup, StringComparison.Ordinal);
                 // Environment matrix / drift state.
+                Assert.NotNull(page.Find("#env-matrix table.operate-env-matrix"));
                 Assert.Contains("Environment matrix and drift", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("behind", page.Markup, StringComparison.Ordinal);
-                Assert.Contains("Drift detected", page.Markup, StringComparison.Ordinal);
-                // CI/GitOps timeline shows the same release operation id as server/devops.
+                Assert.Contains("drift detected", page.Markup, StringComparison.Ordinal);
+                Assert.NotNull(page.Find("#env-matrix tr.operate-drift-row"));
+                // CI/GitOps check timeline shows the same release operation id as server/devops.
+                Assert.NotNull(page.Find("#timeline ol.operate-timeline"));
                 Assert.Contains("op-9", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("CI/GitOps", page.Markup, StringComparison.Ordinal);
-                // Git PR preview link is offered.
+                // Git PR preview link is offered (header + side rail).
                 Assert.Contains("https://git.example/pr/9", page.Markup, StringComparison.Ordinal);
+                // Compatibility preflight summary region (design view).
+                Assert.NotNull(page.Find("#preflight"));
+                // "What proceed does" governed-step explainer (shown for a non-applied release).
+                Assert.Contains("What proceed does", page.Markup, StringComparison.Ordinal);
                 // Rollback readiness + window before apply.
+                Assert.NotNull(page.Find("#rollback"));
                 Assert.Contains("Rollback readiness", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("snapshot-required", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("restore parcels snapshot", page.Markup, StringComparison.Ordinal);
+                // Governed-operation note (design's red annotation).
+                Assert.Contains("Governed operation", page.Markup, StringComparison.Ordinal);
                 // Ready proposal is not blocked.
                 Assert.Contains("console-state-success", page.Markup, StringComparison.Ordinal);
             },
@@ -126,10 +150,15 @@ public sealed class OperateReleasesPageRenderTests
             () =>
             {
                 Assert.Contains("console-state-danger", page.Markup, StringComparison.Ordinal);
+                // The header status badge reads blocked.
+                var badge = page.Find(".operate-release-title-row .console-status");
+                Assert.Equal("blocked", badge.TextContent.Trim());
+                // The breaking-change callout makes the blocker impossible to miss.
+                Assert.Contains("Blocking findings", page.Markup, StringComparison.Ordinal);
                 // Blockers prevent the PR/deploy action (acceptance criterion).
                 Assert.Contains("Resolve blocking findings before creating a Git PR.", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("smoke SLO burn exceeded budget", page.Markup, StringComparison.Ordinal);
-                // The disabled button is rendered.
+                // The disabled proceed action button is rendered.
                 var button = page.Find("button.console-button");
                 Assert.True(button.HasAttribute("disabled"));
             },

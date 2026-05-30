@@ -1831,6 +1831,201 @@ p {
     gap: 18px;
 }
 
+/* ----- GitOps metadata release visualization ----- */
+.console-mono {
+    font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.92em;
+}
+
+.operate-release-route {
+    margin: 4px 0 0;
+}
+
+.operate-release-detail-head {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.operate-release-detail-head .console-kicker {
+    margin: 0;
+}
+
+.operate-crumb-sep {
+    color: var(--honua-muted);
+}
+
+.operate-release-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.operate-release-title-row h2 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.operate-release-subline {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.operate-release-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.operate-release-tabs {
+    margin-bottom: 18px;
+}
+
+.operate-release-grid {
+    align-items: start;
+}
+
+.operate-release-main {
+    min-width: 0;
+}
+
+.operate-release-card-head {
+    padding: 18px 20px 0;
+}
+
+.operate-release-empty {
+    margin: 0;
+    padding: 14px 20px 18px;
+}
+
+.operate-diff-table .console-chip-row {
+    gap: 6px;
+}
+
+.operate-aligned-row td {
+    background: #f4faf6;
+}
+
+.operate-drift-row td {
+    background: #fff8e6;
+}
+
+.operate-release-opmeta {
+    margin: 18px 20px 0;
+}
+
+.operate-timeline {
+    display: grid;
+    gap: 8px;
+    margin: 16px 20px 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.operate-timeline-step {
+    display: grid;
+    grid-template-columns: 14px 1fr auto;
+    align-items: start;
+    gap: 10px;
+    padding: 9px 12px;
+    border: 1px solid var(--honua-border);
+    border-left-width: 3px;
+    border-radius: 0 6px 6px 0;
+    background: var(--honua-surface);
+}
+
+.operate-timeline-step.console-state-success {
+    border-left-color: #17603a;
+    background: #f4faf6;
+}
+
+.operate-timeline-step.console-state-danger {
+    border-left-color: #9e2b25;
+    background: #fff0ef;
+}
+
+.operate-timeline-step.console-state-warning {
+    border-left-color: #7a5300;
+    background: #fff8e6;
+}
+
+.operate-timeline-step.console-state-info {
+    border-left-color: #175487;
+    background: #edf5ff;
+}
+
+.operate-timeline-marker {
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: currentcolor;
+    color: var(--honua-muted);
+}
+
+.operate-timeline-step.console-state-success .operate-timeline-marker { color: #17603a; }
+.operate-timeline-step.console-state-danger .operate-timeline-marker { color: #9e2b25; }
+.operate-timeline-step.console-state-warning .operate-timeline-marker { color: #7a5300; }
+.operate-timeline-step.console-state-info .operate-timeline-marker { color: #175487; }
+
+.operate-timeline-body {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.operate-timeline-body span {
+    font-size: 0.85rem;
+}
+
+.operate-blocker-list,
+.operate-warning-list {
+    margin: 0 20px 16px;
+}
+
+.operate-blocker-list h4,
+.operate-warning-list h4 {
+    margin: 0 0 8px;
+}
+
+.operate-release-side {
+    position: sticky;
+    top: 12px;
+}
+
+.operate-release-callout-warn {
+    border-left-color: #7a5300;
+    background: #fff8e6;
+    color: #7a5300;
+}
+
+.operate-preflight-list li,
+.operate-rollback-summary .operate-note-list li {
+    font-weight: 600;
+}
+
+.operate-rollback-summary {
+    display: grid;
+    gap: 10px;
+}
+
+.operate-rollback-summary h4 {
+    margin: 4px 0 0;
+}
+
+.operate-release-governed {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: center;
+}
+
 .operate-environment-card {
     display: grid;
     gap: 12px;
