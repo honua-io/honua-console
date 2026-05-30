@@ -1,4 +1,5 @@
 @page "/studio/map"
+@using System.Text.Json
 @inject IStudioMapPackageDataSource MapData
 
 <section class="console-page studio-map-builder">
@@ -76,24 +77,31 @@
     {
         var editor = _editor;
         var readiness = StudioMapPublishEvaluator.Evaluate(editor);
+        var selectedLayer = SelectedLayer(editor);
 
-        <div class="studio-map-editor" data-map-builder="map.package" data-map-status="@editor.Status">
-            <div class="console-panel-heading">
-                <div>
-                    <p class="console-kicker">@(editor.IsExistingPackage ? $"{editor.MapId} · v{editor.Version}" : "New draft")</p>
-                    <h2>@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled map" : editor.Title)</h2>
+        <div class="studio-map-editor studio-editor-page" data-map-builder="map.package" data-map-status="@editor.Status">
+            @* Header strip — map glyph, title, lifecycle + validation badges, lifecycle actions. *@
+            <div class="console-panel-heading studio-map-editor-bar">
+                <div class="studio-map-editor-identity">
+                    <span class="studio-map-glyph" aria-hidden="true">◐</span>
+                    <div>
+                        <p class="console-kicker">@(editor.IsExistingPackage ? $"{editor.MapId} · v{editor.Version}" : "New draft")</p>
+                        <input class="console-input studio-map-title-input" @bind="editor.Title" placeholder="Public works map" aria-label="Map title" />
+                    </div>
                 </div>
-                <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
-            </div>
-
-            <div class="console-action-row">
-                <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to maps</button>
-                <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
-                <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
-                @if (editor.IsPublished)
-                {
-                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
-                }
+                <div class="console-chip-row studio-map-status-chips">
+                    <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
+                    <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "validation passed" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                </div>
+                <div class="console-action-row studio-map-actions">
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to maps</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
+                    @if (editor.IsPublished)
+                    {
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
+                    }
+                </div>
             </div>
 
             @if (!string.IsNullOrEmpty(_status))
@@ -101,126 +109,264 @@
                 <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
             }
 
-            <div class="console-panel-grid">
+            @* Editor section tabs — Design / Data bindings / Interactions / Access / Package · raw. *@
+            <nav class="console-tab-row studio-map-tabs" aria-label="Map editor sections">
+                @foreach (var tab in EditorTabs)
+                {
+                    <button type="button"
+                            class="@(string.Equals(_activeTab, tab.Id, StringComparison.Ordinal) ? "active" : null)"
+                            aria-current="@(string.Equals(_activeTab, tab.Id, StringComparison.Ordinal) ? "true" : null)"
+                            @onclick="() => SetTab(tab.Id)">
+                        @tab.Label@(tab.Count is { } count ? $" · {count}" : null)
+                    </button>
+                }
+            </nav>
+
+            @if (string.Equals(_activeTab, "design", StringComparison.Ordinal))
+            {
+                @* Three-column design surface: layer list · live preview · selected-layer inspector. *@
+                <div class="studio-map-design-grid">
+                    @* LEFT — layer stack + per-layer filter. *@
+                    <article class="console-panel studio-map-layer-rail">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Layers, filters, style, and popups</p>
+                                <h3>Layer stack</h3>
+                            </div>
+                            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="AddLayer">Add layer</button>
+                        </div>
+
+                        @if (editor.Layers.Count == 0)
+                        {
+                            <p class="console-muted">No layers yet. Add at least one layer before publishing. The first layer draws on top.</p>
+                        }
+
+                        <ol class="studio-map-layer-list">
+                            @for (var index = 0; index < editor.Layers.Count; index++)
+                            {
+                                var layer = editor.Layers[index];
+                                var position = index;
+                                <li class="@(position == _selectedLayerIndex ? "studio-map-layer-item studio-map-layer-selected" : "studio-map-layer-item")" @key="layer">
+                                    <div class="studio-map-layer-select">
+                                        <input type="checkbox" @bind="layer.Visible" aria-label="Layer visible" />
+                                        <button type="button" class="studio-map-layer-name" @onclick="() => SelectLayer(position)">
+                                            @(string.IsNullOrWhiteSpace(layer.Title) ? (string.IsNullOrWhiteSpace(layer.SourceRef) ? "Untitled layer" : layer.SourceRef) : layer.Title)
+                                        </button>
+                                        <span class="console-muted studio-map-layer-kind">@(string.IsNullOrWhiteSpace(layer.Style) ? "unstyled" : layer.Style)</span>
+                                    </div>
+                                    <div class="console-action-row studio-map-layer-move">
+                                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || position == 0)" @onclick="() => MoveLayerUp(position)">Move up</button>
+                                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || position == editor.Layers.Count - 1)" @onclick="() => MoveLayerDown(position)">Move down</button>
+                                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemoveLayer(layer)">Remove</button>
+                                    </div>
+                                </li>
+                            }
+                        </ol>
+                    </article>
+
+                    @* MIDDLE — live preview canvas + applied-state chips. *@
+                    <article class="console-panel studio-map-canvas-panel">
+                        <div class="studio-preview-toolbar">
+                            <span class="console-kicker">Preview</span>
+                            <span class="console-muted">Edits apply live · sampled features</span>
+                        </div>
+                        <div class="studio-map-preview" role="img" aria-label="Map preview">
+                            <span>@(string.IsNullOrWhiteSpace(editor.Basemap) ? "basemap unset" : editor.Basemap)</span>
+                            <strong>@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled map" : editor.Title)</strong>
+                            <small>@editor.Layers.Count layer(s) · @(string.IsNullOrWhiteSpace(editor.InitialExtent) ? "extent unset" : editor.InitialExtent)</small>
+                        </div>
+                        <div class="console-chip-row studio-map-applied-chips">
+                            @if (editor.ShowLegend)
+                            {
+                                <span>legend</span>
+                            }
+                            @if (editor.PopupsEnabled)
+                            {
+                                <span>popups</span>
+                            }
+                            @if (editor.InteractionsEnabled)
+                            {
+                                <span>pan/zoom</span>
+                            }
+                            <span>basemap: @(string.IsNullOrWhiteSpace(editor.Basemap) ? "unset" : editor.Basemap)</span>
+                        </div>
+                    </article>
+
+                    @* RIGHT — inspector for the selected layer (style + filter + popup). *@
+                    <aside class="studio-inspector studio-map-inspector">
+                        @if (selectedLayer is null)
+                        {
+                            <p class="console-kicker">Inspector</p>
+                            <p class="console-muted">Select a layer to edit its source, filter, style, and popup.</p>
+                        }
+                        else
+                        {
+                            <p class="console-kicker">@(string.IsNullOrWhiteSpace(selectedLayer.Title) ? "Layer" : selectedLayer.Title) · paint</p>
+                            <h3>Layer style</h3>
+                            <label class="studio-form-label"><span>Source ref</span><input class="console-input" @bind="selectedLayer.SourceRef" placeholder="content:hydrants@v12" /></label>
+                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="selectedLayer.Title" placeholder="Hydrants" /></label>
+                            <label class="studio-form-label"><span>Style</span><input class="console-input" @bind="selectedLayer.Style" placeholder="style:point-red" /></label>
+
+                            <div class="studio-inspector-section">
+                                <h3>Filter</h3>
+                                <label class="studio-form-label"><span>WHERE clause</span><input class="console-input" @bind="selectedLayer.Filter" placeholder="status = 'active'" /></label>
+                            </div>
+
+                            <div class="studio-inspector-section">
+                                <h3>Popup template</h3>
+                                <label class="studio-form-label"><span>Popup fields (comma-separated)</span><input class="console-input" @bind="selectedLayer.PopupFields" placeholder="asset_id, condition" /></label>
+                            </div>
+                        }
+                    </aside>
+                </div>
+
+                @* Map frame — basemap + initial extent (the editor's spatial frame). *@
                 <article class="console-panel">
-                    <p class="console-kicker">Details</p>
-                    <h3>Map</h3>
-                    <label class="studio-form-label">
-                        <span>Title</span>
-                        <input class="console-input" @bind="editor.Title" placeholder="Public works map" />
-                    </label>
+                    <p class="console-kicker">Basemap and extent</p>
+                    <h3>Frame</h3>
+                    <div class="console-panel-grid">
+                        <label class="studio-form-label">
+                            <span>Basemap</span>
+                            <input class="console-input" @bind="editor.Basemap" placeholder="basemap:streets" />
+                        </label>
+                        <label class="studio-form-label">
+                            <span>Initial extent (minX,minY,maxX,maxY)</span>
+                            <input class="console-input" @bind="editor.InitialExtent" placeholder="-158.3,21.2,-157.6,21.7" />
+                        </label>
+                    </div>
                     <label class="studio-form-label">
                         <span>Description</span>
                         <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
                     </label>
                 </article>
-
+            }
+            else if (string.Equals(_activeTab, "interactions", StringComparison.Ordinal))
+            {
                 <article class="console-panel">
-                    <p class="console-kicker">Basemap and extent</p>
-                    <h3>Frame</h3>
-                    <label class="studio-form-label">
-                        <span>Basemap</span>
-                        <input class="console-input" @bind="editor.Basemap" placeholder="basemap:streets" />
-                    </label>
-                    <label class="studio-form-label">
-                        <span>Initial extent (minX,minY,maxX,maxY)</span>
-                        <input class="console-input" @bind="editor.InitialExtent" placeholder="-158.3,21.2,-157.6,21.7" />
-                    </label>
+                    <p class="console-kicker">Interactions and legend</p>
+                    <h3>Map behavior</h3>
+                    <div class="console-chip-row studio-map-toggles">
+                        <label><input type="checkbox" @bind="editor.ShowLegend" /> <span>Show legend</span></label>
+                        <label><input type="checkbox" @bind="editor.PopupsEnabled" /> <span>Enable popups</span></label>
+                        <label><input type="checkbox" @bind="editor.InteractionsEnabled" /> <span>Allow pan/zoom</span></label>
+                    </div>
                 </article>
-            </div>
-
-            <article class="console-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Layers, filters, style, and popups</p>
-                        <h3>Layer stack</h3>
+            }
+            else if (string.Equals(_activeTab, "package", StringComparison.Ordinal))
+            {
+                <article class="console-panel">
+                    <p class="console-kicker">Package · raw</p>
+                    <h3>Map package envelope</h3>
+                    <p class="console-muted">Canonical authoring body saved to the honua-server map package version.</p>
+                    <pre class="studio-code studio-package-json">@PackageJson(editor)</pre>
+                </article>
+            }
+            else
+            {
+                @* Access — publish review (visibility, route, dependencies, sharing policy). *@
+                <article class="console-panel studio-map-publish-review" aria-labelledby="map-publish-review-heading">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Publish review</p>
+                            <h3 id="map-publish-review-heading">Review before publish</h3>
+                        </div>
+                        <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "ready" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
                     </div>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="AddLayer">Add layer</button>
-                </div>
 
-                @if (editor.Layers.Count == 0)
-                {
-                    <p class="console-muted">No layers yet. Add at least one layer before publishing. The first layer draws on top.</p>
-                }
+                    <div class="studio-editor-shell">
+                        <div class="studio-editor-main">
+                            <section class="studio-editor-section">
+                                <h3>Visibility</h3>
+                                <p class="console-muted">Who can see this map after publish.</p>
+                                <div class="studio-map-visibility-options">
+                                    @foreach (var option in VisibilityOptions)
+                                    {
+                                        var tier = option.Value;
+                                        <label class="@(string.Equals(editor.ShareTier, tier, StringComparison.Ordinal) ? "studio-map-visibility-option studio-map-visibility-selected" : "studio-map-visibility-option")">
+                                            <input type="radio"
+                                                   name="map-visibility"
+                                                   value="@tier"
+                                                   checked="@(string.Equals(editor.ShareTier, tier, StringComparison.Ordinal))"
+                                                   disabled="@editor.IsPublished"
+                                                   @onchange="() => editor.ShareTier = tier" />
+                                            <span>
+                                                <strong>@option.Label</strong>
+                                                <small class="console-muted">@option.Description</small>
+                                            </span>
+                                        </label>
+                                    }
+                                </div>
 
-                @for (var index = 0; index < editor.Layers.Count; index++)
-                {
-                    var layer = editor.Layers[index];
-                    var position = index;
-                    <fieldset class="studio-map-layer" @key="layer">
-                        <div class="console-panel-grid">
-                            <label class="studio-form-label"><span>Source ref</span><input class="console-input" @bind="layer.SourceRef" placeholder="content:hydrants@v12" /></label>
-                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="layer.Title" placeholder="Hydrants" /></label>
-                            <label class="studio-form-label"><span>Filter</span><input class="console-input" @bind="layer.Filter" placeholder="status = 'active'" /></label>
-                            <label class="studio-form-label"><span>Style</span><input class="console-input" @bind="layer.Style" placeholder="style:point-red" /></label>
-                            <label class="studio-form-label"><span>Popup fields (comma-separated)</span><input class="console-input" @bind="layer.PopupFields" placeholder="asset_id, condition" /></label>
+                                <label class="studio-form-label studio-form-inline">
+                                    <input type="checkbox" @bind="editor.EmbedAllowed" disabled="@editor.IsPublished" />
+                                    <span>Allow embed</span>
+                                </label>
+                            </section>
+
+                            <section class="studio-editor-section">
+                                <h3>Route</h3>
+                                <dl class="console-definition-list">
+                                    <dt>Public URL</dt>
+                                    <dd class="studio-code">/m/@StudioMapPackageMapper.BuildPackageKey(editor)</dd>
+                                </dl>
+                            </section>
                         </div>
-                        <div class="console-chip-row studio-map-toggles">
-                            <label><input type="checkbox" @bind="layer.Visible" /> <span>Visible</span></label>
-                        </div>
-                        <div class="console-action-row">
-                            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || position == 0)" @onclick="() => MoveLayerUp(position)">Move up</button>
-                            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || position == editor.Layers.Count - 1)" @onclick="() => MoveLayerDown(position)">Move down</button>
-                            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemoveLayer(layer)">Remove</button>
-                        </div>
-                    </fieldset>
-                }
-            </article>
 
-            <article class="console-panel">
-                <p class="console-kicker">Interactions and legend</p>
-                <h3>Map behavior</h3>
-                <div class="console-chip-row studio-map-toggles">
-                    <label><input type="checkbox" @bind="editor.ShowLegend" /> <span>Show legend</span></label>
-                    <label><input type="checkbox" @bind="editor.PopupsEnabled" /> <span>Enable popups</span></label>
-                    <label><input type="checkbox" @bind="editor.InteractionsEnabled" /> <span>Allow pan/zoom</span></label>
-                </div>
-            </article>
+                        <aside class="studio-editor-side">
+                            <article class="console-panel">
+                                <h3>Map summary</h3>
+                                <dl class="console-definition-list">
+                                    <dt>Basemap</dt>
+                                    <dd>@(string.IsNullOrWhiteSpace(editor.Basemap) ? "unset" : editor.Basemap)</dd>
+                                    <dt>Layers</dt>
+                                    <dd>@editor.Layers.Count layer(s)</dd>
+                                    <dt>Initial extent</dt>
+                                    <dd>@(string.IsNullOrWhiteSpace(editor.InitialExtent) ? "unset" : editor.InitialExtent)</dd>
+                                    <dt>Visibility</dt>
+                                    <dd>@editor.ShareTier</dd>
+                                    <dt>Embed</dt>
+                                    <dd>@(editor.EmbedAllowed ? "allowed" : "blocked")</dd>
+                                </dl>
+                            </article>
 
-            <article class="console-panel studio-map-publish-review" aria-labelledby="map-publish-review-heading">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Publish review</p>
-                        <h3 id="map-publish-review-heading">Review before publish</h3>
+                            <article class="console-panel">
+                                <h3>Dependencies</h3>
+                                @if (editor.Layers.Count == 0)
+                                {
+                                    <p class="console-muted">No layer sources bound yet.</p>
+                                }
+                                else
+                                {
+                                    <table class="console-table">
+                                        <tbody>
+                                            @foreach (var layer in editor.Layers)
+                                            {
+                                                <tr>
+                                                    <td>@(string.IsNullOrWhiteSpace(layer.SourceRef) ? "unbound" : layer.SourceRef)</td>
+                                                    <td>data source</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                            </article>
+
+                            <p class="console-muted">Publish is a governed operation — it produces an audit event and a content version.</p>
+                        </aside>
                     </div>
-                    <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "ready" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
-                </div>
 
-                <dl class="console-definition-list">
-                    <dt>Basemap</dt>
-                    <dd>@(string.IsNullOrWhiteSpace(editor.Basemap) ? "unset" : editor.Basemap)</dd>
-                    <dt>Layers</dt>
-                    <dd>@editor.Layers.Count layer(s)</dd>
-                    <dt>Initial extent</dt>
-                    <dd>@(string.IsNullOrWhiteSpace(editor.InitialExtent) ? "unset" : editor.InitialExtent)</dd>
-                </dl>
-
-                <div class="console-panel-grid">
-                    <label class="studio-form-label">
-                        <span>Share tier</span>
-                        <select class="console-input" @bind="editor.ShareTier" disabled="@editor.IsPublished">
-                            <option value="private">private</option>
-                            <option value="workspace">workspace</option>
-                            <option value="public">public</option>
-                        </select>
-                    </label>
-                    <label class="studio-form-label studio-form-inline">
-                        <input type="checkbox" @bind="editor.EmbedAllowed" disabled="@editor.IsPublished" />
-                        <span>Allow embed</span>
-                    </label>
-                </div>
-
-                @if (!editor.IsPublished && !readiness.CanPublish)
-                {
-                    <p class="console-kicker">Pre-publish gate</p>
-                    <ul class="studio-compact-list">
-                        @foreach (var requirement in readiness.UnmetRequirements)
-                        {
-                            <li>@requirement</li>
-                        }
-                    </ul>
-                }
-            </article>
+                    @if (!editor.IsPublished && !readiness.CanPublish)
+                    {
+                        <p class="console-kicker">Pre-publish gate</p>
+                        <ul class="studio-compact-list">
+                            @foreach (var requirement in readiness.UnmetRequirements)
+                            {
+                                <li>@requirement</li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
         </div>
     }
 </section>
@@ -234,6 +380,53 @@
     private StudioMapEditorState? _editor;
     private string? _status;
     private bool _statusFailed;
+    private string _activeTab = "design";
+    private int _selectedLayerIndex;
+
+    private static readonly JsonSerializerOptions PackageJsonOptions = new() { WriteIndented = true };
+
+    private static readonly IReadOnlyList<(string Value, string Label, string Description)> VisibilityOptions =
+    [
+        ("public", "Public", "Anyone with the link; default for public-read data."),
+        ("workspace", "Organisation", "Anyone signed in to this workspace."),
+        ("private", "Private", "Only you and admins."),
+    ];
+
+    private IReadOnlyList<(string Id, string Label, int? Count)> EditorTabs =>
+    [
+        ("design", "Design", null),
+        ("data", "Data bindings", _editor?.Layers.Count),
+        ("interactions", "Interactions", null),
+        ("access", "Access", null),
+        ("package", "Package · raw", null),
+    ];
+
+    private void SetTab(string tab)
+    {
+        // "Data bindings" surfaces the same layer rail as Design (the layer list is the data-binding view),
+        // so route it to the design surface rather than a blank tab.
+        _activeTab = string.Equals(tab, "data", StringComparison.Ordinal) ? "design" : tab;
+    }
+
+    private void SelectLayer(int index) => _selectedLayerIndex = index;
+
+    private StudioMapLayerEditor? SelectedLayer(StudioMapEditorState editor)
+    {
+        if (editor.Layers.Count == 0)
+        {
+            return null;
+        }
+
+        if (_selectedLayerIndex < 0 || _selectedLayerIndex >= editor.Layers.Count)
+        {
+            _selectedLayerIndex = 0;
+        }
+
+        return editor.Layers[_selectedLayerIndex];
+    }
+
+    private static string PackageJson(StudioMapEditorState editor) =>
+        JsonSerializer.Serialize(StudioMapPackageMapper.BuildEnvelopeBody(editor), PackageJsonOptions);
 
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
 
@@ -270,6 +463,8 @@
             var result = await load();
             ApplyStates(result.CapabilityStates);
             _editor = result.State;
+            _activeTab = "design";
+            _selectedLayerIndex = 0;
         }
         finally
         {
@@ -287,9 +482,30 @@
         await LoadWorkspaceAsync();
     }
 
-    private void AddLayer() => _editor?.Layers.Add(new StudioMapLayerEditor());
+    private void AddLayer()
+    {
+        if (_editor is null)
+        {
+            return;
+        }
 
-    private void RemoveLayer(StudioMapLayerEditor layer) => _editor?.Layers.Remove(layer);
+        _editor.Layers.Add(new StudioMapLayerEditor());
+        _selectedLayerIndex = _editor.Layers.Count - 1;
+    }
+
+    private void RemoveLayer(StudioMapLayerEditor layer)
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        _editor.Layers.Remove(layer);
+        if (_selectedLayerIndex >= _editor.Layers.Count)
+        {
+            _selectedLayerIndex = Math.Max(0, _editor.Layers.Count - 1);
+        }
+    }
 
     private void MoveLayerUp(int index)
     {

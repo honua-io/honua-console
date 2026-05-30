@@ -57,9 +57,25 @@ public sealed class StudioMapBuilderRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("data-map-builder", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        Assert.Contains("Publish review", page.Markup, StringComparison.Ordinal);
+
+        // Design tab (default) renders the three-column design surface: section tabs, the layer rail,
+        // the live preview canvas, and the selected-layer inspector — matching the StudioMapEditor mockup.
+        Assert.NotNull(page.Find("nav.console-tab-row"));
+        Assert.NotNull(page.Find(".studio-map-design-grid"));
+        Assert.NotNull(page.Find(".studio-map-layer-rail"));
+        Assert.NotNull(page.Find(".studio-map-preview"));
+        Assert.NotNull(page.Find(".studio-map-inspector"));
         Assert.Contains("Layer stack", page.Markup, StringComparison.Ordinal);
         Assert.False(FindButton(page, "Publish").HasAttribute("disabled"));
+
+        // The Access tab surfaces the publish review (visibility options + dependencies), per the
+        // StudioMapPublish mockup. Publish review is not on the default design tab.
+        Assert.DoesNotContain("Publish review", page.Markup, StringComparison.Ordinal);
+        FindButton(page, "Access").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("Publish review", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.NotNull(page.Find(".studio-map-visibility-options"));
     }
 
     [Fact]
@@ -80,6 +96,15 @@ public sealed class StudioMapBuilderRenderTests
         page.WaitForAssertion(() => FindButton(page, "Incomplete"), TimeSpan.FromSeconds(5));
         FindButton(page, "Incomplete").Click();
 
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Publish stays gated on every tab while requirements are unmet.
+        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+
+        // The unmet pre-publish requirements list lives in the Access (publish-review) tab.
+        FindButton(page, "Access").Click();
         page.WaitForAssertion(
             () => Assert.Contains("Add at least one layer.", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
