@@ -297,6 +297,44 @@ p {
     margin: -4px 0 18px;
 }
 
+.console-toolbar-inline {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.studio-form-label-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.studio-report-editor {
+    display: grid;
+    gap: 16px;
+}
+
+.studio-report-panel {
+    display: grid;
+    gap: 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 10px 0 0;
+}
+
+.studio-report-preview {
+    border: 1px dashed var(--honua-border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 8px;
+}
+
+.studio-report-preview[data-report-breakpoint="narrow"] {
+    max-width: 360px;
+}
+
 .console-button:disabled {
     border-color: var(--honua-border);
     background: var(--honua-surface-strong);
