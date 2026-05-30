@@ -55,6 +55,16 @@ public interface IHonuaConsoleContentClient
     Task<HonuaAdminEndpointResult<HonuaConsoleActionCheckResponse>> CheckActionsAsync(
         HonuaConsoleActionCheckRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a Console content item. The Console runtime does not author content through this path
+    /// today (authoring flows publish through Studio/Operate); it backs the Testcontainers live-server
+    /// integration test that seeds a known content item before asserting Console surfaces render live
+    /// server data (issue #7 Definition of Done).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaConsoleContentItem>> CreateAsync(
+        HonuaCreateConsoleContentItemRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, IDisposable
@@ -143,6 +153,19 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
             $"{ActionsBase}/check",
             request,
             "POST /api/v1/console/actions/check",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaConsoleContentItem>> CreateAsync(
+        HonuaCreateConsoleContentItemRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostAsync<HonuaCreateConsoleContentItemRequest, HonuaConsoleContentItem>(
+            $"{ContentBase}/",
+            request,
+            "POST /api/v1/console/content",
             cancellationToken);
     }
 
@@ -440,6 +463,39 @@ public sealed record HonuaConsoleContentItem
 
     [JsonPropertyName("typeMetadata")]
     public JsonElement? TypeMetadata { get; init; }
+}
+
+public sealed record HonuaCreateConsoleContentItemRequest
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("itemType")]
+    public string ItemType { get; init; } = string.Empty;
+
+    [JsonPropertyName("namespace")]
+    public string? Namespace { get; init; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; init; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; init; }
+
+    [JsonPropertyName("tags")]
+    public string[]? Tags { get; init; }
+
+    [JsonPropertyName("visibility")]
+    public string? Visibility { get; init; }
+
+    [JsonPropertyName("ownerId")]
+    public string? OwnerId { get; init; }
+
+    [JsonPropertyName("teamScopeId")]
+    public string? TeamScopeId { get; init; }
+
+    [JsonPropertyName("provenance")]
+    public HonuaConsoleProvenanceRef[]? Provenance { get; init; }
 }
 
 public sealed record HonuaConsoleContentListResponse
