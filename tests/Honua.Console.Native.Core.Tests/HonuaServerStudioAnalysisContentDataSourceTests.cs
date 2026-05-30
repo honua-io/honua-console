@@ -308,6 +308,58 @@ public sealed class HonuaServerStudioAnalysisContentDataSourceTests
         Assert.Contains("workflow", targets, StringComparer.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ResolveArtifact_ServerNotFound_SurfacesIssueWithoutMutatingJob()
+    {
+        var client = new FakeAnalysisContentClient
+        {
+            ArtifactResult = HonuaAdminEndpointResult<HonuaAnalysisArtifactResponse>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "GET artifact", "Artifact not found.", 404))
+        };
+        var source = new HonuaServerStudioAnalysisContentDataSource(client);
+        var plan = ReadyPlan(analysisId: "analysis-7");
+        plan.SubmittedJob = new StudioAnalysisJobView("job-99", "Running", 3);
+
+        var result = await source.ResolveArtifactAsync("missing-artifact", plan);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Unsupported", result.Issue!.State);
+        // A failed resolve must not fabricate an artifact onto the submitted job.
+        Assert.Null(plan.SubmittedJob!.Artifact);
+    }
+
+    [Fact]
+    public async Task ResolveArtifact_Scalar_OffersScalarDownstreamFamiliesNotLayer()
+    {
+        // A scalar result cannot become a map layer; the panel must never claim an impossible binding (AC#3).
+        var client = new FakeAnalysisContentClient
+        {
+            ArtifactResult = HonuaAdminEndpointResult<HonuaAnalysisArtifactResponse>.FromData(
+                new HonuaAnalysisArtifactResponse
+                {
+                    Artifact = new HonuaResultArtifactRecord
+                    {
+                        ArtifactId = "artifact-scalar",
+                        JobId = "job-99",
+                        Kind = HonuaArtifactKinds.Scalar,
+                        Label = "Total area",
+                        RetentionState = "retained"
+                    },
+                    Binding = new HonuaArtifactBindingRef { TargetKind = "report" }
+                })
+        };
+        var source = new HonuaServerStudioAnalysisContentDataSource(client);
+        var plan = ReadyPlan(analysisId: "analysis-7");
+
+        var result = await source.ResolveArtifactAsync("artifact-scalar", plan);
+
+        Assert.True(result.Succeeded);
+        var targets = plan.SubmittedJob!.Artifact!.DownstreamTargets;
+        Assert.Contains("report", targets, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("dashboard", targets, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("layer", targets, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static StudioAnalysisPlanEditor ReadyPlan(string? analysisId)
     {
         var plan = new StudioAnalysisPlanEditor

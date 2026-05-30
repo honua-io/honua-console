@@ -367,7 +367,14 @@
                         }
                         else
                         {
-                            <p class="console-muted">The job is running. Its result artifact resolves once the execution engine finishes.</p>
+                            <p class="console-muted">The job is running on the execution engine. Once it finishes, resolve its result artifact by id to bind the output downstream.</p>
+                            <div class="console-action-row" data-analysis-resolve-artifact="true">
+                                <label class="studio-form-label">
+                                    <span>Result artifact id</span>
+                                    <input class="console-input" @bind="_artifactId" placeholder="artifact-…" />
+                                </label>
+                                <button class="console-button" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_artifactId))" @onclick="ResolveArtifact">Resolve artifact</button>
+                            </div>
                         }
                     </article>
                 }
@@ -385,6 +392,7 @@
     private StudioAnalysisPlanEditor? _plan;
     private string? _status;
     private bool _statusFailed;
+    private string _artifactId = string.Empty;
 
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
 
@@ -451,6 +459,9 @@
     private Task Preview() => RunCommandAsync(() => AnalysisData.PreviewAsync(_plan!));
 
     private Task Submit() => RunCommandAsync(() => AnalysisData.SubmitAsync(_plan!));
+
+    private Task ResolveArtifact() =>
+        RunCommandAsync(() => AnalysisData.ResolveArtifactAsync(_artifactId.Trim(), _plan!));
 
     private async Task RunCommandAsync(Func<Task<StudioAnalysisCommandResult>> command)
     {
