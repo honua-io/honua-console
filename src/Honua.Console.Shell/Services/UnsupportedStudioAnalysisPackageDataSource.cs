@@ -15,7 +15,7 @@ public sealed class UnsupportedStudioAnalysisPackageDataSource : IStudioAnalysis
         "Analysis builder",
         "Missing binding",
         "Honua:Server:BaseUrl",
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the analysis builder can bind the server-owned analysis content/artifacts contract (honua-server#1182) and the execution engine from honua-server.");
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the analysis builder can bind the server-owned analysis content/artifacts contract (honua-server#1182, closed) and the execution engine (honua-server#681/#721/#724, closed) from honua-server. The analysis list and server cost-estimate stay degraded until honua-server#1237 lands.");
 
     public Task<StudioAnalysisWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new StudioAnalysisWorkspace([], [MissingBinding]));

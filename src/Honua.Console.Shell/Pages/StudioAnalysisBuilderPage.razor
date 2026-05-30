@@ -34,7 +34,7 @@
                 <div class="console-panel-grid">
                     @foreach (var state in _states)
                     {
-                        <article class="console-panel">
+                        <article class="console-panel" data-analysis-capability="@state.Contract">
                             <div class="console-panel-heading">
                                 <div>
                                     <p class="console-kicker">@state.State</p>
