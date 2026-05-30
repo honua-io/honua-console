@@ -91,6 +91,14 @@ public enum StudioPublicationRequestStatus
     [JsonStringEnumMemberName("rejected")] Rejected
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<StudioRollbackPointer>))]
+public enum StudioRollbackPointer
+{
+    [JsonStringEnumMemberName("current")] Current,
+    [JsonStringEnumMemberName("published")] Published,
+    [JsonStringEnumMemberName("both")] Both
+}
+
 #endregion
 
 #region Domain DTOs (StudioPackageModels.cs)
@@ -255,6 +263,25 @@ public sealed record StudioPublicationRequest
     [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
 }
 
+public sealed record StudioContentItemPointers
+{
+    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
+    [JsonPropertyName("currentVersionId")] public Guid? CurrentVersionId { get; init; }
+    [JsonPropertyName("publishedVersionId")] public Guid? PublishedVersionId { get; init; }
+}
+
+public sealed record StudioRollbackRequest
+{
+    [JsonPropertyName("requestId")] public Guid RequestId { get; init; }
+    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
+    [JsonPropertyName("targetVersionId")] public Guid TargetVersionId { get; init; }
+    [JsonPropertyName("pointer")] public StudioRollbackPointer Target { get; init; }
+    [JsonPropertyName("pointers")] public StudioContentItemPointers Pointers { get; init; } = new();
+    [JsonPropertyName("requestedBy")] public string? RequestedBy { get; init; }
+    [JsonPropertyName("reason")] public string? Reason { get; init; }
+    [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
+}
+
 #endregion
 
 #region Request bodies (StudioApiModels.cs)
@@ -286,6 +313,13 @@ public sealed record CreateStudioPublicationRequest
 {
     [JsonPropertyName("intent")] public StudioPublicationIntent? Intent { get; init; }
     [JsonPropertyName("warningAcknowledgement")] public string? WarningAcknowledgement { get; init; }
+}
+
+public sealed record CreateStudioRollbackRequest
+{
+    [JsonPropertyName("targetVersionId")] public Guid TargetVersionId { get; init; }
+    [JsonPropertyName("pointer")] public StudioRollbackPointer Target { get; init; } = StudioRollbackPointer.Current;
+    [JsonPropertyName("reason")] public string? Reason { get; init; }
 }
 
 #endregion
@@ -376,11 +410,28 @@ public interface IStudioPackageLifecycleClient
         Guid versionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reopens an immutable content version as a fresh editable draft (server route
+    /// <c>POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen</c>). Dashboard builder alias
+    /// retained for the Studio dashboard lifecycle binding.
+    /// </summary>
+    Task<StudioEndpointResult<StudioPackageDraft>> ReopenVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Reads one immutable content version by id (server route
     /// <c>GET /api/v1/studio/content-items/{itemId}/versions/{versionId}</c>).</summary>
     Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
         Guid itemId,
         Guid versionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Requests a rollback to a prior published version (server route
+    /// <c>POST /api/v1/studio/content-items/{itemId}/rollback-requests</c>).</summary>
+    Task<StudioEndpointResult<StudioRollbackRequest>> RollbackAsync(
+        Guid itemId,
+        CreateStudioRollbackRequest request,
         CancellationToken cancellationToken = default);
 }
 
@@ -524,6 +575,12 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen",
             cancellationToken);
 
+    public Task<StudioEndpointResult<StudioPackageDraft>> ReopenVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default) =>
+        ReopenContentVersionAsync(itemId, versionId, cancellationToken);
+
     public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
         Guid itemId,
         Guid versionId,
@@ -534,6 +591,20 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             null,
             "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}",
             cancellationToken);
+
+    public Task<StudioEndpointResult<StudioRollbackRequest>> RollbackAsync(
+        Guid itemId,
+        CreateStudioRollbackRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return SendAsync<CreateStudioRollbackRequest, StudioRollbackRequest>(
+            HttpMethod.Post,
+            $"/api/v1/studio/content-items/{itemId}/rollback-requests",
+            request,
+            "POST /api/v1/studio/content-items/{itemId}/rollback-requests",
+            cancellationToken);
+    }
 
     public void Dispose() => _httpClient.Dispose();
 
