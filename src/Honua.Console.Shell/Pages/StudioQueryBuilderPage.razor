@@ -1,0 +1,125 @@
+@page "/studio/query"
+@inject IStudioQueryPackageDataSource QueryData
+
+@* Studio spatial query builder (honua-console#52). This first slice renders the server-bound workspace:
+   the missing-binding surface when no honua-server is configured, or the saved query package list / empty
+   state when bound to honua-server#1182. The source binding, predicate builder, generated SQL/filter
+   readout, parameter editor, map/table preview, and save-as-content commands follow on the same
+   IStudioQueryPackageDataSource seam once #1182's wire shape is projected into the shim. *@
+
+<section class="console-page studio-query-builder">
+    <div class="console-page-heading">
+        <p class="console-kicker">Builder workflow</p>
+        <h1>Query builder</h1>
+        <p>Author a server-owned spatial query package — source binding, predicate builder, generated SQL/filter readout, parameters, and map/table preview — then save it as a reusable content version on honua-server.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Query builder"
+                          Title="Loading query packages"
+                          Message="Reading the saved query content lifecycle from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Query content lifecycle is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else
+    {
+        @if (_states.Count > 0)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Query binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        <div class="studio-query-workspace" data-query-builder="query.package">
+            @if (_workspace.Packages.Count == 0)
+            {
+                <EmptyState Area="studio" Subject="query packages" />
+            }
+            else
+            {
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Source binding</th>
+                                <th>Draft</th>
+                                <th>Published</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var package in _workspace.Packages)
+                            {
+                                <tr>
+                                    <td>
+                                        @package.Title
+                                        <small>@package.QueryId</small>
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(package.SourceBinding) ? "unset" : package.SourceBinding)</td>
+                                    <td>@(package.DraftVersion?.ToString() ?? "—")</td>
+                                    <td>@(package.PublishedVersion?.ToString() ?? "—")</td>
+                                    <td>@package.UpdatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private StudioQueryWorkspace _workspace = new([], []);
+    private StudioQueryCapabilityState? _bindingState;
+    private IReadOnlyList<StudioQueryCapabilityState> _states = [];
+
+    protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+
+    private async Task LoadWorkspaceAsync()
+    {
+        _loading = true;
+        _workspace = await QueryData.GetWorkspaceAsync();
+        ApplyStates(_workspace.CapabilityStates);
+        _loading = false;
+    }
+
+    private void ApplyStates(IReadOnlyList<StudioQueryCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
+        _states = states
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+    }
+}
