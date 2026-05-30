@@ -21,6 +21,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
@@ -151,6 +152,22 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>();
+    }
+
+    // Binds the Studio query-builder surface (/studio/query) to honua-server's saved query content
+    // lifecycle (honua-server#1182) when a server base address is configured; otherwise the builder
+    // renders a missing-binding state (never mock query data, per Console Patterns Charter section 11).
+    // The server-bound data source ships once honua-server#1182's wire shape is projected into the
+    // Honua.Console.Contracts shim; until then both branches resolve the missing-binding source so the
+    // surface stays blocked rather than fabricating query packages.
+    private static void AddStudioQueryPackageDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        _ = honuaServerBaseUrl;
+        _ = honuaServerAdminApiKey;
+        services.TryAddSingleton<IStudioQueryPackageDataSource, UnsupportedStudioQueryPackageDataSource>();
     }
 
     // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)
