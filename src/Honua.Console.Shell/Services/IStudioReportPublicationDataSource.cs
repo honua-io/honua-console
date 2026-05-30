@@ -20,4 +20,35 @@ public interface IStudioReportPublicationDataSource
     Task<StudioReportPublicationLoad> LoadAsync(
         string publicationId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes the authored report: a brand-new report publication when the editor has no publication id,
+    /// otherwise a new immutable version (republish) that moves the active route pointer forward. The
+    /// serialized report document is the publish payload (the server hashes it). The pre-publish gate has
+    /// already passed before this is called; server-side validation still applies.
+    /// </summary>
+    Task<StudioReportCommandResult> PublishAsync(
+        StudioReportEditorState state,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rolls the published report's active route pointer back to an earlier immutable version (version
+    /// pinning), recording the rollback pointer server-side. No new version is created.
+    /// </summary>
+    Task<StudioReportCommandResult> RollbackAsync(
+        string publicationId,
+        string targetVersionId,
+        string? expectedEtag = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the server-owned visibility/embed policy (share/embed) of a published report. No new version
+    /// is created; the change is recorded as an audited event.
+    /// </summary>
+    Task<StudioReportCommandResult> UpdatePolicyAsync(
+        string publicationId,
+        string visibility,
+        bool embeddable,
+        string? expectedEtag = null,
+        CancellationToken cancellationToken = default);
 }
