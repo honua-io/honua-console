@@ -1,0 +1,159 @@
+@page "/operate/publishing"
+@using Honua.Console.Shell.Models
+@inject IPublishingWorkspaceDataSource PublishingData
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Publishing</p>
+        <h1>Publishing Workspace</h1>
+        <p>Publish services, layers, catalog entries, and Studio artifacts. The matrix shows which output and catalog formats each resource supports, and each review records slot, generated endpoints, catalog registration, policy, warnings, rollback class, and provenance.</p>
+    </div>
+
+    @if (_workspace is null)
+    {
+        <p class="console-muted">Loading publishing workspace...</p>
+    }
+    else
+    {
+        <OperateCapabilityStateList States="@_states" />
+
+        @if (_workspace.Matrix.Count == 0 && _workspace.Reviews.Count == 0)
+        {
+            <EmptyState Area="operate" Subject="publications" />
+        }
+        else
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Matrix</p>
+                    <h2>Publication Matrix</h2>
+                </div>
+
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr>
+                                <th>Resource</th>
+                                <th>Kind</th>
+                                <th>Target</th>
+                                <th>Support</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _workspace.Matrix)
+                            {
+                                @foreach (var target in row.Targets)
+                                {
+                                    <tr>
+                                        <td>@row.ResourceName <small>@row.ResourceId</small></td>
+                                        <td>@row.ResourceKind</td>
+                                        <td>@target.Format</td>
+                                        <td>
+                                            <span class="console-status">@target.Support</span>
+                                            @if (!string.IsNullOrWhiteSpace(target.Blocker))
+                                            {
+                                                <small class="console-muted">@target.Blocker</small>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Review</p>
+                    <h2>Publication Review</h2>
+                </div>
+
+                <div class="console-panel-grid">
+                    @foreach (var review in _workspace.Reviews)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@review.ResourceKind / @review.Slot</p>
+                                    <h2>@review.ResourceName</h2>
+                                </div>
+                                <span class="console-status">@review.RollbackClass</span>
+                            </div>
+
+                            <dl class="console-definition-list">
+                                <dt>Catalog registration</dt>
+                                <dd>
+                                    @if (review.CatalogRegistration.Registered && !string.IsNullOrWhiteSpace(review.CatalogRegistration.CatalogEntryId))
+                                    {
+                                        <a href="@($"/catalog/{review.CatalogRegistration.CatalogEntryId}")">@review.CatalogRegistration.Visibility</a>
+                                    }
+                                    else
+                                    {
+                                        @($"Not registered ({review.CatalogRegistration.Visibility})")
+                                    }
+                                </dd>
+                                <dt>Policy</dt>
+                                <dd>@review.Policy</dd>
+                                <dt>Provenance</dt>
+                                <dd>@review.Provenance</dd>
+                            </dl>
+
+                            @if (review.GeneratedEndpoints.Count > 0)
+                            {
+                                <p class="console-kicker">Generated endpoints</p>
+                                <ul class="console-event-list">
+                                    @foreach (var endpoint in review.GeneratedEndpoints)
+                                    {
+                                        <li><strong>@endpoint.Protocol</strong> <span>@endpoint.Url</span></li>
+                                    }
+                                </ul>
+                            }
+
+                            @if (review.Warnings.Count > 0)
+                            {
+                                <p class="console-kicker">Warnings</p>
+                                <ul class="console-event-list">
+                                    @foreach (var warning in review.Warnings)
+                                    {
+                                        <li>@warning</li>
+                                    }
+                                </ul>
+                            }
+
+                            <nav class="console-tab-row" aria-label="Publication evidence links">
+                                @if (!string.IsNullOrWhiteSpace(review.Links.JobHref))
+                                {
+                                    <a href="@review.Links.JobHref">Job</a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(review.Links.EventsHref))
+                                {
+                                    <a href="@review.Links.EventsHref">Events</a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(review.Links.AuditHref))
+                                {
+                                    <a href="@review.Links.AuditHref">Audit</a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(review.Links.RollbackHref))
+                                {
+                                    <a href="@review.Links.RollbackHref">Rollback evidence</a>
+                                }
+                            </nav>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private PublishingWorkspace? _workspace;
+    private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _workspace = await PublishingData.GetWorkspaceAsync();
+        _states = OperateCapabilityStateFilters.ForSurface(_workspace.CapabilityStates, "Publishing");
+    }
+}
