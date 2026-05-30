@@ -98,9 +98,53 @@ public sealed class StudioReportBuilderRenderTests
         Assert.Contains("Give the report a title.", page.Markup, StringComparison.Ordinal);
         // Authoring affordances (bindings, panels, responsive preview, narrative) are present.
         Assert.Contains("Add binding", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Add panel", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Responsive preview", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Narrative", page.Markup, StringComparison.Ordinal);
+
+        // Design structure: the StudioReportEditor mockup is a three-pane editor — outline · long-form page ·
+        // inspector — under an editor header bar with a Publish action and a responsive-preview control.
+        Assert.Contains("data-report-outline", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-report-page", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-report-inspector", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("studio-report-bar", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-report-status-badge=\"draft\"", page.Markup, StringComparison.Ordinal);
+        // The default inspector exposes the report document settings (data bindings + presentation).
+        Assert.Contains("data-report-bindings", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Allow embedding", page.Markup, StringComparison.Ordinal);
+        // Publish action reads "Publish…" for a new draft (mockup header).
+        Assert.Contains("Publish…", page.Markup, StringComparison.Ordinal);
+        // Preview breakpoint control is present in the header bar (responsive preview before publish).
+        Assert.Contains("studio-report-breakpoint", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReportBuilder_AddPanel_RendersOutlineEntryAndEmbeddedItemInThePage()
+    {
+        var data = new FakeReportDataSource();
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        page.Find("button.console-button").Click();
+
+        // Add a panel from the outline ("+ Panel"); a chart panel is created and auto-selected.
+        page.WaitForAssertion(
+            () => Assert.Contains("+ Panel", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        var addPanel = page.FindAll("button").First(b => b.TextContent.Contains("+ Panel", StringComparison.Ordinal));
+        addPanel.Click();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // The panel shows in the outline AND as an embedded item (figure) in the long-form page.
+                Assert.Contains("studio-report-outline-row--item", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("data-report-embed=\"chart\"", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("Figure 1.", page.Markup, StringComparison.Ordinal);
+                // A selected chart panel opens the embedded-item inspector with its Vega-Lite spec.
+                Assert.Contains("data-report-inspector=\"panel\"", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("Vega-Lite spec", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
     }
 
     [Fact]

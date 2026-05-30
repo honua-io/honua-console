@@ -158,9 +158,13 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
 
         public int GetCalls { get; private set; }
 
+        public HonuaPublishContentRequest? LastPublish { get; private set; }
+
         public HonuaRepublishContentRequest? LastRepublish { get; private set; }
 
         public HonuaRollbackContentRequest? LastRollback { get; private set; }
+
+        public HonuaUpdatePublicationPolicyRequest? LastPolicy { get; private set; }
 
         public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> GetAsync(
             string publicationId,
@@ -176,6 +180,14 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
             string versionSelector,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> PublishAsync(
+            HonuaPublishContentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastPublish = request;
+            return Task.FromResult(Resolve(request.RouteSlug ?? string.Empty));
+        }
 
         public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
             string publicationId,
@@ -193,6 +205,19 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
         {
             LastRollback = request;
             return Task.FromResult(Resolve(publicationId));
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>> UpdatePolicyAsync(
+            string publicationId,
+            HonuaUpdatePublicationPolicyRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastPolicy = request;
+            var resolved = Resolve(publicationId);
+            return Task.FromResult(resolved.Issue is { } issue
+                ? HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>.FromIssue(issue)
+                : HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>.FromData(
+                    new HonuaContentPublicationPolicyUpdateResponse { Route = resolved.Data!.Route }));
         }
 
         private HonuaAdminEndpointResult<HonuaContentPublicationDetail> Resolve(string publicationId)
