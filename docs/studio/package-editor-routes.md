@@ -1,6 +1,6 @@
 # Studio Package Editor Routes
 
-Status: implemented for the remaining `honua-console#39` editor routes. `/studio/form` is server-bound by `honua-console#57`; the other editor routes retain stable Console mock lifecycle refs.
+Status: implemented for the remaining `honua-console#39` editor routes. `/studio/form` is server-bound by `honua-console#57` and `/studio/analysis` is server-bound by `honua-console#53`; the other editor routes retain stable Console mock lifecycle refs.
 
 The first Console-native Studio editor set lives in the shared Razor shell library and is served by the same Blazor Web and future native host surface as the rest of Console.
 
@@ -11,7 +11,7 @@ The `/studio` entry page links to every route below. Each editor is a projection
 | Route | Package family | Editor coverage |
 | --- | --- | --- |
 | `/studio/query` | `query.package` | Source binding, predicate builder, generated SQL/filter readout, parameters, map/table preview, save-as-content lifecycle. |
-| `/studio/analysis` | `analysis.package` | Plan card, parameters, output schema, compute estimate, DAG/pipeline preview, job/result artifact review. |
+| `/studio/analysis` | `analysis.package` | Plan card, parameters, output schema, compute estimate, DAG/pipeline preview, job/result artifact review. **Server-bound to honua-server#1182 + execution engine #681/#721/#724 (`honua-console#53`)** — a dedicated builder, not the mock simulator below. |
 | `/studio/map` | `map.package` | Layer stack, filters, style, popup, legend, basemap, extent, interactions, publish/share/embed/rollback review. |
 | `/studio/dashboard` | `dashboard.package` | Data bindings, layout, Vega-Lite chart spec editor, map panels, tables, filters, version pinning, responsive preview. |
 | `/studio/report` | `report.package` | Narrative sections, data bindings, Vega-Lite chart spec editor, maps, tables, export/refresh policy, responsive preview. |
@@ -21,6 +21,8 @@ The `/studio` entry page links to every route below. Each editor is a projection
 ## Backend Boundary
 
 `/studio/form` is now its own server-bound surface (`honua-console#57`): `StudioFormBuilderPage` binds the honua-server form package lifecycle (`honua-server#1184`) through `IStudioFormPackageDataSource` over the `Honua.Console.Contracts` shim (`IHonuaFormPackageClient`). It authors fields, groups, validation, domains, conditional visibility, attachments, and privacy, then enforces an explicit reviewed offline/sync policy and a validated submit target before publish. When no server base address is configured it renders a missing-binding state — never mock form data (Console Patterns Charter section 11).
+
+`/studio/analysis` is now its own server-bound surface (`honua-console#53`): `StudioAnalysisBuilderPage` is a dedicated spatial analysis builder over `IStudioAnalysisPackageDataSource`, bound to the honua-server analysis content/artifacts contract (`honua-server#1182`) and the closed execution engine (`honua-server#681`/`#721`/`#724`). It authors a plan card (method, inputs, parameters, output schema, compute profile), surfaces a runtime/cost compute estimate and a DAG/pipeline view before submit, and offers preview/job submit; the result artifact can become a content item, layer, report/dashboard input, or workflow input. When no server base address is configured it renders an explicit missing-binding state — never mock analysis data (Console Patterns Charter section 11). This is the first slice: the server-bound `IStudioAnalysisPackageDataSource` (HTTP client behind `Honua.Console.Contracts` or a honua-sdk-dotnet projection) and a Testcontainers integration test land in a follow-up; until then `UnsupportedStudioAnalysisPackageDataSource` is registered and the page renders the not-bound surface. The Console-side pre-submit gate and DAG projection live in `StudioAnalysisPlanEvaluator` and are pinned by `StudioAnalysisPlanEvaluatorTests`; render coverage is `StudioAnalysisBuilderRenderTests`.
 
 ### `/studio/form` server contract
 
