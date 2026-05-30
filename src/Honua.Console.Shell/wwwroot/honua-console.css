@@ -4282,3 +4282,302 @@ p {
 .publish-review-layer-catalog {
     border-left: 3px solid #2563eb;
 }
+
+/* Studio dashboard builder (/studio/dashboard) — design-handoff StudioDashboardEditor */
+.studio-dashboard-editor {
+    display: grid;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.studio-dashboard-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface);
+}
+
+.studio-dashboard-glyph {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--honua-border);
+    border-radius: 7px;
+    background: var(--honua-surface-strong);
+    font-size: 1.1rem;
+}
+
+.studio-dashboard-identity {
+    min-width: 0;
+}
+
+.studio-dashboard-identity h2 {
+    margin: 2px 0 0;
+    font-size: 1.05rem;
+}
+
+.studio-breakpoint-toggle {
+    display: inline-flex;
+    border: 1px solid var(--honua-text);
+    border-radius: 7px;
+    overflow: hidden;
+}
+
+.studio-breakpoint-option {
+    border: 0;
+    border-right: 1px solid var(--honua-border);
+    padding: 6px 12px;
+    background: var(--honua-surface);
+    color: var(--honua-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.studio-breakpoint-option:last-child {
+    border-right: 0;
+}
+
+.studio-breakpoint-active {
+    background: var(--honua-accent);
+    color: #ffffff;
+}
+
+.studio-dashboard-bar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.studio-dashboard-workbench {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+}
+
+.studio-dashboard-rail,
+.studio-dashboard-inspector {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface);
+}
+
+.studio-dashboard-rail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.studio-dashboard-rail-head h3,
+.studio-inspector-head h3,
+.studio-inspector-section h3 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.studio-dashboard-rail-empty {
+    margin: 0;
+}
+
+.studio-dashboard-rail-section {
+    padding-top: 12px;
+    border-top: 1px solid var(--honua-border);
+    display: grid;
+    gap: 10px;
+}
+
+.studio-panel-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.studio-panel-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--honua-border);
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    background: var(--honua-surface);
+    text-align: left;
+    cursor: pointer;
+}
+
+.studio-panel-selected {
+    border-left-color: var(--honua-accent);
+    background: var(--honua-surface-strong);
+}
+
+.studio-panel-glyph {
+    width: 16px;
+    text-align: center;
+    color: var(--honua-muted);
+}
+
+.studio-panel-text {
+    display: grid;
+    min-width: 0;
+}
+
+.studio-panel-name {
+    font-weight: 700;
+    font-size: 0.88rem;
+}
+
+.studio-panel-kind {
+    font-size: 0.78rem;
+    color: var(--honua-muted);
+}
+
+.studio-binding-card {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #fbfdfc;
+}
+
+.studio-dashboard-canvas {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    padding: 16px;
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface-strong);
+}
+
+.studio-dashboard-canvas[data-dashboard-breakpoint="tablet"] {
+    max-width: 720px;
+}
+
+.studio-dashboard-canvas[data-dashboard-breakpoint="mobile"] {
+    max-width: 420px;
+}
+
+.studio-dashboard-narrative {
+    margin: 0;
+    padding: 10px 12px;
+    border-left: 3px solid var(--honua-accent);
+    background: var(--honua-surface);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.studio-canvas-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.studio-canvas-panel {
+    display: grid;
+    gap: 8px;
+    min-height: 120px;
+    padding: 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+    text-align: left;
+    cursor: pointer;
+}
+
+.studio-canvas-selected {
+    border: 2px solid var(--honua-accent-strong);
+}
+
+.studio-canvas-table,
+.studio-canvas-filter {
+    grid-column: 1 / -1;
+}
+
+.studio-canvas-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.studio-canvas-panel-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.studio-vega-tag {
+    border: 1px solid var(--honua-border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    background: var(--honua-surface-strong);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: var(--honua-accent-strong);
+}
+
+.studio-canvas-placeholder {
+    display: grid;
+    place-items: center;
+    min-height: 64px;
+    border: 1px dashed var(--honua-border);
+    border-radius: 6px;
+    background: repeating-linear-gradient(135deg, #f3f6f8 0 6px, #eaf0f0 6px 12px);
+    color: var(--honua-muted);
+    font-size: 0.8rem;
+}
+
+.studio-inspector-section {
+    padding-top: 12px;
+    border-top: 1px solid var(--honua-border);
+    display: grid;
+    gap: 6px;
+}
+
+.studio-vega-spec {
+    margin: 4px 0 0;
+}
+
+.studio-vega-spec summary {
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--honua-accent-strong);
+}
+
+.studio-vega-spec .studio-code {
+    margin-top: 8px;
+    width: 100%;
+    resize: vertical;
+}
+
+@media (max-width: 1100px) {
+    .studio-dashboard-workbench {
+        grid-template-columns: 1fr;
+    }
+
+    .studio-canvas-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .studio-dashboard-bar-actions {
+        margin-left: 0;
+    }
+}
+

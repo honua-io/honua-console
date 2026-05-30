@@ -131,9 +131,20 @@ public static class StudioDashboardPanelKinds
 public static class StudioDashboardBreakpoints
 {
     public const string Desktop = "desktop";
+    public const string Tablet = "tablet";
+    public const string Mobile = "mobile";
+
+    /// <summary>
+    /// Legacy narrow breakpoint alias retained for round-trip compatibility with packages saved before the
+    /// desktop/tablet/mobile responsive-preview toggle landed. New drafts pick from <see cref="All"/>.
+    /// </summary>
     public const string Narrow = "narrow";
 
-    public static IReadOnlyList<string> All { get; } = [Desktop, Narrow];
+    /// <summary>
+    /// The responsive-preview breakpoints offered in the editor toggle, matching the design handoff's
+    /// Desktop / Tablet / Mobile responsive preview control.
+    /// </summary>
+    public static IReadOnlyList<string> All { get; } = [Desktop, Tablet, Mobile];
 }
 
 /// <summary>Builds a default Vega-Lite bar-chart spec for a freshly added chart panel.</summary>

@@ -54,9 +54,53 @@ public sealed class StudioDashboardBuilderRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("data-dashboard-builder", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        Assert.Contains("Vega-Lite spec", page.Markup, StringComparison.Ordinal);
+
+        // Design handoff (StudioDashboardEditor): a three-region workbench — panel list rail,
+        // layout canvas, and panel inspector — driven from the bound package.
+        Assert.NotNull(page.Find("[data-dashboard-region=\"panels\"]"));
+        Assert.NotNull(page.Find("[data-dashboard-region=\"canvas\"]"));
+        Assert.NotNull(page.Find("[data-dashboard-region=\"inspector\"]"));
+
+        // Responsive-preview toggle offers desktop/tablet/mobile, with desktop active by default.
+        var breakpointToggle = page.Find(".studio-breakpoint-toggle");
+        Assert.Contains("Desktop", breakpointToggle.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Tablet", breakpointToggle.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Mobile", breakpointToggle.TextContent, StringComparison.Ordinal);
+
+        // The chart panel appears as a selectable layout slot tagged Vega-Lite, and the inspector
+        // exposes the editable Vega-Lite spec.
         Assert.Contains("Requests by district", page.Markup, StringComparison.Ordinal);
-        Assert.False(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.Contains("Vega-Lite", page.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll(".studio-canvas-panel"));
+        Assert.NotNull(page.Find(".studio-vega-spec textarea"));
+
+        Assert.False(FindButton(page, "Publish…").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void DashboardBuilder_SwitchBreakpoint_UpdatesCanvasPreview()
+    {
+        var data = new FakeDashboardDataSource
+        {
+            Workspace = new StudioDashboardWorkspace(
+                [new StudioDashboardPackageListItem("dashboard-1", "Operations dashboard", 1, 7, 2, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Operations dashboard"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Operations dashboard").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Equal("desktop", page.Find("[data-dashboard-region=\"canvas\"]").GetAttribute("data-dashboard-breakpoint")),
+            TimeSpan.FromSeconds(5));
+
+        page.Find(".studio-breakpoint-option[data-breakpoint=\"mobile\"]").Click();
+
+        Assert.Equal("mobile", page.Find("[data-dashboard-region=\"canvas\"]").GetAttribute("data-dashboard-breakpoint"));
     }
 
     [Fact]
