@@ -1,12 +1,67 @@
 using Honua.Console.Contracts;
+using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Native.Core.Tests;
 
 public sealed class ConsoleCatalogClientTests
 {
+    [Fact]
+    public void RuntimeShellRegistrationDoesNotUseSeededInMemoryCatalog()
+    {
+        var services = new ServiceCollection();
+
+        services.AddHonuaConsoleShell();
+
+        using var provider = services.BuildServiceProvider();
+        var catalog = provider.GetRequiredService<IConsoleCatalogClient>();
+
+        Assert.IsNotType<InMemoryConsoleCatalogClient>(catalog);
+        Assert.IsType<UnsupportedConsoleCatalogClient>(catalog);
+    }
+
+    [Fact]
+    public void DemoCatalogContentRegistrationRestoresInMemorySource()
+    {
+        var services = new ServiceCollection();
+
+        services.AddHonuaConsoleShell();
+        services.AddHonuaConsoleDemoCatalogContent();
+
+        using var provider = services.BuildServiceProvider();
+        var catalog = provider.GetRequiredService<IConsoleCatalogClient>();
+
+        Assert.IsType<InMemoryConsoleCatalogClient>(catalog);
+    }
+
+    [Fact]
+    public async Task MissingServerBindingReturnsEmptySearchAndTypedUnavailableReads()
+    {
+        var catalog = new UnsupportedConsoleCatalogClient();
+
+        var search = await catalog.SearchAsync(new CatalogListRequest(), CatalogReadContext.Authenticated);
+        var item = await catalog.GetCatalogItemAsync("coastal-flood-service", CatalogReadContext.Authenticated);
+        var openData = await catalog.GetOpenDataItemAsync("coastal-flood-service");
+        var map = await catalog.GetMapPackageAsync("storm-response-map", CatalogReadContext.Authenticated);
+        var draft = await catalog.GetDraftMapAsync("utilities-layer", CatalogReadContext.Authenticated);
+        var embed = await catalog.AuthorizeEmbedAsync(
+            "storm-response-map",
+            EmbedRouteOptions.FromUri("https://console.example/embed/maps/storm-response-map#embedToken=embed-storm-map"));
+
+        Assert.Empty(search.Items);
+        Assert.Empty(search.TypeCounts);
+        Assert.Equal(CatalogReadStatus.Unavailable, item.Status);
+        Assert.Equal(CatalogReadStatus.Unavailable, openData.Status);
+        Assert.Equal(CatalogReadStatus.Unavailable, map.Status);
+        Assert.Equal(CatalogReadStatus.Unavailable, draft.Status);
+        Assert.Equal(CatalogReadStatus.Unavailable, embed.Status);
+        Assert.Contains("Honua:Server:BaseUrl", item.Message, StringComparison.Ordinal);
+        Assert.Contains("Honua:Server:BaseUrl", map.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task CatalogSearchFiltersProtectedSummariesForAnonymousContext()
     {
