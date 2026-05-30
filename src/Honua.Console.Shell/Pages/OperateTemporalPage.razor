@@ -411,6 +411,17 @@
                             <span class="console-status console-state-neutral">as-of</span>
                             <span class="console-muted">@DescribeCheckpoint(_diff.FromCheckpointId)</span>
                         </header>
+                        @* Design: as-of map pane from the mockup split. The map renders the schematic
+                           placeholder unless a real style source is bound — no mock backend (server #1166). *@
+                        <div class="operate-temporal-pane-map operate-temporal-pane-map-asof" data-temporal-map="as-of">
+                            <MapPreview Mode="MapPreviewMode.Layer"
+                                        Height="220"
+                                        ScaleText="1:8,000"
+                                        ShowPopup="false"
+                                        TimeFrame="MapPreviewTimeFrame.AsOf"
+                                        TimeFrameLabel="@DescribeCheckpoint(_diff.FromCheckpointId)"
+                                        AriaLabel="@($"As-of state map for {_selectedSource!.ResourceId}")" />
+                        </div>
                         <dl class="console-definition-list operate-temporal-diff-counts">
                             <dt>Removed since</dt><dd>@_diff.RemovedFeatures</dd>
                             <dt>Updated since</dt><dd>@_diff.UpdatedFeatures</dd>
@@ -421,6 +432,16 @@
                             <span class="console-status console-state-success">now</span>
                             <span class="console-muted">@DescribeCheckpoint(_diff.ToCheckpointId)</span>
                         </header>
+                        @* Design: now map pane from the mockup split. *@
+                        <div class="operate-temporal-pane-map operate-temporal-pane-map-now" data-temporal-map="now">
+                            <MapPreview Mode="MapPreviewMode.Layer"
+                                        Height="220"
+                                        ScaleText="1:8,000"
+                                        ShowPopup="false"
+                                        TimeFrame="MapPreviewTimeFrame.Now"
+                                        TimeFrameLabel="@DescribeCheckpoint(_diff.ToCheckpointId)"
+                                        AriaLabel="@($"Current state map for {_selectedSource!.ResourceId}")" />
+                        </div>
                         <dl class="console-definition-list operate-temporal-diff-counts">
                             <dt>Added</dt><dd>@_diff.AddedFeatures</dd>
                             <dt>Geometry changed</dt><dd>@_diff.GeometryChangedFeatures</dd>
@@ -706,6 +727,18 @@
                             <div class="operate-temporal-threeway-col operate-temporal-col-base">
                                 <span class="console-status console-state-neutral">base</span>
                                 <small class="console-muted">@(conflict.BaseRevisionId ?? "—") · last common state</small>
+                                @* Design: "map at base" thumbnail from the mockup base column. Renders the
+                                   schematic placeholder unless a real style source is bound (server #1167). *@
+                                <div class="operate-temporal-col-base-map" data-temporal-map="base">
+                                    <MapPreview Mode="MapPreviewMode.Layer"
+                                                Height="140"
+                                                ScaleText="1:2,000"
+                                                ShowPopup="false"
+                                                ShowLabels="false"
+                                                TimeFrame="MapPreviewTimeFrame.AsOf"
+                                                TimeFrameLabel="base · last common state"
+                                                AriaLabel="@($"Map at base state for feature {conflict.FeatureId}")" />
+                                </div>
                             </div>
                             <div class="operate-temporal-threeway-col operate-temporal-col-client">
                                 <span class="console-status console-state-info">client</span>
