@@ -7,6 +7,13 @@
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading public item" Message="The open-data item is loading." />
     }
+    else if (_result.Status == CatalogReadStatus.Unavailable)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="Missing binding"
+                          Title="Open data is not bound to honua-server"
+                          Message="@(string.IsNullOrWhiteSpace(_result.Message) ? MissingBindingMessage : _result.Message)" />
+    }
     else if (_result.Status != CatalogReadStatus.Allowed || _result.Item is null)
     {
         <ConsoleStateView Kind="missing" Kicker="Not public" Title="Public item not found" Message="This item is not available as public open data." ActionHref="/share/public" ActionLabel="Back To Open Data" />
@@ -73,6 +80,11 @@
 </section>
 
 @code {
+    internal const string MissingBindingMessage =
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
+        + "open-data projection from honua-server. The merged runtime never renders seeded open-data content "
+        + "(Console Patterns Charter section 11).";
+
     [Parameter]
     public string IdOrSlug { get; set; } = string.Empty;
 

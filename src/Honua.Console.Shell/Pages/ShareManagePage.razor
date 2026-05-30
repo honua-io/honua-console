@@ -1,7 +1,9 @@
 @page "/share/manage"
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @inject IShareAccessDataSource ShareData
+@inject IConsoleCatalogClient Catalog
 
 <section class="console-page share-manage" data-share-config>
     <div class="console-detail-heading">
@@ -340,16 +342,163 @@
                             </div>
                             <span class="console-status @(share.OpenDataEligible ? "console-state-success" : "console-state-neutral")">@(share.OpenDataEligible ? "live" : "off")</span>
                         </div>
-                        <p class="console-muted">When the item is public-indexed, honua-server serves a public open-data landing page with description, license, contact, download links, DCAT metadata, and schema.org/Dataset JSON-LD. Eligibility is server-owned and follows the access tier.</p>
-                        @if (share.OpenDataEligible)
+                        <p class="console-muted">When the item is public-indexed, honua-server serves a public open-data landing page with description, license, contact, download links, DCAT metadata, and schema.org/Dataset JSON-LD. Eligibility, downloads, license, and discoverability are server-owned and follow the access tier — Console authors them here and never fabricates open-data content.</p>
+
+                        @if (!share.OpenDataEligible)
                         {
-                            <div class="console-action-row">
-                                <a class="console-button console-button-secondary" data-share-opendata-link href="/share/public/items/@share.ItemId">Open public landing ↗</a>
-                            </div>
+                            <p class="console-muted">Set the access tier to <strong>public-indexed</strong> on the Public link tab to enable the open-data landing page editor.</p>
+                        }
+                        else if (_detailMissingBinding)
+                        {
+                            <ConsoleStateView Kind="error"
+                                              Kicker="Missing binding"
+                                              Title="Open-data metadata is not bound to honua-server"
+                                              Message="@OpenDataMissingBindingMessage" />
+                        }
+                        else if (_detail is null)
+                        {
+                            <ConsoleStateView Kind="loading"
+                                              Kicker="Open data"
+                                              Title="Loading open-data metadata"
+                                              Message="Reading the server-owned content metadata projection for this item." />
                         }
                         else
                         {
-                            <p class="console-muted">Set the access tier to <strong>public-indexed</strong> on the Public link tab to enable the open-data landing page.</p>
+                            var detail = _detail;
+                            var summary = detail.Summary;
+                            <div class="share-opendata-editor" data-share-opendata-editor>
+                                <div class="share-opendata-editor-pane" data-share-opendata-fields>
+                                    <section class="console-field-group" data-share-opendata-section="identity">
+                                        <p class="console-kicker">Page identity</p>
+                                        <span class="console-muted">From canonical metadata</span>
+                                        <dl class="console-definition-list">
+                                            <dt>Title</dt>
+                                            <dd data-share-opendata-title>@summary.Title</dd>
+                                            <dt>Slug</dt>
+                                            <dd><code class="console-inline-code">@SlugOrId(summary)</code></dd>
+                                            <dt>Description</dt>
+                                            <dd>@(string.IsNullOrWhiteSpace(detail.Description) ? "—" : detail.Description)</dd>
+                                        </dl>
+                                        <label class="studio-form-label" data-share-opendata-hero>
+                                            <span>Page hero</span>
+                                            <div class="console-button-row">
+                                                <button class="console-button console-button-ghost" type="button" disabled>Upload…</button>
+                                                <button class="console-button console-button-ghost" type="button" disabled>Use map preview</button>
+                                            </div>
+                                        </label>
+                                        <label class="studio-form-label" data-share-opendata-intro>
+                                            <span>Page intro (markdown · 1–2 paragraphs)</span>
+                                            <textarea class="console-input" rows="3" readonly>@detail.Description</textarea>
+                                        </label>
+                                    </section>
+
+                                    <section class="console-field-group" data-share-opendata-section="downloads">
+                                        <p class="console-kicker">Downloads</p>
+                                        <span class="console-muted">Formats consumers can grab</span>
+                                        <div class="share-opendata-format-list" data-share-opendata-formats>
+                                            @foreach (var format in OpenDataFormats)
+                                            {
+                                                var published = IsFormatPublished(summary, format.Key);
+                                                <label class="share-opendata-format" data-share-opendata-format="@format.Key">
+                                                    <input type="checkbox" checked="@published" disabled />
+                                                    <span class="share-opendata-format-name">@format.Label</span>
+                                                    <span class="console-muted">@format.Hint</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        <dl class="console-definition-list">
+                                            <dt>Generate strategy</dt>
+                                            <dd>On-demand · cache for 7 days</dd>
+                                            <dt>Last regenerated</dt>
+                                            <dd>@summary.Modified.ToString("yyyy-MM-dd HH:mm 'UTC'")</dd>
+                                        </dl>
+                                    </section>
+
+                                    <section class="console-field-group" data-share-opendata-section="license">
+                                        <p class="console-kicker">License &amp; contact</p>
+                                        <span class="console-muted">From canonical metadata · editable here</span>
+                                        <dl class="console-definition-list">
+                                            <dt>License</dt>
+                                            <dd>@LicenseFor(detail)</dd>
+                                            <dt>Attribution</dt>
+                                            <dd>@AttributionFor(detail, summary)</dd>
+                                            <dt>Contact</dt>
+                                            <dd>@ContactFor(detail)</dd>
+                                        </dl>
+                                    </section>
+
+                                    <section class="console-field-group" data-share-opendata-section="discoverability">
+                                        <p class="console-kicker">Discoverability</p>
+                                        <div class="console-chip-row" data-share-opendata-tags>
+                                            @foreach (var tag in summary.Tags)
+                                            {
+                                                <span class="console-status console-state-neutral">#@tag</span>
+                                            }
+                                            @if (summary.Tags.Length == 0)
+                                            {
+                                                <span class="console-muted">No tags published.</span>
+                                            }
+                                        </div>
+                                        <label class="console-checkbox-row" data-share-opendata-dcat>
+                                            <input type="checkbox" checked="@share.OpenDataEligible" disabled />
+                                            <span>Register in DCAT catalog</span>
+                                        </label>
+                                        <label class="console-checkbox-row" data-share-opendata-jsonld>
+                                            <input type="checkbox" checked="@share.OpenDataEligible" disabled />
+                                            <span>Embed JSON-LD · schema.org/Dataset (helps Google Dataset Search)</span>
+                                        </label>
+                                        <label class="console-checkbox-row" data-share-opendata-stac>
+                                            <input type="checkbox" checked="@share.OpenDataEligible" disabled />
+                                            <span>Publish STAC item / collection (SpatioTemporal Asset Catalog)</span>
+                                        </label>
+                                        <p class="console-muted">DCAT, schema.org/Dataset JSON-LD, and STAC publication are server-owned and emitted by honua-server when the item is public-indexed. Toggles reflect the server projection.</p>
+                                    </section>
+
+                                    <div class="console-action-row">
+                                        <a class="console-button console-button-secondary" data-share-opendata-link href="/share/public/items/@share.ItemId">Open public landing ↗</a>
+                                    </div>
+                                </div>
+
+                                <aside class="share-opendata-editor-pane share-opendata-preview" data-share-opendata-preview>
+                                    <p class="console-kicker">Live preview</p>
+                                    <div class="share-opendata-preview-card">
+                                        <div class="share-opendata-preview-head">
+                                            <div class="console-muted">honua / data / @SlugOrId(summary)</div>
+                                            <div class="share-opendata-preview-title">@summary.Title</div>
+                                            <div class="console-chip-row">
+                                                @foreach (var tag in summary.Tags)
+                                                {
+                                                    <span class="console-status console-state-neutral">#@tag</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <p class="share-opendata-preview-intro">@(string.IsNullOrWhiteSpace(detail.Description) ? "—" : detail.Description)</p>
+                                        <div class="share-opendata-preview-downloads">
+                                            <p class="console-kicker">Download</p>
+                                            @if (summary.Formats.Length == 0)
+                                            {
+                                                <p class="console-muted">No downloadable formats published.</p>
+                                            }
+                                            else
+                                            {
+                                                <ul class="share-opendata-download-list">
+                                                    @foreach (var format in summary.Formats)
+                                                    {
+                                                        <li>
+                                                            <span class="share-opendata-download-name">@format</span>
+                                                            <span class="console-muted">↓</span>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            }
+                                        </div>
+                                        <div class="share-opendata-preview-foot console-muted">
+                                            License: @LicenseFor(detail) · Contact: @ContactFor(detail)<br />
+                                            powered by Honua · public open-data
+                                        </div>
+                                    </div>
+                                </aside>
+                            </div>
                         }
                     </article>
                 }
@@ -362,11 +511,58 @@
                                 <p class="console-kicker">Exports</p>
                                 <h3>Scheduled exports</h3>
                             </div>
+                            <div class="console-button-row">
+                                <button class="console-button console-button-ghost" type="button" disabled>Run now</button>
+                                <button class="console-button" type="button" disabled>+ New export</button>
+                            </div>
                         </div>
-                        <p class="console-muted">Scheduled exports to S3, SFTP, webhook targets, and audit snapshots run as honua-server jobs. They are authored and monitored on the unified Console runtime; export runs and history surface in Operate jobs and the Event viewer.</p>
+                        <p class="console-muted">Scheduled exports to S3, SFTP, webhook targets, and audit snapshots run as honua-server jobs. They are authored and monitored on the unified Console runtime; export runs and history surface in Operate jobs and the Event viewer. The scheduled-export registry is server-owned — Console renders it from honua-server and never fabricates export rows.</p>
+
+                        <div class="console-table-wrap" data-share-exports-table>
+                            <table class="console-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Target</th>
+                                        <th scope="col">Format</th>
+                                        <th scope="col">Filter</th>
+                                        <th scope="col">Schedule</th>
+                                        <th scope="col">Last run</th>
+                                        <th scope="col">State</th>
+                                        <th scope="col"><span class="console-visually-hidden">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (_exports.Count == 0)
+                                    {
+                                        <tr data-share-exports-empty>
+                                            <td colspan="8" class="console-muted">No scheduled exports are registered on honua-server for this item. Use “+ New export” to create one once the export registry contract is bound.</td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var export in _exports)
+                                        {
+                                            <tr data-share-export="@export.Id" data-share-export-target-kind="@export.TargetKind">
+                                                <td><strong>@export.Name</strong></td>
+                                                <td><code class="console-inline-code">@export.Target</code></td>
+                                                <td>@export.Format</td>
+                                                <td class="console-muted">@export.Filter</td>
+                                                <td><code class="console-inline-code">@export.Schedule</code></td>
+                                                <td class="console-muted">@export.LastRun</td>
+                                                <td><span class="console-status @StateClass(export.State)" data-share-export-state="@export.State">@StateLabel(export.State)</span></td>
+                                                <td><button class="console-button console-button-ghost" type="button" disabled>Edit</button></td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
                         <div class="console-action-row">
                             <a class="console-button console-button-secondary" data-share-exports-link href="/operate/jobs?itemId=@share.ItemId">View export jobs in Operate ↗</a>
                         </div>
+                        <p class="console-muted">Exports run as scheduled jobs · token rotations and connection failures surface as alerts in the Event viewer.</p>
                     </article>
                 }
 
@@ -450,6 +646,28 @@
         ("audit", "Audit & traffic")
     ];
 
+    // Canonical open-data download formats per the screens-share.jsx ShareOpenDataPage editor. A format's
+    // checkbox is checked only when the server-owned content projection actually publishes it; Console never
+    // invents downloads (Console Patterns Charter section 11).
+    private static readonly (string Key, string Label, string Hint)[] OpenDataFormats =
+    [
+        ("geojson", "GeoJSON", "whole dataset"),
+        ("geopackage", "GeoPackage", "OGC standard"),
+        ("shapefile", "Shapefile (zip)", "legacy"),
+        ("csv", "CSV (WKT)", "tabular"),
+        ("pmtiles", "PMTiles", "web map tiles"),
+        ("kml", "KML/KMZ", "Google Earth")
+    ];
+
+    internal const string OpenDataMissingBindingMessage =
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can read the server-owned "
+        + "content metadata projection that drives the open-data page editor (Console Patterns Charter section 11).";
+
+    private ConsoleContentDetail? _detail;
+    private bool _detailMissingBinding;
+    private string? _detailItemId;
+    private IReadOnlyList<ShareExportRow> _exports = [];
+
     private bool _loading;
     private bool _busy;
     private bool _attempted;
@@ -484,7 +702,48 @@
         }
     }
 
-    private void SetTab(string tab) => _tab = tab;
+    private async Task SetTab(string tab)
+    {
+        _tab = tab;
+        if (string.Equals(tab, "opendata", StringComparison.Ordinal))
+        {
+            await EnsureDetailAsync();
+        }
+    }
+
+    private async Task EnsureDetailAsync()
+    {
+        if (_share is not { } share || !share.OpenDataEligible)
+        {
+            return;
+        }
+
+        // Already loaded for the current item.
+        if (string.Equals(_detailItemId, share.ItemId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _detail = null;
+        _detailMissingBinding = false;
+        _detailItemId = share.ItemId;
+
+        if (Catalog is UnsupportedConsoleCatalogClient)
+        {
+            _detailMissingBinding = true;
+            return;
+        }
+
+        var result = await Catalog.GetOpenDataItemAsync(share.ItemId);
+        if (result.Status == CatalogReadStatus.Unavailable)
+        {
+            _detailMissingBinding = true;
+        }
+        else if (result.Status == CatalogReadStatus.Allowed && result.Item is not null)
+        {
+            _detail = result.Item;
+        }
+    }
 
     private string TabClass(string tab) =>
         string.Equals(tab, _tab, StringComparison.Ordinal) ? "active" : string.Empty;
@@ -505,6 +764,15 @@
             var load = await ShareData.LoadAsync(itemId);
             _share = load.Share;
             ApplyStates(load.CapabilityStates);
+
+            // A newly loaded item invalidates any cached open-data detail; reload if the editor tab is open.
+            _detail = null;
+            _detailItemId = null;
+            _detailMissingBinding = false;
+            if (string.Equals(_tab, "opendata", StringComparison.Ordinal))
+            {
+                await EnsureDetailAsync();
+            }
         }
         finally
         {
@@ -607,4 +875,76 @@
         HonuaConsoleShareAccessTiers.PublicIndexed => "Public indexed",
         _ => tier
     };
+
+    private static string SlugOrId(ConsoleContentSummary summary) =>
+        string.IsNullOrWhiteSpace(summary.Slug) ? summary.Id : summary.Slug;
+
+    private static bool IsFormatPublished(ConsoleContentSummary summary, string formatKey) =>
+        summary.Formats.Any(format =>
+            format.Replace(" ", string.Empty, StringComparison.Ordinal)
+                .Replace("(", string.Empty, StringComparison.Ordinal)
+                .Replace(")", string.Empty, StringComparison.Ordinal)
+                .StartsWith(formatKey, StringComparison.OrdinalIgnoreCase)
+            || format.Contains(formatKey, StringComparison.OrdinalIgnoreCase));
+
+    private static string LicenseFor(ConsoleContentDetail detail) =>
+        MetadataValue(detail, "license", "License") ?? "Not specified";
+
+    private static string ContactFor(ConsoleContentDetail detail) =>
+        MetadataValue(detail, "contact", "Contact") ?? "Not specified";
+
+    private static string AttributionFor(ConsoleContentDetail detail, ConsoleContentSummary summary) =>
+        MetadataValue(detail, "attribution", "Rights", "Attribution") ?? (string.IsNullOrWhiteSpace(summary.Owner) ? "Not specified" : summary.Owner);
+
+    // License/contact/attribution live in the server-owned content metadata. They are surfaced through the
+    // content bindings projection when present; otherwise the editor shows "Not specified" rather than
+    // inventing values.
+    private static string? MetadataValue(ConsoleContentDetail detail, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var match = detail.Bindings.FirstOrDefault(binding =>
+                string.Equals(binding.Name, key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(binding.Kind, key, StringComparison.OrdinalIgnoreCase));
+            if (match is not null && !string.IsNullOrWhiteSpace(match.Target))
+            {
+                return match.Target;
+            }
+        }
+
+        return null;
+    }
+
+    private static string StateClass(string state) => state switch
+    {
+        "success" => "console-state-success",
+        "slow" or "warn" => "console-status-warning",
+        "failed" => "console-state-danger",
+        _ => "console-state-neutral"
+    };
+
+    private static string StateLabel(string state) => state switch
+    {
+        "success" => "success",
+        "slow" => "slow",
+        "warn" => "warning",
+        "failed" => "failed",
+        _ => state
+    };
+
+    /// <summary>
+    /// A scheduled-export row projected from honua-server's export registry. The merged runtime carries no
+    /// standing export rows; this list is populated only from a bound server contract (Console Patterns
+    /// Charter section 11).
+    /// </summary>
+    private sealed record ShareExportRow(
+        string Id,
+        string Name,
+        string Target,
+        string TargetKind,
+        string Format,
+        string Filter,
+        string Schedule,
+        string LastRun,
+        string State);
 }
