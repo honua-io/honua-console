@@ -108,6 +108,154 @@ public sealed class ContentPublicationHttpClientTests
         Assert.Equal("Monthly infrastructure report", version.Title);
     }
 
+    [Fact]
+    public async Task Publish_PostsReportPayloadToCollectionRoute_AndAcceptsCreated()
+    {
+        string? requestedPath = null;
+        HttpMethod? method = null;
+        string? sentBody = null;
+        var detail = ReportDetail("pub-report-1", revision: 1, etag: "etag-1");
+        using var client = CreateClient(new RecordingHandler(async request =>
+        {
+            requestedPath = request.RequestUri?.AbsolutePath;
+            method = request.Method;
+            sentBody = request.Content is null ? null : await request.Content.ReadAsStringAsync();
+            // The publish endpoint returns 201 Created; the client must treat it as success.
+            return new HttpResponseMessage(HttpStatusCode.Created) { Content = JsonContent.Create(detail) };
+        }));
+
+        var result = await client.PublishAsync(new HonuaPublishContentRequest
+        {
+            Kind = HonuaContentPublicationKinds.Report,
+            RouteSlug = "monthly-infrastructure",
+            Title = "Monthly infrastructure report",
+            ContentPayload = "{\"format\":\"honua.report-document.v1\"}"
+        });
+
+        Assert.Null(result.Issue);
+        Assert.NotNull(result.Data);
+        Assert.Equal(HttpMethod.Post, method);
+        Assert.Equal("/api/v1/console/publications", requestedPath);
+        Assert.NotNull(sentBody);
+        Assert.Contains("\"kind\":\"report\"", sentBody, StringComparison.Ordinal);
+        Assert.Contains("monthly-infrastructure", sentBody!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Republish_PostsToRepublishRoute()
+    {
+        string? requestedPath = null;
+        var detail = ReportDetail("pub-report-1", revision: 2, etag: "etag-2");
+        using var client = CreateClient(new RecordingHandler(request =>
+        {
+            requestedPath = request.RequestUri?.AbsolutePath;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(detail) });
+        }));
+
+        var result = await client.RepublishAsync("pub-report-1", new HonuaRepublishContentRequest { Title = "v2" });
+
+        Assert.Null(result.Issue);
+        Assert.Equal("/api/v1/console/publications/pub-report-1/republish", requestedPath);
+        Assert.Equal(2, result.Data!.Route.ActiveRevision);
+    }
+
+    [Fact]
+    public async Task Rollback_PostsTargetVersionToRollbackRoute()
+    {
+        string? requestedPath = null;
+        string? sentBody = null;
+        var detail = ReportDetail("pub-report-1", revision: 1, etag: "etag-3");
+        using var client = CreateClient(new RecordingHandler(async request =>
+        {
+            requestedPath = request.RequestUri?.AbsolutePath;
+            sentBody = request.Content is null ? null : await request.Content.ReadAsStringAsync();
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(detail) };
+        }));
+
+        var result = await client.RollbackAsync("pub-report-1", new HonuaRollbackContentRequest { TargetVersionId = "ver-1" });
+
+        Assert.Null(result.Issue);
+        Assert.Equal("/api/v1/console/publications/pub-report-1/rollback", requestedPath);
+        Assert.Contains("ver-1", sentBody!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UpdatePolicy_PatchesPolicyRoute_AndReturnsUpdatedRoute()
+    {
+        string? requestedPath = null;
+        HttpMethod? method = null;
+        var response = new HonuaContentPublicationPolicyUpdateResponse
+        {
+            Route = ReportDetail("pub-report-1", revision: 2, etag: "etag-9").Route with
+            {
+                Policy = new HonuaContentPublicationPolicy
+                {
+                    Visibility = HonuaContentPublicationVisibilities.Public,
+                    Embed = new HonuaContentEmbedPolicy { AllowEmbedding = true }
+                }
+            }
+        };
+        using var client = CreateClient(new RecordingHandler(request =>
+        {
+            requestedPath = request.RequestUri?.AbsolutePath;
+            method = request.Method;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(response) });
+        }));
+
+        var result = await client.UpdatePolicyAsync(
+            "pub-report-1",
+            new HonuaUpdatePublicationPolicyRequest { Visibility = HonuaContentPublicationVisibilities.Public });
+
+        Assert.Null(result.Issue);
+        Assert.Equal(HttpMethod.Patch, method);
+        Assert.Equal("/api/v1/console/publications/pub-report-1/policy", requestedPath);
+        Assert.Equal(HonuaContentPublicationVisibilities.Public, result.Data!.Route.Policy.Visibility);
+    }
+
+    [Fact]
+    public async Task Republish_WhenEtagConflict_MapsToConflictIssue()
+    {
+        using var client = CreateClient(new RecordingHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.Conflict))));
+
+        var result = await client.RepublishAsync("pub-report-1", new HonuaRepublishContentRequest { ExpectedEtag = "stale" });
+
+        Assert.Null(result.Data);
+        Assert.NotNull(result.Issue);
+        Assert.Equal("Conflict", result.Issue!.State);
+        Assert.Equal(409, result.Issue.StatusCode);
+    }
+
+    private static HonuaContentPublicationDetail ReportDetail(string publicationId, long revision, string etag) =>
+        new()
+        {
+            Route = new HonuaContentPublicationRouteState
+            {
+                PublicationId = publicationId,
+                RouteSlug = "monthly-infrastructure",
+                RoutePath = "/published/monthly-infrastructure",
+                Kind = HonuaContentPublicationKinds.Report,
+                ActiveVersionId = $"ver-{revision}",
+                ActiveRevision = revision,
+                Lifecycle = HonuaContentPublicationLifecycles.Active,
+                Etag = etag
+            },
+            Versions =
+            [
+                new HonuaContentPublicationVersion
+                {
+                    PublicationId = publicationId,
+                    VersionId = $"ver-{revision}",
+                    Revision = revision,
+                    Kind = HonuaContentPublicationKinds.Report,
+                    RouteSlug = "monthly-infrastructure",
+                    RoutePath = "/published/monthly-infrastructure",
+                    Title = "Monthly infrastructure report",
+                    CreatedBy = "ops@honua.test"
+                }
+            ]
+        };
+
     private static HonuaContentPublicationHttpClient CreateClient(HttpMessageHandler handler, TimeSpan? timeout = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
@@ -139,5 +287,18 @@ public sealed class ContentPublicationHttpClientTests
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(_responseFactory(request));
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _responseFactory;
+
+        public RecordingHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> responseFactory)
+        {
+            _responseFactory = responseFactory;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            _responseFactory(request);
     }
 }
