@@ -2454,6 +2454,340 @@ p {
     font-weight: 700;
 }
 
+/* honua-console#58 — Studio app builder (StudioAppEditor design handoff): a three-pane editor with an
+   app-identity toolbar, a page tree + component palette rail, a responsive page canvas, and a
+   component-binding inspector. Mirrors wireframe.css intent using the shared design tokens. */
+.console-button-sm {
+    min-height: 28px;
+    padding: 0 9px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.studio-app-editor {
+    display: grid;
+    gap: 0;
+    margin-top: 16px;
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--honua-surface);
+}
+
+.studio-app-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--honua-border);
+    background: var(--honua-surface);
+}
+
+.studio-app-glyph {
+    font-size: 1rem;
+}
+
+.studio-app-name {
+    width: 240px;
+    max-width: 100%;
+    font-weight: 700;
+}
+
+.studio-app-stats {
+    font-size: 0.78rem;
+}
+
+.studio-app-toolbar-spacer {
+    flex: 1 1 auto;
+}
+
+.studio-app-status {
+    margin: 0;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.studio-app-panes {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) 320px;
+    align-items: stretch;
+    min-height: 420px;
+}
+
+.studio-app-rail {
+    border-right: 1px solid var(--honua-border);
+    background: var(--honua-bg);
+    overflow: auto;
+}
+
+.studio-app-rail-head,
+.studio-app-palette h3,
+.studio-app-inspector-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.studio-app-rail-head {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.studio-app-rail-head h3,
+.studio-app-palette h3 {
+    margin: 0;
+    font-size: 0.8rem;
+}
+
+.studio-app-rail-head .console-button-sm {
+    margin-left: auto;
+}
+
+.studio-app-rail-empty {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+}
+
+.studio-app-page-tree {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.studio-app-page-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 12px;
+    border: 0;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid var(--honua-surface-strong);
+    background: transparent;
+    color: var(--honua-text);
+    font: inherit;
+    font-size: 0.82rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.studio-app-page-node:hover {
+    background: var(--honua-surface-strong);
+}
+
+.studio-app-page-node-selected {
+    border-left-color: var(--honua-accent);
+    background: #fffae0;
+    font-weight: 700;
+}
+
+.studio-app-page-icon {
+    width: 16px;
+    text-align: center;
+}
+
+.studio-app-page-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.studio-app-page-route {
+    font-size: 0.7rem;
+}
+
+.studio-app-palette {
+    padding: 10px 12px;
+    border-top: 1px dashed var(--honua-border);
+}
+
+.studio-app-palette h3 {
+    margin-bottom: 6px;
+}
+
+.studio-app-palette-list {
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.studio-app-palette-item {
+    padding: 3px 8px;
+    border: 1px solid var(--honua-border);
+    border-radius: 4px;
+    background: var(--honua-surface);
+    font-size: 0.72rem;
+}
+
+.studio-app-canvas {
+    display: flex;
+    justify-content: center;
+    padding: 18px;
+    background: var(--honua-bg);
+    overflow: auto;
+}
+
+.studio-app-frame {
+    width: 100%;
+    max-width: 640px;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--honua-surface);
+}
+
+.studio-app-frame-chrome {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.studio-app-frame-dots {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.studio-app-frame-dots i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--honua-border);
+}
+
+.studio-app-frame-url {
+    flex: 1 1 auto;
+    font-size: 0.7rem;
+    color: var(--honua-muted);
+    text-align: center;
+}
+
+.studio-app-frame-titlebar {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--honua-border);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.studio-app-frame-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--honua-border);
+    background: var(--honua-bg);
+}
+
+.studio-app-frame-navitem {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    color: var(--honua-muted);
+}
+
+.studio-app-frame-navitem-active {
+    background: var(--honua-accent);
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.studio-app-frame-stage {
+    position: relative;
+    min-height: 220px;
+    margin: 10px;
+    padding: 28px 14px 14px;
+    border: 2px solid var(--honua-accent);
+    border-radius: 4px;
+}
+
+.studio-app-frame-tag {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    padding: 1px 6px;
+    border-radius: 2px;
+    background: #fffae0;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.studio-app-frame-binding {
+    font-size: 0.78rem;
+}
+
+.studio-app-inspector {
+    border-left: 1px solid var(--honua-border);
+    background: var(--honua-bg);
+    padding: 12px;
+    overflow: auto;
+    display: grid;
+    gap: 6px;
+    align-content: start;
+}
+
+.studio-app-inspector .studio-inspector-section {
+    margin-top: 0;
+    padding: 10px 0;
+    border-top: 1px solid var(--honua-border);
+}
+
+.studio-app-inspector .studio-inspector-section:first-child {
+    border-top: 0;
+}
+
+.studio-app-inspector h3 {
+    margin: 0 0 6px;
+    font-size: 0.85rem;
+}
+
+.studio-app-inspector h4 {
+    margin: 0 0 4px;
+    font-size: 0.8rem;
+}
+
+.studio-app-inspector-head {
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.studio-app-inspector-head .console-button-sm {
+    margin-left: auto;
+}
+
+.studio-app-action {
+    margin: 8px 0 0;
+    padding: 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.studio-app-gate {
+    border-left: 3px solid #d97706;
+    padding-left: 10px;
+}
+
+@media (max-width: 1100px) {
+    .studio-app-panes {
+        grid-template-columns: 1fr;
+    }
+
+    .studio-app-rail,
+    .studio-app-inspector {
+        border-right: 0;
+        border-left: 0;
+        border-top: 1px solid var(--honua-border);
+    }
+}
+
 /* honua-console#43 — temporal viewer + disconnected sync conflict review */
 .operate-temporal-detail {
     display: grid;

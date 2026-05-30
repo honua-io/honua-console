@@ -415,6 +415,12 @@ public sealed class StudioDashboardPackageDataSourceTests
                 CreatedAt = DateTimeOffset.UtcNow
             }));
 
+        public Task<StudioEndpointResult<StudioRollbackRequest>> CreateRollbackRequestAsync(
+            Guid itemId,
+            CreateStudioRollbackRequest request,
+            CancellationToken cancellationToken = default) =>
+            RollbackAsync(itemId, request, cancellationToken);
+
         private static StudioEndpointResult<T> NotFound<T>(string contract) =>
             StudioEndpointResult<T>.FromIssue(new StudioEndpointIssue("Unsupported", contract, "not found", 404));
 

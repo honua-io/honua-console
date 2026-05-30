@@ -112,4 +112,75 @@ public sealed class StudioAppPackageDataSourceTests
         using var document = JsonDocument.Parse(json);
         Assert.Equal(JsonValueKind.Object, document.RootElement.ValueKind);
     }
+
+    [Fact]
+    public void ApplyEnvelopeBodyRoundTripsAuthoredState()
+    {
+        var authored = StudioAppPackageMapper.CreateTemplate();
+        authored.Title = "Field operations";
+        authored.Summary = "Permit inspections";
+        authored.Pages[0].Title = "Permits map";
+        authored.Pages[0].ComponentKind = "dashboard";
+        authored.Pages[0].ContentBinding = "content:permits@v3";
+        authored.Pages.Add(new StudioAppPageState { Route = "/form", Title = "Inspect", ComponentKind = "form", ContentBinding = "content:inspect@v1" });
+        authored.Actions.Add(new StudioAppActionState { Name = "submit", PageRoute = "/form", RequiredPermission = "operator" });
+        authored.Visibility = "organization";
+        authored.EmbedEnabled = true;
+        authored.ShareEmbedPolicyReviewed = true;
+
+        var body = StudioAppPackageMapper.BuildEnvelopeBody(authored);
+
+        // Rehydrating a fresh scaffold from the projected body must reconstruct the authored content so a
+        // reopened/reloaded draft renders real data, not a blank template.
+        var rehydrated = StudioAppPackageMapper.CreateTemplate();
+        StudioAppPackageMapper.ApplyEnvelopeBody(rehydrated, body);
+
+        Assert.Equal("Field operations", rehydrated.Title);
+        Assert.Equal("Permit inspections", rehydrated.Summary);
+        Assert.Equal(2, rehydrated.Pages.Count);
+        Assert.Equal("dashboard", rehydrated.Pages[0].ComponentKind);
+        Assert.Equal("content:permits@v3", rehydrated.Pages[0].ContentBinding);
+        Assert.Equal("/form", rehydrated.Pages[1].Route);
+        var action = Assert.Single(rehydrated.Actions);
+        Assert.Equal("operator", action.RequiredPermission);
+        Assert.Equal("organization", rehydrated.Visibility);
+        Assert.True(rehydrated.EmbedEnabled);
+        Assert.True(rehydrated.ShareEmbedPolicyReviewed);
+    }
+
+    [Fact]
+    public void ApplyEnvelopeBodyToleratesNullAndMalformedBody()
+    {
+        var state = StudioAppPackageMapper.CreateTemplate();
+        state.Title = "Keep me";
+
+        StudioAppPackageMapper.ApplyEnvelopeBody(state, null);
+        // A non-object body (e.g. an array) must be ignored rather than throwing.
+        StudioAppPackageMapper.ApplyEnvelopeBody(state, JsonSerializer.SerializeToElement(new[] { 1, 2, 3 }));
+
+        Assert.Equal("Keep me", state.Title);
+        Assert.Single(state.Pages);
+    }
+
+    [Fact]
+    public async Task UnsupportedDataSourceSurfacesMissingBindingForHistoryReopenAndRollback()
+    {
+        var dataSource = new UnsupportedStudioAppPackageDataSource();
+        var itemId = Guid.NewGuid();
+
+        var history = await dataSource.LoadVersionHistoryAsync(itemId);
+        Assert.False(history.HasVersions);
+        Assert.NotNull(history.Issue);
+        Assert.Equal("Missing binding", history.Issue!.State);
+
+        var reopen = await dataSource.ReopenAsync(itemId, Guid.NewGuid());
+        Assert.False(reopen.Succeeded);
+        Assert.Equal("Missing binding", reopen.Issue!.State);
+
+        var rollback = await dataSource.RollbackAsync(itemId, Guid.NewGuid(), reason: null);
+        Assert.False(rollback.Succeeded);
+
+        var preview = await dataSource.PreviewAsync(StudioAppPackageMapper.CreateTemplate());
+        Assert.False(preview.Succeeded);
+    }
 }

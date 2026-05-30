@@ -1,7 +1,14 @@
 @page "/studio/app"
 @inject IStudioAppPackageDataSource AppData
 
-<section class="console-page studio-app-builder">
+@* Studio app builder (honua-console#58). Three-pane editor matching the StudioAppEditor design handoff
+   (docs/design-handoff/console-canvas/screens-studio-rest.jsx): an app-identity toolbar, a page tree +
+   component palette rail, a responsive page canvas, and a component-binding inspector. Binds the
+   server-owned Studio app package lifecycle (honua-server#1180/#1183) through the
+   Honua.Console.Contracts shim; renders the missing-binding surface (not mock data) when no server base
+   URL is configured. Reopened edits create new content versions rather than mutating published state. *@
+
+<section class="console-page studio-page studio-app-builder">
     <div class="console-page-heading">
         <p class="console-kicker">Builder workflow</p>
         <h1>App builder</h1>
@@ -25,200 +32,282 @@
     else if (_editor is { } editor)
     {
         var readiness = StudioAppPackageMapper.EvaluatePublishReadiness(editor);
-
-        @if (_states.Count > 0)
-        {
-            <section class="console-section">
-                <div class="console-page-heading">
-                    <p class="console-kicker">App binding</p>
-                    <h2>Server Capability States</h2>
-                </div>
-                <div class="console-panel-grid">
-                    @foreach (var state in _states)
-                    {
-                        <article class="console-panel">
-                            <div class="console-panel-heading">
-                                <div>
-                                    <p class="console-kicker">@state.State</p>
-                                    <h2>@state.Surface</h2>
-                                </div>
-                            </div>
-                            <p class="console-muted">@state.Detail</p>
-                            <dl class="console-definition-list">
-                                <dt>Contract</dt>
-                                <dd>@state.Contract</dd>
-                            </dl>
-                        </article>
-                    }
-                </div>
-            </section>
-        }
+        var selectedPage = SelectedPage;
 
         <div class="studio-app-editor" data-app-builder="app.package" data-app-published="@editor.IsPublished.ToString().ToLowerInvariant()">
-            <div class="console-panel-heading">
-                <div>
-                    <p class="console-kicker">@(editor.IsExistingDraft ? "Server draft" : "New draft")@(editor.IsPublished ? $" · published v{editor.PublishedVersion}" : string.Empty)</p>
-                    <h2>@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled app" : editor.Title)</h2>
-                </div>
-                <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@(editor.IsPublished ? "published" : "draft")</span>
-            </div>
-
-            <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@_busy" @onclick="Save">Save draft</button>
+            @* App-identity toolbar: glyph, name, lifecycle badge, summary stats, then preview/lifecycle actions. *@
+            <div class="studio-app-toolbar" data-app-toolbar="true">
+                <span class="studio-app-glyph" aria-hidden="true">❒</span>
+                <input class="console-input studio-app-name" readonly
+                       value="@(string.IsNullOrWhiteSpace(editor.Title) ? "untitled-app" : editor.Title)"
+                       aria-label="App identity" />
+                <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">
+                    @(editor.IsPublished ? $"published v{editor.PublishedVersion}" : (editor.IsExistingDraft ? "server draft" : "new draft"))
+                </span>
+                <span class="console-muted studio-app-stats" data-app-stats="true">
+                    @editor.Pages.Count page@(editor.Pages.Count == 1 ? string.Empty : "s") · @editor.Actions.Count action@(editor.Actions.Count == 1 ? string.Empty : "s") · @editor.Visibility@(editor.EmbedEnabled ? " · embeddable" : string.Empty)
+                </span>
+                <div class="studio-app-toolbar-spacer"></div>
+                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Preview">Live preview ↗</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Validate">Validate</button>
-                <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">Publish</button>
+                <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Save">Save draft</button>
+                <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">Publish…</button>
             </div>
 
             @if (!string.IsNullOrEmpty(_status))
             {
-                <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+                <p class="@(_statusFailed ? "console-warning" : "console-status") studio-app-status" role="status" aria-live="polite">@_status</p>
             }
 
-            @if (!readiness.CanPublish)
-            {
-                <article class="console-panel" aria-labelledby="app-publish-readiness-heading">
-                    <p class="console-kicker">Pre-publish gate</p>
-                    <h3 id="app-publish-readiness-heading">Resolve before publish</h3>
-                    <ul class="studio-compact-list">
-                        @foreach (var requirement in readiness.UnmetRequirements)
-                        {
-                            <li>@requirement</li>
-                        }
-                    </ul>
-                </article>
-            }
-
-            @if (_validation is { } validation)
-            {
-                <article class="console-panel" aria-labelledby="app-validation-heading">
-                    <div class="console-panel-heading">
-                        <div>
-                            <p class="console-kicker">Server validation</p>
-                            <h3 id="app-validation-heading">@(validation.IsValid ? "Valid" : "Issues reported")</h3>
-                        </div>
-                        <span class="console-status @(validation.IsValid ? string.Empty : "console-status-danger")">@(validation.IsValid ? "valid" : $"{validation.Issues.Count} issue(s)")</span>
+            @* Three panes: page tree + component palette · responsive canvas · component-binding inspector. *@
+            <div class="studio-app-panes">
+                <aside class="studio-app-rail" data-app-rail="true">
+                    <div class="studio-app-rail-head">
+                        <h3>Pages</h3>
+                        <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="AddPage">+ Page</button>
                     </div>
-                    @if (validation.Issues.Count > 0)
+
+                    @if (editor.Pages.Count == 0)
                     {
-                        <ul class="studio-compact-list">
-                            @foreach (var issue in validation.Issues)
+                        <p class="console-muted studio-app-rail-empty">No pages yet. Add at least one page bound to a saved content version.</p>
+                    }
+                    else
+                    {
+                        <ul class="studio-app-page-tree" data-app-page-tree="true">
+                            @foreach (var appPage in editor.Pages)
                             {
-                                <li><strong>@issue.Severity</strong> @issue.Message @(string.IsNullOrWhiteSpace(issue.Path) ? string.Empty : $"({issue.Path})")</li>
+                                <li @key="appPage">
+                                    <button type="button"
+                                            class="studio-app-page-node @(ReferenceEquals(appPage, selectedPage) ? "studio-app-page-node-selected" : string.Empty)"
+                                            aria-pressed="@ReferenceEquals(appPage, selectedPage)"
+                                            @onclick="() => SelectPage(appPage)">
+                                        <span class="studio-app-page-icon" aria-hidden="true">@ComponentGlyph(appPage.ComponentKind)</span>
+                                        <span class="studio-app-page-label">@(string.IsNullOrWhiteSpace(appPage.Title) ? appPage.Route : appPage.Title)</span>
+                                        <span class="console-muted studio-app-page-route">@appPage.Route</span>
+                                    </button>
+                                </li>
                             }
                         </ul>
                     }
-                </article>
-            }
 
-            <article class="console-panel">
-                <p class="console-kicker">Details</p>
-                <h3>App</h3>
-                <label class="studio-form-label">
-                    <span>Title</span>
-                    <input class="console-input" @bind="editor.Title" placeholder="Field operations app" />
-                </label>
-                <label class="studio-form-label">
-                    <span>Summary</span>
-                    <textarea class="console-input" rows="2" @bind="editor.Summary"></textarea>
-                </label>
-            </article>
-
-            <article class="console-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Pages, components, and navigation</p>
-                        <h3>Pages</h3>
+                    <div class="studio-app-palette" data-app-palette="true">
+                        <h3>Components</h3>
+                        <div class="console-chip-row studio-app-palette-list">
+                            @foreach (var kind in StudioAppComponentKinds.All)
+                            {
+                                <span class="studio-app-palette-item">@kind</span>
+                            }
+                        </div>
                     </div>
-                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="AddPage">Add page</button>
+                </aside>
+
+                <div class="studio-app-canvas" data-app-canvas="true">
+                    @if (selectedPage is { } canvasPage)
+                    {
+                        <div class="studio-app-frame" data-app-frame="true">
+                            <div class="studio-app-frame-chrome">
+                                <span class="studio-app-frame-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                                <span class="studio-app-frame-url mono">@AppUrl(editor, canvasPage)</span>
+                            </div>
+                            <div class="studio-app-frame-titlebar">@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled app" : editor.Title)</div>
+                            <nav class="studio-app-frame-nav" aria-label="App navigation">
+                                @foreach (var navItem in editor.Pages.Where(p => !string.IsNullOrWhiteSpace(p.Route)))
+                                {
+                                    <span class="studio-app-frame-navitem @(ReferenceEquals(navItem, canvasPage) ? "studio-app-frame-navitem-active" : string.Empty)">@(string.IsNullOrWhiteSpace(navItem.Title) ? navItem.Route : navItem.Title)</span>
+                                }
+                            </nav>
+                            <div class="studio-app-frame-stage">
+                                <span class="studio-app-frame-tag">@canvasPage.ComponentKind · selected</span>
+                                @if (string.IsNullOrWhiteSpace(canvasPage.ContentBinding))
+                                {
+                                    <p class="console-muted">No content binding yet. Bind this @canvasPage.ComponentKind component to a saved content version in the inspector.</p>
+                                }
+                                else
+                                {
+                                    <p class="studio-app-frame-binding mono">@canvasPage.ContentBinding</p>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="console-muted">Select or add a page to preview its component on the responsive canvas.</p>
+                    }
                 </div>
 
-                @if (editor.Pages.Count == 0)
-                {
-                    <p class="console-muted">No pages yet. Add at least one page bound to a saved content version.</p>
-                }
+                <aside class="studio-app-inspector" data-app-inspector="true">
+                    @if (_states.Count > 0)
+                    {
+                        <section class="studio-inspector-section" data-app-states="true">
+                            <h3>Server capability states</h3>
+                            @foreach (var state in _states)
+                            {
+                                <article class="console-panel">
+                                    <p class="console-kicker">@state.State</p>
+                                    <h4>@state.Surface</h4>
+                                    <p class="console-muted">@state.Detail</p>
+                                    <dl class="console-definition-list">
+                                        <dt>Contract</dt>
+                                        <dd>@state.Contract</dd>
+                                    </dl>
+                                </article>
+                            }
+                        </section>
+                    }
 
-                @foreach (var page in editor.Pages)
-                {
-                    <fieldset class="studio-app-page" @key="page">
-                        <div class="console-panel-grid">
-                            <label class="studio-form-label"><span>Route</span><input class="console-input" @bind="page.Route" placeholder="/map" /></label>
-                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="page.Title" placeholder="Map" /></label>
+                    @if (selectedPage is { } inspected)
+                    {
+                        <section class="studio-inspector-section" data-app-page-inspector="true" @key="inspected">
+                            <div class="studio-app-inspector-head">
+                                <div>
+                                    <h3>@(string.IsNullOrWhiteSpace(inspected.Title) ? "Page" : inspected.Title)</h3>
+                                    <p class="console-muted">page component</p>
+                                </div>
+                                <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="() => RemovePage(inspected)">Remove page</button>
+                            </div>
+                            <label class="studio-form-label"><span>Route</span><input class="console-input" @bind="inspected.Route" placeholder="/map" /></label>
+                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="inspected.Title" placeholder="Map" /></label>
                             <label class="studio-form-label">
                                 <span>Component</span>
-                                <select class="console-input" @bind="page.ComponentKind">
+                                <select class="console-input" @bind="inspected.ComponentKind">
                                     @foreach (var kind in StudioAppComponentKinds.All)
                                     {
                                         <option value="@kind">@kind</option>
                                     }
                                 </select>
                             </label>
-                            <label class="studio-form-label"><span>Content binding</span><input class="console-input" @bind="page.ContentBinding" placeholder="content:permits@v3" /></label>
+                            <label class="studio-form-label"><span>Content binding</span><input class="console-input" @bind="inspected.ContentBinding" placeholder="content:permits@@v3" /></label>
+                        </section>
+                    }
+
+                    <section class="studio-inspector-section" data-app-details="true">
+                        <h3>App</h3>
+                        <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="editor.Title" placeholder="Field operations app" /></label>
+                        <label class="studio-form-label"><span>Summary</span><textarea class="console-input" rows="2" @bind="editor.Summary"></textarea></label>
+                    </section>
+
+                    <section class="studio-inspector-section" data-app-actions="true">
+                        <div class="studio-app-inspector-head">
+                            <h3>Actions &amp; permissions</h3>
+                            <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="AddAction">+ Action</button>
                         </div>
-                        <div class="console-action-row">
-                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemovePage(page)">Remove page</button>
-                        </div>
-                    </fieldset>
-                }
-            </article>
+                        @if (editor.Actions.Count == 0)
+                        {
+                            <p class="console-muted">No actions yet. Bound actions declare a permission requirement for the generated-app runtime.</p>
+                        }
+                        @foreach (var action in editor.Actions)
+                        {
+                            <fieldset class="studio-app-action" @key="action">
+                                <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="action.Name" placeholder="submit inspection" /></label>
+                                <label class="studio-form-label"><span>Page route</span><input class="console-input" @bind="action.PageRoute" placeholder="/form" /></label>
+                                <label class="studio-form-label">
+                                    <span>Required permission</span>
+                                    <select class="console-input" @bind="action.RequiredPermission">
+                                        @foreach (var permission in StudioAppPermissions.All)
+                                        {
+                                            <option value="@permission">@permission</option>
+                                        }
+                                    </select>
+                                </label>
+                                <div class="console-action-row">
+                                    <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="() => RemoveAction(action)">Remove</button>
+                                </div>
+                            </fieldset>
+                        }
+                    </section>
 
-            <article class="console-panel">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Actions and permissions</p>
-                        <h3>Actions</h3>
-                    </div>
-                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="AddAction">Add action</button>
-                </div>
-
-                @if (editor.Actions.Count == 0)
-                {
-                    <p class="console-muted">No actions yet. Bound actions declare a permission requirement for the generated-app runtime.</p>
-                }
-
-                @foreach (var action in editor.Actions)
-                {
-                    <div class="console-panel-grid" @key="action">
-                        <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="action.Name" placeholder="submit inspection" /></label>
-                        <label class="studio-form-label"><span>Page route</span><input class="console-input" @bind="action.PageRoute" placeholder="/form" /></label>
+                    <section class="studio-inspector-section studio-app-share" data-app-share="true" aria-labelledby="app-share-heading">
+                        <h3 id="app-share-heading">Share/embed policy</h3>
+                        <p class="console-muted">The share visibility and embed policy must be an explicit, reviewed decision before publish.</p>
                         <label class="studio-form-label">
-                            <span>Required permission</span>
-                            <select class="console-input" @bind="action.RequiredPermission">
-                                @foreach (var permission in StudioAppPermissions.All)
+                            <span>Visibility</span>
+                            <select class="console-input" @bind="editor.Visibility">
+                                @foreach (var visibility in StudioAppVisibilityModes.All)
                                 {
-                                    <option value="@permission">@permission</option>
+                                    <option value="@visibility">@visibility</option>
                                 }
                             </select>
                         </label>
-                        <div class="console-action-row">
-                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemoveAction(action)">Remove</button>
+                        <div class="console-chip-row studio-form-toggles">
+                            <label><input type="checkbox" @bind="editor.EmbedEnabled" /> <span>Embeddable</span></label>
                         </div>
-                    </div>
-                }
-            </article>
+                        <label class="studio-form-review">
+                            <input type="checkbox" @bind="editor.ShareEmbedPolicyReviewed" />
+                            <span>I reviewed the share/embed policy for this app (required before publish).</span>
+                        </label>
+                    </section>
 
-            <article class="console-panel studio-app-share" aria-labelledby="app-share-heading">
-                <p class="console-kicker">Share and embed</p>
-                <h3 id="app-share-heading">Share/embed policy</h3>
-                <p class="console-muted">The share visibility and embed policy must be an explicit, reviewed decision before publish.</p>
-                <div class="console-panel-grid">
-                    <label class="studio-form-label">
-                        <span>Visibility</span>
-                        <select class="console-input" @bind="editor.Visibility">
-                            @foreach (var visibility in StudioAppVisibilityModes.All)
+                    @if (!readiness.CanPublish)
+                    {
+                        <section class="studio-inspector-section studio-app-gate" data-app-gate="true" aria-labelledby="app-publish-readiness-heading">
+                            <h3 id="app-publish-readiness-heading">Resolve before publish</h3>
+                            <ul class="studio-compact-list">
+                                @foreach (var requirement in readiness.UnmetRequirements)
+                                {
+                                    <li>@requirement</li>
+                                }
+                            </ul>
+                        </section>
+                    }
+
+                    @if (_validation is { } validation)
+                    {
+                        <section class="studio-inspector-section" data-app-validation="true" aria-labelledby="app-validation-heading">
+                            <div class="studio-app-inspector-head">
+                                <h3 id="app-validation-heading">@(validation.IsValid ? "Validation · valid" : "Validation · issues reported")</h3>
+                                <span class="console-status @(validation.IsValid ? string.Empty : "console-status-danger")">@(validation.IsValid ? "valid" : $"{validation.Issues.Count} issue(s)")</span>
+                            </div>
+                            @if (validation.Issues.Count > 0)
                             {
-                                <option value="@visibility">@visibility</option>
+                                <ul class="studio-compact-list">
+                                    @foreach (var issue in validation.Issues)
+                                    {
+                                        <li><strong>@issue.Severity</strong> @issue.Message @(string.IsNullOrWhiteSpace(issue.Path) ? string.Empty : $"({issue.Path})")</li>
+                                    }
+                                </ul>
                             }
-                        </select>
-                    </label>
-                </div>
-                <div class="console-chip-row studio-form-toggles">
-                    <label><input type="checkbox" @bind="editor.EmbedEnabled" /> <span>Embeddable</span></label>
-                </div>
-                <label class="studio-form-review">
-                    <input type="checkbox" @bind="editor.ShareEmbedPolicyReviewed" />
-                    <span>I reviewed the share/embed policy for this app (required before publish).</span>
-                </label>
-            </article>
+                        </section>
+                    }
+
+                    @if (editor.ItemId is { } itemId)
+                    {
+                        <section class="studio-inspector-section studio-app-history" data-app-history="true" aria-labelledby="app-history-heading">
+                            <div class="studio-app-inspector-head">
+                                <h3 id="app-history-heading">Version history</h3>
+                                <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="RefreshHistory">Refresh</button>
+                            </div>
+                            <p class="console-muted">Reopening a published version starts a new editable draft; saving it creates a new content version rather than mutating the published app. Rollback repoints the published app to an earlier version.</p>
+
+                            @if (_history?.Issue is { } historyIssue)
+                            {
+                                <p class="console-warning">@historyIssue.Detail</p>
+                            }
+                            else if (_history is { HasVersions: false })
+                            {
+                                <p class="console-muted">No content versions yet. Publish to create the first immutable version.</p>
+                            }
+                            else if (_history is { } history)
+                            {
+                                <ul class="studio-compact-list">
+                                    @foreach (var version in history.Versions)
+                                    {
+                                        <li @key="version.VersionId">
+                                            <strong>v@version.VersionNumber</strong>
+                                            @(version.IsPublished ? " (published)" : string.Empty)
+                                            @(string.IsNullOrWhiteSpace(version.ChangeNote) ? string.Empty : $" — {version.ChangeNote}")
+                                            <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="() => Reopen(itemId, version.VersionId)">Reopen as draft</button>
+                                            @if (!version.IsPublished)
+                                            {
+                                                <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="() => Rollback(itemId, version.VersionId)">Roll back to this</button>
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </section>
+                    }
+                </aside>
+            </div>
         </div>
     }
 </section>
@@ -227,11 +316,32 @@
     private bool _loading = true;
     private bool _busy;
     private StudioAppEditorState? _editor;
+    private StudioAppPageState? _selectedPage;
     private StudioAppCapabilityState? _bindingState;
     private IReadOnlyList<StudioAppCapabilityState> _states = [];
     private StudioAppValidationView? _validation;
+    private StudioAppVersionHistory? _history;
     private string? _status;
     private bool _statusFailed;
+
+    private StudioAppPageState? SelectedPage
+    {
+        get
+        {
+            if (_editor is null || _editor.Pages.Count == 0)
+            {
+                return null;
+            }
+
+            if (_selectedPage is not null && _editor.Pages.Contains(_selectedPage))
+            {
+                return _selectedPage;
+            }
+
+            _selectedPage = _editor.Pages[0];
+            return _selectedPage;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -239,24 +349,93 @@
         var load = await AppData.LoadAsync(null);
         ApplyStates(load.CapabilityStates);
         _editor = load.State;
+        _selectedPage = _editor?.Pages.FirstOrDefault();
         _loading = false;
+
+        if (_editor?.ItemId is { } itemId)
+        {
+            await LoadHistoryAsync(itemId);
+        }
     }
 
-    private Task Save() => RunCommandAsync(() => AppData.SaveDraftAsync(_editor!));
+    private void SelectPage(StudioAppPageState page) => _selectedPage = page;
+
+    private static string ComponentGlyph(string kind) => kind switch
+    {
+        "map" => "◐",
+        "dashboard" => "▦",
+        "form" => "☱",
+        "report" => "⊟",
+        "table" => "▤",
+        _ => "❒"
+    };
+
+    private static string AppUrl(StudioAppEditorState editor, StudioAppPageState page)
+    {
+        var slug = string.IsNullOrWhiteSpace(editor.Title) ? "app" : editor.Title.Trim().ToLowerInvariant().Replace(' ', '-');
+        var route = string.IsNullOrWhiteSpace(page.Route) ? "/" : page.Route;
+        return $"honua.example/a/{slug}{route}";
+    }
+
+    private Task Save() => RunCommandAsync(() => AppData.SaveDraftAsync(_editor!), reloadHistory: true);
 
     private Task Validate() => RunCommandAsync(() => AppData.ValidateAsync(_editor!));
 
-    private Task Publish() => RunCommandAsync(() => AppData.PublishAsync(_editor!));
+    private Task Preview() => RunCommandAsync(() => AppData.PreviewAsync(_editor!));
 
-    private void AddPage() => _editor?.Pages.Add(new StudioAppPageState());
+    private Task Publish() => RunCommandAsync(() => AppData.PublishAsync(_editor!), reloadHistory: true);
 
-    private void RemovePage(StudioAppPageState page) => _editor?.Pages.Remove(page);
+    private Task Reopen(Guid itemId, Guid versionId) =>
+        RunCommandAsync(() => AppData.ReopenAsync(itemId, versionId), reloadHistory: true);
+
+    private Task Rollback(Guid itemId, Guid versionId) =>
+        RunCommandAsync(() => AppData.RollbackAsync(itemId, versionId, reason: null), reloadHistory: true);
+
+    private async Task RefreshHistory()
+    {
+        if (_editor?.ItemId is { } itemId)
+        {
+            await LoadHistoryAsync(itemId);
+        }
+    }
+
+    private async Task LoadHistoryAsync(Guid itemId)
+    {
+        _history = await AppData.LoadVersionHistoryAsync(itemId);
+        StateHasChanged();
+    }
+
+    private void AddPage()
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        var page = new StudioAppPageState();
+        _editor.Pages.Add(page);
+        _selectedPage = page;
+    }
+
+    private void RemovePage(StudioAppPageState page)
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        _editor.Pages.Remove(page);
+        if (ReferenceEquals(_selectedPage, page))
+        {
+            _selectedPage = _editor.Pages.FirstOrDefault();
+        }
+    }
 
     private void AddAction() => _editor?.Actions.Add(new StudioAppActionState());
 
     private void RemoveAction(StudioAppActionState action) => _editor?.Actions.Remove(action);
 
-    private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command)
+    private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command, bool reloadHistory = false)
     {
         if (_busy || _editor is null)
         {
@@ -274,9 +453,15 @@
             if (result.State is not null)
             {
                 _editor = result.State;
+                _selectedPage = _editor.Pages.FirstOrDefault();
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);
+
+            if (reloadHistory && result.Succeeded && _editor?.ItemId is { } itemId)
+            {
+                _history = await AppData.LoadVersionHistoryAsync(itemId);
+            }
         }
         finally
         {
