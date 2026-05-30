@@ -128,6 +128,50 @@ public sealed class StudioAnalysisBuilderRenderTests
     }
 
     [Fact]
+    public void AnalysisBuilder_RunningJob_ResolvesArtifactByIdAndRendersDownstreamTargets()
+    {
+        // A submitted job runs asynchronously on the execution engine; the bound contract has no
+        // list-job-artifacts route, so the operator resolves the produced artifact by id, which binds the
+        // result-artifact panel + downstream families (AC#3) through the live artifacts route.
+        var plan = ReadyPlan();
+        plan.SubmittedJob = new StudioAnalysisJobView("job-1", "Running", 2);
+        var data = new FakeAnalysisDataSource
+        {
+            Workspace = new StudioAnalysisWorkspace(
+                [new StudioAnalysisPlanListItem("analysis-1", "Hydrant buffer", "buffer", "standard", 2, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioAnalysisEditorLoad(plan, []),
+            ResolveArtifactResult = new StudioAnalysisArtifactView(
+                "artifact-1", "FeatureLayer", "Buffered hydrants", null, null, null, "retained",
+                ["layer", "content", "workflow"])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Hydrant buffer"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Hydrant buffer").Click();
+
+        // The running-job panel exposes the resolve-artifact affordance; resolve stays disabled until an id is
+        // entered, so the operator never resolves an empty id.
+        page.WaitForAssertion(
+            () => Assert.Contains("data-analysis-resolve-artifact", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.True(FindButton(page, "Resolve artifact").HasAttribute("disabled"));
+
+        page.Find("[data-analysis-resolve-artifact] input").Change("artifact-1");
+        FindButton(page, "Resolve artifact").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-analysis-artifact", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Equal("artifact-1", data.ResolvedArtifactId);
+        Assert.Contains("Buffered hydrants", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Map layer", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Workflow input", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnalysisBuilder_OpenPlanWithFailedJob_RendersFailureClassification()
     {
         var plan = ReadyPlan();
@@ -207,5 +251,23 @@ public sealed class StudioAnalysisBuilderRenderTests
 
         public Task<StudioAnalysisCommandResult> SubmitAsync(StudioAnalysisPlanEditor plan, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioAnalysisCommandResult(true, "Submitted.", plan));
+
+        public string? ResolvedArtifactId { get; private set; }
+
+        public StudioAnalysisArtifactView? ResolveArtifactResult { get; set; }
+
+        public Task<StudioAnalysisCommandResult> ResolveArtifactAsync(
+            string artifactId,
+            StudioAnalysisPlanEditor plan,
+            CancellationToken cancellationToken = default)
+        {
+            ResolvedArtifactId = artifactId;
+            if (ResolveArtifactResult is not null && plan.SubmittedJob is { } job)
+            {
+                plan.SubmittedJob = job with { Artifact = ResolveArtifactResult };
+            }
+
+            return Task.FromResult(new StudioAnalysisCommandResult(true, $"Resolved {artifactId}.", plan));
+        }
     }
 }

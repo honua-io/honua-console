@@ -40,4 +40,16 @@ public interface IStudioAnalysisPackageDataSource
     Task<StudioAnalysisCommandResult> SubmitAsync(
         StudioAnalysisPlanEditor plan,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolves a result artifact produced by the execution engine into the submitted job's result-artifact
+    /// panel, including the downstream content families the artifact can become (AC#3). The execution engine
+    /// runs asynchronously and the bound contract exposes no list-job-artifacts route, so the artifact id is
+    /// supplied by the operator (from the job logs / downstream surface) and resolved through the live
+    /// <c>/api/v1/analysis/artifacts/{artifactId}</c> route — never fabricated.
+    /// </summary>
+    Task<StudioAnalysisCommandResult> ResolveArtifactAsync(
+        string artifactId,
+        StudioAnalysisPlanEditor plan,
+        CancellationToken cancellationToken = default);
 }
