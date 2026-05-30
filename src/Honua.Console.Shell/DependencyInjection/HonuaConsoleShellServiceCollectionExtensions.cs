@@ -31,15 +31,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
         AddPublishingWorkspaceDataSource(services);
+        AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
-
-        // Server-owned catalog/content metadata is no longer wired to the seeded
-        // InMemoryConsoleCatalogClient at runtime (issue #7). Until honua-server's
-        // metadata/content projection is bound (honua-server#1162), the merged runtime
-        // surfaces an explicit missing-binding state across Catalog/Studio/Share/Operate
-        // reads instead of fabricating content. AddHonuaConsoleDemoCatalogContent restores
-        // the in-memory source for explicit demo/local composition only.
-        services.TryAddSingleton<IConsoleCatalogClient, UnsupportedConsoleCatalogClient>();
 
         // Operate observability binds to a real honua-server through a thin
         // typed HttpClient behind Honua.Console.Contracts (the sanctioned interim
@@ -307,6 +300,37 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioWorkflowPackageClient, UnsupportedStudioWorkflowPackageClient>();
+    }
+
+    // Binds the server-owned catalog/content metadata surfaces (Catalog list/search/detail, Share map
+    // package + embed reads, Studio draft hydration, open-data reads) to honua-server's Console metadata
+    // v2 content + RBAC API (honua-server#1162, CLOSED) through the Honua.Console.Contracts shim when a
+    // server base address is configured. Server-authored RBAC verbs drive the resolved role and viewer
+    // support, so route/item actions reflect entitlement checks. With no server configured the shell
+    // keeps the UnsupportedConsoleCatalogClient missing-binding state across Catalog/Studio/Share/Operate
+    // reads instead of fabricating content (issue #7, Console Patterns Charter section 11). The seeded
+    // InMemoryConsoleCatalogClient is never the runtime source; AddHonuaConsoleDemoCatalogContent restores
+    // it for explicit demo/local composition only.
+    private static void AddConsoleCatalogClient(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaConsoleContentClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaConsoleContentHttpClient(
+                    httpClient,
+                    new HonuaConsoleContentClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IConsoleCatalogClient, HonuaServerConsoleCatalogClient>();
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleCatalogClient, UnsupportedConsoleCatalogClient>();
     }
 
     private static void AddOperateTransitionDataSource(

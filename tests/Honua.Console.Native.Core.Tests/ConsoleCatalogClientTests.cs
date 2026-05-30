@@ -24,6 +24,19 @@ public sealed class ConsoleCatalogClientTests
     }
 
     [Fact]
+    public void ConfiguredServerBaseUrlBindsLiveCatalogClient()
+    {
+        var services = new ServiceCollection();
+
+        services.AddHonuaConsoleShell("https://console.honua.test", "admin-key");
+
+        using var provider = services.BuildServiceProvider();
+        var catalog = provider.GetRequiredService<IConsoleCatalogClient>();
+
+        Assert.IsType<HonuaServerConsoleCatalogClient>(catalog);
+    }
+
+    [Fact]
     public void DemoCatalogContentRegistrationRestoresInMemorySource()
     {
         var services = new ServiceCollection();
