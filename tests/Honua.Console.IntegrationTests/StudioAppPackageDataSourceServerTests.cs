@@ -416,6 +416,18 @@ public sealed class StudioAppPackageDataSourceServerTests
             return Task.FromResult(StudioEndpointResult<StudioPackageDraft>.FromData(draft));
         }
 
+        public Task<StudioEndpointResult<StudioPackageDraft>> ReopenContentVersionAsync(
+            Guid itemId,
+            Guid versionId,
+            CancellationToken cancellationToken = default) =>
+            ReopenVersionAsync(itemId, versionId, cancellationToken);
+
+        public Task<StudioEndpointResult<StudioRollbackRequest>> RollbackAsync(
+            Guid itemId,
+            CreateStudioRollbackRequest request,
+            CancellationToken cancellationToken = default) =>
+            CreateRollbackRequestAsync(itemId, request, cancellationToken);
+
         public Task<StudioEndpointResult<StudioRollbackRequest>> CreateRollbackRequestAsync(
             Guid itemId,
             CreateStudioRollbackRequest request,

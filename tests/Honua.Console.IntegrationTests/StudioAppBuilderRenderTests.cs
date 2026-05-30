@@ -59,6 +59,88 @@ public sealed class StudioAppBuilderRenderTests
     }
 
     [Fact]
+    public void AppBuilder_Editor_RendersThreePaneStructureFromDesign()
+    {
+        // The StudioAppEditor handoff is a three-pane editor: an app-identity toolbar (name + lifecycle
+        // badge + summary stats + preview/publish actions), a page tree + component palette rail, a
+        // responsive page canvas, and a component-binding inspector. Assert each region renders.
+        var data = new FakeAppDataSource
+        {
+            Load = new StudioAppEditorLoad(ReadyApp(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Single(page.FindAll("[data-app-toolbar]")),
+            TimeSpan.FromSeconds(5));
+
+        // Toolbar: app-identity stats line ("1 page · 1 action · organization · embeddable") + lifecycle actions.
+        Assert.Single(page.FindAll("[data-app-stats]"));
+        Assert.Contains("1 page", page.Find("[data-app-stats]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("1 action", page.Find("[data-app-stats]").TextContent, StringComparison.Ordinal);
+
+        // Left rail: the page tree (one node per page) and the component palette listing every component kind.
+        Assert.Single(page.FindAll("[data-app-page-tree]"));
+        Assert.Single(page.FindAll("[data-app-rail] .studio-app-page-node"));
+        var palette = page.Find("[data-app-palette]");
+        foreach (var kind in StudioAppComponentKinds.All)
+        {
+            Assert.Contains(kind, palette.TextContent, StringComparison.Ordinal);
+        }
+
+        // Center canvas: a responsive app frame with the selected page's component binding.
+        Assert.Single(page.FindAll("[data-app-canvas]"));
+        var frame = page.Find("[data-app-frame]");
+        Assert.Contains("map · selected", frame.TextContent, StringComparison.Ordinal);
+        Assert.Contains("content:permits@v3", frame.TextContent, StringComparison.Ordinal);
+
+        // Right inspector: the per-page component-binding inspector, the app details, actions, and share policy.
+        Assert.Single(page.FindAll("[data-app-inspector]"));
+        Assert.Single(page.FindAll("[data-app-page-inspector]"));
+        Assert.Single(page.FindAll("[data-app-details]"));
+        Assert.Single(page.FindAll("[data-app-actions]"));
+        Assert.Single(page.FindAll("[data-app-share]"));
+    }
+
+    [Fact]
+    public void AppBuilder_SelectingPageInTree_UpdatesCanvasAndInspector()
+    {
+        var state = StudioAppPackageMapper.CreateTemplate();
+        state.Title = "Field operations";
+        state.Pages[0].Route = "/home";
+        state.Pages[0].Title = "Home";
+        state.Pages[0].ContentBinding = "content:home@v1";
+        state.Pages.Add(new StudioAppPageState
+        {
+            Route = "/inspect",
+            Title = "Inspect a site",
+            ComponentKind = "form",
+            ContentBinding = "content:inspection@v4"
+        });
+        var data = new FakeAppDataSource { Load = new StudioAppEditorLoad(state, []) };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        page.WaitForAssertion(
+            () => Assert.Equal(2, page.FindAll("[data-app-rail] .studio-app-page-node").Count),
+            TimeSpan.FromSeconds(5));
+
+        // First page is selected by default; canvas shows its map binding.
+        Assert.Contains("content:home@v1", page.Find("[data-app-frame]").TextContent, StringComparison.Ordinal);
+
+        // Selecting the second page node repaints the canvas/inspector with the form component binding.
+        page.FindAll("[data-app-rail] .studio-app-page-node")[1].Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("content:inspection@v4", page.Find("[data-app-frame]").TextContent, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("form · selected", page.Find("[data-app-frame]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AppBuilder_ReadyApp_EnablesPublishAndShowsShareReview()
     {
         var data = new FakeAppDataSource
@@ -134,10 +216,10 @@ public sealed class StudioAppBuilderRenderTests
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();
         page.WaitForAssertion(
-            () => Assert.False(FindButton(page, "Preview").HasAttribute("disabled")),
+            () => Assert.False(FindButton(page, "Live preview").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
 
-        FindButton(page, "Preview").Click();
+        FindButton(page, "Live preview").Click();
 
         page.WaitForAssertion(
             () => Assert.Contains("Preview plan ready", page.Markup, StringComparison.Ordinal),
