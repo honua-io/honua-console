@@ -23,6 +23,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddTemporalCapabilityClient(services);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
         // Server-owned catalog/content metadata is no longer wired to the seeded
@@ -197,6 +198,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
     }
+
+    // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal)
+    // to honua-server's temporal capability manifest (#1166) and sync conflict review contract (#1167).
+    // Those server contracts have not landed, so the merged build registers only the missing-binding
+    // client: the viewer renders an explicit capability explanation and never fabricates temporal
+    // history or sync conflicts from a standing mock (Console Patterns Charter section 11). The live
+    // HTTP-bound client is wired here once #1166/#1167 ship.
+    private static void AddTemporalCapabilityClient(IServiceCollection services) =>
+        services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
 
     private static HttpClient CreateOperateObservabilityHttpClient() =>
         new(new SocketsHttpHandler

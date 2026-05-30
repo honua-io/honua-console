@@ -1,0 +1,119 @@
+@page "/operate/temporal"
+@inject ITemporalCapabilityClient TemporalData
+
+<section class="console-page operate-temporal" data-temporal-viewer="capability-gate">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Temporal viewer</h1>
+        <p>Inspect temporal data history, compare a now-vs-as-of state, plan governed rollbacks, and review disconnected replica sync conflicts. Temporal capability is server-owned: each source declares which modes it supports, and unsupported sources show a capability explanation rather than an empty viewer.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Temporal viewer"
+                          Title="Loading temporal capability"
+                          Message="Reading server-owned temporal capability from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Temporal capability is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else
+    {
+        @if (_states.Count > 0)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Temporal binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_workspace.Sources.Count == 0)
+        {
+            <EmptyState Area="operate" Subject="temporal sources" />
+        }
+        else
+        {
+            <div class="console-table-wrap">
+                <table class="console-table">
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>Layer</th>
+                            <th>History mode</th>
+                            <th>Sync</th>
+                            <th>Rollback</th>
+                            <th>Conflict review</th>
+                            <th>Retention</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var source in _workspace.Sources)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@source.ResourceId</strong>
+                                    <small>@source.SourceId</small>
+                                </td>
+                                <td>@source.LayerId</td>
+                                <td>@source.Mode</td>
+                                <td>@source.SyncCapability</td>
+                                <td>@(source.RollbackSupported ? "supported" : "—")</td>
+                                <td>@(source.SyncConflictReviewSupported ? "supported" : "—")</td>
+                                <td>@(string.IsNullOrWhiteSpace(source.RetentionPolicyId) ? "—" : source.RetentionPolicyId)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private TemporalViewerWorkspace _workspace = new([], []);
+    private TemporalCapabilityState? _bindingState;
+    private IReadOnlyList<TemporalCapabilityState> _states = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        _workspace = await TemporalData.GetWorkspaceAsync();
+        ApplyStates(_workspace.CapabilityStates);
+        _loading = false;
+    }
+
+    private void ApplyStates(IReadOnlyList<TemporalCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
+        _states = states
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+    }
+}
