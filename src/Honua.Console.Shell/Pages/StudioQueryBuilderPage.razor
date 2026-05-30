@@ -107,17 +107,19 @@
             var readout = StudioQueryReadoutGenerator.Generate(query);
 
             <div class="studio-query-editor" data-query-editor="query.package">
-                <div class="console-panel-heading">
-                    <div>
+                <div class="studio-query-bar" data-query-editor-bar="true">
+                    <span class="studio-query-bar-glyph" aria-hidden="true">◇</span>
+                    <div class="studio-query-bar-identity">
                         <p class="console-kicker">@(query.IsExistingQuery ? $"{query.QueryId} · v{query.Version}" : "New draft")</p>
                         <h2>@(string.IsNullOrWhiteSpace(query.Title) ? "Untitled query" : query.Title)</h2>
                     </div>
-                </div>
-
-                <div class="console-action-row">
-                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to queries</button>
-                    <button class="console-button" type="button" disabled="@_busy" @onclick="Save">Save query</button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !query.IsExistingQuery)" @onclick="Preview">Preview map/table</button>
+                    <span class="console-status console-status-warning studio-query-bar-badge">@(query.IsExistingQuery ? $"draft v{query.Version}" : "draft")</span>
+                    <span class="console-muted studio-query-bar-summary" data-query-summary="true">@QuerySummary(query)</span>
+                    <div class="studio-query-bar-actions">
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to queries</button>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !query.IsExistingQuery)" @onclick="Preview">Run preview</button>
+                        <button class="console-button" type="button" disabled="@_busy" @onclick="Save">Save query</button>
+                    </div>
                 </div>
 
                 @if (!string.IsNullOrEmpty(_status))
@@ -125,6 +127,8 @@
                     <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
                 }
 
+                <div class="studio-query-workbench" data-query-workbench="true">
+                <div class="studio-query-build" data-query-build="true">
                 <div class="console-panel-grid">
                     <article class="console-panel">
                         <p class="console-kicker">Source</p>
@@ -303,19 +307,29 @@
                         </div>
                     }
                 </article>
+                </div>
 
+                <div class="studio-query-readout-pane" data-query-readout-pane="true">
                 <article class="console-panel studio-query-readout" aria-labelledby="query-readout-heading">
-                    <p class="console-kicker">Generated readout</p>
+                    <p class="console-kicker">Generated SQL</p>
                     <h3 id="query-readout-heading">SQL / filter readout</h3>
-                    <p class="console-muted">A SQL-shaped view of the source binding and predicates for review before save. honua-server owns the compiled query plan.</p>
-                    <pre class="console-code" data-query-readout="true">@readout</pre>
+                    <p class="console-muted">Read-only · regenerates on edit. A SQL-shaped view of the source binding and predicates for review before save. honua-server owns the compiled query plan.</p>
+                    <pre class="console-code studio-query-sql" data-query-readout="true">@readout</pre>
                 </article>
 
                 @if (query.Preview is { } preview)
                 {
                     <article class="console-panel studio-query-preview" data-query-preview="true" aria-labelledby="query-preview-heading">
-                        <p class="console-kicker">Preview</p>
-                        <h3 id="query-preview-heading">Map / table preview</h3>
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Preview · @preview.FeatureCount@(preview.TotalCount is { } t ? $" of {t:N0} matching" : " matching")</p>
+                                <h3 id="query-preview-heading">Map / table preview</h3>
+                            </div>
+                            @if (query.Parameters.Count > 0)
+                            {
+                                <span class="console-muted studio-query-preview-params" data-query-preview-params="true">@ParameterReadout(query)</span>
+                            }
+                        </div>
                         <dl class="console-definition-list">
                             <dt>Layer</dt>
                             <dd>@preview.LayerId</dd>
@@ -365,8 +379,22 @@
                                 <li>@DownstreamLabel(target)</li>
                             }
                         </ul>
+
+                        <p class="console-muted studio-query-explain" data-query-explain="true">
+                            EXPLAIN · preview artifact <code>@preview.PreviewArtifactId</code> · layer @preview.LayerId@(preview.ExceededPreviewLimit ? " · preview limit reached" : string.Empty)
+                        </p>
                     </article>
                 }
+                else
+                {
+                    <article class="console-panel studio-query-preview studio-query-preview-empty" data-query-preview-empty="true">
+                        <p class="console-kicker">Preview</p>
+                        <h3>Map / table preview</h3>
+                        <p class="console-muted">@(query.IsExistingQuery ? "Run preview to pull the live map/table result and EXPLAIN readout from honua-server." : "Save this draft, then run preview to pull the live map/table result from honua-server.")</p>
+                    </article>
+                }
+                </div>
+                </div>
             </div>
         }
     }
@@ -505,6 +533,19 @@
             _busy = false;
         }
     }
+
+    private static string QuerySummary(StudioQueryEditor query)
+    {
+        var sourceCount = string.IsNullOrWhiteSpace(query.ServiceName) ? 0 : 1;
+        var fieldCount = query.OutFields.Count(field => !string.IsNullOrWhiteSpace(field));
+        var fields = fieldCount == 0 ? "all fields" : $"{fieldCount} field{(fieldCount == 1 ? string.Empty : "s")}";
+        return $"{sourceCount} source · {query.Predicates.Count} predicate{(query.Predicates.Count == 1 ? string.Empty : "s")} · {query.Parameters.Count} param{(query.Parameters.Count == 1 ? string.Empty : "s")} · {fields}";
+    }
+
+    private static string ParameterReadout(StudioQueryEditor query) =>
+        string.Join(" · ", query.Parameters
+            .Where(parameter => !string.IsNullOrWhiteSpace(parameter.Name))
+            .Select(parameter => $"${parameter.Name}={(string.IsNullOrWhiteSpace(parameter.Value) ? "—" : parameter.Value)}"));
 
     private static string DownstreamLabel(string target) => target switch
     {
