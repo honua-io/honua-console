@@ -12,6 +12,7 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
     private readonly object _gate = new();
     private readonly Dictionary<string, StudioWorkflowPackageDraft> _drafts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, StudioWorkflowJobEvidence> _jobs = new(StringComparer.Ordinal);
+    private readonly List<StudioWorkflowRunHistoryEntry> _runs = [];
     private readonly IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions;
     private int _draftSequence = 1;
     private int _jobSequence;
@@ -174,6 +175,9 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
                 CreatedAt = DateTimeOffset.UtcNow
             };
 
+            RecordRun(prepared, jobId, result.JobKind, result.Status, "dry-run", result.Logs, result.Artifacts,
+                processedRows: result.SampleRows, rejectedRows: 0, result.OperateJobUrl, result.OperateEventsUrl);
+
             return Task.FromResult(result);
         }
     }
@@ -257,8 +261,85 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
                 CreatedAt = DateTimeOffset.UtcNow
             };
 
+            RecordRun(prepared, jobId, result.JobKind, result.Status,
+                trigger: prepared.PublicationIntent.Mode == StudioWorkflowContractValues.PublicationModeScheduledJob
+                    ? "scheduled"
+                    : "publish",
+                _jobs[jobId].Logs, _jobs[jobId].Artifacts, processedRows: 0, rejectedRows: 0,
+                result.OperateJobUrl, result.OperateEventsUrl, publicationId);
+
             return Task.FromResult(result);
         }
+    }
+
+    public Task<StudioWorkflowRunHistory> ListRunHistoryAsync(
+        string contentItemId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // A never-saved draft has no content item id yet; report an empty (bound) history rather than a
+        // blocked surface so the editor's run-history panel renders its "no runs yet" prompt.
+        if (string.IsNullOrWhiteSpace(contentItemId))
+        {
+            return Task.FromResult(StudioWorkflowRunHistory.Empty);
+        }
+
+        lock (_gate)
+        {
+            var runs = _runs
+                .Where(run => string.Equals(run.ContentItemId, contentItemId, StringComparison.Ordinal))
+                .OrderByDescending(run => run.StartedAt)
+                .Select(Clone)
+                .ToArray();
+            return Task.FromResult(new StudioWorkflowRunHistory(runs));
+        }
+    }
+
+    private void RecordRun(
+        StudioWorkflowPackageDraft draft,
+        string jobId,
+        string jobKind,
+        string status,
+        string trigger,
+        IReadOnlyList<string> logs,
+        IReadOnlyList<string> artifacts,
+        int processedRows,
+        int rejectedRows,
+        string operateJobUrl,
+        string operateEventsUrl,
+        string publicationId = "")
+    {
+        // Dry-runs report sample-row evidence but route no rejected rows; published runs that fan rows to a
+        // failure sink report a representative rejected-row count so the panel surfaces row-level failures.
+        var hasFailureSink = draft.Nodes.Any(node =>
+            node.Type.Contains("failure", StringComparison.Ordinal));
+        var effectiveRejected = rejectedRows > 0 || string.Equals(trigger, "dry-run", StringComparison.Ordinal)
+            ? rejectedRows
+            : hasFailureSink ? 3 : 0;
+
+        _runs.Add(new StudioWorkflowRunHistoryEntry
+        {
+            RunId = $"run-{jobId}",
+            PublicationId = publicationId,
+            ContentItemId = draft.ContentItemId,
+            VersionId = draft.CurrentVersionId,
+            JobId = jobId,
+            JobKind = jobKind,
+            Status = status,
+            Mode = draft.PublicationIntent.Mode,
+            Trigger = trigger,
+            ProcessedRows = processedRows,
+            RejectedRows = effectiveRejected,
+            Logs = logs.ToArray(),
+            Artifacts = artifacts.ToArray(),
+            OperateJobUrl = operateJobUrl,
+            OperateEventsUrl = operateEventsUrl,
+            ProvenanceUrl = string.IsNullOrWhiteSpace(draft.ContentItemId)
+                ? string.Empty
+                : $"/catalog/{draft.ContentItemId}",
+            StartedAt = DateTimeOffset.UtcNow
+        });
     }
 
     public Task<StudioWorkflowJobEvidence?> GetJobEvidenceAsync(

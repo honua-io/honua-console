@@ -58,6 +58,37 @@ public sealed class StudioWorkflowEditorPageTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Editor_RendersRunHistoryPanel_WithStateRejectedRowsAndProvenance()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
+
+        var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
+            parameters => parameters.Add(p => p.DraftId, InMemoryStudioWorkflowPackageClient.SeedDraftId));
+
+        // Before any run, the panel renders its empty prompt rather than fabricated history.
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(page.FindAll("section[aria-label='Workflow run history']")),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("No runs yet", page.Markup, StringComparison.Ordinal);
+
+        // Dry-run, then publish: the run-history panel records both runs with their state and evidence.
+        FindButton(page, "Dry Run").Click();
+        FindButton(page, "Publish").Click();
+
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(
+                page.FindAll("section[aria-label='Workflow run history'] li.workflow-run-item")),
+            TimeSpan.FromSeconds(5));
+
+        var historyMarkup = page.Find("section[aria-label='Workflow run history']").InnerHtml;
+        Assert.Contains("succeeded", historyMarkup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Rejected rows", historyMarkup, StringComparison.Ordinal);
+        Assert.Contains("Content item history", historyMarkup, StringComparison.Ordinal);
+    }
+
     private static IElement TitleInput(IRenderedComponent<StudioWorkflowEditorPage> page) =>
         page.Find("section[aria-label='Package metadata'] input.console-input");
 
@@ -157,5 +188,8 @@ public sealed class StudioWorkflowEditorPageTests
 
         public Task<StudioWorkflowJobEvidence?> GetJobEvidenceAsync(string jobId, CancellationToken cancellationToken = default) =>
             Task.FromResult<StudioWorkflowJobEvidence?>(null);
+
+        public Task<StudioWorkflowRunHistory> ListRunHistoryAsync(string contentItemId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioWorkflowRunHistory.Empty);
     }
 }

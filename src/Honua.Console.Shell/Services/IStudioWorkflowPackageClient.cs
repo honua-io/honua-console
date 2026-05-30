@@ -40,4 +40,14 @@ public interface IStudioWorkflowPackageClient
     Task<StudioWorkflowJobEvidence?> GetJobEvidenceAsync(
         string jobId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the execution history for a saved workflow content item (newest run first): dry-runs, published
+    /// runs, and scheduled runs with their queued/running/succeeded/failed state, rejected-row counts, and
+    /// Operate job/provenance links. Returns a <see cref="StudioWorkflowRunHistory"/> carrying a binding state
+    /// when the surface is unbound, or an empty history for a draft that has never been saved/run.
+    /// </summary>
+    Task<StudioWorkflowRunHistory> ListRunHistoryAsync(
+        string contentItemId,
+        CancellationToken cancellationToken = default);
 }
