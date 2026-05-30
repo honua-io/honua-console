@@ -1,0 +1,841 @@
+@page "/operate/temporal"
+@inject ITemporalCapabilityClient TemporalData
+
+<section class="console-page operate-temporal" data-temporal-viewer="capability-gate">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Temporal viewer</h1>
+        <p>Inspect temporal data history, compare a now-vs-as-of state, plan governed rollbacks, and review disconnected replica sync conflicts. Temporal capability is server-owned: each source declares which modes it supports, and unsupported sources show a capability explanation rather than an empty viewer.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Temporal viewer"
+                          Title="Loading temporal capability"
+                          Message="Reading server-owned temporal capability from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        @* AC #1: unsupported / unbound temporal sources render a capability explanation, not an empty viewer. *@
+        <ConsoleStateView Kind="missing"
+                          Kicker="@_bindingState.State"
+                          Title="Temporal capability is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else
+    {
+        @if (_states.Count > 0)
+        {
+            <section class="console-section" aria-label="Server capability states">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Temporal binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_workspace.Sources.Count == 0)
+        {
+            <EmptyState Area="operate" Subject="temporal sources" />
+        }
+        else
+        {
+            <section class="console-section" aria-label="Temporal sources">
+                <div class="console-table-wrap">
+                    <table class="console-table" aria-label="Temporal source capabilities">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Layer</th>
+                                <th>History mode</th>
+                                <th>Sync</th>
+                                <th>Rollback</th>
+                                <th>Conflict review</th>
+                                <th>Retention</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var source in _workspace.Sources)
+                            {
+                                var active = string.Equals(source.SourceId, _selectedSource?.SourceId, StringComparison.Ordinal);
+                                <tr class="@(active ? "console-row-selected" : string.Empty)">
+                                    <td>
+                                        <strong>@source.ResourceId</strong>
+                                        <small>@source.SourceId</small>
+                                    </td>
+                                    <td>@source.LayerId</td>
+                                    <td>@source.Mode</td>
+                                    <td>@source.SyncCapability</td>
+                                    <td>@(source.RollbackSupported ? "supported" : "—")</td>
+                                    <td>@(source.SyncConflictReviewSupported ? "supported" : "—")</td>
+                                    <td>@(string.IsNullOrWhiteSpace(source.RetentionPolicyId) ? "—" : source.RetentionPolicyId)</td>
+                                    <td>
+                                        <button class="console-button console-button-secondary" type="button"
+                                                @onclick="() => SelectSourceAsync(source)">Inspect</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            @if (_selectedSource is not null)
+            {
+                <section class="console-section operate-temporal-detail" aria-label="Temporal detail">
+                    <div class="console-page-heading">
+                        <p class="console-kicker">@_selectedSource.ResourceId</p>
+                        <h2>History And Sync Review</h2>
+                    </div>
+
+                    @if (!_selectedSource.HistoryReadPermitted)
+                    {
+                        @* Security/governance: history access is permissioned separately from current read. *@
+                        <ConsoleStateView Kind="unavailable"
+                                          Kicker="Forbidden"
+                                          Title="History access is not permitted"
+                                          Message="History read is permissioned separately from current-data read. You do not hold the temporal history entitlement for this source." />
+                    }
+                    else if (_selectedSource.Mode == TemporalMode.None)
+                    {
+                        <ConsoleStateView Kind="missing"
+                                          Kicker="Unsupported"
+                                          Title="This source has no temporal history"
+                                          Message="The server reports this source does not retain temporal history. As-of, diff, rollback, and conflict review are unavailable." />
+                    }
+                    else
+                    {
+                        @RenderTimeline()
+                        @RenderDiff()
+                        @RenderFeatureTimeline()
+                        @RenderRollback()
+                        @RenderConflictReview()
+                    }
+                </section>
+            }
+        }
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private TemporalViewerWorkspace _workspace = new([], []);
+    private TemporalCapabilityState? _bindingState;
+    private IReadOnlyList<TemporalCapabilityState> _states = [];
+
+    private TemporalSourceCapability? _selectedSource;
+
+    // Checkpoint selector + time scrubber state.
+    private TemporalBindingState? _checkpointBinding;
+    private IReadOnlyList<TemporalCheckpoint> _checkpoints = [];
+    private string? _fromCheckpointId;
+    private string? _toCheckpointId;
+
+    // Diff (now-vs-as-of) state.
+    private bool _diffBusy;
+    private TemporalDiff? _diff;
+    private TemporalBindingState? _diffBinding;
+
+    // Feature timeline state.
+    private string _featureIdInput = string.Empty;
+    private bool _timelineBusy;
+    private TemporalFeatureTimeline? _timeline;
+    private TemporalBindingState? _timelineBinding;
+
+    // Rollback review state.
+    private TemporalRollbackScope _rollbackScope = TemporalRollbackScope.ChangeSet;
+    private bool _rollbackBusy;
+    private TemporalRollbackPlan? _rollbackPlan;
+    private TemporalRollbackOperation? _rollbackOperation;
+    private TemporalBindingState? _rollbackBinding;
+
+    // Replica conflict queue + review state.
+    private bool _replicaBusy;
+    private IReadOnlyList<DisconnectedReplica> _replicas = [];
+    private TemporalBindingState? _replicaBinding;
+    private DisconnectedReplica? _selectedReplica;
+    private IReadOnlyList<SyncConflict> _conflicts = [];
+    private TemporalBindingState? _conflictReviewBinding;
+    private readonly HashSet<string> _selectedConflictIds = new(StringComparer.Ordinal);
+    private SyncResolutionAction _batchAction = SyncResolutionAction.KeepServer;
+    private bool _resolveBusy;
+    private SyncConflictResolutionResult? _lastResolution;
+    private TemporalBindingState? _resolutionBinding;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        _workspace = await TemporalData.GetWorkspaceAsync();
+        ApplyStates(_workspace.CapabilityStates);
+        _loading = false;
+    }
+
+    private void ApplyStates(IReadOnlyList<TemporalCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, TemporalBindingState.MissingBinding, StringComparison.OrdinalIgnoreCase));
+        _states = states
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+    }
+
+    private async Task SelectSourceAsync(TemporalSourceCapability source)
+    {
+        _selectedSource = source;
+        ResetDetailState();
+
+        if (!source.HistoryReadPermitted || source.Mode == TemporalMode.None)
+        {
+            return;
+        }
+
+        var checkpoints = await TemporalData.GetCheckpointsAsync(source.SourceId);
+        _checkpointBinding = checkpoints.BindingState;
+        _checkpoints = checkpoints.Checkpoints;
+        _fromCheckpointId = _checkpoints.Count > 1 ? _checkpoints[1].CheckpointId : _checkpoints.FirstOrDefault()?.CheckpointId;
+        _toCheckpointId = _checkpoints.FirstOrDefault()?.CheckpointId;
+
+        if (source.SyncConflictReviewSupported)
+        {
+            var queue = await TemporalData.GetReplicaConflictQueueAsync(source.SourceId);
+            _replicaBinding = queue.BindingState;
+            _replicas = queue.Replicas;
+        }
+    }
+
+    private void ResetDetailState()
+    {
+        _checkpointBinding = null;
+        _checkpoints = [];
+        _fromCheckpointId = null;
+        _toCheckpointId = null;
+        _diff = null;
+        _diffBinding = null;
+        _featureIdInput = string.Empty;
+        _timeline = null;
+        _timelineBinding = null;
+        _rollbackPlan = null;
+        _rollbackOperation = null;
+        _rollbackBinding = null;
+        _replicas = [];
+        _replicaBinding = null;
+        _selectedReplica = null;
+        _conflicts = [];
+        _conflictReviewBinding = null;
+        _selectedConflictIds.Clear();
+        _lastResolution = null;
+        _resolutionBinding = null;
+    }
+
+    private RenderFragment RenderTimeline() => __builder =>
+    {
+        <article class="console-panel operate-temporal-checkpoints" aria-label="Dataset timeline">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Dataset timeline</p>
+                    <h2>Checkpoints</h2>
+                </div>
+            </div>
+            @if (_checkpointBinding is not null)
+            {
+                <p class="console-status">@DescribeBlocked(_checkpointBinding)</p>
+            }
+            else if (_checkpoints.Count == 0)
+            {
+                <p class="console-muted">No checkpoints have been recorded for this source yet.</p>
+            }
+            else
+            {
+                @if (string.IsNullOrWhiteSpace(_selectedSource?.RetentionPolicyId))
+                {
+                    <p class="console-status">No retention policy is declared for this source; history may be pruned without notice.</p>
+                }
+                <ol class="operate-temporal-scrubber" aria-label="Time scrubber">
+                    @foreach (var checkpoint in _checkpoints)
+                    {
+                        <li class="operate-temporal-checkpoint">
+                            <span class="console-kicker">@checkpoint.CursorType</span>
+                            <strong>@checkpoint.Label</strong>
+                            <small>@checkpoint.CreatedAt.ToString("u") @(checkpoint.CreatedBy is null ? string.Empty : $"· {checkpoint.CreatedBy}")</small>
+                        </li>
+                    }
+                </ol>
+            }
+        </article>
+    };
+
+    private RenderFragment RenderDiff() => __builder =>
+    {
+        if (_selectedSource is null || _selectedSource.Mode < TemporalMode.Diff)
+        {
+            return;
+        }
+
+        <article class="console-panel operate-temporal-diff" aria-label="Now versus as-of comparison">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Now vs as-of</p>
+                    <h2>Diff Summary</h2>
+                </div>
+            </div>
+            @if (_checkpoints.Count >= 2)
+            {
+                <div class="operate-temporal-diff-controls">
+                    <label>
+                        <span>As-of (from)</span>
+                        <select class="console-input" @bind="_fromCheckpointId" aria-label="From checkpoint">
+                            @foreach (var checkpoint in _checkpoints)
+                            {
+                                <option value="@checkpoint.CheckpointId">@checkpoint.Label</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        <span>Now (to)</span>
+                        <select class="console-input" @bind="_toCheckpointId" aria-label="To checkpoint">
+                            @foreach (var checkpoint in _checkpoints)
+                            {
+                                <option value="@checkpoint.CheckpointId">@checkpoint.Label</option>
+                            }
+                        </select>
+                    </label>
+                    <button class="console-button" type="button" disabled="@_diffBusy" @onclick="ComputeDiffAsync">Compare</button>
+                </div>
+            }
+            else
+            {
+                <p class="console-muted">At least two checkpoints are required to compare states.</p>
+            }
+
+            @if (_diffBinding is not null)
+            {
+                <p class="console-status">@DescribeBlocked(_diffBinding)</p>
+            }
+            else if (_diff is not null)
+            {
+                <dl class="console-definition-list operate-temporal-diff-counts">
+                    <dt>Added</dt><dd>@_diff.AddedFeatures</dd>
+                    <dt>Removed</dt><dd>@_diff.RemovedFeatures</dd>
+                    <dt>Updated</dt><dd>@_diff.UpdatedFeatures</dd>
+                    <dt>Geometry changed</dt><dd>@_diff.GeometryChangedFeatures</dd>
+                    <dt>Attribute changed</dt><dd>@_diff.AttributeChangedFeatures</dd>
+                </dl>
+                @if (_diff.SampleFeatureChanges.Count > 0)
+                {
+                    <table class="console-table" aria-label="Sample feature changes">
+                        <thead>
+                            <tr><th>Feature</th><th>Change</th><th>Geometry</th><th>Fields</th><th>Actor</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var change in _diff.SampleFeatureChanges)
+                            {
+                                <tr>
+                                    <td>@change.FeatureId</td>
+                                    <td>@change.ChangeType</td>
+                                    <td>@(change.GeometryChanged ? "changed" : "—")</td>
+                                    <td>@DescribeAttributeChanges(change)</td>
+                                    <td>@(change.ActorId ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        </article>
+    };
+
+    private RenderFragment RenderFeatureTimeline() => __builder =>
+    {
+        if (_selectedSource is null || _selectedSource.Mode < TemporalMode.History)
+        {
+            return;
+        }
+
+        <article class="console-panel operate-temporal-feature" aria-label="Feature timeline">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Feature timeline</p>
+                    <h2>Revision History</h2>
+                </div>
+            </div>
+            <div class="operate-temporal-feature-controls">
+                <label>
+                    <span>Feature id</span>
+                    <input class="console-input" @bind="_featureIdInput" @bind:event="oninput" aria-label="Feature id" />
+                </label>
+                <button class="console-button" type="button"
+                        disabled="@(_timelineBusy || string.IsNullOrWhiteSpace(_featureIdInput))"
+                        @onclick="LoadFeatureTimelineAsync">Open Timeline</button>
+            </div>
+
+            @if (_timelineBinding is not null)
+            {
+                <p class="console-status">@DescribeBlocked(_timelineBinding)</p>
+            }
+            else if (_timeline is not null)
+            {
+                @if (_timeline.Revisions.Count == 0)
+                {
+                    <p class="console-muted">No revisions were found for feature @_timeline.FeatureId.</p>
+                }
+                else
+                {
+                    <ol class="operate-temporal-revisions" aria-label="Revisions">
+                        @foreach (var revision in _timeline.Revisions)
+                        {
+                            <li>
+                                <span class="console-kicker">@revision.Operation</span>
+                                <strong>@revision.TransactionTime.ToString("u")</strong>
+                                <small>@(revision.ActorDisplayName ?? "unknown") @(revision.SourceClient is null ? string.Empty : $"· {revision.SourceClient}")</small>
+                                <small>@(revision.GeometryChanged ? "geometry changed · " : string.Empty)@revision.ChangedFieldCount field(s) @(revision.Reason is null ? string.Empty : $"· {revision.Reason}")</small>
+                            </li>
+                        }
+                    </ol>
+                }
+            }
+        </article>
+    };
+
+    private RenderFragment RenderRollback() => __builder =>
+    {
+        if (_selectedSource is null || !_selectedSource.RollbackSupported)
+        {
+            return;
+        }
+
+        <article class="console-panel operate-temporal-rollback" aria-label="Rollback review">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Rollback review</p>
+                    <h2>Governed Rollback</h2>
+                </div>
+            </div>
+            <p class="console-muted">Rollback creates a new corrective operation and a new checkpoint. It never erases immutable history.</p>
+            <div class="operate-temporal-rollback-controls">
+                <label>
+                    <span>Scope</span>
+                    <select class="console-input" @bind="_rollbackScope" aria-label="Rollback scope">
+                        @foreach (var scope in Enum.GetValues<TemporalRollbackScope>())
+                        {
+                            <option value="@scope">@scope</option>
+                        }
+                    </select>
+                </label>
+                <button class="console-button" type="button"
+                        disabled="@(_rollbackBusy || string.IsNullOrWhiteSpace(_fromCheckpointId))"
+                        @onclick="CreateRollbackPlanAsync">Plan Rollback</button>
+            </div>
+
+            @if (_rollbackBinding is not null)
+            {
+                <p class="console-status">@DescribeBlocked(_rollbackBinding)</p>
+            }
+            else if (_rollbackPlan is not null)
+            {
+                <dl class="console-definition-list">
+                    <dt>Target checkpoint</dt><dd>@_rollbackPlan.TargetCheckpointId</dd>
+                    <dt>Affected features</dt><dd>@_rollbackPlan.AffectedFeatureCount</dd>
+                    <dt>Mode</dt><dd>@_rollbackPlan.RollbackMode</dd>
+                    <dt>Risk</dt><dd>@_rollbackPlan.RiskLevel</dd>
+                    <dt>Runs as job</dt><dd>@(_rollbackPlan.RequiresJob ? "yes" : "no")</dd>
+                    <dt>Requires approval</dt><dd>@(_rollbackPlan.RequiresApproval ? "yes" : "no")</dd>
+                </dl>
+                @if (_rollbackPlan.ValidationFindings.Count > 0 || _rollbackPlan.CompatibilityFindings.Count > 0)
+                {
+                    <ul class="workflow-compact-list">
+                        @foreach (var finding in _rollbackPlan.ValidationFindings)
+                        {
+                            <li><span>validation</span><strong>@finding</strong></li>
+                        }
+                        @foreach (var finding in _rollbackPlan.CompatibilityFindings)
+                        {
+                            <li><span>compatibility</span><strong>@finding</strong></li>
+                        }
+                    </ul>
+                }
+                <button class="console-button" type="button" disabled="@_rollbackBusy" @onclick="ExecuteRollbackAsync">Execute Rollback Job</button>
+            }
+
+            @if (_rollbackOperation is not null && _rollbackOperation.BindingState is null)
+            {
+                <dl class="console-definition-list operate-temporal-rollback-op">
+                    <dt>Status</dt><dd>@_rollbackOperation.Status</dd>
+                    <dt>Job</dt><dd>@(_rollbackOperation.JobRunId ?? "—")</dd>
+                    <dt>Result checkpoint</dt><dd>@(_rollbackOperation.ResultCheckpointId ?? "—")</dd>
+                    <dt>Audit events</dt><dd>@(_rollbackOperation.AuditEventIds.Count == 0 ? "—" : string.Join(", ", _rollbackOperation.AuditEventIds))</dd>
+                </dl>
+            }
+        </article>
+    };
+
+    private RenderFragment RenderConflictReview() => __builder =>
+    {
+        if (_selectedSource is null || !_selectedSource.SyncConflictReviewSupported)
+        {
+            return;
+        }
+
+        <article class="console-panel operate-temporal-conflicts" aria-label="Replica conflict queue">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Disconnected sync</p>
+                    <h2>Replica Conflict Queue</h2>
+                </div>
+            </div>
+
+            @if (_replicaBinding is not null)
+            {
+                <p class="console-status">@DescribeBlocked(_replicaBinding)</p>
+            }
+            else if (_replicas.Count == 0)
+            {
+                <p class="console-muted">No disconnected replicas are registered for this source.</p>
+            }
+            else
+            {
+                <table class="console-table" aria-label="Replicas">
+                    <thead>
+                        <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Conflicts</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var replica in _replicas)
+                        {
+                            <tr class="@(string.Equals(replica.ReplicaId, _selectedReplica?.ReplicaId, StringComparison.Ordinal) ? "console-row-selected" : string.Empty)">
+                                <td><strong>@replica.ReplicaName</strong><small>@replica.SyncDirection</small></td>
+                                <td>@replica.OwnerId</td>
+                                <td>@(replica.DeviceId ?? "—")</td>
+                                <td>@replica.BaseCheckpointId</td>
+                                <td>@replica.ReplicaServerGen</td>
+                                <td>@replica.Status</td>
+                                <td>@replica.PendingConflictCount</td>
+                                <td><button class="console-button console-button-secondary" type="button" disabled="@_replicaBusy" @onclick="() => ReviewReplicaAsync(replica)">Review</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (_selectedReplica is not null)
+            {
+                @RenderConflictDetail();
+            }
+        </article>
+    };
+
+    private RenderFragment RenderConflictDetail() => __builder =>
+    {
+        <section class="operate-temporal-conflict-detail" aria-label="Conflict review">
+            <div class="console-page-heading">
+                <p class="console-kicker">@_selectedReplica!.ReplicaName · gen @_selectedReplica.ReplicaServerGen</p>
+                <h3>Base / Client / Server Comparison</h3>
+            </div>
+
+            @if (_conflictReviewBinding is not null)
+            {
+                <p class="console-status">@DescribeBlocked(_conflictReviewBinding)</p>
+            }
+            else if (_conflicts.Count == 0)
+            {
+                <p class="console-muted">No pending conflicts for this replica.</p>
+            }
+            else
+            {
+                <div class="operate-temporal-batch" aria-label="Batch resolution">
+                    <label>
+                        <span>Batch action</span>
+                        <select class="console-input" @bind="_batchAction" aria-label="Batch action">
+                            @foreach (var action in Enum.GetValues<SyncResolutionAction>())
+                            {
+                                <option value="@action">@action</option>
+                            }
+                        </select>
+                    </label>
+                    <button class="console-button" type="button"
+                            disabled="@(_resolveBusy || _selectedConflictIds.Count == 0)"
+                            @onclick="ResolveBatchAsync">Resolve @_selectedConflictIds.Count Selected</button>
+                </div>
+
+                @foreach (var conflict in _conflicts)
+                {
+                    <article class="operate-temporal-conflict console-panel">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">@conflict.ConflictType · @conflict.Status</p>
+                                <h4>Feature @conflict.FeatureId</h4>
+                            </div>
+                            <label class="workflow-checkbox">
+                                <input type="checkbox"
+                                       checked="@_selectedConflictIds.Contains(conflict.ConflictId)"
+                                       @onchange="e => ToggleConflict(conflict.ConflictId, e)" />
+                                <span>Select</span>
+                            </label>
+                        </div>
+                        @if (conflict.GeometryConflict)
+                        {
+                            <p class="console-status operate-temporal-geometry-marker">Geometry conflict: client and server geometry diverged from the base.</p>
+                        }
+                        @if (conflict.FieldConflicts.Count > 0)
+                        {
+                            <table class="console-table" aria-label="Field conflicts">
+                                <thead><tr><th>Field</th><th>Base</th><th>Client</th><th>Server</th></tr></thead>
+                                <tbody>
+                                    @foreach (var field in conflict.FieldConflicts)
+                                    {
+                                        <tr class="operate-temporal-field-conflict">
+                                            <td><strong>@field.Field</strong></td>
+                                            <td>@(field.BaseValue ?? "∅")</td>
+                                            <td>@(field.ClientValue ?? "∅")</td>
+                                            <td>@(field.ServerValue ?? "∅")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                        <div class="operate-temporal-resolution-choices">
+                            @foreach (var action in SingleConflictActions)
+                            {
+                                <button class="console-button console-button-secondary" type="button"
+                                        disabled="@_resolveBusy"
+                                        @onclick="() => ResolveSingleAsync(conflict.ConflictId, action)">@DescribeAction(action)</button>
+                            }
+                        </div>
+                    </article>
+                }
+            }
+
+            @if (_resolutionBinding is not null)
+            {
+                <p class="console-status">@DescribeBlocked(_resolutionBinding)</p>
+            }
+            else if (_lastResolution is not null)
+            {
+                <article class="console-panel operate-temporal-audit" aria-label="Resolution audit evidence">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Audit evidence</p>
+                            <h4>Committed Change Set</h4>
+                        </div>
+                    </div>
+                    @if (_lastResolution.WroteAuditedChangeSet)
+                    {
+                        <dl class="console-definition-list">
+                            <dt>Resolution</dt><dd>@_lastResolution.ResolutionId</dd>
+                            <dt>Action</dt><dd>@_lastResolution.Action</dd>
+                            <dt>Change set</dt><dd>@_lastResolution.ResultChangeSetId</dd>
+                            <dt>Result revision</dt><dd>@(_lastResolution.ResultRevisionId ?? "—")</dd>
+                            <dt>Job</dt><dd>@(_lastResolution.JobRunId ?? "—")</dd>
+                            <dt>Audit events</dt><dd>@string.Join(", ", _lastResolution.AuditEventIds)</dd>
+                        </dl>
+                    }
+                    else
+                    {
+                        <p class="console-status">Resolution did not commit an audited change set; review the server result before retrying.</p>
+                    }
+                </article>
+            }
+        </section>
+    };
+
+    private static readonly SyncResolutionAction[] SingleConflictActions =
+    [
+        SyncResolutionAction.AcceptClient,
+        SyncResolutionAction.KeepServer,
+        SyncResolutionAction.MergeFields,
+        SyncResolutionAction.RestoreBase,
+        SyncResolutionAction.RejectClientEdit,
+        SyncResolutionAction.Defer,
+    ];
+
+    private async Task ComputeDiffAsync()
+    {
+        if (_selectedSource is null || string.IsNullOrWhiteSpace(_fromCheckpointId) || string.IsNullOrWhiteSpace(_toCheckpointId))
+        {
+            return;
+        }
+
+        _diffBusy = true;
+        try
+        {
+            var diff = await TemporalData.GetDiffAsync(_selectedSource.SourceId, _fromCheckpointId, _toCheckpointId);
+            _diffBinding = diff.BindingState;
+            _diff = diff.BindingState is null ? diff : null;
+        }
+        finally
+        {
+            _diffBusy = false;
+        }
+    }
+
+    private async Task LoadFeatureTimelineAsync()
+    {
+        if (_selectedSource is null || string.IsNullOrWhiteSpace(_featureIdInput))
+        {
+            return;
+        }
+
+        _timelineBusy = true;
+        try
+        {
+            var timeline = await TemporalData.GetFeatureTimelineAsync(_selectedSource.SourceId, _featureIdInput.Trim());
+            _timelineBinding = timeline.BindingState;
+            _timeline = timeline.BindingState is null ? timeline : null;
+        }
+        finally
+        {
+            _timelineBusy = false;
+        }
+    }
+
+    private async Task CreateRollbackPlanAsync()
+    {
+        if (_selectedSource is null || string.IsNullOrWhiteSpace(_fromCheckpointId))
+        {
+            return;
+        }
+
+        _rollbackBusy = true;
+        try
+        {
+            _rollbackOperation = null;
+            var plan = await TemporalData.CreateRollbackPlanAsync(_selectedSource.SourceId, _rollbackScope, _fromCheckpointId);
+            _rollbackBinding = plan.BindingState;
+            _rollbackPlan = plan.BindingState is null ? plan : null;
+        }
+        finally
+        {
+            _rollbackBusy = false;
+        }
+    }
+
+    private async Task ExecuteRollbackAsync()
+    {
+        if (_rollbackPlan is null)
+        {
+            return;
+        }
+
+        _rollbackBusy = true;
+        try
+        {
+            var operation = await TemporalData.ExecuteRollbackAsync(_rollbackPlan.RollbackPlanId);
+            _rollbackBinding = operation.BindingState;
+            _rollbackOperation = operation.BindingState is null ? operation : null;
+        }
+        finally
+        {
+            _rollbackBusy = false;
+        }
+    }
+
+    private async Task ReviewReplicaAsync(DisconnectedReplica replica)
+    {
+        _selectedReplica = replica;
+        _selectedConflictIds.Clear();
+        _lastResolution = null;
+        _resolutionBinding = null;
+
+        _replicaBusy = true;
+        try
+        {
+            var review = await TemporalData.GetReplicaConflictReviewAsync(replica.ReplicaId);
+            _conflictReviewBinding = review.BindingState;
+            _conflicts = review.BindingState is null ? review.Conflicts : [];
+        }
+        finally
+        {
+            _replicaBusy = false;
+        }
+    }
+
+    private void ToggleConflict(string conflictId, ChangeEventArgs args)
+    {
+        if (args.Value is true)
+        {
+            _selectedConflictIds.Add(conflictId);
+        }
+        else
+        {
+            _selectedConflictIds.Remove(conflictId);
+        }
+    }
+
+    private Task ResolveSingleAsync(string conflictId, SyncResolutionAction action) =>
+        ResolveAsync([conflictId], action);
+
+    private Task ResolveBatchAsync() =>
+        ResolveAsync(_selectedConflictIds.ToArray(), _batchAction);
+
+    private async Task ResolveAsync(IReadOnlyList<string> conflictIds, SyncResolutionAction action)
+    {
+        if (conflictIds.Count == 0)
+        {
+            return;
+        }
+
+        _resolveBusy = true;
+        try
+        {
+            var result = await TemporalData.ResolveConflictsAsync(new SyncConflictResolutionRequest(conflictIds, action));
+            _resolutionBinding = result.BindingState;
+            _lastResolution = result.BindingState is null ? result : null;
+
+            if (result.BindingState is null && _selectedReplica is not null)
+            {
+                // Refresh the queue/review so resolved conflicts drop out and audit evidence stays accurate.
+                var review = await TemporalData.GetReplicaConflictReviewAsync(_selectedReplica.ReplicaId);
+                _conflictReviewBinding = review.BindingState;
+                _conflicts = review.BindingState is null ? review.Conflicts : [];
+                _selectedConflictIds.Clear();
+            }
+        }
+        finally
+        {
+            _resolveBusy = false;
+        }
+    }
+
+    private static string DescribeBlocked(TemporalBindingState state) =>
+        $"{state.State}: {state.Detail} (contract: {state.Contract})";
+
+    private static string DescribeAttributeChanges(TemporalFeatureChange change)
+    {
+        if (change.AttributeChanges.Count == 0)
+        {
+            return "—";
+        }
+
+        return string.Join(", ", change.AttributeChanges.Select(field =>
+            field.Masked ? $"{field.Field} (masked)" : field.Field));
+    }
+
+    private static string DescribeAction(SyncResolutionAction action) => action switch
+    {
+        SyncResolutionAction.AcceptClient => "Client wins",
+        SyncResolutionAction.KeepServer => "Server wins",
+        SyncResolutionAction.MergeFields => "Field merge",
+        SyncResolutionAction.RestoreBase => "Restore base",
+        SyncResolutionAction.RejectClientEdit => "Reject",
+        SyncResolutionAction.Defer => "Defer",
+        _ => action.ToString(),
+    };
+}

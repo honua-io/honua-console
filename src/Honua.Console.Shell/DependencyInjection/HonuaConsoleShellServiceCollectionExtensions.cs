@@ -23,6 +23,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddTemporalCapabilityClient(services);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
         // Server-owned catalog/content metadata is no longer wired to the seeded
@@ -197,6 +198,20 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
     }
+
+    // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal)
+    // to honua-server's temporal data history API (#1166: as-of query, diff, attribution, rollback) and
+    // the disconnected replica conflict review API (#1167: named replica metadata + conflict reads /
+    // resolution writes). Both server contracts are still open/unlanded, so the merged build registers
+    // only the missing-binding client: every temporal operation (capabilities, checkpoints, diff, feature
+    // timeline, rollback plan/execute, replica queue/review, conflict resolution) returns a
+    // missing-binding state, the viewer renders an explicit capability explanation, and Console never
+    // fabricates temporal history or sync conflicts from a standing mock (Console Patterns Charter
+    // section 11). When #1166/#1167 land, wire the live HTTP-bound client here behind the
+    // Honua.Console.Contracts shim, gated on a configured server base URL exactly like the Studio /
+    // Operate bindings above; the page and tests already consume the full ITemporalCapabilityClient.
+    private static void AddTemporalCapabilityClient(IServiceCollection services) =>
+        services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
 
     private static HttpClient CreateOperateObservabilityHttpClient() =>
         new(new SocketsHttpHandler
