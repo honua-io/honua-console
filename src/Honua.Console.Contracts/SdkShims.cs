@@ -49,21 +49,21 @@ public static class CatalogContentTypes
 {
     public static IReadOnlyList<CatalogContentType> All { get; } =
     [
-        new("dataset", "Datasets", "Tables, files, and reusable data products."),
-        new("service", "Services", "Published service endpoints and APIs."),
-        new("layer", "Layers", "Renderable feature, raster, and vector layers."),
-        new("document", "Documents", "Public metadata documents and downloadable resources."),
-        new("map", "Maps", "Saved maps and web map packages."),
-        new("dashboard", "Dashboards", "Operational and analytical dashboards."),
-        new("report", "Reports", "Static or scheduled analytical reports."),
-        new("form", "Forms", "Field collection forms and surveys."),
-        new("app", "Apps", "Generated or packaged applications."),
-        new("workflow", "Workflows", "Automations, approvals, and jobs."),
-        new("analysis", "Analyses", "Spatial analyses and derived outputs."),
-        new("gp-service", "GP Services", "Geoprocessing services and tools."),
-        new("etl-pipeline", "ETL Pipelines", "Extract, transform, and load pipelines."),
-        new("connector", "Connectors", "External system connectors."),
-        new("template", "Templates", "Reusable Studio and publishing templates.")
+        new("dataset", "Datasets", "Tables, files, and reusable data products.", "◇"),
+        new("service", "Services", "Published service endpoints and APIs.", "⚙"),
+        new("layer", "Layers", "Renderable feature, raster, and vector layers.", "◐"),
+        new("document", "Documents", "Public metadata documents and downloadable resources.", "⊟"),
+        new("map", "Maps", "Saved maps and web map packages.", "◐"),
+        new("dashboard", "Dashboards", "Operational and analytical dashboards.", "▤"),
+        new("report", "Reports", "Static or scheduled analytical reports.", "⊟"),
+        new("form", "Forms", "Field collection forms and surveys.", "☱"),
+        new("app", "Apps", "Generated or packaged applications.", "❒"),
+        new("workflow", "Workflows", "Automations, approvals, and jobs.", "⇋"),
+        new("analysis", "Analyses", "Spatial analyses and derived outputs.", "∑"),
+        new("gp-service", "GP Services", "Geoprocessing services and tools.", "⚙"),
+        new("etl-pipeline", "ETL Pipelines", "Extract, transform, and load pipelines.", "⤴"),
+        new("connector", "Connectors", "External system connectors.", "⧉"),
+        new("template", "Templates", "Reusable Studio and publishing templates.", "▤")
     ];
 
     public static bool Contains(string? key) =>
@@ -73,9 +73,13 @@ public static class CatalogContentTypes
     public static string LabelFor(string? key) =>
         All.FirstOrDefault(type => string.Equals(type.Key, key, StringComparison.Ordinal))?.Label
         ?? "Content";
+
+    public static string GlyphFor(string? key) =>
+        All.FirstOrDefault(type => string.Equals(type.Key, key, StringComparison.Ordinal))?.Glyph
+        ?? "◈";
 }
 
-public sealed record CatalogContentType(string Key, string Label, string Description);
+public sealed record CatalogContentType(string Key, string Label, string Description, string Glyph = "◈");
 
 public sealed record CatalogSearchState
 {

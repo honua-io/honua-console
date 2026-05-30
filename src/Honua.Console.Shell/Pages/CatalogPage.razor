@@ -4,10 +4,16 @@
 @inject NavigationManager Navigation
 
 <section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Builder workflow</p>
-        <h1>Catalog</h1>
-        <p>Workspace content, publication state, provenance, and viewer readiness.</p>
+    <div class="console-page-heading console-detail-heading">
+        <div>
+            <p class="console-kicker">Catalog</p>
+            <h1>Catalog</h1>
+            <p>Everything your workspace owns — data, maps, dashboards, forms, apps, workflows, analyses, GP services. Versioned, governed, reusable.</p>
+        </div>
+        <div class="console-detail-actions">
+            <a class="console-button-link console-button-secondary" href="/operate/publishing">Import…</a>
+            <a class="console-button-link" href="/studio">+ New from Studio</a>
+        </div>
     </div>
 
     @if (_accessResolved && !_requiresAuthentication)
@@ -65,6 +71,10 @@
             <button class="console-button" type="submit">Search</button>
         </form>
 
+        <div class="console-result-toolbar" role="status">
+            <span class="console-result-count">@(_result?.Items.Count ?? 0) items shown</span>
+        </div>
+
         <nav class="console-type-strip" aria-label="Catalog content types">
             <a class="@TypeStripClass(string.Empty)" href="@BuildTypeHref(string.Empty)">
                 <span>All</span>
@@ -73,6 +83,7 @@
             @foreach (var type in CatalogContentTypes.All)
             {
                 <a class="@TypeStripClass(type.Key)" href="@BuildTypeHref(type.Key)" title="@type.Description">
+                    <span class="console-type-glyph" aria-hidden="true">@type.Glyph</span>
                     <span>@type.Label</span>
                     <small>@TypeCount(type.Key)</small>
                 </a>
@@ -102,10 +113,11 @@
             <table class="console-content-table">
                 <thead>
                     <tr>
-                        <th scope="col">Item</th>
+                        <th scope="col">Title</th>
                         <th scope="col">Type</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Published to</th>
                         <th scope="col">Owner</th>
-                        <th scope="col">Visibility</th>
                         <th scope="col">Modified</th>
                         <th scope="col">Actions</th>
                     </tr>
@@ -115,7 +127,10 @@
                     {
                         <tr>
                             <th scope="row">
-                                <a href="/catalog/@SlugOrId(item)">@item.Title</a>
+                                <a href="/catalog/@SlugOrId(item)">
+                                    <span class="console-type-glyph" aria-hidden="true">@CatalogContentTypes.GlyphFor(item.Type)</span>
+                                    @item.Title
+                                </a>
                                 <small>@item.Summary</small>
                                 <span class="console-inline-tags">
                                     @foreach (var tag in item.Tags)
@@ -124,8 +139,10 @@
                                     }
                                 </span>
                             </th>
-                            <td>@CatalogContentTypes.LabelFor(item.Type)</td>
-                            <td>@item.Owner</td>
+                            <td><span class="console-type-tag">@CatalogContentTypes.LabelFor(item.Type)</span></td>
+                            <td>
+                                <span class="@StatusBadgeClass(item)">@StatusLabel(item)</span>
+                            </td>
                             <td>
                                 <span class="console-status">@VisibilityLabel(item.Access.Sharing)</span>
                                 @if (item.Access.OpenData)
@@ -133,6 +150,7 @@
                                     <span class="console-status">Open data</span>
                                 }
                             </td>
+                            <td>@item.Owner</td>
                             <td>@item.Modified.ToLocalTime().ToString("MMM d, yyyy")</td>
                             <td>
                                 <div class="console-action-row">
@@ -215,4 +233,15 @@
         CatalogSharingTiers.Group => "Group",
         _ => "Private"
     };
+
+    private static bool IsShared(ConsoleContentSummary item) =>
+        !string.Equals(item.Access.Sharing, CatalogSharingTiers.Private, StringComparison.Ordinal);
+
+    private static string StatusLabel(ConsoleContentSummary item) =>
+        IsShared(item) ? "published" : "draft";
+
+    private static string StatusBadgeClass(ConsoleContentSummary item) =>
+        IsShared(item)
+            ? "console-status console-state-success"
+            : "console-status console-state-neutral";
 }

@@ -20,9 +20,14 @@
         <div class="console-page-heading console-detail-heading">
             <div>
                 <p class="console-kicker">@CatalogContentTypes.LabelFor(summary.Type)</p>
-                <h1>@summary.Title</h1>
+                <h1>
+                    <span class="console-type-glyph" aria-hidden="true">@CatalogContentTypes.GlyphFor(summary.Type)</span>
+                    @summary.Title
+                    <span class="@StatusBadgeClass(summary)">@StatusLabel(summary)</span>
+                </h1>
                 <p>@summary.Summary</p>
                 <div class="console-chip-row">
+                    <span>@CatalogContentTypes.LabelFor(summary.Type)</span>
                     <span>@summary.Owner</span>
                     <span>@VisibilityLabel(summary.Access.Sharing)</span>
                     @if (_result.AnonymousRead)
@@ -46,7 +51,14 @@
         <nav class="console-tab-row" aria-label="Catalog item detail tabs">
             @foreach (var tab in Tabs)
             {
-                <a class="@TabClass(tab.Id)" href="@BuildTabHref(tab.Id)">@tab.Label</a>
+                var count = TabCount(item, tab.Id);
+                <a class="@TabClass(tab.Id)" href="@BuildTabHref(tab.Id)">
+                    @tab.Label
+                    @if (count is { } value)
+                    {
+                        <small class="console-tab-count">@value</small>
+                    }
+                </a>
             }
         </nav>
 
@@ -157,18 +169,129 @@
                     }
                     break;
                 default:
-                    <h2>Overview</h2>
-                    <p>@item.Description</p>
-                    <dl class="console-definition-list">
-                        <dt>Item ID</dt>
-                        <dd>@summary.Id</dd>
-                        <dt>Slug</dt>
-                        <dd>@summary.Slug</dd>
-                        <dt>Role</dt>
-                        <dd>@summary.ResolvedRole</dd>
-                        <dt>Capabilities</dt>
-                        <dd>@string.Join(", ", item.Capabilities)</dd>
-                    </dl>
+                    <div class="console-detail-overview">
+                        <div class="console-detail-overview-main">
+                            <article class="console-overview-card">
+                                <header><h3>Overview</h3></header>
+                                <div class="console-overview-card-body">
+                                    <p>@item.Description</p>
+                                    <dl class="console-definition-list">
+                                        <dt>Item ID</dt>
+                                        <dd>@summary.Id</dd>
+                                        <dt>Slug</dt>
+                                        <dd>@summary.Slug</dd>
+                                        <dt>Role</dt>
+                                        <dd>@summary.ResolvedRole</dd>
+                                        <dt>Capabilities</dt>
+                                        <dd>@string.Join(", ", item.Capabilities)</dd>
+                                    </dl>
+                                </div>
+                            </article>
+
+                            <article class="console-overview-card">
+                                <header>
+                                    <h3>Versions</h3>
+                                    <span class="console-overview-card-note">@item.Versions.Length version@(item.Versions.Length == 1 ? string.Empty : "s")</span>
+                                </header>
+                                @if (item.Versions.Length == 0)
+                                {
+                                    <div class="console-overview-card-body">
+                                        <p class="console-overview-empty">No saved versions yet for this item.</p>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <table class="console-content-table console-content-table-compact">
+                                        <thead>
+                                            <tr><th scope="col">Version</th><th scope="col">Author</th><th scope="col">Created</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var version in item.Versions)
+                                            {
+                                                <tr>
+                                                    <th scope="row">@version.Label <small>@version.VersionId</small></th>
+                                                    <td>@version.CreatedBy</td>
+                                                    <td>@version.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                            </article>
+
+                            <article class="console-overview-card">
+                                <header>
+                                    <h3>Lineage</h3>
+                                    <span class="console-overview-card-note">upstream dependencies and downstream consumers</span>
+                                </header>
+                                @if (item.Lineage.Length == 0)
+                                {
+                                    <div class="console-overview-card-body">
+                                        <p class="console-overview-empty">No lineage relationships are recorded for this item.</p>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <ul class="console-event-list">
+                                        @foreach (var link in item.Lineage)
+                                        {
+                                            <li>
+                                                <strong>@link.Title</strong>
+                                                <span>@link.Relationship</span>
+                                                <small>@link.Direction · @link.ItemId</small>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </article>
+                        </div>
+
+                        <aside class="console-detail-overview-side">
+                            <article class="console-overview-card">
+                                <header><h3>Quick facts</h3></header>
+                                <div class="console-overview-card-body">
+                                    <dl class="console-definition-list">
+                                        <dt>Type</dt>
+                                        <dd>@CatalogContentTypes.LabelFor(summary.Type)</dd>
+                                        <dt>Identifier</dt>
+                                        <dd>@(string.IsNullOrWhiteSpace(summary.Slug) ? summary.Id : summary.Slug)</dd>
+                                        <dt>Owner</dt>
+                                        <dd>@summary.Owner</dd>
+                                        <dt>Role</dt>
+                                        <dd>@summary.ResolvedRole</dd>
+                                        @if (summary.Tags.Length > 0)
+                                        {
+                                            <dt>Tags</dt>
+                                            <dd>@string.Join(" · ", summary.Tags)</dd>
+                                        }
+                                        <dt>Modified</dt>
+                                        <dd>@summary.Modified.ToLocalTime().ToString("MMM d, yyyy")</dd>
+                                    </dl>
+                                </div>
+                            </article>
+
+                            <article class="console-overview-card">
+                                <header><h3>Publication</h3></header>
+                                <div class="console-overview-card-body">
+                                    <dl class="console-definition-list">
+                                        <dt>Visibility</dt>
+                                        <dd>@VisibilityLabel(summary.Access.Sharing)</dd>
+                                        <dt>Embeddable</dt>
+                                        <dd>@(summary.Access.Embeddable ? "Allowed" : "Not allowed")</dd>
+                                        <dt>Open data</dt>
+                                        <dd>@(summary.Access.OpenData ? "Enabled" : "Off")</dd>
+                                    </dl>
+                                </div>
+                            </article>
+
+                            @if (item.Usage.Length > 0)
+                            {
+                                <div class="console-usage-callout">
+                                    Used by @item.Usage.Length item@(item.Usage.Length == 1 ? string.Empty : "s"). Edit with care — changes propagate to dependents on next publish. The Usage tab shows the full chain.
+                                </div>
+                            }
+                        </aside>
+                    </div>
                     break;
             }
         </section>
@@ -256,6 +379,27 @@
         CatalogSharingTiers.Group => "Group",
         _ => "Private"
     };
+
+    private static int? TabCount(ConsoleContentDetail item, string tab) => tab switch
+    {
+        "versions" when item.Versions.Length > 0 => item.Versions.Length,
+        "lineage" when item.Lineage.Length > 0 => item.Lineage.Length,
+        "bindings" when item.Bindings.Length > 0 => item.Bindings.Length,
+        "permissions" when item.Permissions.Length > 0 => item.Permissions.Length,
+        "usage" when item.Usage.Length > 0 => item.Usage.Length,
+        _ => null
+    };
+
+    private static bool IsShared(ConsoleContentSummary item) =>
+        !string.Equals(item.Access.Sharing, CatalogSharingTiers.Private, StringComparison.Ordinal);
+
+    private static string StatusLabel(ConsoleContentSummary item) =>
+        IsShared(item) ? "published" : "draft";
+
+    private static string StatusBadgeClass(ConsoleContentSummary item) =>
+        IsShared(item)
+            ? "console-status console-state-success"
+            : "console-status console-state-neutral";
 
     private sealed record CatalogTab(string Id, string Label);
 }
