@@ -130,11 +130,14 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             }
         }
 
-        var saved = ToEditorState(result.Data!);
+        // Keep the operator's current authoring edits and only stamp the server-owned identity/generation
+        // from the response. Rehydrating from the echoed envelope body here would risk dropping unsaved
+        // local intent if the server normalised the body; the body round-trip belongs to load/reopen.
+        ApplyServerIdentity(state, result.Data!);
         return new StudioMapCommandResult(
             true,
             $"Saved map draft ({result.Data!.PackageKey}). Review before publishing.",
-            saved);
+            state);
     }
 
     public async Task<StudioMapCommandResult> PublishAsync(
@@ -253,18 +256,22 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
     private static StudioMapEditorState ToEditorState(StudioPackageDraft draft)
     {
         // The server is the source of truth for identity/generation; the authoring content is rehydrated
-        // from the draft's envelope body (the same round-trip surface a save froze), so reopening a map
-        // restores its layers/frame/behaviour rather than a blank scaffold.
+        // from the draft's envelope body (the same round-trip surface a save froze), so loading/reopening a
+        // map restores its layers/frame/behaviour rather than a blank scaffold.
         var state = StudioMapPackageMapper.CreateTemplate();
         StudioMapPackageMapper.ApplyEnvelopeBody(state, draft.Envelope.Body);
+        ApplyServerIdentity(state, draft);
+        return state;
+    }
 
+    private static void ApplyServerIdentity(StudioMapEditorState state, StudioPackageDraft draft)
+    {
         state.DraftId = draft.DraftId;
         state.ItemId = draft.ItemId == Guid.Empty ? null : draft.ItemId;
         state.VersionId = draft.BaseVersionId;
         state.MapId = draft.ItemId == Guid.Empty ? draft.DraftId.ToString() : draft.ItemId.ToString();
         state.Generation = draft.Generation;
         state.Status = StudioMapStatuses.Draft;
-        return state;
     }
 
     private static StudioMapCapabilityState ToCapabilityState(string contract, StudioEndpointIssue issue) =>

@@ -392,6 +392,20 @@ public sealed class ServerStudioAuthoringShellTests
             }));
         }
 
+        public Task<StudioEndpointResult<StudioPackageDraft>> ReopenContentVersionAsync(
+            Guid itemId,
+            Guid versionId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(NotFound<StudioPackageDraft>(
+                "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen"));
+
+        public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
+            Guid itemId,
+            Guid versionId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(NotFound<StudioContentVersion>(
+                "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}"));
+
         private static StudioValidationSummary NotValidated() => new()
         {
             Status = StudioPackageValidationStatus.NotValidated

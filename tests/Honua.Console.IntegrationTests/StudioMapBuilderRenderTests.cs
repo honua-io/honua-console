@@ -1,5 +1,9 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using AngleSharp.Dom;
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -107,6 +111,59 @@ public sealed class StudioMapBuilderRenderTests
         Assert.NotNull(FindButton(page, "Reopen as draft"));
     }
 
+    [Fact]
+    public void MapBuilder_ServerBound_NewMapSaveThenPublish_RendersLifecycleFromTypedClient()
+    {
+        // Drives the page through the production server-bound data source over a recording HttpClient, so
+        // the binding (create draft -> freeze content version -> publication request) is exercised
+        // end-to-end through the typed lifecycle client rather than a hand-written fake.
+        var draftId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var handler = new ServerFlowHandler(draftId, itemId, versionId);
+        var baseUri = new Uri("https://server.example");
+        var httpClient = new HttpClient(handler) { BaseAddress = baseUri };
+        var client = new HttpStudioPackageLifecycleClient(
+            httpClient,
+            new StudioPackageLifecycleClientOptions(baseUri, "key"));
+
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client));
+
+        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+
+        // The list view surfaces the no-list-verb capability state (never a fabricated package list).
+        page.WaitForAssertion(
+            () => Assert.Contains("Map packages cannot be listed yet", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        FindButton(page, "New map").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Author a publish-ready map directly on the rendered editor, then save (creates the live draft).
+        page.Find("input[placeholder='Public works map']").Change("Public works");
+        page.Find("input[placeholder='basemap:streets']").Change("basemap:streets");
+        page.Find("input[placeholder='-158.3,21.2,-157.6,21.7']").Change("-158.3,21.2,-157.6,21.7");
+        FindButton(page, "Add layer").Click();
+        page.Find("input[placeholder='content:hydrants@v12']").Change("content:hydrants@v12");
+
+        FindButton(page, "Save draft").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("Saved map draft", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        FindButton(page, "Publish").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("Publication request accepted", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // After publish the editor is terminal: publish is disabled and reopen is offered.
+        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.NotNull(FindButton(page, "Reopen as draft"));
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioMapBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -137,6 +194,85 @@ public sealed class StudioMapBuilderRenderTests
         "Missing binding",
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl so the map builder can bind the server-owned map package lifecycle.");
+
+    /// <summary>
+    /// Minimal honua-server stand-in that answers the create-draft, save-content-version, and
+    /// publish-request routes the map publish flow drives, in the wire envelope the typed client expects.
+    /// </summary>
+    private sealed class ServerFlowHandler : HttpMessageHandler
+    {
+        private readonly Guid _draftId;
+        private readonly Guid _itemId;
+        private readonly Guid _versionId;
+
+        public ServerFlowHandler(Guid draftId, Guid itemId, Guid versionId)
+        {
+            _draftId = draftId;
+            _itemId = itemId;
+            _versionId = versionId;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+
+            object? data = path switch
+            {
+                "/api/v1/studio/package-drafts" => new
+                {
+                    draftId = _draftId,
+                    itemId = Guid.Empty,
+                    packageKey = "studio-map-public-works",
+                    family = "map",
+                    generation = 1,
+                    envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+                    validation = new { status = "not-validated" },
+                    createdAt = "2026-05-30T00:00:00Z",
+                    updatedAt = "2026-05-30T00:00:00Z"
+                },
+                _ when path.EndsWith("/content-versions", StringComparison.Ordinal) => new
+                {
+                    itemId = _itemId,
+                    packageKey = "studio-map-public-works",
+                    versionId = _versionId,
+                    versionNumber = 1,
+                    contentHash = "abc",
+                    envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+                    validation = new { status = "valid" },
+                    createdAt = "2026-05-30T00:00:00Z"
+                },
+                _ when path.EndsWith("/publish-requests", StringComparison.Ordinal) => new
+                {
+                    requestId = Guid.NewGuid(),
+                    itemId = _itemId,
+                    versionId = _versionId,
+                    status = "accepted",
+                    validation = new { status = "valid" },
+                    createdAt = "2026-05-30T00:00:00Z"
+                },
+                _ => null
+            };
+
+            if (data is null)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
+                {
+                    Content = new StringContent(
+                        """{"success":false,"message":"missing fixture"}""",
+                        Encoding.UTF8,
+                        "application/json")
+                });
+            }
+
+            var json = JsonSerializer.Serialize(new { success = true, data });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        }
+    }
 
     private sealed class FakeMapDataSource : IStudioMapPackageDataSource
     {
