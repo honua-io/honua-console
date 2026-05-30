@@ -5824,3 +5824,321 @@ p {
     font-size: 0.76rem;
     word-break: break-all;
 }
+
+/* Settings > Access · RBAC (screens-collab-rbac.jsx RBACOverview / TeamMembers) */
+.rbac-lede {
+    margin: 6px 0 0;
+    max-width: 80ch;
+}
+
+.rbac-section-title {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    color: var(--honua-text);
+}
+
+/* Scope-hierarchy strip */
+.rbac-scope-strip {
+    margin: 4px 0 18px;
+    padding: 14px 16px;
+    background: var(--honua-surface-strong);
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+}
+
+.rbac-scope-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    flex-wrap: wrap;
+}
+
+.rbac-scope-cell {
+    flex: 1 1 0;
+    min-width: 130px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    background: var(--honua-surface);
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+}
+
+.rbac-scope-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--honua-accent-strong);
+}
+
+.rbac-scope-desc {
+    font-size: 0.74rem;
+    line-height: 1.35;
+    color: var(--honua-muted);
+}
+
+.rbac-scope-arrow {
+    display: grid;
+    place-items: center;
+    padding: 0 6px;
+    color: var(--honua-muted);
+    font-size: 1rem;
+}
+
+.rbac-scope-note {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+}
+
+/* Role × permission matrix */
+.rbac-matrix-wrap {
+    margin-bottom: 12px;
+}
+
+.rbac-matrix {
+    min-width: 880px;
+}
+
+.rbac-matrix td,
+.rbac-matrix th {
+    padding: 9px 12px;
+    font-size: 0.82rem;
+}
+
+.rbac-matrix tbody td:not(:first-child) {
+    text-align: center;
+}
+
+.rbac-role-custom td:first-child {
+    box-shadow: inset 3px 0 0 var(--honua-accent);
+}
+
+.rbac-role-tag {
+    margin-left: 6px;
+    font-size: 0.68rem;
+    padding: 1px 6px;
+}
+
+.rbac-dash {
+    color: var(--honua-muted);
+}
+
+.rbac-badge-scoped,
+.rbac-badge-env,
+.rbac-badge-custom,
+.rbac-dot-granted-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    padding: 1px 6px;
+}
+
+/* Legend */
+.rbac-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    background: var(--honua-surface-strong);
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    font-size: 0.78rem;
+}
+
+.rbac-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rbac-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.rbac-dot-granted {
+    background: #17603a;
+}
+
+.rbac-dot-custom {
+    background: #175487;
+}
+
+.rbac-legend-note {
+    margin-left: auto;
+}
+
+/* Members layout: roster + invite drawer */
+.rbac-members-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 18px;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .rbac-members-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.rbac-members-main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.rbac-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+    background: var(--honua-surface-strong);
+    border: 1px solid var(--honua-border);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--honua-accent-strong);
+}
+
+.rbac-member-identity {
+    display: inline-flex;
+    flex-direction: column;
+    vertical-align: middle;
+}
+
+.rbac-member-identity small {
+    color: var(--honua-muted);
+    font-size: 0.72rem;
+}
+
+.rbac-invitations {
+    border-top: 1px dashed var(--honua-border);
+    padding-top: 14px;
+}
+
+.rbac-invitations-table {
+    min-width: 600px;
+}
+
+/* Scoped-invite drawer */
+.rbac-invite-drawer {
+    display: flex;
+    flex-direction: column;
+    background: var(--honua-surface);
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.rbac-invite-head {
+    padding: 12px 14px;
+    background: var(--honua-surface-strong);
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.rbac-invite-head p {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+}
+
+.rbac-invite-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+}
+
+.rbac-invite-group {
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rbac-invite-group legend {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--honua-accent-strong);
+    padding: 0 4px;
+}
+
+.rbac-invite-grants {
+    background: var(--honua-surface-strong);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.rbac-grants-caption {
+    display: block;
+    font-size: 0.76rem;
+    margin-bottom: 4px;
+}
+
+.rbac-grants-caption small {
+    color: var(--honua-muted);
+}
+
+.rbac-grants-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.78rem;
+}
+
+.rbac-grant-dot {
+    font-size: 0.64rem;
+    padding: 0 5px;
+    margin-right: 4px;
+}
+
+.rbac-invite-scope {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.82rem;
+}
+
+.rbac-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+}
+
+.rbac-invite-callout {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    background: var(--honua-surface-strong);
+    border-left: 3px solid var(--honua-accent);
+    border-radius: 4px;
+    color: var(--honua-text);
+}
+
+.rbac-invite-foot {
+    display: flex;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.rbac-invite-foot .console-button:last-child {
+    margin-left: auto;
+}

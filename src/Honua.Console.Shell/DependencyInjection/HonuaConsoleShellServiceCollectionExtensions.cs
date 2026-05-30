@@ -30,6 +30,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddRbacAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
@@ -397,6 +398,28 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IShareAccessDataSource, UnsupportedShareAccessDataSource>();
+    }
+
+    private static void AddRbacAccessDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaConsoleRbacClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaConsoleRbacHttpClient(
+                    httpClient,
+                    new HonuaConsoleRbacClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IRbacAccessDataSource, HonuaServerRbacAccessDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IRbacAccessDataSource, UnsupportedRbacAccessDataSource>();
     }
 
     private static void AddOperateTransitionDataSource(

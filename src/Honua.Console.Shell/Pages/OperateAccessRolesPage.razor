@@ -1,0 +1,197 @@
+@page "/operate/access"
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Models
+@inject IRbacAccessDataSource RbacData
+
+@* Settings > Access · roles & permissions (screens-collab-rbac.jsx RBACOverview): the five-level scope
+   hierarchy strip, the role × permission matrix with the granted/scoped/env-scoped/custom legend, and the
+   roles-audit / + Custom role actions. Binds to the server-owned Console metadata/RBAC contract
+   (honua-server#1162); renders an explicit missing-binding surface when unconfigured (Charter section 11). *@
+
+<section class="console-page rbac-overview" data-rbac-overview>
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access · RBAC</p>
+            <h1>Access · roles &amp; permissions</h1>
+            <p class="console-muted rbac-lede">Hierarchical RBAC. Workspace roles inherit down; per-content and per-publication overrides allowed. Roles and grants are authored on honua-server's Console metadata/RBAC API and are never resolved client-side.</p>
+        </div>
+        <div class="console-detail-actions">
+            <button class="console-button console-button-secondary" type="button" disabled="@(_overview is null)">Roles audit</button>
+            <button class="console-button" type="button" data-rbac-custom-role disabled="@(!(_overview?.CanManageRoles ?? false))">+ Custom role</button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Access (RBAC)"
+                          Title="Loading roles &amp; permissions"
+                          Message="Reading the Console metadata/RBAC projection from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Access (RBAC) API is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else if (_overview is { } overview)
+    {
+        <div class="rbac-scope-strip" data-rbac-scope-strip>
+            <h2 class="rbac-section-title">Permission scope hierarchy</h2>
+            <ol class="rbac-scope-row">
+                @foreach (var (scope, index) in overview.Scopes.Select((scope, index) => (scope, index)))
+                {
+                    <li class="rbac-scope-cell rbac-scope-@scope.Level" data-rbac-scope="@scope.Level">
+                        <span class="rbac-scope-label">@scope.Label</span>
+                        @if (!string.IsNullOrWhiteSpace(scope.Description))
+                        {
+                            <span class="rbac-scope-desc">@scope.Description</span>
+                        }
+                    </li>
+                    @if (index < overview.Scopes.Count - 1)
+                    {
+                        <li class="rbac-scope-arrow" aria-hidden="true">›</li>
+                    }
+                }
+            </ol>
+            <p class="console-muted rbac-scope-note">Default flows top → bottom. Overrides at any level take precedence.</p>
+        </div>
+
+        <div class="console-toolbar console-toolbar-spread" data-rbac-toolbar>
+            <div class="console-chip-row">
+                <span class="console-status console-state-info" data-rbac-scope-filter>scope: workspace</span>
+                <span class="console-status console-state-neutral">built-in only</span>
+                <span class="console-status console-state-neutral">custom</span>
+            </div>
+            <span class="console-muted" data-rbac-counts>
+                @overview.BuiltInRoleCount built-in roles · @overview.CustomRoleCount custom · @overview.MembersAffected members affected
+            </span>
+        </div>
+
+        <div class="console-table-wrap rbac-matrix-wrap">
+            <table class="console-table rbac-matrix" data-rbac-matrix>
+                <thead>
+                    <tr>
+                        <th scope="col">Role</th>
+                        @foreach (var permission in overview.Permissions)
+                        {
+                            <th scope="col" data-rbac-permission="@permission.Key">@permission.Label</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var role in overview.Roles)
+                    {
+                        <tr data-rbac-role="@role.Id" class="@(role.IsCustom ? "rbac-role-custom" : null)">
+                            <td>
+                                <strong>@role.Name</strong>
+                                @if (role.IsCustom)
+                                {
+                                    <span class="console-status console-state-info rbac-role-tag" data-rbac-role-kind="custom">custom</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(role.Description))
+                                {
+                                    <small>@role.Description</small>
+                                }
+                            </td>
+                            @foreach (var permission in overview.Permissions)
+                            {
+                                var grant = role.GrantFor(permission.Key);
+                                <td data-rbac-grant="@grant.Grant">
+                                    @RenderGrant(grant)
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="rbac-legend" data-rbac-legend>
+            <span class="rbac-legend-item"><span class="rbac-dot rbac-dot-granted"></span> granted</span>
+            <span class="rbac-legend-item"><span class="rbac-dot rbac-dot-custom"></span> custom · conditional</span>
+            <span class="rbac-legend-item"><span class="console-status console-state-info rbac-badge-scoped">scoped</span> per-content scope only</span>
+            <span class="rbac-legend-item"><span class="console-status console-state-neutral rbac-badge-env">env-scoped</span> grants only in chosen envs</span>
+            <span class="rbac-legend-item"><span class="rbac-dash">—</span> not granted</span>
+            <span class="console-muted rbac-legend-note">Built-in roles can't be modified. Clone to create a custom variant.</span>
+        </div>
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Access (RBAC)"
+                          Title="No roles to show"
+                          Message="The Console metadata/RBAC API returned no roles for this workspace." />
+    }
+</section>
+
+@code {
+    private RbacOverviewView? _overview;
+    private RbacCapabilityState? _bindingState;
+    private bool _loading = true;
+
+    [SupplyParameterFromQuery(Name = "workspace")]
+    private string? Workspace { get; set; }
+
+    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _bindingState = null;
+        _overview = null;
+
+        var load = await RbacData.LoadOverviewAsync(WorkspaceId);
+        if (load.HasOverview)
+        {
+            _overview = load.Overview;
+        }
+        else
+        {
+            _bindingState = load.CapabilityStates.FirstOrDefault();
+        }
+
+        _loading = false;
+    }
+
+    private static RenderFragment RenderGrant(RbacGrantView grant) => builder =>
+    {
+        if (grant.IsNotGranted)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "rbac-dash");
+            builder.AddContent(2, "—");
+            builder.CloseElement();
+            return;
+        }
+
+        switch (grant.Grant)
+        {
+            case HonuaConsolePermissionGrants.Scoped:
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "console-status console-state-info rbac-badge-scoped");
+                builder.AddContent(2, "scoped");
+                builder.CloseElement();
+                break;
+            case HonuaConsolePermissionGrants.EnvScoped:
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "console-status console-state-neutral rbac-badge-env");
+                builder.AddContent(2, "env-scoped");
+                builder.CloseElement();
+                break;
+            case HonuaConsolePermissionGrants.Custom:
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "console-status console-state-info rbac-badge-custom");
+                builder.AddContent(2, string.IsNullOrWhiteSpace(grant.Qualifier) ? "●" : grant.Qualifier);
+                builder.CloseElement();
+                break;
+            default:
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "console-status console-state-success rbac-dot-granted-badge");
+                builder.AddContent(2, string.IsNullOrWhiteSpace(grant.Qualifier) ? "●" : grant.Qualifier);
+                builder.CloseElement();
+                break;
+        }
+    };
+}
