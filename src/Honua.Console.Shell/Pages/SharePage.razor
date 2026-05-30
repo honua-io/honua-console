@@ -10,7 +10,14 @@
         <p>Everything this workspace publishes to the outside world — public links, embeds, open-data pages, and exports.</p>
     </div>
 
-    @if (_items is null)
+    @if (_missingBinding)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="Missing binding"
+                          Title="Share is not bound to honua-server"
+                          Message="@MissingBindingMessage" />
+    }
+    else if (_items is null)
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading public items" Message="Open-data catalog items are loading." />
     }
@@ -101,7 +108,13 @@
 </section>
 
 @code {
+    internal const string MissingBindingMessage =
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
+        + "catalog/content metadata projection from honua-server. The merged runtime never renders seeded "
+        + "or demo share content (Console Patterns Charter section 11).";
+
     private IReadOnlyList<ConsoleContentSummary>? _items;
+    private bool _missingBinding;
     private int _openDataCount;
     private int _embedCount;
     private int _publicLinkCount;
@@ -109,6 +122,13 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (Catalog is UnsupportedConsoleCatalogClient)
+        {
+            _missingBinding = true;
+            _items = Array.Empty<ConsoleContentSummary>();
+            return;
+        }
+
         var result = await Catalog.SearchAsync(new CatalogListRequest
         {
             Sharing = CatalogSharingTiers.Public,

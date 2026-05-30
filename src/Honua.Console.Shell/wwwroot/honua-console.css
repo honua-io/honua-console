@@ -847,6 +847,110 @@ p {
     margin-top: 12px;
 }
 
+/* Open-data page editor (two-pane: fields + live preview) */
+.share-opendata-editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 18px;
+    align-items: start;
+    margin-top: 12px;
+}
+
+@media (max-width: 1100px) {
+    .share-opendata-editor {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.share-opendata-editor-pane {
+    min-width: 0;
+}
+
+.share-opendata-editor .console-field-group {
+    margin: 0 0 18px;
+    padding: 0 0 14px;
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.share-opendata-editor .console-field-group:last-of-type {
+    border-bottom: none;
+}
+
+.share-opendata-format-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+.share-opendata-format {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    background: var(--honua-surface);
+    font-size: 0.85rem;
+}
+
+.share-opendata-format-name {
+    flex: 1;
+    font-weight: 700;
+}
+
+.console-checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 8px 0;
+    font-size: 0.85rem;
+}
+
+.share-opendata-preview {
+    position: sticky;
+    top: 12px;
+}
+
+.share-opendata-preview-card {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--honua-surface);
+    margin-top: 8px;
+}
+
+.share-opendata-preview-head {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.share-opendata-preview-title {
+    font-weight: 700;
+    font-size: 1rem;
+    margin: 4px 0;
+}
+
+.share-opendata-preview-intro {
+    padding: 12px 14px;
+    margin: 0;
+    line-height: 1.5;
+    font-size: 0.85rem;
+}
+
+.share-opendata-preview-downloads {
+    padding: 10px 14px;
+    border-top: 1px solid var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.share-opendata-preview-foot {
+    padding: 10px 14px;
+    border-top: 1px solid var(--honua-border);
+    font-size: 0.78rem;
+    text-align: center;
+}
+
 /* Public open-data landing */
 .share-opendata-landing {
     max-width: 760px;

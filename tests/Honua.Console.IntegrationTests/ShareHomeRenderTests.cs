@@ -72,6 +72,39 @@ public sealed class ShareHomeRenderTests
         Assert.DoesNotContain("data-share-kpis", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ShareHome_WhenBindingMissing_RendersMissingBindingNotEmptyState()
+    {
+        using var ctx = new Bunit.TestContext();
+        // No server bound: the catalog client is the missing-binding implementation, never an in-memory source.
+        ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
+
+        var page = ctx.RenderComponent<SharePage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Share is not bound to honua-server", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        // Missing-binding is a distinct first-class state, not the "no public items" empty surface (Charter §11).
+        Assert.DoesNotContain("No public open-data items", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-share-home-table", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SharePublicItem_WhenBindingMissing_RendersMissingBindingNotNotFound()
+    {
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
+
+        var page = ctx.RenderComponent<SharePublicItemPage>(parameters =>
+            parameters.Add(p => p.IdOrSlug, "parcels-2024"));
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Open data is not bound to honua-server", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        // The unbound open-data landing is a missing-binding state, not a "not public/not found" miss.
+        Assert.DoesNotContain("Public item not found", page.Markup, StringComparison.Ordinal);
+    }
+
     private static void RegisterCatalog(Bunit.TestContext ctx, StubHandler handler)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };

@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -90,20 +91,23 @@ public sealed class ShareManagePageRenderTests
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-share-panel=\"public-link\"", page.Markup, StringComparison.Ordinal);
 
-        // Exports tab deep-links into Operate jobs per the ShareExports mockup.
+        // Exports tab renders the scheduled-export table (Name/Target/Format/Filter/Schedule/Last run/State)
+        // and deep-links into Operate jobs per the ShareExports mockup.
         page.Find("[data-share-tab='exports']").Click();
         page.WaitForAssertion(
             () => Assert.Contains("data-share-panel=\"exports\"", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
+        Assert.Contains("data-share-exports-table", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-share-exports-link", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/operate/jobs", page.Markup, StringComparison.Ordinal);
 
-        // Open-data tab surfaces the public landing entry point.
+        // Open-data tab editor is server-bound; with no catalog binding it surfaces the missing-binding state
+        // rather than fabricating downloads/license/tags.
         page.Find("[data-share-tab='opendata']").Click();
         page.WaitForAssertion(
             () => Assert.Contains("data-share-panel=\"opendata\"", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        Assert.Contains("data-share-opendata-link", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("not bound to honua-server", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -188,10 +192,101 @@ public sealed class ShareManagePageRenderTests
         Assert.Contains("shown only once", page.Markup, StringComparison.Ordinal);
     }
 
-    private static IRenderedComponent<ShareManagePage> Render(FakeShareDataSource data, string itemId)
+    [Fact]
+    public void ShareManage_OpenDataTab_RendersTwoPaneEditorWithDownloadsLicenseDiscoverabilityAndStac()
+    {
+        var data = new FakeShareDataSource
+        {
+            Load = new ShareAccessLoad(
+                PublicShare(tier: "public-indexed", publicLinkEnabled: true, embedEnabled: false, canShare: true, canEmbed: true),
+                [])
+        };
+        var detail = new ConsoleContentDetail
+        {
+            Summary = new ConsoleContentSummary
+            {
+                Id = "item-1",
+                Slug = "parcels-2024",
+                Title = "Tax Parcels (FY 2024)",
+                Type = "layer",
+                Owner = "State Assessor",
+                Tags = ["parcels", "cadastre", "assessor"],
+                Formats = ["GeoJSON", "GeoPackage", "Shapefile", "CSV (WKT)", "PMTiles"]
+            },
+            Description = "Statewide tax parcel boundaries for fiscal year 2024.",
+            Bindings =
+            [
+                new ConsoleContentBinding("license", "license", "CC-BY 4.0", "ok"),
+                new ConsoleContentBinding("contact", "contact", "data@assessor.ca.gov", "ok")
+            ]
+        };
+
+        var page = Render(data, itemId: "item-1", catalog: new FakeCatalogClient(detail));
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-tabs", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        page.Find("[data-share-tab='opendata']").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-opendata-editor", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Left pane: page identity, downloads (per-format checkboxes), license & contact, discoverability.
+        Assert.Contains("data-share-opendata-fields", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-opendata-section=\"identity\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Tax Parcels (FY 2024)", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-opendata-format=\"geojson\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-opendata-format=\"kml\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("CC-BY 4.0", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data@assessor.ca.gov", page.Markup, StringComparison.Ordinal);
+        // Discoverability: DCAT, JSON-LD schema.org, and STAC publication controls.
+        Assert.Contains("data-share-opendata-dcat", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-opendata-jsonld", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-opendata-stac", page.Markup, StringComparison.Ordinal);
+        // Right pane: live public-page preview.
+        Assert.Contains("data-share-opendata-preview", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("powered by Honua", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShareManage_ExportsTab_RendersScheduledExportTableHeadersAndServerBoundEmptyState()
+    {
+        var data = new FakeShareDataSource
+        {
+            Load = new ShareAccessLoad(
+                PublicShare(tier: "public-indexed", publicLinkEnabled: true, embedEnabled: false, canShare: true, canEmbed: true),
+                [])
+        };
+
+        var page = Render(data, itemId: "item-1");
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-tabs", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        page.Find("[data-share-tab='exports']").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-exports-table", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // The scheduled-export table carries the ShareExports mockup columns.
+        foreach (var column in new[] { "Name", "Target", "Format", "Filter", "Schedule", "Last run", "State" })
+        {
+            Assert.Contains(column, page.Markup, StringComparison.Ordinal);
+        }
+        // With no server export registry bound, the table shows an explicit empty state, never fabricated rows.
+        Assert.Contains("data-share-exports-empty", page.Markup, StringComparison.Ordinal);
+    }
+
+    private static IRenderedComponent<ShareManagePage> Render(
+        FakeShareDataSource data,
+        string itemId,
+        IConsoleCatalogClient? catalog = null)
     {
         var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IShareAccessDataSource>(data);
+        // The open-data editor reads server-owned content metadata through the catalog client. With no
+        // server bound the page renders the missing-binding state; tests inject a fake to exercise the editor.
+        ctx.Services.AddSingleton<IConsoleCatalogClient>(catalog ?? new UnsupportedConsoleCatalogClient());
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("itemId", itemId));
         return ctx.RenderComponent<ShareManagePage>();
@@ -224,6 +319,27 @@ public sealed class ShareManagePageRenderTests
         "Missing binding",
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl so the Share panel can bind the server-owned Console Share access API.");
+
+    private sealed class FakeCatalogClient(ConsoleContentDetail detail) : IConsoleCatalogClient
+    {
+        public Task<CatalogSearchResult> SearchAsync(CatalogListRequest request, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CatalogSearchResult([], new Dictionary<string, int>(StringComparer.Ordinal), request));
+
+        public Task<CatalogItemReadResult> GetCatalogItemAsync(string idOrSlug, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CatalogItemReadResult.Allowed(detail));
+
+        public Task<CatalogItemReadResult> GetOpenDataItemAsync(string idOrSlug, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CatalogItemReadResult.Allowed(detail, anonymousRead: true));
+
+        public Task<MapPackageReadResult> GetMapPackageAsync(string mapId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MapPackageReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
+
+        public Task<MapPackageReadResult> GetDraftMapAsync(string sourceItemId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MapPackageReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
+
+        public Task<MapPackageReadResult> AuthorizeEmbedAsync(string mapId, EmbedRouteOptions options, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MapPackageReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
+    }
 
     private sealed class FakeShareDataSource : IShareAccessDataSource
     {
