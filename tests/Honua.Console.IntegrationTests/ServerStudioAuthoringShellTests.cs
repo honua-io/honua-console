@@ -395,9 +395,29 @@ public sealed class ServerStudioAuthoringShellTests
         public Task<StudioEndpointResult<StudioPackageDraft>> ReopenContentVersionAsync(
             Guid itemId,
             Guid versionId,
+            CancellationToken cancellationToken = default)
+        {
+            if (_draft is null || _draft.ItemId != itemId)
+            {
+                return Task.FromResult(NotFound<StudioPackageDraft>(
+                    "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen"));
+            }
+
+            _draft = _draft with
+            {
+                DraftId = Guid.NewGuid(),
+                BaseVersionId = versionId,
+                Generation = 1,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            return Task.FromResult(StudioEndpointResult<StudioPackageDraft>.FromData(_draft));
+        }
+
+        public Task<StudioEndpointResult<StudioPackageDraft>> ReopenVersionAsync(
+            Guid itemId,
+            Guid versionId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(NotFound<StudioPackageDraft>(
-                "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen"));
+            ReopenContentVersionAsync(itemId, versionId, cancellationToken);
 
         public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
             Guid itemId,
@@ -405,6 +425,21 @@ public sealed class ServerStudioAuthoringShellTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(NotFound<StudioContentVersion>(
                 "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}"));
+
+        public Task<StudioEndpointResult<StudioRollbackRequest>> RollbackAsync(
+            Guid itemId,
+            CreateStudioRollbackRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioEndpointResult<StudioRollbackRequest>.FromData(new StudioRollbackRequest
+            {
+                RequestId = Guid.NewGuid(),
+                ItemId = itemId,
+                TargetVersionId = request.TargetVersionId,
+                Target = request.Target,
+                Pointers = new StudioContentItemPointers { ItemId = itemId },
+                Reason = request.Reason,
+                CreatedAt = DateTimeOffset.UtcNow
+            }));
 
         private static StudioValidationSummary NotValidated() => new()
         {

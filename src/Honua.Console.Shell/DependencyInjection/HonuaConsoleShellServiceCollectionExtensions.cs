@@ -262,19 +262,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioAnalysisPackageDataSource, UnsupportedStudioAnalysisPackageDataSource>();
     }
 
-    // Binds the Studio dashboard-builder surface (/studio/dashboard) to honua-server's dashboard package
-    // lifecycle on the publication registry (#1183). The live HttpClient binding behind the
-    // Honua.Console.Contracts shim follows in a subsequent slice once the dashboard publication wire
-    // contract is projected into Console; until then this registers the missing-binding data source so the
-    // builder renders an explicit not-bound surface (never mock dashboard data — Console Patterns Charter
-    // section 11). TryAdd keeps an explicit test/demo provider overridable.
+    // Binds the Studio dashboard-builder surface (/studio/dashboard, #55) to honua-server's Studio package
+    // lifecycle + dashboard publication registry (#1180/#1181/#1183) through the Honua.Console.Contracts
+    // shim when a server base address is configured, reusing the IStudioPackageLifecycleClient already
+    // registered by AddStudioAuthoringShell. Otherwise the builder renders an explicit missing-binding
+    // state (never mock dashboard data — Console Patterns Charter section 11). The lifecycle client is
+    // registered defensively here too so the dashboard binding is self-contained even if the authoring
+    // shell registration order changes. TryAdd keeps an explicit test/demo provider overridable.
     private static void AddStudioDashboardPackageDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        _ = honuaServerBaseUrl;
-        _ = honuaServerAdminApiKey;
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IStudioPackageLifecycleClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HttpStudioPackageLifecycleClient(
+                    httpClient,
+                    new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioDashboardPackageDataSource, HonuaServerStudioDashboardPackageDataSource>();
+            return;
+        }
 
         services.TryAddSingleton<IStudioDashboardPackageDataSource, UnsupportedStudioDashboardPackageDataSource>();
     }
