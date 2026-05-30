@@ -2369,6 +2369,183 @@ p {
     font-weight: 900;
 }
 
+/* Studio analysis builder editor (/studio/analysis, honua-console#53). Mirrors the design-handoff
+   StudioAnalysisEditor: a header bar (title + status + step meta + actions) over a three-region body
+   of step rail, pipeline canvas + run preview, and the plan inspector. */
+.studio-analysis-editor {
+    display: grid;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.studio-analysis-editor-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.studio-analysis-editor-glyph {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.studio-analysis-editor-identity {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.studio-analysis-editor-identity h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.studio-analysis-editor-meta {
+    font-size: 0.82rem;
+}
+
+.studio-analysis-editor-bar-spacer {
+    flex: 1 1 auto;
+}
+
+.studio-analysis-editor-actions {
+    flex-wrap: wrap;
+}
+
+.studio-analysis-editor-body {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.6fr) minmax(300px, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.studio-analysis-steps,
+.studio-analysis-inspector {
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    min-width: 0;
+}
+
+.studio-analysis-steps {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+    padding: 16px;
+}
+
+.studio-analysis-canvas {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+
+.studio-analysis-step-list {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.studio-analysis-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 0;
+    border-top: 1px solid var(--honua-border);
+    border-left: 3px solid transparent;
+    padding-left: 8px;
+}
+
+.studio-analysis-step:first-child {
+    border-top: 0;
+}
+
+.studio-analysis-step-index {
+    flex: 0 0 auto;
+    width: 20px;
+    text-align: center;
+    font-weight: 800;
+    color: var(--honua-muted);
+}
+
+.studio-analysis-step-body {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.studio-analysis-step-name {
+    font-weight: 700;
+}
+
+.studio-analysis-step-method {
+    font-size: 0.8rem;
+}
+
+.studio-analysis-pipeline-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.studio-analysis-pipeline-node {
+    display: grid;
+    gap: 2px;
+    min-width: 120px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--honua-text);
+    border-radius: 6px;
+    background: #ffffff;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.studio-analysis-pipeline-node strong {
+    font-weight: 700;
+}
+
+.studio-analysis-pipeline-deps {
+    font-size: 0.78rem;
+}
+
+.studio-analysis-pipeline-edge {
+    align-self: center;
+    color: var(--honua-text);
+    font-weight: 700;
+}
+
+.studio-analysis-gate {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: #fbfdfc;
+}
+
+.studio-analysis-gate h4 {
+    margin: 0 0 8px;
+    font-size: 0.92rem;
+}
+
+.studio-analysis-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--honua-border);
+    align-items: end;
+}
+
 .studio-capability-list section {
     padding-top: 14px;
     border-top: 1px solid var(--honua-border);
@@ -2949,6 +3126,10 @@ p {
             "prompt"
             "preview"
             "inspector";
+    }
+
+    .studio-analysis-editor-body {
+        grid-template-columns: 1fr;
     }
 
     .studio-lifecycle-rail {

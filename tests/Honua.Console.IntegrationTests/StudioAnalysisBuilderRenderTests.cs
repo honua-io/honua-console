@@ -58,6 +58,23 @@ public sealed class StudioAnalysisBuilderRenderTests
         Assert.Contains("data-analysis-pipeline", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-analysis-estimate", page.Markup, StringComparison.Ordinal);
         Assert.False(FindButton(page, "Submit job").HasAttribute("disabled"));
+
+        // The design-handoff StudioAnalysisEditor lays the editor out as a header bar over a
+        // three-region body: a step rail, the pipeline canvas + run preview, and the plan inspector.
+        var editor = page.Find("[data-analysis-builder]");
+        Assert.NotNull(editor.QuerySelector(".studio-analysis-editor-bar"));
+        Assert.NotNull(editor.QuerySelector(".studio-analysis-editor-body"));
+        Assert.NotNull(editor.QuerySelector(".studio-analysis-steps"));
+        Assert.NotNull(editor.QuerySelector(".studio-analysis-canvas"));
+        Assert.NotNull(editor.QuerySelector(".studio-analysis-inspector"));
+        Assert.NotNull(editor.QuerySelector("[data-analysis-run-preview]"));
+
+        // The step rail and the pipeline canvas project from the same plan pipeline and stay in sync.
+        var railSteps = page.FindAll("[data-analysis-step-list] .studio-analysis-step").Count;
+        var canvasNodes = page.FindAll("[data-analysis-pipeline] .studio-analysis-pipeline-node").Count;
+        Assert.True(railSteps > 0);
+        Assert.Equal(railSteps, canvasNodes);
+        Assert.Equal(railSteps.ToString(), page.Find("[data-analysis-step-count]").GetAttribute("data-analysis-step-count"));
     }
 
     [Fact]

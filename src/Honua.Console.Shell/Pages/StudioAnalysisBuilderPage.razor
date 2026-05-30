@@ -103,42 +103,173 @@
             var pipeline = StudioAnalysisPlanEvaluator.BuildPipeline(plan);
 
             <div class="studio-analysis-editor" data-analysis-builder="analysis.package" data-analysis-status="@plan.Status">
-                <div class="console-panel-heading">
-                    <div>
+                <header class="studio-analysis-editor-bar">
+                    <span class="studio-analysis-editor-glyph" aria-hidden="true">∑</span>
+                    <div class="studio-analysis-editor-identity">
                         <p class="console-kicker">@(plan.IsExistingPackage ? $"{plan.AnalysisId} · v{plan.Version}" : "New draft")</p>
                         <h2>@(string.IsNullOrWhiteSpace(plan.Title) ? "Untitled analysis" : plan.Title)</h2>
                     </div>
                     <span class="console-status @(plan.IsPublished ? string.Empty : "console-status-warning")">@plan.Status</span>
-                </div>
-
-                <div class="console-action-row">
-                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to analyses</button>
-                    <button class="console-button" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="Save">Save draft</button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Estimate">Estimate</button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Preview">Preview job</button>
-                    <button class="console-button" type="button" disabled="@(_busy || !readiness.CanSubmit)" @onclick="Submit">Submit job</button>
-                </div>
+                    <span class="console-muted studio-analysis-editor-meta" data-analysis-step-count="@pipeline.Count">@pipeline.Count @(pipeline.Count == 1 ? "step" : "steps")</span>
+                    <div class="studio-analysis-editor-bar-spacer"></div>
+                    <div class="console-action-row studio-analysis-editor-actions">
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to analyses</button>
+                        <button class="console-button" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="Save">Save draft</button>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Estimate">Estimate</button>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Preview">Preview job</button>
+                        <button class="console-button" type="button" disabled="@(_busy || !readiness.CanSubmit)" @onclick="Submit">Submit job</button>
+                    </div>
+                </header>
 
                 @if (!string.IsNullOrEmpty(_status))
                 {
                     <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
                 }
 
-                @if (!plan.IsPublished && !readiness.CanSubmit)
-                {
-                    <article class="console-panel" aria-labelledby="analysis-submit-readiness-heading">
-                        <p class="console-kicker">Pre-submit gate</p>
-                        <h3 id="analysis-submit-readiness-heading">Resolve before submit</h3>
-                        <ul class="studio-compact-list">
-                            @foreach (var requirement in readiness.UnmetRequirements)
-                            {
-                                <li>@requirement</li>
+                <div class="studio-analysis-editor-body">
+                    <aside class="studio-analysis-steps" aria-label="Pipeline steps">
+                        <p class="console-kicker">Steps</p>
+                        <ol class="studio-analysis-step-list" data-analysis-step-list="true">
+                            @{
+                                var stepIndex = 0;
                             }
-                        </ul>
-                    </article>
-                }
+                            @foreach (var node in pipeline)
+                            {
+                                stepIndex++;
+                                <li class="studio-analysis-step" @key="node">
+                                    <span class="studio-analysis-step-index" aria-hidden="true">@stepIndex</span>
+                                    <span class="studio-analysis-step-body">
+                                        <span class="studio-analysis-step-name">@node.Label</span>
+                                        <span class="console-muted studio-analysis-step-method">@node.Method</span>
+                                    </span>
+                                </li>
+                            }
+                        </ol>
+                    </aside>
 
-                <div class="console-panel-grid">
+                    <div class="studio-analysis-canvas">
+                        <article class="console-panel studio-analysis-pipeline" aria-labelledby="analysis-pipeline-heading">
+                            <p class="console-kicker">DAG / pipeline</p>
+                            <h3 id="analysis-pipeline-heading">Pipeline view</h3>
+                            <p class="console-muted">The execution plan honua-server runs. Load nodes feed the analysis method node.</p>
+                            <div class="studio-analysis-pipeline-flow" data-analysis-pipeline="true" role="list">
+                                @{
+                                    var flowFirst = true;
+                                }
+                                @foreach (var node in pipeline)
+                                {
+                                    @if (!flowFirst)
+                                    {
+                                        <span class="studio-analysis-pipeline-edge" aria-hidden="true">→</span>
+                                    }
+                                    flowFirst = false;
+                                    <div class="studio-analysis-pipeline-node" role="listitem" @key="node">
+                                        <strong>@node.Label</strong>
+                                        <span class="console-muted">@node.Method</span>
+                                        @if (node.DependsOn.Count > 0)
+                                        {
+                                            <span class="console-muted studio-analysis-pipeline-deps">← @string.Join(", ", node.DependsOn)</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </article>
+
+                        <article class="console-panel studio-analysis-run-preview" data-analysis-run-preview="true">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">Run preview</p>
+                                    <h3>Preview &amp; submit</h3>
+                                </div>
+                                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Preview">Re-run preview</button>
+                            </div>
+                            @if (plan.Estimate is { } previewEstimate)
+                            {
+                                <p class="console-muted">Estimated @previewEstimate.EstimatedRuntimeSeconds.ToString("0.#") s over @previewEstimate.EstimatedInputFeatures.ToString("N0") input features on the @previewEstimate.ComputeProfile profile.</p>
+                            }
+                            else
+                            {
+                                <p class="console-muted">Run Estimate to project runtime and cost before previewing or submitting.</p>
+                            }
+
+                            @if (!plan.IsPublished && !readiness.CanSubmit)
+                            {
+                                <div class="studio-analysis-gate" aria-labelledby="analysis-submit-readiness-heading">
+                                    <p class="console-kicker">Pre-submit gate</p>
+                                    <h4 id="analysis-submit-readiness-heading">Resolve before submit</h4>
+                                    <ul class="studio-compact-list">
+                                        @foreach (var requirement in readiness.UnmetRequirements)
+                                        {
+                                            <li>@requirement</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </article>
+
+                        @if (plan.SubmittedJob is { } job)
+                        {
+                            <article class="console-panel studio-analysis-result" data-analysis-result="true" aria-labelledby="analysis-result-heading">
+                                <p class="console-kicker">Result</p>
+                                <h3 id="analysis-result-heading">Job and result artifact</h3>
+                                <dl class="console-definition-list">
+                                    <dt>Job</dt>
+                                    <dd>@job.JobId</dd>
+                                    <dt>Status</dt>
+                                    <dd><span class="console-status @(job.HasFailure ? "console-status-warning" : string.Empty)">@job.Status</span></dd>
+                                </dl>
+
+                                @if (job.HasFailure)
+                                {
+                                    <p class="console-warning" role="alert" data-analysis-result-failure="true">
+                                        @job.Failure!.Classification: @job.Failure.Message
+                                    </p>
+                                }
+                                else if (job.HasArtifact)
+                                {
+                                    var artifact = job.Artifact!;
+                                    <dl class="console-definition-list" data-analysis-artifact="true">
+                                        <dt>Artifact</dt>
+                                        <dd>@artifact.Label <small>(@artifact.ArtifactId)</small></dd>
+                                        <dt>Kind</dt>
+                                        <dd>@artifact.Kind</dd>
+                                        <dt>Retention</dt>
+                                        <dd>@artifact.RetentionState</dd>
+                                        @if (!string.IsNullOrWhiteSpace(artifact.ContentType))
+                                        {
+                                            <dt>Media type</dt>
+                                            <dd>@artifact.ContentType</dd>
+                                        }
+                                        @if (artifact.ByteSize is { } bytes)
+                                        {
+                                            <dt>Size</dt>
+                                            <dd>@bytes.ToString("N0") bytes</dd>
+                                        }
+                                    </dl>
+                                    <p class="console-kicker">Use this result as</p>
+                                    <ul class="studio-compact-list" data-analysis-downstream="true">
+                                        @foreach (var target in artifact.DownstreamTargets)
+                                        {
+                                            <li>@DownstreamLabel(target)</li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p class="console-muted">The job is running on the execution engine. Once it finishes, resolve its result artifact by id to bind the output downstream.</p>
+                                    <div class="console-action-row" data-analysis-resolve-artifact="true">
+                                        <label class="studio-form-label">
+                                            <span>Result artifact id</span>
+                                            <input class="console-input" @bind="_artifactId" placeholder="artifact-…" />
+                                        </label>
+                                        <button class="console-button" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_artifactId))" @onclick="ResolveArtifact">Resolve artifact</button>
+                                    </div>
+                                }
+                            </article>
+                        }
+                    </div>
+
+                    <aside class="studio-analysis-inspector" aria-label="Plan inspector">
                     <article class="console-panel">
                         <p class="console-kicker">Plan card</p>
                         <h3>Method</h3>
@@ -208,36 +339,34 @@
                             <p class="console-muted">Run Estimate to review runtime and cost before submit.</p>
                         }
                     </article>
-                </div>
 
-                <article class="console-panel">
-                    <div class="console-panel-heading">
-                        <div>
-                            <p class="console-kicker">Inputs</p>
-                            <h3>Input bindings</h3>
-                        </div>
-                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="AddInput">Add input</button>
-                    </div>
-
-                    @if (plan.Inputs.Count == 0)
-                    {
-                        <p class="console-muted">No inputs yet. Bind at least one input service/layer before submit.</p>
-                    }
-
-                    @foreach (var input in plan.Inputs)
-                    {
-                        <div class="console-panel-grid" @key="input">
-                            <label class="studio-form-label"><span>Role</span><input class="console-input" @bind="input.Role" placeholder="primary" /></label>
-                            <label class="studio-form-label"><span>Service id</span><input class="console-input" @bind="input.ServiceId" placeholder="hydrants" /></label>
-                            <label class="studio-form-label"><span>Layer id</span><input class="console-input" type="number" @bind="input.LayerId" /></label>
-                            <div class="console-action-row">
-                                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="() => RemoveInput(input)">Remove</button>
+                    <article class="console-panel">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Inputs</p>
+                                <h3>Input bindings</h3>
                             </div>
+                            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="AddInput">Add input</button>
                         </div>
-                    }
-                </article>
 
-                <div class="console-panel-grid">
+                        @if (plan.Inputs.Count == 0)
+                        {
+                            <p class="console-muted">No inputs yet. Bind at least one input service/layer before submit.</p>
+                        }
+
+                        @foreach (var input in plan.Inputs)
+                        {
+                            <div class="studio-analysis-row" @key="input">
+                                <label class="studio-form-label"><span>Role</span><input class="console-input" @bind="input.Role" placeholder="primary" /></label>
+                                <label class="studio-form-label"><span>Service id</span><input class="console-input" @bind="input.ServiceId" placeholder="hydrants" /></label>
+                                <label class="studio-form-label"><span>Layer id</span><input class="console-input" type="number" @bind="input.LayerId" /></label>
+                                <div class="console-action-row">
+                                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="() => RemoveInput(input)">Remove</button>
+                                </div>
+                            </div>
+                        }
+                    </article>
+
                     <article class="console-panel">
                         <div class="console-panel-heading">
                             <div>
@@ -254,7 +383,7 @@
 
                         @foreach (var parameter in plan.Parameters)
                         {
-                            <div class="console-panel-grid" @key="parameter">
+                            <div class="studio-analysis-row" @key="parameter">
                                 <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="parameter.Name" placeholder="distanceMeters" /></label>
                                 <label class="studio-form-label"><span>Value</span><input class="console-input" @bind="parameter.Value" placeholder="250" /></label>
                                 <div class="console-action-row">
@@ -280,7 +409,7 @@
 
                         @foreach (var field in plan.OutputSchema)
                         {
-                            <div class="console-panel-grid" @key="field">
+                            <div class="studio-analysis-row" @key="field">
                                 <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="field.Name" placeholder="buffer_distance" /></label>
                                 <label class="studio-form-label">
                                     <span>Type</span>
@@ -297,87 +426,8 @@
                             </div>
                         }
                     </article>
+                    </aside>
                 </div>
-
-                <article class="console-panel studio-analysis-pipeline" aria-labelledby="analysis-pipeline-heading">
-                    <p class="console-kicker">DAG / pipeline</p>
-                    <h3 id="analysis-pipeline-heading">Pipeline view</h3>
-                    <p class="console-muted">The execution plan honua-server runs. Load nodes feed the analysis method node.</p>
-                    <ol class="studio-compact-list" data-analysis-pipeline="true">
-                        @foreach (var node in pipeline)
-                        {
-                            <li>
-                                <strong>@node.Label</strong>
-                                <span class="console-muted">(@node.Method)</span>
-                                @if (node.DependsOn.Count > 0)
-                                {
-                                    <span class="console-muted"> ← @string.Join(", ", node.DependsOn)</span>
-                                }
-                            </li>
-                        }
-                    </ol>
-                </article>
-
-                @if (plan.SubmittedJob is { } job)
-                {
-                    <article class="console-panel studio-analysis-result" data-analysis-result="true" aria-labelledby="analysis-result-heading">
-                        <p class="console-kicker">Result</p>
-                        <h3 id="analysis-result-heading">Job and result artifact</h3>
-                        <dl class="console-definition-list">
-                            <dt>Job</dt>
-                            <dd>@job.JobId</dd>
-                            <dt>Status</dt>
-                            <dd><span class="console-status @(job.HasFailure ? "console-status-warning" : string.Empty)">@job.Status</span></dd>
-                        </dl>
-
-                        @if (job.HasFailure)
-                        {
-                            <p class="console-warning" role="alert" data-analysis-result-failure="true">
-                                @job.Failure!.Classification: @job.Failure.Message
-                            </p>
-                        }
-                        else if (job.HasArtifact)
-                        {
-                            var artifact = job.Artifact!;
-                            <dl class="console-definition-list" data-analysis-artifact="true">
-                                <dt>Artifact</dt>
-                                <dd>@artifact.Label <small>(@artifact.ArtifactId)</small></dd>
-                                <dt>Kind</dt>
-                                <dd>@artifact.Kind</dd>
-                                <dt>Retention</dt>
-                                <dd>@artifact.RetentionState</dd>
-                                @if (!string.IsNullOrWhiteSpace(artifact.ContentType))
-                                {
-                                    <dt>Media type</dt>
-                                    <dd>@artifact.ContentType</dd>
-                                }
-                                @if (artifact.ByteSize is { } bytes)
-                                {
-                                    <dt>Size</dt>
-                                    <dd>@bytes.ToString("N0") bytes</dd>
-                                }
-                            </dl>
-                            <p class="console-kicker">Use this result as</p>
-                            <ul class="studio-compact-list" data-analysis-downstream="true">
-                                @foreach (var target in artifact.DownstreamTargets)
-                                {
-                                    <li>@DownstreamLabel(target)</li>
-                                }
-                            </ul>
-                        }
-                        else
-                        {
-                            <p class="console-muted">The job is running on the execution engine. Once it finishes, resolve its result artifact by id to bind the output downstream.</p>
-                            <div class="console-action-row" data-analysis-resolve-artifact="true">
-                                <label class="studio-form-label">
-                                    <span>Result artifact id</span>
-                                    <input class="console-input" @bind="_artifactId" placeholder="artifact-…" />
-                                </label>
-                                <button class="console-button" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_artifactId))" @onclick="ResolveArtifact">Resolve artifact</button>
-                            </div>
-                        }
-                    </article>
-                }
             </div>
         }
     }
