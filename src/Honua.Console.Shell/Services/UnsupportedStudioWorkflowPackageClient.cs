@@ -62,4 +62,9 @@ public sealed class UnsupportedStudioWorkflowPackageClient : IStudioWorkflowPack
         string jobId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<StudioWorkflowJobEvidence?>(null);
+
+    public Task<StudioWorkflowRunHistory> ListRunHistoryAsync(
+        string contentItemId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioWorkflowRunHistory.Blocked(MissingBinding));
 }

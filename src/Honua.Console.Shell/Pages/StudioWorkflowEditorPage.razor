@@ -468,6 +468,69 @@
                         }
                     }
                 </section>
+
+                <section class="console-panel workflow-run-history" aria-label="Workflow run history">
+                    <div class="workflow-section-heading">
+                        <p class="console-kicker">Run history</p>
+                        <h2>Queued, Running, Failed, Succeeded</h2>
+                    </div>
+                    @if (_runHistory?.BindingState is not null)
+                    {
+                        <p class="console-status">@_runHistory.BindingState.Detail</p>
+                    }
+                    else if (_runHistory is null || _runHistory.Runs.Count == 0)
+                    {
+                        <p class="console-muted">No runs yet. Dry-run or publish this workflow to record execution history, rejected rows, artifacts, and provenance links.</p>
+                    }
+                    else
+                    {
+                        <ol class="workflow-run-list">
+                            @foreach (var run in _runHistory.Runs)
+                            {
+                                <li class="workflow-run-item workflow-run-@run.Status">
+                                    <div class="workflow-run-row">
+                                        <span class="workflow-run-status">@DescribeRunStatus(run)</span>
+                                        <strong>@run.Trigger</strong>
+                                        <small>@run.Mode</small>
+                                    </div>
+                                    <dl class="console-definition-list">
+                                        <dt>Run</dt>
+                                        <dd>@run.RunId</dd>
+                                        @if (run.ProcessedRows > 0)
+                                        {
+                                            <dt>Processed rows</dt>
+                                            <dd>@run.ProcessedRows</dd>
+                                        }
+                                        @if (run.RejectedRows > 0)
+                                        {
+                                            <dt>Rejected rows</dt>
+                                            <dd>@run.RejectedRows</dd>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(run.OperateJobUrl))
+                                        {
+                                            <dt>Job</dt>
+                                            <dd><a href="@run.OperateJobUrl">@(string.IsNullOrWhiteSpace(run.JobId) ? "Open job" : run.JobId)</a></dd>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(run.ProvenanceUrl))
+                                        {
+                                            <dt>Provenance</dt>
+                                            <dd><a href="@run.ProvenanceUrl">Content item history</a></dd>
+                                        }
+                                    </dl>
+                                    @if (run.Artifacts.Count > 0)
+                                    {
+                                        <ul class="workflow-compact-list">
+                                            @foreach (var artifact in run.Artifacts)
+                                            {
+                                                <li><span>artifact</span><strong>@artifact</strong></li>
+                                            }
+                                        </ul>
+                                    }
+                                </li>
+                            }
+                        </ol>
+                    }
+                </section>
             </aside>
         </div>
     }
@@ -489,6 +552,7 @@
     private StudioWorkflowSaveResult? _lastSave;
     private StudioWorkflowDryRunResult? _lastDryRun;
     private StudioWorkflowPublishResult? _lastPublish;
+    private StudioWorkflowRunHistory? _runHistory;
     private string? _savedDraftFingerprint;
 
     private StudioWorkflowNode? SelectedNode =>
@@ -553,6 +617,22 @@
             ? null
             : StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         _loading = false;
+
+        await RefreshRunHistoryAsync();
+    }
+
+    // Loads the execution history for the saved content item so the editor surfaces queued/running/failed/
+    // succeeded runs, rejected rows, artifacts, and provenance links (#17). A never-saved draft has no content
+    // item, so this short-circuits to an empty history rather than probing the server.
+    private async Task RefreshRunHistoryAsync()
+    {
+        if (_draft is null || string.IsNullOrWhiteSpace(_draft.ContentItemId))
+        {
+            _runHistory = StudioWorkflowRunHistory.Empty;
+            return;
+        }
+
+        _runHistory = await Workflows.ListRunHistoryAsync(_draft.ContentItemId);
     }
 
     private async Task SaveAsync()
@@ -610,7 +690,10 @@
             if (_lastDryRun.BindingState is not null)
             {
                 _binding = _lastDryRun.BindingState;
+                return;
             }
+
+            await RefreshRunHistoryAsync();
         }
         finally
         {
@@ -641,6 +724,7 @@
             }
 
             _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
+            await RefreshRunHistoryAsync();
         }
         finally
         {
@@ -696,8 +780,12 @@
         _lastSave = null;
         _lastDryRun = null;
         _lastPublish = null;
+        _runHistory = null;
         _binding = null;
     }
+
+    private static string DescribeRunStatus(StudioWorkflowRunHistoryEntry run) =>
+        StudioWorkflowRunStatus.IsFailure(run.Status) ? "Failed" : run.Status;
 
     private static bool HasDryRunJobEvidence(StudioWorkflowDryRunResult dryRun) =>
         !string.IsNullOrWhiteSpace(dryRun.OperateJobUrl) &&

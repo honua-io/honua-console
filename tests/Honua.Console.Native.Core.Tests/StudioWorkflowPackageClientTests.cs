@@ -221,4 +221,49 @@ public sealed class StudioWorkflowPackageClientTests
             issue.Severity == "error" &&
             issue.Message.Contains("failure edge", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public async Task NeverSavedDraftHasEmptyBoundRunHistory()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+
+        var history = await client.ListRunHistoryAsync(contentItemId: string.Empty);
+
+        Assert.Null(history.BindingState);
+        Assert.Empty(history.Runs);
+    }
+
+    [Fact]
+    public async Task DryRunAndPublishRecordRunHistoryWithStateRejectedRowsAndProvenance()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        var draft = await client.GetDraftAsync(InMemoryStudioWorkflowPackageClient.SeedDraftId);
+        Assert.NotNull(draft);
+
+        var save = await client.SaveVersionAsync(draft, "history baseline");
+        var dryRun = await client.DryRunAsync(draft);
+        var publish = await client.PublishAsync(draft);
+
+        var history = await client.ListRunHistoryAsync(save.ContentItemId);
+
+        Assert.Null(history.BindingState);
+        Assert.Equal(2, history.Runs.Count);
+
+        // Newest run first: the publish run, then the dry-run.
+        var publishedRun = Assert.Single(history.Runs, run => run.JobId == publish.JobId);
+        var dryRunEntry = Assert.Single(history.Runs, run => run.JobId == dryRun.JobId);
+        Assert.Equal(history.Runs[0].JobId, publish.JobId);
+
+        Assert.Equal(StudioWorkflowRunStatus.Succeeded, dryRunEntry.Status);
+        Assert.Equal("dry-run", dryRunEntry.Trigger);
+        Assert.True(dryRunEntry.ProcessedRows > 0);
+        Assert.Equal(0, dryRunEntry.RejectedRows);
+
+        Assert.Equal("scheduled", publishedRun.Trigger);
+        Assert.Equal(publish.PublicationId, publishedRun.PublicationId);
+        // The seeded graph routes a failure sink, so a published run reports row-level rejected records.
+        Assert.True(publishedRun.RejectedRows > 0);
+        Assert.Equal($"/catalog/{save.ContentItemId}", publishedRun.ProvenanceUrl);
+        Assert.StartsWith("/operate/jobs/", publishedRun.OperateJobUrl, StringComparison.Ordinal);
+    }
 }

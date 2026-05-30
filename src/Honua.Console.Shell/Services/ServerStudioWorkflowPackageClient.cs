@@ -305,6 +305,63 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         CancellationToken cancellationToken = default) =>
         Task.FromResult<StudioWorkflowJobEvidence?>(null);
 
+    public async Task<StudioWorkflowRunHistory> ListRunHistoryAsync(
+        string contentItemId,
+        CancellationToken cancellationToken = default)
+    {
+        // A never-saved draft has no server content item; report an empty (bound) history so the panel shows
+        // its "no runs yet" prompt instead of issuing a server call for an id that does not exist.
+        if (string.IsNullOrWhiteSpace(contentItemId))
+        {
+            return StudioWorkflowRunHistory.Empty;
+        }
+
+        var publications = await _api.ListPublicationsAsync(cancellationToken).ConfigureAwait(false);
+        if (!publications.IsSuccess || publications.Data is null)
+        {
+            return StudioWorkflowRunHistory.Blocked(ToBindingState(publications.Issue));
+        }
+
+        // honua-server#1185 lists publications, not per-execution runs; project each publication for this
+        // package into a run-history row. Row-level (processed/rejected) counts and Operate job links are not
+        // exposed on this contract yet, so leave them empty rather than fabricate them (#60 owns job evidence).
+        var runs = publications.Data.Items
+            .Where(publication => string.Equals(publication.PackageId, contentItemId, StringComparison.Ordinal))
+            .OrderByDescending(publication => publication.CreatedAt)
+            .Select(MapRun)
+            .ToArray();
+
+        return new StudioWorkflowRunHistory(runs);
+    }
+
+    private static StudioWorkflowRunHistoryEntry MapRun(WorkflowPublication publication) =>
+        new()
+        {
+            RunId = publication.PublicationId,
+            PublicationId = publication.PublicationId,
+            ContentItemId = publication.PackageId,
+            VersionId = FormatVersionId(publication.PackageId, publication.PackageVersion),
+            JobId = string.Empty,
+            JobKind = StudioWorkflowContractValues.PublicationJobKind,
+            Status = publication.Status == WorkflowPublicationStatus.Active
+                ? StudioWorkflowRunStatus.Succeeded
+                : StudioWorkflowRunStatus.Failed,
+            Mode = MapPublicationMode(publication.Target),
+            Trigger = publication.Target == WorkflowPublicationTarget.Schedule ? "scheduled" : "publish",
+            Logs = publication.Provenance
+                .Select(entry => $"{entry.Key}: {entry.Value}")
+                .ToArray(),
+            ProvenanceUrl = $"/catalog/{publication.PackageId}",
+            StartedAt = publication.CreatedAt
+        };
+
+    private static string MapPublicationMode(WorkflowPublicationTarget target) => target switch
+    {
+        WorkflowPublicationTarget.Schedule => StudioWorkflowContractValues.PublicationModeScheduledJob,
+        WorkflowPublicationTarget.ProcessEndpoint => StudioWorkflowContractValues.PublicationModeProcessEndpoint,
+        _ => StudioWorkflowContractValues.PublicationModeBatchWorkflow
+    };
+
     private async Task<(WorkflowPackage? Package, WorkflowEndpointIssue? Issue)> PersistPackageAsync(
         StudioWorkflowPackageDraft draft,
         CancellationToken cancellationToken)
