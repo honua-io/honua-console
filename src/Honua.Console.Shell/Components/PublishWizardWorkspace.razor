@@ -1,0 +1,909 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Functional publish wizards for the Operate publishing workspace, implementing the design-handoff
+    flows in docs/design-handoff/console-canvas/screens-quick-publish.jsx (Quick publish: Service →
+    Layer → Review) and screens-publish-flow.jsx (Author resource first: Target → Compatibility →
+    Slot → Fields → Projection → Access → Review).
+
+    The mode toggle (PublishModeBar) swaps which flow is active, and the stepper navigation is FULLY
+    FUNCTIONAL — each forward/back control moves between real step bodies, with per-step validity
+    gating (you cannot continue past a picker until a row is selected). The bodies render the design
+    landmarks: service / resource tree pickers with compatible / incompatible / degraded filtering,
+    use-existing vs create-new toggles, new-service CRS / capability / limit / catalog cards, a
+    resource-binding table with PII flags and per-layer overrides, the live MapPreview projection
+    step (scale slider, label / popup / highlight / basemap chips, class-break legend, "This slot"
+    card, compare-against rail), and the side rails ("You're publishing into" / "What gets created" /
+    URL preview).
+
+    This is workflow scaffolding for the publishing IA, exactly like PublishFlowMap: it never reads
+    or fabricates honua-server publication state (Console Patterns Charter section 11). It captures
+    the operator's intent locally; the live registry reads / republish / rollback stay on the data
+    source the page already binds.
+*@
+
+<PublishModeBar Mode="_mode" ModeChanged="OnModeChanged" />
+
+@if (_mode == PublishModeBar.PublishMode.Quick)
+{
+    <PublishWizard Steps="@QuickStepList"
+                   Current="_quickCurrent"
+                   CurrentChanged="OnQuickCurrentChanged"
+                   Kicker="Quick publish"
+                   Title="Publish a layer in three steps"
+                   FinishLabel="Publish + open resource →"
+                   OnFinish="OnFinish" />
+}
+else
+{
+    <PublishWizard Steps="@AuthorStepList"
+                   Current="_authorCurrent"
+                   CurrentChanged="OnAuthorCurrentChanged"
+                   Kicker="Author resource first"
+                   Title="Publish this resource into a service slot"
+                   FinishLabel="Validate and publish →"
+                   OnFinish="OnFinish" />
+}
+
+@code {
+    // ---- Source context (the resource the operator started from). Mirrors the mockup's CtxSource. ----
+    private const string SourceConnection = "prod-postgis";
+    private const string SourceTable = "public.parcels_2024";
+    private const string SourceSummary = "MultiPolygon · 4326 · 1.28M rows · PK gid";
+
+    private PublishModeBar.PublishMode _mode = PublishModeBar.PublishMode.Quick;
+
+    // ---- Quick-publish flow state ----
+    private int _quickCurrent;
+    private bool _createNewService;          // service step: use-existing vs create-new
+    private string? _selectedServiceId = "public-works-fs";
+    private bool _createNewResource;         // layer step: bind-existing vs create-new
+    private string? _selectedResourceId = "parcels_2024";
+    private bool _registerCatalog = true;
+
+    // ---- Author-first flow state ----
+    private int _authorCurrent;
+    private bool _authorCreateNewService;
+    private string? _authorTargetId = "public-works-fs";
+    private bool _published;
+
+    // ---- Projection preview controls (shared by both Projection steps) ----
+    private bool _showLabels = true;
+    private bool _showPopups = true;
+    private bool _showHighlight;
+    private string _activeBasemap = "light";
+
+    private void OnModeChanged(PublishModeBar.PublishMode mode) => _mode = mode;
+
+    private void OnQuickCurrentChanged(int next) => _quickCurrent = next;
+
+    private void OnAuthorCurrentChanged(int next) => _authorCurrent = next;
+
+    private void OnFinish() => _published = true;
+
+    private void ToggleLabels() => _showLabels = !_showLabels;
+    private void TogglePopups() => _showPopups = !_showPopups;
+    private void ToggleHighlight() => _showHighlight = !_showHighlight;
+
+    private Task OnBasemapChanged(MapPreviewBasemap basemap)
+    {
+        _activeBasemap = basemap.Id;
+        return Task.CompletedTask;
+    }
+
+    // ===================================================================================
+    //  Shared data: the service tree, the resource table, the projection legend.
+    //  Static design scaffolding — NOT live publication state.
+    // ===================================================================================
+
+    private sealed record ServiceNode(
+        string Id,
+        string Name,
+        string Folder,
+        string Kind,
+        string Meta,
+        ServiceCompatibility Compatibility,
+        string? Note = null);
+
+    private enum ServiceCompatibility { Compatible, Degraded, Incompatible }
+
+    private static readonly IReadOnlyList<ServiceNode> Services =
+    [
+        new("public-works-fs", "public-works-fs", "public", "FeatureServer", "8 layers · live · public read · CRS 4326", ServiceCompatibility.Compatible, "next slot: layer 8"),
+        new("features-public", "features-public", "public", "OGC API Features", "38 collections · live", ServiceCompatibility.Compatible, "compatible · would add a collection"),
+        new("public-works-ms", "public-works-ms", "public", "MapServer", "8 layers · live", ServiceCompatibility.Compatible, "already publishes parcels_2024 at layer 2"),
+        new("odata-bi", "odata-bi", "internal", "OData", "8 entity sets · degraded", ServiceCompatibility.Degraded, "MultiPolygon will be sent as a WKB column"),
+        new("fs-internal", "fs-internal", "internal", "FeatureServer", "24 layers · live · auth required", ServiceCompatibility.Compatible, "compatible · would add a new layer slot"),
+        new("imagery-ras", "imagery-ras", "imagery", "ImageServer", "1 service · raster", ServiceCompatibility.Incompatible, "not compatible — this resource is vector"),
+    ];
+
+    private sealed record ResourceRow(
+        string Id,
+        string Name,
+        string Type,
+        string Features,
+        string AlreadyIn,
+        string UsedIn,
+        bool Compatible,
+        bool Pii = false);
+
+    private static readonly IReadOnlyList<ResourceRow> Resources =
+    [
+        new("parcels_2024", "parcels_2024", "Polygon", "1.28M", "no", "3 (in other services)", true, Pii: true),
+        new("fire_observations", "fire_observations", "Point", "2.1M", "no", "0 (draft)", true),
+        new("watersheds_v3", "watersheds_v3", "Polygon", "18k", "no", "1", true),
+        new("air_quality_obs", "air_quality_obs", "Point", "14.8M", "layer 6", "2", true),
+        new("census_blocks", "census_blocks", "Polygon", "8.1M", "no", "1", true),
+        new("land_cover_2024", "land_cover_2024", "Raster", "—", "no", "not compatible · raster", false),
+    ];
+
+    private static readonly IReadOnlyList<MapPreviewLegendEntry> AreaLegend =
+    [
+        new("0 – 740 m²", "#f7f4e8"),
+        new("740 – 1,420", "#ead78a"),
+        new("1,420 – 2,140", "#d9a23a"),
+        new("2,140 – 3,920", "#b56b1c"),
+        new("3,920+", "#612d0a"),
+    ];
+
+    private static readonly IReadOnlyList<MapPreviewBasemap> Basemaps =
+    [
+        new("light", "Light"),
+        new("imagery", "Imagery"),
+        new("terrain", "Terrain"),
+    ];
+
+    private static readonly MapPreviewPopup SlotPopup = new(
+        "Parcel 04-021-204",
+        [
+            new MapPreviewPopupField("Parcel ID", "04-021-204"),
+            new MapPreviewPopupField("Area (m²)", "2,140"),
+            new MapPreviewPopupField("Use code", "RES-1"),
+            new MapPreviewPopupField("Owner", "— redacted —", Muted: true),
+        ],
+        "owner_name hidden in this slot (PII)");
+
+    private ServiceNode? SelectedService(string? id) =>
+        Services.FirstOrDefault(s => s.Id == id);
+
+    private static string CompatibilityClass(ServiceCompatibility c) => c switch
+    {
+        ServiceCompatibility.Compatible => "console-state-success",
+        ServiceCompatibility.Degraded => "console-state-warning",
+        _ => "console-state-danger",
+    };
+
+    private static string CompatibilityLabel(ServiceCompatibility c) => c switch
+    {
+        ServiceCompatibility.Compatible => "new slot",
+        ServiceCompatibility.Degraded => "degraded",
+        _ => "incompat.",
+    };
+
+    // ===================================================================================
+    //  QUICK-PUBLISH STEPS: Service → Layer → Review
+    // ===================================================================================
+
+    private IReadOnlyList<PublishWizardStep> QuickStepList =>
+    [
+        new PublishWizardStep(
+            "Service",
+            QuickServiceBody,
+            IsValid: _createNewService || _selectedServiceId is not null,
+            ContinueLabel: "Continue · Layer →"),
+        new PublishWizardStep(
+            "Layer",
+            QuickLayerBody,
+            IsValid: _createNewResource || _selectedResourceId is not null,
+            ContinueLabel: "Continue · Review →"),
+        new PublishWizardStep("Review", QuickReviewBody),
+    ];
+
+    private RenderFragment QuickServiceBody => __builder =>
+    {
+        <div class="publish-wizard-grid" data-quick-step="service">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">What service should this layer live in?</h3>
+                <p class="console-muted">A service is the container. Service-level settings (CRS, capabilities, cache) live here; layer-specific settings come next.</p>
+
+                <div class="publish-segment" role="group" aria-label="Service mode">
+                    <button type="button"
+                            class="publish-segment-option @(_createNewService ? null : "publish-segment-active")"
+                            aria-pressed="@(!_createNewService)"
+                            @onclick="() => _createNewService = false">
+                        Use existing service
+                    </button>
+                    <button type="button"
+                            class="publish-segment-option @(_createNewService ? "publish-segment-active" : null)"
+                            aria-pressed="@_createNewService"
+                            @onclick="() => _createNewService = true">
+                        Create new service
+                    </button>
+                </div>
+
+                @if (!_createNewService)
+                {
+                    <div class="console-chip-row publish-filter-row">
+                        <span class="console-status console-state-info">kind: FeatureServer</span>
+                        <span class="console-status console-state-info">compatible (vector polygon)</span>
+                        <span class="console-status console-state-neutral">my folders</span>
+                    </div>
+                    @ServiceTree(_selectedServiceId, id => _selectedServiceId = id)
+                    <div class="publish-create-affordance">
+                        <strong>Don't see what you want?</strong>
+                        <button type="button" class="console-button console-button-secondary" @onclick="() => _createNewService = true">Create new service…</button>
+                        <p class="console-muted">New services have their own settings step — CRS, capabilities, max record count, cache, output formats — before you get to the layer.</p>
+                    </div>
+                }
+                else
+                {
+                    @NewServiceCards
+                }
+            </div>
+
+            <aside class="publish-wizard-rail">
+                @if (!_createNewService && SelectedService(_selectedServiceId) is { } svc)
+                {
+                    <article class="console-panel">
+                        <h3>You're publishing into</h3>
+                        <dl class="console-definition-list">
+                            <dt>Service</dt><dd>@svc.Name</dd>
+                            <dt>Kind</dt><dd>@svc.Kind</dd>
+                            <dt>Folder</dt><dd>@svc.Folder</dd>
+                            <dt>Default CRS</dt><dd>EPSG:4326</dd>
+                            <dt>Anonymous</dt><dd>yes (folder default)</dd>
+                            <dt>Capabilities</dt><dd>Query, Extract</dd>
+                        </dl>
+                    </article>
+                    <p class="publish-callout publish-callout-info">When you reuse an existing service you accept its settings (CRS, capabilities, cache) as-is; they're shared by every layer. To use different service-level settings, create a new one.</p>
+                }
+                else
+                {
+                    <article class="console-panel">
+                        <h3>What gets created</h3>
+                        <dl class="console-definition-list">
+                            <dt>Service</dt><dd>parcels-fs (new)</dd>
+                            <dt>Folder</dt><dd>public</dd>
+                            <dt>Esri catalog entry</dt><dd>opt-in · checked</dd>
+                        </dl>
+                    </article>
+                    @UrlPreviewCard("https://honua.example.gov/public/parcels-fs/FeatureServer")
+                }
+            </aside>
+        </div>
+    };
+
+    private RenderFragment QuickLayerBody => __builder =>
+    {
+        var svc = SelectedService(_createNewService ? "public-works-fs" : _selectedServiceId);
+        <div class="publish-wizard-grid" data-quick-step="layer">
+            <div class="publish-wizard-main">
+                <div class="publish-context-bar">
+                    <span>🗀 @(svc?.Folder ?? "public")</span>
+                    <span aria-hidden="true">›</span>
+                    <span>◈ @(svc?.Name ?? "parcels-fs")</span>
+                    <span class="console-muted">FeatureServer · CRS 4326 · public read</span>
+                    <span class="publish-context-spacer"></span>
+                    <span class="console-muted">this layer will become layer 8</span>
+                </div>
+
+                <h3 class="publish-wizard-question">What does this layer expose?</h3>
+                <p class="console-muted">A layer is backed by exactly one Data Resource.</p>
+
+                <div class="publish-segment" role="group" aria-label="Layer resource mode">
+                    <button type="button"
+                            class="publish-segment-option @(_createNewResource ? null : "publish-segment-active")"
+                            aria-pressed="@(!_createNewResource)"
+                            @onclick="() => _createNewResource = false">
+                        Bind existing resource
+                    </button>
+                    <button type="button"
+                            class="publish-segment-option @(_createNewResource ? "publish-segment-active" : null)"
+                            aria-pressed="@_createNewResource"
+                            @onclick="() => _createNewResource = true">
+                        Create new resource
+                    </button>
+                </div>
+
+                <p class="publish-callout publish-callout-info"><strong>One resource, many layers.</strong> The same Data Resource can back layers in multiple services — all share the same canonical fields and metadata.</p>
+
+                @if (!_createNewResource)
+                {
+                    <div class="console-chip-row publish-filter-row">
+                        <span class="console-status console-state-info">compatible · Polygon, Point, Line</span>
+                        <span class="console-status console-state-neutral">not yet in this service</span>
+                        <span class="console-status console-state-neutral">my resources</span>
+                    </div>
+                    @ResourceTable
+                    @LayerFieldsCard
+                    @PerLayerOverridesCard
+                }
+                else
+                {
+                    @NewResourceCards
+                }
+            </div>
+
+            <aside class="publish-wizard-rail">
+                <article class="console-panel">
+                    <h3>Picked resource</h3>
+                    <dl class="console-definition-list">
+                        <dt>Resource</dt><dd>◇ @(_selectedResourceId ?? "parcels_2024")</dd>
+                        <dt>Geometry</dt><dd>MultiPolygon · 4326</dd>
+                        <dt>Features</dt><dd>1,284,021</dd>
+                        <dt>Fields</dt><dd>24</dd>
+                    </dl>
+                </article>
+                <article class="console-panel publish-also-published">
+                    <h3>Also published as</h3>
+                    <div class="publish-slot-row"><span class="console-status console-state-success">live</span><span>public-works-ms / layer 2</span></div>
+                    <div class="publish-slot-row"><span class="console-status console-state-success">live</span><span>features-public / parcels_2024</span></div>
+                    <div class="publish-slot-row"><span class="console-status console-state-warning">stale</span><span>tiles-public / parcels_2024</span></div>
+                    <p class="console-muted">Adding here doesn't change those — each is its own publication slot.</p>
+                </article>
+            </aside>
+        </div>
+    };
+
+    private RenderFragment QuickReviewBody => __builder =>
+    {
+        <div class="publish-wizard-grid" data-quick-step="review">
+            <div class="publish-wizard-main">
+                <div class="publish-context-bar">
+                    <span>🗀 public</span>
+                    <span aria-hidden="true">›</span>
+                    <span>◈ @(_selectedServiceId ?? "parcels-fs")</span>
+                    <span aria-hidden="true">›</span>
+                    <span>◇ layer 8 · Parcels</span>
+                    <span class="publish-context-spacer"></span>
+                    <span class="console-status console-state-success">ready</span>
+                </div>
+
+                <h3 class="publish-wizard-question">Ready to publish</h3>
+                <p class="console-muted">Three things will be created when you publish. Service settings are taken from the existing service unchanged; only the new layer adds to it.</p>
+
+                <div class="publish-review-stack">
+                    <article class="console-panel">
+                        <h3>◇ Data Resource · @(_selectedResourceId ?? "parcels_2024") <span class="console-status console-state-neutral">@(_createNewResource ? "new" : "existing")</span></h3>
+                        <dl class="console-definition-list">
+                            <dt>Source</dt><dd>@SourceConnection / @SourceTable</dd>
+                            <dt>Primary ID</dt><dd>gid</dd>
+                            <dt>Geometry</dt><dd>geom · MultiPolygon · 4326</dd>
+                            <dt>Fields detected</dt><dd>24 (1 PII flagged)</dd>
+                        </dl>
+                    </article>
+                    <div class="publish-review-bind">↓ binds to ↓</div>
+                    <article class="console-panel publish-review-layer">
+                        <h3>◈ @(_selectedServiceId ?? "parcels-fs") / layer 8 · "Parcels" <span class="console-status console-state-success">publication</span></h3>
+                        <dl class="console-definition-list">
+                            <dt>URL</dt><dd>https://honua.example.gov/public/pw/FeatureServer/8</dd>
+                            <dt>Service settings</dt><dd>inherits from the service (CRS 4326, Query+Extract, cache 30 min)</dd>
+                            <dt>Layer-specific</dt><dd>23 fields exposed · 5 aliased · owner_name hidden</dd>
+                        </dl>
+                    </article>
+                    <div class="publish-review-bind">↓ opt-in (checked) ↓</div>
+                    <article class="console-panel publish-review-layer-catalog">
+                        <h3>▤ Esri catalog registration</h3>
+                        <label class="publish-catalog-toggle">
+                            <input type="checkbox" checked="@_registerCatalog" @onchange="e => _registerCatalog = (bool)e.Value!" />
+                            <span>Register this service in the Esri catalog</span>
+                            <span class="console-muted">uncheck to skip · service still works</span>
+                        </label>
+                        <dl class="console-definition-list">
+                            <dt>Title</dt><dd>Parcels (from layer name)</dd>
+                            <dt>Stays in sync</dt><dd>yes — service updates flow to the catalog entry</dd>
+                        </dl>
+                    </article>
+                </div>
+            </div>
+
+            <aside class="publish-wizard-rail">
+                <p class="publish-callout publish-callout-info"><strong>Service settings are unchanged.</strong> You reused the existing service, so its CRS, capabilities, cache, anonymous access, and output formats all apply.</p>
+                @UrlPreviewCard("/public/pw/FeatureServer/8")
+                @if (_published)
+                {
+                    <p class="publish-callout publish-callout-info" data-publish-result>Published. The layer slot is now live; unpublish reverses it in one click.</p>
+                }
+            </aside>
+        </div>
+    };
+
+    // ===================================================================================
+    //  AUTHOR-FIRST STEPS: Target → Compatibility → Slot → Fields → Projection → Access → Review
+    // ===================================================================================
+
+    private IReadOnlyList<PublishWizardStep> AuthorStepList =>
+    [
+        new PublishWizardStep(
+            "Target",
+            AuthorTargetBody,
+            IsValid: _authorCreateNewService || _authorTargetId is not null,
+            ContinueLabel: "Continue · Compatibility →"),
+        new PublishWizardStep("Compatibility", AuthorCompatibilityBody, ContinueLabel: "Continue · Slot →"),
+        new PublishWizardStep("Slot", AuthorSlotBody, ContinueLabel: "Continue · Fields →"),
+        new PublishWizardStep("Fields", AuthorFieldsBody, ContinueLabel: "Continue · Projection →"),
+        new PublishWizardStep("Projection", AuthorProjectionBody, ContinueLabel: "Continue · Access →"),
+        new PublishWizardStep("Access", AuthorAccessBody, ContinueLabel: "Continue · Review →"),
+        new PublishWizardStep("Review", AuthorReviewBody),
+    ];
+
+    private RenderFragment AuthorContext => __builder =>
+    {
+        <div class="publish-context-bar" data-author-context>
+            <span>◇ parcels_2024</span>
+            <span class="console-muted">· @SourceSummary · 24 fields</span>
+            <span class="publish-context-spacer"></span>
+            <span class="console-muted">already published to 5 slots</span>
+        </div>
+    };
+
+    private RenderFragment AuthorTargetBody => __builder =>
+    {
+        @AuthorContext
+        <div class="publish-wizard-grid" data-author-step="target">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">Where should this resource appear?</h3>
+                <p class="console-muted">Pick a folder + service to drop a new layer slot into. We'll tell you in step 2 what's compatible.</p>
+
+                <div class="publish-segment" role="group" aria-label="Target mode">
+                    <button type="button"
+                            class="publish-segment-option @(_authorCreateNewService ? null : "publish-segment-active")"
+                            aria-pressed="@(!_authorCreateNewService)"
+                            @onclick="() => _authorCreateNewService = false">
+                        Use existing service
+                    </button>
+                    <button type="button"
+                            class="publish-segment-option @(_authorCreateNewService ? "publish-segment-active" : null)"
+                            aria-pressed="@_authorCreateNewService"
+                            @onclick="() => _authorCreateNewService = true">
+                        Create new service
+                    </button>
+                </div>
+
+                @if (!_authorCreateNewService)
+                {
+                    <div class="console-chip-row publish-filter-row">
+                        <span class="console-status console-state-info">only compatible</span>
+                        <span class="console-status console-state-neutral">only services I own</span>
+                    </div>
+                    @ServiceTree(_authorTargetId, id => _authorTargetId = id)
+                }
+                else
+                {
+                    @InlineNewServiceCard
+                }
+            </div>
+
+            <aside class="publish-wizard-rail">
+                <p class="publish-callout publish-callout-info"><strong>One resource → many slots.</strong> A resource can sit in many services at once. Each slot overrides layer name / aliases / field exposure, but never the meaning.</p>
+                <article class="console-panel">
+                    <h3>Already published to</h3>
+                    <div class="publish-slot-row"><span class="console-status console-state-success">live</span><span>public-works-fs / layer 0</span></div>
+                    <div class="publish-slot-row"><span class="console-status console-state-success">live</span><span>public-works-ms / layer 2</span></div>
+                    <div class="publish-slot-row"><span class="console-status console-state-success">live</span><span>features-public / parcels_2024</span></div>
+                    <div class="publish-slot-row"><span class="console-status console-state-success">live</span><span>stac-public / parcels_2024</span></div>
+                    <p class="console-muted">Publish creates a NEW Publication record. Existing slots are untouched.</p>
+                </article>
+            </aside>
+        </div>
+    };
+
+    private RenderFragment AuthorCompatibilityBody => __builder =>
+    {
+        var target = SelectedService(_authorCreateNewService ? "public-works-fs" : _authorTargetId);
+        @AuthorContext
+        <div class="publish-wizard-grid" data-author-step="compatibility">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">What can this target carry?</h3>
+                <p class="console-muted">Each output format carries the resource differently. Honua flags anything degraded before you commit.</p>
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr><th>Format</th><th>Carries</th><th>Support</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>FeatureServer</td><td>Vector features + attributes</td><td><span class="console-status console-state-success">full</span></td></tr>
+                            <tr><td>MapServer</td><td>Rendered tiles</td><td><span class="console-status console-state-success">full</span></td></tr>
+                            <tr><td>OGC API Features</td><td>GeoJSON collections</td><td><span class="console-status console-state-success">full</span></td></tr>
+                            <tr><td>OData</td><td>WKB geometry column</td><td><span class="console-status console-state-warning">degraded</span></td></tr>
+                            <tr><td>ImageServer</td><td>Raster only</td><td><span class="console-status console-state-danger">incompatible</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <aside class="publish-wizard-rail">
+                <article class="console-panel">
+                    <h3>Selected target</h3>
+                    <dl class="console-definition-list">
+                        <dt>Service</dt><dd>@(target?.Name ?? "parcels-fs")</dd>
+                        <dt>Kind</dt><dd>@(target?.Kind ?? "FeatureServer")</dd>
+                        <dt>This would be</dt><dd>layer 8 · new slot</dd>
+                    </dl>
+                </article>
+                <p class="publish-callout publish-callout-info">Nothing here re-defines the resource — only how it appears in this slot.</p>
+            </aside>
+        </div>
+    };
+
+    private RenderFragment AuthorSlotBody => __builder =>
+    {
+        @AuthorContext
+        <div class="publish-wizard-grid" data-author-step="slot">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">Configure the layer slot</h3>
+                <article class="console-panel">
+                    <h3>Identity</h3>
+                    <div class="publish-field-grid">
+                        <label class="publish-field"><span>Layer name</span><input class="console-input" value="Parcels" readonly /></label>
+                        <label class="publish-field"><span>Layer ID</span><input class="console-input" value="8" readonly /></label>
+                        <label class="publish-field"><span>Display field</span><input class="console-input" value="parcel_id (inherits from resource)" readonly /></label>
+                        <label class="publish-field"><span>Route</span><input class="console-input" value="/public/pw/FeatureServer/8" readonly /></label>
+                    </div>
+                </article>
+            </div>
+            <aside class="publish-wizard-rail">
+                <p class="publish-callout publish-callout-info">The layer ID is the next free slot in this service. The route is derived from the service kind + folder + name.</p>
+            </aside>
+        </div>
+    };
+
+    private RenderFragment AuthorFieldsBody => __builder =>
+    {
+        @AuthorContext
+        <div class="publish-wizard-grid" data-author-step="fields">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">Choose field exposure &amp; aliases</h3>
+                <p class="console-muted">These ride on top of the resource's canonical fields. They brand this slot only; none of it changes the resource.</p>
+                @LayerFieldsCard
+            </div>
+            <aside class="publish-wizard-rail">
+                <p class="publish-callout publish-callout-info">Field aliases &amp; hidden fields are layer-level. Canonical fields and PII flags are resource-level.</p>
+            </aside>
+        </div>
+    };
+
+    private RenderFragment AuthorProjectionBody => __builder =>
+    {
+        @AuthorContext
+        <div class="publish-wizard-grid" data-author-step="projection">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">Preview how this layer will look</h3>
+
+                <MapPreview Mode="MapPreviewMode.Layer"
+                            Height="420"
+                            ScaleText="1:500"
+                            ShowLabels="_showLabels"
+                            ShowPopup="_showPopups"
+                            ShowHighlight="_showHighlight"
+                            Popup="SlotPopup"
+                            Legend="AreaLegend"
+                            LegendTitle="Class breaks · area_m2"
+                            Basemaps="Basemaps"
+                            ActiveBasemapId="_activeBasemap"
+                            OnBasemapChanged="OnBasemapChanged"
+                            AriaLabel="Layer projection preview" />
+
+                <div class="publish-preview-controls" data-projection-controls>
+                    <span class="console-muted">Preview controls</span>
+                    <span class="publish-context-spacer"></span>
+                    <span class="console-muted">scale</span>
+                    <span>1:500</span>
+                    <input type="range" min="0" max="100" value="60" aria-label="Preview scale" />
+                    <span>1:15M</span>
+                    <button type="button"
+                            class="publish-filter-chip @(_showLabels ? "publish-filter-chip-on" : null)"
+                            aria-pressed="@_showLabels"
+                            @onclick="ToggleLabels">labels</button>
+                    <button type="button"
+                            class="publish-filter-chip @(_showPopups ? "publish-filter-chip-on" : null)"
+                            aria-pressed="@_showPopups"
+                            @onclick="TogglePopups">popups</button>
+                    <button type="button"
+                            class="publish-filter-chip @(_showHighlight ? "publish-filter-chip-on" : null)"
+                            aria-pressed="@_showHighlight"
+                            @onclick="ToggleHighlight">highlight</button>
+                </div>
+            </div>
+
+            <aside class="publish-wizard-rail">
+                <p class="publish-callout publish-callout-info"><strong>What this is.</strong> A live render of the layer Honua will publish at this slot. Style and labels come from the canonical resource; popup fields and aliases come from this slot's overrides.</p>
+
+                <article class="console-panel">
+                    <h3>This slot</h3>
+                    <dl class="console-definition-list">
+                        <dt>Object ID</dt><dd>gid</dd>
+                        <dt>Display field</dt><dd>parcel_id</dd>
+                        <dt>Popup fields</dt><dd>4 (of 23 exposed)</dd>
+                        <dt>Owner redacted</dt><dd><span class="console-status console-state-warning">yes</span></dd>
+                        <dt>Labels at</dt><dd>1:500 – 1:25k</dd>
+                        <dt>Cache TTL</dt><dd>30 min</dd>
+                    </dl>
+                </article>
+
+                <article class="console-panel">
+                    <h3>Compare against</h3>
+                    <div class="publish-compare-row"><span>◇ Resource canonical</span><span class="console-muted">same style, all 24 fields</span></div>
+                    <div class="publish-compare-row"><span>public-works-ms / layer 2</span><span class="console-muted">MapServer · rendered tiles</span></div>
+                    <div class="publish-compare-row"><span>features-public / parcels_2024</span><span class="console-muted">OGC API · GeoJSON</span></div>
+                    <div class="publish-compare-row"><span>stac-public</span><span class="console-muted">collection metadata only</span></div>
+                </article>
+                <p class="console-muted">Map uses 1k sampled features. The published service serves all 1.28M.</p>
+            </aside>
+        </div>
+    };
+
+    private RenderFragment AuthorAccessBody => __builder =>
+    {
+        @AuthorContext
+        <div class="publish-wizard-grid" data-author-step="access">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">Confirm access impact</h3>
+                <article class="console-panel">
+                    <h3>Access</h3>
+                    <dl class="console-definition-list">
+                        <dt>Anonymous access</dt><dd>Inherit (public read)</dd>
+                        <dt>Owner_name (PII)</dt><dd><span class="console-status console-state-warning">hidden in this slot</span></dd>
+                        <dt>Max record count</dt><dd>Inherit (5,000)</dd>
+                    </dl>
+                </article>
+                <p class="publish-callout publish-callout-info">Public read exposes every non-hidden attribute. The PII-flagged owner_name stays redacted in this slot.</p>
+            </div>
+            <aside class="publish-wizard-rail">
+                <p class="publish-callout publish-callout-info">Access defaults come from the resource. Override per-slot only when this layer must differ.</p>
+            </aside>
+        </div>
+    };
+
+    private RenderFragment AuthorReviewBody => __builder =>
+    {
+        @AuthorContext
+        <div class="publish-wizard-grid" data-author-step="review">
+            <div class="publish-wizard-main">
+                <h3 class="publish-wizard-question">Validate &amp; publish</h3>
+                <div class="publish-review-stack">
+                    <article class="console-panel">
+                        <h3>◇ Data Resource · parcels_2024 <span class="console-status console-state-neutral">canonical</span></h3>
+                        <dl class="console-definition-list">
+                            <dt>Source</dt><dd>@SourceConnection / @SourceTable</dd>
+                            <dt>Geometry</dt><dd>MultiPolygon · 4326</dd>
+                        </dl>
+                    </article>
+                    <div class="publish-review-bind">↓ binds to ↓</div>
+                    <article class="console-panel publish-review-layer">
+                        <h3>◈ @(_authorTargetId ?? "parcels-fs") / layer 8 · "Parcels" <span class="console-status console-state-success">publication</span></h3>
+                        <dl class="console-definition-list">
+                            <dt>URL</dt><dd>/public/pw/FeatureServer/8</dd>
+                            <dt>Style</dt><dd>class breaks on area_m2</dd>
+                        </dl>
+                    </article>
+                    <div class="publish-review-bind">↓ opt-in (checked) ↓</div>
+                    <article class="console-panel publish-review-layer-catalog">
+                        <h3>▤ Esri catalog registration <span class="console-status console-state-info">auto-mirror</span></h3>
+                        <p class="console-muted">Esri services mirror to the Esri catalog; OGC API Features mirrors to OGC Records.</p>
+                    </article>
+                </div>
+            </div>
+            <aside class="publish-wizard-rail">
+                @UrlPreviewCard("/public/pw/FeatureServer/8")
+                @if (_published)
+                {
+                    <p class="publish-callout publish-callout-info" data-publish-result>Validated and published. A new Publication record was created; existing slots are untouched.</p>
+                }
+            </aside>
+        </div>
+    };
+
+    // ===================================================================================
+    //  Shared body fragments
+    // ===================================================================================
+
+    private RenderFragment ServiceTree(string? selectedId, Action<string> onSelect) => __builder =>
+    {
+        <div class="publish-tree" role="listbox" aria-label="Target services" data-publish-tree>
+            @{
+                string? lastFolder = null;
+            }
+            @foreach (var node in Services)
+            {
+                if (node.Folder != lastFolder)
+                {
+                    lastFolder = node.Folder;
+                    <div class="publish-tree-folder">🗀 @node.Folder</div>
+                }
+                var selected = node.Id == selectedId;
+                var incompatible = node.Compatibility == ServiceCompatibility.Incompatible;
+                <button type="button"
+                        class="publish-tree-row @(selected ? "publish-tree-row-selected" : null) @(incompatible ? "publish-tree-row-incompat" : null)"
+                        role="option"
+                        aria-selected="@selected"
+                        disabled="@incompatible"
+                        @onclick="() => { if (!incompatible) onSelect(node.Id); }">
+                    <input type="radio" checked="@selected" disabled="@incompatible" tabindex="-1" />
+                    <span class="publish-tree-glyph">◈</span>
+                    <span class="publish-tree-body">
+                        <span class="publish-tree-name">@node.Name <span class="console-status console-state-neutral">@node.Kind</span></span>
+                        <span class="publish-tree-meta">@node.Meta@(node.Note is null ? null : $" · {node.Note}")</span>
+                    </span>
+                    <span class="console-status @CompatibilityClass(node.Compatibility)">@CompatibilityLabel(node.Compatibility)</span>
+                </button>
+            }
+        </div>
+    };
+
+    private RenderFragment ResourceTable => __builder =>
+    {
+        <div class="console-table-wrap publish-resource-table" data-resource-table>
+            <table class="console-table">
+                <thead>
+                    <tr><th></th><th>Resource</th><th>Type</th><th>Features</th><th>In service?</th><th>Used in</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Resources)
+                    {
+                        var selected = r.Id == _selectedResourceId;
+                        <tr class="@(selected ? "publish-resource-row-selected" : null) @(r.Compatible ? null : "publish-resource-row-incompat")">
+                            <td>
+                                <input type="radio"
+                                       name="quick-resource"
+                                       checked="@selected"
+                                       disabled="@(!r.Compatible)"
+                                       @onchange="() => { if (r.Compatible) _selectedResourceId = r.Id; }" />
+                            </td>
+                            <td>◇ <strong>@r.Name</strong></td>
+                            <td><span class="console-status console-state-neutral">@r.Type</span></td>
+                            <td>@r.Features</td>
+                            <td>@(r.AlreadyIn == "no" ? "—" : r.AlreadyIn)</td>
+                            <td>
+                                @r.UsedIn
+                                @if (r.Pii)
+                                {
+                                    <span class="console-status console-state-warning publish-pii-flag">PII</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="console-chip-row publish-resource-actions">
+            <button type="button" class="console-button console-button-secondary">+ Create from connection</button>
+            <button type="button" class="console-button console-button-secondary">+ Create from file</button>
+            <button type="button" class="console-button console-button-secondary">+ Migrate remote service</button>
+        </div>
+    };
+
+    private RenderFragment LayerFieldsCard => __builder =>
+    {
+        <article class="console-panel publish-fields-card" data-layer-fields>
+            <h3>Fields exposed in this layer <span class="console-muted">resource has 24 fields · pick &amp; rename for this slot</span></h3>
+            <div class="console-table-wrap">
+                <table class="console-table">
+                    <thead><tr><th></th><th>Resource field</th><th>Alias here</th><th>Role</th></tr></thead>
+                    <tbody>
+                        <tr><td><input type="checkbox" checked /></td><td>gid</td><td>OBJECTID</td><td><span class="console-status console-state-info">Primary ID</span></td></tr>
+                        <tr><td><input type="checkbox" checked /></td><td>parcel_id</td><td>Parcel ID</td><td>Display</td></tr>
+                        <tr><td><input type="checkbox" checked /></td><td>area_m2</td><td>Area (m²)</td><td>—</td></tr>
+                        <tr class="publish-field-pii"><td><input type="checkbox" /></td><td>owner_name</td><td class="console-muted">— hidden —</td><td><span class="console-status console-state-warning">PII flagged on resource</span></td></tr>
+                        <tr><td colspan="4" class="console-muted publish-fields-more">+ 20 more · default = inherit from resource</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    };
+
+    private RenderFragment PerLayerOverridesCard => __builder =>
+    {
+        <article class="console-panel" data-layer-overrides>
+            <h3>Per-layer overrides</h3>
+            <p class="console-muted">Usually leave at "inherit". Override only when this layer needs to differ from the service.</p>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Anonymous access</span><input class="console-input" value="Inherit (public read)" readonly /></label>
+                <label class="publish-field"><span>Max record count</span><input class="console-input" value="Inherit (5,000)" readonly /></label>
+                <label class="publish-field"><span>Cache TTL</span><input class="console-input" value="Inherit (30 min)" readonly /></label>
+                <label class="publish-field"><span>Geometry simplification</span><input class="console-input" value="auto (recommended)" readonly /></label>
+            </div>
+        </article>
+    };
+
+    private RenderFragment NewServiceCards => __builder =>
+    {
+        <article class="console-panel" data-new-service="identity">
+            <h3>Identity</h3>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Service kind</span><input class="console-input" value="GeoServices FeatureServer" readonly /></label>
+                <label class="publish-field"><span>Folder</span><input class="console-input" value="public" readonly /></label>
+                <label class="publish-field"><span>Service name</span><input class="console-input" value="parcels-fs" readonly /></label>
+                <label class="publish-field"><span>Route</span><input class="console-input" value="/public/parcels-fs/FeatureServer" readonly /></label>
+            </div>
+        </article>
+        <article class="console-panel" data-new-service="crs">
+            <h3>Spatial reference</h3>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Default CRS</span><input class="console-input" value="EPSG:4326 · WGS 84 (from source)" readonly /></label>
+                <label class="publish-field"><span>Z-aware</span><input class="console-input" value="no" readonly /></label>
+            </div>
+            <p class="console-muted">Allow consumer-requested CRSs: EPSG:3857, EPSG:4269 (re-projected on the fly).</p>
+        </article>
+        <article class="console-panel" data-new-service="capabilities">
+            <h3>Capabilities</h3>
+            <div class="publish-field-grid">
+                <label class="publish-field"><input type="checkbox" checked /> <span>Query</span></label>
+                <label class="publish-field"><input type="checkbox" checked /> <span>Extract (bulk)</span></label>
+                <label class="publish-field"><input type="checkbox" checked /> <span>GetFeatureInfo</span></label>
+                <label class="publish-field"><input type="checkbox" /> <span>Create / Update / Delete</span></label>
+            </div>
+        </article>
+        <article class="console-panel" data-new-service="limits">
+            <h3>Limits &amp; formats</h3>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Default max record count</span><input class="console-input" value="5,000" readonly /></label>
+                <label class="publish-field"><span>Cache TTL</span><input class="console-input" value="30 min" readonly /></label>
+                <label class="publish-field"><span>Output formats</span><input class="console-input" value="JSON, GeoJSON, PBF" readonly /></label>
+                <label class="publish-field"><span>Anonymous access</span><input class="console-input" value="Public read (folder default)" readonly /></label>
+            </div>
+        </article>
+        <article class="console-panel" data-new-service="catalog">
+            <h3>Register in catalog</h3>
+            <label class="publish-catalog-toggle">
+                <input type="checkbox" checked="@_registerCatalog" @onchange="e => _registerCatalog = (bool)e.Value!" />
+                <span>Register in Esri catalog</span>
+                <span class="console-status console-state-info">default on</span>
+            </label>
+        </article>
+    };
+
+    private RenderFragment NewResourceCards => __builder =>
+    {
+        <article class="console-panel" data-new-resource="source">
+            <h3>1. Where's the data?</h3>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Connection</span><input class="console-input" value="@SourceConnection" readonly /></label>
+                <label class="publish-field"><span>Schema · table</span><input class="console-input" value="@SourceTable" readonly /></label>
+                <label class="publish-field"><span>Primary ID column</span><input class="console-input" value="gid" readonly /></label>
+                <label class="publish-field"><span>Geometry column</span><input class="console-input" value="geom · MultiPolygon · 4326" readonly /></label>
+            </div>
+        </article>
+        <article class="console-panel" data-new-resource="name">
+            <h3>2. Name the new resource</h3>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Resource name (canonical)</span><input class="console-input" value="parcels_2024" readonly /></label>
+                <label class="publish-field"><span>Resource title</span><input class="console-input" value="Tax Parcels (FY 2024)" readonly /></label>
+            </div>
+            <p class="publish-callout publish-callout-info"><strong>This resource will be reusable.</strong> Publish it as a layer in other services (OGC API, MapServer, WMTS) without re-doing the source / fields / metadata work.</p>
+        </article>
+        <article class="console-panel" data-new-resource="layer">
+            <h3>3. Name the layer (this service only)</h3>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Layer name</span><input class="console-input" value="Parcels" readonly /></label>
+                <label class="publish-field"><span>Layer ID</span><input class="console-input" value="8" readonly /></label>
+            </div>
+        </article>
+    };
+
+    private RenderFragment InlineNewServiceCard => __builder =>
+    {
+        <article class="console-panel" data-inline-new-service>
+            <h3>New service · runtime essentials</h3>
+            <p class="console-muted">Minimum needed to start publishing. Full runtime settings can be tuned later in Services → settings.</p>
+            <div class="publish-field-grid">
+                <label class="publish-field"><span>Service kind</span><input class="console-input" value="GeoServices FeatureServer" readonly /></label>
+                <label class="publish-field"><span>Folder</span><input class="console-input" value="public" readonly /></label>
+                <label class="publish-field"><span>Service name</span><input class="console-input" value="parcels-fs" readonly /></label>
+                <label class="publish-field"><span>Route</span><input class="console-input" value="/public/parcels-fs/FeatureServer" readonly /></label>
+                <label class="publish-field"><span>Anonymous access</span><input class="console-input" value="Public read" readonly /></label>
+                <label class="publish-field"><span>Default cache TTL</span><input class="console-input" value="30 min" readonly /></label>
+            </div>
+            <p class="publish-callout publish-callout-info"><strong>parcels_2024 will land as layer 0</strong> in this new service. The service is created when you reach Review; until then it's a draft.</p>
+        </article>
+    };
+
+    private RenderFragment UrlPreviewCard(string url) => __builder =>
+    {
+        <article class="console-panel publish-url-preview" data-url-preview>
+            <h3>URL preview</h3>
+            <code class="publish-url-value">@url</code>
+            <button type="button" class="console-button console-button-secondary">⧉ Copy URL</button>
+        </article>
+    };
+}
