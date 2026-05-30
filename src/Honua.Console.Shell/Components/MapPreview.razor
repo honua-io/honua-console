@@ -1,0 +1,392 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@*
+    Shared map preview, mirroring the design-handoff MapPreview
+    (docs/design-handoff/console-canvas/map-preview.jsx) and its consumers in
+    screens-studio.jsx, screens-publish-flow.jsx, and screens-gitops-temporal-sync.jsx.
+
+    Two modes:
+      Layer   — the selected layer's features with style, labels, popup, highlight.
+      Service — composite of all layers with a layer-list overlay.
+
+    Rendering: an inline SVG schematic ALWAYS renders first as a no-backend placeholder, so the
+    component is fully usable in bUnit and in the missing-binding (no style source) state. When a
+    StyleUrl is supplied AND a browser MapLibre runtime is reachable, a live MapLibre map mounts on
+    top of the placeholder via JS interop; otherwise the schematic stays. This preserves the
+    no-mock contract — a live map appears only when a real style source is bound.
+*@
+
+<figure class="map-preview map-preview-@Mode.ToString().ToLowerInvariant()"
+        style="@HeightStyle"
+        data-map-mode="@Mode.ToString().ToLowerInvariant()"
+        data-map-bound="@(_liveMapBound ? "true" : "false")"
+        aria-label="@AriaLabel">
+
+    @if (TimeFrame != MapPreviewTimeFrame.None)
+    {
+        <figcaption class="map-preview-timeframe map-preview-timeframe-@TimeFrame.ToString().ToLowerInvariant()">
+            <span class="map-preview-timeframe-badge">@(TimeFrame == MapPreviewTimeFrame.AsOf ? "as-of" : "now")</span>
+            @if (!string.IsNullOrWhiteSpace(TimeFrameLabel))
+            {
+                <span class="map-preview-timeframe-label">@TimeFrameLabel</span>
+            }
+        </figcaption>
+    }
+
+    <div class="map-preview-stage">
+        <div class="map-preview-canvas" @ref="_canvas" data-map-preview-canvas></div>
+
+        @* No-backend schematic placeholder. Always present; hidden by the live map when one mounts. *@
+        <svg class="map-preview-schematic"
+             viewBox="0 0 800 420"
+             preserveAspectRatio="xMidYMid slice"
+             role="img"
+             aria-hidden="true"
+             focusable="false">
+            <defs>
+                <pattern id="@_gridId" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#dde6dd" stroke-width="1" />
+                </pattern>
+                <linearGradient id="@_sheenId" x1="0" x2="1">
+                    <stop offset="0%" stop-color="#f0f5ef" />
+                    <stop offset="100%" stop-color="#e3ebe2" />
+                </linearGradient>
+            </defs>
+            <rect width="800" height="420" fill="url(#@_sheenId)" />
+            <rect width="800" height="420" fill="url(#@_gridId)" />
+            <path d="M 0 280 C 80 220, 160 320, 260 240 S 460 320, 600 220 S 780 180, 820 240 L 820 420 L 0 420 Z" fill="#c9d8c5" opacity="0.7" />
+            <g stroke="@(Mode == MapPreviewMode.Service ? "#7a7a7a" : "#bbb")" stroke-width="@(Mode == MapPreviewMode.Service ? "1.6" : "1")" fill="none">
+                <path d="M 0 200 L 800 220" />
+                <path d="M 0 320 L 800 300" />
+                <path d="M 400 0 L 410 420" />
+            </g>
+            @foreach (var p in Parcels)
+            {
+                <rect x="@p.X" y="@p.Y" width="@p.W" height="@p.H" fill="@p.Fill" stroke="#7a6f55" stroke-width="0.7" />
+            }
+            @if (Mode == MapPreviewMode.Layer && ShowHighlight)
+            {
+                <rect class="map-preview-highlight" x="200" y="150" width="80" height="60" fill="none" stroke="#141414" stroke-width="2" />
+            }
+            @if (Mode == MapPreviewMode.Layer && ShowLabels)
+            {
+                <g class="map-preview-labels" font-family="Inter, system-ui, sans-serif" font-size="9" fill="#3a2f17">
+                    <text x="92" y="84" text-anchor="middle">04-021-118</text>
+                    <text x="155" y="84" text-anchor="middle">04-021-119</text>
+                    <text x="240" y="125" text-anchor="middle">04-021-122</text>
+                    <text x="240" y="184" text-anchor="middle" font-weight="600">04-021-204</text>
+                    <text x="585" y="184" text-anchor="middle">04-021-211</text>
+                </g>
+            }
+        </svg>
+
+        @* Scale control. *@
+        <div class="map-preview-scale" data-map-scale>
+            <span>@ScaleText</span>
+            <span class="map-preview-scale-sep" aria-hidden="true">·</span>
+            <span>@Crs</span>
+            <span class="map-preview-scale-sep" aria-hidden="true">·</span>
+            <span>z @Zoom</span>
+        </div>
+
+        @* Zoom chrome. *@
+        <div class="map-preview-zoom" role="group" aria-label="Zoom controls">
+            <button type="button" aria-label="Zoom in">+</button>
+            <button type="button" aria-label="Zoom out">&#8722;</button>
+            <button type="button" aria-label="Recenter">&#9094;</button>
+        </div>
+
+        @* Service-mode layer list overlay. *@
+        @if (Mode == MapPreviewMode.Service && Layers.Count > 0)
+        {
+            <div class="map-preview-layer-list" aria-label="Layers">
+                <div class="map-preview-layer-list-head">Layers · @Layers.Count</div>
+                @foreach (var layer in Layers)
+                {
+                    <label class="map-preview-layer-row @(layer.Visible ? null : "map-preview-layer-row-off")">
+                        <input type="checkbox" checked="@layer.Visible" disabled @onclick="() => ToggleLayer(layer)" />
+                        <span class="map-preview-layer-swatch" style="background:@layer.Color;"></span>
+                        <span class="map-preview-layer-id">@layer.Id</span>
+                        <span class="map-preview-layer-name">@layer.Name</span>
+                    </label>
+                }
+            </div>
+        }
+
+        @* Optional class-break / categorical style legend. *@
+        @if (Legend.Count > 0)
+        {
+            <div class="map-preview-legend" aria-label="Legend">
+                @if (!string.IsNullOrWhiteSpace(LegendTitle))
+                {
+                    <div class="map-preview-legend-head">@LegendTitle</div>
+                }
+                @foreach (var entry in Legend)
+                {
+                    <div class="map-preview-legend-row">
+                        <span class="map-preview-legend-swatch" style="background:@entry.Color;"></span>
+                        <span class="map-preview-legend-label">@entry.Label</span>
+                        @if (!string.IsNullOrWhiteSpace(entry.Detail))
+                        {
+                            <span class="map-preview-legend-detail">@entry.Detail</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* Optional GetFeatureInfo-style popup over the highlighted feature. *@
+        @if (Mode == MapPreviewMode.Layer && ShowPopup && Popup is not null)
+        {
+            <div class="map-preview-popup" role="status">
+                <div class="map-preview-popup-title">@Popup.Title</div>
+                <div class="map-preview-popup-body">
+                    @foreach (var field in Popup.Fields)
+                    {
+                        <div class="map-preview-popup-field">
+                            <span class="@(field.Muted ? "map-preview-popup-muted" : null)">@field.Label</span>
+                            <span class="@(field.Muted ? "map-preview-popup-muted" : null)">@field.Value</span>
+                        </div>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Popup.Footnote))
+                {
+                    <div class="map-preview-popup-foot">@Popup.Footnote</div>
+                }
+            </div>
+        }
+    </div>
+
+    @* Basemap chips. *@
+    @if (Basemaps.Count > 0)
+    {
+        <div class="map-preview-basemaps" role="group" aria-label="Basemap">
+            @foreach (var basemap in Basemaps)
+            {
+                var active = string.Equals(basemap.Id, _activeBasemapId, StringComparison.Ordinal);
+                <button type="button"
+                        class="map-preview-basemap-chip @(active ? "map-preview-basemap-chip-active" : null)"
+                        aria-pressed="@active"
+                        @onclick="() => SelectBasemap(basemap)">
+                    @basemap.Label
+                </button>
+            }
+        </div>
+    }
+</figure>
+
+@code {
+    private static readonly (int X, int Y, int W, int H, string Fill)[] DefaultParcels =
+    [
+        (60, 60, 60, 40, "#f7f4e8"), (120, 60, 70, 40, "#ead78a"), (190, 60, 60, 40, "#ead78a"),
+        (60, 100, 100, 50, "#d9a23a"), (160, 100, 50, 50, "#b56b1c"), (210, 100, 80, 50, "#612d0a"),
+        (290, 60, 90, 80, "#f7f4e8"), (380, 60, 60, 50, "#ead78a"), (380, 110, 60, 30, "#d9a23a"),
+        (440, 60, 90, 80, "#612d0a"), (530, 60, 70, 50, "#b56b1c"), (530, 110, 70, 30, "#ead78a"),
+        (600, 60, 100, 80, "#d9a23a"), (700, 60, 60, 40, "#612d0a"), (700, 100, 60, 40, "#b56b1c"),
+        (60, 150, 80, 60, "#f7f4e8"), (140, 150, 60, 60, "#ead78a"), (200, 150, 80, 60, "#d9a23a"),
+        (280, 150, 100, 60, "#b56b1c"), (380, 150, 70, 60, "#ead78a"), (450, 150, 80, 60, "#d9a23a"),
+        (530, 150, 90, 60, "#f7f4e8"), (620, 150, 80, 60, "#612d0a"), (700, 150, 60, 60, "#b56b1c"),
+    ];
+
+    private readonly string _gridId = $"mp-grid-{Guid.NewGuid():N}";
+    private readonly string _sheenId = $"mp-sheen-{Guid.NewGuid():N}";
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private bool _liveMapBound;
+    private string? _activeBasemapId;
+    private bool _basemapInitialized;
+
+    private static readonly IReadOnlyList<MapPreviewBasemap> NoBasemaps = [];
+    private static readonly IReadOnlyList<MapPreviewLegendEntry> NoLegend = [];
+    private static readonly IReadOnlyList<MapPreviewLayer> NoLayers = [];
+
+    /// <summary>Layer (single style) or Service (composite + layer list) framing.</summary>
+    [Parameter]
+    public MapPreviewMode Mode { get; set; } = MapPreviewMode.Layer;
+
+    /// <summary>Pixel height of the preview stage.</summary>
+    [Parameter]
+    public int Height { get; set; } = 360;
+
+    /// <summary>Scale string shown in the scale control (e.g. <c>1:8,000</c>).</summary>
+    [Parameter]
+    public string ScaleText { get; set; } = "1:8,000";
+
+    /// <summary>CRS shown alongside the scale.</summary>
+    [Parameter]
+    public string Crs { get; set; } = "EPSG:4326";
+
+    /// <summary>Zoom level shown alongside the scale.</summary>
+    [Parameter]
+    public int Zoom { get; set; } = 14;
+
+    /// <summary>Toggle the feature labels (layer mode).</summary>
+    [Parameter]
+    public bool ShowLabels { get; set; } = true;
+
+    /// <summary>Toggle the highlighted-feature outline (layer mode).</summary>
+    [Parameter]
+    public bool ShowHighlight { get; set; } = true;
+
+    /// <summary>Toggle the feature popup (layer mode, requires <see cref="Popup"/>).</summary>
+    [Parameter]
+    public bool ShowPopup { get; set; } = true;
+
+    /// <summary>Optional feature popup content. When null no popup renders.</summary>
+    [Parameter]
+    public MapPreviewPopup? Popup { get; set; }
+
+    /// <summary>Optional class-break / categorical style legend rows.</summary>
+    [Parameter]
+    public IReadOnlyList<MapPreviewLegendEntry> Legend { get; set; } = NoLegend;
+
+    /// <summary>Optional legend heading.</summary>
+    [Parameter]
+    public string? LegendTitle { get; set; }
+
+    /// <summary>Layer rows for the service-mode layer list overlay.</summary>
+    [Parameter]
+    public IReadOnlyList<MapPreviewLayer> Layers { get; set; } = NoLayers;
+
+    /// <summary>Selectable basemap chips. When empty no chip row renders.</summary>
+    [Parameter]
+    public IReadOnlyList<MapPreviewBasemap> Basemaps { get; set; } = NoBasemaps;
+
+    /// <summary>Id of the initially-active basemap chip; defaults to the first chip.</summary>
+    [Parameter]
+    public string? ActiveBasemapId { get; set; }
+
+    /// <summary>Temporal framing badge (none / as-of / now).</summary>
+    [Parameter]
+    public MapPreviewTimeFrame TimeFrame { get; set; } = MapPreviewTimeFrame.None;
+
+    /// <summary>Label shown next to the temporal badge (timestamp, "current", etc.).</summary>
+    [Parameter]
+    public string? TimeFrameLabel { get; set; }
+
+    /// <summary>Accessible label for the whole figure.</summary>
+    [Parameter]
+    public string AriaLabel { get; set; } = "Map preview";
+
+    /// <summary>
+    /// Optional MapLibre style URL. When set AND a browser MapLibre runtime is reachable, a live
+    /// map mounts over the schematic. When null (the default / missing-binding state) the schematic
+    /// placeholder is used and no map backend is contacted.
+    /// </summary>
+    [Parameter]
+    public string? StyleUrl { get; set; }
+
+    /// <summary>Initial map center [lng, lat] for the live map.</summary>
+    [Parameter]
+    public double[]? Center { get; set; }
+
+    /// <summary>Raised when a basemap chip is selected.</summary>
+    [Parameter]
+    public EventCallback<MapPreviewBasemap> OnBasemapChanged { get; set; }
+
+    /// <summary>Raised when a layer toggle is clicked (service mode).</summary>
+    [Parameter]
+    public EventCallback<MapPreviewLayer> OnLayerToggled { get; set; }
+
+    private string HeightStyle => $"--map-preview-height:{Height}px;";
+
+    private static IReadOnlyList<(int X, int Y, int W, int H, string Fill)> Parcels => DefaultParcels;
+
+    protected override void OnParametersSet()
+    {
+        if (!_basemapInitialized)
+        {
+            _activeBasemapId = ActiveBasemapId
+                ?? (Basemaps.Count > 0 ? Basemaps[0].Id : null);
+            _basemapInitialized = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || string.IsNullOrWhiteSpace(StyleUrl))
+        {
+            return;
+        }
+
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/Honua.Console.Shell/map-preview.js");
+
+            var bound = await _module.InvokeAsync<bool>(
+                "init",
+                _canvas,
+                new
+                {
+                    styleUrl = StyleUrl,
+                    center = Center,
+                    zoom = (double)Zoom,
+                    showScale = true,
+                });
+
+            if (bound && !_liveMapBound)
+            {
+                _liveMapBound = true;
+                StateHasChanged();
+            }
+        }
+        catch (JSException)
+        {
+            // No browser MapLibre runtime (offline, blocked CDN, or non-interactive render):
+            // keep the schematic placeholder. Never throw.
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop unavailable (prerender / bUnit without a JS runtime): keep the placeholder.
+        }
+    }
+
+    private async Task SelectBasemap(MapPreviewBasemap basemap)
+    {
+        _activeBasemapId = basemap.Id;
+        if (_liveMapBound && _module is not null && !string.IsNullOrWhiteSpace(basemap.Id))
+        {
+            try
+            {
+                await _module.InvokeAsync<bool>("setBasemap", _canvas, basemap.Id);
+            }
+            catch (JSException)
+            {
+                // Style swap failed; the chip selection still updates.
+            }
+        }
+
+        if (OnBasemapChanged.HasDelegate)
+        {
+            await OnBasemapChanged.InvokeAsync(basemap);
+        }
+    }
+
+    private Task ToggleLayer(MapPreviewLayer layer) =>
+        OnLayerToggled.HasDelegate ? OnLayerToggled.InvokeAsync(layer) : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("dispose", _canvas);
+                await _module.DisposeAsync();
+            }
+            catch (JSException)
+            {
+                // Ignore teardown failures.
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore teardown failures during prerender.
+            }
+        }
+    }
+}

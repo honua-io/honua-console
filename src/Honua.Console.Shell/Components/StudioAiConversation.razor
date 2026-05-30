@@ -1,0 +1,188 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Reusable two-column Studio AI pane, generalized from the /studio conversation shell (StudioPage)
+    and the design-handoff StudioMapAI / StudioDashboardAI screens (screens-studio.jsx).
+
+    Left  — a fixed 380px conversation column: You / Honua turns, structured clarification cards,
+            and a refine textarea + Send footer.
+    Right — a live package-preview slot (PreviewContent) the surface fills with its package
+            inspector + MapPreview, dashboard preview, etc.
+
+    The component is purely presentational + event-forwarding: it never fabricates package state.
+    Surfaces wire the prompt/answer/preview to their server-bound authoring session.
+*@
+<div class="studio-ai-pane" data-studio-ai-pane>
+    <section class="studio-ai-conversation" aria-label="Conversation">
+        <header class="studio-ai-conversation-head">
+            <p class="console-kicker">Conversation</p>
+            <h2 class="studio-ai-conversation-title">@ConversationTitle</h2>
+            @if (Clarifications.Count > 0)
+            {
+                <span class="console-status studio-ai-open-count">@Clarifications.Count open</span>
+            }
+        </header>
+
+        <div class="studio-ai-conversation-log" aria-live="polite">
+            @foreach (var turn in Turns)
+            {
+                <article class="studio-ai-turn studio-ai-turn-@turn.Role.ToString().ToLowerInvariant()">
+                    <div class="studio-ai-turn-meta">
+                        <span class="studio-ai-turn-author">@(turn.Role == StudioConversationRole.You ? "You" : "Honua")</span>
+                        @if (!string.IsNullOrWhiteSpace(turn.Timestamp))
+                        {
+                            <span class="studio-ai-turn-time">· @turn.Timestamp</span>
+                        }
+                    </div>
+                    <div class="studio-ai-turn-body studio-ai-turn-tone-@turn.Tone.ToString().ToLowerInvariant()">
+                        @turn.Body
+                        @if (!string.IsNullOrWhiteSpace(turn.EvidenceLabel))
+                        {
+                            <button type="button" class="studio-ai-evidence-link" @onclick="() => RaiseEvidence(turn)">
+                                @turn.EvidenceLabel
+                            </button>
+                        }
+                    </div>
+                </article>
+            }
+
+            @if (Clarifications.Count > 0)
+            {
+                <section class="studio-ai-clarifications" aria-label="Clarifications">
+                    @foreach (var question in Clarifications)
+                    {
+                        <fieldset class="studio-ai-clarification-card">
+                            <legend>@question.Label</legend>
+                            <p class="console-muted studio-ai-clarification-reason">@question.Reason</p>
+                            <div class="studio-ai-clarification-choices">
+                                @foreach (var choice in question.Choices)
+                                {
+                                    <button type="button"
+                                            class="studio-ai-clarification-choice"
+                                            disabled="@Busy"
+                                            @onclick="() => AnswerClarification(question, choice)">
+                                        <strong>@choice.Label</strong>
+                                        @if (!string.IsNullOrWhiteSpace(choice.Effect))
+                                        {
+                                            <small>@choice.Effect</small>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        </fieldset>
+                    }
+                </section>
+            }
+        </div>
+
+        <footer class="studio-ai-refine">
+            <textarea class="studio-ai-refine-input"
+                      rows="2"
+                      placeholder="@RefinePlaceholder"
+                      aria-label="Refine or ask a follow-up"
+                      disabled="@Busy"
+                      @bind="_refine"
+                      @bind:event="oninput"></textarea>
+            <div class="studio-ai-refine-row">
+                <span class="console-muted studio-ai-advisory">AI suggestions are advisory · evidence linked</span>
+                <div class="studio-ai-refine-spacer"></div>
+                @SecondaryRefineActions
+                <button type="button"
+                        class="console-button studio-ai-send"
+                        disabled="@(Busy || string.IsNullOrWhiteSpace(_refine))"
+                        @onclick="Send">
+                    @SendLabel
+                </button>
+            </div>
+        </footer>
+    </section>
+
+    <section class="studio-ai-preview" aria-label="Package preview">
+        @if (PreviewHeader is not null)
+        {
+            <header class="studio-ai-preview-head">
+                @PreviewHeader
+            </header>
+        }
+        <div class="studio-ai-preview-body">
+            @PreviewContent
+        </div>
+    </section>
+</div>
+
+@code {
+    private static readonly IReadOnlyList<StudioConversationTurn> NoTurns = [];
+    private static readonly IReadOnlyList<StudioConversationClarification> NoClarifications = [];
+
+    private string _refine = string.Empty;
+
+    /// <summary>The conversation turns (You / Honua), oldest first.</summary>
+    [Parameter]
+    public IReadOnlyList<StudioConversationTurn> Turns { get; set; } = NoTurns;
+
+    /// <summary>Open structured clarification cards rendered after the turns.</summary>
+    [Parameter]
+    public IReadOnlyList<StudioConversationClarification> Clarifications { get; set; } = NoClarifications;
+
+    /// <summary>The live package-preview slot (right column).</summary>
+    [Parameter]
+    public RenderFragment? PreviewContent { get; set; }
+
+    /// <summary>Optional header strip above the preview (title chip, badges, actions).</summary>
+    [Parameter]
+    public RenderFragment? PreviewHeader { get; set; }
+
+    /// <summary>Optional extra controls left of Send in the refine footer (e.g. "Attach data").</summary>
+    [Parameter]
+    public RenderFragment? SecondaryRefineActions { get; set; }
+
+    /// <summary>Heading shown above the conversation log.</summary>
+    [Parameter]
+    public string ConversationTitle { get; set; } = "Map from prompt";
+
+    /// <summary>Placeholder for the refine textarea.</summary>
+    [Parameter]
+    public string RefinePlaceholder { get; set; } = "Refine, or ask a follow-up…";
+
+    /// <summary>Send button label.</summary>
+    [Parameter]
+    public string SendLabel { get; set; } = "Send ⌘↵";
+
+    /// <summary>Disables every interactive control while the surface is awaiting the server.</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>Raised with the refine text when Send is clicked. The text is cleared after dispatch.</summary>
+    [Parameter]
+    public EventCallback<string> OnSend { get; set; }
+
+    /// <summary>Raised when a clarification choice is selected.</summary>
+    [Parameter]
+    public EventCallback<(StudioConversationClarification Question, StudioConversationChoice Choice)> OnAnswer { get; set; }
+
+    /// <summary>Raised when a turn's evidence link is clicked.</summary>
+    [Parameter]
+    public EventCallback<StudioConversationTurn> OnEvidence { get; set; }
+
+    private async Task Send()
+    {
+        if (Busy || string.IsNullOrWhiteSpace(_refine))
+        {
+            return;
+        }
+
+        var text = _refine.Trim();
+        _refine = string.Empty;
+        if (OnSend.HasDelegate)
+        {
+            await OnSend.InvokeAsync(text);
+        }
+    }
+
+    private Task AnswerClarification(StudioConversationClarification question, StudioConversationChoice choice) =>
+        OnAnswer.HasDelegate ? OnAnswer.InvokeAsync((question, choice)) : Task.CompletedTask;
+
+    private Task RaiseEvidence(StudioConversationTurn turn) =>
+        OnEvidence.HasDelegate ? OnEvidence.InvokeAsync(turn) : Task.CompletedTask;
+}
