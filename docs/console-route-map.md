@@ -631,7 +631,7 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio` | `auth` | empty-studio (start a prompt); missing-binding when no server base address is configured | unauth-redirect | studio |
 | `/studio/query` | `auth` | missing-binding when no server base address; empty query-package list when bound (honua-server#1182) | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/analysis` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
-| `/studio/map` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/map` | `auth` | server-bound map package (missing-binding) | unauth-redirect / missing-binding | studio |
 | `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/report` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/form` | `auth` | missing-binding when no server base address; empty form-package list when bound; publish blocked until the offline/sync policy is reviewed and the submit target validates | unauth-redirect / missing-permission (server RBAC) | studio |

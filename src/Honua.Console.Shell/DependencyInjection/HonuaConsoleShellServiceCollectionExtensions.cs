@@ -22,6 +22,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
@@ -168,6 +169,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         _ = honuaServerBaseUrl;
         _ = honuaServerAdminApiKey;
         services.TryAddSingleton<IStudioQueryPackageDataSource, UnsupportedStudioQueryPackageDataSource>();
+    }
+
+    // Binds the Studio map-builder surface (/studio/map) to honua-server's map package lifecycle
+    // (#1180, closed) and publication registry (#1183, closed) through the Honua.Console.Contracts shim.
+    // The server-bound HTTP data source lands with the publication-wiring slice; until then no live map
+    // client resolves, so the builder renders an explicit missing-binding state (never mock map data —
+    // Console Patterns Charter section 11). The unsupported source is registered with TryAdd so the
+    // server-bound implementation can replace it without churn in the next slice and so tests/demo
+    // composition can override it.
+    private static void AddStudioMapPackageDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        _ = honuaServerBaseUrl;
+        _ = honuaServerAdminApiKey;
+        services.TryAddSingleton<IStudioMapPackageDataSource, UnsupportedStudioMapPackageDataSource>();
     }
 
     // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)
