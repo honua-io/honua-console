@@ -89,10 +89,29 @@ public sealed class StudioQueryBuilderRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("data-query-editor", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
+
+        // The design mockup (screens-studio-rest StudioQueryBuilder) is a two-pane workbench under an
+        // editor bar: glyph · title · draft badge · summary · actions, then a left visual builder and a
+        // right generated-SQL + preview pane. Assert that structure is present.
+        Assert.Contains("data-query-editor-bar", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-query-workbench", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-query-build", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-query-readout-pane", page.Markup, StringComparison.Ordinal);
+
+        // The summary line reports source/predicate/param/field counts for the active draft.
+        var summary = page.Find("[data-query-summary]").TextContent;
+        Assert.Contains("1 source", summary, StringComparison.Ordinal);
+        Assert.Contains("1 predicate", summary, StringComparison.Ordinal);
+
         // The generated SQL/filter readout reflects the bound source + predicate before save (AC#2).
         Assert.Contains("data-query-readout", page.Markup, StringComparison.Ordinal);
         var readoutText = page.Find("[data-query-readout]").TextContent;
         Assert.Equal("SELECT * FROM permits/layer/5 WHERE status = 'approved'", readoutText);
+
+        // Before a preview is pulled, the right pane shows the explicit empty-preview placeholder rather
+        // than a fabricated table.
+        Assert.Contains("data-query-preview-empty", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-query-preview-table", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -100,6 +119,7 @@ public sealed class StudioQueryBuilderRenderTests
     {
         var existing = new StudioQueryEditor { QueryId = "query-7", Version = 3, Title = "Flood permits", ServiceName = "permits", LayerId = 5 };
         var previewed = new StudioQueryEditor { QueryId = "query-7", Version = 3, Title = "Flood permits", ServiceName = "permits", LayerId = 5 };
+        previewed.Parameters.Add(new StudioQueryParameterEditor { Name = "minYear", Value = "2024" });
         previewed.Preview = new StudioQueryPreview(
             "preview-1",
             5,
@@ -132,14 +152,22 @@ public sealed class StudioQueryBuilderRenderTests
             () => Assert.Contains("data-query-editor", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
-        // Preview pulls the live map/table preview from the data source.
-        page.FindAll("button").First(b => b.TextContent.Contains("Preview map/table", StringComparison.Ordinal)).Click();
+        // Preview pulls the live map/table preview from the data source. The mockup labels this "Run preview".
+        page.FindAll("button").First(b => b.TextContent.Contains("Run preview", StringComparison.Ordinal)).Click();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-query-preview-table", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("data-query-downstream", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Map layer", page.Markup, StringComparison.Ordinal);
+
+        // The preview pane mirrors the mockup: a parameter readout chip ($minYear=2024) on the preview
+        // header and an EXPLAIN-style footer carrying the live preview artifact id.
+        var previewParams = page.Find("[data-query-preview-params]").TextContent;
+        Assert.Contains("$minYear=2024", previewParams, StringComparison.Ordinal);
+        var explain = page.Find("[data-query-explain]").TextContent;
+        Assert.Contains("EXPLAIN", explain, StringComparison.Ordinal);
+        Assert.Contains("preview-1", explain, StringComparison.Ordinal);
     }
 
     private sealed class FakeQueryDataSource : IStudioQueryPackageDataSource
