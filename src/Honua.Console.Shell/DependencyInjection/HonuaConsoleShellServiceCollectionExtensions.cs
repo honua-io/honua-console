@@ -11,7 +11,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     public static IServiceCollection AddHonuaConsoleShell(
         this IServiceCollection services,
         string? honuaServerBaseUrl = null,
-        string? honuaServerAdminApiKey = null)
+        string? honuaServerAdminApiKey = null,
+        string? honuaServerPublicationIds = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -31,7 +32,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
-        AddPublishingWorkspaceDataSource(services);
+        AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
@@ -397,14 +398,40 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     private static void AddTemporalCapabilityClient(IServiceCollection services) =>
         services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
 
-    // Registers the Operate publishing workspace data source (/operate/publishing). The merged build
-    // binds the publication matrix and review surface to honua-server (service/layer publish today,
-    // the full publication registry behind honua-server#1183) via honua-sdk-dotnet or the
-    // Honua.Console.Contracts shim once those projections land; until then this stays the
-    // missing-binding source so the workspace renders an explicit unbound state rather than mock data
-    // (Console Patterns Charter section 11 — no standing in-memory publishing data source).
-    private static void AddPublishingWorkspaceDataSource(IServiceCollection services)
+    // Binds the Operate publishing workspace (/operate/publishing) matrix + review + republish/rollback
+    // lifecycle to the real honua-server content publication registry (honua-server#1183, shipped)
+    // through the IHonuaContentPublicationClient shim when a server base address is configured;
+    // otherwise the workspace renders a missing-binding state (never mock publishing data — Console
+    // Patterns Charter section 11 — no standing in-memory publishing data source). The registry exposes
+    // no list endpoint, so the matrix is keyed by the configured publication ids
+    // (Honua:Server:PublicationIds / HONUA_SERVER_PUBLICATION_IDS).
+    private static void AddPublishingWorkspaceDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey,
+        string? honuaServerPublicationIds)
     {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            // Reuse the content publication client already registered by the report-builder binding when
+            // present; otherwise register it here (TryAdd keeps a single client across both surfaces).
+            services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaContentPublicationHttpClient(
+                    httpClient,
+                    new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+
+            var options = PublishingWorkspaceOptions.FromConfiguredList(honuaServerPublicationIds);
+            services.TryAddSingleton<IPublishingWorkspaceDataSource>(serviceProvider =>
+                new HonuaServerPublishingWorkspaceDataSource(
+                    serviceProvider.GetRequiredService<IHonuaContentPublicationClient>(),
+                    options));
+            return;
+        }
+
         services.TryAddSingleton<IPublishingWorkspaceDataSource, UnsupportedPublishingWorkspaceDataSource>();
     }
 

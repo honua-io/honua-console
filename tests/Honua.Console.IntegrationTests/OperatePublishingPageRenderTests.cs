@@ -60,8 +60,95 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Contains("/catalog/cat-parcels", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void OperatePublishingPage_Lookup_RendersReviewVersionsAndDrivesRepublishRollback()
+    {
+        using var ctx = new Bunit.TestContext();
+        var source = new InteractivePublishingWorkspaceDataSource();
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(source);
+
+        var page = ctx.RenderComponent<OperatePublishingPage>();
+
+        // Type a publication id and run the lookup.
+        page.Find("input.console-input").Input("pub-parcels");
+        page.Find("button.console-button").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Parcels map", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        // Version history renders prior revisions with a rollback control.
+        Assert.Contains("Roll back to rev 1", page.Markup, StringComparison.Ordinal);
+
+        // Roll back to the earlier revision: the data source records the target and the active revision moves.
+        page.Find("button.console-button-secondary").Click();
+        page.WaitForAssertion(
+            () => Assert.Equal("ver-1", source.LastRollbackTarget),
+            TimeSpan.FromSeconds(5));
+    }
+
+    private sealed class InteractivePublishingWorkspaceDataSource : IPublishingWorkspaceDataSource
+    {
+        public string? LastRollbackTarget { get; private set; }
+
+        public Task<PublishingWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublishingWorkspace([], [], []));
+
+        public Task<PublishingLookupResult> LookupAsync(string publicationId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result(activeRevision: 2));
+
+        public Task<PublishingLookupResult> RepublishAsync(
+            string publicationId,
+            PublishingRepublishCommand command,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result(activeRevision: 3));
+
+        public Task<PublishingLookupResult> RollbackAsync(
+            string publicationId,
+            PublishingRollbackCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            LastRollbackTarget = command.TargetVersionId;
+            return Task.FromResult(Result(activeRevision: 1));
+        }
+
+        private static PublishingLookupResult Result(long activeRevision) =>
+            new(
+                new PublishingReview(
+                    "pub-parcels",
+                    "Parcels map",
+                    PublishingResourceKind.StudioArtifact,
+                    "parcels (rev " + activeRevision + ")",
+                    [new PublishingEndpoint("Published map", "/published/parcels")],
+                    new PublishingCatalogRegistration(true, "pub-parcels", "public"),
+                    "visibility: public",
+                    [],
+                    "reversible",
+                    "operator@honua.test",
+                    new PublishingReviewLinks("/operate/jobs/job-9", null, "/operate/audit/aud-9", null)),
+                [
+                    new PublishingVersion("ver-2", 2, "Parcels map", null, activeRevision == 2, "operator@honua.test", DateTimeOffset.UnixEpoch),
+                    new PublishingVersion("ver-1", 1, "Parcels map", null, activeRevision == 1, "operator@honua.test", DateTimeOffset.UnixEpoch)
+                ],
+                []);
+    }
+
     private sealed class StubPublishingWorkspaceDataSource : IPublishingWorkspaceDataSource
     {
+        public Task<PublishingLookupResult> LookupAsync(string publicationId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublishingLookupResult(null, [], []));
+
+        public Task<PublishingLookupResult> RepublishAsync(
+            string publicationId,
+            PublishingRepublishCommand command,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublishingLookupResult(null, [], []));
+
+        public Task<PublishingLookupResult> RollbackAsync(
+            string publicationId,
+            PublishingRollbackCommand command,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublishingLookupResult(null, [], []));
+
         public Task<PublishingWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new PublishingWorkspace(
                 Matrix:
