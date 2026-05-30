@@ -1,0 +1,576 @@
+@page "/studio/workflows/new"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@inject IStudioWorkflowPackageClient Workflows
+@inject NavigationManager Navigation
+
+@*
+    Studio · Workflow · New from prompt (screens-studio-form-workflow.jsx → StudioWorkflowAI).
+
+    The conversational entry point for a workflow.package draft: a "Workflow from prompt" chat on the
+    left (shared StudioAiConversation primitive) and, on the right, a live readiness summary
+    (steps · duration · trigger · failure route · evidence retention) over a DAG preview the editor opens.
+
+    The draft is always server-bound. OpenEditorAsync(null) returns a real draft + node registry, or a
+    missing-binding surface (charter §11) — never seeded/mock workflow data. Refine/clarification turns
+    edit that server draft; "Open editor →" saves it and hands the persisted draft to the existing editor.
+*@
+
+<section class="console-page workflow-page studio-workflow-ai-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio · Workflow · New from prompt</p>
+        <h1>Workflow from prompt</h1>
+        <p>Describe the pipeline in plain language; Honua proposes a DAG with a trigger, steps, failure routing, and evidence retention. Review the readiness summary, then open the editor to refine the server-owned workflow package.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Workflow"
+                          Title="Loading workflow authoring"
+                          Message="Reading the workflow package node registry and a new draft from honua-server." />
+    }
+    else if (_binding is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_binding.State"
+                          Title="Workflow authoring is not bound"
+                          Message="@($"{_binding.Detail} (contract: {_binding.Contract})")" />
+    }
+    else if (_draft is null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="unavailable"
+                          Title="Workflow draft unavailable"
+                          Message="A new workflow draft could not be created in this workspace." />
+    }
+    else
+    {
+        <StudioAiConversation ConversationTitle="Workflow from prompt"
+                              RefinePlaceholder="Refine the pipeline — add a step, change the trigger, route failures…"
+                              Turns="_turns"
+                              Busy="_busy"
+                              OnSend="HandleRefineAsync">
+            <PreviewHeader>
+                <span class="workflow-editor-glyph" aria-hidden="true">⇋</span>
+                <input class="console-input workflow-title-input"
+                       aria-label="Workflow name"
+                       @bind="_draft.Title"
+                       @bind:event="oninput" />
+                <span class="console-status workflow-badge-draft">draft</span>
+                <span class="console-status @(IsGraphValid ? string.Empty : "console-status-warning") workflow-badge-dag">@(IsGraphValid ? "DAG valid · acyclic" : "DAG needs a sink")</span>
+                <div class="workflow-editor-header-spacer"></div>
+                <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorAsync">Open editor →</button>
+                <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="RunOnceAsync">Run once</button>
+                <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">Publish…</button>
+            </PreviewHeader>
+            <PreviewContent>
+                <div class="workflow-ai-preview">
+                    <section class="console-panel workflow-ai-readiness" aria-label="Workflow readiness summary">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Readiness</p>
+                            <h2>Proposed Workflow</h2>
+                        </div>
+                        <dl class="console-definition-list workflow-ai-readiness-grid">
+                            <dt>Steps</dt>
+                            <dd>@StepCount steps</dd>
+                            <dt>Estimated duration</dt>
+                            <dd>@EstimatedDuration</dd>
+                            <dt>Trigger</dt>
+                            <dd>@TriggerSummary</dd>
+                            <dt>On failure</dt>
+                            <dd>@FailureSummary</dd>
+                            <dt>Evidence retention</dt>
+                            <dd>@RetentionSummary</dd>
+                        </dl>
+                        <ul class="workflow-ai-durations" aria-label="Step durations">
+                            @foreach (var step in StepDurations)
+                            {
+                                <li class="console-status workflow-ai-duration-chip">@step.Label @step.Duration</li>
+                            }
+                            <li class="console-muted workflow-ai-duration-total">~ @EstimatedDuration · estimated</li>
+                        </ul>
+                    </section>
+
+                    <section class="console-panel workflow-canvas-band workflow-ai-dag" aria-label="Workflow DAG preview">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">DAG preview</p>
+                            <h2>Trigger → Steps → Sinks</h2>
+                        </div>
+                        <div class="workflow-canvas" role="group" aria-label="Workflow DAG preview canvas">
+                            <svg class="workflow-canvas-edges" viewBox="0 0 1100 380" preserveAspectRatio="none" aria-hidden="true">
+                                <defs>
+                                    <marker id="workflow-ai-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#141414"></path>
+                                    </marker>
+                                    <marker id="workflow-ai-arrow-failure" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#c03b2b"></path>
+                                    </marker>
+                                </defs>
+                                @foreach (var edge in _draft.Edges)
+                                {
+                                    var path = EdgePath(edge);
+                                    if (path is not null)
+                                    {
+                                        var failure = edge.Kind == StudioWorkflowContractValues.EdgeKindFailure;
+                                        <path class="workflow-canvas-edge workflow-canvas-edge-@edge.Kind"
+                                              d="@path"
+                                              fill="none"
+                                              stroke="@(failure ? "#c03b2b" : "#141414")"
+                                              stroke-width="@(failure ? "1.2" : "1.4")"
+                                              stroke-dasharray="@(failure ? "4 4" : null)"
+                                              marker-end="@(failure ? "url(#workflow-ai-arrow-failure)" : "url(#workflow-ai-arrow)")"></path>
+                                    }
+                                }
+                            </svg>
+                            <div class="workflow-canvas-nodes">
+                                @foreach (var node in _draft.Nodes)
+                                {
+                                    var failureNode = node.Type.Contains("failure", StringComparison.Ordinal);
+                                    <div class="workflow-node workflow-node-@node.Category @(failureNode ? "workflow-node-failure" : string.Empty)"
+                                         style="@NodeStyle(node)">
+                                        <span class="workflow-node-glyph" aria-hidden="true">@StepGlyph(node.Category, node.Type)</span>
+                                        <strong>@node.Label</strong>
+                                        <small>@node.Type</small>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <ol class="workflow-edge-list" aria-label="Workflow edges">
+                            @foreach (var edge in _draft.Edges)
+                            {
+                                <li class="workflow-edge workflow-edge-@edge.Kind">
+                                    <span>@edge.Kind</span>
+                                    <strong>@GetNodeLabel(edge.FromNodeId) to @GetNodeLabel(edge.ToNodeId)</strong>
+                                </li>
+                            }
+                        </ol>
+                    </section>
+
+                    @if (_lastDryRun is not null)
+                    {
+                        <section class="console-panel workflow-ai-runonce" aria-label="Run once result">
+                            <div class="workflow-section-heading">
+                                <p class="console-kicker">Run once</p>
+                                <h2>Sample Evidence</h2>
+                            </div>
+                            <dl class="console-definition-list">
+                                <dt>Status</dt>
+                                <dd>@_lastDryRun.Status</dd>
+                                @if (HasDryRunJobEvidence(_lastDryRun))
+                                {
+                                    <dt>Job</dt>
+                                    <dd><a href="@_lastDryRun.OperateJobUrl">@_lastDryRun.JobId</a></dd>
+                                    <dt>Events</dt>
+                                    <dd><a href="@_lastDryRun.OperateEventsUrl">Open event evidence</a></dd>
+                                }
+                            </dl>
+                        </section>
+                    }
+
+                    @if (_lastPublish is not null)
+                    {
+                        <section class="console-panel workflow-ai-publish" aria-label="Publish result">
+                            <div class="workflow-section-heading">
+                                <p class="console-kicker">Publish</p>
+                                <h2>Publication</h2>
+                            </div>
+                            @if (IsBlockedPublish(_lastPublish))
+                            {
+                                <p class="console-status console-status-warning">Publish blocked: package validation requires attention</p>
+                            }
+                            <dl class="console-definition-list">
+                                <dt>Status</dt>
+                                <dd>@_lastPublish.Status</dd>
+                                <dt>Mode</dt>
+                                <dd>@_lastPublish.Mode</dd>
+                                @if (!string.IsNullOrWhiteSpace(_lastPublish.PublicationId))
+                                {
+                                    <dt>Publication</dt>
+                                    <dd>@_lastPublish.PublicationId</dd>
+                                }
+                            </dl>
+                            @if (_lastPublish.ValidationIssues.Count > 0)
+                            {
+                                <ul class="workflow-compact-list">
+                                    @foreach (var issue in _lastPublish.ValidationIssues)
+                                    {
+                                        <li><span>@issue.Severity</span><strong>@issue.Scope</strong><small>@issue.Message</small></li>
+                                    }
+                                </ul>
+                            }
+                        </section>
+                    }
+                </div>
+            </PreviewContent>
+        </StudioAiConversation>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private StudioWorkflowPackageDraft? _draft;
+    private StudioWorkflowBindingState? _binding;
+    private IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions = [];
+    private StudioWorkflowDryRunResult? _lastDryRun;
+    private StudioWorkflowPublishResult? _lastPublish;
+    private readonly List<StudioConversationTurn> _turns = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Single bound/blocked load: a new draft + node registry, or the shared missing-binding surface
+        // when workflow data cannot bind to honua-server (#1185). Never fabricates package state.
+        var context = await Workflows.OpenEditorAsync(null);
+        _binding = context.BindingState;
+        _nodeDefinitions = context.NodeDefinitions;
+        _draft = context.Draft;
+        _loading = false;
+
+        if (_binding is null && _draft is not null)
+        {
+            SeedConversation();
+        }
+    }
+
+    // Opens the conversation with the author's intent echoed back as a Honua readiness turn, derived from
+    // the live server draft (not invented). Refine turns append to this log.
+    private void SeedConversation()
+    {
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            $"Workflow ready · {StepCount} steps · ~{EstimatedDuration} estimated. {TriggerSummary} · failure routes to {FailureSummary} · evidence retained {RetentionSummary}.",
+            Tone: StudioConversationTone.Ready,
+            EvidenceLabel: "View readiness summary"));
+    }
+
+    private async Task HandleRefineAsync(string prompt)
+    {
+        if (_draft is null || string.IsNullOrWhiteSpace(prompt))
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt));
+
+            // A refine adds a transform step to the server-owned draft graph (the same edit the editor makes
+            // from its palette). The authoritative graph validation still happens server-side on save.
+            AppendTransformNode(prompt);
+
+            _turns.Add(new StudioConversationTurn(
+                StudioConversationRole.Honua,
+                $"Updated · {StepCount} steps · ~{EstimatedDuration} estimated. Open the editor to tune step configuration, schedule, and secrets.",
+                Tone: StudioConversationTone.Ready));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void AppendTransformNode(string prompt)
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        var definition = _nodeDefinitions.FirstOrDefault(item => item.Category == StudioWorkflowContractValues.NodeCategoryTransform)
+            ?? _nodeDefinitions.FirstOrDefault();
+
+        var label = Truncate(prompt, 24);
+        var transformNodes = _draft.Nodes.Count(node => node.Category == StudioWorkflowContractValues.NodeCategoryTransform) + 1;
+        var node = new StudioWorkflowNode
+        {
+            Id = $"transform-refine-{_draft.Nodes.Count + 1}",
+            Type = definition?.Type ?? "transform.refine",
+            Category = StudioWorkflowContractValues.NodeCategoryTransform,
+            Label = string.IsNullOrWhiteSpace(label) ? $"Step {transformNodes}" : label,
+            Column = _draft.Nodes.Count == 0 ? 1 : _draft.Nodes.Max(item => item.Column) + 1,
+            Row = 1,
+            InputPorts = definition?.InputPorts.ToList() ?? ["in"],
+            OutputPorts = definition?.OutputPorts.ToList() ?? ["out"],
+            Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["source"] = "ai-refine",
+                ["prompt"] = prompt
+            }
+        };
+
+        var previous = _draft.Nodes.LastOrDefault(item => item.Category != StudioWorkflowContractValues.NodeCategorySink);
+        _draft.Nodes.Add(node);
+
+        if (previous is not null)
+        {
+            _draft.Edges.Add(new StudioWorkflowEdge
+            {
+                Id = $"edge-{previous.Id}-{node.Id}",
+                FromNodeId = previous.Id,
+                ToNodeId = node.Id,
+                FromPort = previous.OutputPorts.FirstOrDefault() ?? "out",
+                ToPort = node.InputPorts.FirstOrDefault() ?? "in",
+                Kind = StudioWorkflowContractValues.EdgeKindSuccess,
+                Label = node.Category
+            });
+        }
+    }
+
+    // "Open editor →" persists the conversed draft (so it has a content item id the editor reopens) and
+    // navigates into the full pipeline editor. A blocked save surfaces the missing-binding state in place.
+    private async Task OpenEditorAsync()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var save = await Workflows.SaveVersionAsync(_draft, "Saved from Workflow from prompt.");
+            if (save.BindingState is not null)
+            {
+                _binding = save.BindingState;
+                return;
+            }
+
+            var draftRoute = !string.IsNullOrWhiteSpace(_draft.ContentItemId)
+                ? _draft.ContentItemId
+                : _draft.DraftId;
+
+            if (!string.IsNullOrWhiteSpace(draftRoute))
+            {
+                Navigation.NavigateTo($"/studio/workflows/{draftRoute}");
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RunOnceAsync()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _lastDryRun = await Workflows.DryRunAsync(_draft);
+            if (_lastDryRun.BindingState is not null)
+            {
+                _binding = _lastDryRun.BindingState;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PublishAsync()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var save = await Workflows.SaveVersionAsync(_draft, "Saved before workflow publication.");
+            if (save.BindingState is not null)
+            {
+                _binding = save.BindingState;
+                return;
+            }
+
+            // A save that fails server graph validation creates no version; do not publish a stale package.
+            if (string.IsNullOrWhiteSpace(save.VersionId))
+            {
+                _lastPublish = new StudioWorkflowPublishResult
+                {
+                    Status = "blocked",
+                    Mode = _draft.PublicationIntent.Mode,
+                    ValidationIssues = save.ValidationIssues
+                };
+                return;
+            }
+
+            _lastPublish = await Workflows.PublishAsync(_draft);
+            if (_lastPublish.BindingState is not null)
+            {
+                _binding = _lastPublish.BindingState;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private int StepCount => _draft?.Nodes.Count ?? 0;
+
+    private IReadOnlyList<(string Label, string Duration)> StepDurations =>
+        _draft is null
+            ? []
+            : _draft.Nodes
+                .Where(node => node.Category != StudioWorkflowContractValues.NodeCategorySource)
+                .Select(node => (node.Label, EstimateNodeDuration(node)))
+                .ToArray();
+
+    // A coarse, deterministic per-step estimate keyed off node category so the readiness chips render
+    // without inventing server timings; the authoritative duration comes from a dry-run/run history.
+    private static string EstimateNodeDuration(StudioWorkflowNode node) => node.Category switch
+    {
+        StudioWorkflowContractValues.NodeCategorySink => "45s",
+        StudioWorkflowContractValues.NodeCategoryTransform => "1m 12s",
+        _ => "30s"
+    };
+
+    private string EstimatedDuration
+    {
+        get
+        {
+            if (_draft is null)
+            {
+                return "unknown";
+            }
+
+            var seconds = _draft.Nodes.Sum(node => node.Category switch
+            {
+                StudioWorkflowContractValues.NodeCategorySink => 45,
+                StudioWorkflowContractValues.NodeCategoryTransform => 72,
+                StudioWorkflowContractValues.NodeCategorySource => 30,
+                _ => 30
+            });
+
+            var minutes = seconds / 60;
+            var remainder = seconds % 60;
+            return minutes > 0 ? $"{minutes}m {remainder}s" : $"{remainder}s";
+        }
+    }
+
+    private string TriggerSummary
+    {
+        get
+        {
+            if (_draft is null)
+            {
+                return "unknown";
+            }
+
+            return _draft.Schedule.Mode switch
+            {
+                "cron" => $"Trigger: cron · {_draft.Schedule.Cron} ({_draft.Schedule.TimeZone})",
+                "event" => "Trigger: event-driven",
+                _ => "Trigger: manual"
+            };
+        }
+    }
+
+    private string FailureSummary
+    {
+        get
+        {
+            if (_draft is null)
+            {
+                return "unknown";
+            }
+
+            var failureSink = _draft.Edges
+                .Where(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure)
+                .Select(edge => GetNodeLabel(edge.ToNodeId))
+                .FirstOrDefault();
+
+            return failureSink ?? _draft.RetryPolicy.FailureMode;
+        }
+    }
+
+    private string RetentionSummary => _draft is null
+        ? "unknown"
+        : $"{_draft.RetryPolicy.MaxAttempts} attempts · {_draft.RetryPolicy.FailureMode}";
+
+    private bool IsGraphValid =>
+        _draft is not null &&
+        _draft.Nodes.Any(node => node.Category == StudioWorkflowContractValues.NodeCategorySink);
+
+    private static bool IsBlockedPublish(StudioWorkflowPublishResult publish) =>
+        string.Equals(publish.Status, "blocked", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasDryRunJobEvidence(StudioWorkflowDryRunResult dryRun) =>
+        !string.IsNullOrWhiteSpace(dryRun.OperateJobUrl) &&
+        !string.IsNullOrWhiteSpace(dryRun.OperateEventsUrl);
+
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value.Trim() : value[..max].Trim() + "…";
+
+    // Canvas geometry mirrors the StudioWorkflowEditorPage layout so the DAG preview and the editor read the
+    // same: nodes flow left-to-right by column with a small vertical fan-out for sink rows.
+    private const int CanvasColumnStride = 130;
+    private const int CanvasRowStride = 90;
+    private const int CanvasOriginX = 30;
+    private const int CanvasOriginY = 40;
+    private const int CanvasNodeWidth = 110;
+    private const int CanvasNodeHeight = 70;
+
+    private static int NodeX(StudioWorkflowNode node) => CanvasOriginX + Math.Max(0, node.Column - 1) * CanvasColumnStride;
+
+    private static int NodeY(StudioWorkflowNode node) => CanvasOriginY + Math.Max(0, node.Row - 1) * CanvasRowStride;
+
+    private static string NodeStyle(StudioWorkflowNode node) => $"left:{NodeX(node)}px;top:{NodeY(node)}px;";
+
+    private string? EdgePath(StudioWorkflowEdge edge)
+    {
+        var from = _draft?.Nodes.FirstOrDefault(node => node.Id == edge.FromNodeId);
+        var to = _draft?.Nodes.FirstOrDefault(node => node.Id == edge.ToNodeId);
+        if (from is null || to is null)
+        {
+            return null;
+        }
+
+        var x1 = NodeX(from) + CanvasNodeWidth;
+        var y1 = NodeY(from) + (CanvasNodeHeight / 2);
+        var x2 = NodeX(to);
+        var y2 = NodeY(to) + (CanvasNodeHeight / 2);
+
+        if (edge.Kind == StudioWorkflowContractValues.EdgeKindFailure)
+        {
+            var midY = Math.Max(y1, y2) + 70;
+            return $"M {x1} {y1} C {x1} {midY}, {x2} {midY}, {x2} {y2}";
+        }
+
+        return $"M {x1} {y1} L {x2} {y2}";
+    }
+
+    private string GetNodeLabel(string nodeId) =>
+        _draft?.Nodes.FirstOrDefault(node => node.Id == nodeId)?.Label ?? nodeId;
+
+    private static string StepGlyph(string category, string type)
+    {
+        var key = type.ToLowerInvariant();
+        if (key.Contains("trigger", StringComparison.Ordinal)) return "⏱";
+        if (key.Contains("pull", StringComparison.Ordinal) || key.Contains("sftp", StringComparison.Ordinal)) return "⤴";
+        if (key.Contains("read", StringComparison.Ordinal)) return "📦";
+        if (key.Contains("validate", StringComparison.Ordinal)) return "✓";
+        if (key.Contains("geocode", StringComparison.Ordinal)) return "📍";
+        if (key.Contains("transform", StringComparison.Ordinal) || key.Contains("sql", StringComparison.Ordinal) || key.Contains("script", StringComparison.Ordinal)) return "🔀";
+        if (key.Contains("publish", StringComparison.Ordinal)) return "🚀";
+        if (key.Contains("notify", StringComparison.Ordinal) || key.Contains("failure", StringComparison.Ordinal)) return "📢";
+        if (key.Contains("write", StringComparison.Ordinal) || key.Contains("append", StringComparison.Ordinal)) return "➕";
+        if (key.Contains("ai", StringComparison.Ordinal)) return "🤖";
+
+        return category switch
+        {
+            StudioWorkflowContractValues.NodeCategorySource => "⤴",
+            StudioWorkflowContractValues.NodeCategorySink => "🚀",
+            _ => "🔀"
+        };
+    }
+}

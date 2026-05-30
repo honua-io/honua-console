@@ -5075,3 +5075,37 @@ p {
         border-bottom: 1px solid var(--honua-border);
     }
 }
+
+/* Studio · Workflow from prompt — readiness summary + DAG preview inside the StudioAiConversation preview slot. */
+.workflow-ai-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.workflow-ai-readiness-grid {
+    margin-top: 4px;
+}
+
+.workflow-ai-durations {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.workflow-ai-duration-chip {
+    font-size: 0.66rem;
+}
+
+.workflow-ai-duration-total {
+    font-size: 0.66rem;
+    margin-left: 4px;
+}
+
+.workflow-ai-dag .workflow-canvas {
+    min-height: 320px;
+}
