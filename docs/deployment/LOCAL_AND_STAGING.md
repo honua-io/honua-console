@@ -66,6 +66,31 @@ dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Test
 This evidence path skips when it is not opted in or when Docker/server
 prerequisites are unavailable.
 
+### Console end-to-end smoke against a real honua-server (issue #59)
+
+The Console end-to-end smoke boots ONE real `honua-server` + PostgreSQL via
+Testcontainers and drives the core cross-surface chain — catalog list, a Studio
+package render, and an operate/publishing surface — against that single live
+server, then emits evidence recording the server image, the seed profile, and
+`sourceHydrated: true` (the discriminator the `honua-console#9` gate uses to
+reject in-memory-only runs). Pin the same nightly image the SDK conformance lane
+uses:
+
+```bash
+HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
+HONUA_CONSOLE_SERVER_IMAGE=ghcr.io/honua-io/honua-server:nightly \
+HONUA_CONSOLE_ADMIN_API_KEY=<admin api key> \
+dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj \
+  --filter ConsoleEndToEndSmokeTests
+```
+
+Evidence is written to `smoke-evidence/console-e2e-smoke.json` (or
+`HONUA_CONSOLE_E2E_EVIDENCE_PATH`). Without the opt-in flag, the server image, or
+the admin API key — and on any runner without Docker — the smoke reports a skip
+rather than a failure, so the standard CI lane stays green. The fast in-memory
+`npm run smoke:parity` harness (`sourceHydrated: false`) remains as a cheap
+contract-shape check but no longer satisfies the gate on its own.
+
 ## Verifying the production artifact locally
 
 ```bash

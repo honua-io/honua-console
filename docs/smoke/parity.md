@@ -12,6 +12,20 @@ It is the acceptance gate called out in the migration backlog
 ([HONUA_CONSOLE_MIGRATION_BACKLOG.md](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md))
 under "Pass the cross-surface smoke."
 
+> **Real-server end-to-end smoke (`honua-console#59`).** This `npm`
+> harness runs against in-memory adapters (`sourceHydrated: false`), so it
+> proves contract shapes and choreography but not that Console works
+> against the real server. The `honua-console#9` gate is now satisfied by
+> the real-server end-to-end smoke under
+> `tests/Honua.Console.IntegrationTests/ConsoleEndToEndSmokeTests.cs`,
+> which boots ONE real `honua-server` + PostgreSQL via Testcontainers,
+> drives catalog list → Studio package render → operate/publishing against
+> it, and emits evidence recording the server image, the seed profile, and
+> `sourceHydrated: true`. The fast in-memory harness here stays as a cheap
+> contract-shape check but no longer satisfies the gate on its own. See
+> [Console end-to-end smoke against a real honua-server](../deployment/LOCAL_AND_STAGING.md#console-end-to-end-smoke-against-a-real-honua-server-issue-59)
+> for how to run it.
+
 ## Running the smoke
 
 ```sh

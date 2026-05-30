@@ -47,7 +47,10 @@ public sealed record ConsoleTrustIntegrationOptions
 
     public static ConsoleTrustIntegrationOptions Load()
     {
-        if (!ReadBoolean("HONUA_CONSOLE_INTEGRATION"))
+        // The image-based integration lane opts in with HONUA_CONSOLE_INTEGRATION; the end-to-end smoke
+        // also honours HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS (the opt-in named by issue #59 and shared with
+        // the Native.Core live-server lane) so a single flag can enable every live-server lane.
+        if (!ReadBoolean("HONUA_CONSOLE_INTEGRATION") && !ReadBoolean("HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS"))
         {
             return new ConsoleTrustIntegrationOptions();
         }
@@ -76,7 +79,7 @@ public sealed record ConsoleTrustIntegrationOptions
         var options = Load();
         if (!options.Enabled)
         {
-            return "Set HONUA_CONSOLE_INTEGRATION=true to run the real-server mTLS/trust integration suite.";
+            return "Set HONUA_CONSOLE_INTEGRATION=true (or HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true) to run the real-server integration suite.";
         }
 
         if (!options.HasServerTarget)
@@ -119,6 +122,13 @@ public sealed record ConsoleTrustIntegrationOptions
             ? "Set HONUA_CONSOLE_ADMIN_API_KEY to exercise the admin-protected Studio package lifecycle endpoints."
             : null;
     }
+
+    /// <summary>
+    /// Reason the Console end-to-end smoke cannot run. The smoke seeds and drives the catalog, Studio
+    /// package, and operate/publishing surfaces, all of which are admin-protected, so it needs the same
+    /// admin API key as the Studio lane.
+    /// </summary>
+    public static string? GetEndToEndSkipReason() => GetStudioSkipReason();
 
     public IReadOnlyDictionary<string, string> BuildServerEnvironment(string postgresConnectionString)
     {
