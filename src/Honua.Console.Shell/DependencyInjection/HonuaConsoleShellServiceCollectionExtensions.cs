@@ -24,6 +24,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
+        AddPublishingWorkspaceDataSource(services);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
         // Server-owned catalog/content metadata is no longer wired to the seeded
@@ -212,6 +213,17 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // Operate bindings above; the page and tests already consume the full ITemporalCapabilityClient.
     private static void AddTemporalCapabilityClient(IServiceCollection services) =>
         services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+
+    // Registers the Operate publishing workspace data source (/operate/publishing). The merged build
+    // binds the publication matrix and review surface to honua-server (service/layer publish today,
+    // the full publication registry behind honua-server#1183) via honua-sdk-dotnet or the
+    // Honua.Console.Contracts shim once those projections land; until then this stays the
+    // missing-binding source so the workspace renders an explicit unbound state rather than mock data
+    // (Console Patterns Charter section 11 — no standing in-memory publishing data source).
+    private static void AddPublishingWorkspaceDataSource(IServiceCollection services)
+    {
+        services.TryAddSingleton<IPublishingWorkspaceDataSource, UnsupportedPublishingWorkspaceDataSource>();
+    }
 
     private static HttpClient CreateOperateObservabilityHttpClient() =>
         new(new SocketsHttpHandler
