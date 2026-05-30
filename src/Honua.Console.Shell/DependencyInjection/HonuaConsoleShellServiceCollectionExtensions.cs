@@ -25,6 +25,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioAnalysisPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioDashboardPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
@@ -231,6 +232,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         _ = honuaServerAdminApiKey;
 
         services.TryAddSingleton<IStudioDashboardPackageDataSource, UnsupportedStudioDashboardPackageDataSource>();
+    }
+
+    // Binds the Studio report-builder surface (/studio/report) read path to honua-server's content
+    // publication registry (#1183) through the Honua.Console.Contracts shim when a server base address
+    // is configured; otherwise the builder renders a missing-binding state (never mock publication data).
+    private static void AddStudioReportPublicationDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaContentPublicationHttpClient(
+                    httpClient,
+                    new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioReportPublicationDataSource, HonuaServerStudioReportPublicationDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IStudioReportPublicationDataSource, UnsupportedStudioReportPublicationDataSource>();
     }
 
     // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)

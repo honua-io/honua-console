@@ -1,0 +1,143 @@
+using System.Net;
+using System.Net.Http.Json;
+using Honua.Console.Contracts;
+
+namespace Honua.Console.IntegrationTests;
+
+/// <summary>
+/// Docker-free coverage for <see cref="HonuaContentPublicationHttpClient"/> transport semantics. Caller-requested
+/// cancellation must propagate (it cancels the calling operation rather than masquerading as an Unavailable
+/// endpoint issue), while an HttpClient timeout still surfaces as Unavailable. Status mapping (404 not found,
+/// 403 missing permission) and the success path are also asserted. Mirrors the form package client's contract.
+/// </summary>
+public sealed class ContentPublicationHttpClientTests
+{
+    private static readonly Uri BaseAddress = new("https://honua.test");
+
+    [Fact]
+    public async Task Get_WhenCallerCancels_PropagatesCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        using var client = CreateClient(new BlockUntilCancelledHandler());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.GetAsync("pub-1", cts.Token));
+    }
+
+    [Fact]
+    public async Task Get_OnHttpClientTimeout_ReturnsUnavailable()
+    {
+        using var client = CreateClient(new BlockUntilCancelledHandler(), TimeSpan.FromMilliseconds(50));
+
+        var result = await client.GetAsync("pub-1", CancellationToken.None);
+
+        Assert.NotNull(result.Issue);
+        Assert.Equal("Unavailable", result.Issue!.State);
+    }
+
+    [Fact]
+    public async Task Get_WhenNotFound_MapsToUnsupportedIssue()
+    {
+        using var client = CreateClient(new StaticResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var result = await client.GetAsync("pub-missing");
+
+        Assert.Null(result.Data);
+        Assert.NotNull(result.Issue);
+        Assert.Equal("Unsupported", result.Issue!.State);
+        Assert.Equal(404, result.Issue.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_WhenForbidden_MapsToMissingPermission()
+    {
+        using var client = CreateClient(new StaticResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)));
+
+        var result = await client.GetAsync("pub-1");
+
+        Assert.NotNull(result.Issue);
+        Assert.Equal("Missing permission", result.Issue!.State);
+        Assert.Equal(403, result.Issue.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_OnSuccess_DeserializesDetailAndTargetsTheConsoleRoute()
+    {
+        string? requestedPath = null;
+        var detail = new HonuaContentPublicationDetail
+        {
+            Route = new HonuaContentPublicationRouteState
+            {
+                PublicationId = "pub-report-1",
+                RouteSlug = "monthly-infrastructure",
+                RoutePath = "/published/monthly-infrastructure",
+                Kind = HonuaContentPublicationKinds.Report,
+                ActiveVersionId = "ver-2",
+                ActiveRevision = 2,
+                Etag = "etag-2"
+            },
+            Versions =
+            [
+                new HonuaContentPublicationVersion
+                {
+                    PublicationId = "pub-report-1",
+                    VersionId = "ver-2",
+                    Revision = 2,
+                    Kind = HonuaContentPublicationKinds.Report,
+                    RouteSlug = "monthly-infrastructure",
+                    RoutePath = "/published/monthly-infrastructure",
+                    Title = "Monthly infrastructure report",
+                    CreatedBy = "ops@honua.test"
+                }
+            ]
+        };
+        using var client = CreateClient(new StaticResponseHandler(request =>
+        {
+            requestedPath = request.RequestUri?.AbsolutePath;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(detail) };
+        }));
+
+        var result = await client.GetAsync("pub-report-1");
+
+        Assert.Null(result.Issue);
+        Assert.NotNull(result.Data);
+        Assert.Equal("/api/v1/console/publications/pub-report-1", requestedPath);
+        Assert.Equal("pub-report-1", result.Data!.Route.PublicationId);
+        Assert.Equal(HonuaContentPublicationKinds.Report, result.Data.Route.Kind);
+        var version = Assert.Single(result.Data.Versions);
+        Assert.Equal("Monthly infrastructure report", version.Title);
+    }
+
+    private static HonuaContentPublicationHttpClient CreateClient(HttpMessageHandler handler, TimeSpan? timeout = null)
+    {
+        var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
+        if (timeout is { } value)
+        {
+            httpClient.Timeout = value;
+        }
+
+        return new HonuaContentPublicationHttpClient(httpClient, new HonuaContentPublicationClientOptions(BaseAddress));
+    }
+
+    private sealed class BlockUntilCancelledHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
+    private sealed class StaticResponseHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
+
+        public StaticResponseHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
+        {
+            _responseFactory = responseFactory;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(_responseFactory(request));
+    }
+}
