@@ -3361,8 +3361,7 @@ p {
     border-left: 3px solid var(--honua-border);
 }
 
-.operate-temporal-geometry-marker,
-.operate-temporal-field-conflict td {
+.operate-temporal-geometry-marker {
     background: #fff8ed;
 }
 
@@ -3375,6 +3374,235 @@ p {
 
 .operate-temporal-audit {
     border: 1px solid var(--honua-border);
+}
+
+/* honua-console#43 — design alignment: header, scrubber axis, now-vs-as-of split,
+   three-way merge, and AI advisory strip per console-canvas/screens-gitops-temporal-sync.jsx. */
+.operate-temporal-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.operate-temporal-header-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.operate-temporal-source-glyph {
+    color: var(--honua-accent-strong);
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.operate-temporal-header-title h2 {
+    margin: 0;
+}
+
+.operate-temporal-header-meta {
+    font-size: 0.85rem;
+}
+
+.operate-temporal-asof-readout {
+    font-size: 0.85rem;
+}
+
+/* Time scrubber axis */
+.operate-temporal-axis {
+    position: relative;
+    height: 46px;
+    margin: 0.6rem 0 0.2rem;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    background: var(--honua-surface);
+}
+
+.operate-temporal-axis-line {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 50%;
+    height: 2px;
+    background: var(--honua-border);
+}
+
+.operate-temporal-tick {
+    position: absolute;
+    top: 12px;
+    width: 3px;
+    height: 22px;
+    margin-left: -1px;
+    padding: 0;
+    border: 0;
+    border-radius: 1px;
+    background: #7a6f55;
+    cursor: pointer;
+}
+
+.operate-temporal-tick-release {
+    top: 8px;
+    height: 30px;
+    width: 4px;
+    background: var(--honua-accent-strong);
+}
+
+.operate-temporal-tick-selected {
+    outline: 2px solid var(--honua-text);
+    outline-offset: 1px;
+    background: var(--honua-text);
+}
+
+.operate-temporal-axis-ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+}
+
+.operate-temporal-legend {
+    margin-top: 0.5rem;
+    align-items: center;
+}
+
+.operate-temporal-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+}
+
+.operate-temporal-legend-swatch {
+    width: 9px;
+    height: 9px;
+    display: inline-block;
+}
+
+.operate-temporal-legend-edit {
+    background: #7a6f55;
+}
+
+.operate-temporal-legend-release {
+    background: var(--honua-accent-strong);
+}
+
+.operate-temporal-legend-spacer {
+    flex: 1;
+}
+
+.operate-temporal-checkpoint-detail {
+    margin-top: 0.6rem;
+}
+
+.operate-temporal-subhead {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.72rem;
+    margin: 0.6rem 0 0.3rem;
+}
+
+/* Now-vs-as-of split */
+.operate-temporal-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.operate-temporal-pane {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    background: var(--honua-surface);
+}
+
+.operate-temporal-pane-now {
+    background: #fffdf3;
+}
+
+.operate-temporal-pane-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+
+@media (max-width: 720px) {
+    .operate-temporal-split {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Three-way base / client / server merge */
+.operate-temporal-threeway {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+}
+
+.operate-temporal-threeway-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+}
+
+.operate-temporal-col-client {
+    background: #edf5ff;
+}
+
+.operate-temporal-col-server {
+    background: #edf9f2;
+}
+
+.operate-temporal-cell-client {
+    background: #edf5ff;
+}
+
+.operate-temporal-cell-server {
+    background: #edf9f2;
+}
+
+.operate-temporal-replica-attention td {
+    background: #fff8ed;
+}
+
+.operate-temporal-rules {
+    margin-top: 0.6rem;
+    align-items: center;
+}
+
+/* AI advisory strip */
+.operate-temporal-advisory {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border-top: 2px solid var(--honua-accent-strong);
+    background: #fffdf3;
+    border-radius: 0 0 6px 6px;
+}
+
+.operate-temporal-advisory-glyph {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--honua-accent-strong);
+    border: 1px solid var(--honua-accent-strong);
+    border-radius: 4px;
+    padding: 0.1rem 0.3rem;
+}
+
+.operate-temporal-advisory-text {
+    margin: 0;
+    font-size: 0.85rem;
 }
 
 .workflow-run-list {

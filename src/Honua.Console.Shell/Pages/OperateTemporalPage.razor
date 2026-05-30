@@ -102,10 +102,33 @@
 
             @if (_selectedSource is not null)
             {
-                <section class="console-section operate-temporal-detail" aria-label="Temporal detail">
-                    <div class="console-page-heading">
-                        <p class="console-kicker">@_selectedSource.ResourceId</p>
-                        <h2>History And Sync Review</h2>
+                <section class="console-section operate-temporal-detail" aria-label="Temporal detail" data-temporal-detail="@_selectedSource.SourceId">
+                    @* Design: source header mirrors the mockup as-of header — icon, "· as-of" title,
+                       capability badge, summary metrics, and the primary as-of/diff/rollback actions. *@
+                    <div class="operate-temporal-header">
+                        <div class="operate-temporal-header-title">
+                            <span class="operate-temporal-source-glyph" aria-hidden="true">◇</span>
+                            <div>
+                                <p class="console-kicker">@_selectedSource.ResourceId</p>
+                                <h2>@_selectedSource.ResourceId · as-of</h2>
+                            </div>
+                            <span class="console-status console-state-success operate-temporal-cap-badge">@DescribeMode(_selectedSource.Mode)</span>
+                            <span class="console-muted operate-temporal-header-meta">
+                                Layer @_selectedSource.LayerId · sync @_selectedSource.SyncCapability
+                                @(string.IsNullOrWhiteSpace(_selectedSource.RetentionPolicyId) ? " · no retention policy" : $" · retention {_selectedSource.RetentionPolicyId}")
+                            </span>
+                        </div>
+                        <div class="operate-temporal-header-actions console-chip-row" role="group" aria-label="Temporal actions">
+                            <span class="console-status console-state-neutral">@_checkpoints.Count checkpoints</span>
+                            @if (_selectedSource.RollbackSupported)
+                            {
+                                <span class="console-status console-state-info">rollback enabled</span>
+                            }
+                            @if (_selectedSource.SyncConflictReviewSupported)
+                            {
+                                <span class="console-status console-state-info">conflict review</span>
+                            }
+                        </div>
                     </div>
 
                     @if (!_selectedSource.HistoryReadPermitted)
@@ -150,6 +173,9 @@
     private IReadOnlyList<TemporalCheckpoint> _checkpoints = [];
     private string? _fromCheckpointId;
     private string? _toCheckpointId;
+    private string? _selectedCheckpointId;
+    private TemporalCheckpoint? _selectedCheckpoint =>
+        _checkpoints.FirstOrDefault(c => string.Equals(c.CheckpointId, _selectedCheckpointId, StringComparison.Ordinal));
 
     // Diff (now-vs-as-of) state.
     private bool _diffBusy;
@@ -214,6 +240,7 @@
         _checkpoints = checkpoints.Checkpoints;
         _fromCheckpointId = _checkpoints.Count > 1 ? _checkpoints[1].CheckpointId : _checkpoints.FirstOrDefault()?.CheckpointId;
         _toCheckpointId = _checkpoints.FirstOrDefault()?.CheckpointId;
+        _selectedCheckpointId = _checkpoints.FirstOrDefault()?.CheckpointId;
 
         if (source.SyncConflictReviewSupported)
         {
@@ -229,6 +256,7 @@
         _checkpoints = [];
         _fromCheckpointId = null;
         _toCheckpointId = null;
+        _selectedCheckpointId = null;
         _diff = null;
         _diffBinding = null;
         _featureIdInput = string.Empty;
@@ -249,12 +277,16 @@
 
     private RenderFragment RenderTimeline() => __builder =>
     {
-        <article class="console-panel operate-temporal-checkpoints" aria-label="Dataset timeline">
+        <article class="console-panel operate-temporal-checkpoints" aria-label="Dataset timeline" data-temporal-region="timeline">
             <div class="console-panel-heading">
                 <div>
-                    <p class="console-kicker">Dataset timeline</p>
-                    <h2>Checkpoints</h2>
+                    <p class="console-kicker">As-of time</p>
+                    <h2>Time scrubber</h2>
                 </div>
+                @if (_checkpoints.Count > 0)
+                {
+                    <span class="console-muted operate-temporal-asof-readout">As-of @(_selectedCheckpoint?.Label ?? _checkpoints[^1].Label)</span>
+                }
             </div>
             @if (_checkpointBinding is not null)
             {
@@ -270,16 +302,54 @@
                 {
                     <p class="console-status">No retention policy is declared for this source; history may be pruned without notice.</p>
                 }
-                <ol class="operate-temporal-scrubber" aria-label="Time scrubber">
-                    @foreach (var checkpoint in _checkpoints)
-                    {
-                        <li class="operate-temporal-checkpoint">
-                            <span class="console-kicker">@checkpoint.CursorType</span>
-                            <strong>@checkpoint.Label</strong>
-                            <small>@checkpoint.CreatedAt.ToString("u") @(checkpoint.CreatedBy is null ? string.Empty : $"· {checkpoint.CreatedBy}")</small>
-                        </li>
+
+                @* Design: horizontal time axis with one tick per checkpoint and release ticks emphasized,
+                   plus a playhead at the selected as-of, mirroring the mockup scrubber. The axis is driven by
+                   the real server checkpoint set — no fabricated edit ticks. *@
+                <div class="operate-temporal-axis" role="group" aria-label="Checkpoint axis">
+                    <div class="operate-temporal-axis-line" aria-hidden="true"></div>
+                    @{
+                        var count = _checkpoints.Count;
                     }
-                </ol>
+                    @for (var i = 0; i < count; i++)
+                    {
+                        var checkpoint = _checkpoints[i];
+                        var percent = count == 1 ? 50d : (double)i / (count - 1) * 100d;
+                        var isRelease = checkpoint.CursorType is TemporalCursorType.Release;
+                        var isSelected = string.Equals(checkpoint.CheckpointId, _selectedCheckpointId, StringComparison.Ordinal);
+                        <button type="button"
+                                class="operate-temporal-tick @(isRelease ? "operate-temporal-tick-release" : string.Empty) @(isSelected ? "operate-temporal-tick-selected" : string.Empty)"
+                                style="@($"left:{percent.ToString(System.Globalization.CultureInfo.InvariantCulture)}%")"
+                                title="@($"{checkpoint.Label} · {checkpoint.CreatedAt:u}")"
+                                aria-pressed="@isSelected"
+                                aria-label="@($"{checkpoint.CursorType} {checkpoint.Label}")"
+                                @onclick="() => SelectCheckpoint(checkpoint)"></button>
+                    }
+                </div>
+                <div class="operate-temporal-axis-ends">
+                    <span class="console-muted">@_checkpoints[^1].CreatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</span>
+                    <span class="console-muted">now</span>
+                </div>
+
+                <div class="operate-temporal-legend console-chip-row" aria-label="Scrubber legend">
+                    <span class="operate-temporal-legend-item"><span class="operate-temporal-legend-swatch operate-temporal-legend-edit"></span>checkpoint · @_checkpoints.Count(c => c.CursorType is not TemporalCursorType.Release) in range</span>
+                    <span class="operate-temporal-legend-item"><span class="operate-temporal-legend-swatch operate-temporal-legend-release"></span>release · @_checkpoints.Count(c => c.CursorType is TemporalCursorType.Release) in range</span>
+                    <span class="operate-temporal-legend-spacer"></span>
+                    <button type="button" class="console-button console-button-secondary" @onclick="JumpToLatest">Latest</button>
+                </div>
+
+                @* Selected checkpoint detail keeps the original attribution + cursor info available. *@
+                @if (_selectedCheckpoint is not null)
+                {
+                    <dl class="console-definition-list operate-temporal-checkpoint-detail">
+                        <dt>Cursor</dt><dd>@_selectedCheckpoint.CursorType · @_selectedCheckpoint.CursorValue</dd>
+                        <dt>Created</dt><dd>@_selectedCheckpoint.CreatedAt.ToString("u")@(_selectedCheckpoint.CreatedBy is null ? string.Empty : $" · {_selectedCheckpoint.CreatedBy}")</dd>
+                        @if (!string.IsNullOrWhiteSpace(_selectedCheckpoint.MetadataReleaseId))
+                        {
+                            <dt>Release</dt><dd>@_selectedCheckpoint.MetadataReleaseId</dd>
+                        }
+                    </dl>
+                }
             }
         </article>
     };
@@ -291,7 +361,7 @@
             return;
         }
 
-        <article class="console-panel operate-temporal-diff" aria-label="Now versus as-of comparison">
+        <article class="console-panel operate-temporal-diff" aria-label="Now versus as-of comparison" data-temporal-region="diff">
             <div class="console-panel-heading">
                 <div>
                     <p class="console-kicker">Now vs as-of</p>
@@ -333,15 +403,34 @@
             }
             else if (_diff is not null)
             {
-                <dl class="console-definition-list operate-temporal-diff-counts">
-                    <dt>Added</dt><dd>@_diff.AddedFeatures</dd>
-                    <dt>Removed</dt><dd>@_diff.RemovedFeatures</dd>
-                    <dt>Updated</dt><dd>@_diff.UpdatedFeatures</dd>
-                    <dt>Geometry changed</dt><dd>@_diff.GeometryChangedFeatures</dd>
-                    <dt>Attribute changed</dt><dd>@_diff.AttributeChangedFeatures</dd>
-                </dl>
+                @* Design: side-by-side as-of vs now panes, mirroring the mockup split. The left pane
+                   summarizes the as-of selection; the right pane summarizes what changed into "now". *@
+                <div class="operate-temporal-split" aria-label="As-of versus now">
+                    <section class="operate-temporal-pane operate-temporal-pane-asof" aria-label="As-of state">
+                        <header class="operate-temporal-pane-head">
+                            <span class="console-status console-state-neutral">as-of</span>
+                            <span class="console-muted">@DescribeCheckpoint(_diff.FromCheckpointId)</span>
+                        </header>
+                        <dl class="console-definition-list operate-temporal-diff-counts">
+                            <dt>Removed since</dt><dd>@_diff.RemovedFeatures</dd>
+                            <dt>Updated since</dt><dd>@_diff.UpdatedFeatures</dd>
+                        </dl>
+                    </section>
+                    <section class="operate-temporal-pane operate-temporal-pane-now" aria-label="Now state">
+                        <header class="operate-temporal-pane-head">
+                            <span class="console-status console-state-success">now</span>
+                            <span class="console-muted">@DescribeCheckpoint(_diff.ToCheckpointId)</span>
+                        </header>
+                        <dl class="console-definition-list operate-temporal-diff-counts">
+                            <dt>Added</dt><dd>@_diff.AddedFeatures</dd>
+                            <dt>Geometry changed</dt><dd>@_diff.GeometryChangedFeatures</dd>
+                            <dt>Attribute changed</dt><dd>@_diff.AttributeChangedFeatures</dd>
+                        </dl>
+                    </section>
+                </div>
                 @if (_diff.SampleFeatureChanges.Count > 0)
                 {
+                    <div class="console-muted operate-temporal-subhead">What changed</div>
                     <table class="console-table" aria-label="Sample feature changes">
                         <thead>
                             <tr><th>Feature</th><th>Change</th><th>Geometry</th><th>Fields</th><th>Actor</th></tr>
@@ -349,7 +438,7 @@
                         <tbody>
                             @foreach (var change in _diff.SampleFeatureChanges)
                             {
-                                <tr>
+                                <tr class="@(change.GeometryChanged ? "operate-temporal-geometry-marker" : string.Empty)">
                                     <td>@change.FeatureId</td>
                                     <td>@change.ChangeType</td>
                                     <td>@(change.GeometryChanged ? "changed" : "—")</td>
@@ -495,12 +584,16 @@
             return;
         }
 
-        <article class="console-panel operate-temporal-conflicts" aria-label="Replica conflict queue">
+        <article class="console-panel operate-temporal-conflicts" aria-label="Replica conflict queue" data-temporal-region="sync-conflicts">
             <div class="console-panel-heading">
                 <div>
                     <p class="console-kicker">Disconnected sync</p>
                     <h2>Replica Conflict Queue</h2>
                 </div>
+                @if (_replicaBinding is null && _replicas.Count > 0)
+                {
+                    <span class="console-muted">@_replicas.Count(r => r.PendingConflictCount > 0) replicas with conflicts · @_replicas.Sum(r => r.PendingConflictCount) rows</span>
+                }
             </div>
 
             @if (_replicaBinding is not null)
@@ -515,24 +608,34 @@
             {
                 <table class="console-table" aria-label="Replicas">
                     <thead>
-                        <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Conflicts</th><th></th></tr>
+                        <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Needs review</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var replica in _replicas)
                         {
-                            <tr class="@(string.Equals(replica.ReplicaId, _selectedReplica?.ReplicaId, StringComparison.Ordinal) ? "console-row-selected" : string.Empty)">
+                            var needsReview = replica.PendingConflictCount > 0;
+                            <tr class="@(string.Equals(replica.ReplicaId, _selectedReplica?.ReplicaId, StringComparison.Ordinal) ? "console-row-selected" : string.Empty) @(needsReview ? "operate-temporal-replica-attention" : string.Empty)">
                                 <td><strong>@replica.ReplicaName</strong><small>@replica.SyncDirection</small></td>
                                 <td>@replica.OwnerId</td>
                                 <td>@(replica.DeviceId ?? "—")</td>
                                 <td>@replica.BaseCheckpointId</td>
                                 <td>@replica.ReplicaServerGen</td>
-                                <td>@replica.Status</td>
-                                <td>@replica.PendingConflictCount</td>
-                                <td><button class="console-button console-button-secondary" type="button" disabled="@_replicaBusy" @onclick="() => ReviewReplicaAsync(replica)">Review</button></td>
+                                <td><span class="console-status @ReplicaStatusClass(replica.Status)">@replica.Status</span></td>
+                                <td><span class="console-status @(needsReview ? "console-state-warning" : "console-state-success")">@replica.PendingConflictCount</span></td>
+                                <td><button class="console-button @(needsReview ? string.Empty : "console-button-secondary")" type="button" disabled="@_replicaBusy" @onclick="() => ReviewReplicaAsync(replica)">@(needsReview ? "Review" : "Open")</button></td>
                             </tr>
                         }
                     </tbody>
                 </table>
+
+                @* Design: auto-resolution rules footer from the mockup — explains which conflicts the server
+                   resolves automatically before any reach this review queue. *@
+                <div class="operate-temporal-rules console-chip-row" aria-label="Auto-resolution rules">
+                    <span class="console-muted">Auto-resolution rules:</span>
+                    <span class="console-status console-state-neutral">latest-wins on identical fields</span>
+                    <span class="console-status console-state-neutral">spatial: snap if ≤ 1m delta</span>
+                    <span class="console-status console-state-neutral">temporal: server wins past final-published</span>
+                </div>
             }
 
             @if (_selectedReplica is not null)
@@ -577,12 +680,13 @@
 
                 @foreach (var conflict in _conflicts)
                 {
-                    <article class="operate-temporal-conflict console-panel">
+                    <article class="operate-temporal-conflict console-panel" data-temporal-region="conflict-merge">
                         <div class="console-panel-heading">
                             <div>
                                 <p class="console-kicker">@conflict.ConflictType · @conflict.Status</p>
-                                <h4>Feature @conflict.FeatureId</h4>
+                                <h4>Conflict · feature @conflict.FeatureId</h4>
                             </div>
+                            <span class="console-status console-state-warning">3-way merge</span>
                             <label class="workflow-checkbox">
                                 <input type="checkbox"
                                        checked="@_selectedConflictIds.Contains(conflict.ConflictId)"
@@ -594,9 +698,28 @@
                         {
                             <p class="console-status operate-temporal-geometry-marker">Geometry conflict: client and server geometry diverged from the base.</p>
                         }
+
+                        @* Design: base / client / server three-way merge columns from the mockup. Each
+                           column header is badged (base = neutral, client = info, server = accent); the
+                           field-conflict rows highlight the diverging client and server values. *@
+                        <div class="operate-temporal-threeway" aria-label="Base client server comparison">
+                            <div class="operate-temporal-threeway-col operate-temporal-col-base">
+                                <span class="console-status console-state-neutral">base</span>
+                                <small class="console-muted">@(conflict.BaseRevisionId ?? "—") · last common state</small>
+                            </div>
+                            <div class="operate-temporal-threeway-col operate-temporal-col-client">
+                                <span class="console-status console-state-info">client</span>
+                                <small class="console-muted">@_selectedReplica!.ReplicaName · offline edit</small>
+                            </div>
+                            <div class="operate-temporal-threeway-col operate-temporal-col-server">
+                                <span class="console-status console-state-success">server</span>
+                                <small class="console-muted">@(conflict.ServerRevisionId ?? "—") · canonical</small>
+                            </div>
+                        </div>
+
                         @if (conflict.FieldConflicts.Count > 0)
                         {
-                            <table class="console-table" aria-label="Field conflicts">
+                            <table class="console-table operate-temporal-threeway-table" aria-label="Field conflicts">
                                 <thead><tr><th>Field</th><th>Base</th><th>Client</th><th>Server</th></tr></thead>
                                 <tbody>
                                     @foreach (var field in conflict.FieldConflicts)
@@ -604,17 +727,25 @@
                                         <tr class="operate-temporal-field-conflict">
                                             <td><strong>@field.Field</strong></td>
                                             <td>@(field.BaseValue ?? "∅")</td>
-                                            <td>@(field.ClientValue ?? "∅")</td>
-                                            <td>@(field.ServerValue ?? "∅")</td>
+                                            <td class="operate-temporal-cell-client">@(field.ClientValue ?? "∅")</td>
+                                            <td class="operate-temporal-cell-server">@(field.ServerValue ?? "∅")</td>
                                         </tr>
                                     }
                                 </tbody>
                             </table>
                         }
+
+                        @* AI advisory + resolution action bar, mirroring the mockup's advisory strip. *@
+                        <div class="operate-temporal-advisory" role="note" aria-label="Resolution advisory">
+                            <span class="operate-temporal-advisory-glyph" aria-hidden="true">AI</span>
+                            <p class="operate-temporal-advisory-text">
+                                Server values are canonical for this feature. Recommended: keep server and archive the client edit as evidence, or merge per field where the client edit is authoritative.
+                            </p>
+                        </div>
                         <div class="operate-temporal-resolution-choices">
                             @foreach (var action in SingleConflictActions)
                             {
-                                <button class="console-button console-button-secondary" type="button"
+                                <button class="console-button @(action == SyncResolutionAction.KeepServer ? string.Empty : "console-button-secondary")" type="button"
                                         disabled="@_resolveBusy"
                                         @onclick="() => ResolveSingleAsync(conflict.ConflictId, action)">@DescribeAction(action)</button>
                             }
@@ -813,6 +944,48 @@
             _resolveBusy = false;
         }
     }
+
+    private void SelectCheckpoint(TemporalCheckpoint checkpoint)
+    {
+        _selectedCheckpointId = checkpoint.CheckpointId;
+        // Aligning the as-of cursor also seeds the diff "from" side so the now-vs-as-of split compares
+        // the scrubbed checkpoint against the latest state.
+        _fromCheckpointId = checkpoint.CheckpointId;
+    }
+
+    private void JumpToLatest()
+    {
+        var latest = _checkpoints.FirstOrDefault();
+        if (latest is not null)
+        {
+            SelectCheckpoint(latest);
+        }
+    }
+
+    private string DescribeCheckpoint(string checkpointId)
+    {
+        var checkpoint = _checkpoints.FirstOrDefault(c => string.Equals(c.CheckpointId, checkpointId, StringComparison.Ordinal));
+        return checkpoint is null ? checkpointId : $"{checkpoint.Label} · {checkpoint.CreatedAt:yyyy-MM-dd HH:mm 'UTC'}";
+    }
+
+    private static string ReplicaStatusClass(ReplicaStatus status) => status switch
+    {
+        ReplicaStatus.Active => "console-state-success",
+        ReplicaStatus.Conflicted => "console-state-warning",
+        ReplicaStatus.Expired => "console-state-danger",
+        ReplicaStatus.Unregistered => "console-state-danger",
+        _ => "console-state-neutral",
+    };
+
+    private static string DescribeMode(TemporalMode mode) => mode switch
+    {
+        TemporalMode.None => "no-history",
+        TemporalMode.AsOf => "as-of",
+        TemporalMode.History => "history",
+        TemporalMode.Diff => "diff-enabled",
+        TemporalMode.Rollback => "temporal-enabled",
+        _ => mode.ToString(),
+    };
 
     private static string DescribeBlocked(TemporalBindingState state) =>
         $"{state.State}: {state.Detail} (contract: {state.Contract})";

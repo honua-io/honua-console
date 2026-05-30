@@ -101,6 +101,129 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("No retention policy is declared", page.Markup, StringComparison.Ordinal);
     }
 
+    // ---- Design alignment (console-canvas/screens-gitops-temporal-sync.jsx): the as-of header, time
+    //      scrubber axis, now-vs-as-of split, replica auto-resolution rules, three-way merge columns,
+    //      and AI advisory strip must be present in the rendered structure, not just the data.
+
+    [Fact]
+    public void TemporalViewer_InspectSource_RendersAsOfHeaderAndScrubberAxis()
+    {
+        var client = new FakeTemporalClient
+        {
+            Workspace = WorkspaceWith(RollbackSource),
+            Checkpoints = new TemporalCheckpointList(
+            [
+                Checkpoint("cp-now", "Now"),
+                ReleaseCheckpoint("cp-rel", "Release v4"),
+                Checkpoint("cp-prev", "Before"),
+            ])
+        };
+        var page = Render(client);
+
+        InspectFirstSource(page);
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-temporal-region='timeline']")),
+            TimeSpan.FromSeconds(5));
+        // As-of header carries the capability badge and the "· as-of" title from the mockup.
+        Assert.Contains("· as-of", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("temporal-enabled", page.Markup, StringComparison.Ordinal);
+        // One axis tick per checkpoint, with the release checkpoint emphasized as a release tick.
+        Assert.Equal(3, page.FindAll(".operate-temporal-tick").Count);
+        Assert.Single(page.FindAll(".operate-temporal-tick-release"));
+        // Legend distinguishes checkpoints from releases.
+        Assert.Contains("release ·", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TemporalViewer_ScrubberTick_SelectsAsOfCheckpoint()
+    {
+        var client = new FakeTemporalClient
+        {
+            Workspace = WorkspaceWith(RollbackSource),
+            Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")])
+        };
+        var page = Render(client);
+        InspectFirstSource(page);
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".operate-temporal-tick")), TimeSpan.FromSeconds(5));
+
+        // Clicking the second (older) tick moves the as-of playhead to it.
+        page.FindAll(".operate-temporal-tick")[1].Click();
+
+        page.WaitForAssertion(
+            () => Assert.Single(page.FindAll(".operate-temporal-tick-selected")),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void TemporalViewer_ComputeDiff_RendersNowVersusAsOfSplit()
+    {
+        var client = new FakeTemporalClient
+        {
+            Workspace = WorkspaceWith(RollbackSource),
+            Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")]),
+            Diff = new TemporalDiff("diff-1", "src-parcels", "cp-prev", "cp-now",
+                AddedFeatures: 3, RemovedFeatures: 1, UpdatedFeatures: 4,
+                GeometryChangedFeatures: 2, AttributeChangedFeatures: 5,
+                SampleFeatureChanges: [], GeneratedAt: DateTimeOffset.UtcNow)
+        };
+        var page = Render(client);
+        InspectFirstSource(page);
+        page.WaitForAssertion(() => page.Find("button.console-button"), TimeSpan.FromSeconds(5));
+
+        ClickByText(page, "Compare");
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find(".operate-temporal-split")),
+            TimeSpan.FromSeconds(5));
+        // Two panes: as-of and now, mirroring the mockup side-by-side comparison.
+        Assert.Single(page.FindAll(".operate-temporal-pane-asof"));
+        Assert.Single(page.FindAll(".operate-temporal-pane-now"));
+    }
+
+    [Fact]
+    public void TemporalViewer_ReplicaQueue_RendersStatusBadgesAndAutoResolutionRules()
+    {
+        var page = Render(new FakeTemporalClient
+        {
+            Workspace = WorkspaceWith(RollbackSource),
+            ReplicaQueue = new ReplicaConflictQueue([SampleReplica])
+        });
+
+        InspectFirstSource(page);
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-temporal-region='sync-conflicts']")),
+            TimeSpan.FromSeconds(5));
+        // Auto-resolution rules footer from the mockup.
+        Assert.NotNull(page.Find(".operate-temporal-rules"));
+        Assert.Contains("latest-wins on identical fields", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("server wins past final-published", page.Markup, StringComparison.Ordinal);
+        // Status surfaces as a badge pill, not bare text.
+        Assert.Contains("console-status", page.Find("[data-temporal-region='sync-conflicts'] tbody tr").InnerHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TemporalViewer_ReviewReplica_RendersThreeWayColumnsAndAdvisoryStrip()
+    {
+        var page = Render(ClientWithConflicts());
+
+        InspectFirstSource(page);
+        page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
+        ClickByText(page, "Review");
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-temporal-region='conflict-merge']")),
+            TimeSpan.FromSeconds(5));
+        // Three base/client/server merge columns from the mockup.
+        Assert.Single(page.FindAll(".operate-temporal-col-base"));
+        Assert.Single(page.FindAll(".operate-temporal-col-client"));
+        Assert.Single(page.FindAll(".operate-temporal-col-server"));
+        // AI advisory action strip is present with a server-keep recommendation.
+        Assert.NotNull(page.Find(".operate-temporal-advisory"));
+        Assert.Contains("3-way merge", page.Markup, StringComparison.Ordinal);
+    }
+
     // ---- RBAC / capability denials surface explanations, never fabricated data.
 
     [Fact]
@@ -367,6 +490,10 @@ public sealed class OperateTemporalPageRenderTests
     private static TemporalCheckpoint Checkpoint(string id, string label) =>
         new(id, "src-parcels", TemporalCursorType.NamedCheckpoint, "2026-05-01T00:00:00Z", label,
             DateTimeOffset.UtcNow, "alice", OperationRef: null, JobRunId: null, MetadataReleaseId: null);
+
+    private static TemporalCheckpoint ReleaseCheckpoint(string id, string label) =>
+        new(id, "src-parcels", TemporalCursorType.Release, "2026-05-01T00:00:00Z", label,
+            DateTimeOffset.UtcNow, "alice", OperationRef: null, JobRunId: null, MetadataReleaseId: "rel-4");
 
     private static FakeTemporalClient ClientWithConflicts() => new()
     {
