@@ -48,12 +48,19 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
 
-        // GitOps metadata release visualization binds to a real honua-server
-        // (honua-server#1163/#1164) through the shim boundary; no standing in-memory
-        // release data source is registered (Console Patterns Charter section 11).
+        // GitOps metadata release visualization binds to a real honua-server through
+        // the SHIPPED GitOps metadata release contracts (honua-server#1163 release
+        // package + GitOps manifest, honua-server#1165 release-operation lifecycle /
+        // rollback) via a thin typed HttpClient behind Honua.Console.Contracts. No
+        // standing in-memory release data source is registered (Console Patterns
+        // Charter section 11); the by-id detail read activates against live data when
+        // an environment is connected, else the surface renders the missing-binding
+        // state. The admin API key is sent as X-API-Key (admin-authorized endpoints).
         services.TryAddSingleton<IConsoleGitOpsReleaseClient>(serviceProvider =>
             new HttpConsoleGitOpsReleaseClient(
-                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>()));
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                honuaServerAdminApiKey));
 
         return services;
     }
