@@ -1,0 +1,163 @@
+@page "/operate/releases"
+@page "/operate/releases/{SelectedReleaseId}"
+@inject IConsoleGitOpsReleaseClient ReleaseClient
+
+<section class="console-page console-operate-page">
+    <div class="console-page-heading operate-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>GitOps Metadata Releases</h1>
+        <p>
+            Visualize governed metadata/service/layer releases across environments without reading raw manifests:
+            the release proposal and semantic resource diff, with environment matrix, compatibility preflight,
+            Git PR preview, CI/GitOps timeline, and rollback to follow. Bound to the connected honua-server GitOps
+            metadata release contracts.
+        </p>
+    </div>
+
+    <nav class="operate-section-nav" aria-label="GitOps release sections">
+        <a href="#proposals">Release proposals</a>
+    </nav>
+
+    <section id="proposals" class="operate-section" aria-labelledby="proposals-heading">
+        <div class="operate-section-heading">
+            <div>
+                <p class="console-kicker">Release proposal</p>
+                <h2 id="proposals-heading">Proposed Metadata Releases</h2>
+            </div>
+        </div>
+
+        @if (!_loaded || _proposals is null)
+        {
+            <OperateSectionStatusPanel Heading="Release proposals" Loading="true" />
+        }
+        else if (!_proposals.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Release proposals" Status="_proposals.Status" Message="@_proposals.Message" />
+
+            @* A deep link to a specific release id must still surface the missing-detail
+               state instead of being swallowed by a denied/empty list read. *@
+            @if (SelectedReleaseMissing)
+            {
+                <OperateSectionStatusPanel Heading="Release detail"
+                    Status="OperateSectionStatus.Missing"
+                    Message="@SelectedReleaseMissingMessage" />
+            }
+        }
+        else if (Proposals.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Release proposals" Empty="true"
+                EmptyTitle="No release proposals"
+                EmptyMessage="The connected server reported no GitOps metadata release proposals." />
+
+            @if (SelectedReleaseMissing)
+            {
+                <OperateSectionStatusPanel Heading="Release detail"
+                    Status="OperateSectionStatus.Missing"
+                    Message="@SelectedReleaseMissingMessage" />
+            }
+        }
+        else
+        {
+            <div class="console-panel-grid">
+                @foreach (var proposal in Proposals)
+                {
+                    <article class="console-panel operate-release-card @(proposal.ReleasePackageId == SelectedRelease?.ReleasePackageId ? "operate-selected-row" : null)">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3><a href="@GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId)">@proposal.Title</a></h3>
+                                <p class="console-muted">@proposal.Summary</p>
+                            </div>
+                            <span class="console-status @(proposal.HasBlockingFindings ? "console-state-danger" : "console-state-success")">
+                                @(proposal.HasBlockingFindings ? "blocked" : "ready")
+                            </span>
+                        </div>
+
+                        <dl class="console-definition-list">
+                            <dt>Source</dt>
+                            <dd>@proposal.SourceEnvironmentId</dd>
+                            <dt>Targets</dt>
+                            <dd>@(proposal.TargetEnvironmentIds.Count == 0 ? "none" : string.Join(", ", proposal.TargetEnvironmentIds))</dd>
+                            <dt>Desired revision</dt>
+                            <dd>@proposal.DesiredRevision</dd>
+                            <dt>Rollback</dt>
+                            <dd title="@GitOpsReleasePresentation.Description(proposal.RollbackClassification)">
+                                @GitOpsReleasePresentation.Label(proposal.RollbackClassification)
+                            </dd>
+                        </dl>
+
+                        <section class="operate-evidence-section">
+                            <h4>Changed semantic resources</h4>
+                            @if (proposal.ChangedResources.Count == 0)
+                            {
+                                <p class="console-muted">No semantic resources are changed by this proposal.</p>
+                            }
+                            else
+                            {
+                                <ul class="operate-note-list">
+                                    @foreach (var resource in proposal.ChangedResources)
+                                    {
+                                        <li>
+                                            <strong>@resource.ResourceType</strong>: @resource.DisplayName
+                                            <span class="console-chip-row">
+                                                @foreach (var changeClass in resource.ChangeClasses)
+                                                {
+                                                    <span>@GitOpsReleasePresentation.Label(changeClass)</span>
+                                                }
+                                            </span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </section>
+
+                        @* A release with unresolved blockers must not offer a PR/deploy action. *@
+                        <div class="operate-action-row">
+                            <button class="console-button" type="button" disabled
+                                title="@(proposal.CanProposePullRequest
+                                    ? "Git PR creation lands with the release-operation lifecycle (honua-server#1165)."
+                                    : "Resolve blocking findings before creating a Git PR.")">
+                                Create Git PR
+                            </button>
+                        </div>
+                    </article>
+                }
+            </div>
+
+            @if (SelectedReleaseMissing)
+            {
+                <OperateSectionStatusPanel Heading="Release detail"
+                    Status="OperateSectionStatus.Missing"
+                    Message="@SelectedReleaseMissingMessage" />
+            }
+        }
+    </section>
+</section>
+
+@code {
+    [Parameter]
+    public string? SelectedReleaseId { get; set; }
+
+    private bool _loaded;
+    private OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>? _proposals;
+
+    private IReadOnlyList<GitOpsReleaseProposal> Proposals => _proposals?.Value ?? [];
+
+    private bool HasSelectedReleaseRoute => !string.IsNullOrWhiteSpace(SelectedReleaseId);
+
+    private GitOpsReleaseProposal? SelectedRelease =>
+        HasSelectedReleaseRoute
+            ? Proposals.FirstOrDefault(item =>
+                string.Equals(item.ReleasePackageId, SelectedReleaseId, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+    private bool SelectedReleaseMissing => HasSelectedReleaseRoute && SelectedRelease is null;
+
+    private string SelectedReleaseMissingMessage =>
+        $"Release '{SelectedReleaseId?.Trim()}' was not found in the loaded server release list.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proposals = await ReleaseClient.GetReleaseProposalsAsync();
+        _loaded = true;
+    }
+}

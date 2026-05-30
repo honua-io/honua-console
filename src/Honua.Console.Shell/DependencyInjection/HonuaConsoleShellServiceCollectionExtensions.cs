@@ -53,6 +53,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
 
+        // GitOps metadata release visualization binds to a real honua-server
+        // (honua-server#1163/#1164) through the shim boundary; no standing in-memory
+        // release data source is registered (Console Patterns Charter section 11).
+        services.TryAddSingleton<IConsoleGitOpsReleaseClient>(serviceProvider =>
+            new HttpConsoleGitOpsReleaseClient(
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>()));
+
         return services;
     }
 
