@@ -32,4 +32,16 @@ public interface IConsoleGitOpsReleaseClient
     Task<OperateSectionResult<GitOpsReleaseProposal>> GetReleaseProposalAsync(
         string releasePackageId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the full release detail surface for one release package id: the proposal
+    /// summary and semantic diff (release package + GitOps manifest, honua-server#1163),
+    /// the environment matrix/drift, and the CI/GitOps timeline and rollback readiness
+    /// (release-operation lifecycle, honua-server#1165). The operation lifecycle is an
+    /// independent sub-read, so a missing operation surfaces its own state rather than
+    /// failing the whole detail read.
+    /// </summary>
+    Task<OperateSectionResult<GitOpsReleaseDetail>> GetReleaseDetailAsync(
+        string releasePackageId,
+        CancellationToken cancellationToken = default);
 }
