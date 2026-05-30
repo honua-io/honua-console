@@ -190,23 +190,28 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     }
 
     // Binds the Studio analysis-builder surface (/studio/analysis, honua-console#53) to honua-server's
-    // analysis content/artifacts contract (#1182) and the closed execution engine (#681/#721/#724).
-    // First slice: the server-bound data source (HTTP client behind Honua.Console.Contracts, or a
-    // honua-sdk-dotnet projection) lands in a follow-up; until then every configured-or-not host
-    // resolves the missing-binding data source, so the builder renders an explicit not-bound state
-    // instead of fabricating analysis data (Console Patterns Charter section 11). The base-address
-    // gate is kept in the same shape as the sibling editors so the live binding drops in here.
+    // analysis content/artifacts contract (#1182) and the closed execution engine (#681/#721/#724) through
+    // the Honua.Console.Contracts shim when a server base address is configured; otherwise the builder
+    // renders a missing-binding state (never mock analysis data, Console Patterns Charter section 11).
     private static void AddStudioAnalysisPackageDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        _ = honuaServerBaseUrl;
-        _ = honuaServerAdminApiKey;
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaAnalysisContentHttpClient(
+                    httpClient,
+                    new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioAnalysisPackageDataSource, HonuaServerStudioAnalysisContentDataSource>();
+            return;
+        }
 
-        // TODO(honua-console#53 follow-up): when a server base address is configured, register the
-        // server-bound IStudioAnalysisPackageDataSource (HTTP client behind Honua.Console.Contracts or
-        // honua-sdk-dotnet) instead of the unsupported source, matching AddStudioFormPackageDataSource.
         services.TryAddSingleton<IStudioAnalysisPackageDataSource, UnsupportedStudioAnalysisPackageDataSource>();
     }
 

@@ -33,6 +33,12 @@ public sealed class StudioAnalysisPlanEditor
 
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Natural-language goal carried onto the server analysis intent (honua-server AnalysisIntent.Goal).
+    /// Defaults to the title when blank so the server-owned intent is never empty.
+    /// </summary>
+    public string Goal { get; set; } = string.Empty;
+
     /// <summary>The analysis method (e.g. buffer, hotspot, overlay), drawn from <see cref="StudioAnalysisMethods.All"/>.</summary>
     public string Method { get; set; } = StudioAnalysisMethods.All[0];
 
@@ -53,6 +59,18 @@ public sealed class StudioAnalysisPlanEditor
 
     /// <summary>The most recent server compute estimate for the saved plan, if one has been requested.</summary>
     public StudioAnalysisComputeEstimate? Estimate { get; set; }
+
+    /// <summary>
+    /// The execution job submitted from this plan, if any. Carries the job id/status and the resolved
+    /// result artifact so the result-artifact panel can render after submit (AC#1/AC#3).
+    /// </summary>
+    public StudioAnalysisJobView? SubmittedJob { get; set; }
+
+    /// <summary>
+    /// The real server-owned analysis plan steps for this version, when loaded from honua-server. Drives
+    /// the DAG/pipeline view from the server's compiled plan rather than a Console reconstruction (AC#2).
+    /// </summary>
+    public IReadOnlyList<StudioAnalysisPipelineNode> ServerPipeline { get; set; } = [];
 
     public bool IsExistingPackage => !string.IsNullOrWhiteSpace(AnalysisId);
 
@@ -96,6 +114,43 @@ public sealed record StudioAnalysisPipelineNode(
     string Label,
     string Method,
     IReadOnlyList<string> DependsOn);
+
+/// <summary>
+/// The execution job a submitted analysis plan produced, surfaced on the result panel. Status comes from
+/// the server execution engine (honua-server#681/#721/#724) job lifecycle; <see cref="Failure"/> is set
+/// only when the server classified a terminal failure.
+/// </summary>
+public sealed record StudioAnalysisJobView(
+    string JobId,
+    string Status,
+    int Version,
+    StudioAnalysisArtifactView? Artifact = null,
+    StudioAnalysisJobFailureView? Failure = null)
+{
+    public bool HasArtifact => Artifact is not null;
+
+    public bool HasFailure => Failure is not null;
+}
+
+/// <summary>
+/// A resolved result artifact for the artifact panel. <see cref="DownstreamTargets"/> are the content
+/// families this artifact can become (content item, layer, report, dashboard, workflow input) per AC#3,
+/// projected from the server artifact binding contract.
+/// </summary>
+public sealed record StudioAnalysisArtifactView(
+    string ArtifactId,
+    string Kind,
+    string Label,
+    string? Uri,
+    string? ContentType,
+    long? ByteSize,
+    string RetentionState,
+    IReadOnlyList<string> DownstreamTargets);
+
+/// <summary>A safe terminal-failure classification surfaced on the result panel.</summary>
+public sealed record StudioAnalysisJobFailureView(
+    string Classification,
+    string Message);
 
 public static class HonuaAnalysisStatuses
 {

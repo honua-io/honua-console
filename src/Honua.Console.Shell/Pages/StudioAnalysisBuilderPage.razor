@@ -151,6 +151,10 @@
                             <textarea class="console-input" rows="2" @bind="plan.Description"></textarea>
                         </label>
                         <label class="studio-form-label">
+                            <span>Goal (analysis intent)</span>
+                            <textarea class="console-input" rows="2" @bind="plan.Goal" placeholder="Find every parcel within 250m of a hydrant"></textarea>
+                        </label>
+                        <label class="studio-form-label">
                             <span>Method</span>
                             <select class="console-input" @bind="plan.Method">
                                 @foreach (var method in StudioAnalysisMethods.All)
@@ -313,6 +317,60 @@
                         }
                     </ol>
                 </article>
+
+                @if (plan.SubmittedJob is { } job)
+                {
+                    <article class="console-panel studio-analysis-result" data-analysis-result="true" aria-labelledby="analysis-result-heading">
+                        <p class="console-kicker">Result</p>
+                        <h3 id="analysis-result-heading">Job and result artifact</h3>
+                        <dl class="console-definition-list">
+                            <dt>Job</dt>
+                            <dd>@job.JobId</dd>
+                            <dt>Status</dt>
+                            <dd><span class="console-status @(job.HasFailure ? "console-status-warning" : string.Empty)">@job.Status</span></dd>
+                        </dl>
+
+                        @if (job.HasFailure)
+                        {
+                            <p class="console-warning" role="alert" data-analysis-result-failure="true">
+                                @job.Failure!.Classification: @job.Failure.Message
+                            </p>
+                        }
+                        else if (job.HasArtifact)
+                        {
+                            var artifact = job.Artifact!;
+                            <dl class="console-definition-list" data-analysis-artifact="true">
+                                <dt>Artifact</dt>
+                                <dd>@artifact.Label <small>(@artifact.ArtifactId)</small></dd>
+                                <dt>Kind</dt>
+                                <dd>@artifact.Kind</dd>
+                                <dt>Retention</dt>
+                                <dd>@artifact.RetentionState</dd>
+                                @if (!string.IsNullOrWhiteSpace(artifact.ContentType))
+                                {
+                                    <dt>Media type</dt>
+                                    <dd>@artifact.ContentType</dd>
+                                }
+                                @if (artifact.ByteSize is { } bytes)
+                                {
+                                    <dt>Size</dt>
+                                    <dd>@bytes.ToString("N0") bytes</dd>
+                                }
+                            </dl>
+                            <p class="console-kicker">Use this result as</p>
+                            <ul class="studio-compact-list" data-analysis-downstream="true">
+                                @foreach (var target in artifact.DownstreamTargets)
+                                {
+                                    <li>@DownstreamLabel(target)</li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <p class="console-muted">The job is running. Its result artifact resolves once the execution engine finishes.</p>
+                        }
+                    </article>
+                }
             </div>
         }
     }
@@ -420,6 +478,16 @@
             _busy = false;
         }
     }
+
+    private static string DownstreamLabel(string target) => target switch
+    {
+        "content" => "Content item",
+        "layer" => "Map layer",
+        "report" => "Report input",
+        "dashboard" => "Dashboard input",
+        "workflow" => "Workflow input",
+        _ => target
+    };
 
     private void ApplyStates(IReadOnlyList<StudioAnalysisCapabilityState> states)
     {

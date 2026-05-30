@@ -64,6 +64,13 @@ public static class StudioAnalysisPlanEvaluator
     {
         ArgumentNullException.ThrowIfNull(plan);
 
+        // Prefer the real server-compiled plan steps when the plan was loaded/saved against honua-server, so
+        // the DAG view reflects the execution plan the engine will run rather than a Console reconstruction.
+        if (plan.ServerPipeline.Count > 0)
+        {
+            return plan.ServerPipeline;
+        }
+
         var boundInputs = plan.Inputs
             .Where(input => !string.IsNullOrWhiteSpace(input.ServiceId))
             .ToList();
