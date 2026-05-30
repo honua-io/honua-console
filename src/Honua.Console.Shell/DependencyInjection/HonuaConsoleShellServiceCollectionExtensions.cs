@@ -23,6 +23,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioAnalysisPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
@@ -186,6 +187,32 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         _ = honuaServerBaseUrl;
         _ = honuaServerAdminApiKey;
         services.TryAddSingleton<IStudioMapPackageDataSource, UnsupportedStudioMapPackageDataSource>();
+    }
+
+    // Binds the Studio analysis-builder surface (/studio/analysis, honua-console#53) to honua-server's
+    // analysis content/artifacts contract (#1182) and the closed execution engine (#681/#721/#724) through
+    // the Honua.Console.Contracts shim when a server base address is configured; otherwise the builder
+    // renders a missing-binding state (never mock analysis data, Console Patterns Charter section 11).
+    private static void AddStudioAnalysisPackageDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaAnalysisContentHttpClient(
+                    httpClient,
+                    new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioAnalysisPackageDataSource, HonuaServerStudioAnalysisContentDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IStudioAnalysisPackageDataSource, UnsupportedStudioAnalysisPackageDataSource>();
     }
 
     // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)

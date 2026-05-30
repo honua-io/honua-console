@@ -36,7 +36,7 @@ routes. Path prefixes are frozen for downstream tickets:
 
 /studio                        Studio entry (AI-assisted creation)
 /studio/query                  Generated query.package editor
-/studio/analysis               Generated analysis.package editor
+/studio/analysis               Server-bound spatial analysis builder (honua-server#1182)
 /studio/map                    Generated map.package editor
 /studio/dashboard              Generated dashboard.package editor
 /studio/report                 Generated report.package editor
@@ -630,7 +630,7 @@ until `honua-sdk-dotnet#166` is consumable.
 |---|---|---|---|---|
 | `/studio` | `auth` | empty-studio (start a prompt); missing-binding when no server base address is configured | unauth-redirect | studio |
 | `/studio/query` | `auth` | missing-binding when no server base address; empty query-package list when bound (honua-server#1182) | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/analysis` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
+| `/studio/analysis` | `auth` | missing-binding when no server base address; bound-but-no-list capability state (honua-server#1182 has no analysis-package list route — open by id or create new); submit blocked until title, method, a bound input, an output-schema field, and a compute estimate are present; result-artifact panel after submit | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/map` | `auth` | server-bound map package (missing-binding) | unauth-redirect / missing-binding | studio |
 | `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/report` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
@@ -943,7 +943,7 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/form` and `/studio/query` are server-bound and render their own missing-binding / capability-state surface instead) |
+| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/app`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/form`, `/studio/query`, and `/studio/analysis` are server-bound and render their own missing-binding / capability-state surface instead) |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
