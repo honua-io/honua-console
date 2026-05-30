@@ -374,6 +374,13 @@ public sealed class ServerStudioAuthoringShellTests
                 Versions = []
             }));
 
+        public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
+            Guid itemId,
+            Guid versionId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(NotFound<StudioContentVersion>(
+                "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}"));
+
         public Task<StudioEndpointResult<StudioPublicationRequest>> CreatePublishRequestAsync(
             Guid itemId,
             Guid versionId,
@@ -419,13 +426,6 @@ public sealed class ServerStudioAuthoringShellTests
             CancellationToken cancellationToken = default) =>
             ReopenContentVersionAsync(itemId, versionId, cancellationToken);
 
-        public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
-            Guid itemId,
-            Guid versionId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(NotFound<StudioContentVersion>(
-                "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}"));
-
         public Task<StudioEndpointResult<StudioRollbackRequest>> RollbackAsync(
             Guid itemId,
             CreateStudioRollbackRequest request,
@@ -440,6 +440,12 @@ public sealed class ServerStudioAuthoringShellTests
                 Reason = request.Reason,
                 CreatedAt = DateTimeOffset.UtcNow
             }));
+
+        public Task<StudioEndpointResult<StudioRollbackRequest>> CreateRollbackRequestAsync(
+            Guid itemId,
+            CreateStudioRollbackRequest request,
+            CancellationToken cancellationToken = default) =>
+            RollbackAsync(itemId, request, cancellationToken);
 
         private static StudioValidationSummary NotValidated() => new()
         {

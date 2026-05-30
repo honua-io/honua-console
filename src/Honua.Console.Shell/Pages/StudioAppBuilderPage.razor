@@ -66,6 +66,7 @@
             <div class="console-action-row">
                 <button class="console-button" type="button" disabled="@_busy" @onclick="Save">Save draft</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Validate">Validate</button>
+                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Preview">Preview</button>
                 <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">Publish</button>
             </div>
 
@@ -219,6 +220,47 @@
                     <span>I reviewed the share/embed policy for this app (required before publish).</span>
                 </label>
             </article>
+
+            @if (editor.ItemId is { } itemId)
+            {
+                <article class="console-panel studio-app-history" data-app-history="true" aria-labelledby="app-history-heading">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Versions</p>
+                            <h3 id="app-history-heading">Version history</h3>
+                        </div>
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="RefreshHistory">Refresh</button>
+                    </div>
+                    <p class="console-muted">Reopening a published version starts a new editable draft; saving it creates a new content version rather than mutating the published app. Rollback repoints the published app to an earlier version.</p>
+
+                    @if (_history?.Issue is { } historyIssue)
+                    {
+                        <p class="console-warning">@historyIssue.Detail</p>
+                    }
+                    else if (_history is { HasVersions: false })
+                    {
+                        <p class="console-muted">No content versions yet. Publish to create the first immutable version.</p>
+                    }
+                    else if (_history is { } history)
+                    {
+                        <ul class="studio-compact-list">
+                            @foreach (var version in history.Versions)
+                            {
+                                <li @key="version.VersionId">
+                                    <strong>v@version.VersionNumber</strong>
+                                    @(version.IsPublished ? " (published)" : string.Empty)
+                                    @(string.IsNullOrWhiteSpace(version.ChangeNote) ? string.Empty : $" — {version.ChangeNote}")
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => Reopen(itemId, version.VersionId)">Reopen as draft</button>
+                                    @if (!version.IsPublished)
+                                    {
+                                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => Rollback(itemId, version.VersionId)">Roll back to this</button>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
         </div>
     }
 </section>
@@ -230,6 +272,7 @@
     private StudioAppCapabilityState? _bindingState;
     private IReadOnlyList<StudioAppCapabilityState> _states = [];
     private StudioAppValidationView? _validation;
+    private StudioAppVersionHistory? _history;
     private string? _status;
     private bool _statusFailed;
 
@@ -240,13 +283,40 @@
         ApplyStates(load.CapabilityStates);
         _editor = load.State;
         _loading = false;
+
+        if (_editor?.ItemId is { } itemId)
+        {
+            await LoadHistoryAsync(itemId);
+        }
     }
 
-    private Task Save() => RunCommandAsync(() => AppData.SaveDraftAsync(_editor!));
+    private Task Save() => RunCommandAsync(() => AppData.SaveDraftAsync(_editor!), reloadHistory: true);
 
     private Task Validate() => RunCommandAsync(() => AppData.ValidateAsync(_editor!));
 
-    private Task Publish() => RunCommandAsync(() => AppData.PublishAsync(_editor!));
+    private Task Preview() => RunCommandAsync(() => AppData.PreviewAsync(_editor!));
+
+    private Task Publish() => RunCommandAsync(() => AppData.PublishAsync(_editor!), reloadHistory: true);
+
+    private Task Reopen(Guid itemId, Guid versionId) =>
+        RunCommandAsync(() => AppData.ReopenAsync(itemId, versionId), reloadHistory: true);
+
+    private Task Rollback(Guid itemId, Guid versionId) =>
+        RunCommandAsync(() => AppData.RollbackAsync(itemId, versionId, reason: null), reloadHistory: true);
+
+    private async Task RefreshHistory()
+    {
+        if (_editor?.ItemId is { } itemId)
+        {
+            await LoadHistoryAsync(itemId);
+        }
+    }
+
+    private async Task LoadHistoryAsync(Guid itemId)
+    {
+        _history = await AppData.LoadVersionHistoryAsync(itemId);
+        StateHasChanged();
+    }
 
     private void AddPage() => _editor?.Pages.Add(new StudioAppPageState());
 
@@ -256,7 +326,7 @@
 
     private void RemoveAction(StudioAppActionState action) => _editor?.Actions.Remove(action);
 
-    private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command)
+    private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command, bool reloadHistory = false)
     {
         if (_busy || _editor is null)
         {
@@ -277,6 +347,11 @@
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);
+
+            if (reloadHistory && result.Succeeded && _editor?.ItemId is { } itemId)
+            {
+                _history = await AppData.LoadVersionHistoryAsync(itemId);
+            }
         }
         finally
         {

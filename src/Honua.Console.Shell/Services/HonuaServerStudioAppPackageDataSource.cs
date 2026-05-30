@@ -25,6 +25,11 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
     private const string SaveVersionContract = "POST /api/v1/studio/package-drafts/{draftId}/content-versions";
     private const string PublishContract =
         "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/publish-requests";
+    private const string PreviewContract = "POST /api/v1/studio/package-drafts/{draftId}/preview-plan";
+    private const string VersionsContract = "GET /api/v1/studio/content-items/{itemId}/versions";
+    private const string ReopenContract =
+        "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen";
+    private const string RollbackContract = "POST /api/v1/studio/content-items/{itemId}/rollback-requests";
 
     private readonly IStudioPackageLifecycleClient _client;
 
@@ -188,6 +193,98 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
             published);
     }
 
+    public async Task<StudioAppCommandResult> PreviewAsync(
+        StudioAppEditorState state,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (state.DraftId is null)
+        {
+            return Failure("Save the app draft before building a preview.");
+        }
+
+        var result = await _client.CreatePreviewPlanAsync(state.DraftId.Value, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return Failure(issue.Detail, ToCapabilityState(PreviewContract, issue));
+        }
+
+        var plan = result.Data!;
+        var mode = plan.Synchronous ? "inline" : "job-backed";
+        var steps = plan.Steps.Count == 0 ? string.Empty : $" Steps: {string.Join(" -> ", plan.Steps)}.";
+        return new StudioAppCommandResult(true, $"Preview plan ready ({mode}).{steps}", state);
+    }
+
+    public async Task<StudioAppVersionHistory> LoadVersionHistoryAsync(
+        Guid itemId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _client.ListContentVersionsAsync(itemId, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return new StudioAppVersionHistory(itemId, [], ToCapabilityState(VersionsContract, issue));
+        }
+
+        var response = result.Data!;
+        var maxVersion = response.Versions.Count == 0 ? 0 : response.Versions.Max(version => version.VersionNumber);
+        var items = response.Versions
+            .OrderByDescending(version => version.VersionNumber)
+            .Select(version => new StudioAppVersionItem(
+                version.VersionId,
+                version.VersionNumber,
+                version.ChangeNote,
+                IsPublished: version.VersionNumber == maxVersion,
+                IsCurrent: version.VersionNumber == maxVersion,
+                version.CreatedAt))
+            .ToArray();
+
+        return new StudioAppVersionHistory(itemId, items);
+    }
+
+    public async Task<StudioAppCommandResult> ReopenAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _client.ReopenVersionAsync(itemId, versionId, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return Failure(issue.Detail, ToCapabilityState(ReopenContract, issue));
+        }
+
+        // The reopened draft is a fresh editable generation cloned from the immutable version; it carries no
+        // published pointer, so the next save creates a new content version rather than mutating the
+        // published one (AC: reopened edits create new content versions).
+        var reopened = ToEditorState(result.Data!);
+        return new StudioAppCommandResult(
+            true,
+            "Reopened the published version as a new editable draft. Saving will create a new content version.",
+            reopened);
+    }
+
+    public async Task<StudioAppCommandResult> RollbackAsync(
+        Guid itemId,
+        Guid targetVersionId,
+        string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new CreateStudioRollbackRequest
+        {
+            TargetVersionId = targetVersionId,
+            Target = StudioRollbackPointer.Published,
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : reason
+        };
+
+        var result = await _client.CreateRollbackRequestAsync(itemId, request, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return Failure(issue.Detail, ToCapabilityState(RollbackContract, issue));
+        }
+
+        return new StudioAppCommandResult(true, "Rolled the published app pointer back to the selected version.");
+    }
+
     private static StudioPackageEnvelope BuildEnvelope(StudioAppEditorState state) =>
         new()
         {
@@ -220,14 +317,31 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
 
     private static StudioAppEditorState ToEditorState(StudioPackageDraft draft)
     {
-        // The server is the source of truth for identity/generation. The editor body is rehydrated from
-        // the template scaffold on reload until the app.package body projection is read back; this slice
-        // preserves identity so subsequent saves are concurrency-safe and publish targets the right
-        // draft. (Body rehydration from the server envelope is a follow-up — see PR notes.)
+        // The server is the source of truth for identity/generation. The authored body
+        // (title/summary/pages/actions/share-policy) is rehydrated from the draft's app.package envelope so
+        // a reloaded or reopened draft renders its real content rather than a blank scaffold. A reopened
+        // draft carries a baseVersionId but no published pointer, so editing + saving creates a new content
+        // version instead of mutating the published one.
         var state = StudioAppPackageMapper.CreateTemplate();
         state.DraftId = draft.DraftId;
         state.ItemId = draft.ItemId == Guid.Empty ? null : draft.ItemId;
         state.Generation = draft.Generation;
+
+        StudioAppPackageMapper.ApplyEnvelopeBody(state, draft.Envelope.Body);
+
+        if (draft.Envelope.PublicationIntent is { } intent)
+        {
+            if (!string.IsNullOrWhiteSpace(intent.Visibility))
+            {
+                state.Visibility = intent.Visibility!;
+            }
+
+            if (intent.Embed is { } embed)
+            {
+                state.EmbedEnabled = embed;
+            }
+        }
+
         return state;
     }
 

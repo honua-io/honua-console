@@ -394,6 +394,11 @@ public interface IStudioPackageLifecycleClient
         Guid itemId,
         CancellationToken cancellationToken = default);
 
+    Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default);
+
     Task<StudioEndpointResult<StudioPublicationRequest>> CreatePublishRequestAsync(
         Guid itemId,
         Guid versionId,
@@ -402,8 +407,9 @@ public interface IStudioPackageLifecycleClient
 
     /// <summary>
     /// Reopens an immutable content version as a fresh editable draft (server route
-    /// <c>POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen</c>). The returned draft is
-    /// a new generation seeded from the version, so the published version is never mutated in place.
+    /// <c>POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen</c>). The server clones the
+    /// version body into a new draft generation, so the published version is never mutated in place;
+    /// subsequent saves create new content versions instead.
     /// </summary>
     Task<StudioEndpointResult<StudioPackageDraft>> ReopenContentVersionAsync(
         Guid itemId,
@@ -412,24 +418,24 @@ public interface IStudioPackageLifecycleClient
 
     /// <summary>
     /// Reopens an immutable content version as a fresh editable draft (server route
-    /// <c>POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen</c>). Dashboard builder alias
-    /// retained for the Studio dashboard lifecycle binding.
+    /// <c>POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen</c>). Alias retained for
+    /// the dashboard/app builder lifecycle bindings.
     /// </summary>
     Task<StudioEndpointResult<StudioPackageDraft>> ReopenVersionAsync(
         Guid itemId,
         Guid versionId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads one immutable content version by id (server route
-    /// <c>GET /api/v1/studio/content-items/{itemId}/versions/{versionId}</c>).</summary>
-    Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
-        Guid itemId,
-        Guid versionId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>Requests a rollback to a prior published version (server route
+    /// <summary>Requests a rollback to a prior published version, repointing the content item's
+    /// current/published pointer to an earlier immutable version (server route
     /// <c>POST /api/v1/studio/content-items/{itemId}/rollback-requests</c>).</summary>
     Task<StudioEndpointResult<StudioRollbackRequest>> RollbackAsync(
+        Guid itemId,
+        CreateStudioRollbackRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Alias for <see cref="RollbackAsync"/> retained for the app builder lifecycle binding.</summary>
+    Task<StudioEndpointResult<StudioRollbackRequest>> CreateRollbackRequestAsync(
         Guid itemId,
         CreateStudioRollbackRequest request,
         CancellationToken cancellationToken = default);
@@ -549,6 +555,17 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             "GET /api/v1/studio/content-items/{itemId}/versions",
             cancellationToken);
 
+    public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<object, StudioContentVersion>(
+            HttpMethod.Get,
+            $"/api/v1/studio/content-items/{itemId}/versions/{versionId}",
+            null,
+            "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}",
+            cancellationToken);
+
     public Task<StudioEndpointResult<StudioPublicationRequest>> CreatePublishRequestAsync(
         Guid itemId,
         Guid versionId,
@@ -581,17 +598,6 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         CancellationToken cancellationToken = default) =>
         ReopenContentVersionAsync(itemId, versionId, cancellationToken);
 
-    public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
-        Guid itemId,
-        Guid versionId,
-        CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioContentVersion>(
-            HttpMethod.Get,
-            $"/api/v1/studio/content-items/{itemId}/versions/{versionId}",
-            null,
-            "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}",
-            cancellationToken);
-
     public Task<StudioEndpointResult<StudioRollbackRequest>> RollbackAsync(
         Guid itemId,
         CreateStudioRollbackRequest request,
@@ -605,6 +611,12 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             "POST /api/v1/studio/content-items/{itemId}/rollback-requests",
             cancellationToken);
     }
+
+    public Task<StudioEndpointResult<StudioRollbackRequest>> CreateRollbackRequestAsync(
+        Guid itemId,
+        CreateStudioRollbackRequest request,
+        CancellationToken cancellationToken = default) =>
+        RollbackAsync(itemId, request, cancellationToken);
 
     public void Dispose() => _httpClient.Dispose();
 

@@ -36,6 +36,29 @@ public sealed class UnsupportedStudioAppPackageDataSource : IStudioAppPackageDat
         CancellationToken cancellationToken = default) =>
         Task.FromResult(BindingFailure());
 
+    public Task<StudioAppCommandResult> PreviewAsync(
+        StudioAppEditorState state,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BindingFailure());
+
+    public Task<StudioAppVersionHistory> LoadVersionHistoryAsync(
+        Guid itemId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new StudioAppVersionHistory(itemId, [], MissingBinding));
+
+    public Task<StudioAppCommandResult> ReopenAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BindingFailure());
+
+    public Task<StudioAppCommandResult> RollbackAsync(
+        Guid itemId,
+        Guid targetVersionId,
+        string? reason,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BindingFailure());
+
     private static StudioAppCommandResult BindingFailure() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

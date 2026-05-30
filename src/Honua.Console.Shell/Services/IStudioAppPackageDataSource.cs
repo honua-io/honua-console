@@ -36,4 +36,34 @@ public interface IStudioAppPackageDataSource
     Task<StudioAppCommandResult> PublishAsync(
         StudioAppEditorState state,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds a server preview plan for the saved draft (the steps honua-server runs to materialize a
+    /// preview of the generated app), surfacing the preview/reopen entry from the editor.
+    /// </summary>
+    Task<StudioAppCommandResult> PreviewAsync(
+        StudioAppEditorState state,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Lists the immutable, server-owned content versions for the app's content item.</summary>
+    Task<StudioAppVersionHistory> LoadVersionHistoryAsync(
+        Guid itemId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reopens a published/immutable version as a fresh editable draft (a new generation). The published
+    /// version is left untouched; the next save creates a new content version (AC: reopened edits create
+    /// new content versions rather than mutating published state).
+    /// </summary>
+    Task<StudioAppCommandResult> ReopenAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Repoints the published pointer back to an earlier immutable version (rollback).</summary>
+    Task<StudioAppCommandResult> RollbackAsync(
+        Guid itemId,
+        Guid targetVersionId,
+        string? reason,
+        CancellationToken cancellationToken = default);
 }

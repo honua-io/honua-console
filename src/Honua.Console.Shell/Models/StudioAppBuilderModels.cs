@@ -98,6 +98,29 @@ public sealed record StudioAppCapabilityState(
     string Contract,
     string Detail);
 
+/// <summary>An immutable, server-owned content version of the app, surfaced in the version history.</summary>
+public sealed record StudioAppVersionItem(
+    Guid VersionId,
+    int VersionNumber,
+    string? ChangeNote,
+    bool IsPublished,
+    bool IsCurrent,
+    DateTimeOffset CreatedAt);
+
+/// <summary>
+/// Server-owned version history for an app content item. Drives the reopen/rollback affordances:
+/// reopening a version creates a new draft generation, and rolling back repoints current/published to
+/// an earlier immutable version — neither mutates published state in place (AC: reopened edits create
+/// new content versions).
+/// </summary>
+public sealed record StudioAppVersionHistory(
+    Guid ItemId,
+    IReadOnlyList<StudioAppVersionItem> Versions,
+    StudioAppCapabilityState? Issue = null)
+{
+    public bool HasVersions => Versions.Count > 0;
+}
+
 /// <summary>Load result for the app builder: either an editor scaffold or a capability state.</summary>
 public sealed record StudioAppEditorLoad(
     StudioAppEditorState? State,
@@ -236,4 +259,84 @@ public static class StudioAppPackageMapper
 
         return JsonSerializer.SerializeToElement(body);
     }
+
+    /// <summary>
+    /// Rehydrates the authored title/summary/pages/actions/share-policy from a server app.package envelope
+    /// body. The inverse of <see cref="BuildEnvelopeBody"/>; tolerant of missing/extra fields so a draft
+    /// reopened from an immutable version (or reloaded from the server) renders its real authored content
+    /// rather than a blank scaffold. Identity/generation are tracked separately by the data source.
+    /// </summary>
+    public static void ApplyEnvelopeBody(StudioAppEditorState state, JsonElement? body)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (body is not { ValueKind: JsonValueKind.Object } element)
+        {
+            return;
+        }
+
+        if (element.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
+        {
+            state.Title = title.GetString() ?? state.Title;
+        }
+
+        if (element.TryGetProperty("summary", out var summary) && summary.ValueKind == JsonValueKind.String)
+        {
+            state.Summary = summary.GetString() ?? string.Empty;
+        }
+
+        if (element.TryGetProperty("pages", out var pages) && pages.ValueKind == JsonValueKind.Array)
+        {
+            state.Pages = pages.EnumerateArray()
+                .Where(page => page.ValueKind == JsonValueKind.Object)
+                .Select(page => new StudioAppPageState
+                {
+                    Route = ReadString(page, "route", "/"),
+                    Title = ReadString(page, "title", string.Empty),
+                    ComponentKind = page.TryGetProperty("component", out var component)
+                        && component.ValueKind == JsonValueKind.Object
+                        ? ReadString(component, "kind", "map")
+                        : "map",
+                    ContentBinding = page.TryGetProperty("component", out var binding)
+                        && binding.ValueKind == JsonValueKind.Object
+                        ? ReadString(binding, "binding", string.Empty)
+                        : string.Empty
+                })
+                .ToList();
+        }
+
+        if (element.TryGetProperty("actions", out var actions) && actions.ValueKind == JsonValueKind.Array)
+        {
+            state.Actions = actions.EnumerateArray()
+                .Where(action => action.ValueKind == JsonValueKind.Object)
+                .Select(action => new StudioAppActionState
+                {
+                    Name = ReadString(action, "name", string.Empty),
+                    PageRoute = ReadString(action, "pageRoute", "/"),
+                    RequiredPermission = ReadString(action, "requiredPermission", "viewer")
+                })
+                .ToList();
+        }
+
+        if (element.TryGetProperty("sharePolicy", out var share) && share.ValueKind == JsonValueKind.Object)
+        {
+            state.Visibility = ReadString(share, "visibility", state.Visibility);
+            if (share.TryGetProperty("embed", out var embed)
+                && embed.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                state.EmbedEnabled = embed.GetBoolean();
+            }
+
+            if (share.TryGetProperty("reviewed", out var reviewed)
+                && reviewed.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                state.ShareEmbedPolicyReviewed = reviewed.GetBoolean();
+            }
+        }
+    }
+
+    private static string ReadString(JsonElement element, string property, string fallback) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? fallback
+            : fallback;
 }
