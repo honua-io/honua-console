@@ -153,5 +153,17 @@ public sealed class StudioReportPublicationDataSourceTests
             string versionSelector,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
+            string publicationId,
+            HonuaRepublishContentRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
+            string publicationId,
+            HonuaRollbackContentRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }
