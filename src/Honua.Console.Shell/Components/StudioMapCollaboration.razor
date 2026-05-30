@@ -1,0 +1,288 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Components
+
+@*
+    Studio Map multiplayer collaboration surface (honua-console#124).
+    Mockup: StudioMapCollab + MapCommentThread in
+    docs/design-handoff/console-canvas/screens-collab-rbac.jsx.
+
+    Renders the full STRUCTURAL chrome to the mockup — presence avatar stack with "N here", named live
+    cursors over the canvas, the per-draft collaborative markup tool rail, feature-pinned comment pins,
+    a comment-thread drawer, a follow-mode pill, and the live activity sidebar. Live collaboration data
+    (presence, cursors, comments, activity) has no honua-server contract yet (honua-server#1278), so the
+    live slots stay empty behind an explicit missing-binding ConsoleStateView — Console never fabricates
+    presence, cursors, or comments from a standing mock (Console Patterns Charter section 11).
+
+    The component takes the editor's authored map preview as a child (the canvas the chrome overlays), and
+    the active section ("comments" or "activity") so the page tab row drives which sidebar/drawer shows.
+*@
+
+<div class="studio-map-collab" data-map-collab="@(_session?.IsBound == true ? "live" : "missing-binding")">
+    @* Presence chrome — avatar stack with "N here", live status dots, and Invite. Always visible. *@
+    <div class="studio-map-collab-presencebar" data-collab-presence>
+        @{
+            var here = _session?.Participants.Count ?? 0;
+        }
+        <span class="console-muted studio-map-collab-here">@here here</span>
+        <div class="studio-map-collab-avatars" role="list" aria-label="Collaborators present">
+            @if (_session is { Participants.Count: > 0 })
+            {
+                foreach (var participant in _session.Participants)
+                {
+                    <span class="studio-map-collab-avatar" role="listitem"
+                          style="background:@participant.Color"
+                          title="@PresenceTitle(participant)">
+                        @participant.Initials
+                        @if (participant.Activity == StudioMapPresenceActivity.Editing)
+                        {
+                            <span class="studio-map-collab-avatar-dot studio-map-collab-avatar-dot-editing" aria-hidden="true"></span>
+                        }
+                        else if (participant.Activity == StudioMapPresenceActivity.Commenting)
+                        {
+                            <span class="studio-map-collab-avatar-dot studio-map-collab-avatar-dot-commenting" aria-hidden="true"></span>
+                        }
+                    </span>
+                }
+            }
+            else
+            {
+                <span class="console-muted studio-map-collab-avatars-empty" data-collab-presence-empty>no live presence</span>
+            }
+        </div>
+        <button type="button" class="console-button console-button-secondary studio-map-collab-invite" disabled="@(!IsBound)">+ Invite</button>
+    </div>
+
+    @* The canvas the collaboration chrome overlays — cursors, markup, comment pins, and the follow pill. *@
+    <div class="studio-map-collab-stage">
+        <div class="studio-map-collab-canvas">
+            @ChildContent
+
+            @if (_session is { Following: { } follow })
+            {
+                <div class="studio-map-collab-follow-pill" data-collab-follow style="--collab-follow-color:@follow.Color">
+                    <span class="studio-map-collab-follow-avatar" style="background:@follow.Color">@follow.Initials</span>
+                    <span>Following @follow.DisplayName · ⎋ to stop</span>
+                </div>
+            }
+
+            @if (_session is { Cursors.Count: > 0 })
+            {
+                foreach (var cursor in _session.Cursors)
+                {
+                    <div class="studio-map-collab-cursor" data-collab-cursor
+                         style="left:@(Pct(cursor.XFraction));top:@(Pct(cursor.YFraction));--collab-cursor-color:@cursor.Color">
+                        <span class="studio-map-collab-cursor-arrow" aria-hidden="true"></span>
+                        <span class="studio-map-collab-cursor-label">@(string.IsNullOrWhiteSpace(cursor.Label) ? cursor.DisplayName : $"{cursor.DisplayName} · {cursor.Label}")</span>
+                    </div>
+                }
+            }
+
+            @if (_session is { CommentPins.Count: > 0 })
+            {
+                foreach (var pin in _session.CommentPins)
+                {
+                    <button type="button"
+                            class="@(pin.Resolved ? "studio-map-collab-pin studio-map-collab-pin-resolved" : "studio-map-collab-pin")"
+                            data-collab-pin
+                            style="left:@(Pct(pin.XFraction));top:@(Pct(pin.YFraction))"
+                            title="@($"{pin.CommentCount} comment(s) on {pin.FeatureLabel}")"
+                            @onclick="() => OpenThread(pin.ThreadId)">@pin.CommentCount</button>
+                }
+            }
+        </div>
+
+        @* Markup tool rail — per-draft collaborative drawing layer affordance (Charter §9 markup). *@
+        <div class="studio-map-collab-markup" data-collab-markup>
+            <p class="console-kicker">Markup · collab layer</p>
+            <div class="console-chip-row studio-map-collab-markup-tools" role="group" aria-label="Markup tools">
+                @foreach (var tool in StudioMapMarkupTools.All)
+                {
+                    <button type="button" class="studio-map-collab-markup-tool" disabled="@(!IsBound)" data-collab-markup-tool="@tool.Id">@tool.Label</button>
+                }
+            </div>
+            <p class="console-muted studio-map-collab-markup-note">Markup is per-draft and never touches the canonical style.</p>
+        </div>
+    </div>
+
+    @* Right rail — either the live activity feed (Activity tab) or the comments list (Comments tab). *@
+    <aside class="studio-map-collab-rail" data-collab-rail="@Section">
+        @if (string.Equals(Section, "comments", StringComparison.Ordinal))
+        {
+            <div class="studio-map-collab-rail-head">
+                <h3>Comments</h3>
+                <span class="console-muted">@(_session?.CommentPins.Count ?? 0) thread(s)</span>
+            </div>
+
+            @if (!IsBound)
+            {
+                <ConsoleStateView Kind="missing"
+                                  Kicker="@(_session?.BindingState?.State ?? StudioMapCollaborationState.MissingBinding)"
+                                  Title="Comments are not bound"
+                                  Message="@(_session?.BindingState?.Detail ?? "Live collaboration is not bound.")" />
+            }
+            else if (_session is { CommentPins.Count: 0 })
+            {
+                <EmptyState Area="studio" Subject="comment threads" />
+            }
+            else if (_session is not null)
+            {
+                <ul class="studio-map-collab-thread-list">
+                    @foreach (var pin in _session.CommentPins)
+                    {
+                        <li>
+                            <button type="button" class="studio-map-collab-thread-link" @onclick="() => OpenThread(pin.ThreadId)">
+                                <span class="studio-map-collab-thread-count">@pin.CommentCount</span>
+                                <span class="studio-map-collab-thread-feature">@pin.FeatureLabel</span>
+                                <span class="console-muted studio-mono">@pin.LayerRef</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+        else
+        {
+            <div class="studio-map-collab-rail-head">
+                <h3>Activity · live</h3>
+                <span class="studio-map-collab-live-dot" aria-hidden="true"></span>
+                <span class="console-muted">@(_session?.Participants.Count ?? 0) here</span>
+            </div>
+
+            @if (!IsBound)
+            {
+                <ConsoleStateView Kind="missing"
+                                  Kicker="@(_session?.BindingState?.State ?? StudioMapCollaborationState.MissingBinding)"
+                                  Title="Activity feed is not bound"
+                                  Message="@(_session?.BindingState?.Detail ?? "Live collaboration is not bound.")" />
+            }
+            else if (_session is { Activity.Count: 0 })
+            {
+                <EmptyState Area="studio" Subject="activity" />
+            }
+            else if (_session is not null)
+            {
+                <ul class="studio-map-collab-activity-list">
+                    @foreach (var entry in _session.Activity)
+                    {
+                        <li class="studio-map-collab-activity-item">
+                            <span class="studio-map-collab-activity-avatar" style="background:@entry.Color">@entry.Initials</span>
+                            <div class="studio-map-collab-activity-body">
+                                <div><strong>@entry.ParticipantName</strong> @entry.Action</div>
+                                <div class="console-muted studio-map-collab-activity-time">@entry.RelativeTime</div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <div class="studio-map-collab-rail-compose">
+                <input class="console-input" placeholder="@("@")mention or quick comment…" disabled="@(!IsBound)" aria-label="Quick comment" />
+                <button type="button" class="console-button" disabled="@(!IsBound)">Send</button>
+            </div>
+        }
+    </aside>
+
+    @* Comment-thread drawer — opens over the surface for a feature-pinned thread (MapCommentThread mockup). *@
+    @if (_openThread is { } thread)
+    {
+        <div class="studio-map-collab-drawer" data-collab-drawer role="dialog" aria-label="@($"Comment thread · {thread.FeatureLabel}")">
+            <div class="studio-map-collab-drawer-head">
+                <span class="studio-map-collab-pin studio-map-collab-pin-static">@thread.CommentCount</span>
+                <strong>@thread.FeatureLabel</strong>
+                <div class="studio-map-collab-drawer-spacer"></div>
+                <span class="console-muted studio-mono">@thread.ThreadId</span>
+                <button type="button" class="studio-map-collab-drawer-close" @onclick="CloseThread" aria-label="Close thread">×</button>
+            </div>
+            <div class="studio-map-collab-drawer-anchor">
+                <span class="console-muted">anchored to</span>
+                <span class="console-chip">feature · @thread.FeatureLabel</span>
+                <span class="console-chip">layer · @thread.LayerRef</span>
+                <p class="console-muted studio-map-collab-drawer-anchor-note">survives map edits · re-anchors if feature moves</p>
+            </div>
+            <div class="studio-map-collab-drawer-body">
+                @if (thread.Messages.Count == 0)
+                {
+                    <ConsoleStateView Kind="missing"
+                                      Kicker="@(_session?.BindingState?.State ?? StudioMapCollaborationState.MissingBinding)"
+                                      Title="Thread messages are not bound"
+                                      Message="@(_session?.BindingState?.Detail ?? "Live collaboration is not bound.")" />
+                }
+                else
+                {
+                    foreach (var message in thread.Messages)
+                    {
+                        <div class="studio-map-collab-message">
+                            <div class="studio-map-collab-message-head">
+                                <span class="studio-map-collab-activity-avatar" style="background:@message.AuthorColor">@message.AuthorInitials</span>
+                                <strong>@message.AuthorName</strong>
+                                <span class="console-muted">@message.RelativeTime</span>
+                            </div>
+                            <div class="studio-map-collab-message-body">@message.Body</div>
+                        </div>
+                    }
+                }
+            </div>
+            <div class="studio-map-collab-drawer-compose">
+                <textarea class="console-input" rows="2" placeholder="Reply · type @("@") to mention" disabled="@(!IsBound)" aria-label="Reply"></textarea>
+                <div class="console-action-row">
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!IsBound)">Mark resolved</button>
+                    <button type="button" class="console-button" disabled="@(!IsBound)">Send</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The authored map preview / canvas the collaboration chrome overlays.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The open map's server id, or null for a not-yet-saved draft.</summary>
+    [Parameter]
+    public string? MapId { get; set; }
+
+    /// <summary>Which rail/drawer the active editor tab selects: "comments" or "activity".</summary>
+    [Parameter]
+    public string Section { get; set; } = "activity";
+
+    [Inject]
+    private IStudioMapCollaborationDataSource Collaboration { get; set; } = default!;
+
+    private StudioMapCollaborationSession? _session;
+    private StudioMapCommentPin? _openThread;
+
+    private bool IsBound => _session?.IsBound == true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _session = await Collaboration.GetSessionAsync(MapId);
+    }
+
+    private async Task OpenThread(string threadId)
+    {
+        // Prefer the in-session pin (already loaded); fall back to a thread fetch. With no contract bound
+        // both return an unbound/empty thread, so the drawer renders the missing-binding state.
+        _openThread = _session?.CommentPins.FirstOrDefault(pin => string.Equals(pin.ThreadId, threadId, StringComparison.Ordinal))
+            ?? await Collaboration.GetThreadAsync(MapId, threadId);
+
+        // When nothing is bound there is no pin to open, so surface the drawer with an empty thread so the
+        // operator still sees the explicit missing-binding explanation rather than a silent no-op.
+        _openThread ??= new StudioMapCommentPin(threadId, "—", "—", 0, false, 0, 0, []);
+    }
+
+    private void CloseThread() => _openThread = null;
+
+    private static string PresenceTitle(StudioMapPresenceParticipant participant) =>
+        participant.Activity switch
+        {
+            StudioMapPresenceActivity.Editing => string.IsNullOrWhiteSpace(participant.EditingLayer)
+                ? $"{participant.DisplayName} · editing"
+                : $"{participant.DisplayName} · editing {participant.EditingLayer}",
+            StudioMapPresenceActivity.Commenting => $"{participant.DisplayName} · commenting",
+            _ => participant.DisplayName,
+        };
+
+    private static string Pct(double fraction) =>
+        $"{(fraction * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}%";
+}
