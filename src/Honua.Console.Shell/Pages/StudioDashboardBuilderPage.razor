@@ -1,0 +1,363 @@
+@page "/studio/dashboard"
+@inject IStudioDashboardPackageDataSource DashboardData
+
+<section class="console-page studio-dashboard-builder">
+    <div class="console-page-heading">
+        <p class="console-kicker">Builder workflow</p>
+        <h1>Dashboard builder</h1>
+        <p>Author a server-owned dashboard package — data bindings, layout panels, Vega-Lite charts, map and table panels, filters, and narrative — pin source versions, preview responsively, then publish to honua-server.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Dashboard builder"
+                          Title="Loading dashboard packages"
+                          Message="Reading the dashboard package lifecycle from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Dashboard package lifecycle is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else
+    {
+        @if (_states.Count > 0)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Dashboard binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_editor is null)
+        {
+            <div class="console-toolbar">
+                <button class="console-button" type="button" disabled="@_busy" @onclick="NewDashboard">New dashboard</button>
+            </div>
+
+            @if (_workspace.Packages.Count == 0)
+            {
+                <EmptyState Area="studio" Subject="dashboard packages" />
+            }
+            else
+            {
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Panels</th>
+                                <th>Draft</th>
+                                <th>Published</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var package in _workspace.Packages)
+                            {
+                                <tr>
+                                    <td>
+                                        <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="() => OpenDashboard(package.DashboardId)">@package.Title</button>
+                                        <small>@package.DashboardId</small>
+                                    </td>
+                                    <td>@package.PanelCount</td>
+                                    <td>@(package.DraftVersion?.ToString() ?? "—")</td>
+                                    <td>@(package.PublishedVersion?.ToString() ?? "—")</td>
+                                    <td>@package.UpdatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+        else
+        {
+            var editor = _editor;
+            var readiness = StudioDashboardPublishEvaluator.Evaluate(editor);
+
+            <div class="studio-dashboard-editor" data-dashboard-builder="dashboard.package" data-dashboard-status="@editor.Status">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">@(editor.IsExistingPackage ? $"{editor.DashboardId} · v{editor.Version}" : "New draft")</p>
+                        <h2>@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled dashboard" : editor.Title)</h2>
+                    </div>
+                    <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
+                </div>
+
+                <div class="console-action-row">
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to dashboards</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
+                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished)" @onclick="Validate">Validate</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
+                    @if (editor.IsPublished)
+                    {
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_status))
+                {
+                    <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+                }
+
+                @if (!editor.IsPublished && !readiness.CanPublish)
+                {
+                    <article class="console-panel" aria-labelledby="dashboard-publish-readiness-heading">
+                        <p class="console-kicker">Pre-publish gate</p>
+                        <h3 id="dashboard-publish-readiness-heading">Resolve before publish</h3>
+                        <ul class="studio-compact-list">
+                            @foreach (var requirement in readiness.UnmetRequirements)
+                            {
+                                <li>@requirement</li>
+                            }
+                        </ul>
+                    </article>
+                }
+
+                <div class="console-panel-grid">
+                    <article class="console-panel">
+                        <p class="console-kicker">Details</p>
+                        <h3>Dashboard</h3>
+                        <label class="studio-form-label">
+                            <span>Title</span>
+                            <input class="console-input" @bind="editor.Title" placeholder="Operations dashboard" />
+                        </label>
+                        <label class="studio-form-label">
+                            <span>Description</span>
+                            <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
+                        </label>
+                        <label class="studio-form-label">
+                            <span>Narrative</span>
+                            <textarea class="console-input" rows="3" @bind="editor.Narrative" placeholder="Context shown above the layout."></textarea>
+                        </label>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Responsive preview</p>
+                        <h3>Breakpoint</h3>
+                        <p class="console-muted">Preview the layout at a desktop and a narrow breakpoint before publish.</p>
+                        <label class="studio-form-label">
+                            <span>Preview breakpoint</span>
+                            <select class="console-input" @bind="editor.PreviewBreakpoint">
+                                @foreach (var breakpoint in StudioDashboardBreakpoints.All)
+                                {
+                                    <option value="@breakpoint">@breakpoint</option>
+                                }
+                            </select>
+                        </label>
+                        <div class="studio-dashboard-preview" data-dashboard-breakpoint="@editor.PreviewBreakpoint">
+                            <span class="console-muted">@editor.Panels.Count panel(s) · @editor.PreviewBreakpoint layout</span>
+                        </div>
+                    </article>
+                </div>
+
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Data bindings</p>
+                            <h3>Bindings</h3>
+                        </div>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="AddBinding">Add binding</button>
+                    </div>
+
+                    @if (editor.Bindings.Count == 0)
+                    {
+                        <p class="console-muted">No data bindings yet. Add at least one source ref panels can read.</p>
+                    }
+
+                    @foreach (var binding in editor.Bindings)
+                    {
+                        <div class="console-panel-grid" @key="binding">
+                            <label class="studio-form-label"><span>Alias</span><input class="console-input" @bind="binding.Alias" placeholder="requests" /></label>
+                            <label class="studio-form-label"><span>Content ref</span><input class="console-input" @bind="binding.ContentRef" placeholder="content:service-requests" /></label>
+                            <label class="studio-form-label"><span>Version pin</span><input class="console-input" @bind="binding.VersionPin" placeholder="latest" /></label>
+                            <div class="console-action-row">
+                                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemoveBinding(binding)">Remove</button>
+                            </div>
+                        </div>
+                    }
+                </article>
+
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Layout</p>
+                            <h3>Panels</h3>
+                        </div>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="AddPanel">Add panel</button>
+                    </div>
+
+                    @if (editor.Panels.Count == 0)
+                    {
+                        <p class="console-muted">No panels yet. Add a chart, map, table, or filter panel.</p>
+                    }
+
+                    @foreach (var panel in editor.Panels)
+                    {
+                        <fieldset class="studio-dashboard-panel" @key="panel">
+                            <div class="console-panel-grid">
+                                <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="panel.Title" placeholder="Requests by district" /></label>
+                                <label class="studio-form-label">
+                                    <span>Kind</span>
+                                    <select class="console-input" @bind="panel.Kind">
+                                        @foreach (var kind in StudioDashboardPanelKinds.All)
+                                        {
+                                            <option value="@kind">@kind</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="studio-form-label"><span>Binding alias</span><input class="console-input" @bind="panel.BindingAlias" placeholder="requests" /></label>
+                            </div>
+
+                            @if (panel.IsChart)
+                            {
+                                <label class="studio-form-label">
+                                    <span>Vega-Lite spec (JSON)</span>
+                                    <textarea class="console-input studio-code" rows="8" @bind="panel.VegaLiteSpec"></textarea>
+                                </label>
+                            }
+
+                            <div class="console-action-row">
+                                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemovePanel(panel)">Remove panel</button>
+                            </div>
+                        </fieldset>
+                    }
+                </article>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private StudioDashboardWorkspace _workspace = new([], []);
+    private StudioDashboardCapabilityState? _bindingState;
+    private IReadOnlyList<StudioDashboardCapabilityState> _states = [];
+    private StudioDashboardEditorState? _editor;
+    private string? _status;
+    private bool _statusFailed;
+
+    protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+
+    private async Task LoadWorkspaceAsync()
+    {
+        _loading = true;
+        _workspace = await DashboardData.GetWorkspaceAsync();
+        ApplyStates(_workspace.CapabilityStates);
+        _loading = false;
+    }
+
+    private Task NewDashboard() => RunLoadAsync(() => DashboardData.LoadAsync(null));
+
+    private Task OpenDashboard(string dashboardId) => RunLoadAsync(() => DashboardData.LoadAsync(dashboardId));
+
+    private async Task RunLoadAsync(Func<Task<StudioDashboardEditorLoad>> load)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _status = null;
+        _statusFailed = false;
+        try
+        {
+            var result = await load();
+            ApplyStates(result.CapabilityStates);
+            _editor = result.State;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task BackToList()
+    {
+        _editor = null;
+        _status = null;
+        _statusFailed = false;
+        // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
+        // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
+        await LoadWorkspaceAsync();
+    }
+
+    private void AddBinding() => _editor?.Bindings.Add(new StudioDashboardBindingEditor());
+
+    private void RemoveBinding(StudioDashboardBindingEditor binding) => _editor?.Bindings.Remove(binding);
+
+    private void AddPanel() =>
+        _editor?.Panels.Add(new StudioDashboardPanelEditor { VegaLiteSpec = StudioDashboardChartSpec.DefaultBarChart() });
+
+    private void RemovePanel(StudioDashboardPanelEditor panel) => _editor?.Panels.Remove(panel);
+
+    private Task Save() => RunCommandAsync(() => DashboardData.SaveDraftAsync(_editor!));
+
+    private Task Validate() => RunCommandAsync(() => DashboardData.ValidateAsync(_editor!));
+
+    private Task Publish() => RunCommandAsync(() => DashboardData.PublishAsync(_editor!));
+
+    private Task Reopen() => RunCommandAsync(() => DashboardData.ReopenAsync(_editor!.DashboardId!, _editor.Version));
+
+    private async Task RunCommandAsync(Func<Task<StudioDashboardCommandResult>> command)
+    {
+        if (_busy || _editor is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await command();
+            _status = result.Message;
+            _statusFailed = !result.Succeeded;
+
+            if (result.State is not null)
+            {
+                _editor = result.State;
+            }
+
+            ApplyStates(result.Issue is null ? [] : [result.Issue]);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ApplyStates(IReadOnlyList<StudioDashboardCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
+        _states = states
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+    }
+}
