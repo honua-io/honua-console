@@ -1,0 +1,137 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Reusable multi-step publish-wizard shell, mirroring the design-handoff wizard chrome in
+    screens-quick-publish.jsx (Service → Layer → Review) and screens-publish-flow.jsx
+    (Target → Compatibility → Slot → Fields → Projection → Access → Review).
+
+    It composes the existing PublishStepper for the labelled step rail, renders the current step's
+    body in a slot, and provides ←/→ footer navigation with per-step validity gating: the forward
+    control is disabled until the current step reports valid. The active step is controlled by the
+    parent (Current + CurrentChanged), so surfaces own the page state and deep links.
+*@
+<section class="publish-wizard" data-publish-wizard data-step-count="@Steps.Count" data-current-step="@Current">
+    <header class="publish-wizard-head">
+        <div class="publish-wizard-heading">
+            @if (!string.IsNullOrWhiteSpace(Kicker))
+            {
+                <p class="console-kicker">@Kicker</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <h2>@Title</h2>
+            }
+        </div>
+        <PublishStepper Steps="@StepLabels" Current="@Current" />
+    </header>
+
+    <div class="publish-wizard-body" role="group" aria-label="@CurrentStepAriaLabel">
+        @if (CurrentStep is not null)
+        {
+            @CurrentStep.Body
+        }
+    </div>
+
+    <footer class="publish-wizard-footer">
+        <button type="button"
+                class="console-button console-button-secondary publish-wizard-back"
+                disabled="@(!CanGoBack)"
+                @onclick="GoBack">
+            @BackLabel
+        </button>
+
+        <div class="publish-wizard-footer-spacer"></div>
+
+        @ExtraFooterActions
+
+        @if (IsLastStep)
+        {
+            <button type="button"
+                    class="console-button publish-wizard-finish"
+                    disabled="@(!CanAdvance)"
+                    @onclick="Finish">
+                @FinishLabel
+            </button>
+        }
+        else
+        {
+            <button type="button"
+                    class="console-button publish-wizard-next"
+                    disabled="@(!CanAdvance)"
+                    @onclick="GoForward">
+                @ForwardLabel
+            </button>
+        }
+    </footer>
+</section>
+
+@code {
+    private static readonly IReadOnlyList<PublishWizardStep> NoSteps = [];
+
+    /// <summary>The labelled wizard steps with their body content and validity gating.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<PublishWizardStep> Steps { get; set; } = NoSteps;
+
+    /// <summary>Zero-based index of the active step (controlled by the parent surface).</summary>
+    [Parameter]
+    public int Current { get; set; }
+
+    /// <summary>Raised when the wizard requests a step change (back/forward).</summary>
+    [Parameter]
+    public EventCallback<int> CurrentChanged { get; set; }
+
+    /// <summary>Raised when the final step's finish control is clicked and the step is valid.</summary>
+    [Parameter]
+    public EventCallback OnFinish { get; set; }
+
+    /// <summary>Optional kicker above the stepper.</summary>
+    [Parameter]
+    public string? Kicker { get; set; }
+
+    /// <summary>Optional title above the stepper.</summary>
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>Back-nav label.</summary>
+    [Parameter]
+    public string BackLabel { get; set; } = "← Back";
+
+    /// <summary>Forward-nav label override (the per-step ContinueLabel takes precedence when set).</summary>
+    [Parameter]
+    public string ForwardLabelDefault { get; set; } = "Continue →";
+
+    /// <summary>Finish-action label on the last step.</summary>
+    [Parameter]
+    public string FinishLabel { get; set; } = "Publish →";
+
+    /// <summary>Optional extra footer controls (e.g. "Skip to Review →", "Save draft").</summary>
+    [Parameter]
+    public RenderFragment? ExtraFooterActions { get; set; }
+
+    private PublishWizardStep? CurrentStep =>
+        Current >= 0 && Current < Steps.Count ? Steps[Current] : null;
+
+    private IReadOnlyList<string> StepLabels => Steps.Select(step => step.Label).ToList();
+
+    private bool IsLastStep => Steps.Count == 0 || Current >= Steps.Count - 1;
+
+    private bool CanGoBack => Current > 0;
+
+    // A step gates forward navigation only when it explicitly reports invalid.
+    private bool CanAdvance => CurrentStep?.IsValid != false;
+
+    private string ForwardLabel => CurrentStep?.ContinueLabel ?? ForwardLabelDefault;
+
+    private string CurrentStepAriaLabel =>
+        CurrentStep is null ? "Wizard step" : $"Step {Current + 1}: {CurrentStep.Label}";
+
+    private Task GoBack() =>
+        CanGoBack ? CurrentChanged.InvokeAsync(Current - 1) : Task.CompletedTask;
+
+    private Task GoForward() =>
+        CanAdvance && !IsLastStep ? CurrentChanged.InvokeAsync(Current + 1) : Task.CompletedTask;
+
+    private Task Finish() =>
+        CanAdvance && OnFinish.HasDelegate ? OnFinish.InvokeAsync() : Task.CompletedTask;
+}
