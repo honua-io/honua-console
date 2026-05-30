@@ -1,0 +1,34 @@
+@namespace Honua.Console.Shell.Components
+
+@*
+    Publish-flow stepper, mirroring the design-handoff Stepper
+    (docs/design-handoff/console-canvas/screens-quick-publish.jsx / screens-publish-flow.jsx):
+    Service → Layer → Review for the quick flow, or the seven-step author-first flow
+    (Target → Compatibility → Slot → Fields → Projection → Access → Review). Presentational only.
+*@
+<ol class="publish-stepper" aria-label="Publish steps">
+    @for (var i = 0; i < Steps.Count; i++)
+    {
+        var index = i;
+        var state = index < Current ? "publish-step-done"
+            : index == Current ? "publish-step-current"
+            : null;
+        <li class="publish-step @state" aria-current="@(index == Current ? "step" : null)">
+            <span class="publish-step-index">@(index + 1)</span>
+            <span>@Steps[index]</span>
+        </li>
+        @if (index < Steps.Count - 1)
+        {
+            <li class="publish-step-sep" aria-hidden="true">→</li>
+        }
+    }
+</ol>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Steps { get; set; } = [];
+
+    /// <summary>Zero-based index of the active step.</summary>
+    [Parameter]
+    public int Current { get; set; }
+}

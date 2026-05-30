@@ -30,6 +30,46 @@ public sealed class OperatePublishingPageRenderTests
         // No fabricated matrix rows or reviews are rendered in the unbound state.
         Assert.DoesNotContain("Publication Matrix", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Publication Review", page.Markup, StringComparison.Ordinal);
+
+        // The design IA (mode bar, stepper, conceptual flow map) renders even unbound — it is
+        // static workflow guidance, not fabricated publication data.
+        Assert.Contains("publish-mode-bar", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Quick publish", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Author resource first", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("publish-stepper", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("publish-flow-map", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OperatePublishingPage_ModeToggle_SwapsStepperBetweenQuickAndAuthorFirst()
+    {
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+
+        var page = ctx.RenderComponent<OperatePublishingPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("publish-stepper", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Quick flow stepper: Service -> Layer -> Review.
+        var stepper = page.Find("ol.publish-stepper");
+        Assert.Contains("Service", stepper.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Layer", stepper.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("Projection", stepper.TextContent, StringComparison.Ordinal);
+
+        // Switch to the advanced author-first mode -> the seven-step flow appears.
+        var authorFirst = page.FindAll("button.publish-mode-option")
+            .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal));
+        authorFirst.Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Projection", page.Find("ol.publish-stepper").TextContent, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        var advanced = page.Find("ol.publish-stepper");
+        Assert.Contains("Target", advanced.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Compatibility", advanced.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Access", advanced.TextContent, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,6 +89,9 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Contains("OGC API Features", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Vector tiles require a tile cache build", page.Markup, StringComparison.Ordinal);
 
+        // Matrix support badges carry the support-state styling so blockers read as blockers.
+        Assert.Contains("console-state-danger", page.Markup, StringComparison.Ordinal);
+
         // Review renders slot, endpoints, catalog registration, policy, warnings, rollback class,
         // provenance, and the evidence deep links.
         Assert.Contains("Publication Review", page.Markup, StringComparison.Ordinal);
@@ -58,6 +101,16 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Contains("operator@example", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/operate/jobs/job-parcels-001", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/catalog/cat-parcels", page.Markup, StringComparison.Ordinal);
+
+        // Review is the layered creation stack from the design handoff: Data Resource binds to a
+        // service slot which mirrors to a catalog entry.
+        Assert.Contains("publish-review-stack", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Data Resource", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("binds to", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Service slot", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("mirrors to", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Catalog registration", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Public sharing exposes all attributes.", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,0 +1,55 @@
+@namespace Honua.Console.Shell.Components
+
+@*
+    Publish-mode segmented toggle, mirroring the design-handoff ModeBar
+    (docs/design-handoff/console-canvas/screens-quick-publish.jsx and screens-publish-flow.jsx):
+    Quick publish (Service → Layer → Review) vs. Author resource first (advanced 7-step flow).
+    Selecting a mode swaps the stepper the workspace renders; it does not change any server binding.
+*@
+<div class="publish-mode-bar" role="group" aria-label="Publish mode">
+    <span class="publish-mode-label">Mode</span>
+    <div class="publish-mode-toggle">
+        <button type="button"
+                class="publish-mode-option @(Mode == PublishMode.Quick ? "publish-mode-option-active" : null)"
+                aria-pressed="@(Mode == PublishMode.Quick)"
+                @onclick="() => SelectAsync(PublishMode.Quick)">
+            Quick publish
+        </button>
+        <button type="button"
+                class="publish-mode-option @(Mode == PublishMode.AuthorFirst ? "publish-mode-option-active" : null)"
+                aria-pressed="@(Mode == PublishMode.AuthorFirst)"
+                @onclick="() => SelectAsync(PublishMode.AuthorFirst)">
+            Author resource first (advanced)
+        </button>
+    </div>
+    <span class="publish-mode-hint">
+        @if (Mode == PublishMode.Quick)
+        {
+            <text>One-shot. Honua creates the underlying Data Resource implicitly.</text>
+        }
+        else
+        {
+            <text>Resource-first. Pick a target service, then the layer slot, fields, projection, and access.</text>
+        }
+    </span>
+    <span class="publish-mode-hint publish-mode-hint-end">
+        @(Mode == PublishMode.Quick ? "3 steps · ~30 seconds" : "7 steps · full control")
+    </span>
+</div>
+
+@code {
+    public enum PublishMode
+    {
+        Quick,
+        AuthorFirst
+    }
+
+    [Parameter]
+    public PublishMode Mode { get; set; } = PublishMode.Quick;
+
+    [Parameter]
+    public EventCallback<PublishMode> ModeChanged { get; set; }
+
+    private Task SelectAsync(PublishMode mode) =>
+        mode == Mode ? Task.CompletedTask : ModeChanged.InvokeAsync(mode);
+}

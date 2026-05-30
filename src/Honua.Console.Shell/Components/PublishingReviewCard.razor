@@ -1,74 +1,119 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 
-<article class="console-panel">
-    <div class="console-panel-heading">
-        <div>
-            <p class="console-kicker">@Review.ResourceKind / @Review.Slot</p>
-            <h2>@Review.ResourceName</h2>
+@*
+    Publication review, rendered as the layered creation stack from the design-handoff
+    WizQuickPublishReview (docs/design-handoff/console-canvas/screens-quick-publish.jsx):
+    Data Resource → binds to → service slot (generated endpoints) → mirrors to → catalog
+    entry. Every field is projected from the server-bound review; nothing is fabricated.
+*@
+<div class="publish-review-stack">
+    <article class="console-panel">
+        <div class="console-panel-heading">
+            <div>
+                <p class="console-kicker">Data Resource · @Review.ResourceKind</p>
+                <h2>@Review.ResourceName</h2>
+            </div>
+            <span class="console-status console-state-success">canonical home</span>
         </div>
-        <span class="console-status">@Review.RollbackClass</span>
-    </div>
+        <dl class="console-definition-list">
+            <dt>Resource id</dt>
+            <dd><small>@Review.ResourceId</small></dd>
+            <dt>Provenance</dt>
+            <dd>@Review.Provenance</dd>
+        </dl>
+    </article>
 
-    <dl class="console-definition-list">
-        <dt>Catalog registration</dt>
-        <dd>
-            @if (Review.CatalogRegistration.Registered && !string.IsNullOrWhiteSpace(Review.CatalogRegistration.CatalogEntryId))
+    <div class="publish-review-bind" aria-hidden="true">↓ binds to ↓</div>
+
+    <article class="console-panel publish-review-layer">
+        <div class="console-panel-heading">
+            <div>
+                <p class="console-kicker">Service slot</p>
+                <h2>@Review.Slot</h2>
+            </div>
+            <span class="console-status">@Review.RollbackClass</span>
+        </div>
+
+        <dl class="console-definition-list">
+            <dt>Policy</dt>
+            <dd>@Review.Policy</dd>
+        </dl>
+
+        @if (Review.GeneratedEndpoints.Count > 0)
+        {
+            <p class="console-kicker">Generated endpoints</p>
+            <ul class="console-event-list">
+                @foreach (var endpoint in Review.GeneratedEndpoints)
+                {
+                    <li><strong>@endpoint.Protocol</strong> <span>@endpoint.Url</span></li>
+                }
+            </ul>
+        }
+
+        @if (Review.Warnings.Count > 0)
+        {
+            <p class="console-kicker">Warnings</p>
+            <ul class="console-event-list">
+                @foreach (var warning in Review.Warnings)
+                {
+                    <li class="console-warning">@warning</li>
+                }
+            </ul>
+        }
+
+        <nav class="console-tab-row" aria-label="Publication evidence links">
+            @if (!string.IsNullOrWhiteSpace(Review.Links.JobHref))
             {
-                <a href="@($"/catalog/{Review.CatalogRegistration.CatalogEntryId}")">@Review.CatalogRegistration.Visibility</a>
+                <a href="@Review.Links.JobHref">Job</a>
+            }
+            @if (!string.IsNullOrWhiteSpace(Review.Links.EventsHref))
+            {
+                <a href="@Review.Links.EventsHref">Events</a>
+            }
+            @if (!string.IsNullOrWhiteSpace(Review.Links.AuditHref))
+            {
+                <a href="@Review.Links.AuditHref">Audit</a>
+            }
+            @if (!string.IsNullOrWhiteSpace(Review.Links.RollbackHref))
+            {
+                <a href="@Review.Links.RollbackHref">Rollback evidence</a>
+            }
+        </nav>
+    </article>
+
+    <div class="publish-review-bind" aria-hidden="true">↓ mirrors to ↓</div>
+
+    <article class="console-panel publish-review-layer-catalog">
+        <div class="console-panel-heading">
+            <div>
+                <p class="console-kicker">Catalog entry</p>
+                <h2>Catalog registration</h2>
+            </div>
+            @if (Review.CatalogRegistration.Registered)
+            {
+                <span class="console-status console-state-info">registered</span>
             }
             else
             {
-                @($"Not registered ({Review.CatalogRegistration.Visibility})")
+                <span class="console-status console-state-neutral">not registered</span>
             }
-        </dd>
-        <dt>Policy</dt>
-        <dd>@Review.Policy</dd>
-        <dt>Provenance</dt>
-        <dd>@Review.Provenance</dd>
-    </dl>
-
-    @if (Review.GeneratedEndpoints.Count > 0)
-    {
-        <p class="console-kicker">Generated endpoints</p>
-        <ul class="console-event-list">
-            @foreach (var endpoint in Review.GeneratedEndpoints)
-            {
-                <li><strong>@endpoint.Protocol</strong> <span>@endpoint.Url</span></li>
-            }
-        </ul>
-    }
-
-    @if (Review.Warnings.Count > 0)
-    {
-        <p class="console-kicker">Warnings</p>
-        <ul class="console-event-list">
-            @foreach (var warning in Review.Warnings)
-            {
-                <li>@warning</li>
-            }
-        </ul>
-    }
-
-    <nav class="console-tab-row" aria-label="Publication evidence links">
-        @if (!string.IsNullOrWhiteSpace(Review.Links.JobHref))
-        {
-            <a href="@Review.Links.JobHref">Job</a>
-        }
-        @if (!string.IsNullOrWhiteSpace(Review.Links.EventsHref))
-        {
-            <a href="@Review.Links.EventsHref">Events</a>
-        }
-        @if (!string.IsNullOrWhiteSpace(Review.Links.AuditHref))
-        {
-            <a href="@Review.Links.AuditHref">Audit</a>
-        }
-        @if (!string.IsNullOrWhiteSpace(Review.Links.RollbackHref))
-        {
-            <a href="@Review.Links.RollbackHref">Rollback evidence</a>
-        }
-    </nav>
-</article>
+        </div>
+        <dl class="console-definition-list">
+            <dt>Visibility</dt>
+            <dd>
+                @if (Review.CatalogRegistration.Registered && !string.IsNullOrWhiteSpace(Review.CatalogRegistration.CatalogEntryId))
+                {
+                    <a href="@($"/catalog/{Review.CatalogRegistration.CatalogEntryId}")">@Review.CatalogRegistration.Visibility</a>
+                }
+                else
+                {
+                    @($"Not registered ({Review.CatalogRegistration.Visibility})")
+                }
+            </dd>
+        </dl>
+    </article>
+</div>
 
 @code {
     [Parameter, EditorRequired]

@@ -1,4 +1,5 @@
 @page "/operate/publishing"
+@using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @inject IPublishingWorkspaceDataSource PublishingData
 
@@ -9,6 +10,9 @@
         <p>Publish services, layers, catalog entries, and Studio artifacts. The matrix shows which output and catalog formats each resource supports, and each review records slot, generated endpoints, catalog registration, policy, warnings, rollback class, and provenance.</p>
     </div>
 
+    <PublishModeBar Mode="_mode" ModeChanged="OnModeChanged" />
+    <PublishStepper Steps="@_steps" Current="0" />
+
     @if (_workspace is null)
     {
         <p class="console-muted">Loading publishing workspace...</p>
@@ -17,11 +21,13 @@
     {
         <OperateCapabilityStateList States="@_states" />
 
+        <PublishFlowMap />
+
         @if (_states.Count == 0 || _showLookup)
         {
             <section class="console-section">
                 <div class="console-page-heading">
-                    <p class="console-kicker">Quick publish</p>
+                    <p class="console-kicker">Review</p>
                     <h2>Look up a publication</h2>
                     <p>Enter a publication id to review its route state and run a republish or rollback against the live registry.</p>
                 </div>
@@ -131,6 +137,7 @@
                 <div class="console-page-heading">
                     <p class="console-kicker">Matrix</p>
                     <h2>Publication Matrix</h2>
+                    <p>Each resource crossed with the output and catalog formats it can publish to. Unsupported or blocked targets render their blocker here, before any publish is attempted.</p>
                 </div>
 
                 <div class="console-table-wrap">
@@ -153,7 +160,7 @@
                                         <td>@row.ResourceKind</td>
                                         <td>@target.Format</td>
                                         <td>
-                                            <span class="console-status">@target.Support</span>
+                                            <span class="console-status @SupportStateClass(target.Support)">@target.Support</span>
                                             @if (!string.IsNullOrWhiteSpace(target.Blocker))
                                             {
                                                 <small class="console-muted">@target.Blocker</small>
@@ -185,6 +192,10 @@
 </section>
 
 @code {
+    private static readonly IReadOnlyList<string> QuickSteps = ["Service", "Layer", "Review"];
+    private static readonly IReadOnlyList<string> AuthorFirstSteps =
+        ["Target", "Compatibility", "Slot", "Fields", "Projection", "Access", "Review"];
+
     private PublishingWorkspace? _workspace;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
     private PublishingLookupResult? _lookup;
@@ -193,6 +204,20 @@
     private bool _busy;
     private bool _loaded;
     private bool _deepLinkAttempted;
+
+    private PublishModeBar.PublishMode _mode = PublishModeBar.PublishMode.Quick;
+
+    private IReadOnlyList<string> _steps =>
+        _mode == PublishModeBar.PublishMode.Quick ? QuickSteps : AuthorFirstSteps;
+
+    private void OnModeChanged(PublishModeBar.PublishMode mode) => _mode = mode;
+
+    private static string SupportStateClass(PublishingTargetSupport support) => support switch
+    {
+        PublishingTargetSupport.Supported => "console-state-success",
+        PublishingTargetSupport.Blocked => "console-state-danger",
+        _ => "console-state-warning"
+    };
 
     private bool _showLookup => _workspace is not null
         && (_workspace.Matrix.Count > 0 || _workspace.Reviews.Count > 0 || _states.Count > 0);
