@@ -185,19 +185,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>();
     }
 
-    // Binds the Studio query-builder surface (/studio/query) to honua-server's saved query content
-    // lifecycle (honua-server#1182) when a server base address is configured; otherwise the builder
-    // renders a missing-binding state (never mock query data, per Console Patterns Charter section 11).
-    // The server-bound data source ships once honua-server#1182's wire shape is projected into the
-    // Honua.Console.Contracts shim; until then both branches resolve the missing-binding source so the
-    // surface stays blocked rather than fabricating query packages.
+    // Binds the Studio query-builder surface (/studio/query, honua-console#52) to honua-server's saved
+    // query content/artifacts lifecycle (honua-server#1182, AnalysisContentKind.SavedQuery) through the
+    // Honua.Console.Contracts shim when a server base address is configured; otherwise the builder renders
+    // a missing-binding state (never mock query data, per Console Patterns Charter section 11). The query
+    // builder and the analysis builder (#53) share the single /api/v1/analysis/content client, so this
+    // registers IHonuaAnalysisContentClient with TryAdd (idempotent with AddStudioAnalysisPackageDataSource).
     private static void AddStudioQueryPackageDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        _ = honuaServerBaseUrl;
-        _ = honuaServerAdminApiKey;
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaAnalysisContentHttpClient(
+                    httpClient,
+                    new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioQueryPackageDataSource, HonuaServerStudioQueryContentDataSource>();
+            return;
+        }
+
         services.TryAddSingleton<IStudioQueryPackageDataSource, UnsupportedStudioQueryPackageDataSource>();
     }
 

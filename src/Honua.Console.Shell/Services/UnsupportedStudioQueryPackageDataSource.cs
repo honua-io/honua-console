@@ -3,11 +3,11 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
-/// Query-builder data source used when no honua-server base address is configured. The workspace renders
-/// an explicit missing-binding state instead of fabricating query packages, keeping the merged runtime
-/// free of a standing in-memory query client (Console Patterns Charter section 11). The query authoring
-/// surface stays bound to the real honua-server saved-query lifecycle (honua-server#1182) or shows this
-/// state.
+/// Query-builder data source used when no honua-server base address is configured. Every read/command
+/// renders an explicit missing-binding state instead of fabricating query packages, keeping the merged
+/// runtime free of a standing in-memory query client (Console Patterns Charter section 11). The query
+/// authoring surface stays bound to the real honua-server saved-query lifecycle (honua-server#1182) or
+/// shows this state.
 /// </summary>
 public sealed class UnsupportedStudioQueryPackageDataSource : IStudioQueryPackageDataSource
 {
@@ -19,4 +19,17 @@ public sealed class UnsupportedStudioQueryPackageDataSource : IStudioQueryPackag
 
     public Task<StudioQueryWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new StudioQueryWorkspace([], [MissingBinding]));
+
+    public Task<StudioQueryEditorLoad> LoadAsync(string? queryId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new StudioQueryEditorLoad(null, [MissingBinding]));
+
+    public Task<StudioQueryCommandResult> SaveAsync(
+        StudioQueryEditor query,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new StudioQueryCommandResult(false, MissingBinding.Detail, Issue: MissingBinding));
+
+    public Task<StudioQueryCommandResult> PreviewAsync(
+        StudioQueryEditor query,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new StudioQueryCommandResult(false, MissingBinding.Detail, Issue: MissingBinding));
 }
