@@ -3,6 +3,26 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+/// <summary>
+/// Transient in-memory placeholder for <see cref="IStudioWorkflowPackageClient"/>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Do not promote to a merged data source.</b> This client fakes the server-owned
+/// workflow.package lifecycle so Console UX, unit tests, and the
+/// <c>smoke/parity/workflow.mjs</c> harness can be built ahead of the server/SDK contract
+/// (honua-console#40). Per <c>docs/migration/CONSOLE_PATTERNS_CHARTER.md</c> section 11 it
+/// is a scaffold only: the workflow surface stays blocked until the real
+/// <c>honua-server</c>/<c>honua-sdk-dotnet</c> projection lands, at which point this type is
+/// replaced (not extended).
+/// </para>
+/// <para>
+/// The implementation deliberately enforces explicit state-machine transition checks and
+/// defensive input validation so a future server-backed replacement does not silently drop
+/// a contract nuance Console relies on. See <see cref="IStudioWorkflowPackageClient"/> for
+/// the enumerated invariants.
+/// </para>
+/// </remarks>
 public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
     public const string SeedDraftId = "wf-draft-parcel-etl";
@@ -117,6 +137,7 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
     {
         ArgumentNullException.ThrowIfNull(draft);
         ArgumentException.ThrowIfNullOrWhiteSpace(draft.DraftId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(changeNote);
         cancellationToken.ThrowIfCancellationRequested();
 
         lock (_gate)
@@ -130,6 +151,7 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        ArgumentException.ThrowIfNullOrWhiteSpace(draft.DraftId);
         cancellationToken.ThrowIfCancellationRequested();
 
         lock (_gate)
@@ -187,6 +209,7 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        ArgumentException.ThrowIfNullOrWhiteSpace(draft.DraftId);
         cancellationToken.ThrowIfCancellationRequested();
 
         lock (_gate)
@@ -475,6 +498,44 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
             });
         }
 
+        var nodeIds = draft.Nodes
+            .Select(node => node.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var edge in draft.Edges)
+        {
+            if (!IsValidEdgeKind(edge.Kind))
+            {
+                issues.Add(new StudioWorkflowValidationIssue
+                {
+                    Severity = "error",
+                    Scope = "graph",
+                    Message = $"Edge '{(string.IsNullOrWhiteSpace(edge.Id) ? "(unnamed)" : edge.Id)}' declares an unsupported kind '{edge.Kind}'."
+                });
+            }
+
+            if (!nodeIds.Contains(edge.FromNodeId) || !nodeIds.Contains(edge.ToNodeId))
+            {
+                issues.Add(new StudioWorkflowValidationIssue
+                {
+                    Severity = "error",
+                    Scope = "graph",
+                    Message = $"Edge '{(string.IsNullOrWhiteSpace(edge.Id) ? "(unnamed)" : edge.Id)}' references a node that is not part of the workflow graph."
+                });
+            }
+        }
+
+        if (!IsValidPublicationMode(draft.PublicationIntent.Mode))
+        {
+            issues.Add(new StudioWorkflowValidationIssue
+            {
+                Severity = "error",
+                Scope = "publication",
+                Message = $"Publication mode '{draft.PublicationIntent.Mode}' is not a supported workflow publication mode."
+            });
+        }
+
         if (draft.OutputSchemas.Count == 0)
         {
             issues.Add(new StudioWorkflowValidationIssue
@@ -558,6 +619,14 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
 
     private static bool IsValidParameterType(string type) =>
         type is "string" or "date" or "number" or "boolean" or "geometry";
+
+    private static bool IsValidEdgeKind(string kind) =>
+        kind is StudioWorkflowContractValues.EdgeKindSuccess or StudioWorkflowContractValues.EdgeKindFailure;
+
+    private static bool IsValidPublicationMode(string mode) =>
+        mode is StudioWorkflowContractValues.PublicationModeBatchWorkflow
+            or StudioWorkflowContractValues.PublicationModeScheduledJob
+            or StudioWorkflowContractValues.PublicationModeProcessEndpoint;
 
     private static string Slugify(string value)
     {

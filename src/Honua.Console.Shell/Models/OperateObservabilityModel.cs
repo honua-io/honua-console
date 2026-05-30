@@ -357,6 +357,27 @@ public sealed record OperateInvestigation(
         || string.Equals(EffectiveDetailStatus.NormalizedState, "degraded", StringComparison.OrdinalIgnoreCase);
 }
 
+/// <summary>
+/// Transient in-memory placeholder snapshot for the Operate observability surface.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Do not promote to a merged data source.</b> Environments, telemetry facts, events,
+/// alerts, alert rules, jobs, and investigations are all server-owned. Per
+/// <c>docs/migration/CONSOLE_PATTERNS_CHARTER.md</c> section 11, this fixture is a scaffold
+/// that lets the Operate UX, models, and tests be built ahead of the
+/// <c>honua-server</c>/<c>honua-sdk-dotnet</c> projection (tracked in honua-server#1168-1170
+/// and honua-sdk-js#229). The surface stays blocked until that contract lands; this fixture
+/// must never be the merged data source for the deployed surface.
+/// </para>
+/// <para>
+/// A future server-backed replacement MUST preserve the invariants the Operate models and
+/// tests assert against this snapshot, notably
+/// <see cref="OperateObservabilitySnapshot.HasUnifiedJobDeepLinks"/> (every required job
+/// source resolves to a <c>/operate/jobs/</c> deep link) and the neutral/failure state
+/// normalization in <see cref="OperateStatus"/>.
+/// </para>
+/// </remarks>
 public static class OperateObservabilityFixture
 {
     public static OperateObservabilitySnapshot Default { get; } = new(

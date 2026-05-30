@@ -2,6 +2,46 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
+/// <summary>
+/// Client contract for the Studio workflow-package authoring slice (honua-console#40):
+/// list/create drafts, save versions, dry-run, publish, and read job evidence.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Placeholder contract.</b> The only shipped implementation today is
+/// <see cref="InMemoryStudioWorkflowPackageClient"/>, a transient in-memory scaffold.
+/// Per <c>docs/migration/CONSOLE_PATTERNS_CHARTER.md</c> section 11 ("Real-server
+/// integration and no standing mocks"), workflow.package data is server-owned and must
+/// ultimately bind to <c>honua-server</c> through <c>honua-sdk-dotnet</c> projections (or
+/// the <c>Honua.Console.Contracts</c> shim boundary until those land). The workflow
+/// surface stays blocked on the server/SDK contract; the in-memory client must never be
+/// the merged data source for a deployed surface.
+/// </para>
+/// <para>
+/// A future replacement MUST preserve the contract nuances the in-memory implementation
+/// asserts, because Console UX and the <c>smoke/parity/workflow.mjs</c> harness depend on
+/// them:
+/// <list type="bullet">
+/// <item><description>
+/// <see cref="PublishAsync"/> is gated by <see cref="StudioWorkflowValidationIssue"/>s of
+/// severity <c>error</c> and (for endpoint publications) parameter validation; a blocked
+/// publish returns <c>Status = "blocked"</c> with empty job/publication identifiers and no
+/// Operate evidence queued.
+/// </description></item>
+/// <item><description>
+/// <see cref="PublishAsync"/> auto-saves a new content version when the draft changed since
+/// its last saved version, so the published version id always matches stored state.
+/// </description></item>
+/// <item><description>
+/// <see cref="SaveVersionAsync"/> is monotonic: the version number only ever increases.
+/// </description></item>
+/// <item><description>
+/// Operate deep links (<c>/operate/jobs/...</c>, <c>/operate/events?jobId=...</c>) are
+/// emitted only for jobs that were actually queued.
+/// </description></item>
+/// </list>
+/// </para>
+/// </remarks>
 public interface IStudioWorkflowPackageClient
 {
     /// <summary>

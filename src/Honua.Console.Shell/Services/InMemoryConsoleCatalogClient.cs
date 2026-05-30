@@ -2,6 +2,43 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
+/// <summary>
+/// Transient in-memory placeholder for <see cref="IConsoleCatalogClient"/> backing the
+/// Catalog and Share slices (honua-console#34).
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Do not promote to a merged data source.</b> Catalog/content, share-access, embed
+/// tokens, and open-data eligibility are all server-owned. Per
+/// <c>docs/migration/CONSOLE_PATTERNS_CHARTER.md</c> section 11, this client is a scaffold
+/// only and must be replaced by the <c>honua-server</c>/<c>honua-sdk-dotnet</c> projection
+/// (or the <c>Honua.Console.Contracts</c> shim boundary until that lands) before the
+/// surface ships against live data.
+/// </para>
+/// <para>
+/// A future server-backed replacement MUST preserve the authorization and read-state
+/// contract this client asserts, because Console route guards, the catalog action policy,
+/// and the parity smoke depend on them:
+/// <list type="bullet">
+/// <item><description>
+/// Anonymous reads see only <c>public</c> items and <c>public-link</c> items whose token
+/// matches <see cref="CatalogReadContext.PublicLinkToken"/>; everything else is filtered
+/// from search and denied with <see cref="CatalogReadStatus.Unavailable"/>.
+/// </description></item>
+/// <item><description>
+/// Embed authorization requires the bearer in the URL fragment; a query-string bearer is
+/// rejected even when the token value is correct.
+/// </description></item>
+/// <item><description>
+/// Unsupported service metadata and unsupported package bindings surface through the shared
+/// <see cref="CatalogReadStatus"/> values, never a bespoke per-feature error.
+/// </description></item>
+/// <item><description>
+/// Draft-map hydration requires an authenticated context and a supported source type.
+/// </description></item>
+/// </list>
+/// </para>
+/// </remarks>
 public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 {
     private static readonly DateTimeOffset SeedTime = new(2026, 5, 24, 8, 0, 0, TimeSpan.Zero);
