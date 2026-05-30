@@ -85,6 +85,79 @@ public sealed class StudioAnalysisBuilderRenderTests
         Assert.True(FindButton(page, "Submit job").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void AnalysisBuilder_OpenPlanWithResultArtifact_RendersArtifactPanelAndDownstreamTargets()
+    {
+        var plan = ReadyPlan();
+        plan.SubmittedJob = new StudioAnalysisJobView(
+            "job-1",
+            "Succeeded",
+            2,
+            Artifact: new StudioAnalysisArtifactView(
+                "artifact-1",
+                "FeatureLayer",
+                "Buffered hydrants",
+                "https://server/artifacts/artifact-1",
+                "application/geo+json",
+                2048,
+                "retained",
+                ["layer", "content", "workflow"]));
+        var data = new FakeAnalysisDataSource
+        {
+            Workspace = new StudioAnalysisWorkspace(
+                [new StudioAnalysisPlanListItem("analysis-1", "Hydrant buffer", "buffer", "standard", 2, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioAnalysisEditorLoad(plan, [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Hydrant buffer"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Hydrant buffer").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-analysis-result", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        // The result-artifact panel surfaces the resolved artifact (AC#1) and the downstream content
+        // families it can become (AC#3): content item, layer, report/dashboard input, or workflow input.
+        Assert.Contains("data-analysis-artifact", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Buffered hydrants", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Map layer", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Workflow input", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnalysisBuilder_OpenPlanWithFailedJob_RendersFailureClassification()
+    {
+        var plan = ReadyPlan();
+        plan.SubmittedJob = new StudioAnalysisJobView(
+            "job-2",
+            "Failed",
+            2,
+            Failure: new StudioAnalysisJobFailureView("validationFailed", "The plan failed validation."));
+        var data = new FakeAnalysisDataSource
+        {
+            Workspace = new StudioAnalysisWorkspace(
+                [new StudioAnalysisPlanListItem("analysis-1", "Hydrant buffer", "buffer", "standard", 2, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioAnalysisEditorLoad(plan, [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Hydrant buffer"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Hydrant buffer").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-analysis-result-failure", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("validationFailed", page.Markup, StringComparison.Ordinal);
+        // A failed job must NOT show a result-artifact binding.
+        Assert.DoesNotContain("data-analysis-artifact", page.Markup, StringComparison.Ordinal);
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioAnalysisBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
