@@ -24,7 +24,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
-        services.TryAddSingleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>();
+
+        // Server-owned catalog/content metadata is no longer wired to the seeded
+        // InMemoryConsoleCatalogClient at runtime (issue #7). Until honua-server's
+        // metadata/content projection is bound (honua-server#1162), the merged runtime
+        // surfaces an explicit missing-binding state across Catalog/Studio/Share/Operate
+        // reads instead of fabricating content. AddHonuaConsoleDemoCatalogContent restores
+        // the in-memory source for explicit demo/local composition only.
+        services.TryAddSingleton<IConsoleCatalogClient, UnsupportedConsoleCatalogClient>();
 
         // Operate observability binds to a real honua-server through a thin
         // typed HttpClient behind Honua.Console.Contracts (the sanctioned interim
@@ -47,6 +54,21 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.Replace(ServiceDescriptor.Singleton<IOperateTransitionDataSource>(
             _ => InMemoryOperateTransitionDataSource.CreateSeeded()));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Swaps the catalog/content client for the local in-memory seeded source. For explicit demo/local
+    /// composition or unit tests only — never the merged runtime path for server-owned catalog/content
+    /// metadata (issue #7). The merged runtime renders a missing-binding state until honua-server's
+    /// metadata/content projection is bound (honua-server#1162).
+    /// </summary>
+    public static IServiceCollection AddHonuaConsoleDemoCatalogContent(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Singleton<IConsoleCatalogClient, InMemoryConsoleCatalogClient>());
 
         return services;
     }
