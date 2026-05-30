@@ -122,9 +122,11 @@ public sealed class OperatePublishingPageRenderTests
 
         var page = ctx.RenderComponent<OperatePublishingPage>();
 
-        // Type a publication id and run the lookup.
-        page.Find("input.console-input").Input("pub-parcels");
-        page.Find("button.console-button").Click();
+        // Type a publication id and run the lookup. Scope to the lookup section: the functional
+        // publish wizards now render their own console-input / console-button controls above it.
+        var lookup = page.Find("[data-publication-lookup]");
+        lookup.QuerySelector("input.console-input")!.Input("pub-parcels");
+        lookup.QuerySelector("button.console-button")!.Click();
 
         page.WaitForAssertion(
             () => Assert.Contains("Parcels map", page.Markup, StringComparison.Ordinal),
@@ -133,7 +135,7 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Contains("Roll back to rev 1", page.Markup, StringComparison.Ordinal);
 
         // Roll back to the earlier revision: the data source records the target and the active revision moves.
-        page.Find("button.console-button-secondary").Click();
+        page.Find("[data-publication-lookup] button.console-button-secondary").Click();
         page.WaitForAssertion(
             () => Assert.Equal("ver-1", source.LastRollbackTarget),
             TimeSpan.FromSeconds(5));

@@ -10,8 +10,7 @@
         <p>Publish services, layers, catalog entries, and Studio artifacts. The matrix shows which output and catalog formats each resource supports, and each review records slot, generated endpoints, catalog registration, policy, warnings, rollback class, and provenance.</p>
     </div>
 
-    <PublishModeBar Mode="_mode" ModeChanged="OnModeChanged" />
-    <PublishStepper Steps="@_steps" Current="0" />
+    <PublishWizardWorkspace />
 
     @if (_workspace is null)
     {
@@ -25,7 +24,7 @@
 
         @if (_states.Count == 0 || _showLookup)
         {
-            <section class="console-section">
+            <section class="console-section" data-publication-lookup>
                 <div class="console-page-heading">
                     <p class="console-kicker">Review</p>
                     <h2>Look up a publication</h2>
@@ -192,10 +191,6 @@
 </section>
 
 @code {
-    private static readonly IReadOnlyList<string> QuickSteps = ["Service", "Layer", "Review"];
-    private static readonly IReadOnlyList<string> AuthorFirstSteps =
-        ["Target", "Compatibility", "Slot", "Fields", "Projection", "Access", "Review"];
-
     private PublishingWorkspace? _workspace;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
     private PublishingLookupResult? _lookup;
@@ -204,13 +199,6 @@
     private bool _busy;
     private bool _loaded;
     private bool _deepLinkAttempted;
-
-    private PublishModeBar.PublishMode _mode = PublishModeBar.PublishMode.Quick;
-
-    private IReadOnlyList<string> _steps =>
-        _mode == PublishModeBar.PublishMode.Quick ? QuickSteps : AuthorFirstSteps;
-
-    private void OnModeChanged(PublishModeBar.PublishMode mode) => _mode = mode;
 
     private static string SupportStateClass(PublishingTargetSupport support) => support switch
     {

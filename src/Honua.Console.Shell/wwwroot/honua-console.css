@@ -5447,3 +5447,380 @@ p {
     flex-direction: column;
     gap: 8px;
 }
+
+/* ============================================================================
+   Publish wizard workspace (Operate / Publishing) — functional Quick-publish
+   and Author-first flows. See PublishWizardWorkspace.razor and the design
+   handoff screens-quick-publish.jsx / screens-publish-flow.jsx.
+   ============================================================================ */
+
+.publish-wizard {
+    display: grid;
+    gap: 14px;
+    margin-top: 16px;
+    border: 1px solid var(--honua-border);
+    border-radius: 12px;
+    background: var(--honua-surface);
+    padding: 16px 18px;
+}
+
+.publish-wizard-head {
+    display: grid;
+    gap: 10px;
+}
+
+.publish-wizard-heading h2 {
+    margin: 2px 0 0;
+    font-size: 1.05rem;
+}
+
+.publish-wizard-body {
+    border-top: 1px solid var(--honua-border);
+    border-bottom: 1px solid var(--honua-border);
+    padding: 16px 0;
+}
+
+.publish-wizard-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.publish-wizard-footer-spacer {
+    flex: 1;
+}
+
+.publish-wizard-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 22px;
+}
+
+@media (max-width: 960px) {
+    .publish-wizard-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.publish-wizard-main {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    min-width: 0;
+}
+
+.publish-wizard-rail {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    min-width: 0;
+}
+
+.publish-wizard-question {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--honua-text);
+}
+
+/* Segmented use-existing / create-new toggle. */
+.publish-segment {
+    display: inline-flex;
+    border: 1px solid var(--honua-text);
+    border-radius: 7px;
+    overflow: hidden;
+    width: max-content;
+}
+
+.publish-segment-option {
+    border: 0;
+    border-right: 1px solid var(--honua-border);
+    padding: 6px 14px;
+    background: var(--honua-surface);
+    color: var(--honua-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.publish-segment-option:last-child {
+    border-right: 0;
+}
+
+.publish-segment-active {
+    background: var(--honua-accent);
+    color: #ffffff;
+}
+
+/* Filter chip rows above pickers. */
+.publish-filter-row {
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.publish-filter-chip {
+    border: 1px solid var(--honua-border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    background: var(--honua-surface);
+    color: var(--honua-muted);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+.publish-filter-chip-on {
+    border-color: var(--honua-accent);
+    background: var(--honua-surface-strong);
+    color: var(--honua-accent-strong);
+    font-weight: 600;
+}
+
+/* Service tree picker. */
+.publish-tree {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--honua-surface);
+}
+
+.publish-tree-folder {
+    padding: 6px 12px;
+    background: var(--honua-surface-strong);
+    color: var(--honua-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.publish-tree-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid var(--honua-border);
+    padding: 8px 12px 8px 22px;
+    background: var(--honua-surface);
+    font: inherit;
+    cursor: pointer;
+}
+
+.publish-tree-row:hover {
+    background: var(--honua-surface-strong);
+}
+
+.publish-tree-row-selected {
+    background: var(--honua-surface-strong);
+    border-left-color: var(--honua-accent);
+}
+
+.publish-tree-row-incompat {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.publish-tree-glyph {
+    color: var(--honua-muted);
+    width: 14px;
+    text-align: center;
+}
+
+.publish-tree-body {
+    display: grid;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+}
+
+.publish-tree-name {
+    font-size: 0.86rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.publish-tree-meta {
+    font-size: 0.76rem;
+    color: var(--honua-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Create-new affordance under the tree. */
+.publish-create-affordance {
+    display: grid;
+    gap: 6px;
+    border: 1px dashed var(--honua-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--honua-surface-strong);
+}
+
+.publish-create-affordance p {
+    margin: 0;
+    font-size: 0.8rem;
+}
+
+/* Context bar (folder › service › slot). */
+.publish-context-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--honua-border);
+    border-left: 3px solid var(--honua-accent);
+    border-radius: 8px;
+    background: var(--honua-surface-strong);
+    font-size: 0.82rem;
+}
+
+.publish-context-spacer {
+    flex: 1;
+}
+
+/* Resource-binding table. */
+.publish-resource-table .console-table th,
+.publish-resource-table .console-table td {
+    font-size: 0.82rem;
+}
+
+.publish-resource-row-selected td {
+    background: var(--honua-surface-strong);
+}
+
+.publish-resource-row-incompat {
+    opacity: 0.55;
+}
+
+.publish-pii-flag {
+    margin-left: 6px;
+}
+
+.publish-resource-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.publish-field-pii td {
+    background: #fff8e6;
+}
+
+.publish-fields-more {
+    text-align: center;
+    font-size: 0.78rem;
+}
+
+/* Field grids inside the new-service / new-resource / slot cards. */
+.publish-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+    .publish-field-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.publish-field {
+    display: grid;
+    gap: 3px;
+    font-size: 0.8rem;
+    color: var(--honua-muted);
+}
+
+.publish-field > span {
+    font-weight: 600;
+}
+
+/* Catalog opt-in toggle row. */
+.publish-catalog-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--honua-accent);
+    border-radius: 6px;
+    background: var(--honua-surface-strong);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.publish-catalog-toggle > span:first-of-type {
+    font-weight: 600;
+}
+
+/* Inline callouts. */
+.publish-callout {
+    margin: 0;
+    border: 1px solid var(--honua-border);
+    border-left: 3px solid var(--honua-muted);
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: var(--honua-surface-strong);
+    font-size: 0.82rem;
+    color: var(--honua-text);
+}
+
+.publish-callout-info {
+    border-left-color: #2563eb;
+    background: #edf5ff;
+    color: #175487;
+}
+
+/* "Also published as" rail. */
+.publish-also-published .publish-slot-row,
+.publish-compare-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 0.8rem;
+}
+
+.publish-compare-row {
+    justify-content: space-between;
+    border-bottom: 1px dashed var(--honua-border);
+}
+
+.publish-compare-row:last-of-type {
+    border-bottom: 0;
+}
+
+/* Projection preview controls strip. */
+.publish-preview-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+}
+
+.publish-preview-controls input[type="range"] {
+    width: 160px;
+}
+
+/* URL preview card. */
+.publish-url-preview {
+    display: grid;
+    gap: 6px;
+}
+
+.publish-url-value {
+    display: block;
+    padding: 6px 8px;
+    border: 1px solid var(--honua-border);
+    border-radius: 4px;
+    background: var(--honua-surface-strong);
+    font-size: 0.76rem;
+    word-break: break-all;
+}
