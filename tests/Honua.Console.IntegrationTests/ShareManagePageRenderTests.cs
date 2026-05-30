@@ -51,11 +51,59 @@ public sealed class ShareManagePageRenderTests
         Assert.Contains("data-share-tier=\"public-indexed\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Public", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Eligible for open-data distribution", page.Markup, StringComparison.Ordinal);
-        // Public-link panel renders because the item is public and the caller can share.
+        // Per the ShareLinkConfig mockup: a detail header with status badges, a two-column layout, and a tab row.
+        Assert.Contains("data-share-config", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-header-tier=\"public-indexed\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-layout", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-sidebar", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-share-tabs", page.Markup, StringComparison.Ordinal);
+        foreach (var tab in new[] { "link", "embed", "opendata", "exports", "audit" })
+        {
+            Assert.Contains($"data-share-tab=\"{tab}\"", page.Markup, StringComparison.Ordinal);
+        }
+        // The default tab is the public link tab: public-link panel renders, embed/exports panels are scoped away.
         Assert.Contains("data-share-panel=\"public-link\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-share-token=\"tok-1\"", page.Markup, StringComparison.Ordinal);
-        // Embed panel renders because the caller can embed.
-        Assert.Contains("data-share-panel=\"embed\"", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-share-panel=\"embed\"", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-share-panel=\"exports\"", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShareManage_SwitchingTabs_ScopesPanelsPerMockup()
+    {
+        var data = new FakeShareDataSource
+        {
+            Load = new ShareAccessLoad(
+                PublicShare(tier: "public-indexed", publicLinkEnabled: true, embedEnabled: true, canShare: true, canEmbed: true),
+                [])
+        };
+
+        var page = Render(data, itemId: "item-1");
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-tabs", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Embed tab reveals the embed panel and hides the public-link panel.
+        page.Find("[data-share-tab='embed']").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-panel=\"embed\"", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.DoesNotContain("data-share-panel=\"public-link\"", page.Markup, StringComparison.Ordinal);
+
+        // Exports tab deep-links into Operate jobs per the ShareExports mockup.
+        page.Find("[data-share-tab='exports']").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-panel=\"exports\"", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("data-share-exports-link", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("/operate/jobs", page.Markup, StringComparison.Ordinal);
+
+        // Open-data tab surfaces the public landing entry point.
+        page.Find("[data-share-tab='opendata']").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-panel=\"opendata\"", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("data-share-opendata-link", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

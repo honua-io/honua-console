@@ -3,20 +3,58 @@
 @using Honua.Console.Shell.Models
 @inject IShareAccessDataSource ShareData
 
-<section class="console-page share-manage">
-    <div class="console-page-heading">
-        <p class="console-kicker">Share workflow</p>
-        <h1>Share access</h1>
-        <p>Manage a content item's server-owned Share access: public/private visibility, public-link tokens with expiration, embed enablement and embed tokens, dependency-closure safety, and open-data eligibility. State is authored on honua-server's Console Share access API and is never resolved client-side.</p>
+<section class="console-page share-manage" data-share-config>
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Share <span class="console-crumb-sep">/</span> Link &amp; embed configuration</p>
+            <h1>@(_share?.DisplayTitle ?? "Share access")</h1>
+            <div class="console-chip-row" data-share-status-row>
+                @if (_share is { } headerShare)
+                {
+                    <span class="console-status @(headerShare.IsPublic ? "console-state-success" : "console-state-neutral")" data-share-header-tier="@headerShare.AccessTier">@TierLabel(headerShare.AccessTier)</span>
+                    @if (headerShare.EmbedEnabled)
+                    {
+                        <span class="console-status console-state-info" data-share-header-embed>embed enabled</span>
+                    }
+                    @if (headerShare.OpenDataEligible)
+                    {
+                        <span class="console-status console-state-success" data-share-header-opendata>open-data eligible</span>
+                    }
+                    <span class="console-muted">@(headerShare.IsPublic ? "reachable by anyone with the link" : "membership-scoped read")</span>
+                }
+                else
+                {
+                    <span class="console-muted">Open a content item to manage its public link, embed, open-data page, and exports.</span>
+                }
+            </div>
+        </div>
+        <div class="console-detail-actions">
+            <form class="console-action-row" @onsubmit="OpenItem" @formname="open-share-item">
+                <label class="studio-form-label">
+                    <span>Content item id</span>
+                    <input class="console-input" @bind="_itemIdInput" placeholder="item-..." />
+                </label>
+                <button class="console-button" type="submit" disabled="@_busy">Open share access</button>
+            </form>
+        </div>
     </div>
 
-    <form class="console-toolbar" @onsubmit="OpenItem" @formname="open-share-item">
-        <label class="studio-form-label">
-            <span>Content item id</span>
-            <input class="console-input" @bind="_itemIdInput" placeholder="item-..." />
-        </label>
-        <button class="console-button" type="submit" disabled="@_busy">Open share access</button>
-    </form>
+    <p class="console-muted share-manage-lede">Manage a content item's server-owned Share access: public/private visibility, public-link tokens with expiration, embed enablement and embed tokens, dependency-closure safety, and open-data eligibility. State is authored on honua-server's Console Share access API and is never resolved client-side.</p>
+
+    @if (_share is not null)
+    {
+        <nav class="console-tab-row" data-share-tabs aria-label="Share configuration tabs">
+            @foreach (var tab in Tabs)
+            {
+                <button type="button"
+                        class="@TabClass(tab.Id)"
+                        data-share-tab="@tab.Id"
+                        @onclick="() => SetTab(tab.Id)">
+                    @tab.Label
+                </button>
+            }
+        </nav>
+    }
 
     @if (_loading)
     {
@@ -39,8 +77,14 @@
                           Title="Share access not found"
                           Message="@($"{_notFoundState.Detail} (contract: {_notFoundState.Contract})")" />
     }
+    else if (_share is null && !_attempted)
+    {
+        <EmptyState Area="share" Subject="share access" />
+    }
     else
     {
+        <div class="share-config-layout" data-share-layout>
+        <div class="share-config-main">
         @if (_commandStates.Count > 0)
         {
             <section class="console-section">
@@ -159,7 +203,7 @@
                     </dl>
                 </article>
 
-                @if (share.CanShare)
+                @if (share.CanShare && _tab == "link")
                 {
                     <article class="console-panel" data-share-panel="access-tier">
                         <div class="console-panel-heading">
@@ -198,7 +242,7 @@
                     </article>
                 }
 
-                @if (share.IsPublic && share.CanShare)
+                @if (share.IsPublic && share.CanShare && _tab == "link")
                 {
                     <article class="console-panel" data-share-panel="public-link">
                         <div class="console-panel-heading">
@@ -259,7 +303,7 @@
                     </article>
                 }
 
-                @if (share.CanEmbed)
+                @if (share.CanEmbed && _tab == "embed")
                 {
                     <article class="console-panel" data-share-panel="embed">
                         <div class="console-panel-heading">
@@ -285,12 +329,100 @@
                         }
                     </article>
                 }
+
+                @if (_tab == "opendata")
+                {
+                    <article class="console-panel" data-share-panel="opendata">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Open-data page</p>
+                                <h3>Public landing @(share.OpenDataEligible ? "(eligible)" : "(not eligible)")</h3>
+                            </div>
+                            <span class="console-status @(share.OpenDataEligible ? "console-state-success" : "console-state-neutral")">@(share.OpenDataEligible ? "live" : "off")</span>
+                        </div>
+                        <p class="console-muted">When the item is public-indexed, honua-server serves a public open-data landing page with description, license, contact, download links, DCAT metadata, and schema.org/Dataset JSON-LD. Eligibility is server-owned and follows the access tier.</p>
+                        @if (share.OpenDataEligible)
+                        {
+                            <div class="console-action-row">
+                                <a class="console-button console-button-secondary" data-share-opendata-link href="/share/public/items/@share.ItemId">Open public landing ↗</a>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="console-muted">Set the access tier to <strong>public-indexed</strong> on the Public link tab to enable the open-data landing page.</p>
+                        }
+                    </article>
+                }
+
+                @if (_tab == "exports")
+                {
+                    <article class="console-panel" data-share-panel="exports">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Exports</p>
+                                <h3>Scheduled exports</h3>
+                            </div>
+                        </div>
+                        <p class="console-muted">Scheduled exports to S3, SFTP, webhook targets, and audit snapshots run as honua-server jobs. They are authored and monitored on the unified Console runtime; export runs and history surface in Operate jobs and the Event viewer.</p>
+                        <div class="console-action-row">
+                            <a class="console-button console-button-secondary" data-share-exports-link href="/operate/jobs?itemId=@share.ItemId">View export jobs in Operate ↗</a>
+                        </div>
+                    </article>
+                }
+
+                @if (_tab == "audit")
+                {
+                    <article class="console-panel" data-share-panel="audit">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Audit &amp; traffic</p>
+                                <h3>Governed surface</h3>
+                            </div>
+                        </div>
+                        <p class="console-muted">Share is a governed surface: every visibility, embed, and token change emits an audit event, and token links log the issuer. Request and traffic counters for shared content are server-owned and stream from honua-server.</p>
+                        <div class="console-action-row">
+                            <a class="console-button console-button-secondary" data-share-audit-link href="/operate/events?itemId=@share.ItemId">Open audit events ↗</a>
+                        </div>
+                    </article>
+                }
             </section>
         }
-        else if (!_attempted)
-        {
-            <EmptyState Area="share" Subject="share access" />
-        }
+        </div>
+
+        <aside class="share-config-side" data-share-sidebar>
+            <article class="console-panel console-panel-emphasis">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Governance</p>
+                        <h3>Share is a governed surface</h3>
+                    </div>
+                </div>
+                <p class="console-muted">Every change here emits an audit event and propagates immediately. Token links log the issuer and reason. Disable search-engine indexing by moving below the public-indexed tier to deindex on the next crawl.</p>
+            </article>
+
+            @if (_share is { } sideShare)
+            {
+                <article class="console-panel" data-share-side-summary>
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Public visibility</p>
+                            <h3>What external users see</h3>
+                        </div>
+                    </div>
+                    <dl class="console-definition-list">
+                        <dt>Audience</dt>
+                        <dd>@(sideShare.IsPublic ? "Anyone with the link" : "Workspace members only")</dd>
+                        <dt>Anonymous read</dt>
+                        <dd>@(sideShare.AnonymousEligible ? "Allowed" : "Blocked")</dd>
+                        <dt>Embed</dt>
+                        <dd>@(sideShare.EmbedEnabled ? $"Enabled ({sideShare.EmbedAudience})" : "Disabled")</dd>
+                        <dt>Open data</dt>
+                        <dd>@(sideShare.OpenDataEligible ? "Published" : "Not published")</dd>
+                    </dl>
+                </article>
+            }
+        </aside>
+        </div>
     }
 </section>
 
@@ -309,9 +441,19 @@
         HonuaConsoleShareAccessTiers.PublicIndexed
     ];
 
+    private static readonly (string Id, string Label)[] Tabs =
+    [
+        ("link", "Public link"),
+        ("embed", "Embed"),
+        ("opendata", "Open-data page"),
+        ("exports", "Exports"),
+        ("audit", "Audit & traffic")
+    ];
+
     private bool _loading;
     private bool _busy;
     private bool _attempted;
+    private string _tab = "link";
     private string? _itemIdInput;
     private DateTime? _expiresAtInput;
     private ShareAccessView? _share;
@@ -341,6 +483,11 @@
             await LoadAsync(_itemIdInput);
         }
     }
+
+    private void SetTab(string tab) => _tab = tab;
+
+    private string TabClass(string tab) =>
+        string.Equals(tab, _tab, StringComparison.Ordinal) ? "active" : string.Empty;
 
     private async Task LoadAsync(string itemId)
     {
