@@ -39,6 +39,25 @@ public interface IHonuaContentPublicationClient
         string publicationId,
         string versionSelector,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Republishes a publication: creates a new immutable version and moves the active route pointer
+    /// to it (POST <c>/{publicationId}/republish</c>). Returns the updated detail (route + versions).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
+        string publicationId,
+        HonuaRepublishContentRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rolls the active route pointer back to an earlier immutable version (POST
+    /// <c>/{publicationId}/rollback</c>). No new version row is created; the rollback pointer is
+    /// recorded. Returns the updated detail.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
+        string publicationId,
+        HonuaRollbackContentRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublicationClient, IDisposable
@@ -95,15 +114,53 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
+        string publicationId,
+        HonuaRepublishContentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaContentPublicationDetail>(
+            HttpMethod.Post,
+            $"{Base}/{Uri.EscapeDataString(publicationId)}/republish",
+            "POST /api/v1/console/publications/{publicationId}/republish",
+            cancellationToken,
+            request);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
+        string publicationId,
+        HonuaRollbackContentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaContentPublicationDetail>(
+            HttpMethod.Post,
+            $"{Base}/{Uri.EscapeDataString(publicationId)}/rollback",
+            "POST /api/v1/console/publications/{publicationId}/rollback",
+            cancellationToken,
+            request);
+    }
+
     public void Dispose() => _httpClient.Dispose();
 
     private async Task<HonuaAdminEndpointResult<T>> SendAsync<T>(
         HttpMethod method,
         string path,
         string contract,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        object? body = null)
     {
         using var request = new HttpRequestMessage(method, path);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body, body.GetType(), options: JsonOptions);
+        }
+
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -432,4 +489,54 @@ public sealed record HonuaContentPublicationDetail
 
     [JsonPropertyName("versions")]
     public HonuaContentPublicationVersion[] Versions { get; init; } = [];
+}
+
+// --- Mutation request records mirroring honua-server RepublishContentRequest/RollbackContentRequest. ---
+
+/// <summary>
+/// Republish request: creates a new immutable version and advances the active route pointer. Mirrors
+/// honua-server <c>RepublishContentRequest</c>. Console sends only the fields the publishing workspace
+/// authoring flow needs; the server allocates the version id and revision.
+/// </summary>
+public sealed record HonuaRepublishContentRequest
+{
+    [JsonPropertyName("title")]
+    public string? Title { get; init; }
+
+    [JsonPropertyName("sourceContentId")]
+    public string? SourceContentId { get; init; }
+
+    [JsonPropertyName("sourcePackageId")]
+    public string? SourcePackageId { get; init; }
+
+    [JsonPropertyName("contentHash")]
+    public string? ContentHash { get; init; }
+
+    [JsonPropertyName("contentVersionId")]
+    public string? ContentVersionId { get; init; }
+
+    [JsonPropertyName("jobId")]
+    public string? JobId { get; init; }
+
+    /// <summary>Expected route etag for optimistic concurrency; a mismatch is a 409/412 conflict.</summary>
+    [JsonPropertyName("expectedEtag")]
+    public string? ExpectedEtag { get; init; }
+}
+
+/// <summary>
+/// Rollback request: moves the active route pointer back to an earlier immutable version. Mirrors
+/// honua-server <c>RollbackContentRequest</c>. Either <see cref="TargetVersionId"/> or
+/// <see cref="TargetRevision"/> is required.
+/// </summary>
+public sealed record HonuaRollbackContentRequest
+{
+    [JsonPropertyName("targetVersionId")]
+    public string? TargetVersionId { get; init; }
+
+    [JsonPropertyName("targetRevision")]
+    public long? TargetRevision { get; init; }
+
+    /// <summary>Expected route etag for optimistic concurrency; a mismatch is a 409/412 conflict.</summary>
+    [JsonPropertyName("expectedEtag")]
+    public string? ExpectedEtag { get; init; }
 }

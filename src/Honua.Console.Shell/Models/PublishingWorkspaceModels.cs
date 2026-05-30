@@ -86,3 +86,45 @@ public sealed record PublishingReviewLinks(
     string? EventsHref,
     string? AuditHref,
     string? RollbackHref);
+
+/// <summary>
+/// Result of a single-publication lookup or a republish/rollback action. Carries the review and the
+/// immutable version history when the server returned a publication, otherwise the capability states
+/// explaining why (missing binding, missing permission, not found, conflict, unsupported, transport).
+/// The data source never fabricates a review when the read fails (Console Patterns Charter section 11).
+/// </summary>
+public sealed record PublishingLookupResult(
+    PublishingReview? Review,
+    IReadOnlyList<PublishingVersion> Versions,
+    IReadOnlyList<OperateCapabilityState> CapabilityStates)
+{
+    public bool HasReview => Review is not null;
+
+    public static PublishingLookupResult FromCapabilityState(OperateCapabilityState state) =>
+        new(null, [], [state]);
+}
+
+/// <summary>One immutable published version, projected for the version-history / rollback-target panel.</summary>
+public sealed record PublishingVersion(
+    string VersionId,
+    long Revision,
+    string? Title,
+    string? ContentHash,
+    bool IsActive,
+    string CreatedBy,
+    DateTimeOffset CreatedAt);
+
+/// <summary>Authoring command for a republish (new immutable version, active pointer advanced).</summary>
+public sealed record PublishingRepublishCommand(
+    string? Title = null,
+    string? ContentHash = null,
+    string? ExpectedEtag = null);
+
+/// <summary>
+/// Authoring command for a rollback. Exactly one of <see cref="TargetVersionId"/> or
+/// <see cref="TargetRevision"/> identifies the version the active pointer moves back to.
+/// </summary>
+public sealed record PublishingRollbackCommand(
+    string? TargetVersionId = null,
+    long? TargetRevision = null,
+    string? ExpectedEtag = null);

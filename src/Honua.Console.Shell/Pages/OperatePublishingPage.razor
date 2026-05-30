@@ -17,9 +17,113 @@
     {
         <OperateCapabilityStateList States="@_states" />
 
+        @if (_states.Count == 0 || _showLookup)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Quick publish</p>
+                    <h2>Look up a publication</h2>
+                    <p>Enter a publication id to review its route state and run a republish or rollback against the live registry.</p>
+                </div>
+
+                <div class="console-form-row">
+                    <input class="console-input"
+                           placeholder="publication id"
+                           aria-label="Publication id"
+                           @bind="_lookupId"
+                           @bind:event="oninput"
+                           disabled="@_busy" />
+                    <button class="console-button"
+                            type="button"
+                            @onclick="LookupAsync"
+                            disabled="@(_busy || string.IsNullOrWhiteSpace(_lookupId))">
+                        Review
+                    </button>
+                </div>
+
+                @if (_lookup is not null)
+                {
+                    <OperateCapabilityStateList States="@_lookup.CapabilityStates" />
+
+                    @if (_lookup.HasReview)
+                    {
+                        <PublishingReviewCard Review="@(_lookup.Review!)" />
+
+                        <section class="console-section">
+                            <div class="console-page-heading">
+                                <p class="console-kicker">Actions</p>
+                                <h2>Lifecycle</h2>
+                            </div>
+
+                            <div class="console-form-row">
+                                <input class="console-input"
+                                       placeholder="new version title (optional)"
+                                       aria-label="Republish title"
+                                       @bind="_republishTitle"
+                                       disabled="@_busy" />
+                                <button class="console-button"
+                                        type="button"
+                                        @onclick="RepublishAsync"
+                                        disabled="@_busy">
+                                    Republish
+                                </button>
+                            </div>
+
+                            @if (_lookup.Versions.Count > 1)
+                            {
+                                <p class="console-kicker">Version history</p>
+                                <div class="console-table-wrap">
+                                    <table class="console-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Revision</th>
+                                                <th>Version</th>
+                                                <th>Title</th>
+                                                <th>Created by</th>
+                                                <th></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var version in _lookup.Versions)
+                                            {
+                                                <tr>
+                                                    <td>@version.Revision</td>
+                                                    <td><small>@version.VersionId</small></td>
+                                                    <td>@(version.Title ?? "—")</td>
+                                                    <td>@version.CreatedBy</td>
+                                                    <td>
+                                                        @if (version.IsActive)
+                                                        {
+                                                            <span class="console-status">active</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <button class="console-button console-button-secondary"
+                                                                    type="button"
+                                                                    @onclick="() => RollbackAsync(version.VersionId)"
+                                                                    disabled="@_busy">
+                                                                Roll back to rev @version.Revision
+                                                            </button>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </section>
+                    }
+                }
+            </section>
+        }
+
         @if (_workspace.Matrix.Count == 0 && _workspace.Reviews.Count == 0)
         {
-            <EmptyState Area="operate" Subject="publications" />
+            @if (_states.Count == 0)
+            {
+                <EmptyState Area="operate" Subject="publications" />
+            }
         }
         else
         {
@@ -72,74 +176,7 @@
                 <div class="console-panel-grid">
                     @foreach (var review in _workspace.Reviews)
                     {
-                        <article class="console-panel">
-                            <div class="console-panel-heading">
-                                <div>
-                                    <p class="console-kicker">@review.ResourceKind / @review.Slot</p>
-                                    <h2>@review.ResourceName</h2>
-                                </div>
-                                <span class="console-status">@review.RollbackClass</span>
-                            </div>
-
-                            <dl class="console-definition-list">
-                                <dt>Catalog registration</dt>
-                                <dd>
-                                    @if (review.CatalogRegistration.Registered && !string.IsNullOrWhiteSpace(review.CatalogRegistration.CatalogEntryId))
-                                    {
-                                        <a href="@($"/catalog/{review.CatalogRegistration.CatalogEntryId}")">@review.CatalogRegistration.Visibility</a>
-                                    }
-                                    else
-                                    {
-                                        @($"Not registered ({review.CatalogRegistration.Visibility})")
-                                    }
-                                </dd>
-                                <dt>Policy</dt>
-                                <dd>@review.Policy</dd>
-                                <dt>Provenance</dt>
-                                <dd>@review.Provenance</dd>
-                            </dl>
-
-                            @if (review.GeneratedEndpoints.Count > 0)
-                            {
-                                <p class="console-kicker">Generated endpoints</p>
-                                <ul class="console-event-list">
-                                    @foreach (var endpoint in review.GeneratedEndpoints)
-                                    {
-                                        <li><strong>@endpoint.Protocol</strong> <span>@endpoint.Url</span></li>
-                                    }
-                                </ul>
-                            }
-
-                            @if (review.Warnings.Count > 0)
-                            {
-                                <p class="console-kicker">Warnings</p>
-                                <ul class="console-event-list">
-                                    @foreach (var warning in review.Warnings)
-                                    {
-                                        <li>@warning</li>
-                                    }
-                                </ul>
-                            }
-
-                            <nav class="console-tab-row" aria-label="Publication evidence links">
-                                @if (!string.IsNullOrWhiteSpace(review.Links.JobHref))
-                                {
-                                    <a href="@review.Links.JobHref">Job</a>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(review.Links.EventsHref))
-                                {
-                                    <a href="@review.Links.EventsHref">Events</a>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(review.Links.AuditHref))
-                                {
-                                    <a href="@review.Links.AuditHref">Audit</a>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(review.Links.RollbackHref))
-                                {
-                                    <a href="@review.Links.RollbackHref">Rollback evidence</a>
-                                }
-                            </nav>
-                        </article>
+                        <PublishingReviewCard Review="@review" />
                     }
                 </div>
             </section>
@@ -150,10 +187,92 @@
 @code {
     private PublishingWorkspace? _workspace;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
+    private PublishingLookupResult? _lookup;
+    private string _lookupId = string.Empty;
+    private string _republishTitle = string.Empty;
+    private bool _busy;
+    private bool _loaded;
+    private bool _deepLinkAttempted;
 
-    protected override async Task OnInitializedAsync()
+    private bool _showLookup => _workspace is not null
+        && (_workspace.Matrix.Count > 0 || _workspace.Reviews.Count > 0 || _states.Count > 0);
+
+    [SupplyParameterFromQuery(Name = "publicationId")]
+    public string? PublicationId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
     {
-        _workspace = await PublishingData.GetWorkspaceAsync();
-        _states = OperateCapabilityStateFilters.ForSurface(_workspace.CapabilityStates, "Publishing");
+        if (!_loaded)
+        {
+            _workspace = await PublishingData.GetWorkspaceAsync();
+            _states = OperateCapabilityStateFilters.ForSurface(_workspace.CapabilityStates, "Publishing");
+            _loaded = true;
+        }
+
+        // Deep link: /operate/publishing?publicationId=... pre-fills and runs the lookup once.
+        if (!_deepLinkAttempted && !string.IsNullOrWhiteSpace(PublicationId))
+        {
+            _deepLinkAttempted = true;
+            _lookupId = PublicationId;
+            await LookupAsync();
+        }
+    }
+
+    private async Task LookupAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_lookupId) || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _lookup = await PublishingData.LookupAsync(_lookupId.Trim());
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RepublishAsync()
+    {
+        if (_lookup?.Review is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var command = new PublishingRepublishCommand(
+                Title: string.IsNullOrWhiteSpace(_republishTitle) ? null : _republishTitle.Trim());
+            _lookup = await PublishingData.RepublishAsync(_lookup.Review.ResourceId, command);
+            _republishTitle = string.Empty;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RollbackAsync(string targetVersionId)
+    {
+        if (_lookup?.Review is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var command = new PublishingRollbackCommand(TargetVersionId: targetVersionId);
+            _lookup = await PublishingData.RollbackAsync(_lookup.Review.ResourceId, command);
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 }

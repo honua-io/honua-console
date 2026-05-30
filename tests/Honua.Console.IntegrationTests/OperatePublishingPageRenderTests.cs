@@ -62,6 +62,21 @@ public sealed class OperatePublishingPageRenderTests
 
     private sealed class StubPublishingWorkspaceDataSource : IPublishingWorkspaceDataSource
     {
+        public Task<PublishingLookupResult> LookupAsync(string publicationId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublishingLookupResult(null, [], []));
+
+        public Task<PublishingLookupResult> RepublishAsync(
+            string publicationId,
+            PublishingRepublishCommand command,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublishingLookupResult(null, [], []));
+
+        public Task<PublishingLookupResult> RollbackAsync(
+            string publicationId,
+            PublishingRollbackCommand command,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublishingLookupResult(null, [], []));
+
         public Task<PublishingWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new PublishingWorkspace(
                 Matrix:

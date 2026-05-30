@@ -1,0 +1,76 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+<article class="console-panel">
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">@Review.ResourceKind / @Review.Slot</p>
+            <h2>@Review.ResourceName</h2>
+        </div>
+        <span class="console-status">@Review.RollbackClass</span>
+    </div>
+
+    <dl class="console-definition-list">
+        <dt>Catalog registration</dt>
+        <dd>
+            @if (Review.CatalogRegistration.Registered && !string.IsNullOrWhiteSpace(Review.CatalogRegistration.CatalogEntryId))
+            {
+                <a href="@($"/catalog/{Review.CatalogRegistration.CatalogEntryId}")">@Review.CatalogRegistration.Visibility</a>
+            }
+            else
+            {
+                @($"Not registered ({Review.CatalogRegistration.Visibility})")
+            }
+        </dd>
+        <dt>Policy</dt>
+        <dd>@Review.Policy</dd>
+        <dt>Provenance</dt>
+        <dd>@Review.Provenance</dd>
+    </dl>
+
+    @if (Review.GeneratedEndpoints.Count > 0)
+    {
+        <p class="console-kicker">Generated endpoints</p>
+        <ul class="console-event-list">
+            @foreach (var endpoint in Review.GeneratedEndpoints)
+            {
+                <li><strong>@endpoint.Protocol</strong> <span>@endpoint.Url</span></li>
+            }
+        </ul>
+    }
+
+    @if (Review.Warnings.Count > 0)
+    {
+        <p class="console-kicker">Warnings</p>
+        <ul class="console-event-list">
+            @foreach (var warning in Review.Warnings)
+            {
+                <li>@warning</li>
+            }
+        </ul>
+    }
+
+    <nav class="console-tab-row" aria-label="Publication evidence links">
+        @if (!string.IsNullOrWhiteSpace(Review.Links.JobHref))
+        {
+            <a href="@Review.Links.JobHref">Job</a>
+        }
+        @if (!string.IsNullOrWhiteSpace(Review.Links.EventsHref))
+        {
+            <a href="@Review.Links.EventsHref">Events</a>
+        }
+        @if (!string.IsNullOrWhiteSpace(Review.Links.AuditHref))
+        {
+            <a href="@Review.Links.AuditHref">Audit</a>
+        }
+        @if (!string.IsNullOrWhiteSpace(Review.Links.RollbackHref))
+        {
+            <a href="@Review.Links.RollbackHref">Rollback evidence</a>
+        }
+    </nav>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public PublishingReview Review { get; set; } = default!;
+}
