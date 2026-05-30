@@ -85,8 +85,9 @@ public static class StudioQueryReadoutGenerator
 
     private static string RenderSpatial(StudioQueryPredicateEditor predicate)
     {
-        var op = string.IsNullOrWhiteSpace(predicate.Operator) ? "intersects" : predicate.Operator.ToUpperInvariant();
-        var geometry = string.IsNullOrWhiteSpace(predicate.Geometry) ? "<geometry>" : "<geometry>";
+        // The authored geometry is a GeoJSON literal; the readout shows a stable placeholder rather than
+        // inlining a (potentially large) geometry blob into the SQL-shaped review string.
+        const string geometry = "<geometry>";
 
         if (string.Equals(predicate.Operator, "dwithin", StringComparison.OrdinalIgnoreCase))
         {
@@ -94,6 +95,7 @@ public static class StudioQueryReadoutGenerator
             return $"DWITHIN(geometry, {geometry}, {distance} {predicate.DistanceUnit})";
         }
 
+        var op = string.IsNullOrWhiteSpace(predicate.Operator) ? "INTERSECTS" : predicate.Operator.ToUpperInvariant();
         return $"{op}(geometry, {geometry})";
     }
 
