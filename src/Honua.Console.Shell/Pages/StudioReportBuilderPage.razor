@@ -1,0 +1,218 @@
+@page "/studio/report"
+@using Honua.Console.Shell.Models
+@inject IStudioReportPublicationDataSource ReportData
+
+<section class="console-page studio-report-builder">
+    <div class="console-page-heading">
+        <p class="console-kicker">Builder workflow</p>
+        <h1>Report builder</h1>
+        <p>Author a server-owned report package — narrative, data bindings, Vega-Lite charts, map panels, tables, filters, version pinning, and responsive preview — then publish, share, and embed through the honua-server content publication registry. This slice binds the read path: open a published report to inspect its server-owned route and immutable version history.</p>
+    </div>
+
+    <form class="console-toolbar" @onsubmit="OpenPublication" @formname="open-report-publication">
+        <label class="studio-form-label">
+            <span>Publication id</span>
+            <input class="console-input" @bind="_publicationIdInput" placeholder="pub-report-..." />
+        </label>
+        <button class="console-button" type="submit" disabled="@_busy">Open report publication</button>
+    </form>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Report builder"
+                          Title="Loading report publication"
+                          Message="Reading the content publication registry from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Report publication registry is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else
+    {
+        @if (_states.Count > 0)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Report binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_publication is { } publication)
+        {
+            <section class="console-section" data-report-builder="report.package" data-report-publication="@publication.PublicationId">
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@($"{publication.PublicationId} · {publication.ActiveVersionId}")</p>
+                            <h2>@(string.IsNullOrWhiteSpace(publication.ActiveTitle) ? "Untitled report" : publication.ActiveTitle)</h2>
+                        </div>
+                        <span class="console-status @(IsActive(publication) ? string.Empty : "console-status-warning")">@publication.Lifecycle</span>
+                    </div>
+                    <dl class="console-definition-list">
+                        <dt>Route</dt>
+                        <dd>@publication.RoutePath</dd>
+                        <dt>Active revision</dt>
+                        <dd>@($"r{publication.ActiveRevision}")</dd>
+                        <dt>Visibility</dt>
+                        <dd>@publication.Visibility</dd>
+                        <dt>Embeddable</dt>
+                        <dd>@(publication.Embeddable ? "yes" : "no")</dd>
+                        @if (!string.IsNullOrWhiteSpace(publication.RollbackTargetVersionId))
+                        {
+                            <dt>Rolled back to</dt>
+                            <dd>@publication.RollbackTargetVersionId</dd>
+                        }
+                        <dt>Updated</dt>
+                        <dd>@publication.UpdatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</dd>
+                    </dl>
+                </article>
+
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Version pinning</p>
+                            <h3>Immutable versions</h3>
+                        </div>
+                    </div>
+                    @if (publication.Versions.Count == 0)
+                    {
+                        <p class="console-muted">No published versions yet.</p>
+                    }
+                    else
+                    {
+                        <div class="console-table-wrap">
+                            <table class="console-table">
+                                <thead>
+                                    <tr>
+                                        <th>Revision</th>
+                                        <th>Version id</th>
+                                        <th>Title</th>
+                                        <th>Dependencies</th>
+                                        <th>Active</th>
+                                        <th>Published by</th>
+                                        <th>Published</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var version in publication.Versions)
+                                    {
+                                        <tr>
+                                            <td>@($"r{version.Revision}")</td>
+                                            <td><small>@version.VersionId</small></td>
+                                            <td>@(string.IsNullOrWhiteSpace(version.Title) ? "—" : version.Title)</td>
+                                            <td>@version.DependencyCount</td>
+                                            <td>@(version.IsActive ? "active" : "—")</td>
+                                            <td>@version.CreatedBy</td>
+                                            <td>@version.CreatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </article>
+
+                <article class="console-panel">
+                    <p class="console-kicker">Next slices</p>
+                    <h3>Authoring surface</h3>
+                    <p class="console-muted">Narrative, data bindings, Vega-Lite charts, map panels, tables, filters, and responsive preview build on top of this read binding in follow-up slices. Vega-Lite is the chart spec for all report charts.</p>
+                </article>
+            </section>
+        }
+        else if (!_attempted)
+        {
+            <EmptyState Area="studio" Subject="report publications" />
+        }
+    }
+</section>
+
+@code {
+    private bool _loading;
+    private bool _busy;
+    private bool _attempted;
+    private string? _publicationIdInput;
+    private StudioReportPublicationView? _publication;
+    private StudioReportCapabilityState? _bindingState;
+    private IReadOnlyList<StudioReportCapabilityState> _states = [];
+
+    [SupplyParameterFromQuery(Name = "publicationId")]
+    public string? PublicationId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(PublicationId) && !_attempted)
+        {
+            _publicationIdInput = PublicationId;
+            await LoadAsync(PublicationId);
+        }
+    }
+
+    private async Task OpenPublication()
+    {
+        if (string.IsNullOrWhiteSpace(_publicationIdInput))
+        {
+            return;
+        }
+
+        await LoadAsync(_publicationIdInput);
+    }
+
+    private async Task LoadAsync(string publicationId)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _loading = true;
+        _attempted = true;
+        try
+        {
+            var result = await ReportData.LoadAsync(publicationId);
+            _publication = result.Publication;
+            ApplyStates(result.CapabilityStates);
+        }
+        finally
+        {
+            _busy = false;
+            _loading = false;
+        }
+    }
+
+    private static bool IsActive(StudioReportPublicationView publication) =>
+        string.Equals(publication.Lifecycle, "active", StringComparison.OrdinalIgnoreCase);
+
+    private void ApplyStates(IReadOnlyList<StudioReportCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
+        _states = states
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+    }
+}
