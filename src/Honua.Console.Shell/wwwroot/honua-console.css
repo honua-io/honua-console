@@ -4581,6 +4581,99 @@ p {
     }
 }
 
+/* Dashboard "from prompt" (StudioDashboardAI) live preview + publish wizard (StudioDashboardPublish). */
+.studio-dashboard-preview {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+}
+
+.studio-dashboard-preview-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 1100px) {
+    .studio-dashboard-preview-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.studio-dashboard-preview-panel {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.studio-dashboard-preview-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.studio-dashboard-preview-table {
+    grid-column: 1 / -1;
+}
+
+.studio-ai-preview-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.studio-ai-preview-name {
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+}
+
+.studio-ai-preview-titlebar-spacer {
+    flex: 1;
+}
+
+.studio-dashboard-publish-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface-strong);
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+}
+
+.studio-dashboard-publish-bar-spacer {
+    flex: 1;
+}
+
+.studio-publish-step {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+}
+
+.studio-publish-step h3 {
+    margin: 0;
+}
+
+.studio-publish-confirm {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+}
+
+.console-panel-success {
+    border-color: #8fcfa6;
+    background: #ecf7f0;
+}
+
 
 /* ============================================================================
    Shared Shell components: MapPreview, PublishWizard, StudioAiConversation.
