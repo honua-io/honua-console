@@ -3,11 +3,11 @@
 @page "/public"
 @inject IConsoleCatalogClient Catalog
 
-<section class="console-page">
+<section class="console-page share-home">
     <div class="console-page-heading">
         <p class="console-kicker">Share workflow</p>
-        <h1>Public Open Data</h1>
-        <p>Public services, layers, and documents with open-data publication metadata.</p>
+        <h1>Share</h1>
+        <p>Everything this workspace publishes to the outside world — public links, embeds, open-data pages, and exports.</p>
     </div>
 
     @if (_items is null)
@@ -20,29 +20,92 @@
     }
     else
     {
-        <div class="console-panel-grid">
-            @foreach (var item in _items)
-            {
-                <article class="console-panel">
-                    <p class="console-kicker">@CatalogContentTypes.LabelFor(item.Type)</p>
-                    <h2><a href="/share/public/items/@SlugOrId(item)">@item.Title</a></h2>
-                    <p>@item.Summary</p>
-                    <div class="console-chip-row">
-                        <span>@item.Owner</span>
-                        <span>Open data</span>
-                        @foreach (var format in item.Formats)
-                        {
-                            <span>@format</span>
-                        }
-                    </div>
-                </article>
-            }
+        <div class="console-kpi-strip" data-share-kpis>
+            <div class="console-kpi" data-share-kpi="shared-items">
+                <span class="console-kpi-label">Shared items</span>
+                <span class="console-kpi-value">@_items.Count</span>
+                <span class="console-kpi-sub">open-data published</span>
+            </div>
+            <div class="console-kpi" data-share-kpi="open-data-pages">
+                <span class="console-kpi-label">Open-data pages</span>
+                <span class="console-kpi-value">@_openDataCount</span>
+                <span class="console-kpi-sub">public landing</span>
+            </div>
+            <div class="console-kpi" data-share-kpi="embed-enabled">
+                <span class="console-kpi-label">Embed-enabled</span>
+                <span class="console-kpi-value">@_embedCount</span>
+                <span class="console-kpi-sub">iframe-ready</span>
+            </div>
+            <div class="console-kpi" data-share-kpi="public-links">
+                <span class="console-kpi-label">Public links</span>
+                <span class="console-kpi-value">@_publicLinkCount</span>
+                <span class="console-kpi-sub">link or indexed</span>
+            </div>
+            <div class="console-kpi" data-share-kpi="formats">
+                <span class="console-kpi-label">Download formats</span>
+                <span class="console-kpi-value">@_formatCount</span>
+                <span class="console-kpi-sub">across all items</span>
+            </div>
+        </div>
+
+        <div class="console-toolbar console-toolbar-spread" data-share-toolbar>
+            <span class="console-muted">@_items.Count shared items</span>
+        </div>
+
+        <div class="console-table-wrap" data-share-home-table>
+            <table class="console-content-table console-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Item</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Visibility</th>
+                        <th scope="col">Link</th>
+                        <th scope="col">Open data</th>
+                        <th scope="col">Formats</th>
+                        <th scope="col"><span class="console-visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _items)
+                    {
+                        <tr data-share-row="@SlugOrId(item)">
+                            <th scope="row"><a href="/share/public/items/@SlugOrId(item)">@item.Title</a></th>
+                            <td><span class="console-status console-state-neutral">@CatalogContentTypes.LabelFor(item.Type)</span></td>
+                            <td><span class="console-status console-state-success" data-share-visibility>public</span></td>
+                            <td><code class="console-inline-code">/share/public/items/@SlugOrId(item)</code></td>
+                            <td>
+                                @if (item.Access.OpenData)
+                                {
+                                    <span class="console-status console-state-success">live</span>
+                                }
+                                else
+                                {
+                                    <span class="console-status console-state-neutral">off</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="console-chip-row">
+                                    @foreach (var format in item.Formats)
+                                    {
+                                        <span>@format</span>
+                                    }
+                                </div>
+                            </td>
+                            <td><a class="console-button console-button-secondary" href="/share/manage?itemId=@item.Id">Configure</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
     }
 </section>
 
 @code {
     private IReadOnlyList<ConsoleContentSummary>? _items;
+    private int _openDataCount;
+    private int _embedCount;
+    private int _publicLinkCount;
+    private int _formatCount;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -51,12 +114,19 @@
             Sharing = CatalogSharingTiers.Public,
             Sort = CatalogSortOptions.ModifiedDesc
         }, CatalogReadContext.AnonymousPublicLink(token: null));
-        _items = result.Items
+        var items = result.Items
             .Where(item => item.Access.OpenData
                 && (string.Equals(item.Type, "service", StringComparison.Ordinal)
                     || string.Equals(item.Type, "layer", StringComparison.Ordinal)
                     || string.Equals(item.Type, "document", StringComparison.Ordinal)))
             .ToArray();
+        _items = items;
+        _openDataCount = items.Count(item => item.Access.OpenData);
+        _embedCount = items.Count(item => item.Access.Embeddable);
+        _publicLinkCount = items.Count(item =>
+            string.Equals(item.Access.Sharing, CatalogSharingTiers.Public, StringComparison.Ordinal)
+            || string.Equals(item.Access.Sharing, CatalogSharingTiers.PublicLink, StringComparison.Ordinal));
+        _formatCount = items.Sum(item => item.Formats.Count());
     }
 
     private static string SlugOrId(ConsoleContentSummary item) =>

@@ -2,7 +2,7 @@
 @page "/public/items/{IdOrSlug}"
 @inject IConsoleCatalogClient Catalog
 
-<section class="console-page">
+<section class="console-page share-opendata">
     @if (_result is null)
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading public item" Message="The open-data item is loading." />
@@ -14,44 +14,61 @@
     else
     {
         var item = _result.Item;
-        <div class="console-page-heading">
-            <p class="console-kicker">@CatalogContentTypes.LabelFor(item.Summary.Type)</p>
-            <h1>@item.Summary.Title</h1>
-            <p>@item.Summary.Summary</p>
-            <div class="console-chip-row">
-                <span>@item.Summary.Owner</span>
-                <span>Public</span>
-                <span>Open data</span>
-            </div>
-        </div>
-
-        <div class="console-panel-grid">
-            <article class="console-panel">
-                <h2>Distribution</h2>
-                <dl class="console-definition-list">
-                    @foreach (var format in item.Summary.Formats)
-                    {
-                        <dt>Format</dt>
-                        <dd>@format</dd>
-                    }
-                    @foreach (var publication in item.Publications)
-                    {
-                        <dt>Route</dt>
-                        <dd>@publication.Route</dd>
-                    }
-                </dl>
-            </article>
-            <article class="console-panel">
-                <h2>Metadata</h2>
-                <p>@item.Description</p>
+        <article class="console-panel share-opendata-landing" data-share-opendata-landing>
+            <header class="share-opendata-hero">
+                <p class="console-kicker">Open-data page <span class="console-crumb-sep">/</span> @CatalogContentTypes.LabelFor(item.Summary.Type)</p>
+                <h1>@item.Summary.Title</h1>
                 <div class="console-chip-row">
+                    <span class="console-status console-state-success">public</span>
+                    <span class="console-status console-state-info">open data</span>
                     @foreach (var tag in item.Summary.Tags)
                     {
-                        <span>@tag</span>
+                        <span>#@tag</span>
                     }
                 </div>
-            </article>
-        </div>
+            </header>
+
+            <p class="share-opendata-intro">@item.Description</p>
+
+            <section class="share-opendata-downloads" data-share-opendata-downloads>
+                <p class="console-kicker">Download</p>
+                @if (!item.Summary.Formats.Any())
+                {
+                    <p class="console-muted">No downloadable formats are published for this item.</p>
+                }
+                else
+                {
+                    <ul class="share-opendata-download-list">
+                        @foreach (var format in item.Summary.Formats)
+                        {
+                            <li>
+                                <span class="share-opendata-download-name">@format</span>
+                                <span class="console-muted">download ↓</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            @if (item.Publications.Any())
+            {
+                <section class="share-opendata-routes" data-share-opendata-routes>
+                    <p class="console-kicker">Routes</p>
+                    <dl class="console-definition-list">
+                        @foreach (var publication in item.Publications)
+                        {
+                            <dt>Route</dt>
+                            <dd><code class="console-inline-code">@publication.Route</code></dd>
+                        }
+                    </dl>
+                </section>
+            }
+
+            <footer class="share-opendata-footer" data-share-opendata-footer>
+                <p class="console-muted">Owner: @item.Summary.Owner</p>
+                <p class="console-muted share-opendata-poweredby">Powered by Honua · public open-data</p>
+            </footer>
+        </article>
     }
 </section>
 

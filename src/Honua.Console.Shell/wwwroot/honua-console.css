@@ -671,7 +671,8 @@ p {
 }
 
 .console-type-strip a,
-.console-tab-row a {
+.console-tab-row a,
+.console-tab-row button {
     flex: 0 0 auto;
     min-height: 38px;
     display: inline-flex;
@@ -683,11 +684,14 @@ p {
     background: var(--honua-surface);
     color: var(--honua-text);
     text-decoration: none;
+    font: inherit;
     font-weight: 800;
+    cursor: pointer;
 }
 
 .console-type-strip a.active,
-.console-tab-row a.active {
+.console-tab-row a.active,
+.console-tab-row button.active {
     border-color: var(--honua-accent);
     background: var(--honua-surface-strong);
     color: var(--honua-accent-strong);
@@ -695,6 +699,220 @@ p {
 
 .console-type-strip small {
     color: var(--honua-muted);
+}
+
+/* Share KPI strip */
+.console-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+@media (max-width: 1024px) {
+    .console-kpi-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.console-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.console-kpi-label {
+    color: var(--honua-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.console-kpi-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.console-kpi-sub {
+    color: var(--honua-muted);
+    font-size: 0.78rem;
+}
+
+/* Share configuration two-column layout */
+.share-config-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 18px;
+    align-items: start;
+}
+
+@media (max-width: 1024px) {
+    .share-config-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.share-config-main {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+}
+
+.share-config-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.share-manage-lede {
+    margin: -6px 0 16px;
+    max-width: 70ch;
+}
+
+.console-crumb-sep {
+    color: var(--honua-border);
+    padding: 0 2px;
+}
+
+.console-inline-code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--honua-accent-strong);
+    word-break: break-all;
+}
+
+.console-toolbar-spread {
+    justify-content: space-between;
+    align-items: center;
+}
+
+.console-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Share panel + control variants */
+.console-panel-warning {
+    border-color: #d9a23a;
+    background: #fff7e6;
+}
+
+.console-panel-emphasis {
+    border-color: var(--honua-accent);
+    background: var(--honua-surface-strong);
+}
+
+.console-status-public {
+    border-color: var(--honua-accent);
+    background: var(--honua-accent);
+    color: #ffffff;
+}
+
+.console-success {
+    color: var(--honua-accent-strong);
+    font-weight: 700;
+}
+
+.console-button-active {
+    border-color: var(--honua-accent);
+    background: var(--honua-accent);
+    color: #ffffff;
+}
+
+.console-button-ghost {
+    border-color: var(--honua-border);
+    background: var(--honua-surface);
+    color: var(--honua-accent-strong);
+    font-weight: 700;
+}
+
+.console-button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* Public open-data landing */
+.share-opendata-landing {
+    max-width: 760px;
+}
+
+.share-opendata-hero h1 {
+    margin: 6px 0 10px;
+}
+
+.share-opendata-intro {
+    margin: 14px 0;
+    line-height: 1.55;
+}
+
+.share-opendata-downloads,
+.share-opendata-routes {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--honua-border);
+}
+
+.share-opendata-download-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.share-opendata-download-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    background: var(--honua-surface);
+}
+
+.share-opendata-download-name {
+    font-weight: 700;
+}
+
+.share-opendata-footer {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--honua-border);
+}
+
+.share-opendata-poweredby {
+    text-align: center;
+    font-size: 0.78rem;
+}
+
+.console-code {
+    display: block;
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: #0e0e0e;
+    color: #d8d8d8;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-all;
 }
 
 .console-table-wrap {
