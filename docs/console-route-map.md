@@ -81,6 +81,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/layers/:id            Layer configuration (default + ?tab=configure)
 /operate/layers/:id/style      Layer style editor
 /operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
+/operate/releases              GitOps metadata release proposals and semantic diff (queue)
+/operate/releases/:id          Release proposal detail deep link
 /operate/deploy                Deploy control
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
