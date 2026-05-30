@@ -129,6 +129,130 @@ public sealed class StudioDashboardBuilderRenderTests
         Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void DashboardBuilder_NewFromPrompt_RendersConversationAndLivePreview()
+    {
+        var data = new FakeDashboardDataSource
+        {
+            Workspace = new StudioDashboardWorkspace([], []),
+            EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
+        FindButton(page, "New from prompt").Click();
+
+        // Design handoff (StudioDashboardAI): a 380px conversation column + live dashboard package preview.
+        page.WaitForAssertion(
+            () => Assert.Equal("ai", page.Find("[data-dashboard-builder]").GetAttribute("data-dashboard-view")),
+            TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(page.Find("[data-studio-ai-pane]"));
+        Assert.Contains("Dashboard from prompt", page.Markup, StringComparison.Ordinal);
+
+        // The conversation seeds a turn describing the REAL draft (its actual panel count) — not mock content.
+        Assert.Contains("1 panel", page.Markup, StringComparison.Ordinal);
+
+        // The live preview reflects the real draft's panels (the seeded chart panel) tagged Vega-Lite.
+        var preview = page.Find("[data-dashboard-preview]");
+        Assert.Contains("Requests by district", preview.TextContent, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll("[data-preview-kind=\"chart\"]"));
+        Assert.Contains("Vega-Lite", preview.TextContent, StringComparison.Ordinal);
+
+        // The preview titlebar offers "Open editor" and a Vega-Lite-gated "Publish…".
+        Assert.False(FindButton(page, "Publish…").HasAttribute("disabled"));
+        FindButton(page, "Open editor →").Click();
+        Assert.Equal("editor", page.Find("[data-dashboard-builder]").GetAttribute("data-dashboard-view"));
+    }
+
+    [Fact]
+    public void DashboardBuilder_RefinePrompt_ForwardsToServerDraftAndEchoesResult()
+    {
+        var data = new FakeDashboardDataSource
+        {
+            Workspace = new StudioDashboardWorkspace([], []),
+            EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
+        FindButton(page, "New from prompt").Click();
+        page.WaitForAssertion(() => page.Find(".studio-ai-refine-input"), TimeSpan.FromSeconds(5));
+
+        page.Find(".studio-ai-refine-input").Input("Add a filter for county");
+        page.Find(".studio-ai-send").Click();
+
+        // The prompt is forwarded to the real draft (SaveDraftAsync) and the conversation echoes the server result.
+        page.WaitForAssertion(
+            () => Assert.True(data.SaveCount >= 1, "expected the refine prompt to forward to SaveDraftAsync"),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("Add a filter for county", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Saved the draft", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DashboardBuilder_Publish_RendersSixStepWizardWithPublishingAsSummary()
+    {
+        var data = new FakeDashboardDataSource
+        {
+            Workspace = new StudioDashboardWorkspace(
+                [new StudioDashboardPackageListItem("dashboard-1", "Operations dashboard", 1, 7, 2, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Operations dashboard"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Operations dashboard").Click();
+        page.WaitForAssertion(() => FindButton(page, "Publish…"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Publish…").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Equal("publish", page.Find("[data-dashboard-builder]").GetAttribute("data-dashboard-view")),
+            TimeSpan.FromSeconds(5));
+
+        // Design handoff (StudioDashboardPublish): the 6-step stepper.
+        Assert.NotNull(page.Find(".publish-wizard"));
+        var steps = page.FindAll(".publish-step");
+        Assert.Equal(6, steps.Count);
+        foreach (var label in new[] { "Validate", "Dependencies", "Visibility", "Embed", "Rollback", "Confirm" })
+        {
+            Assert.Contains(steps, step => step.TextContent.Contains(label, StringComparison.Ordinal));
+        }
+
+        // First step shows the validation gate; "all checks passed" appears in the publish bar.
+        Assert.Contains("all checks passed", page.Markup, StringComparison.Ordinal);
+        Assert.NotNull(page.Find("[data-publish-step=\"validate\"]"));
+
+        // Step through to Confirm, asserting each step body renders along the way.
+        foreach (var step in new[] { "dependencies", "visibility", "embed", "rollback" })
+        {
+            page.Find(".publish-wizard-next").Click();
+            Assert.NotNull(page.Find($"[data-publish-step=\"{step}\"]"));
+        }
+
+        page.Find(".publish-wizard-next").Click();
+
+        // Confirm step: "Publishing as" summary from the real editor state + a finish action (no next).
+        var summary = page.Find("[data-publish-summary=\"publishing-as\"]");
+        Assert.Contains("Publishing as", summary.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Dashboard", summary.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Operations dashboard", summary.TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll(".publish-wizard-next"));
+
+        // The finish action publishes through the real data source.
+        page.Find(".publish-wizard-finish").Click();
+        page.WaitForAssertion(
+            () => Assert.True(data.PublishCount >= 1, "expected the wizard finish to call PublishAsync"),
+            TimeSpan.FromSeconds(5));
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioDashboardBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -169,20 +293,32 @@ public sealed class StudioDashboardBuilderRenderTests
 
         public StudioDashboardEditorLoad EditorLoad { get; set; } = new(null, []);
 
+        public int SaveCount { get; private set; }
+
+        public int PublishCount { get; private set; }
+
         public Task<StudioDashboardWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Workspace);
 
         public Task<StudioDashboardEditorLoad> LoadAsync(string? dashboardId, CancellationToken cancellationToken = default) =>
             Task.FromResult(EditorLoad);
 
-        public Task<StudioDashboardCommandResult> SaveDraftAsync(StudioDashboardEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioDashboardCommandResult(true, "Saved.", state));
+        public Task<StudioDashboardCommandResult> SaveDraftAsync(StudioDashboardEditorState state, CancellationToken cancellationToken = default)
+        {
+            SaveCount++;
+            return Task.FromResult(new StudioDashboardCommandResult(true, "Saved.", state));
+        }
 
         public Task<StudioDashboardCommandResult> ValidateAsync(StudioDashboardEditorState state, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioDashboardCommandResult(true, "Valid.", state));
 
-        public Task<StudioDashboardCommandResult> PublishAsync(StudioDashboardEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioDashboardCommandResult(true, "Published.", state));
+        public Task<StudioDashboardCommandResult> PublishAsync(StudioDashboardEditorState state, CancellationToken cancellationToken = default)
+        {
+            PublishCount++;
+            state.Status = StudioDashboardStatuses.Published;
+            state.PublishedVersion = state.Version;
+            return Task.FromResult(new StudioDashboardCommandResult(true, "Published.", state));
+        }
 
         public Task<StudioDashboardCommandResult> ReopenAsync(string dashboardId, int version, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioDashboardCommandResult(true, "Reopened.", new StudioDashboardEditorState { DashboardId = dashboardId, Version = version + 1 }));
