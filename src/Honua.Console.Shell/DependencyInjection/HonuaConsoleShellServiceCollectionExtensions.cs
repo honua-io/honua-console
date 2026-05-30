@@ -20,6 +20,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioAppPackageDataSource(services, honuaServerBaseUrl);
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
@@ -131,6 +132,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioAuthoringShell, UnsupportedStudioAuthoringShell>();
+    }
+
+    // Binds the Studio app-builder surface (/studio/app, #58) to honua-server's Studio package
+    // lifecycle + app publication registry (#1180/#1181/#1183) when a server base address is
+    // configured, reusing the IStudioPackageLifecycleClient already registered by
+    // AddStudioAuthoringShell; otherwise the builder renders a missing-binding state (never mock app
+    // data).
+    private static void AddStudioAppPackageDataSource(IServiceCollection services, string? honuaServerBaseUrl)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IStudioAppPackageDataSource, HonuaServerStudioAppPackageDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IStudioAppPackageDataSource, UnsupportedStudioAppPackageDataSource>();
     }
 
     // Binds the Studio form-builder surface (/studio/form) to honua-server's form package lifecycle

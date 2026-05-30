@@ -1,0 +1,295 @@
+@page "/studio/app"
+@inject IStudioAppPackageDataSource AppData
+
+<section class="console-page studio-app-builder">
+    <div class="console-page-heading">
+        <p class="console-kicker">Builder workflow</p>
+        <h1>App builder</h1>
+        <p>Assemble a server-owned app package — pages, components, navigation, bound actions, and permissions — review the share/embed policy, then save versions and publish to honua-server. Reopened edits create new content versions rather than mutating the published app.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="App builder"
+                          Title="Loading app builder"
+                          Message="Reading the Studio app package lifecycle from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="App package lifecycle is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else if (_editor is { } editor)
+    {
+        var readiness = StudioAppPackageMapper.EvaluatePublishReadiness(editor);
+
+        @if (_states.Count > 0)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">App binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        <div class="studio-app-editor" data-app-builder="app.package" data-app-published="@editor.IsPublished.ToString().ToLowerInvariant()">
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">@(editor.IsExistingDraft ? "Server draft" : "New draft")@(editor.IsPublished ? $" · published v{editor.PublishedVersion}" : string.Empty)</p>
+                    <h2>@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled app" : editor.Title)</h2>
+                </div>
+                <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@(editor.IsPublished ? "published" : "draft")</span>
+            </div>
+
+            <div class="console-action-row">
+                <button class="console-button" type="button" disabled="@_busy" @onclick="Save">Save draft</button>
+                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Validate">Validate</button>
+                <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">Publish</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_status))
+            {
+                <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+            }
+
+            @if (!readiness.CanPublish)
+            {
+                <article class="console-panel" aria-labelledby="app-publish-readiness-heading">
+                    <p class="console-kicker">Pre-publish gate</p>
+                    <h3 id="app-publish-readiness-heading">Resolve before publish</h3>
+                    <ul class="studio-compact-list">
+                        @foreach (var requirement in readiness.UnmetRequirements)
+                        {
+                            <li>@requirement</li>
+                        }
+                    </ul>
+                </article>
+            }
+
+            @if (_validation is { } validation)
+            {
+                <article class="console-panel" aria-labelledby="app-validation-heading">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Server validation</p>
+                            <h3 id="app-validation-heading">@(validation.IsValid ? "Valid" : "Issues reported")</h3>
+                        </div>
+                        <span class="console-status @(validation.IsValid ? string.Empty : "console-status-danger")">@(validation.IsValid ? "valid" : $"{validation.Issues.Count} issue(s)")</span>
+                    </div>
+                    @if (validation.Issues.Count > 0)
+                    {
+                        <ul class="studio-compact-list">
+                            @foreach (var issue in validation.Issues)
+                            {
+                                <li><strong>@issue.Severity</strong> @issue.Message @(string.IsNullOrWhiteSpace(issue.Path) ? string.Empty : $"({issue.Path})")</li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
+
+            <article class="console-panel">
+                <p class="console-kicker">Details</p>
+                <h3>App</h3>
+                <label class="studio-form-label">
+                    <span>Title</span>
+                    <input class="console-input" @bind="editor.Title" placeholder="Field operations app" />
+                </label>
+                <label class="studio-form-label">
+                    <span>Summary</span>
+                    <textarea class="console-input" rows="2" @bind="editor.Summary"></textarea>
+                </label>
+            </article>
+
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Pages, components, and navigation</p>
+                        <h3>Pages</h3>
+                    </div>
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="AddPage">Add page</button>
+                </div>
+
+                @if (editor.Pages.Count == 0)
+                {
+                    <p class="console-muted">No pages yet. Add at least one page bound to a saved content version.</p>
+                }
+
+                @foreach (var page in editor.Pages)
+                {
+                    <fieldset class="studio-app-page" @key="page">
+                        <div class="console-panel-grid">
+                            <label class="studio-form-label"><span>Route</span><input class="console-input" @bind="page.Route" placeholder="/map" /></label>
+                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="page.Title" placeholder="Map" /></label>
+                            <label class="studio-form-label">
+                                <span>Component</span>
+                                <select class="console-input" @bind="page.ComponentKind">
+                                    @foreach (var kind in StudioAppComponentKinds.All)
+                                    {
+                                        <option value="@kind">@kind</option>
+                                    }
+                                </select>
+                            </label>
+                            <label class="studio-form-label"><span>Content binding</span><input class="console-input" @bind="page.ContentBinding" placeholder="content:permits@v3" /></label>
+                        </div>
+                        <div class="console-action-row">
+                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemovePage(page)">Remove page</button>
+                        </div>
+                    </fieldset>
+                }
+            </article>
+
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Actions and permissions</p>
+                        <h3>Actions</h3>
+                    </div>
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="AddAction">Add action</button>
+                </div>
+
+                @if (editor.Actions.Count == 0)
+                {
+                    <p class="console-muted">No actions yet. Bound actions declare a permission requirement for the generated-app runtime.</p>
+                }
+
+                @foreach (var action in editor.Actions)
+                {
+                    <div class="console-panel-grid" @key="action">
+                        <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="action.Name" placeholder="submit inspection" /></label>
+                        <label class="studio-form-label"><span>Page route</span><input class="console-input" @bind="action.PageRoute" placeholder="/form" /></label>
+                        <label class="studio-form-label">
+                            <span>Required permission</span>
+                            <select class="console-input" @bind="action.RequiredPermission">
+                                @foreach (var permission in StudioAppPermissions.All)
+                                {
+                                    <option value="@permission">@permission</option>
+                                }
+                            </select>
+                        </label>
+                        <div class="console-action-row">
+                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemoveAction(action)">Remove</button>
+                        </div>
+                    </div>
+                }
+            </article>
+
+            <article class="console-panel studio-app-share" aria-labelledby="app-share-heading">
+                <p class="console-kicker">Share and embed</p>
+                <h3 id="app-share-heading">Share/embed policy</h3>
+                <p class="console-muted">The share visibility and embed policy must be an explicit, reviewed decision before publish.</p>
+                <div class="console-panel-grid">
+                    <label class="studio-form-label">
+                        <span>Visibility</span>
+                        <select class="console-input" @bind="editor.Visibility">
+                            @foreach (var visibility in StudioAppVisibilityModes.All)
+                            {
+                                <option value="@visibility">@visibility</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                <div class="console-chip-row studio-form-toggles">
+                    <label><input type="checkbox" @bind="editor.EmbedEnabled" /> <span>Embeddable</span></label>
+                </div>
+                <label class="studio-form-review">
+                    <input type="checkbox" @bind="editor.ShareEmbedPolicyReviewed" />
+                    <span>I reviewed the share/embed policy for this app (required before publish).</span>
+                </label>
+            </article>
+        </div>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private StudioAppEditorState? _editor;
+    private StudioAppCapabilityState? _bindingState;
+    private IReadOnlyList<StudioAppCapabilityState> _states = [];
+    private StudioAppValidationView? _validation;
+    private string? _status;
+    private bool _statusFailed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        var load = await AppData.LoadAsync(null);
+        ApplyStates(load.CapabilityStates);
+        _editor = load.State;
+        _loading = false;
+    }
+
+    private Task Save() => RunCommandAsync(() => AppData.SaveDraftAsync(_editor!));
+
+    private Task Validate() => RunCommandAsync(() => AppData.ValidateAsync(_editor!));
+
+    private Task Publish() => RunCommandAsync(() => AppData.PublishAsync(_editor!));
+
+    private void AddPage() => _editor?.Pages.Add(new StudioAppPageState());
+
+    private void RemovePage(StudioAppPageState page) => _editor?.Pages.Remove(page);
+
+    private void AddAction() => _editor?.Actions.Add(new StudioAppActionState());
+
+    private void RemoveAction(StudioAppActionState action) => _editor?.Actions.Remove(action);
+
+    private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command)
+    {
+        if (_busy || _editor is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await command();
+            _status = result.Message;
+            _statusFailed = !result.Succeeded;
+            _validation = result.Validation ?? _validation;
+
+            if (result.State is not null)
+            {
+                _editor = result.State;
+            }
+
+            ApplyStates(result.Issue is null ? [] : [result.Issue]);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ApplyStates(IReadOnlyList<StudioAppCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
+        _states = states
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+    }
+}
