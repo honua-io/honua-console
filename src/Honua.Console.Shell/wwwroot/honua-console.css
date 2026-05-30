@@ -1300,7 +1300,8 @@ p {
     margin: 0 0 18px;
 }
 
-.console-tab-row a {
+.console-tab-row a,
+.console-tab-row button {
     padding: 8px 10px;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
@@ -1309,6 +1310,12 @@ p {
     font-size: 0.85rem;
     font-weight: 800;
     text-decoration: none;
+    cursor: pointer;
+}
+
+.console-tab-row button.active {
+    border-color: var(--honua-accent);
+    background: var(--honua-surface-strong);
 }
 
 .console-table-wrap {
@@ -2597,6 +2604,136 @@ p {
 .studio-map-preview small {
     color: var(--honua-muted);
     font-weight: 800;
+}
+
+/* Map builder editor — header bar, section tabs, three-column design surface. */
+.studio-map-editor-bar {
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.studio-map-editor-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.studio-map-glyph {
+    font-size: 1.4rem;
+    line-height: 1;
+    color: var(--honua-muted);
+}
+
+.studio-map-title-input {
+    min-width: 240px;
+    font-weight: 700;
+}
+
+.studio-map-status-chips {
+    gap: 8px;
+}
+
+.studio-map-actions {
+    margin-left: auto;
+}
+
+.studio-map-tabs {
+    margin-bottom: 14px;
+}
+
+.studio-map-design-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.4fr) minmax(240px, 0.9fr);
+    gap: 18px;
+    align-items: start;
+    margin-bottom: 18px;
+}
+
+.studio-map-layer-list {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.studio-map-layer-item {
+    border: 1px solid var(--honua-border);
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--honua-surface);
+}
+
+.studio-map-layer-selected {
+    border-left-color: var(--honua-accent);
+    background: var(--honua-surface-strong);
+}
+
+.studio-map-layer-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.studio-map-layer-name {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    font-weight: 700;
+    color: var(--honua-text);
+}
+
+.studio-map-layer-kind {
+    font-size: 0.78rem;
+}
+
+.studio-map-layer-move {
+    margin-top: 8px;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.studio-map-applied-chips {
+    margin-top: 12px;
+}
+
+.studio-map-visibility-options {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 14px;
+}
+
+.studio-map-visibility-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.studio-map-visibility-option span {
+    display: grid;
+    gap: 2px;
+}
+
+.studio-map-visibility-selected {
+    border-color: var(--honua-accent);
+    background: var(--honua-surface-strong);
+}
+
+@media (width <= 1080px) {
+    .studio-map-design-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .studio-check-row {
