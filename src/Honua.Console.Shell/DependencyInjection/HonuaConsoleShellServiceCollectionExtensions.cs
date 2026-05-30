@@ -28,6 +28,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioDashboardPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
         AddPublishingWorkspaceDataSource(services);
@@ -331,6 +332,33 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IConsoleCatalogClient, UnsupportedConsoleCatalogClient>();
+    }
+
+    // Binds the Share management surface (/share/manage, honua-console#35) to honua-server's Console Share
+    // access API (honua-server#1215: share projection read, access-tier change, dependency-closure preview,
+    // public-link mint/revoke, embed enablement/token mint) through the Honua.Console.Contracts shim when a
+    // server base address is configured; otherwise the surface renders a missing-binding state (never mock
+    // share data, Console Patterns Charter section 11).
+    private static void AddShareAccessDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaConsoleShareClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaConsoleShareHttpClient(
+                    httpClient,
+                    new HonuaConsoleShareClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IShareAccessDataSource, HonuaServerShareAccessDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<IShareAccessDataSource, UnsupportedShareAccessDataSource>();
     }
 
     private static void AddOperateTransitionDataSource(

@@ -1,0 +1,463 @@
+@page "/share/manage"
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Models
+@inject IShareAccessDataSource ShareData
+
+<section class="console-page share-manage">
+    <div class="console-page-heading">
+        <p class="console-kicker">Share workflow</p>
+        <h1>Share access</h1>
+        <p>Manage a content item's server-owned Share access: public/private visibility, public-link tokens with expiration, embed enablement and embed tokens, dependency-closure safety, and open-data eligibility. State is authored on honua-server's Console Share access API and is never resolved client-side.</p>
+    </div>
+
+    <form class="console-toolbar" @onsubmit="OpenItem" @formname="open-share-item">
+        <label class="studio-form-label">
+            <span>Content item id</span>
+            <input class="console-input" @bind="_itemIdInput" placeholder="item-..." />
+        </label>
+        <button class="console-button" type="submit" disabled="@_busy">Open share access</button>
+    </form>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Share access"
+                          Title="Loading share access"
+                          Message="Reading the Console Share access projection from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Share access API is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else if (_notFoundState is not null)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="@_notFoundState.State"
+                          Title="Share access not found"
+                          Message="@($"{_notFoundState.Detail} (contract: {_notFoundState.Contract})")" />
+    }
+    else
+    {
+        @if (_commandStates.Count > 0)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Share binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _commandStates)
+                    {
+                        <article class="console-panel" data-share-capability="@state.State">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_blockedBy is { } blocked)
+        {
+            <section class="console-section" data-share-blocked="@blocked.TargetTier">
+                <article class="console-panel console-panel-warning">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Dependency closure</p>
+                            <h2>@($"Cannot share by '{blocked.TargetTier}'")</h2>
+                        </div>
+                        <span class="console-status console-status-warning">blocked</span>
+                    </div>
+                    <p class="console-muted">The item's provenance closure has dependencies that are not shareable by the target audience. Resolve or override the conflicts below before sharing.</p>
+                    <div class="console-table-wrap">
+                        <table class="console-table">
+                            <thead>
+                                <tr>
+                                    <th>Dependency</th>
+                                    <th>Type</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var conflict in blocked.Conflicts)
+                                {
+                                    <tr>
+                                        <td>@(string.IsNullOrWhiteSpace(conflict.ItemName) ? conflict.ItemId : conflict.ItemName)</td>
+                                        <td>@(conflict.ItemType ?? "—")</td>
+                                        <td>@conflict.BlockingReason</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </section>
+        }
+
+        @if (_mintedSecret is { } secret)
+        {
+            <section class="console-section" data-share-minted="@secret.Kind">
+                <article class="console-panel console-panel-emphasis">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@(secret.Kind == "embed" ? "Embed token" : "Public-link token")</p>
+                            <h2>Copy this token now</h2>
+                        </div>
+                    </div>
+                    <p class="console-muted">This value is shown only once — honua-server never re-discloses it. Store it now; reference the token later by its id (@secret.TokenId).</p>
+                    <pre class="console-code" data-share-secret-value>@secret.Token</pre>
+                    @if (secret.ExpiresAt is { } expiry)
+                    {
+                        <p class="console-muted">Expires @expiry.ToString("yyyy-MM-dd HH:mm 'UTC'").</p>
+                    }
+                </article>
+            </section>
+        }
+
+        @if (_share is { } share)
+        {
+            <section class="console-section" data-share-access="@share.ItemId">
+                <article class="console-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@($"{share.ItemType} · {share.ItemId}")</p>
+                            <h2>@share.DisplayTitle</h2>
+                        </div>
+                        <span class="console-status @(share.IsPublic ? "console-status-public" : string.Empty)" data-share-tier="@share.AccessTier">@TierLabel(share.AccessTier)</span>
+                    </div>
+                    <dl class="console-definition-list">
+                        <dt>Visibility</dt>
+                        <dd data-share-visibility>@(share.IsPublic ? "Public" : "Private / membership-scoped")</dd>
+                        <dt>Anonymous access</dt>
+                        <dd>@(share.AnonymousEligible ? "An anonymous caller can read this item" : "No anonymous access")</dd>
+                        <dt>Open data</dt>
+                        <dd>@(share.OpenDataEligible ? "Eligible for open-data distribution" : "Not open-data eligible")</dd>
+                        <dt>Embedding</dt>
+                        <dd>@(share.EmbedEnabled ? $"Enabled ({share.EmbedAudience})" : "Disabled")</dd>
+                        @if (share.OwnerId is not null)
+                        {
+                            <dt>Owner</dt>
+                            <dd>@share.OwnerId</dd>
+                        }
+                        @if (share.UpdatedAt is { } updated)
+                        {
+                            <dt>Updated</dt>
+                            <dd>@updated.ToString("yyyy-MM-dd HH:mm 'UTC'") @(share.UpdatedById is null ? string.Empty : $"by {share.UpdatedById}")</dd>
+                        }
+                    </dl>
+                </article>
+
+                @if (share.CanShare)
+                {
+                    <article class="console-panel" data-share-panel="access-tier">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Access tier</p>
+                                <h3>Public / private state</h3>
+                            </div>
+                        </div>
+                        <p class="console-muted">Changing to public-link or public-indexed is dependency-closure validated. public-indexed makes the item publicly readable and open-data eligible.</p>
+                        <div class="console-button-row">
+                            @foreach (var tier in AccessTiers)
+                            {
+                                <button class="console-button @(string.Equals(tier, share.AccessTier, StringComparison.Ordinal) ? "console-button-active" : string.Empty)"
+                                        type="button"
+                                        disabled="@_busy"
+                                        @onclick="() => ChangeTier(share.ItemId, tier)">
+                                    @TierLabel(tier)
+                                </button>
+                            }
+                        </div>
+                        <div class="console-button-row">
+                            @foreach (var tier in PublicTiers)
+                            {
+                                <button class="console-button console-button-ghost"
+                                        type="button"
+                                        disabled="@_busy"
+                                        @onclick="() => PreviewDependencies(share.ItemId, tier)">
+                                    Preview closure for @TierLabel(tier)
+                                </button>
+                            }
+                        </div>
+                        @if (_lastClosure is { } closure && closure.IsCompatible)
+                        {
+                            <p class="console-success" data-share-closure-ok="@closure.TargetTier">Provenance closure is shareable by @TierLabel(closure.TargetTier).</p>
+                        }
+                    </article>
+                }
+
+                @if (share.IsPublic && share.CanShare)
+                {
+                    <article class="console-panel" data-share-panel="public-link">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Public links</p>
+                                <h3>Token links @(share.PublicLinkEnabled ? "(active)" : "(none active)")</h3>
+                            </div>
+                        </div>
+                        <form class="console-toolbar" @onsubmit="() => MintPublicLink(share.ItemId)" @formname="mint-public-link">
+                            <label class="studio-form-label">
+                                <span>Expires (UTC, optional)</span>
+                                <input class="console-input" type="datetime-local" @bind="_expiresAtInput" />
+                            </label>
+                            <button class="console-button" type="submit" disabled="@_busy">Mint public-link token</button>
+                        </form>
+                        @if (share.PublicLinkTokens.Count == 0)
+                        {
+                            <p class="console-muted">No public-link tokens minted yet.</p>
+                        }
+                        else
+                        {
+                            <div class="console-table-wrap">
+                                <table class="console-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Token id</th>
+                                            <th>Created</th>
+                                            <th>Expires</th>
+                                            <th>Status</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var token in share.PublicLinkTokens)
+                                        {
+                                            <tr data-share-token="@token.TokenId">
+                                                <td><small>@token.TokenId</small></td>
+                                                <td>@token.CreatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                                                <td>@(token.ExpiresAt is { } e ? e.ToString("yyyy-MM-dd HH:mm 'UTC'") : "never")</td>
+                                                <td>@(token.IsExpired ? "expired/revoked" : "active")</td>
+                                                <td>
+                                                    @if (!token.IsExpired)
+                                                    {
+                                                        <button class="console-button console-button-ghost"
+                                                                type="button"
+                                                                disabled="@_busy"
+                                                                @onclick="() => RevokePublicLink(share.ItemId, token.TokenId)">
+                                                            Revoke
+                                                        </button>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </article>
+                }
+
+                @if (share.CanEmbed)
+                {
+                    <article class="console-panel" data-share-panel="embed">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Embed</p>
+                                <h3>Embed status @(share.EmbedEnabled ? "(enabled)" : "(disabled)")</h3>
+                            </div>
+                        </div>
+                        <p class="console-muted">Enabling embedding exposes the item to an external surface and is dependency-closure validated at public-link strength. Embed tokens always carry a TTL and travel in the iframe URL fragment (#embedToken=), never the query string.</p>
+                        @if (!share.EmbedEnabled)
+                        {
+                            <div class="console-button-row">
+                                <button class="console-button" type="button" disabled="@_busy" @onclick="() => SetEmbed(share.ItemId, true, HonuaConsoleEmbedAudiences.Map)">Enable map embed</button>
+                                <button class="console-button" type="button" disabled="@_busy" @onclick="() => SetEmbed(share.ItemId, true, HonuaConsoleEmbedAudiences.Content)">Enable content embed</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="console-button-row">
+                                <button class="console-button console-button-ghost" type="button" disabled="@_busy" @onclick="() => SetEmbed(share.ItemId, false, null)">Disable embedding</button>
+                                <button class="console-button" type="button" disabled="@_busy" @onclick="() => MintEmbedToken(share.ItemId, share.EmbedAudience!)">Mint embed token</button>
+                            </div>
+                        }
+                    </article>
+                }
+            </section>
+        }
+        else if (!_attempted)
+        {
+            <EmptyState Area="share" Subject="share access" />
+        }
+    }
+</section>
+
+@code {
+    private static readonly string[] AccessTiers =
+    [
+        HonuaConsoleShareAccessTiers.Private,
+        HonuaConsoleShareAccessTiers.Organization,
+        HonuaConsoleShareAccessTiers.PublicLink,
+        HonuaConsoleShareAccessTiers.PublicIndexed
+    ];
+
+    private static readonly string[] PublicTiers =
+    [
+        HonuaConsoleShareAccessTiers.PublicLink,
+        HonuaConsoleShareAccessTiers.PublicIndexed
+    ];
+
+    private bool _loading;
+    private bool _busy;
+    private bool _attempted;
+    private string? _itemIdInput;
+    private DateTime? _expiresAtInput;
+    private ShareAccessView? _share;
+    private ShareMintedSecret? _mintedSecret;
+    private ShareDependencyClosureView? _blockedBy;
+    private ShareDependencyClosureView? _lastClosure;
+    private ShareCapabilityState? _bindingState;
+    private ShareCapabilityState? _notFoundState;
+    private IReadOnlyList<ShareCapabilityState> _commandStates = [];
+
+    [SupplyParameterFromQuery(Name = "itemId")]
+    public string? ItemId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(ItemId) && !_attempted)
+        {
+            _itemIdInput = ItemId;
+            await LoadAsync(ItemId);
+        }
+    }
+
+    private async Task OpenItem()
+    {
+        if (!string.IsNullOrWhiteSpace(_itemIdInput))
+        {
+            await LoadAsync(_itemIdInput);
+        }
+    }
+
+    private async Task LoadAsync(string itemId)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _loading = true;
+        _attempted = true;
+        ResetTransient();
+        try
+        {
+            var load = await ShareData.LoadAsync(itemId);
+            _share = load.Share;
+            ApplyStates(load.CapabilityStates);
+        }
+        finally
+        {
+            _busy = false;
+            _loading = false;
+        }
+    }
+
+    private Task ChangeTier(string itemId, string tier) =>
+        RunCommandAsync(() => ShareData.UpdateAccessTierAsync(itemId, tier, allowDependencyConflicts: false));
+
+    private Task PreviewDependencies(string itemId, string tier) =>
+        RunCommandAsync(() => ShareData.PreviewDependenciesAsync(itemId, tier));
+
+    private Task MintPublicLink(string itemId)
+    {
+        DateTimeOffset? expiresAt = _expiresAtInput is { } local
+            ? new DateTimeOffset(DateTime.SpecifyKind(local, DateTimeKind.Utc))
+            : null;
+        return RunCommandAsync(() => ShareData.MintPublicLinkAsync(itemId, expiresAt));
+    }
+
+    private Task RevokePublicLink(string itemId, string tokenId) =>
+        RunCommandAsync(() => ShareData.RevokePublicLinkAsync(itemId, tokenId));
+
+    private Task SetEmbed(string itemId, bool enabled, string? audience) =>
+        RunCommandAsync(() => ShareData.SetEmbedAsync(itemId, enabled, audience, allowDependencyConflicts: false));
+
+    private Task MintEmbedToken(string itemId, string audience) =>
+        RunCommandAsync(() => ShareData.MintEmbedTokenAsync(itemId, audience, ttlSeconds: null));
+
+    private async Task RunCommandAsync(Func<Task<ShareCommandResult>> command)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        ResetTransient();
+        try
+        {
+            var result = await command();
+            if (result.Share is not null)
+            {
+                _share = result.Share;
+            }
+
+            _mintedSecret = result.MintedSecret;
+
+            // A closure result (from a preview or a blocked change) is compatible => OK banner; incompatible
+            // => blocking-dependency table. Both arrive on BlockedBy from the data source.
+            if (result.BlockedBy is { } closure)
+            {
+                if (closure.IsCompatible)
+                {
+                    _lastClosure = closure;
+                }
+                else
+                {
+                    _blockedBy = closure;
+                }
+            }
+
+            ApplyStates(result.CapabilityStates);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ApplyStates(IReadOnlyList<ShareCapabilityState> states)
+    {
+        _bindingState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
+        _notFoundState = states.FirstOrDefault(state =>
+            string.Equals(state.State, "Unsupported", StringComparison.OrdinalIgnoreCase)
+            && state.Detail.Contains("not found", StringComparison.OrdinalIgnoreCase));
+        _commandStates = states
+            .Where(state => !ReferenceEquals(state, _bindingState) && !ReferenceEquals(state, _notFoundState))
+            .ToArray();
+    }
+
+    private void ResetTransient()
+    {
+        _mintedSecret = null;
+        _blockedBy = null;
+        _lastClosure = null;
+        _bindingState = null;
+        _notFoundState = null;
+        _commandStates = [];
+    }
+
+    private static string TierLabel(string tier) => tier switch
+    {
+        HonuaConsoleShareAccessTiers.Private => "Private",
+        HonuaConsoleShareAccessTiers.Organization => "Organization",
+        HonuaConsoleShareAccessTiers.PublicLink => "Public link",
+        HonuaConsoleShareAccessTiers.PublicIndexed => "Public indexed",
+        _ => tier
+    };
+}

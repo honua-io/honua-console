@@ -902,6 +902,7 @@ loaded; Console must not evaluate wildcard entitlement tokens.
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
 | `/share` | `anonymous`, Console Share area entry; current slice renders `/share/public` content | empty-share | — | share |
+| `/share/manage` | `auth` (+ server item read; the `share`/`embed`/`administer` facets gate the per-panel controls); missing-binding when no server base address is configured. Server-bound Share access management on the Console Share access API (honua-server#1215, closed): public/private access-tier change, public-link token mint/revoke + expiration, embed enablement + embed-token mint, dependency-closure preview, and open-data eligibility. Driven by `?itemId=`. | empty-share | missing-binding / missing-permission (server RBAC) / not-found (anonymous-safe) | share |
 | `/share/public` | `anonymous`, `open-data` per item (`isPublicOpenDataSummary`) | empty-share | — | share |
 | `/public` | `anonymous`, compatibility alias for `/share/public` | empty-share | — | share |
 | `/share/public/items/:idOrSlug` | `anonymous`, `open-data` (`isPublicOpenDataItem`) | missing-item / not-public | unavailable (anonymous, see §13 Q5) | share |
