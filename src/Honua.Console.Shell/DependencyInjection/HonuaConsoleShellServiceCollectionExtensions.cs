@@ -24,6 +24,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioAnalysisPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddStudioDashboardPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
@@ -213,6 +214,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioAnalysisPackageDataSource, UnsupportedStudioAnalysisPackageDataSource>();
+    }
+
+    // Binds the Studio dashboard-builder surface (/studio/dashboard) to honua-server's dashboard package
+    // lifecycle on the publication registry (#1183). The live HttpClient binding behind the
+    // Honua.Console.Contracts shim follows in a subsequent slice once the dashboard publication wire
+    // contract is projected into Console; until then this registers the missing-binding data source so the
+    // builder renders an explicit not-bound surface (never mock dashboard data — Console Patterns Charter
+    // section 11). TryAdd keeps an explicit test/demo provider overridable.
+    private static void AddStudioDashboardPackageDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        _ = honuaServerBaseUrl;
+        _ = honuaServerAdminApiKey;
+
+        services.TryAddSingleton<IStudioDashboardPackageDataSource, UnsupportedStudioDashboardPackageDataSource>();
     }
 
     // Binds the Studio GP/ETL workflow editor (node registry, package drafts, versions, dry-run, publish)
