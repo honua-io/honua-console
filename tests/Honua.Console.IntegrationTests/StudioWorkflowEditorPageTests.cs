@@ -35,7 +35,7 @@ public sealed class StudioWorkflowEditorPageTests
         TitleInput(page).Input("Parcel normalizer (edited)");
 
         // Save: the server rejects the graph as invalid, so no version is created and the draft stays dirty.
-        FindButton(page, "Save Version").Click();
+        FindButton(page, "Save draft").Click();
         page.WaitForAssertion(
             () => Assert.Contains(
                 "Save blocked: server validation requires attention",
@@ -75,7 +75,7 @@ public sealed class StudioWorkflowEditorPageTests
         Assert.Contains("No runs yet", page.Markup, StringComparison.Ordinal);
 
         // Dry-run, then publish: the run-history panel records both runs with their state and evidence.
-        FindButton(page, "Dry Run").Click();
+        FindButton(page, "Run once").Click();
         FindButton(page, "Publish").Click();
 
         page.WaitForAssertion(
@@ -87,6 +87,52 @@ public sealed class StudioWorkflowEditorPageTests
         Assert.Contains("succeeded", historyMarkup, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Rejected rows", historyMarkup, StringComparison.Ordinal);
         Assert.Contains("Content item history", historyMarkup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Editor_RendersDesignLandmarks_HeaderTabsPaletteAndDagCanvas()
+    {
+        var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
+
+        var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
+            parameters => parameters.Add(p => p.DraftId, InMemoryStudioWorkflowPackageClient.SeedDraftId));
+
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(page.FindAll("header.workflow-editor-header")),
+            TimeSpan.FromSeconds(5));
+
+        // Header bar: editable workflow name, the draft + DAG-valid status badges, and the action buttons
+        // moved into the header to match the mockup's top bar.
+        var header = page.Find("header.workflow-editor-header");
+        Assert.NotEmpty(header.QuerySelectorAll("input.workflow-title-input"));
+        Assert.Contains("draft", header.TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DAG", header.TextContent, StringComparison.Ordinal);
+        Assert.Contains(header.QuerySelectorAll("button"), b => b.TextContent.Contains("Run once", StringComparison.Ordinal));
+        Assert.Contains(header.QuerySelectorAll("button"), b => b.TextContent.Contains("Save draft", StringComparison.Ordinal));
+        Assert.Contains(header.QuerySelectorAll("button"), b => b.TextContent.Contains("Publish", StringComparison.Ordinal));
+
+        // Section tabs mirror the mockup IA and anchor the canvas/schedule/secrets/history/raw regions.
+        var tabRow = page.Find("nav.workflow-tab-row");
+        var tabLabels = tabRow.QuerySelectorAll("a").Select(a => a.TextContent.Trim()).ToArray();
+        Assert.Equal(["Graph", "Schedule", "Secrets", "Run history", "Package · raw"], tabLabels);
+        foreach (var anchor in new[] { "workflow-graph", "workflow-schedule", "workflow-secrets", "workflow-history", "workflow-package" })
+        {
+            Assert.NotEmpty(page.FindAll($"#{anchor}"));
+        }
+
+        // Step palette renders icon glyphs + category subtitle per node definition.
+        var paletteItems = page.FindAll(".workflow-palette .workflow-palette-item");
+        Assert.NotEmpty(paletteItems);
+        Assert.All(paletteItems, item => Assert.NotEmpty(item.QuerySelectorAll(".workflow-step-glyph")));
+
+        // The DAG canvas draws an SVG edge layer (arrow markers + dotgrid) with absolutely-positioned nodes.
+        var canvas = page.Find("#workflow-graph .workflow-canvas");
+        Assert.NotEmpty(canvas.QuerySelectorAll("svg.workflow-canvas-edges"));
+        Assert.NotEmpty(canvas.QuerySelectorAll("marker#workflow-arrow"));
+        Assert.NotEmpty(canvas.QuerySelectorAll(".workflow-canvas-nodes .workflow-node"));
+        Assert.NotEmpty(canvas.QuerySelectorAll(".workflow-canvas-edge"));
     }
 
     private static IElement TitleInput(IRenderedComponent<StudioWorkflowEditorPage> page) =>
