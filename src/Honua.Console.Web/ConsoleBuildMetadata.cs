@@ -3,7 +3,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Web;
 
-internal static class ConsoleBuildMetadata
+public static class ConsoleBuildMetadata
 {
     private static readonly string StartedAt = DateTimeOffset.UtcNow.ToString("O");
 
