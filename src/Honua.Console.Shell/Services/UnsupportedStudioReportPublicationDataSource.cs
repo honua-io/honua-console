@@ -21,4 +21,27 @@ public sealed class UnsupportedStudioReportPublicationDataSource : IStudioReport
         string publicationId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new StudioReportPublicationLoad(null, [MissingBinding]));
+
+    public Task<StudioReportCommandResult> PublishAsync(
+        StudioReportEditorState state,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(MissingBindingCommand());
+
+    public Task<StudioReportCommandResult> RollbackAsync(
+        string publicationId,
+        string targetVersionId,
+        string? expectedEtag = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(MissingBindingCommand());
+
+    public Task<StudioReportCommandResult> UpdatePolicyAsync(
+        string publicationId,
+        string visibility,
+        bool embeddable,
+        string? expectedEtag = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(MissingBindingCommand());
+
+    private static StudioReportCommandResult MissingBindingCommand() =>
+        new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

@@ -6,16 +6,19 @@
     <div class="console-page-heading">
         <p class="console-kicker">Builder workflow</p>
         <h1>Report builder</h1>
-        <p>Author a server-owned report package — narrative, data bindings, Vega-Lite charts, map panels, tables, filters, version pinning, and responsive preview — then publish, share, and embed through the honua-server content publication registry. This slice binds the read path: open a published report to inspect its server-owned route and immutable version history.</p>
+        <p>Author a server-owned report package — narrative, data bindings, Vega-Lite charts, map panels, tables, filters, version pinning, and responsive preview — then publish, share, and embed through the honua-server content publication registry. Open an existing report to inspect its server-owned route, manage visibility/embed, and pin (roll back) to an immutable version.</p>
     </div>
 
-    <form class="console-toolbar" @onsubmit="OpenPublication" @formname="open-report-publication">
-        <label class="studio-form-label">
-            <span>Publication id</span>
-            <input class="console-input" @bind="_publicationIdInput" placeholder="pub-report-..." />
-        </label>
-        <button class="console-button" type="submit" disabled="@_busy">Open report publication</button>
-    </form>
+    <div class="console-toolbar">
+        <button class="console-button" type="button" disabled="@_busy" @onclick="NewReport">New report</button>
+        <form class="console-toolbar-inline" @onsubmit="OpenPublication" @formname="open-report-publication">
+            <label class="studio-form-label">
+                <span>Publication id</span>
+                <input class="console-input" @bind="_publicationIdInput" placeholder="pub-report-..." />
+            </label>
+            <button class="console-button console-button-secondary" type="submit" disabled="@_busy">Open report publication</button>
+        </form>
+    </div>
 
     @if (_loading)
     {
@@ -61,9 +64,258 @@
             </section>
         }
 
+        @if (!string.IsNullOrEmpty(_status))
+        {
+            <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+        }
+
+        @if (_editor is { } editor)
+        {
+            var readiness = StudioReportPublishEvaluator.Evaluate(editor);
+            var selectedPanel = SelectedPanel(editor);
+
+            <div class="studio-report-editor" data-report-builder="report.package" data-report-status="@(editor.IsPublished ? "published" : "draft")">
+                @* Editor header bar — mirrors the mockup's name/badge/meta + responsive-preview + Publish row.
+                   The mockup's Print preview / Export PDF affordances have no server contract yet, so the bar
+                   carries only the real lifecycle actions (Close / Update policy / Publish) plus the live
+                   responsive-preview breakpoint control. *@
+                <div class="studio-report-bar">
+                    <span class="studio-report-bar-icon" aria-hidden="true">&#9249;</span>
+                    <input class="console-input studio-report-name"
+                           @bind="editor.Title"
+                           @bind:event="oninput"
+                           placeholder="q3-public-works-overview"
+                           aria-label="Report title" />
+                    <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")" data-report-status-badge="@(editor.IsPublished ? "published" : "draft")">@(editor.IsPublished ? $"published · r{editor.ActiveRevision}" : "draft")</span>
+                    <span class="studio-report-bar-meta console-muted">@editor.Panels.Count panel(s) · @editor.Bindings.Count binding(s) · @editor.PreviewBreakpoint preview</span>
+                    <span class="studio-report-bar-spacer"></span>
+                    <select class="console-input studio-report-breakpoint" @bind="editor.PreviewBreakpoint" aria-label="Preview breakpoint">
+                        @foreach (var breakpoint in StudioReportBreakpoints.All)
+                        {
+                            <option value="@breakpoint">@breakpoint preview</option>
+                        }
+                    </select>
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="CloseEditor">Close</button>
+                    @if (editor.IsPublished)
+                    {
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="UpdatePolicy">Update policy</button>
+                    }
+                    <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">@(editor.IsPublished ? "Republish…" : "Publish…")</button>
+                </div>
+
+                @if (!readiness.CanPublish)
+                {
+                    <article class="console-panel studio-report-gate" aria-labelledby="report-publish-readiness-heading">
+                        <p class="console-kicker">Pre-publish gate</p>
+                        <h3 id="report-publish-readiness-heading">Resolve before publish</h3>
+                        <ul class="studio-compact-list">
+                            @foreach (var requirement in readiness.UnmetRequirements)
+                            {
+                                <li>@requirement</li>
+                            }
+                        </ul>
+                    </article>
+                }
+
+                @* Three-pane editor: outline · long-form page · inspector — matches the StudioReportEditor mockup. *@
+                <div class="studio-report-panes" data-report-breakpoint="@editor.PreviewBreakpoint">
+                    @* ----- Outline (left) ----- *@
+                    <div class="studio-report-outline" data-report-outline>
+                        <div class="studio-report-outline-head">
+                            <h3>Outline</h3>
+                            <button class="console-button console-button-secondary console-button-small" type="button" disabled="@_busy" @onclick="AddPanel">+ Panel</button>
+                        </div>
+                        <button type="button"
+                                class="studio-report-outline-row studio-report-outline-row--section @(selectedPanel is null ? "is-selected" : string.Empty)"
+                                @onclick="() => SelectPanel(null)">
+                            <span class="studio-report-outline-label">@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled report" : editor.Title)</span>
+                            <span class="tag">report</span>
+                        </button>
+                        @if (editor.Panels.Count == 0)
+                        {
+                            <p class="studio-report-outline-empty console-muted">No panels yet.</p>
+                        }
+                        @foreach (var panel in editor.Panels)
+                        {
+                            <button type="button"
+                                    class="studio-report-outline-row studio-report-outline-row--item @(ReferenceEquals(panel, selectedPanel) ? "is-selected" : string.Empty)"
+                                    @key="panel"
+                                    @onclick="() => SelectPanel(panel)">
+                                <span class="studio-report-outline-label">@PanelLabel(panel)</span>
+                                <span class="tag">@panel.Kind</span>
+                            </button>
+                        }
+                    </div>
+
+                    @* ----- Long-form page (center) ----- *@
+                    <div class="studio-report-page-scroll">
+                        <article class="studio-report-page" data-report-page>
+                            <p class="studio-report-section-eyebrow">@(editor.IsPublished ? $"{editor.PublicationId} · r{editor.ActiveRevision}" : "draft report")</p>
+                            <h1 class="studio-report-page-title">@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled report" : editor.Title)</h1>
+
+                            @if (!string.IsNullOrWhiteSpace(editor.Narrative))
+                            {
+                                <p class="studio-report-narrative">@editor.Narrative</p>
+                            }
+                            else
+                            {
+                                <p class="studio-report-narrative console-muted">Add narrative copy in the inspector to introduce this report.</p>
+                            }
+
+                            @if (editor.Panels.Count == 0)
+                            {
+                                <p class="console-muted">No panels yet. Add a chart (Vega-Lite), map, table, or filter panel from the outline.</p>
+                            }
+
+                            @{ var figure = 0; }
+                            @foreach (var panel in editor.Panels)
+                            {
+                                figure++;
+                                var isSelected = ReferenceEquals(panel, selectedPanel);
+                                <figure class="studio-report-embed studio-report-embed--@panel.Kind @(isSelected ? "is-selected" : string.Empty)"
+                                        @key="panel"
+                                        data-report-embed="@panel.Kind"
+                                        @onclick="() => SelectPanel(panel)">
+                                    <figcaption class="studio-report-embed-head">
+                                        <span class="tag">embedded @panel.Kind</span>
+                                        <span class="console-muted">@PanelLabel(panel)@(string.IsNullOrWhiteSpace(panel.BindingAlias) ? string.Empty : $" · {panel.BindingAlias}")</span>
+                                    </figcaption>
+                                    @if (panel.Kind == StudioReportPanelKinds.Table)
+                                    {
+                                        <div class="console-table-wrap">
+                                            <table class="console-table">
+                                                <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                                                <tbody>
+                                                    <tr><td>binding</td><td>@(string.IsNullOrWhiteSpace(panel.BindingAlias) ? "—" : panel.BindingAlias)</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="studio-report-embed-body" data-report-embed-kind="@panel.Kind">
+                                            <span class="console-muted">@panel.Kind panel</span>
+                                        </div>
+                                    }
+                                    <figcaption class="studio-report-embed-caption console-muted">Figure @figure. @PanelLabel(panel).</figcaption>
+                                </figure>
+                            }
+                        </article>
+                    </div>
+
+                    @* ----- Inspector (right) ----- *@
+                    <div class="studio-report-inspector" data-report-inspector="@(selectedPanel is null ? "report" : "panel")">
+                        @if (selectedPanel is { } sel)
+                        {
+                            <div class="studio-report-inspector-head">
+                                <h3>Embedded · @sel.Kind</h3>
+                                <p class="console-muted">@PanelLabel(sel)</p>
+                            </div>
+                            <div class="studio-report-inspector-body">
+                                <section class="studio-report-fieldgroup">
+                                    <p class="console-kicker">Source binding</p>
+                                    <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="sel.Title" placeholder="Parcels overview" /></label>
+                                    <label class="studio-form-label">
+                                        <span>Kind</span>
+                                        <select class="console-input" @bind="sel.Kind">
+                                            @foreach (var kind in StudioReportPanelKinds.All)
+                                            {
+                                                <option value="@kind">@kind</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <label class="studio-form-label"><span>Binding alias</span><input class="console-input" @bind="sel.BindingAlias" placeholder="incidents" /></label>
+                                </section>
+                                @if (sel.IsChart)
+                                {
+                                    <section class="studio-report-fieldgroup">
+                                        <p class="console-kicker">Vega-Lite spec</p>
+                                        <label class="studio-form-label">
+                                            <span>Spec (JSON)</span>
+                                            <textarea class="console-input studio-code" rows="8" @bind="sel.VegaLiteSpec"></textarea>
+                                        </label>
+                                    </section>
+                                }
+                                <div class="console-action-row">
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemovePanel(sel)">Remove panel</button>
+                                </div>
+                                <p class="studio-report-callout studio-report-callout--info">Pinning a binding to a known version means newer publishes of its source won't change this report. Use a blank pin for live content, an explicit pin for archival reports.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="studio-report-inspector-head">
+                                <h3>Report</h3>
+                                <p class="console-muted">document settings</p>
+                            </div>
+                            <div class="studio-report-inspector-body">
+                                <section class="studio-report-fieldgroup">
+                                    <p class="console-kicker">Details</p>
+                                    <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="editor.Title" placeholder="Monthly infrastructure report" /></label>
+                                    <label class="studio-form-label"><span>Route slug</span><input class="console-input" @bind="editor.RouteSlug" placeholder="monthly-infrastructure" disabled="@editor.IsPublished" /></label>
+                                    <label class="studio-form-label"><span>Description</span><textarea class="console-input" rows="2" @bind="editor.Description"></textarea></label>
+                                    <label class="studio-form-label"><span>Narrative</span><textarea class="console-input" rows="3" @bind="editor.Narrative" placeholder="Context shown above the layout."></textarea></label>
+                                </section>
+
+                                <section class="studio-report-fieldgroup">
+                                    <p class="console-kicker">Presentation</p>
+                                    <label class="studio-form-label">
+                                        <span>Visibility</span>
+                                        <select class="console-input" @bind="editor.Visibility">
+                                            @foreach (var visibility in StudioReportVisibilities.All)
+                                            {
+                                                <option value="@visibility">@visibility</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <label class="studio-form-label-inline">
+                                        <input type="checkbox" @bind="editor.Embeddable" />
+                                        <span>Allow embedding</span>
+                                    </label>
+                                    <label class="studio-form-label">
+                                        <span>Preview breakpoint</span>
+                                        <select class="console-input" @bind="editor.PreviewBreakpoint">
+                                            @foreach (var breakpoint in StudioReportBreakpoints.All)
+                                            {
+                                                <option value="@breakpoint">@breakpoint</option>
+                                            }
+                                        </select>
+                                    </label>
+                                </section>
+
+                                <section class="studio-report-fieldgroup" data-report-bindings>
+                                    <div class="studio-report-fieldgroup-head">
+                                        <p class="console-kicker">Data bindings</p>
+                                        <button class="console-button console-button-secondary console-button-small" type="button" disabled="@_busy" @onclick="AddBinding">Add binding</button>
+                                    </div>
+                                    @if (editor.Bindings.Count == 0)
+                                    {
+                                        <p class="console-muted">No data bindings yet. Add at least one source ref panels can read, with an optional version pin.</p>
+                                    }
+                                    @foreach (var binding in editor.Bindings)
+                                    {
+                                        <div class="studio-report-binding" @key="binding">
+                                            <label class="studio-form-label"><span>Alias</span><input class="console-input" @bind="binding.Alias" placeholder="incidents" /></label>
+                                            <label class="studio-form-label"><span>Content ref</span><input class="console-input" @bind="binding.ContentRef" placeholder="content:incidents" /></label>
+                                            <label class="studio-form-label"><span>Version pin</span><input class="console-input" @bind="binding.VersionPin" placeholder="latest" /></label>
+                                            <div class="console-action-row">
+                                                <button class="console-button console-button-secondary console-button-small" type="button" disabled="@_busy" @onclick="() => RemoveBinding(binding)">Remove</button>
+                                            </div>
+                                        </div>
+                                    }
+                                </section>
+
+                                <p class="studio-report-callout studio-report-callout--info">Pinning a binding to a known version means newer publishes of its source won't change this report. Use a blank pin for live content, an explicit pin for archival reports.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
         @if (_publication is { } publication)
         {
-            <section class="console-section" data-report-builder="report.package" data-report-publication="@publication.PublicationId">
+            <section class="console-section" data-report-publication="@publication.PublicationId">
                 <article class="console-panel">
                     <div class="console-panel-heading">
                         <div>
@@ -89,6 +341,9 @@
                         <dt>Updated</dt>
                         <dd>@publication.UpdatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</dd>
                     </dl>
+                    <div class="console-action-row">
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => EditPublished(publication)">Edit / republish</button>
+                    </div>
                 </article>
 
                 <article class="console-panel">
@@ -115,6 +370,7 @@
                                         <th>Active</th>
                                         <th>Published by</th>
                                         <th>Published</th>
+                                        <th>Pin</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -128,6 +384,16 @@
                                             <td>@(version.IsActive ? "active" : "—")</td>
                                             <td>@version.CreatedBy</td>
                                             <td>@version.CreatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                                            <td>
+                                                @if (!version.IsActive)
+                                                {
+                                                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => Rollback(publication, version)">Roll back to r@(version.Revision)</button>
+                                                }
+                                                else
+                                                {
+                                                    <span class="console-muted">current</span>
+                                                }
+                                            </td>
                                         </tr>
                                     }
                                 </tbody>
@@ -135,15 +401,9 @@
                         </div>
                     }
                 </article>
-
-                <article class="console-panel">
-                    <p class="console-kicker">Next slices</p>
-                    <h3>Authoring surface</h3>
-                    <p class="console-muted">Narrative, data bindings, Vega-Lite charts, map panels, tables, filters, and responsive preview build on top of this read binding in follow-up slices. Vega-Lite is the chart spec for all report charts.</p>
-                </article>
             </section>
         }
-        else if (!_attempted)
+        else if (_editor is null && _attempted)
         {
             <EmptyState Area="studio" Subject="report publications" />
         }
@@ -156,8 +416,12 @@
     private bool _attempted;
     private string? _publicationIdInput;
     private StudioReportPublicationView? _publication;
+    private StudioReportEditorState? _editor;
     private StudioReportCapabilityState? _bindingState;
     private IReadOnlyList<StudioReportCapabilityState> _states = [];
+    private string? _status;
+    private bool _statusFailed;
+    private StudioReportPanelEditor? _selectedPanel;
 
     [SupplyParameterFromQuery(Name = "publicationId")]
     public string? PublicationId { get; set; }
@@ -169,6 +433,17 @@
             _publicationIdInput = PublicationId;
             await LoadAsync(PublicationId);
         }
+    }
+
+    private void NewReport()
+    {
+        _editor = new StudioReportEditorState();
+        _selectedPanel = null;
+        _publication = null;
+        _status = null;
+        _statusFailed = false;
+        _bindingState = null;
+        _states = [];
     }
 
     private async Task OpenPublication()
@@ -191,6 +466,9 @@
         _busy = true;
         _loading = true;
         _attempted = true;
+        _editor = null;
+        _status = null;
+        _statusFailed = false;
         try
         {
             var result = await ReportData.LoadAsync(publicationId);
@@ -201,6 +479,120 @@
         {
             _busy = false;
             _loading = false;
+        }
+    }
+
+    private void CloseEditor()
+    {
+        _editor = null;
+        _selectedPanel = null;
+        _status = null;
+        _statusFailed = false;
+    }
+
+    private void EditPublished(StudioReportPublicationView publication)
+    {
+        // Reopen the published report's route/policy into an editable authoring state. The next publish is a
+        // republish that advances the active route pointer; earlier versions stay immutable for rollback.
+        _editor = new StudioReportEditorState
+        {
+            PublicationId = publication.PublicationId,
+            RouteSlug = publication.RouteSlug,
+            ActiveRevision = publication.ActiveRevision,
+            Title = publication.ActiveTitle ?? string.Empty,
+            Visibility = publication.Visibility,
+            Embeddable = publication.Embeddable
+        };
+        _selectedPanel = null;
+        _status = null;
+        _statusFailed = false;
+    }
+
+    private void AddBinding() => _editor?.Bindings.Add(new StudioReportBindingEditor());
+
+    private void RemoveBinding(StudioReportBindingEditor binding) => _editor?.Bindings.Remove(binding);
+
+    private void AddPanel()
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        var panel = new StudioReportPanelEditor { VegaLiteSpec = StudioReportChartSpec.DefaultBarChart() };
+        _editor.Panels.Add(panel);
+        _selectedPanel = panel;
+    }
+
+    private void RemovePanel(StudioReportPanelEditor panel)
+    {
+        if (ReferenceEquals(panel, _selectedPanel))
+        {
+            _selectedPanel = null;
+        }
+
+        _editor?.Panels.Remove(panel);
+    }
+
+    private void SelectPanel(StudioReportPanelEditor? panel) => _selectedPanel = panel;
+
+    private StudioReportPanelEditor? SelectedPanel(StudioReportEditorState editor) =>
+        _selectedPanel is not null && editor.Panels.Contains(_selectedPanel) ? _selectedPanel : null;
+
+    private static string PanelLabel(StudioReportPanelEditor panel) =>
+        string.IsNullOrWhiteSpace(panel.Title) ? $"Untitled {panel.Kind}" : panel.Title;
+
+    private Task Publish() => RunCommandAsync(() => ReportData.PublishAsync(_editor!), keepEditor: true);
+
+    private Task UpdatePolicy() =>
+        RunCommandAsync(
+            () => ReportData.UpdatePolicyAsync(_editor!.PublicationId!, _editor.Visibility, _editor.Embeddable, _editor.ETag),
+            keepEditor: true);
+
+    private Task Rollback(StudioReportPublicationView publication, StudioReportPublicationVersionView version) =>
+        RunCommandAsync(() => ReportData.RollbackAsync(publication.PublicationId, version.VersionId), keepEditor: false);
+
+    private async Task RunCommandAsync(Func<Task<StudioReportCommandResult>> command, bool keepEditor)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await command();
+            _status = result.Message;
+            _statusFailed = !result.Succeeded;
+
+            if (result.Publication is not null)
+            {
+                _publication = result.Publication;
+                _attempted = true;
+
+                if (keepEditor && _editor is not null)
+                {
+                    // Reflect the new server identity/revision back into the editor so the next publish is a
+                    // republish against the freshly advanced route pointer.
+                    _editor.PublicationId = result.Publication.PublicationId;
+                    _editor.RouteSlug = result.Publication.RouteSlug;
+                    _editor.ActiveRevision = result.Publication.ActiveRevision;
+                    _editor.Visibility = result.Publication.Visibility;
+                    _editor.Embeddable = result.Publication.Embeddable;
+                }
+                else
+                {
+                    _editor = null;
+                    _selectedPanel = null;
+                }
+            }
+
+            ApplyStates(result.Issue is null ? [] : [result.Issue]);
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 

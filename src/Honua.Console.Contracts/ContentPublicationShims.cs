@@ -41,8 +41,16 @@ public interface IHonuaContentPublicationClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Republishes a publication: creates a new immutable version and moves the active route pointer
-    /// to it (POST <c>/{publicationId}/republish</c>). Returns the updated detail (route + versions).
+    /// Publishes a brand-new immutable artifact version and claims a server-owned route. The server
+    /// allocates the publication id, version id, and revision and normalizes the route slug.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> PublishAsync(
+        HonuaPublishContentRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Republishes an existing publication: creates a new immutable version and moves the active route
+    /// pointer to it. The previous versions stay immutable for version pinning/rollback.
     /// </summary>
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
         string publicationId,
@@ -50,13 +58,21 @@ public interface IHonuaContentPublicationClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Rolls the active route pointer back to an earlier immutable version (POST
-    /// <c>/{publicationId}/rollback</c>). No new version row is created; the rollback pointer is
-    /// recorded. Returns the updated detail.
+    /// Rolls the active route pointer back to an earlier immutable version. No new version row is created;
+    /// the rollback pointer is recorded server-side.
     /// </summary>
     Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
         string publicationId,
         HonuaRollbackContentRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the server-owned visibility/share/embed/public-link policy. No new version row is created;
+    /// the change is recorded as an audited event and returns the updated route plus any created link.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>> UpdatePolicyAsync(
+        string publicationId,
+        HonuaUpdatePublicationPolicyRequest request,
         CancellationToken cancellationToken = default);
 }
 
@@ -114,6 +130,20 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> PublishAsync(
+        HonuaPublishContentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaContentPublicationDetail>(
+            HttpMethod.Post,
+            Base,
+            "POST /api/v1/console/publications",
+            cancellationToken,
+            request);
+    }
+
     public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
         string publicationId,
         HonuaRepublishContentRequest request,
@@ -142,6 +172,22 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
             HttpMethod.Post,
             $"{Base}/{Uri.EscapeDataString(publicationId)}/rollback",
             "POST /api/v1/console/publications/{publicationId}/rollback",
+            cancellationToken,
+            request);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>> UpdatePolicyAsync(
+        string publicationId,
+        HonuaUpdatePublicationPolicyRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaContentPublicationPolicyUpdateResponse>(
+            HttpMethod.Patch,
+            $"{Base}/{Uri.EscapeDataString(publicationId)}/policy",
+            "PATCH /api/v1/console/publications/{publicationId}/policy",
             cancellationToken,
             request);
     }
@@ -491,13 +537,52 @@ public sealed record HonuaContentPublicationDetail
     public HonuaContentPublicationVersion[] Versions { get; init; } = [];
 }
 
-// --- Mutation request records mirroring honua-server RepublishContentRequest/RollbackContentRequest. ---
+// --- Mutation request/response records mirroring ContentPublicationRequests.cs (#1183). ---
+//
+// Kinds/visibilities are sent as the server's lowercase enum member names (the server enums use
+// [JsonStringEnumMemberName]); the constants in HonuaContentPublication* above carry those exact wire
+// strings, so the report builder sends and receives the same tokens without an enum projection here.
 
-/// <summary>
-/// Republish request: creates a new immutable version and advances the active route pointer. Mirrors
-/// honua-server <c>RepublishContentRequest</c>. Console sends only the fields the publishing workspace
-/// authoring flow needs; the server allocates the version id and revision.
-/// </summary>
+public sealed record HonuaPublishContentRequest
+{
+    [JsonPropertyName("kind")]
+    public string Kind { get; init; } = HonuaContentPublicationKinds.Report;
+
+    [JsonPropertyName("routeSlug")]
+    public string? RouteSlug { get; init; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; init; }
+
+    [JsonPropertyName("sourceContentId")]
+    public string? SourceContentId { get; init; }
+
+    [JsonPropertyName("sourcePackageId")]
+    public string? SourcePackageId { get; init; }
+
+    /// <summary>Raw report-document payload; the server hashes it (SHA-256) and never stores it.</summary>
+    [JsonPropertyName("contentPayload")]
+    public string? ContentPayload { get; init; }
+
+    [JsonPropertyName("contentHash")]
+    public string? ContentHash { get; init; }
+
+    [JsonPropertyName("contentVersionId")]
+    public string? ContentVersionId { get; init; }
+
+    [JsonPropertyName("defaultViewBbox")]
+    public HonuaContentPublicationBbox? DefaultViewBbox { get; init; }
+
+    [JsonPropertyName("policy")]
+    public HonuaContentPublicationPolicy? Policy { get; init; }
+
+    [JsonPropertyName("dependencies")]
+    public HonuaContentPublicationDependencyRef[]? Dependencies { get; init; }
+
+    [JsonPropertyName("provenance")]
+    public HonuaContentPublicationProvenanceRef[]? Provenance { get; init; }
+}
+
 public sealed record HonuaRepublishContentRequest
 {
     [JsonPropertyName("title")]
@@ -509,25 +594,32 @@ public sealed record HonuaRepublishContentRequest
     [JsonPropertyName("sourcePackageId")]
     public string? SourcePackageId { get; init; }
 
+    [JsonPropertyName("contentPayload")]
+    public string? ContentPayload { get; init; }
+
     [JsonPropertyName("contentHash")]
     public string? ContentHash { get; init; }
 
     [JsonPropertyName("contentVersionId")]
     public string? ContentVersionId { get; init; }
 
+    [JsonPropertyName("defaultViewBbox")]
+    public HonuaContentPublicationBbox? DefaultViewBbox { get; init; }
+
+    [JsonPropertyName("dependencies")]
+    public HonuaContentPublicationDependencyRef[]? Dependencies { get; init; }
+
+    [JsonPropertyName("provenance")]
+    public HonuaContentPublicationProvenanceRef[]? Provenance { get; init; }
+
     [JsonPropertyName("jobId")]
     public string? JobId { get; init; }
 
-    /// <summary>Expected route etag for optimistic concurrency; a mismatch is a 409/412 conflict.</summary>
+    /// <summary>Expected route etag for optimistic concurrency. A mismatch surfaces as a 409 Conflict.</summary>
     [JsonPropertyName("expectedEtag")]
     public string? ExpectedEtag { get; init; }
 }
 
-/// <summary>
-/// Rollback request: moves the active route pointer back to an earlier immutable version. Mirrors
-/// honua-server <c>RollbackContentRequest</c>. Either <see cref="TargetVersionId"/> or
-/// <see cref="TargetRevision"/> is required.
-/// </summary>
 public sealed record HonuaRollbackContentRequest
 {
     [JsonPropertyName("targetVersionId")]
@@ -536,7 +628,39 @@ public sealed record HonuaRollbackContentRequest
     [JsonPropertyName("targetRevision")]
     public long? TargetRevision { get; init; }
 
-    /// <summary>Expected route etag for optimistic concurrency; a mismatch is a 409/412 conflict.</summary>
     [JsonPropertyName("expectedEtag")]
     public string? ExpectedEtag { get; init; }
+}
+
+public sealed record HonuaUpdatePublicationPolicyRequest
+{
+    [JsonPropertyName("visibility")]
+    public string? Visibility { get; init; }
+
+    [JsonPropertyName("share")]
+    public HonuaContentSharePolicy? Share { get; init; }
+
+    [JsonPropertyName("embed")]
+    public HonuaContentEmbedPolicy? Embed { get; init; }
+
+    [JsonPropertyName("service")]
+    public HonuaContentServicePolicy? Service { get; init; }
+
+    [JsonPropertyName("publicLinkEnabled")]
+    public bool? PublicLinkEnabled { get; init; }
+
+    [JsonPropertyName("expectedEtag")]
+    public string? ExpectedEtag { get; init; }
+}
+
+public sealed record HonuaContentPublicationPolicyUpdateResponse
+{
+    [JsonPropertyName("route")]
+    public HonuaContentPublicationRouteState Route { get; init; } = new();
+
+    [JsonPropertyName("createdPublicLinkId")]
+    public string? CreatedPublicLinkId { get; init; }
+
+    [JsonPropertyName("createdPublicLinkToken")]
+    public string? CreatedPublicLinkToken { get; init; }
 }
