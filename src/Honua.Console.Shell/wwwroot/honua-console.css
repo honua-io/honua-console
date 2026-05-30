@@ -805,6 +805,112 @@ p {
     font-weight: 800;
 }
 
+/* Catalog · type glyph + content-type tag (matches catalog-console mockup) */
+.console-type-glyph {
+    display: inline-block;
+    margin-right: 6px;
+    color: var(--honua-muted);
+    font-size: 0.95em;
+}
+
+.console-type-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    background: var(--honua-surface-strong);
+    color: var(--honua-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+/* Catalog · result-count toolbar above the type strip */
+.console-result-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 4px 0 8px;
+}
+
+.console-result-count {
+    color: var(--honua-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+/* Catalog detail · tab counts */
+.console-tab-count {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--honua-surface-strong);
+    color: var(--honua-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+/* Catalog detail · overview two-column layout (main cards + side rail) */
+.console-detail-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 18px;
+    align-items: start;
+}
+
+.console-detail-overview-main,
+.console-detail-overview-side {
+    display: grid;
+    gap: 14px;
+}
+
+.console-overview-card {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+    overflow: hidden;
+}
+
+.console-overview-card > header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.console-overview-card > header h3 {
+    margin: 0;
+    font-size: 0.98rem;
+}
+
+.console-overview-card-note {
+    color: var(--honua-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.console-overview-card-body {
+    padding: 14px;
+}
+
+.console-overview-empty {
+    margin: 0;
+    color: var(--honua-muted);
+}
+
+.console-content-table-compact th,
+.console-content-table-compact td {
+    padding: 9px 14px;
+    font-size: 0.86rem;
+}
+
+@media (max-width: 960px) {
+    .console-detail-overview {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .console-viewer-page {
     width: min(1380px, calc(100vw - 48px));
 }
