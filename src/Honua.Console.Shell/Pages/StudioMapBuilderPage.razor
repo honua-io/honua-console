@@ -1,5 +1,7 @@
 @page "/studio/map"
 @using System.Text.Json
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
 @inject IStudioMapPackageDataSource MapData
 
 <section class="console-page studio-map-builder">
@@ -26,7 +28,7 @@
     else if (_editor is null)
     {
         <div class="console-toolbar">
-            <button class="console-button" type="button" disabled="@_busy" @onclick="NewMap">New map</button>
+            <button class="console-button" type="button" disabled="@_busy" @onclick="NewMap">New from prompt</button>
         </div>
 
         @if (_listNotice is not null)
@@ -79,6 +81,118 @@
         var readiness = StudioMapPublishEvaluator.Evaluate(editor);
         var selectedLayer = SelectedLayer(editor);
 
+        @if (_view == EditorView.FromPrompt)
+        {
+            @* StudioMapAI — conversation + clarification + right-side package inspector with a MapPreview. *@
+            <div class="studio-map-ai" data-map-ai="map.package" data-map-status="@editor.Status">
+                <StudioAiConversation ConversationTitle="Map from prompt"
+                                      RefinePlaceholder="Refine, or ask a follow-up…"
+                                      Turns="_turns"
+                                      Clarifications="_clarifications"
+                                      Busy="_busy"
+                                      OnSend="OnPromptSend"
+                                      OnAnswer="OnClarificationAnswered"
+                                      OnEvidence="OnEvidenceRequested">
+                    <SecondaryRefineActions>
+                        <button type="button" class="console-button console-button-secondary studio-ai-attach" disabled="@_busy" @onclick="AttachData">Attach data</button>
+                    </SecondaryRefineActions>
+                    <PreviewHeader>
+                        <span class="studio-map-glyph" aria-hidden="true">◐</span>
+                        <input class="console-input studio-map-title-input" @bind="editor.Title" placeholder="parcels-use-map" aria-label="Map title" />
+                        <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
+                        <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "validation passed" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                        <div class="studio-ai-preview-head-spacer"></div>
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Save draft</button>
+                        <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
+                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishWizard">Publish…</button>
+                    </PreviewHeader>
+                    <PreviewContent>
+                        <div class="studio-map-ai-inspect">
+                            @* LEFT — package inspector driven by the real authoring state (never fabricated). *@
+                            <aside class="studio-map-ai-package" aria-label="Map package">
+                                <div class="studio-map-ai-package-head">
+                                    <p class="console-kicker">Map package</p>
+                                    <p class="studio-map-ai-package-id">@(string.IsNullOrWhiteSpace(editor.Title) ? "new map" : StudioMapPackageMapper.BuildPackageKey(editor)) · v@(editor.Version) @editor.Status</p>
+                                </div>
+
+                                <p class="console-muted studio-map-ai-section">Data bindings · @editor.Layers.Count(layer => !string.IsNullOrWhiteSpace(layer.SourceRef))</p>
+                                @if (editor.Layers.Count == 0)
+                                {
+                                    <p class="console-muted">No layers bound yet. Open the editor to bind sources, or describe the map you want on the left.</p>
+                                }
+                                else
+                                {
+                                    <p class="console-muted studio-map-ai-section">Layers · @editor.Layers.Count</p>
+                                    <ul class="studio-map-ai-layer-list">
+                                        @foreach (var layer in editor.Layers)
+                                        {
+                                            <li class="studio-map-ai-layer">
+                                                <span class="studio-mono studio-map-ai-layer-name">@(string.IsNullOrWhiteSpace(layer.Title) ? (string.IsNullOrWhiteSpace(layer.SourceRef) ? "untitled layer" : layer.SourceRef) : layer.Title)</span>
+                                                <span class="console-muted">@(string.IsNullOrWhiteSpace(layer.Style) ? "unstyled" : layer.Style)@(string.IsNullOrWhiteSpace(layer.SourceRef) ? " · unbound" : null)</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-map-ai-section">Initial extent</p>
+                                <div class="studio-mono studio-map-ai-extent">@(string.IsNullOrWhiteSpace(editor.InitialExtent) ? "extent unset" : editor.InitialExtent)</div>
+
+                                <p class="console-muted studio-map-ai-section">Pre-publish</p>
+                                @if (readiness.CanPublish)
+                                {
+                                    <div class="studio-map-ai-validation studio-map-ai-validation-ok">All pre-publish requirements met.</div>
+                                }
+                                else
+                                {
+                                    <ul class="studio-compact-list studio-map-ai-validation">
+                                        @foreach (var requirement in readiness.UnmetRequirements)
+                                        {
+                                            <li>@requirement</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <details class="studio-map-ai-raw">
+                                    <summary>View raw package JSON</summary>
+                                    <pre class="studio-code studio-package-json">@PackageJson(editor)</pre>
+                                </details>
+                            </aside>
+
+                            @* RIGHT — preview with a preview/mobile toggle over the shared MapPreview. *@
+                            <div class="studio-map-ai-preview">
+                                <div class="studio-preview-toolbar">
+                                    <div class="studio-map-ai-device" role="group" aria-label="Preview device">
+                                        <button type="button"
+                                                class="@(_previewDevice == PreviewDevice.Preview ? "active" : null)"
+                                                aria-pressed="@(_previewDevice == PreviewDevice.Preview)"
+                                                @onclick="() => SetPreviewDevice(PreviewDevice.Preview)">Preview</button>
+                                        <button type="button"
+                                                class="@(_previewDevice == PreviewDevice.Mobile ? "active" : null)"
+                                                aria-pressed="@(_previewDevice == PreviewDevice.Mobile)"
+                                                @onclick="() => SetPreviewDevice(PreviewDevice.Mobile)">Mobile</button>
+                                    </div>
+                                    <div class="studio-preview-toolbar-spacer"></div>
+                                    <span class="console-muted">sampled features</span>
+                                </div>
+                                <div class="@(_previewDevice == PreviewDevice.Mobile ? "studio-map-ai-canvas studio-map-ai-canvas-mobile" : "studio-map-ai-canvas")">
+                                    <MapPreview Mode="MapPreviewMode.Layer"
+                                                Height="@(_previewDevice == PreviewDevice.Mobile ? 460 : 420)"
+                                                ScaleText="1:1,000,000"
+                                                ShowPopup="editor.PopupsEnabled"
+                                                ShowLabels="true"
+                                                Popup="BuildPreviewPopup(editor)"
+                                                Legend="BuildPreviewLegend(editor)"
+                                                LegendTitle="@(editor.ShowLegend ? "Use code" : null)"
+                                                AriaLabel="Map package preview" />
+                                </div>
+                            </div>
+                        </div>
+                    </PreviewContent>
+                </StudioAiConversation>
+            </div>
+        }
+        else
+        {
         <div class="studio-map-editor studio-editor-page" data-map-builder="map.package" data-map-status="@editor.Status">
             @* Header strip — map glyph, title, lifecycle + validation badges, lifecycle actions. *@
             <div class="console-panel-heading studio-map-editor-bar">
@@ -94,9 +208,13 @@
                     <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "validation passed" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
                 </div>
                 <div class="console-action-row studio-map-actions">
+                    @if (_cameFromPrompt)
+                    {
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToChat">← Back to chat</button>
+                    }
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to maps</button>
                     <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     @if (editor.IsPublished)
                     {
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
@@ -263,7 +381,7 @@
             }
             else
             {
-                @* Access — publish review (visibility, route, dependencies, sharing policy). *@
+                @* Access — multi-step publish review wizard (Validate · Dependencies · Visibility · Embed · Rollback · Confirm). *@
                 <article class="console-panel studio-map-publish-review" aria-labelledby="map-publish-review-heading">
                     <div class="console-panel-heading">
                         <div>
@@ -273,105 +391,40 @@
                         <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "ready" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
                     </div>
 
-                    <div class="studio-editor-shell">
-                        <div class="studio-editor-main">
-                            <section class="studio-editor-section">
-                                <h3>Visibility</h3>
-                                <p class="console-muted">Who can see this map after publish.</p>
-                                <div class="studio-map-visibility-options">
-                                    @foreach (var option in VisibilityOptions)
-                                    {
-                                        var tier = option.Value;
-                                        <label class="@(string.Equals(editor.ShareTier, tier, StringComparison.Ordinal) ? "studio-map-visibility-option studio-map-visibility-selected" : "studio-map-visibility-option")">
-                                            <input type="radio"
-                                                   name="map-visibility"
-                                                   value="@tier"
-                                                   checked="@(string.Equals(editor.ShareTier, tier, StringComparison.Ordinal))"
-                                                   disabled="@editor.IsPublished"
-                                                   @onchange="() => editor.ShareTier = tier" />
-                                            <span>
-                                                <strong>@option.Label</strong>
-                                                <small class="console-muted">@option.Description</small>
-                                            </span>
-                                        </label>
-                                    }
-                                </div>
-
-                                <label class="studio-form-label studio-form-inline">
-                                    <input type="checkbox" @bind="editor.EmbedAllowed" disabled="@editor.IsPublished" />
-                                    <span>Allow embed</span>
-                                </label>
-                            </section>
-
-                            <section class="studio-editor-section">
-                                <h3>Route</h3>
-                                <dl class="console-definition-list">
-                                    <dt>Public URL</dt>
-                                    <dd class="studio-code">/m/@StudioMapPackageMapper.BuildPackageKey(editor)</dd>
-                                </dl>
-                            </section>
-                        </div>
-
-                        <aside class="studio-editor-side">
-                            <article class="console-panel">
-                                <h3>Map summary</h3>
-                                <dl class="console-definition-list">
-                                    <dt>Basemap</dt>
-                                    <dd>@(string.IsNullOrWhiteSpace(editor.Basemap) ? "unset" : editor.Basemap)</dd>
-                                    <dt>Layers</dt>
-                                    <dd>@editor.Layers.Count layer(s)</dd>
-                                    <dt>Initial extent</dt>
-                                    <dd>@(string.IsNullOrWhiteSpace(editor.InitialExtent) ? "unset" : editor.InitialExtent)</dd>
-                                    <dt>Visibility</dt>
-                                    <dd>@editor.ShareTier</dd>
-                                    <dt>Embed</dt>
-                                    <dd>@(editor.EmbedAllowed ? "allowed" : "blocked")</dd>
-                                </dl>
-                            </article>
-
-                            <article class="console-panel">
-                                <h3>Dependencies</h3>
-                                @if (editor.Layers.Count == 0)
-                                {
-                                    <p class="console-muted">No layer sources bound yet.</p>
-                                }
-                                else
-                                {
-                                    <table class="console-table">
-                                        <tbody>
-                                            @foreach (var layer in editor.Layers)
-                                            {
-                                                <tr>
-                                                    <td>@(string.IsNullOrWhiteSpace(layer.SourceRef) ? "unbound" : layer.SourceRef)</td>
-                                                    <td>data source</td>
-                                                </tr>
-                                            }
-                                        </tbody>
-                                    </table>
-                                }
-                            </article>
-
-                            <p class="console-muted">Publish is a governed operation — it produces an audit event and a content version.</p>
-                        </aside>
-                    </div>
-
-                    @if (!editor.IsPublished && !readiness.CanPublish)
-                    {
-                        <p class="console-kicker">Pre-publish gate</p>
-                        <ul class="studio-compact-list">
-                            @foreach (var requirement in readiness.UnmetRequirements)
-                            {
-                                <li>@requirement</li>
-                            }
-                        </ul>
+                    @{
+                        var wizardSteps = BuildPublishSteps(editor, readiness);
                     }
+                    <PublishWizard Steps="wizardSteps"
+                                   Current="_publishStep"
+                                   CurrentChanged="OnPublishStepChanged"
+                                   Kicker="Publish map package"
+                                   Title="@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled map" : editor.Title)"
+                                   FinishLabel="Publish →"
+                                   OnFinish="Publish">
+                        <ExtraFooterActions>
+                            <button type="button" class="console-button console-button-secondary" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save as draft</button>
+                        </ExtraFooterActions>
+                    </PublishWizard>
                 </article>
             }
         </div>
+        }
     }
 </section>
 
 @code {
+    private enum EditorView
+    {
+        FromPrompt,
+        Editor,
+    }
+
+    private enum PreviewDevice
+    {
+        Preview,
+        Mobile,
+    }
+
     private bool _loading = true;
     private bool _busy;
     private StudioMapWorkspace _workspace = new([], []);
@@ -382,6 +435,14 @@
     private bool _statusFailed;
     private string _activeTab = "design";
     private int _selectedLayerIndex;
+    private int _publishStep;
+
+    private EditorView _view = EditorView.Editor;
+    private bool _cameFromPrompt;
+    private PreviewDevice _previewDevice = PreviewDevice.Preview;
+
+    private readonly List<StudioConversationTurn> _turns = [];
+    private readonly List<StudioConversationClarification> _clarifications = [];
 
     private static readonly JsonSerializerOptions PackageJsonOptions = new() { WriteIndented = true };
 
@@ -390,6 +451,11 @@
         ("public", "Public", "Anyone with the link; default for public-read data."),
         ("workspace", "Organisation", "Anyone signed in to this workspace."),
         ("private", "Private", "Only you and admins."),
+    ];
+
+    private static readonly IReadOnlyList<string> PublishStepLabels =
+    [
+        "Validate", "Dependencies", "Visibility", "Embed", "Rollback", "Confirm",
     ];
 
     private IReadOnlyList<(string Id, string Label, int? Count)> EditorTabs =>
@@ -406,6 +472,10 @@
         // "Data bindings" surfaces the same layer rail as Design (the layer list is the data-binding view),
         // so route it to the design surface rather than a blank tab.
         _activeTab = string.Equals(tab, "data", StringComparison.Ordinal) ? "design" : tab;
+        if (string.Equals(_activeTab, "access", StringComparison.Ordinal))
+        {
+            _publishStep = 0;
+        }
     }
 
     private void SelectLayer(int index) => _selectedLayerIndex = index;
@@ -444,11 +514,11 @@
         _loading = false;
     }
 
-    private Task NewMap() => RunLoadAsync(() => MapData.LoadAsync(null));
+    private Task NewMap() => RunLoadAsync(() => MapData.LoadAsync(null), EditorView.FromPrompt);
 
-    private Task OpenMap(string mapId) => RunLoadAsync(() => MapData.LoadAsync(mapId));
+    private Task OpenMap(string mapId) => RunLoadAsync(() => MapData.LoadAsync(mapId), EditorView.Editor);
 
-    private async Task RunLoadAsync(Func<Task<StudioMapEditorLoad>> load)
+    private async Task RunLoadAsync(Func<Task<StudioMapEditorLoad>> load, EditorView view)
     {
         if (_busy)
         {
@@ -465,6 +535,11 @@
             _editor = result.State;
             _activeTab = "design";
             _selectedLayerIndex = 0;
+            _publishStep = 0;
+            _view = view;
+            _cameFromPrompt = view == EditorView.FromPrompt;
+            _previewDevice = PreviewDevice.Preview;
+            ResetConversation();
         }
         finally
         {
@@ -472,11 +547,394 @@
         }
     }
 
+    private void ResetConversation()
+    {
+        _turns.Clear();
+        _clarifications.Clear();
+
+        // The conversation log is Console-local authoring UX — it echoes the author's intent and Honua's
+        // guidance, never fabricated package state. The right-side inspector/preview reflects the real
+        // StudioMapEditorState. Until the author describes the map there are no turns and no clarifications.
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Describe the map you want — the layers, how features should be coloured, and what a popup should show. I'll bind real data sources in the editor; nothing is fabricated.",
+            "just now",
+            StudioConversationTone.Neutral));
+    }
+
+    private async Task OnPromptSend(string prompt)
+    {
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt, "just now"));
+
+        // Honua acknowledges the intent and points the author at the binding surfaces. The conversation
+        // remains advisory: it does not invent layers, styles, or data — the author binds those in the
+        // editor against the live honua-server package lifecycle (no-mock, Charter §11).
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Noted. Open the editor to bind data sources, styling, and the popup template for this map. Each binding is validated against honua-server before publish.",
+            "just now",
+            StudioConversationTone.Neutral,
+            "view evidence"));
+
+        await Task.CompletedTask;
+    }
+
+    private Task OnClarificationAnswered((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        _clarifications.RemoveAll(question => string.Equals(question.Id, answer.Question.Id, StringComparison.Ordinal));
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.You,
+            $"{answer.Question.Label}: {answer.Choice.Label}",
+            "just now"));
+        return Task.CompletedTask;
+    }
+
+    private Task OnEvidenceRequested(StudioConversationTurn turn) => Task.CompletedTask;
+
+    private Task AttachData() => Task.CompletedTask;
+
+    private void SetPreviewDevice(PreviewDevice device) => _previewDevice = device;
+
+    private void OpenEditorFromPrompt()
+    {
+        _view = EditorView.Editor;
+        _cameFromPrompt = true;
+        _activeTab = "design";
+    }
+
+    private void BackToChat()
+    {
+        if (_editor is null)
+        {
+            return;
+        }
+
+        _view = EditorView.FromPrompt;
+    }
+
+    private void OpenPublishWizard()
+    {
+        _view = EditorView.Editor;
+        _activeTab = "access";
+        _publishStep = 0;
+    }
+
+    private void OnPublishStepChanged(int step) => _publishStep = step;
+
+    // Builds the MapPreview popup from the selected/first layer's authored popup fields. Returns null when
+    // popups are disabled or no fields are bound, so the preview shows no fabricated popup.
+    private static MapPreviewPopup? BuildPreviewPopup(StudioMapEditorState editor)
+    {
+        if (!editor.PopupsEnabled || editor.Layers.Count == 0)
+        {
+            return null;
+        }
+
+        var layer = editor.Layers[0];
+        var names = (layer.PopupFields ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (names.Length == 0)
+        {
+            return null;
+        }
+
+        var fields = names
+            .Select(name => new MapPreviewPopupField(name, "—"))
+            .ToList();
+        var title = string.IsNullOrWhiteSpace(layer.Title) ? "Feature" : layer.Title;
+        return new MapPreviewPopup(title, fields);
+    }
+
+    // Derives a small style legend from the authored layers (one row per styled layer). When no layer has
+    // a style, returns an empty list so no legend is drawn.
+    private static IReadOnlyList<MapPreviewLegendEntry> BuildPreviewLegend(StudioMapEditorState editor)
+    {
+        if (!editor.ShowLegend)
+        {
+            return [];
+        }
+
+        var swatches = new[] { "#d9a23a", "#b56b1c", "#612d0a", "#7ca7b3", "#4a8b6f" };
+        var styled = editor.Layers
+            .Where(layer => !string.IsNullOrWhiteSpace(layer.Style))
+            .Select((layer, index) => new MapPreviewLegendEntry(
+                string.IsNullOrWhiteSpace(layer.Title) ? layer.Style : layer.Title,
+                swatches[index % swatches.Length],
+                layer.Style))
+            .ToList();
+        return styled;
+    }
+
+    private List<PublishWizardStep> BuildPublishSteps(StudioMapEditorState editor, StudioMapPublishReadiness readiness)
+    {
+        return
+        [
+            new PublishWizardStep("Validate", BuildValidateStep(editor, readiness), IsValid: readiness.CanPublish, ContinueLabel: "Continue · Dependencies →"),
+            new PublishWizardStep("Dependencies", BuildDependenciesStep(editor), ContinueLabel: "Continue · Visibility →"),
+            new PublishWizardStep("Visibility", BuildVisibilityStep(editor), ContinueLabel: "Continue · Embed →"),
+            new PublishWizardStep("Embed", BuildEmbedStep(editor), ContinueLabel: "Continue · Rollback →"),
+            new PublishWizardStep("Rollback", BuildRollbackStep(editor), ContinueLabel: "Continue · Confirm →"),
+            new PublishWizardStep("Confirm", BuildConfirmStep(editor, readiness)),
+        ];
+    }
+
+    private RenderFragment BuildValidateStep(StudioMapEditorState editor, StudioMapPublishReadiness readiness) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "section");
+        builder.AddAttribute(seq++, "class", "studio-editor-section studio-map-wizard-step");
+        builder.AddAttribute(seq++, "data-wizard-step", "validate");
+
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, "Validate");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "p");
+        builder.AddAttribute(seq++, "class", "console-muted");
+        builder.AddContent(seq++, "Map package validation runs against honua-server. Publish stays gated until every pre-publish requirement is met.");
+        builder.CloseElement();
+
+        if (readiness.CanPublish)
+        {
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "studio-map-ai-validation studio-map-ai-validation-ok");
+            builder.AddContent(seq++, "All pre-publish requirements met.");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(seq++, "ul");
+            builder.AddAttribute(seq++, "class", "studio-compact-list");
+            foreach (var requirement in readiness.UnmetRequirements)
+            {
+                builder.OpenElement(seq++, "li");
+                builder.AddContent(seq++, requirement);
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    private RenderFragment BuildDependenciesStep(StudioMapEditorState editor) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "section");
+        builder.AddAttribute(seq++, "class", "studio-editor-section studio-map-wizard-step");
+        builder.AddAttribute(seq++, "data-wizard-step", "dependencies");
+
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, "Dependencies");
+        builder.CloseElement();
+
+        if (editor.Layers.Count == 0)
+        {
+            builder.OpenElement(seq++, "p");
+            builder.AddAttribute(seq++, "class", "console-muted");
+            builder.AddContent(seq++, "No layer sources bound yet.");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(seq++, "table");
+            builder.AddAttribute(seq++, "class", "console-table");
+            builder.OpenElement(seq++, "tbody");
+            foreach (var layer in editor.Layers)
+            {
+                builder.OpenElement(seq++, "tr");
+                builder.OpenElement(seq++, "td");
+                builder.AddContent(seq++, string.IsNullOrWhiteSpace(layer.SourceRef) ? "unbound" : layer.SourceRef);
+                builder.CloseElement();
+                builder.OpenElement(seq++, "td");
+                builder.AddContent(seq++, "data source");
+                builder.CloseElement();
+                builder.CloseElement();
+            }
+            if (!string.IsNullOrWhiteSpace(editor.Basemap))
+            {
+                builder.OpenElement(seq++, "tr");
+                builder.OpenElement(seq++, "td");
+                builder.AddContent(seq++, editor.Basemap);
+                builder.CloseElement();
+                builder.OpenElement(seq++, "td");
+                builder.AddContent(seq++, "basemap");
+                builder.CloseElement();
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    private RenderFragment BuildVisibilityStep(StudioMapEditorState editor) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "section");
+        builder.AddAttribute(seq++, "class", "studio-editor-section studio-map-wizard-step");
+        builder.AddAttribute(seq++, "data-wizard-step", "visibility");
+
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, "Visibility");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "p");
+        builder.AddAttribute(seq++, "class", "console-muted");
+        builder.AddContent(seq++, "Who can see this map after publish.");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "studio-map-visibility-options");
+        foreach (var option in VisibilityOptions)
+        {
+            var tier = option.Value;
+            var selected = string.Equals(editor.ShareTier, tier, StringComparison.Ordinal);
+            builder.OpenElement(seq++, "label");
+            builder.AddAttribute(seq++, "class", selected ? "studio-map-visibility-option studio-map-visibility-selected" : "studio-map-visibility-option");
+
+            builder.OpenElement(seq++, "input");
+            builder.AddAttribute(seq++, "type", "radio");
+            builder.AddAttribute(seq++, "name", "map-visibility");
+            builder.AddAttribute(seq++, "value", tier);
+            builder.AddAttribute(seq++, "checked", selected);
+            builder.AddAttribute(seq++, "disabled", editor.IsPublished);
+            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create(this, () => { editor.ShareTier = tier; }));
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "span");
+            builder.OpenElement(seq++, "strong");
+            builder.AddContent(seq++, option.Label);
+            builder.CloseElement();
+            builder.OpenElement(seq++, "small");
+            builder.AddAttribute(seq++, "class", "console-muted");
+            builder.AddContent(seq++, option.Description);
+            builder.CloseElement();
+            builder.CloseElement();
+
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "dl");
+        builder.AddAttribute(seq++, "class", "console-definition-list");
+        builder.OpenElement(seq++, "dt");
+        builder.AddContent(seq++, "Public URL");
+        builder.CloseElement();
+        builder.OpenElement(seq++, "dd");
+        builder.AddAttribute(seq++, "class", "studio-code");
+        builder.AddContent(seq++, $"/m/{StudioMapPackageMapper.BuildPackageKey(editor)}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+
+    private RenderFragment BuildEmbedStep(StudioMapEditorState editor) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "section");
+        builder.AddAttribute(seq++, "class", "studio-editor-section studio-map-wizard-step");
+        builder.AddAttribute(seq++, "data-wizard-step", "embed");
+
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, "Embed");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "p");
+        builder.AddAttribute(seq++, "class", "console-muted");
+        builder.AddContent(seq++, "Whether this map may be embedded in other pages after publish.");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "label");
+        builder.AddAttribute(seq++, "class", "studio-form-label studio-form-inline");
+        builder.OpenElement(seq++, "input");
+        builder.AddAttribute(seq++, "type", "checkbox");
+        builder.AddAttribute(seq++, "checked", editor.EmbedAllowed);
+        builder.AddAttribute(seq++, "disabled", editor.IsPublished);
+        builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, args => { editor.EmbedAllowed = args.Value is true; }));
+        builder.CloseElement();
+        builder.OpenElement(seq++, "span");
+        builder.AddContent(seq++, "Allow embed");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+
+    private RenderFragment BuildRollbackStep(StudioMapEditorState editor) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "section");
+        builder.AddAttribute(seq++, "class", "studio-editor-section studio-map-wizard-step");
+        builder.AddAttribute(seq++, "data-wizard-step", "rollback");
+
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, "Rollback");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "p");
+        builder.AddAttribute(seq++, "class", "console-muted");
+        builder.AddContent(seq++, "Publish creates an immutable content version. v1 becomes the published version; future edits start a v2 draft. Rollback to a prior version is one action from item history on honua-server.");
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+
+    private RenderFragment BuildConfirmStep(StudioMapEditorState editor, StudioMapPublishReadiness readiness) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "section");
+        builder.AddAttribute(seq++, "class", "studio-editor-section studio-map-wizard-step");
+        builder.AddAttribute(seq++, "data-wizard-step", "confirm");
+
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, "Confirm");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "p");
+        builder.AddAttribute(seq++, "class", "console-muted");
+        builder.AddContent(seq++, "Publish is a governed operation — it produces an audit event and a content version.");
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "dl");
+        builder.AddAttribute(seq++, "class", "console-definition-list");
+        AddSummaryRow(builder, ref seq, "Basemap", string.IsNullOrWhiteSpace(editor.Basemap) ? "unset" : editor.Basemap);
+        AddSummaryRow(builder, ref seq, "Layers", $"{editor.Layers.Count} layer(s)");
+        AddSummaryRow(builder, ref seq, "Initial extent", string.IsNullOrWhiteSpace(editor.InitialExtent) ? "unset" : editor.InitialExtent);
+        AddSummaryRow(builder, ref seq, "Visibility", editor.ShareTier);
+        AddSummaryRow(builder, ref seq, "Embed", editor.EmbedAllowed ? "allowed" : "blocked");
+        builder.CloseElement();
+
+        if (!editor.IsPublished && !readiness.CanPublish)
+        {
+            builder.OpenElement(seq++, "p");
+            builder.AddAttribute(seq++, "class", "console-warning");
+            builder.AddContent(seq++, "Resolve the validation requirements before publishing.");
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    private static void AddSummaryRow(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, string term, string value)
+    {
+        builder.OpenElement(seq++, "dt");
+        builder.AddContent(seq++, term);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "dd");
+        builder.AddContent(seq++, value);
+        builder.CloseElement();
+    }
+
     private async Task BackToList()
     {
         _editor = null;
         _status = null;
         _statusFailed = false;
+        _view = EditorView.Editor;
+        _cameFromPrompt = false;
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
         // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
         await LoadWorkspaceAsync();

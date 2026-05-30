@@ -68,14 +68,29 @@ public sealed class StudioMapBuilderRenderTests
         Assert.Contains("Layer stack", page.Markup, StringComparison.Ordinal);
         Assert.False(FindButton(page, "Publish").HasAttribute("disabled"));
 
-        // The Access tab surfaces the publish review (visibility options + dependencies), per the
-        // StudioMapPublish mockup. Publish review is not on the default design tab.
+        // The Access tab surfaces the multi-step publish wizard (Validate · Dependencies · Visibility ·
+        // Embed · Rollback · Confirm), per the StudioMapPublish mockup. It is not on the default design tab.
         Assert.DoesNotContain("Publish review", page.Markup, StringComparison.Ordinal);
         FindButton(page, "Access").Click();
         page.WaitForAssertion(
             () => Assert.Contains("Publish review", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        Assert.NotNull(page.Find(".studio-map-visibility-options"));
+        Assert.NotNull(page.Find("[data-publish-wizard]"));
+        // The wizard renders the full six-step rail.
+        foreach (var label in new[] { "Validate", "Dependencies", "Visibility", "Embed", "Rollback", "Confirm" })
+        {
+            Assert.Contains(label, page.Markup, StringComparison.Ordinal);
+        }
+
+        // Advance Validate → Dependencies → Visibility; the visibility options live on the Visibility step.
+        FindButton(page, "Continue · Dependencies").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-wizard-step='dependencies']")),
+            TimeSpan.FromSeconds(5));
+        FindButton(page, "Continue · Visibility").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find(".studio-map-visibility-options")),
+            TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -162,7 +177,12 @@ public sealed class StudioMapBuilderRenderTests
             () => Assert.Contains("Map packages cannot be listed yet", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
-        FindButton(page, "New map").Click();
+        // "New from prompt" opens the StudioMapAI conversation pane; "Open editor →" drops into the editor.
+        FindButton(page, "New from prompt").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-ai", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        FindButton(page, "Open editor").Click();
         page.WaitForAssertion(
             () => Assert.Contains("data-map-builder", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
@@ -179,14 +199,187 @@ public sealed class StudioMapBuilderRenderTests
             () => Assert.Contains("Saved map draft", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
-        FindButton(page, "Publish").Click();
+        // "Publish…" opens the multi-step publish wizard on the Access tab; walk it to Confirm and finish.
+        FindButton(page, "Publish…").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-publish-wizard]")),
+            TimeSpan.FromSeconds(5));
+        foreach (var continueLabel in new[]
+                 {
+                     "Continue · Dependencies",
+                     "Continue · Visibility",
+                     "Continue · Embed",
+                     "Continue · Rollback",
+                     "Continue · Confirm",
+                 })
+        {
+            FindButton(page, continueLabel).Click();
+        }
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-wizard-step='confirm']")),
+            TimeSpan.FromSeconds(5));
+        page.FindAll("button.publish-wizard-finish").Single().Click();
         page.WaitForAssertion(
             () => Assert.Contains("Publication request accepted", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
         // After publish the editor is terminal: publish is disabled and reopen is offered.
-        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Publish…").HasAttribute("disabled"));
         Assert.NotNull(FindButton(page, "Reopen as draft"));
+    }
+
+    [Fact]
+    public void MapBuilder_NewFromPrompt_RendersStudioMapAiConversationAndPackagePreview()
+    {
+        // "New from prompt" opens the StudioMapAI flow: a conversation pane on the left and a package
+        // inspector + MapPreview (with a preview/mobile device toggle) on the right.
+        var data = new FakeMapDataSource
+        {
+            Workspace = new StudioMapWorkspace([], []),
+            EditorLoad = new StudioMapEditorLoad(new StudioMapEditorState(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
+        FindButton(page, "New from prompt").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-ai", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Conversation pane (shared StudioAiConversation) with the refine + send affordances.
+        Assert.NotNull(page.Find("[data-studio-ai-pane]"));
+        Assert.NotNull(page.Find(".studio-ai-conversation-log"));
+        Assert.NotNull(page.Find(".studio-ai-refine-input"));
+
+        // Right-side package inspector driven by the real authoring state, plus the shared MapPreview.
+        Assert.NotNull(page.Find(".studio-map-ai-package"));
+        Assert.NotNull(page.Find(".map-preview"));
+
+        // Preview / Mobile device toggle.
+        var deviceButtons = page.FindAll(".studio-map-ai-device button");
+        Assert.Equal(2, deviceButtons.Count);
+        Assert.Contains("Mobile", page.Markup, StringComparison.Ordinal);
+        FindButton(page, "Mobile").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find(".studio-map-ai-canvas-mobile")),
+            TimeSpan.FromSeconds(5));
+
+        // "view evidence" link surfaces after the author sends a prompt; the conversation never fabricates
+        // package state (the inspector still reflects the empty editor — no layers bound).
+        Assert.DoesNotContain("view evidence", page.Markup, StringComparison.Ordinal);
+        page.Find(".studio-ai-refine-input").Input("Show parcels coloured by use code");
+        FindButton(page, "Send").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("view evidence", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("Show parcels coloured by use code", page.Markup, StringComparison.Ordinal);
+
+        // "Open editor →" drops into the full editor; "Back to chat" returns to the conversation.
+        FindButton(page, "Open editor").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        FindButton(page, "Back to chat").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-ai", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void MapBuilder_AccessTab_RendersSixStepPublishWizardAndGatesOnValidate()
+    {
+        // The Access tab hosts the StudioMapPublish multi-step wizard. On an incomplete map the Validate
+        // step gates forward navigation until the pre-publish requirements are met.
+        var incomplete = new StudioMapEditorState { MapId = "map-2", Title = "Incomplete" };
+        var data = new FakeMapDataSource
+        {
+            Workspace = new StudioMapWorkspace(
+                [new StudioMapPackageListItem("map-2", "Incomplete", 0, 1, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioMapEditorLoad(incomplete, [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Incomplete"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Incomplete").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        FindButton(page, "Access").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-publish-wizard]")),
+            TimeSpan.FromSeconds(5));
+
+        // All six labelled steps render in the stepper.
+        foreach (var label in new[] { "Validate", "Dependencies", "Visibility", "Embed", "Rollback", "Confirm" })
+        {
+            Assert.Contains(label, page.Markup, StringComparison.Ordinal);
+        }
+
+        // The Validate step lists the unmet requirements and disables the forward control.
+        Assert.NotNull(page.Find("[data-wizard-step='validate']"));
+        Assert.Contains("Add at least one layer.", page.Markup, StringComparison.Ordinal);
+        Assert.True(FindButton(page, "Continue · Dependencies").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void MapBuilder_AccessTab_ReadyMap_WizardWalksToConfirmAndPublishes()
+    {
+        var published = false;
+        var data = new FakeMapDataSource
+        {
+            Workspace = new StudioMapWorkspace(
+                [new StudioMapPackageListItem("map-1", "Public works", 1, 3, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioMapEditorLoad(ReadyEditor(), []),
+            OnPublish = state =>
+            {
+                published = true;
+                state.Status = StudioMapStatuses.Published;
+                return new StudioMapCommandResult(true, "Publication request accepted.", state);
+            }
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Public works").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("data-map-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        FindButton(page, "Access").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-publish-wizard]")),
+            TimeSpan.FromSeconds(5));
+
+        // Walk Validate → Dependencies → Visibility → Embed → Rollback → Confirm.
+        foreach (var continueLabel in new[]
+                 {
+                     "Continue · Dependencies",
+                     "Continue · Visibility",
+                     "Continue · Embed",
+                     "Continue · Rollback",
+                     "Continue · Confirm",
+                 })
+        {
+            FindButton(page, continueLabel).Click();
+        }
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-wizard-step='confirm']")),
+            TimeSpan.FromSeconds(5));
+
+        // The Confirm step's finish action publishes through the data source.
+        page.FindAll("button.publish-wizard-finish").Single().Click();
+        page.WaitForAssertion(() => Assert.True(published), TimeSpan.FromSeconds(5));
     }
 
     private static IElement FindButton(IRenderedComponent<StudioMapBuilderPage> page, string label) =>
@@ -305,6 +498,8 @@ public sealed class StudioMapBuilderRenderTests
 
         public StudioMapEditorLoad EditorLoad { get; set; } = new(null, []);
 
+        public Func<StudioMapEditorState, StudioMapCommandResult>? OnPublish { get; set; }
+
         public Task<StudioMapWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Workspace);
 
@@ -315,7 +510,7 @@ public sealed class StudioMapBuilderRenderTests
             Task.FromResult(new StudioMapCommandResult(true, "Saved.", state));
 
         public Task<StudioMapCommandResult> PublishAsync(StudioMapEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioMapCommandResult(true, "Published.", state));
+            Task.FromResult(OnPublish?.Invoke(state) ?? new StudioMapCommandResult(true, "Published.", state));
 
         public Task<StudioMapCommandResult> ReopenAsync(StudioMapEditorState state, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioMapCommandResult(true, "Reopened.", new StudioMapEditorState { MapId = state.MapId, Version = state.Version + 1 }));
