@@ -1,0 +1,87 @@
+@namespace Honua.Console.Shell.Components
+
+@*
+    Conceptual publish-flow map, mirroring the design-handoff PublishFlowMap
+    (docs/design-handoff/console-canvas/screens-publish-flow.jsx). It shows how one
+    canonical Data Resource is exposed through service slots (live endpoints) and
+    catalog records (metadata), with the seven-step publish action between them. This
+    is a static explainer for the workspace IA — it carries no server data and never
+    fabricates publication state.
+*@
+<section class="console-section">
+    <div class="console-page-heading">
+        <p class="console-kicker">Publish flow</p>
+        <h2>How publishing works</h2>
+        <p>One canonical Data Resource is exposed through service slots (live endpoints) and catalog records (metadata). Esri services mirror to the Esri catalog and OGC API Features mirrors to OGC Records as opt-in registrations, default on.</p>
+    </div>
+
+    <div class="publish-flow-map">
+        <article class="publish-flow-node publish-flow-node-resource">
+            <h3>Data Resource</h3>
+            <p class="publish-flow-kind">Canonical · edited once</p>
+            <ul class="publish-flow-steps">
+                <li>Source binding</li>
+                <li>Fields &amp; semantic roles</li>
+                <li>Metadata (ISO 19115, DCAT, STAC)</li>
+                <li>Access &amp; presentation defaults</li>
+            </ul>
+        </article>
+
+        <div class="publish-flow-arrow" aria-hidden="true">→</div>
+
+        <article class="publish-flow-node">
+            <h3>Publish action</h3>
+            <p class="publish-flow-kind">7 steps</p>
+            <ol class="publish-flow-steps">
+                <li>Pick target folder / service</li>
+                <li>See compatibility</li>
+                <li>Configure the layer slot</li>
+                <li>Choose field exposure &amp; aliases</li>
+                <li>Preview metadata projection</li>
+                <li>Confirm access impact</li>
+                <li>Validate &amp; publish (or save draft)</li>
+            </ol>
+        </article>
+
+        <div class="publish-flow-arrow" aria-hidden="true">→</div>
+
+        <article class="publish-flow-node">
+            <h3>Publications</h3>
+            <p class="publish-flow-kind">Service slots · live endpoints</p>
+            <div class="publish-slot-row">
+                <span class="publish-slot-dot publish-slot-dot-live" aria-hidden="true"></span>
+                <span>FeatureServer slot</span>
+                <span class="console-status console-state-info">Esri catalog</span>
+            </div>
+            <div class="publish-slot-row">
+                <span class="publish-slot-dot publish-slot-dot-live" aria-hidden="true"></span>
+                <span>OGC API Features collection</span>
+                <span class="console-status console-state-info">OGC Records</span>
+            </div>
+            <p class="publish-flow-kind">Catalog records · metadata</p>
+            <div class="publish-record-row">
+                <span>Esri catalog / OGC Records</span>
+                <span class="console-status console-state-info">auto-mirror</span>
+            </div>
+            <div class="publish-record-row">
+                <span>STAC / DCAT</span>
+                <span class="console-status console-state-success">explicit</span>
+            </div>
+        </article>
+    </div>
+
+    <div class="console-panel-grid" style="margin-top:16px;">
+        <article class="console-panel">
+            <h3>Two kinds of publication</h3>
+            <p class="console-muted"><strong>Service slot</strong> — a runtime endpoint that serves data (FeatureServer, OGC API, WMTS). <strong>Catalog record</strong> — metadata about a resource with distribution links to its service slots.</p>
+        </article>
+        <article class="console-panel">
+            <h3>Catalog registration</h3>
+            <p class="console-muted">Publishing to an Esri service offers a "Register in Esri catalog" checkbox, default on; the same applies to OGC API Features → OGC Records. Uncheck to keep the service live but hidden from catalog discovery.</p>
+        </article>
+        <article class="console-panel">
+            <h3>Where edits go</h3>
+            <p class="console-muted"><strong>Resource</strong> — meaning, fields, metadata, access defaults. <strong>Slot</strong> — layer id, name, aliases, exposure, cache TTL. <strong>Catalog entry</strong> — follows the service automatically while opted in.</p>
+        </article>
+    </div>
+</section>

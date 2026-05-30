@@ -3225,3 +3225,218 @@ p {
     border-left-color: #b91c1c;
     background: #fef2f2;
 }
+
+/* ----- Publishing workspace (Operate / Publishing) ----- */
+/* Mode bar: Quick publish vs. Author resource first (advanced). Mirrors the
+   design-handoff ModeBar segmented toggle. */
+.publish-mode-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    margin-top: 16px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface-strong);
+    font-size: 0.86rem;
+}
+
+.publish-mode-bar .publish-mode-label {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--honua-muted);
+}
+
+.publish-mode-toggle {
+    display: inline-flex;
+    border: 1px solid var(--honua-text);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.publish-mode-option {
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--honua-muted);
+    background: var(--honua-surface);
+    border: none;
+    border-right: 1px solid var(--honua-border);
+    cursor: pointer;
+}
+
+.publish-mode-option:last-child {
+    border-right: none;
+}
+
+.publish-mode-option.publish-mode-option-active {
+    background: var(--honua-accent);
+    color: #ffffff;
+}
+
+.publish-mode-hint {
+    color: var(--honua-muted);
+}
+
+.publish-mode-hint-end {
+    margin-left: auto;
+}
+
+/* Stepper: Service -> Layer -> Review (quick) or the 7-step author-first flow. */
+.publish-stepper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 0;
+    list-style: none;
+}
+
+.publish-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 999px;
+    background: var(--honua-surface);
+    color: var(--honua-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.publish-step .publish-step-index {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    font-size: 0.7rem;
+}
+
+.publish-step-current {
+    border-color: var(--honua-accent);
+    background: var(--honua-accent);
+    color: #ffffff;
+}
+
+.publish-step-done {
+    border-color: #99d6b8;
+    background: #edf9f2;
+    color: #17603a;
+}
+
+.publish-step-sep {
+    color: var(--honua-muted);
+}
+
+/* Conceptual publish-flow map: Resource -> publish action -> publications. */
+.publish-flow-map {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1.1fr);
+    gap: 12px;
+    align-items: stretch;
+}
+
+@media (max-width: 1100px) {
+    .publish-flow-map {
+        grid-template-columns: 1fr;
+    }
+
+    .publish-flow-arrow {
+        display: none;
+    }
+}
+
+.publish-flow-arrow {
+    display: grid;
+    place-items: center;
+    color: var(--honua-muted);
+    font-size: 1.2rem;
+}
+
+.publish-flow-node {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+    padding: 14px;
+}
+
+.publish-flow-node-resource {
+    border-color: var(--honua-accent);
+    background: var(--honua-surface-strong);
+}
+
+.publish-flow-node h3 {
+    margin: 0 0 8px;
+    font-size: 0.92rem;
+}
+
+.publish-flow-steps {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.84rem;
+    line-height: 1.55;
+}
+
+.publish-flow-kind {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--honua-muted);
+    margin: 10px 0 6px;
+}
+
+.publish-slot-row,
+.publish-record-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+}
+
+.publish-slot-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+}
+
+.publish-slot-dot-live {
+    background: #15803d;
+}
+
+.publish-slot-dot-pending {
+    background: #d97706;
+}
+
+/* Layered creation/review stack: Resource -> binds to -> Slot -> mirrors -> Catalog. */
+.publish-review-stack {
+    display: grid;
+    gap: 4px;
+}
+
+.publish-review-bind {
+    text-align: center;
+    color: var(--honua-muted);
+    font-size: 0.8rem;
+    padding: 2px 0;
+}
+
+.publish-review-layer {
+    border-left: 3px solid var(--honua-accent);
+}
+
+.publish-review-layer-catalog {
+    border-left: 3px solid #2563eb;
+}
