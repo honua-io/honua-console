@@ -44,23 +44,38 @@
     }
     else
     {
-        <div class="workflow-command-bar" aria-label="Workflow package actions">
-            <button class="console-button" type="button" disabled="@_busy" @onclick="SaveAsync">Save Version</button>
-            <button class="console-button" type="button" disabled="@_busy" @onclick="DryRunAsync">Dry Run</button>
-            <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">Publish</button>
+        <header class="workflow-editor-header" aria-label="Workflow package header">
+            <span class="workflow-editor-glyph" aria-hidden="true">⇋</span>
+            <input class="console-input workflow-title-input" aria-label="Workflow name" @bind="_draft.Title" @bind:event="oninput" />
+            <span class="console-status workflow-badge-draft">@DraftStatusBadge(_draft)</span>
+            <span class="console-status @(IsGraphValid ? string.Empty : "console-status-warning") workflow-badge-dag">@(IsGraphValid ? "DAG valid · acyclic" : "DAG needs a sink")</span>
+            <div class="workflow-editor-header-spacer"></div>
+            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="DryRunAsync">Run once</button>
+            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="SaveAsync">Save draft</button>
+            <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">Publish…</button>
             <a class="console-button-link console-button-secondary" href="/studio">Studio Home</a>
-        </div>
+        </header>
+
+        <nav class="console-tab-row workflow-tab-row" aria-label="Workflow editor sections">
+            <a href="#workflow-graph" class="active">Graph</a>
+            <a href="#workflow-schedule">Schedule</a>
+            <a href="#workflow-secrets">Secrets</a>
+            <a href="#workflow-history">Run history</a>
+            <a href="#workflow-package">Package · raw</a>
+        </nav>
 
         <div class="workflow-editor-shell">
             <aside class="workflow-sidebar" aria-label="Node palette">
                 <div class="workflow-section-heading">
-                    <p class="console-kicker">Node library</p>
+                    <p class="console-kicker">Step palette</p>
                     <h2>Palette</h2>
+                    <small class="console-muted">drag onto canvas</small>
                 </div>
                 <div class="workflow-palette">
                     @foreach (var definition in _nodeDefinitions)
                     {
-                        <button class="workflow-palette-item" type="button" @onclick="() => AddNode(definition.Type)">
+                        <button class="workflow-palette-item workflow-palette-item-@definition.Category" type="button" @onclick="() => AddNode(definition.Type)">
+                            <span class="workflow-step-glyph" aria-hidden="true">@StepGlyph(definition.Category, definition.Type)</span>
                             <strong>@definition.Label</strong>
                             <span>@definition.Category</span>
                             <small>@definition.Summary</small>
@@ -93,21 +108,55 @@
                     </div>
                 </section>
 
-                <section class="workflow-canvas-band" aria-label="Workflow graph">
+                <section id="workflow-graph" class="workflow-canvas-band" aria-label="Workflow graph">
                     <div class="workflow-section-heading">
                         <p class="console-kicker">Graph</p>
                         <h2>Sources, Transforms, Sinks</h2>
                     </div>
-                    <div class="workflow-graph">
-                        @foreach (var node in _draft.Nodes.OrderBy(node => node.Column).ThenBy(node => node.Row))
-                        {
-                            var selected = string.Equals(node.Id, SelectedNode?.Id, StringComparison.Ordinal);
-                            <button class="workflow-node workflow-node-@node.Category @(selected ? "workflow-node-selected" : string.Empty)" type="button" @onclick="() => SelectNode(node.Id)">
-                                <span>@node.Category</span>
-                                <strong>@node.Label</strong>
-                                <small>@node.Type</small>
-                            </button>
-                        }
+                    <div class="workflow-canvas" role="group" aria-label="Workflow DAG canvas">
+                        <svg class="workflow-canvas-edges" viewBox="0 0 1000 340" preserveAspectRatio="none" aria-hidden="true">
+                            <defs>
+                                <marker id="workflow-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#141414"></path>
+                                </marker>
+                                <marker id="workflow-arrow-failure" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#c03b2b"></path>
+                                </marker>
+                                <pattern id="workflow-dotgrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                    <circle cx="2" cy="2" r="1" fill="#dcdcdc"></circle>
+                                </pattern>
+                            </defs>
+                            <rect width="1000" height="340" fill="url(#workflow-dotgrid)"></rect>
+                            @foreach (var edge in _draft.Edges)
+                            {
+                                var path = EdgePath(edge);
+                                if (path is not null)
+                                {
+                                    var failure = edge.Kind == StudioWorkflowContractValues.EdgeKindFailure;
+                                    <path class="workflow-canvas-edge workflow-canvas-edge-@edge.Kind"
+                                          d="@path"
+                                          fill="none"
+                                          stroke="@(failure ? "#c03b2b" : "#141414")"
+                                          stroke-width="@(failure ? "1.4" : "1.6")"
+                                          stroke-dasharray="@(failure ? "4 4" : null)"
+                                          marker-end="@(failure ? "url(#workflow-arrow-failure)" : "url(#workflow-arrow)")"></path>
+                                }
+                            }
+                        </svg>
+                        <div class="workflow-canvas-nodes">
+                            @foreach (var node in _draft.Nodes)
+                            {
+                                var selected = string.Equals(node.Id, SelectedNode?.Id, StringComparison.Ordinal);
+                                <button class="workflow-node workflow-node-@node.Category @(node.Type.Contains("failure", StringComparison.Ordinal) ? "workflow-node-failure" : string.Empty) @(selected ? "workflow-node-selected" : string.Empty)"
+                                        type="button"
+                                        style="@NodeStyle(node)"
+                                        @onclick="() => SelectNode(node.Id)">
+                                    <span class="workflow-node-glyph" aria-hidden="true">@StepGlyph(node.Category, node.Type)</span>
+                                    <strong>@node.Label</strong>
+                                    <small>@node.Type</small>
+                                </button>
+                            }
+                        </div>
                     </div>
                     <ol class="workflow-edge-list" aria-label="Workflow edges">
                         @foreach (var edge in _draft.Edges)
@@ -153,9 +202,9 @@
                         }
                     </section>
 
-                    <section class="console-panel" aria-label="Parameters and invocation validation">
+                    <section id="workflow-secrets" class="console-panel" aria-label="Parameters and invocation validation">
                         <div class="workflow-section-heading">
-                            <p class="console-kicker">Parameters</p>
+                            <p class="console-kicker">Parameters · secrets</p>
                             <h2>Invocation Contract</h2>
                         </div>
                         <div class="workflow-table">
@@ -190,7 +239,7 @@
                         </ul>
                     </section>
 
-                    <section class="console-panel" aria-label="Schedule and worker profile">
+                    <section id="workflow-schedule" class="console-panel" aria-label="Schedule and worker profile">
                         <div class="workflow-section-heading">
                             <p class="console-kicker">Runtime</p>
                             <h2>Schedule And Worker</h2>
@@ -469,7 +518,7 @@
                     }
                 </section>
 
-                <section class="console-panel workflow-run-history" aria-label="Workflow run history">
+                <section id="workflow-history" class="console-panel workflow-run-history" aria-label="Workflow run history">
                     <div class="workflow-section-heading">
                         <p class="console-kicker">Run history</p>
                         <h2>Queued, Running, Failed, Succeeded</h2>
@@ -530,6 +579,28 @@
                             }
                         </ol>
                     }
+                </section>
+
+                <section id="workflow-package" class="console-panel workflow-package-raw" aria-label="Workflow package contract">
+                    <div class="workflow-section-heading">
+                        <p class="console-kicker">Package · raw</p>
+                        <h2>Generated Contract</h2>
+                    </div>
+                    <p class="console-muted">Inspectable summary of the generated workflow package projection before save or publish.</p>
+                    <dl class="console-definition-list">
+                        <dt>Package</dt>
+                        <dd>@_draft.PackageType</dd>
+                        <dt>Schema</dt>
+                        <dd>@_draft.SchemaVersion</dd>
+                        <dt>Nodes</dt>
+                        <dd>@_draft.Nodes.Count</dd>
+                        <dt>Edges</dt>
+                        <dd>@_draft.Edges.Count</dd>
+                        <dt>Parameters</dt>
+                        <dd>@_draft.Parameters.Count</dd>
+                        <dt>Output schemas</dt>
+                        <dd>@_draft.OutputSchemas.Count</dd>
+                    </dl>
                 </section>
             </aside>
         </div>
@@ -904,6 +975,81 @@
             Required = false,
             Description = "Workflow parameter."
         });
+    }
+
+    // Canvas geometry mirrors the design mockup's DAG layout: nodes flow left-to-right by column with a
+    // small vertical fan-out for sink rows, so the SVG edge layer can draw arrowed connectors and the
+    // failure edge as a dashed redline. The viewBox is 1000x340 to match the wireframe canvas.
+    private const int CanvasColumnStride = 130;
+    private const int CanvasRowStride = 90;
+    private const int CanvasOriginX = 30;
+    private const int CanvasOriginY = 40;
+    private const int CanvasNodeWidth = 110;
+    private const int CanvasNodeHeight = 70;
+
+    private static int NodeX(StudioWorkflowNode node) => CanvasOriginX + Math.Max(0, node.Column - 1) * CanvasColumnStride;
+
+    private static int NodeY(StudioWorkflowNode node) => CanvasOriginY + Math.Max(0, node.Row - 1) * CanvasRowStride;
+
+    private static string NodeStyle(StudioWorkflowNode node) =>
+        $"left:{NodeX(node)}px;top:{NodeY(node)}px;";
+
+    // Builds the SVG path for an edge between the two positioned nodes. Failure edges curve below the chain;
+    // success edges are straight connectors. Returns null when an endpoint cannot be resolved.
+    private string? EdgePath(StudioWorkflowEdge edge)
+    {
+        var from = _draft?.Nodes.FirstOrDefault(node => node.Id == edge.FromNodeId);
+        var to = _draft?.Nodes.FirstOrDefault(node => node.Id == edge.ToNodeId);
+        if (from is null || to is null)
+        {
+            return null;
+        }
+
+        var x1 = NodeX(from) + CanvasNodeWidth;
+        var y1 = NodeY(from) + (CanvasNodeHeight / 2);
+        var x2 = NodeX(to);
+        var y2 = NodeY(to) + (CanvasNodeHeight / 2);
+
+        if (edge.Kind == StudioWorkflowContractValues.EdgeKindFailure)
+        {
+            var midY = Math.Max(y1, y2) + 70;
+            return $"M {x1} {y1} C {x1} {midY}, {x2} {midY}, {x2} {y2}";
+        }
+
+        return $"M {x1} {y1} L {x2} {y2}";
+    }
+
+    // The graph is considered DAG-valid for the badge when it has at least one sink node; the authoritative
+    // acyclicity/schema check happens server-side on save (#1185). This drives only the header badge text.
+    private bool IsGraphValid =>
+        _draft is not null &&
+        _draft.Nodes.Any(node => node.Category == StudioWorkflowContractValues.NodeCategorySink);
+
+    private static string DraftStatusBadge(StudioWorkflowPackageDraft draft) =>
+        draft.VersionNumber > 0 ? $"draft v{draft.VersionNumber}" : "draft";
+
+    // Maps a step to its design-mockup glyph. Source/transform/sink fall back to a category glyph; common
+    // node types get their specific icon from the wireframe palette.
+    private static string StepGlyph(string category, string type)
+    {
+        var key = type.ToLowerInvariant();
+        if (key.Contains("trigger", StringComparison.Ordinal)) return "⏱";
+        if (key.Contains("pull", StringComparison.Ordinal) || key.Contains("sftp", StringComparison.Ordinal)) return "⤴";
+        if (key.Contains("read", StringComparison.Ordinal)) return "📦";
+        if (key.Contains("validate", StringComparison.Ordinal)) return "✓";
+        if (key.Contains("geocode", StringComparison.Ordinal)) return "📍";
+        if (key.Contains("transform", StringComparison.Ordinal) || key.Contains("sql", StringComparison.Ordinal) || key.Contains("script", StringComparison.Ordinal)) return "🔀";
+        if (key.Contains("publish", StringComparison.Ordinal)) return "🚀";
+        if (key.Contains("notify", StringComparison.Ordinal) || key.Contains("failure", StringComparison.Ordinal)) return "📢";
+        if (key.Contains("write", StringComparison.Ordinal) || key.Contains("append", StringComparison.Ordinal)) return "➕";
+        if (key.Contains("ai", StringComparison.Ordinal)) return "🤖";
+
+        return category switch
+        {
+            StudioWorkflowContractValues.NodeCategorySource => "⤴",
+            StudioWorkflowContractValues.NodeCategorySink => "🚀",
+            _ => "🔀"
+        };
     }
 
     private string GetNodeLabel(string nodeId) =>
