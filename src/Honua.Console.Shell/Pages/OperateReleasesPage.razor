@@ -53,149 +53,219 @@
                                     <h3><a href="@GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId)">@proposal.Title</a></h3>
                                     <p class="console-muted">@proposal.Summary</p>
                                 </div>
+                                <span class="console-status @(proposal.HasBlockingFindings ? "console-state-danger" : "console-state-success")">
+                                    @(proposal.HasBlockingFindings ? "blocked" : "ready")
+                                </span>
                             </div>
+                            <p class="console-muted operate-release-route">
+                                <span class="console-mono">@proposal.SourceEnvironmentId</span>
+                                &rarr;
+                                <span class="console-mono">@(proposal.TargetEnvironmentIds.Count == 0 ? "none" : string.Join(", ", proposal.TargetEnvironmentIds))</span>
+                                &middot; @proposal.ChangedResources.Count semantic change@(proposal.ChangedResources.Count == 1 ? "" : "s")
+                            </p>
                         </article>
                     }
                 </div>
             }
         </section>
     }
-    else
+    else if (!_detailLoaded || _detail is null)
     {
-        <section id="release-detail" class="operate-section" aria-labelledby="release-detail-heading">
-            <div class="operate-section-heading">
-                <div>
-                    <p class="console-kicker">Release detail</p>
-                    <h2 id="release-detail-heading">Release @SelectedReleaseId?.Trim()</h2>
-                </div>
+        <OperateSectionStatusPanel Heading="Release detail" Loading="true" />
+    }
+    else if (!_detail.IsAllowed)
+    {
+        <div class="operate-release-detail-head">
+            <p class="console-kicker">Release detail</p>
+            <div class="operate-release-title-row">
+                <h2>Release @SelectedReleaseId?.Trim()</h2>
                 <a class="console-link" href="@GitOpsReleaseRoutes.Releases">Back to releases</a>
             </div>
+        </div>
+        <OperateSectionStatusPanel Heading="Release detail" Status="_detail.Status" Message="@_detail.Message" />
+    }
+    else
+    {
+        var detail = _detail.Value!;
+        var proposal = detail.Proposal;
+        var operation = detail.Operation;
+        var applied = operation is not null
+            && string.Equals(operation.Status, "applied", StringComparison.OrdinalIgnoreCase);
+        var blocked = !detail.CanProposePullRequest;
+        var changeCount = proposal.ChangedResources.Count;
 
-            @if (!_detailLoaded || _detail is null)
-            {
-                <OperateSectionStatusPanel Heading="Release detail" Loading="true" />
-            }
-            else if (!_detail.IsAllowed)
-            {
-                <OperateSectionStatusPanel Heading="Release detail" Status="_detail.Status" Message="@_detail.Message" />
-            }
-            else
-            {
-                var detail = _detail.Value!;
-                var proposal = detail.Proposal;
-
-                <article class="console-panel operate-release-card">
-                    <div class="console-panel-heading">
-                        <div>
-                            <h3>@proposal.Title</h3>
-                            <p class="console-muted">@proposal.Summary</p>
-                        </div>
-                        <span class="console-status @(proposal.HasBlockingFindings ? "console-state-danger" : "console-state-success")">
-                            @(proposal.HasBlockingFindings ? "blocked" : "ready")
-                        </span>
-                    </div>
-
-                    <dl class="console-definition-list">
-                        <dt>Source</dt>
-                        <dd>@proposal.SourceEnvironmentId</dd>
-                        <dt>Targets</dt>
-                        <dd>@(proposal.TargetEnvironmentIds.Count == 0 ? "none" : string.Join(", ", proposal.TargetEnvironmentIds))</dd>
-                        <dt>Desired revision</dt>
-                        <dd>@proposal.DesiredRevision</dd>
-                        <dt>Rollback</dt>
-                        <dd title="@GitOpsReleasePresentation.Description(proposal.RollbackClassification)">
-                            @GitOpsReleasePresentation.Label(proposal.RollbackClassification)
-                        </dd>
-                    </dl>
-
-                    <section class="operate-evidence-section">
-                        <h4>Changed semantic resources</h4>
-                        @if (proposal.ChangedResources.Count == 0)
-                        {
-                            <p class="console-muted">No semantic resources are changed by this proposal.</p>
-                        }
-                        else
-                        {
-                            <ul class="operate-note-list">
-                                @foreach (var resource in proposal.ChangedResources)
-                                {
-                                    <li>
-                                        <strong>@resource.ResourceType</strong>: @resource.DisplayName
-                                        <span class="console-chip-row">
-                                            @foreach (var changeClass in resource.ChangeClasses)
-                                            {
-                                                <span>@GitOpsReleasePresentation.Label(changeClass)</span>
-                                            }
-                                        </span>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </section>
-
-                    @* A release with unresolved blockers (proposal findings or operation
-                       lifecycle blockers) must not offer a PR/deploy action. *@
-                    <div class="operate-action-row">
-                        <button class="console-button" type="button" disabled="@(!detail.CanProposePullRequest)"
-                            title="@(detail.CanProposePullRequest
-                                ? "Open the Git PR for this release operation."
-                                : "Resolve blocking findings before creating a Git PR.")">
-                            Create Git PR
+        @* HEADER — mirrors the mockup's title row: crumb, rel id · source → targets,
+           a status badge, a summary line, and a right-aligned governed action row
+           (View on GitHub · Dry-run · Open PR / Rollback). *@
+        <div class="operate-release-detail-head">
+            <p class="console-kicker">
+                <a class="console-link" href="@GitOpsReleaseRoutes.Releases">Releases</a>
+                <span class="operate-crumb-sep">/</span>
+            </p>
+            <div class="operate-release-title-row">
+                <h2>@proposal.Title</h2>
+                @if (applied)
+                {
+                    <span class="console-status console-state-success">applied</span>
+                }
+                else if (blocked)
+                {
+                    <span class="console-status console-state-danger">blocked</span>
+                }
+                else
+                {
+                    <span class="console-status console-state-info">preflight</span>
+                }
+                <span class="console-muted operate-release-subline">
+                    <span class="console-mono">@proposal.SourceEnvironmentId</span>
+                    &rarr;
+                    <span class="console-mono">@(proposal.TargetEnvironmentIds.Count == 0 ? "none" : string.Join(", ", proposal.TargetEnvironmentIds))</span>
+                    &middot; @changeCount semantic change@(changeCount == 1 ? "" : "s")
+                </span>
+                <div class="operate-release-actions">
+                    @if (operation?.PrUrl is { Length: > 0 } headPrUrl)
+                    {
+                        <a class="console-button-link console-button-secondary" href="@headPrUrl" rel="noopener noreferrer" target="_blank">View on GitHub</a>
+                    }
+                    @if (applied)
+                    {
+                        <button class="console-button console-button-secondary" type="button" disabled
+                            title="Rollback re-applies the previous release bundle within the rollback window.">Rollback&hellip;</button>
+                    }
+                    else
+                    {
+                        <button class="console-button" type="button" disabled="@blocked"
+                            title="@(blocked
+                                ? "Resolve blocking findings before creating a Git PR."
+                                : "Open the Git PR for this release operation.")">
+                            Open PR &middot; proceed
                         </button>
-                        @if (detail.Operation?.PrUrl is { Length: > 0 } prUrl)
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* TAB STRIP — the mockup's section tabs, here as in-page section anchors so the
+           whole governed release reads top-to-bottom without losing the design's IA. *@
+        <nav class="console-tab-row operate-release-tabs" aria-label="Release sections">
+            <a href="#semantic-diff" class="active">Semantic diff <small>@changeCount</small></a>
+            <a href="#env-matrix">Environment matrix</a>
+            <a href="#preflight">Compatibility preflight</a>
+            <a href="#timeline">CI timeline</a>
+            <a href="#rollback">Rollback</a>
+        </nav>
+
+        <div class="operate-detail-grid operate-release-grid">
+            <div class="operate-detail-panel operate-release-main">
+                @* SEMANTIC DIFF — grouped resource changes (design view #1). *@
+                <section id="semantic-diff" class="console-panel operate-table-panel" aria-labelledby="semantic-diff-heading">
+                    <div class="console-panel-heading operate-release-card-head">
+                        <div>
+                            <h3 id="semantic-diff-heading">Semantic diff &middot; @changeCount change@(changeCount == 1 ? "" : "s")</h3>
+                            <p class="console-muted">Grouped by resource type &middot; what is being promoted, not raw manifests.</p>
+                        </div>
+                    </div>
+                    @if (changeCount == 0)
+                    {
+                        <p class="console-muted operate-release-empty">No semantic resources are changed by this proposal.</p>
+                    }
+                    else
+                    {
+                        <div class="operate-table-scroll">
+                            <table class="operate-table operate-diff-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Item</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var resource in proposal.ChangedResources)
+                                    {
+                                        <tr>
+                                            <td><strong>@resource.DisplayName</strong></td>
+                                            <td>@resource.ResourceType</td>
+                                            <td>
+                                                <span class="console-chip-row">
+                                                    @foreach (var changeClass in resource.ChangeClasses)
+                                                    {
+                                                        <span>@GitOpsReleasePresentation.Label(changeClass)</span>
+                                                    }
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+
+                @* ENVIRONMENT MATRIX — which revision of each item runs where (design view #3). *@
+                <section id="env-matrix" class="console-panel operate-table-panel" aria-labelledby="env-matrix-heading">
+                    <div class="console-panel-heading operate-release-card-head">
+                        <div>
+                            <h3 id="env-matrix-heading">Environment matrix and drift</h3>
+                            <p class="console-muted">Which revision of each target runs where.</p>
+                        </div>
+                        @if (detail.EnvironmentMatrix.Count > 0)
                         {
-                            <a class="console-link" href="@prUrl" rel="noopener noreferrer" target="_blank">View Git PR preview</a>
+                            <span class="console-status @(detail.HasDrift ? "console-state-warning" : "console-state-success")">
+                                @(detail.HasDrift ? "drift detected" : "all aligned")
+                            </span>
                         }
                     </div>
-                </article>
-
-                <section class="operate-evidence-section" aria-labelledby="env-matrix-heading">
-                    <h3 id="env-matrix-heading">Environment matrix and drift</h3>
                     @if (detail.EnvironmentMatrix.Count == 0)
                     {
-                        <p class="console-muted">The release proposal has no target environments to compare.</p>
+                        <p class="console-muted operate-release-empty">The release proposal has no target environments to compare.</p>
                     }
                     else
                     {
                         @if (detail.HasDrift)
                         {
-                            <p class="console-status console-state-warning">Drift detected: one or more targets are not aligned with the desired revision.</p>
+                            <p class="console-muted operate-release-empty">Drift detected: one or more targets are not aligned with the desired revision.</p>
                         }
-                        else
-                        {
-                            <p class="console-status console-state-success">All targets are aligned with the desired revision.</p>
-                        }
-                        <table class="console-table operate-env-matrix">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Target environment</th>
-                                    <th scope="col">Desired revision</th>
-                                    <th scope="col">Current revision</th>
-                                    <th scope="col">Drift state</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var cell in detail.EnvironmentMatrix)
-                                {
-                                    <tr class="@(cell.IsAligned ? "operate-aligned-row" : "operate-drift-row")">
-                                        <td>@cell.Environment</td>
-                                        <td>rev-@cell.DesiredRevision</td>
-                                        <td>@(cell.CurrentRevision is { } current ? $"rev-{current}" : "unknown")</td>
-                                        <td>
-                                            <span class="console-status @(cell.IsAligned ? "console-state-success" : "console-state-warning")">
-                                                @cell.DriftLabel
-                                            </span>
-                                        </td>
+                        <div class="operate-table-scroll">
+                            <table class="operate-table operate-env-matrix">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Target environment</th>
+                                        <th scope="col">Desired revision</th>
+                                        <th scope="col">Current revision</th>
+                                        <th scope="col">Drift state</th>
                                     </tr>
-                                }
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    @foreach (var cell in detail.EnvironmentMatrix)
+                                    {
+                                        <tr class="@(cell.IsAligned ? "operate-aligned-row" : "operate-drift-row")">
+                                            <td class="console-mono">@cell.Environment</td>
+                                            <td class="console-mono">rev-@cell.DesiredRevision</td>
+                                            <td class="console-mono">@(cell.CurrentRevision is { } current ? $"rev-{current}" : "unknown")</td>
+                                            <td>
+                                                <span class="console-status @(cell.IsAligned ? "console-state-success" : "console-state-warning")">
+                                                    @cell.DriftLabel
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     }
                 </section>
 
-                <section class="operate-evidence-section" aria-labelledby="timeline-heading">
-                    <h3 id="timeline-heading">CI/GitOps timeline and rollback</h3>
-                    @if (detail.Operation is null)
+                @* CI/GITOPS CHECK TIMELINE — chronological stages (design view "CI timeline").
+                   Mirrors the GitOpsCITimeline mockup's check-row list. *@
+                <section id="timeline" class="console-panel operate-table-panel" aria-labelledby="timeline-heading">
+                    <div class="console-panel-heading operate-release-card-head">
+                        <div>
+                            <h3 id="timeline-heading">CI/GitOps check timeline</h3>
+                            <p class="console-muted">Chronological &middot; the same release operation ids produced by server/devops.</p>
+                        </div>
+                    </div>
+                    @if (operation is null)
                     {
                         <OperateSectionStatusPanel Heading="Release operation"
                             Status="_detail.Value!.OperationStatus"
@@ -203,11 +273,9 @@
                     }
                     else
                     {
-                        var operation = detail.Operation;
-
-                        <dl class="console-definition-list">
+                        <dl class="console-definition-list operate-release-opmeta">
                             <dt>Operation id</dt>
-                            <dd>@operation.OperationId</dd>
+                            <dd class="console-mono">@operation.OperationId</dd>
                             <dt>Status</dt>
                             <dd>@operation.Status</dd>
                             <dt>Current stage</dt>
@@ -215,22 +283,25 @@
                             @if (!string.IsNullOrWhiteSpace(operation.CommitSha))
                             {
                                 <dt>Commit</dt>
-                                <dd>@operation.CommitSha</dd>
+                                <dd class="console-mono">@operation.CommitSha</dd>
                             }
                         </dl>
 
                         <ol class="operate-timeline">
                             @foreach (var step in operation.Timeline)
                             {
-                                <li class="operate-timeline-step">
+                                <li class="operate-timeline-step @GitOpsReleasePresentation.StateClass(step.Status)">
+                                    <span class="operate-timeline-marker" aria-hidden="true"></span>
+                                    <div class="operate-timeline-body">
+                                        <strong>@step.Stage</strong>
+                                        @if (!string.IsNullOrWhiteSpace(step.Detail))
+                                        {
+                                            <span class="console-muted">@step.Detail</span>
+                                        }
+                                    </div>
                                     <span class="console-status @GitOpsReleasePresentation.StateClass(step.Status)">
                                         @GitOpsReleasePresentation.Label(step.Status)
                                     </span>
-                                    <strong>@step.Stage</strong>
-                                    @if (!string.IsNullOrWhiteSpace(step.Detail))
-                                    {
-                                        <span class="console-muted">@step.Detail</span>
-                                    }
                                 </li>
                             }
                         </ol>
@@ -260,60 +331,139 @@
                                 </ul>
                             </div>
                         }
-
-                        @* Rollback readiness and rollback window are visible before apply
-                           (acceptance criterion). *@
-                        <section class="operate-rollback-summary" aria-labelledby="rollback-heading">
-                            <h4 id="rollback-heading">Rollback readiness</h4>
-                            @if (operation.RollbackPlan is null)
-                            {
-                                <p class="console-muted">The release operation did not report a rollback plan yet.</p>
-                            }
-                            else
-                            {
-                                var rollback = operation.RollbackPlan;
-                                <p class="console-status @(rollback.IsRollbackReady ? "console-state-success" : "console-state-warning")">
-                                    @(rollback.IsRollbackReady ? "Rollback ready" : "Rollback not ready")
-                                    &mdash; @GitOpsReleasePresentation.Label(rollback.Classification)
-                                </p>
-                                <p class="console-muted">@GitOpsReleasePresentation.Description(rollback.Classification)</p>
-                                <dl class="console-definition-list">
-                                    <dt>Data-affecting</dt>
-                                    <dd>@(rollback.IsDataAffecting ? "yes" : "no")</dd>
-                                    <dt>Requires approval</dt>
-                                    <dd>@(rollback.RequiresExplicitApproval ? "yes" : "no")</dd>
-                                    @if (!string.IsNullOrWhiteSpace(rollback.ApprovalPolicyRef))
-                                    {
-                                        <dt>Approval policy</dt>
-                                        <dd>@rollback.ApprovalPolicyRef</dd>
-                                    }
-                                </dl>
-                                @if (rollback.Steps.Count > 0)
-                                {
-                                    <h5>Rollback steps</h5>
-                                    <ol class="operate-note-list">
-                                        @foreach (var step in rollback.Steps)
-                                        {
-                                            <li>@step</li>
-                                        }
-                                    </ol>
-                                }
-                                @if (rollback.EvidenceRequired.Count > 0)
-                                {
-                                    <h5>Required rollback evidence</h5>
-                                    <ul class="operate-note-list">
-                                        @foreach (var evidence in rollback.EvidenceRequired)
-                                        {
-                                            <li>@evidence</li>
-                                        }
-                                    </ul>
-                                }
-                            }
-                        </section>
                     }
                 </section>
-            }
-        </section>
+            </div>
+
+            @* SIDE COLUMN — mockup's right rail: breaking-change callout, compatibility
+               preflight summary, release facts, "what proceed does", rollback readiness,
+               and the governed-operation note. *@
+            <aside class="operate-detail-panel operate-release-side" aria-label="Release context">
+                @if (blocked)
+                {
+                    <div class="console-usage-callout operate-release-callout-warn">
+                        <strong>Blocking findings.</strong>
+                        Resolve the blockers below before this release can open a Git PR or deploy.
+                    </div>
+                }
+
+                <section id="preflight" class="console-panel" aria-labelledby="preflight-heading">
+                    <h3 id="preflight-heading">Compatibility preflight</h3>
+                    <ul class="operate-note-list operate-preflight-list">
+                        <li class="@(blocked ? "console-state-danger" : "console-state-success")">
+                            @(blocked ? "Blocking findings present" : "No blocking findings")
+                        </li>
+                        <li class="@(detail.HasDrift ? "console-state-warning" : "console-state-success")">
+                            @(detail.HasDrift ? "Environment drift across targets" : "Targets aligned with desired revision")
+                        </li>
+                        @if (operation is not null && operation.Warnings.Count > 0)
+                        {
+                            <li class="console-state-warning">@operation.Warnings.Count operation warning@(operation.Warnings.Count == 1 ? "" : "s")</li>
+                        }
+                    </ul>
+                </section>
+
+                <section class="console-panel operate-release-facts" aria-labelledby="release-facts-heading">
+                    <h3 id="release-facts-heading">Release</h3>
+                    <dl class="console-definition-list">
+                        <dt>Package id</dt>
+                        <dd class="console-mono">@proposal.ReleasePackageId</dd>
+                        <dt>Source</dt>
+                        <dd>@proposal.SourceEnvironmentId</dd>
+                        <dt>Targets</dt>
+                        <dd>@(proposal.TargetEnvironmentIds.Count == 0 ? "none" : string.Join(", ", proposal.TargetEnvironmentIds))</dd>
+                        <dt>Desired revision</dt>
+                        <dd class="console-mono">@proposal.DesiredRevision</dd>
+                        @if (operation is not null)
+                        {
+                            <dt>Operation</dt>
+                            <dd class="console-mono">@operation.OperationId</dd>
+                            @if (!string.IsNullOrWhiteSpace(operation.CommitSha))
+                            {
+                                <dt>Commit</dt>
+                                <dd class="console-mono">@operation.CommitSha</dd>
+                            }
+                        }
+                        <dt>Rollback class</dt>
+                        <dd title="@GitOpsReleasePresentation.Description(proposal.RollbackClassification)">
+                            @GitOpsReleasePresentation.Label(proposal.RollbackClassification)
+                        </dd>
+                    </dl>
+                    @if (operation?.PrUrl is { Length: > 0 } sidePrUrl)
+                    {
+                        <a class="console-link" href="@sidePrUrl" rel="noopener noreferrer" target="_blank">View Git PR preview</a>
+                    }
+                </section>
+
+                @if (!applied)
+                {
+                    <section class="console-panel operate-release-steps" aria-labelledby="proceed-heading">
+                        <h3 id="proceed-heading">What proceed does</h3>
+                        <ol class="operate-note-list">
+                            <li>Open the Git PR on the config repository.</li>
+                            <li>CI runs the compatibility preflight and dry-run on the targets.</li>
+                            <li>On green, await human approval.</li>
+                            <li>Apply with the chosen strategy.</li>
+                            <li>Open the auto-rollback window.</li>
+                        </ol>
+                    </section>
+                }
+
+                @* ROLLBACK READINESS — rollback class + window visible before apply
+                   (acceptance criterion). Mirrors the mockup's rollback callout/card. *@
+                <section id="rollback" class="console-panel operate-rollback-summary" aria-labelledby="rollback-heading">
+                    <h3 id="rollback-heading">Rollback readiness</h3>
+                    @if (operation?.RollbackPlan is null)
+                    {
+                        <p class="console-muted">The release operation did not report a rollback plan yet.</p>
+                    }
+                    else
+                    {
+                        var rollback = operation.RollbackPlan;
+                        <p class="console-status @(rollback.IsRollbackReady ? "console-state-success" : "console-state-warning")">
+                            @(rollback.IsRollbackReady ? "Rollback ready" : "Rollback not ready")
+                            &mdash; @GitOpsReleasePresentation.Label(rollback.Classification)
+                        </p>
+                        <p class="console-muted">@GitOpsReleasePresentation.Description(rollback.Classification)</p>
+                        <dl class="console-definition-list">
+                            <dt>Data-affecting</dt>
+                            <dd>@(rollback.IsDataAffecting ? "yes" : "no")</dd>
+                            <dt>Requires approval</dt>
+                            <dd>@(rollback.RequiresExplicitApproval ? "yes" : "no")</dd>
+                            @if (!string.IsNullOrWhiteSpace(rollback.ApprovalPolicyRef))
+                            {
+                                <dt>Approval policy</dt>
+                                <dd>@rollback.ApprovalPolicyRef</dd>
+                            }
+                        </dl>
+                        @if (rollback.Steps.Count > 0)
+                        {
+                            <h4>Rollback steps</h4>
+                            <ol class="operate-note-list">
+                                @foreach (var step in rollback.Steps)
+                                {
+                                    <li>@step</li>
+                                }
+                            </ol>
+                        }
+                        @if (rollback.EvidenceRequired.Count > 0)
+                        {
+                            <h4>Required rollback evidence</h4>
+                            <ul class="operate-note-list">
+                                @foreach (var evidence in rollback.EvidenceRequired)
+                                {
+                                    <li>@evidence</li>
+                                }
+                            </ul>
+                        }
+                    }
+                </section>
+
+                <p class="operate-release-governed console-state-danger">
+                    Governed operation &middot; emits an audit event and creates a release artifact.
+                </p>
+            </aside>
+        </div>
     }
 </section>
 
