@@ -47,6 +47,7 @@ This document is a contract brief for follow-up implementation, not a separate C
 - Execution is queued: analysis, GP, ETL, scheduled work, and batch publication run through Honua's job runner rather than a browser-only runtime.
 - Charts use standards: Vega-Lite remains the dashboard/report chart spec layer.
 - Visual editors are projections: forms, maps, dashboards, and workflows can have UI editors, but the saved contract is the source of truth.
+- ArcGIS Pro parity is a capability benchmark, not a desktop UI benchmark. Studio should let natural-language requests reach ArcGIS Pro-style mapmaking and analysis breadth through inspectable packages, tool/workflow planning, validation evidence, server-backed execution, execution adapters where needed, and publishable outputs.
 
 ## Contract Ownership Matrix
 
@@ -58,6 +59,7 @@ This document is a contract brief for follow-up implementation, not a separate C
 | Studio project | Studio-owned authoring aggregate | Console owns the authoring experience and draft grouping; server persists identifiers, permissions, and links to produced content items. |
 | Conversation / provenance | Split ownership | Studio owns prompts, clarifications, assumptions, and model/tool context while drafting. Server owns audit-grade provenance once attached to packages, content versions, publications, and job runs. |
 | Package | Server contract with SDK projection | Server owns canonical schema, persistence, and validation. SDK owns browser-safe types and helpers. Studio editors modify package drafts through those contracts. |
+| GIS capability registry | Server contract with SDK projection | Server/SDK expose operation metadata, parameter schemas, environments, license/extension requirements, execution targets, support status, and validation hooks. Studio uses the registry to turn natural-language intent into a package and execution plan. |
 | Data binding | Server contract with SDK projection | Server validates permissions, lineage, source versions, field mappings, CRS, refresh policy, and service capability. SDK exposes safe references for browser, MCP, QGIS, and generated apps. |
 | Publication | Server-owned | Server creates routes, visibility state, embed policy, service policy, schedule policy, rollback policy, and invocation metadata. |
 | Job run | Server-owned | Server/job runner owns execution state, queue, logs, artifacts, metrics, failures, audit, and provenance for analysis, GP, ETL, scheduled, and batch work. |
@@ -200,6 +202,29 @@ Every package should carry:
 - `publication_intent`
 - `warnings`
 - `provenance`
+
+### GIS Capability Registry
+
+Catalog of GIS operations that the natural-language planner can target. The registry is how Studio aims at ArcGIS Pro-style capability breadth without recreating ArcGIS Pro UI surfaces.
+
+Key fields:
+
+- `capability_id`
+- `names`
+- `aliases`
+- `intent_examples`
+- `category`
+- `parameter_schema`
+- `environment_schema`
+- `input_types`
+- `output_types`
+- `license_requirements`
+- `extension_requirements`
+- `execution_targets`
+- `support_status`
+- `validation_contract`
+- `cost_runtime_estimate_contract`
+- `provenance_mapping`
 
 ### Workflow Package Editor Projection
 
