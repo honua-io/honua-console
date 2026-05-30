@@ -36,7 +36,7 @@ routes. Path prefixes are frozen for downstream tickets:
 
 /studio                        Studio entry (AI-assisted creation)
 /studio/query                  Generated query.package editor
-/studio/analysis               Generated analysis.package editor
+/studio/analysis               Server-bound spatial analysis builder (honua-server#1182)
 /studio/map                    Generated map.package editor
 /studio/dashboard              Generated dashboard.package editor
 /studio/report                 Generated report.package editor
@@ -630,7 +630,7 @@ until `honua-sdk-dotnet#166` is consumable.
 |---|---|---|---|---|
 | `/studio` | `auth` | empty-studio (start a prompt); missing-binding when no server base address is configured | unauth-redirect | studio |
 | `/studio/query` | `auth` | missing-binding when no server base address; empty query-package list when bound (honua-server#1182) | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/analysis` | `auth` | missing-binding when no server base address; empty analysis-package list when bound; submit blocked until inputs, output schema, and a compute estimate are present | unauth-redirect / missing-permission (server RBAC) | studio |
+| `/studio/analysis` | `auth` | missing-binding when no server base address; bound-but-no-list capability state (honua-server#1182 has no analysis-package list route — open by id or create new); submit blocked until title, method, a bound input, an output-schema field, and a compute estimate are present; result-artifact panel after submit | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/map` | `auth` | server-bound map package (missing-binding) | unauth-redirect / missing-binding | studio |
 | `/studio/dashboard` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
 | `/studio/report` | `auth` | mock draft package | unauth-redirect / unsupported-package | studio |
