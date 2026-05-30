@@ -86,6 +86,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/layers/:id            Layer configuration (default + ?tab=configure)
 /operate/layers/:id/style      Layer style editor
 /operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
+/operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162)
+/operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)
 /operate/releases/:id          Release detail: proposal/semantic diff, environment matrix + drift, Git PR preview, CI/GitOps timeline, rollback readiness (bound to honua-server release package #1163 + release-operation lifecycle #1165)
 /operate/deploy                Deploy control

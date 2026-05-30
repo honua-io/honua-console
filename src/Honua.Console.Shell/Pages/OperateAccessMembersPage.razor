@@ -1,0 +1,285 @@
+@page "/operate/access/members"
+@using Honua.Console.Shell.Models
+@inject IRbacAccessDataSource RbacData
+
+@* Settings > Access > Members (screens-collab-rbac.jsx TeamMembers): the members table (role/scope/
+   last-active/source), the pending-invitations list, and the right-hand scoped-invite drawer with
+   Identity / Role / Scope / Limits plus a "what this grants" preview. Binds to the server-owned Console
+   metadata/RBAC contract (honua-server#1162); renders missing-binding when unconfigured (Charter §11). *@
+
+<section class="console-page rbac-members" data-rbac-members>
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access <span class="console-crumb-sep">/</span> Members</p>
+            <h1>Members @if (_membership is { } headerView) { <text>· @headerView.DisplayWorkspace</text> }</h1>
+            <p class="console-muted rbac-lede">Grouped by role · invite by email, scope by workspace / env / content. Membership and invitations are authored on honua-server and are never resolved client-side.</p>
+        </div>
+        <div class="console-detail-actions">
+            <button class="console-button console-button-secondary" type="button" disabled="@(_membership is null)">Export CSV</button>
+            <button class="console-button"
+                    type="button"
+                    data-rbac-invite-open
+                    @onclick="OpenInvite"
+                    disabled="@(!(_membership?.CanInvite ?? false))">+ Invite</button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Access (RBAC)"
+                          Title="Loading members"
+                          Message="Reading the Console metadata/RBAC membership projection from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_bindingState.State"
+                          Title="Access (RBAC) API is not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else if (_membership is { } membership)
+    {
+        <div class="rbac-members-layout" data-rbac-members-layout>
+            <div class="rbac-members-main">
+                <div class="console-toolbar console-toolbar-spread" data-rbac-members-toolbar>
+                    <div class="console-chip-row">
+                        <span class="console-status console-state-info">state: active</span>
+                        <span class="console-status console-state-neutral">role: any</span>
+                        <span class="console-status console-state-neutral">scope: any</span>
+                    </div>
+                    <span class="console-muted" data-rbac-member-counts>
+                        @membership.ActiveCount active · @membership.PendingCount pending · @membership.DeactivatedCount deactivated
+                    </span>
+                </div>
+
+                <div class="console-table-wrap">
+                    <table class="console-table rbac-members-table" data-rbac-members-table>
+                        <thead>
+                            <tr>
+                                <th scope="col">Member</th>
+                                <th scope="col">Role</th>
+                                <th scope="col">Scope</th>
+                                <th scope="col">Last active</th>
+                                <th scope="col">Source</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var member in membership.Members)
+                            {
+                                <tr data-rbac-member="@member.Id">
+                                    <td>
+                                        <span class="rbac-avatar" data-rbac-principal="@member.PrincipalKind" aria-hidden="true">@member.Initials</span>
+                                        <span class="rbac-member-identity">
+                                            <strong>@member.DisplayName</strong>
+                                            @if (!string.IsNullOrWhiteSpace(member.Identity))
+                                            {
+                                                <small>@member.Identity</small>
+                                            }
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (member.IsCustomRole)
+                                        {
+                                            <span class="console-status console-state-info" data-rbac-member-role="custom">@member.RoleName</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@member.RoleName</span>
+                                        }
+                                    </td>
+                                    <td><span class="console-inline-code">@(member.Scope ?? "—")</span></td>
+                                    <td class="console-muted">@(member.LastActive ?? "—")</td>
+                                    <td class="console-muted">@(member.Source ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (membership.Invitations.Count > 0)
+                {
+                    <div class="rbac-invitations" data-rbac-invitations>
+                        <h2 class="rbac-section-title">Pending invitations · @membership.Invitations.Count</h2>
+                        <div class="console-table-wrap">
+                            <table class="console-table rbac-invitations-table">
+                                <tbody>
+                                    @foreach (var invitation in membership.Invitations)
+                                    {
+                                        <tr data-rbac-invitation="@invitation.Id">
+                                            <td>@invitation.Identity</td>
+                                            <td>
+                                                @if (invitation.IsCustomRole)
+                                                {
+                                                    <span class="console-status console-state-info">@invitation.RoleName</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="console-status console-state-neutral">@invitation.RoleName</span>
+                                                }
+                                            </td>
+                                            <td><span class="console-inline-code">@(invitation.Scope ?? "—")</span></td>
+                                            <td class="console-muted">@(invitation.Status ?? "pending")</td>
+                                            <td><button class="console-button" type="button">Resend</button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (_inviteOpen)
+            {
+                <aside class="rbac-invite-drawer" data-rbac-invite-drawer aria-label="Scoped invitation">
+                    <header class="rbac-invite-head">
+                        <strong>Invite to @membership.DisplayWorkspace</strong>
+                        <p class="console-muted">scoped per-env or per-content if you want</p>
+                    </header>
+                    <div class="rbac-invite-body">
+                        <fieldset class="rbac-invite-group" data-rbac-invite-group="identity">
+                            <legend>Identity</legend>
+                            <label class="studio-form-label"><span>Email or group</span>
+                                <input class="console-input" placeholder="name@example.gov" @bind="_inviteEmail" /></label>
+                            <label class="studio-form-label"><span>Send via</span>
+                                <select class="console-input" @bind="_inviteSendVia">
+                                    <option>Email · OIDC sign-in link</option>
+                                    <option>SAML · invited</option>
+                                </select></label>
+                        </fieldset>
+
+                        <fieldset class="rbac-invite-group" data-rbac-invite-group="role">
+                            <legend>Role</legend>
+                            <label class="studio-form-label"><span>Base role</span>
+                                <select class="console-input" @bind="_inviteRoleId">
+                                    @foreach (var role in (_overview?.Roles ?? Array.Empty<RbacRoleView>()))
+                                    {
+                                        <option value="@role.Id">@role.Name</option>
+                                    }
+                                </select></label>
+                            <div class="rbac-invite-grants" data-rbac-invite-grants>
+                                <span class="console-muted rbac-grants-caption">What this grants <small>derived from role definition</small></span>
+                                @if (SelectedRole is { } selected)
+                                {
+                                    <ul class="rbac-grants-list">
+                                        @foreach (var grant in selected.Grants.Where(g => !g.IsNotGranted))
+                                        {
+                                            <li><span class="console-status console-state-success rbac-grant-dot">●</span> @PermissionLabel(grant.Permission)@(string.IsNullOrWhiteSpace(grant.Qualifier) ? null : $" · {grant.Qualifier}")</li>
+                                        }
+                                        @{
+                                            var denied = selected.Grants
+                                                .Where(g => g.IsNotGranted)
+                                                .Select(g => PermissionLabel(g.Permission).ToLowerInvariant())
+                                                .ToArray();
+                                        }
+                                        @if (denied.Length > 0)
+                                        {
+                                            <li class="console-muted rbac-grants-deny">— no @string.Join(" · no ", denied)</li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="rbac-invite-group" data-rbac-invite-group="scope">
+                            <legend>Scope</legend>
+                            <div class="rbac-invite-scope">
+                                <span class="console-muted">Environments</span>
+                                <label class="rbac-check"><input type="checkbox" @bind="_scopeDev" /> dev</label>
+                                <label class="rbac-check"><input type="checkbox" @bind="_scopeStaging" /> staging</label>
+                                <label class="rbac-check"><input type="checkbox" @bind="_scopeProd" /> prod</label>
+                            </div>
+                            <div class="rbac-invite-scope">
+                                <span class="console-muted">Content scope (optional)</span>
+                                <label class="rbac-check"><input type="radio" name="rbac-content-scope" checked /> All content in chosen envs</label>
+                                <label class="rbac-check"><input type="radio" name="rbac-content-scope" /> Only specific items…</label>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="rbac-invite-group" data-rbac-invite-group="limits">
+                            <legend>Limits</legend>
+                            <label class="studio-form-label"><span>Expires</span>
+                                <select class="console-input"><option>in 30 days · renew required</option><option>no expiry</option></select></label>
+                            <label class="rbac-check"><input type="checkbox" checked /> MFA required</label>
+                            <label class="studio-form-label"><span>IP allowlist</span>
+                                <input class="console-input" placeholder="(none · global)" /></label>
+                        </fieldset>
+
+                        <p class="rbac-invite-callout" data-rbac-invite-callout>
+                            Invitation creates a scoped role binding. Revoke or narrow scope any time. Every change is audited.
+                        </p>
+                    </div>
+                    <footer class="rbac-invite-foot">
+                        <button class="console-button console-button-secondary" type="button" @onclick="CloseInvite">Cancel</button>
+                        <button class="console-button console-button-secondary" type="button">Save as template</button>
+                        <button class="console-button" type="button">Send invite</button>
+                    </footer>
+                </aside>
+            }
+        </div>
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Access (RBAC)"
+                          Title="No members to show"
+                          Message="The Console metadata/RBAC API returned no members for this workspace." />
+    }
+</section>
+
+@code {
+    private TeamMembershipView? _membership;
+    private RbacOverviewView? _overview;
+    private RbacCapabilityState? _bindingState;
+    private bool _loading = true;
+    private bool _inviteOpen;
+
+    private string? _inviteEmail;
+    private string _inviteSendVia = "Email · OIDC sign-in link";
+    private string? _inviteRoleId;
+    private bool _scopeDev = true;
+    private bool _scopeStaging;
+    private bool _scopeProd;
+
+    [SupplyParameterFromQuery(Name = "workspace")]
+    private string? Workspace { get; set; }
+
+    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+
+    private RbacRoleView? SelectedRole =>
+        _overview?.Roles.FirstOrDefault(role => string.Equals(role.Id, _inviteRoleId, StringComparison.Ordinal))
+        ?? _overview?.Roles.FirstOrDefault();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _bindingState = null;
+        _membership = null;
+
+        var load = await RbacData.LoadMembershipAsync(WorkspaceId);
+        if (load.HasMembership)
+        {
+            _membership = load.Membership;
+
+            // The invite drawer's "what this grants" preview reads from the role definitions, so pull the
+            // overview too. A missing overview just leaves the preview empty; it never blocks the roster.
+            var overviewLoad = await RbacData.LoadOverviewAsync(WorkspaceId);
+            _overview = overviewLoad.Overview;
+            _inviteRoleId ??= _overview?.Roles.FirstOrDefault()?.Id;
+        }
+        else
+        {
+            _bindingState = load.CapabilityStates.FirstOrDefault();
+        }
+
+        _loading = false;
+    }
+
+    private void OpenInvite() => _inviteOpen = true;
+
+    private void CloseInvite() => _inviteOpen = false;
+
+    private string PermissionLabel(string key) =>
+        _overview?.Permissions.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.Ordinal))?.Label ?? key;
+}
