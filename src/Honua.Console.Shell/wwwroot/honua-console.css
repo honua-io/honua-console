@@ -4053,6 +4053,18 @@ p {
     margin-bottom: 0.4rem;
 }
 
+/* Map thumbnail inside each as-of / now pane (mirrors the mockup split maps). */
+.operate-temporal-pane-map {
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+/* The mockup desaturates the historical as-of map to read as "past". */
+.operate-temporal-pane-map-asof {
+    filter: saturate(0.7);
+}
+
 @media (max-width: 720px) {
     .operate-temporal-split {
         grid-template-columns: 1fr;
@@ -4074,6 +4086,14 @@ p {
     padding: 0.5rem;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
+}
+
+/* "Map at base" thumbnail in the conflict-review base column (mockup base map). */
+.operate-temporal-col-base-map {
+    margin-top: 0.35rem;
+    border-radius: 6px;
+    overflow: hidden;
+    filter: saturate(0.6) opacity(0.85);
 }
 
 .operate-temporal-col-client {

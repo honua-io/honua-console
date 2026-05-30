@@ -182,6 +182,60 @@ public sealed class OperateTemporalPageRenderTests
     }
 
     [Fact]
+    public void TemporalViewer_ComputeDiff_RendersAsOfAndNowMapPanes()
+    {
+        var client = new FakeTemporalClient
+        {
+            Workspace = WorkspaceWith(RollbackSource),
+            Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")]),
+            Diff = new TemporalDiff("diff-1", "src-parcels", "cp-prev", "cp-now",
+                AddedFeatures: 3, RemovedFeatures: 1, UpdatedFeatures: 4,
+                GeometryChangedFeatures: 2, AttributeChangedFeatures: 5,
+                SampleFeatureChanges: [], GeneratedAt: DateTimeOffset.UtcNow)
+        };
+        var page = Render(client);
+        InspectFirstSource(page);
+        page.WaitForAssertion(() => page.Find("button.console-button"), TimeSpan.FromSeconds(5));
+
+        ClickByText(page, "Compare");
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-temporal-map='as-of']")),
+            TimeSpan.FromSeconds(5));
+        // Mockup split: an as-of map AND a now map, each a shared MapPreview figure.
+        Assert.Single(page.FindAll("[data-temporal-map='as-of']"));
+        Assert.Single(page.FindAll("[data-temporal-map='now']"));
+        // Each pane mounts a shared MapPreview (schematic placeholder, no live backend bound).
+        Assert.NotNull(page.Find("[data-temporal-map='as-of'] [data-map-mode='layer']"));
+        Assert.NotNull(page.Find("[data-temporal-map='now'] [data-map-mode='layer']"));
+        // Maps carry the as-of / now temporal framing badges from the mockup, not mock data.
+        Assert.NotNull(page.Find("[data-temporal-map='as-of'] .map-preview-timeframe-asof"));
+        Assert.NotNull(page.Find("[data-temporal-map='now'] .map-preview-timeframe-now"));
+        // No live map is bound — the no-mock schematic is what renders.
+        Assert.Equal("false", page.Find("[data-temporal-map='as-of'] [data-map-bound]").GetAttribute("data-map-bound"));
+    }
+
+    [Fact]
+    public void TemporalViewer_ReviewReplica_RendersBaseMapInBaseColumn()
+    {
+        var page = Render(ClientWithConflicts());
+
+        InspectFirstSource(page);
+        page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
+        ClickByText(page, "Review");
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-temporal-map='base']")),
+            TimeSpan.FromSeconds(5));
+        // Mockup base column carries a "map at base" thumbnail; it lives inside the base merge column.
+        var baseColumn = page.Find(".operate-temporal-col-base");
+        Assert.Contains("data-temporal-map=\"base\"", baseColumn.InnerHtml, StringComparison.Ordinal);
+        Assert.NotNull(page.Find("[data-temporal-map='base'] [data-map-mode='layer']"));
+        // Schematic placeholder only — no live style source is bound for the conflict base map.
+        Assert.Equal("false", page.Find("[data-temporal-map='base'] [data-map-bound]").GetAttribute("data-map-bound"));
+    }
+
+    [Fact]
     public void TemporalViewer_ReplicaQueue_RendersStatusBadgesAndAutoResolutionRules()
     {
         var page = Render(new FakeTemporalClient
