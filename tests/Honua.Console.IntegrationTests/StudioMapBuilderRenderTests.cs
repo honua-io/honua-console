@@ -156,7 +156,7 @@ public sealed class StudioMapBuilderRenderTests
         public Task<StudioMapCommandResult> PublishAsync(StudioMapEditorState state, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioMapCommandResult(true, "Published.", state));
 
-        public Task<StudioMapCommandResult> ReopenAsync(string mapId, int version, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioMapCommandResult(true, "Reopened.", new StudioMapEditorState { MapId = mapId, Version = version + 1 }));
+        public Task<StudioMapCommandResult> ReopenAsync(StudioMapEditorState state, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioMapCommandResult(true, "Reopened.", new StudioMapEditorState { MapId = state.MapId, Version = state.Version + 1 }));
     }
 }

@@ -30,9 +30,12 @@ public interface IStudioMapPackageDataSource
         StudioMapEditorState state,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reopens a published version as a new editable draft.</summary>
+    /// <summary>
+    /// Reopens the currently-open published version as a new editable draft. The published map's server
+    /// identity (item + version id) is carried on <paramref name="state"/>; reopen creates a new draft
+    /// generation seeded from that version, so the published version is never mutated in place.
+    /// </summary>
     Task<StudioMapCommandResult> ReopenAsync(
-        string mapId,
-        int version,
+        StudioMapEditorState state,
         CancellationToken cancellationToken = default);
 }
