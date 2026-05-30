@@ -2010,3 +2010,73 @@ p {
     background: #fff8ed;
     font-weight: 700;
 }
+
+/* honua-console#43 — temporal viewer + disconnected sync conflict review */
+.operate-temporal-detail {
+    display: grid;
+    gap: 1rem;
+}
+
+.console-row-selected {
+    background: var(--honua-surface-muted, #f4f7fb);
+}
+
+.operate-temporal-scrubber {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0;
+}
+
+.operate-temporal-checkpoint {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    min-width: 12rem;
+}
+
+.operate-temporal-diff-controls,
+.operate-temporal-feature-controls,
+.operate-temporal-rollback-controls,
+.operate-temporal-batch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+    margin: 0.5rem 0;
+}
+
+.operate-temporal-revisions {
+    display: grid;
+    gap: 0.5rem;
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0;
+}
+
+.operate-temporal-revisions li {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--honua-border);
+}
+
+.operate-temporal-geometry-marker,
+.operate-temporal-field-conflict td {
+    background: #fff8ed;
+}
+
+.operate-temporal-resolution-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.operate-temporal-audit {
+    border: 1px solid var(--honua-border);
+}
