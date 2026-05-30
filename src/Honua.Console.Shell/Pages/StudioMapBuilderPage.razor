@@ -28,11 +28,19 @@
             <button class="console-button" type="button" disabled="@_busy" @onclick="NewMap">New map</button>
         </div>
 
-        @if (_workspace.Packages.Count == 0)
+        @if (_listNotice is not null)
+        {
+            <ConsoleStateView Kind="info"
+                              Kicker="@_listNotice.State"
+                              Title="Map packages cannot be listed yet"
+                              Message="@($"{_listNotice.Detail} (contract: {_listNotice.Contract})")" />
+        }
+
+        @if (_workspace.Packages.Count == 0 && _listNotice is null)
         {
             <EmptyState Area="studio" Subject="map packages" />
         }
-        else
+        else if (_workspace.Packages.Count > 0)
         {
             <div class="console-table-wrap">
                 <table class="console-table">
@@ -222,6 +230,7 @@
     private bool _busy;
     private StudioMapWorkspace _workspace = new([], []);
     private StudioMapCapabilityState? _bindingState;
+    private StudioMapCapabilityState? _listNotice;
     private StudioMapEditorState? _editor;
     private string? _status;
     private bool _statusFailed;
@@ -233,6 +242,12 @@
         _loading = true;
         _workspace = await MapData.GetWorkspaceAsync();
         ApplyStates(_workspace.CapabilityStates);
+        // A non-blocking workspace state (e.g. the server exposes no map list verb) is shown on the list
+        // view so operators know existing maps cannot be enumerated yet but a new map can still be authored.
+        _listNotice = _bindingState is null
+            ? _workspace.CapabilityStates.FirstOrDefault(state =>
+                !string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+            : null;
         _loading = false;
     }
 
@@ -300,7 +315,7 @@
 
     private Task Publish() => RunCommandAsync(() => MapData.PublishAsync(_editor!));
 
-    private Task Reopen() => RunCommandAsync(() => MapData.ReopenAsync(_editor!.MapId!, _editor.Version));
+    private Task Reopen() => RunCommandAsync(() => MapData.ReopenAsync(_editor!));
 
     private async Task RunCommandAsync(Func<Task<StudioMapCommandResult>> command)
     {

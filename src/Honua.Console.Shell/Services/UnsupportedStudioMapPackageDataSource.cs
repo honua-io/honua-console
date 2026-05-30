@@ -34,8 +34,7 @@ public sealed class UnsupportedStudioMapPackageDataSource : IStudioMapPackageDat
         Task.FromResult(BindingFailure());
 
     public Task<StudioMapCommandResult> ReopenAsync(
-        string mapId,
-        int version,
+        StudioMapEditorState state,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(BindingFailure());
 

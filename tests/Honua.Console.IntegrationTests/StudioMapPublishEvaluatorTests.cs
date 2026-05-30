@@ -76,7 +76,7 @@ public sealed class StudioMapPublishEvaluatorTests
         var publish = await source.PublishAsync(new StudioMapEditorState());
         Assert.False(publish.Succeeded);
 
-        var reopen = await source.ReopenAsync("map-1", 1);
+        var reopen = await source.ReopenAsync(new StudioMapEditorState { MapId = "map-1", Version = 1 });
         Assert.False(reopen.Succeeded);
     }
 }

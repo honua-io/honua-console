@@ -365,6 +365,23 @@ public interface IStudioPackageLifecycleClient
         Guid versionId,
         CreateStudioPublicationRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reopens an immutable content version as a fresh editable draft (server route
+    /// <c>POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen</c>). The returned draft is
+    /// a new generation seeded from the version, so the published version is never mutated in place.
+    /// </summary>
+    Task<StudioEndpointResult<StudioPackageDraft>> ReopenContentVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Reads one immutable content version by id (server route
+    /// <c>GET /api/v1/studio/content-items/{itemId}/versions/{versionId}</c>).</summary>
+    Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleClient, IDisposable
@@ -495,6 +512,28 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/publish-requests",
             cancellationToken);
     }
+
+    public Task<StudioEndpointResult<StudioPackageDraft>> ReopenContentVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<object, StudioPackageDraft>(
+            HttpMethod.Post,
+            $"/api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen",
+            null,
+            "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen",
+            cancellationToken);
+
+    public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<object, StudioContentVersion>(
+            HttpMethod.Get,
+            $"/api/v1/studio/content-items/{itemId}/versions/{versionId}",
+            null,
+            "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}",
+            cancellationToken);
 
     public void Dispose() => _httpClient.Dispose();
 

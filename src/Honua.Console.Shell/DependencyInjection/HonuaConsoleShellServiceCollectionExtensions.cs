@@ -213,20 +213,26 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioQueryPackageDataSource, UnsupportedStudioQueryPackageDataSource>();
     }
 
-    // Binds the Studio map-builder surface (/studio/map) to honua-server's map package lifecycle
-    // (#1180, closed) and publication registry (#1183, closed) through the Honua.Console.Contracts shim.
-    // The server-bound HTTP data source lands with the publication-wiring slice; until then no live map
-    // client resolves, so the builder renders an explicit missing-binding state (never mock map data —
-    // Console Patterns Charter section 11). The unsupported source is registered with TryAdd so the
-    // server-bound implementation can replace it without churn in the next slice and so tests/demo
-    // composition can override it.
+    // Binds the Studio map-builder surface (/studio/map) to honua-server's Studio package lifecycle
+    // (#1180, closed) and the content publication registry (#1183, closed) through the
+    // IStudioPackageLifecycleClient shim when a server base address is configured, reusing the client
+    // already registered by AddStudioAuthoringShell; otherwise the builder renders an explicit
+    // missing-binding state (never mock map data — Console Patterns Charter section 11). TryAdd keeps an
+    // explicit test/demo provider overridable.
     private static void AddStudioMapPackageDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        _ = honuaServerBaseUrl;
         _ = honuaServerAdminApiKey;
+
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IStudioMapPackageDataSource, HonuaServerStudioMapPackageDataSource>();
+            return;
+        }
+
         services.TryAddSingleton<IStudioMapPackageDataSource, UnsupportedStudioMapPackageDataSource>();
     }
 
