@@ -379,12 +379,18 @@ public sealed record HonuaCreateAnalysisContentItemRequest
     [JsonPropertyName("title")]
     public string? Title { get; init; }
 
+    [JsonPropertyName("savedQuery")]
+    public HonuaSavedQueryContent? SavedQuery { get; init; }
+
     [JsonPropertyName("analysisPackage")]
     public HonuaAnalysisPackageContent? AnalysisPackage { get; init; }
 }
 
 public sealed record HonuaCreateAnalysisContentVersionRequest
 {
+    [JsonPropertyName("savedQuery")]
+    public HonuaSavedQueryContent? SavedQuery { get; init; }
+
     [JsonPropertyName("analysisPackage")]
     public HonuaAnalysisPackageContent? AnalysisPackage { get; init; }
 
@@ -484,6 +490,9 @@ public sealed record HonuaAnalysisContentVersion
     [JsonPropertyName("kind")]
     public string Kind { get; init; } = HonuaAnalysisContentKinds.AnalysisPackage;
 
+    [JsonPropertyName("savedQuery")]
+    public HonuaSavedQueryContent? SavedQuery { get; init; }
+
     [JsonPropertyName("analysisPackage")]
     public HonuaAnalysisPackageContent? AnalysisPackage { get; init; }
 
@@ -492,6 +501,121 @@ public sealed record HonuaAnalysisContentVersion
 
     [JsonPropertyName("createdAt")]
     public DateTimeOffset CreatedAt { get; init; }
+}
+
+// --- Saved-query content graph mirroring honua-server SavedQueryContent / FilterPlan. ---
+
+public static class HonuaFilterPlanCombinators
+{
+    public const string And = "and";
+    public const string Or = "or";
+}
+
+public static class HonuaFilterClauseTypes
+{
+    public const string Comparison = "comparison";
+    public const string Spatial = "spatial";
+    public const string Temporal = "temporal";
+    public const string Nested = "nested";
+}
+
+public sealed record HonuaSavedQueryContent
+{
+    [JsonPropertyName("naturalLanguageQuery")]
+    public string? NaturalLanguageQuery { get; init; }
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("serviceName")]
+    public string? ServiceName { get; init; }
+
+    [JsonPropertyName("filterPlan")]
+    public HonuaFilterPlan? FilterPlan { get; init; }
+
+    [JsonPropertyName("outFields")]
+    public string[] OutFields { get; init; } = [];
+
+    [JsonPropertyName("outputSrid")]
+    public int? OutputSrid { get; init; }
+
+    [JsonPropertyName("previewLimit")]
+    public int? PreviewLimit { get; init; }
+
+    [JsonPropertyName("outputFormat")]
+    public string? OutputFormat { get; init; }
+
+    [JsonPropertyName("units")]
+    public string? Units { get; init; }
+
+    [JsonPropertyName("metadata")]
+    public Dictionary<string, string> Metadata { get; init; } = new(StringComparer.Ordinal);
+}
+
+public sealed record HonuaFilterPlan
+{
+    [JsonPropertyName("combinator")]
+    public string Combinator { get; init; } = HonuaFilterPlanCombinators.And;
+
+    [JsonPropertyName("clauses")]
+    public HonuaFilterPlanClause[] Clauses { get; init; } = [];
+}
+
+public sealed record HonuaFilterPlanClause
+{
+    [JsonPropertyName("type")]
+    public string Type { get; init; } = HonuaFilterClauseTypes.Comparison;
+
+    [JsonPropertyName("comparison")]
+    public HonuaComparisonClause? Comparison { get; init; }
+
+    [JsonPropertyName("spatial")]
+    public HonuaSpatialClause? Spatial { get; init; }
+
+    [JsonPropertyName("temporal")]
+    public HonuaTemporalClause? Temporal { get; init; }
+}
+
+public sealed record HonuaComparisonClause
+{
+    [JsonPropertyName("property")]
+    public string Property { get; init; } = string.Empty;
+
+    [JsonPropertyName("operator")]
+    public string Operator { get; init; } = string.Empty;
+
+    [JsonPropertyName("value")]
+    public JsonElement? Value { get; init; }
+}
+
+public sealed record HonuaSpatialClause
+{
+    [JsonPropertyName("operator")]
+    public string Operator { get; init; } = string.Empty;
+
+    [JsonPropertyName("geometry")]
+    public JsonElement? Geometry { get; init; }
+
+    [JsonPropertyName("distance")]
+    public double? Distance { get; init; }
+
+    [JsonPropertyName("distanceUnit")]
+    public string? DistanceUnit { get; init; }
+}
+
+public sealed record HonuaTemporalClause
+{
+    [JsonPropertyName("property")]
+    public string Property { get; init; } = string.Empty;
+
+    [JsonPropertyName("operator")]
+    public string Operator { get; init; } = string.Empty;
+
+    [JsonPropertyName("start")]
+    public string? Start { get; init; }
+
+    [JsonPropertyName("end")]
+    public string? End { get; init; }
 }
 
 public sealed record HonuaAnalysisPackageContent
@@ -658,11 +782,29 @@ public sealed record HonuaSavedQueryPreviewResult
     [JsonPropertyName("layerId")]
     public int LayerId { get; init; }
 
+    [JsonPropertyName("features")]
+    public HonuaSavedQueryPreviewFeature[] Features { get; init; } = [];
+
     [JsonPropertyName("totalCount")]
     public long? TotalCount { get; init; }
 
     [JsonPropertyName("exceededPreviewLimit")]
     public bool ExceededPreviewLimit { get; init; }
+
+    [JsonPropertyName("binding")]
+    public HonuaArtifactBindingRef Binding { get; init; } = new();
+}
+
+public sealed record HonuaSavedQueryPreviewFeature
+{
+    [JsonPropertyName("id")]
+    public long Id { get; init; }
+
+    [JsonPropertyName("attributes")]
+    public Dictionary<string, JsonElement> Attributes { get; init; } = new(StringComparer.Ordinal);
+
+    [JsonPropertyName("hasGeometry")]
+    public bool HasGeometry { get; init; }
 }
 
 public sealed record HonuaAnalysisJobFailure
