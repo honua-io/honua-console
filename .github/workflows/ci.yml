@@ -43,6 +43,11 @@ jobs:
       - name: Run .NET tests
         run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-restore --nologo --verbosity minimal
 
+      - name: Run Console render + integration tests
+        # Gates the bUnit component-render tests. The opt-in Testcontainers/live-server tests
+        # skip cleanly here (HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS is not set in CI).
+        run: dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --nologo --verbosity minimal
+
       - name: Build Blazor Web host
         run: dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj --no-restore --nologo --verbosity minimal
 
