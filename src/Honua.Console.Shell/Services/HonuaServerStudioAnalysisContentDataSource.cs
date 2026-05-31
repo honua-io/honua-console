@@ -12,14 +12,17 @@ namespace Honua.Console.Shell.Services;
 /// panel resolves the produced artifact from the server. There is no in-memory analysis data in the merged
 /// result (Console Patterns Charter section 11).
 ///
-/// Two capabilities the issue scopes have NO route in the honua-server#1182 contract and are therefore
-/// surfaced as explicit capability states rather than fabricated:
-///   - Analysis-package listing: the contract addresses items by id and exposes no list verb, so the
-///     workspace cannot enumerate existing packages from live data. New plans and id-addressed loads work.
-///   - Runtime/cost estimate: the contract exposes no estimate route, so the compute estimate is a
-///     Console-side projection over the authored plan, clearly labelled as a local estimate, until the
-///     server adds an estimate endpoint. The estimate still gates submit (AC#2) so the operator reviews
-///     runtime/cost before a job is queued.
+/// The core analysis content/artifacts contract (honua-server#1182) is CLOSED and bound live (create item,
+/// create version, id-addressed load, run, job-failure, artifact resolve). Two capabilities the issue scopes
+/// remain gated on the still-OPEN analysis content API (honua-server#1237: list + cost-estimate endpoints)
+/// and are surfaced as explicit capability states rather than fabricated:
+///   - Analysis-package listing: honua-server#1237 has not landed the list verb, so the workspace cannot
+///     enumerate existing packages from live data. New plans and id-addressed loads work; the list binds
+///     automatically once #1237 lands.
+///   - Runtime/cost estimate: honua-server#1237 has not landed the server cost-estimate route, so the
+///     compute estimate is a Console-side projection over the authored plan, clearly labelled as a local
+///     estimate, until the server endpoint lands. The estimate still gates submit (AC#2) so the operator
+///     reviews runtime/cost before a job is queued.
 ///   - Analysis-package dry-run preview: the server preview route is saved-query only, so a preview of an
 ///     analysis package is surfaced as unsupported until the server adds an analysis-package preview.
 /// </summary>
@@ -39,15 +42,16 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
 
     public Task<StudioAnalysisWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
-        // honua-server#1182 exposes no analysis-package list verb. Surface that explicitly instead of
-        // mocking a list: operators reach an analysis by id (deep link / known id) or author a new plan.
+        // honua-server#1237 (analysis content API: list endpoint) is still open. Surface that explicitly
+        // instead of mocking a list: operators reach an analysis by id (deep link / known id) or author a
+        // new plan.
         var listUnsupported = new StudioAnalysisCapabilityState(
             Surface,
             "Unsupported",
             ListContract,
             "honua-server does not yet expose an analysis-package list endpoint, so existing packages cannot "
             + "be enumerated from live data. Open a known analysis by id or create a new analysis. This list "
-            + "binds automatically once honua-server#1182 adds a list route.");
+            + "binds automatically once honua-server#1237 adds a list route.");
 
         return Task.FromResult(new StudioAnalysisWorkspace([], [listUnsupported]));
     }
@@ -142,10 +146,10 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             return Task.FromResult(Failure("Save the analysis before estimating runtime and cost."));
         }
 
-        // honua-server#1182 exposes no runtime/cost estimate route. Until it does, project a transparent
-        // Console-side estimate over the authored plan so the operator still reviews runtime/cost before
-        // submit (AC#2). This is NOT fabricated server data: it is a clearly-labelled local projection and
-        // is accompanied by an explicit capability state documenting the missing server route.
+        // honua-server#1237 (analysis content API: cost-estimate endpoint) is still open. Until it lands,
+        // project a transparent Console-side estimate over the authored plan so the operator still reviews
+        // runtime/cost before submit (AC#2). This is NOT fabricated server data: it is a clearly-labelled
+        // local projection and is accompanied by an explicit capability state documenting the missing route.
         var estimate = StudioAnalysisEstimator.Estimate(plan);
         plan.Estimate = estimate;
 
@@ -153,9 +157,10 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             Surface,
             "Unsupported",
             EstimateContract,
-            "honua-server does not yet expose a runtime/cost estimate route, so this estimate is a local "
-            + "Console projection over the authored plan (inputs x parameters x compute profile), not a "
-            + "server-computed figure. It binds to the server estimate once honua-server#1182 adds the route.");
+            "Estimate unavailable from server: honua-server does not yet expose a runtime/cost estimate "
+            + "route, so this estimate is a local Console projection over the authored plan (inputs x "
+            + "parameters x compute profile), not a server-computed figure. It binds to the server estimate "
+            + "once honua-server#1237 adds the route.");
 
         return Task.FromResult(new StudioAnalysisCommandResult(
             true,
