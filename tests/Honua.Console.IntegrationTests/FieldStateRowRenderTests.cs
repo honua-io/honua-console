@@ -78,6 +78,11 @@ public sealed class FieldStateRowRenderTests
         Assert.NotNull(cut.Find(".console-field-state__value [data-test=\"title-input\"]"));
         // No read-only placeholder when a control is supplied.
         Assert.Empty(cut.FindAll(".console-field-state__readonly"));
+        // The control is wrapped by the <label> so the visible label is its accessible name and clicking
+        // the label focuses the field (no orphaned span label).
+        var label = cut.Find("label.console-field-state__field");
+        Assert.NotNull(label.QuerySelector("[data-test=\"title-input\"]"));
+        Assert.Contains("Title", label.QuerySelector(".console-field-state__label-text")!.TextContent, StringComparison.Ordinal);
     }
 
     [Fact]

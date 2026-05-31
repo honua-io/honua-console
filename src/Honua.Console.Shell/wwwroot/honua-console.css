@@ -6856,6 +6856,13 @@ p {
     font-size: 0.85rem;
 }
 
+/* The <label> wrapper around a slotted control associates the label text with the field for screen
+   readers and click-to-focus; `display: contents` lets its label-text / value cells sit directly in
+   the row's grid so the wrapper does not break the column layout. */
+.console-field-state__field {
+    display: contents;
+}
+
 .console-field-state__label {
     display: grid;
     gap: 2px;
