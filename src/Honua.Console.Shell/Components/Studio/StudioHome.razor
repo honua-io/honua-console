@@ -1,0 +1,236 @@
+@inject IConsoleCatalogClient Catalog
+@inject IConsoleCatalogReadContextResolver ReadContexts
+@inject NavigationManager Navigation
+
+@* Studio home landing — hero prompt, content-type grid, and recent projects.
+   Mirrors StudioHome in docs/design-handoff/console-canvas/screens-studio.jsx and Charter §9.
+   Recent projects bind to the live server content listing (IConsoleCatalogClient); when no
+   honua-server base URL is configured the client is the Unsupported one and we render the
+   explicit missing-binding ConsoleStateView instead of fabricating rows (Charter §11). *@
+
+<div class="studio-home" data-studio-home="true">
+    <div class="console-page-heading studio-home-heading">
+        <div>
+            <p class="console-kicker">Studio</p>
+            <h1>Studio</h1>
+            <p>Create maps, dashboards, reports, forms, apps and analyses with AI. Inspectable, editable, publishable.</p>
+        </div>
+        <div class="console-detail-actions">
+            <a class="console-button-link console-button-secondary" href="/operate/publishing">Import…</a>
+            <a class="console-button-link" href="@PromptHref(string.Empty)">+ New from prompt</a>
+        </div>
+    </div>
+
+    <section class="studio-home-hero" data-studio-home-hero="true" aria-labelledby="studio-home-hero-heading">
+        <p class="console-kicker" id="studio-home-hero-heading">What do you want to build?</p>
+        <textarea class="studio-home-hero-input"
+                  rows="2"
+                  placeholder="e.g. Show parcels coloured by use code, with a popup showing assessed value…"
+                  @bind="_prompt"
+                  @bind:event="oninput"></textarea>
+        <div class="studio-home-hero-actions">
+            <span class="console-muted studio-home-hero-label">Suggestions:</span>
+            <div class="studio-home-suggestions" role="list">
+                @foreach (var suggestion in StudioHomeContentTypes.PromptSuggestions)
+                {
+                    <button type="button"
+                            class="studio-home-suggestion"
+                            role="listitem"
+                            data-studio-suggestion="@suggestion"
+                            @onclick="() => ApplySuggestion(suggestion)">
+                        @suggestion
+                    </button>
+                }
+            </div>
+            <span class="console-muted studio-home-hero-hint">Or pick a type →</span>
+            <a class="console-button-link" data-studio-home-send="true" href="@PromptHref(_prompt)">Send · ⌘↵</a>
+        </div>
+    </section>
+
+    <section class="studio-home-types" data-studio-home-types="true" aria-labelledby="studio-home-types-heading">
+        <h2 id="studio-home-types-heading">Start with a content type</h2>
+        <div class="console-panel-grid studio-home-type-grid">
+            @foreach (var type in StudioHomeContentTypes.All)
+            {
+                <a class="console-panel console-area-link studio-home-type-card"
+                   data-content-type="@type.Key"
+                   href="@type.Route">
+                    <div class="studio-home-type-head">
+                        <span class="console-type-glyph" aria-hidden="true">@type.Glyph</span>
+                        <b>@type.Title</b>
+                    </div>
+                    <p class="console-muted">@type.Description</p>
+                </a>
+            }
+        </div>
+    </section>
+
+    <section class="studio-home-recent" data-studio-home-recent="true" aria-labelledby="studio-home-recent-heading">
+        <div class="studio-home-recent-head">
+            <h2 id="studio-home-recent-heading">Recent projects</h2>
+            <span class="console-muted">your last 14 days</span>
+            <div class="studio-home-recent-spacer"></div>
+            <a class="console-button-link console-button-secondary" href="/catalog?sort=modified-desc">View all in Catalog →</a>
+        </div>
+
+        @if (!_loaded)
+        {
+            <ConsoleStateView Kind="loading"
+                              Kicker="Studio"
+                              Title="Loading recent projects"
+                              Message="Reading your workspace content from honua-server." />
+        }
+        else if (_requiresAuthentication)
+        {
+            <ConsoleStateView Kind="unauthenticated"
+                              Kicker="Sign in required"
+                              Title="Sign in to see recent projects"
+                              Message="Recent projects come from your signed-in workspace session."
+                              ActionHref="@SignInHref()"
+                              ActionLabel="Sign In" />
+        }
+        else if (_missingBinding)
+        {
+            <ConsoleStateView Kind="missing"
+                              Kicker="@MissingBindingKicker"
+                              Title="Recent projects are not bound"
+                              Message="@MissingBindingMessage" />
+        }
+        else if (_recent.Count == 0)
+        {
+            <ConsoleStateView Kind="empty"
+                              Kicker="Empty"
+                              Title="No recent projects"
+                              Message="Start from a prompt or pick a content type above to create your first project."
+                              ActionHref="@PromptHref(string.Empty)"
+                              ActionLabel="New from prompt" />
+        }
+        else
+        {
+            <div class="console-table-wrap">
+                <table class="console-content-table studio-home-recent-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Title</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Published</th>
+                            <th scope="col">Modified</th>
+                            <th scope="col">Owner</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _recent)
+                        {
+                            <tr data-recent-project="@item.Id">
+                                <th scope="row">
+                                    <a href="/catalog/@SlugOrId(item)">
+                                        <span class="console-type-glyph" aria-hidden="true">@CatalogContentTypes.GlyphFor(item.Type)</span>
+                                        @item.Title
+                                    </a>
+                                </th>
+                                <td><span class="console-type-tag">@CatalogContentTypes.LabelFor(item.Type)</span></td>
+                                <td><span class="@StatusBadgeClass(item)">@StatusLabel(item)</span></td>
+                                <td>
+                                    @if (IsShared(item))
+                                    {
+                                        <span class="console-status">@VisibilityLabel(item.Access.Sharing)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="console-muted">—</span>
+                                    }
+                                </td>
+                                <td>@item.Modified.ToLocalTime().ToString("MMM d, yyyy")</td>
+                                <td>@item.Owner</td>
+                                <td>
+                                    <a class="console-button-link console-button-secondary" href="/catalog/@SlugOrId(item)">Open</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private const string MissingBindingKicker = "Missing binding";
+
+    internal const string MissingBindingMessage =
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Studio can list your recent workspace "
+        + "content from the honua-server content/metadata projection (honua-server#1162).";
+
+    private string _prompt = string.Empty;
+    private bool _loaded;
+    private bool _requiresAuthentication;
+    private bool _missingBinding;
+    private IReadOnlyList<ConsoleContentSummary> _recent = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No live content/listing contract when the catalog client falls back to the Unsupported binding
+        // (no server base URL): render the explicit missing-binding state rather than an empty/seeded table.
+        if (Catalog is UnsupportedConsoleCatalogClient)
+        {
+            _missingBinding = true;
+            _loaded = true;
+            return;
+        }
+
+        var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
+        if (context.Anonymous)
+        {
+            _requiresAuthentication = true;
+            _loaded = true;
+            return;
+        }
+
+        var request = new CatalogListRequest { Sort = CatalogSortOptions.ModifiedDesc };
+        var result = await Catalog.SearchAsync(request, context);
+        _recent = result.Items
+            .OrderByDescending(item => item.Modified)
+            .Where(item => item.Modified >= DateTimeOffset.UtcNow.AddDays(-14))
+            .Take(10)
+            .ToArray();
+        _loaded = true;
+    }
+
+    private void ApplySuggestion(string suggestion) => _prompt = suggestion;
+
+    private static string PromptHref(string? prompt) =>
+        string.IsNullOrWhiteSpace(prompt)
+            ? "/studio/proof"
+            : $"/studio/proof?prompt={Uri.EscapeDataString(prompt.Trim())}";
+
+    private string SignInHref()
+    {
+        var returnTo = $"/{Navigation.ToBaseRelativePath(Navigation.Uri)}";
+        return $"/auth/signin?returnTo={Uri.EscapeDataString(returnTo)}";
+    }
+
+    private static string SlugOrId(ConsoleContentSummary item) =>
+        string.IsNullOrWhiteSpace(item.Slug) ? item.Id : item.Slug;
+
+    private static bool IsShared(ConsoleContentSummary item) =>
+        !string.Equals(item.Access.Sharing, CatalogSharingTiers.Private, StringComparison.Ordinal);
+
+    private static string StatusLabel(ConsoleContentSummary item) =>
+        IsShared(item) ? "published" : "draft";
+
+    private static string StatusBadgeClass(ConsoleContentSummary item) =>
+        IsShared(item)
+            ? "console-status console-state-success"
+            : "console-status console-state-neutral";
+
+    private static string VisibilityLabel(string sharing) => sharing switch
+    {
+        CatalogSharingTiers.Organization => "Org",
+        CatalogSharingTiers.PublicLink => "Public link",
+        CatalogSharingTiers.Public => "Public",
+        CatalogSharingTiers.Group => "Group",
+        _ => "Private"
+    };
+}

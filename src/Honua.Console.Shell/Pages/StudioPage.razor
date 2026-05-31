@@ -3,7 +3,44 @@
 @page "/studio/drafts"
 @page "/studio/apps/{ItemId}/preview"
 @inject IStudioAuthoringShell AuthoringShell
+@inject NavigationManager Navigation
 
+@if (IsHome)
+{
+    <section class="console-page studio-page studio-home-page">
+        <StudioHome />
+        <section class="studio-editor-directory" aria-labelledby="studio-editor-directory-heading">
+            <div class="console-page-heading">
+                <p class="console-kicker">Package editors</p>
+                <h2 id="studio-editor-directory-heading">Generated Package Families</h2>
+                <p class="console-muted">
+                    Console-native editors for generated query, analysis, map, dashboard, report, form, and app packages.
+                    Or open the
+                    <a href="/studio/proof">inline authoring shell</a>
+                    to author from a prompt and inspect the server package draft end to end.
+                </p>
+            </div>
+
+            <div class="console-panel-grid studio-editor-grid">
+                @foreach (var editor in StudioPackageEditorCatalog.Editors)
+                {
+                    <a class="console-panel console-area-link studio-editor-card" href="@editor.Path">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h2>@editor.DisplayName</h2>
+                                <p class="console-muted">@editor.PackageType</p>
+                            </div>
+                            <span class="console-status">@editor.ContentType</span>
+                        </div>
+                        <p>@editor.Summary</p>
+                    </a>
+                }
+            </div>
+        </section>
+    </section>
+}
+else
+{
 <section class="console-page studio-page">
     <div class="console-page-heading studio-page-heading">
         <div>
@@ -281,6 +318,7 @@
         </article>
     </section>
 </section>
+}
 
 @code {
     private StudioAuthoringSession _session = StudioAuthoringSession.Empty;
@@ -297,6 +335,17 @@
     [SupplyParameterFromQuery(Name = "id")]
     public string? SourceItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "prompt")]
+    public string? SeedPrompt { get; set; }
+
+    // /studio is the Studio home landing (hero prompt + content-type grid + recent projects).
+    // /studio/proof, /studio/drafts, and /studio/apps/:itemId/preview keep the inline authoring shell.
+    private bool IsHome =>
+        string.Equals(
+            Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/'),
+            "studio",
+            StringComparison.OrdinalIgnoreCase);
+
     private StudioWorkflowOption SelectedWorkflow =>
         _session.Workflows.FirstOrDefault(workflow => string.Equals(workflow.Id, _session.SelectedWorkflowId, StringComparison.Ordinal))
             ?? _session.Workflows.FirstOrDefault()
@@ -308,9 +357,36 @@
         _session.Draft?.CurrentVersionId is not null
         || _session.ActivePackage.LifecycleState != StudioPackageLifecycleState.Draft;
 
-    protected override async Task OnInitializedAsync()
+    private bool _authoringSessionLoaded;
+    private string? _seededPromptValue;
+
+    protected override async Task OnParametersSetAsync()
     {
-        _session = await AuthoringShell.CreateInitialSessionAsync();
+        // Route- and query-dependent initialization lives here (not OnInitializedAsync) because a
+        // client-side nav from /studio to /studio/proof?prompt=... reuses this same StudioPage instance,
+        // so OnInitializedAsync does not run again; only OnParametersSetAsync sees the new route/query.
+        // The home landing renders <StudioHome /> and never reads the authoring shell session.
+        if (IsHome)
+        {
+            _loading = false;
+            return;
+        }
+
+        // Apply the seeded prompt whenever the ?prompt= value actually changes (including the first
+        // navigation into the authoring shell), guarding so re-renders with the same value are a no-op.
+        if (!string.IsNullOrWhiteSpace(SeedPrompt) && !string.Equals(SeedPrompt, _seededPromptValue, StringComparison.Ordinal))
+        {
+            _prompt = SeedPrompt.Trim();
+            _seededPromptValue = SeedPrompt;
+        }
+
+        // Create the server-backed session once for the lifetime of this authoring-shell instance.
+        if (!_authoringSessionLoaded)
+        {
+            _authoringSessionLoaded = true;
+            _session = await AuthoringShell.CreateInitialSessionAsync();
+        }
+
         _loading = false;
     }
 
