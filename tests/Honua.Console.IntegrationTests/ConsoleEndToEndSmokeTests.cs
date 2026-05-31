@@ -124,12 +124,32 @@ public sealed class ConsoleEndToEndSmokeTests
         Assert.Null(session.BindingState);
         Assert.NotEmpty(session.ActivePackage.ValidationItems);
 
+        // Render the Studio page against the draft we just generated and validated against the live
+        // server — not a fresh, empty session. The page calls IStudioAuthoringShell.CreateInitialSessionAsync
+        // on init, so we hand it a shell that seeds the prepared live session; the assertions then prove the
+        // generated package ref and its server validation state actually render through the Studio UI
+        // (inspector + validation panel), so a regression in the draft/inspector/validate render path fails
+        // this step instead of staying green on workflow-family chrome alone.
+        var seededShell = new PreparedSessionAuthoringShell(shell, session);
+        var renderedPackageRef = session.ActivePackage.PackageRef;
+        var renderedValidationDetail = session.ActivePackage.ValidationItems[0].Detail;
+
         using (var studioContext = new Bunit.TestContext())
         {
-            studioContext.Services.AddSingleton(shell);
+            studioContext.Services.AddSingleton<IStudioAuthoringShell>(seededShell);
             var studioPage = studioContext.RenderComponent<StudioPage>();
             studioPage.WaitForAssertion(
-                () => Assert.Contains("data-authoring-contract", studioPage.Markup, StringComparison.Ordinal),
+                () =>
+                {
+                    Assert.Contains("data-authoring-contract", studioPage.Markup, StringComparison.Ordinal);
+                    // The generated draft must render through the package inspector (data-package-ref) and
+                    // its live validation state through the validation panel.
+                    Assert.Contains(
+                        $"data-package-ref=\"{renderedPackageRef}\"",
+                        studioPage.Markup,
+                        StringComparison.Ordinal);
+                    Assert.Contains(renderedValidationDetail, studioPage.Markup, StringComparison.Ordinal);
+                },
                 TimeSpan.FromSeconds(10));
         }
 
@@ -229,5 +249,66 @@ public sealed class ConsoleEndToEndSmokeTests
             string? publicLinkToken,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(CatalogReadContext.Authenticated);
+    }
+
+    /// <summary>
+    /// Wraps the live <see cref="IStudioAuthoringShell"/> but seeds the Studio page with a session that has
+    /// already been generated and validated against the real server, so <see cref="StudioPage"/> renders that
+    /// concrete draft (package inspector + validation panel) on init instead of recreating a fresh, empty
+    /// session. Every other operation delegates to the real shell, keeping the rendered surface server-bound.
+    /// </summary>
+    private sealed class PreparedSessionAuthoringShell : IStudioAuthoringShell
+    {
+        private readonly IStudioAuthoringShell _inner;
+        private readonly StudioAuthoringSession _prepared;
+
+        public PreparedSessionAuthoringShell(IStudioAuthoringShell inner, StudioAuthoringSession prepared)
+        {
+            _inner = inner;
+            _prepared = prepared;
+        }
+
+        public Task<StudioAuthoringSession> CreateInitialSessionAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_prepared);
+
+        public Task<StudioAuthoringSession> SelectWorkflowAsync(
+            StudioAuthoringSession session,
+            string workflowId,
+            CancellationToken cancellationToken = default) =>
+            _inner.SelectWorkflowAsync(session, workflowId, cancellationToken);
+
+        public Task<StudioAuthoringSession> GeneratePackageAsync(
+            StudioAuthoringSession session,
+            string workflowId,
+            string prompt,
+            CancellationToken cancellationToken = default) =>
+            _inner.GeneratePackageAsync(session, workflowId, prompt, cancellationToken);
+
+        public Task<StudioAuthoringSession> ApplyClarificationAsync(
+            StudioAuthoringSession session,
+            string questionId,
+            string choiceId,
+            CancellationToken cancellationToken = default) =>
+            _inner.ApplyClarificationAsync(session, questionId, choiceId, cancellationToken);
+
+        public Task<StudioAuthoringSession> ValidateAsync(
+            StudioAuthoringSession session,
+            CancellationToken cancellationToken = default) =>
+            _inner.ValidateAsync(session, cancellationToken);
+
+        public Task<StudioAuthoringSession> PreviewPlanAsync(
+            StudioAuthoringSession session,
+            CancellationToken cancellationToken = default) =>
+            _inner.PreviewPlanAsync(session, cancellationToken);
+
+        public Task<StudioAuthoringSession> SaveVersionAsync(
+            StudioAuthoringSession session,
+            CancellationToken cancellationToken = default) =>
+            _inner.SaveVersionAsync(session, cancellationToken);
+
+        public Task<StudioAuthoringSession> PublishAsync(
+            StudioAuthoringSession session,
+            CancellationToken cancellationToken = default) =>
+            _inner.PublishAsync(session, cancellationToken);
     }
 }

@@ -49,7 +49,7 @@ public sealed record ConsoleEndToEndSmokeEvidence
         if (string.IsNullOrWhiteSpace(path))
         {
             path = Path.Combine(
-                AppContext.BaseDirectory,
+                ResolveRepoRoot(),
                 "smoke-evidence",
                 "console-e2e-smoke.json");
         }
@@ -62,6 +62,28 @@ public sealed record ConsoleEndToEndSmokeEvidence
 
         var json = JsonSerializer.Serialize(this, EvidenceJsonOptions);
         await File.WriteAllTextAsync(path, json).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Resolves the repository root by walking up from the test assembly output directory until the
+    /// <c>Honua.Console.slnx</c> marker is found, mirroring the <c>smoke/parity</c> harness which writes
+    /// <c>smoke-evidence/console-parity.json</c> relative to the repo root. Falls back to
+    /// <see cref="AppContext.BaseDirectory"/> if no marker is found so evidence is still emitted.
+    /// </summary>
+    private static string ResolveRepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Honua.Console.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return AppContext.BaseDirectory;
     }
 
     private static readonly JsonSerializerOptions EvidenceJsonOptions = new(JsonSerializerDefaults.Web)
