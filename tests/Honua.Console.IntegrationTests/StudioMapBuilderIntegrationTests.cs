@@ -63,6 +63,7 @@ public sealed class StudioMapBuilderIntegrationTests
 
         // 3. The map builder page renders the live published map (not the missing-binding surface).
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(source);
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(

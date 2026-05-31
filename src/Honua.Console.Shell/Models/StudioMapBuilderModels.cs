@@ -141,7 +141,8 @@ public sealed record StudioMapCommandResult(
     bool Succeeded,
     string Message,
     StudioMapEditorState? State = null,
-    StudioMapCapabilityState? Issue = null);
+    StudioMapCapabilityState? Issue = null,
+    IReadOnlyList<ConsoleFieldError>? FieldErrors = null);
 
 /// <summary>
 /// Pre-publish gate result for the map builder. Publish stays blocked while

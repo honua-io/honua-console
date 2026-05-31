@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 
 namespace Honua.Console.Shell.Validation;
 
@@ -224,4 +225,101 @@ public static class NumericBoundsRule
     /// </summary>
     public static bool IsOrdered(double? min, double? max) =>
         !min.HasValue || !max.HasValue || min.Value <= max.Value;
+}
+
+/// <summary>
+/// Parses an RFC-6901 JSON Pointer (the <c>path</c> on a server validation diagnostic, e.g.
+/// <c>/body/layers/2/sourceRef</c>) into its decoded reference tokens. Per-editor pointer resolvers walk
+/// the returned tokens to map a server diagnostic onto a console field key.
+/// </summary>
+public static class JsonPointer
+{
+    /// <summary>
+    /// Splits <paramref name="pointer"/> into its decoded reference tokens (with the RFC-6901 <c>~1</c> →
+    /// <c>/</c> and <c>~0</c> → <c>~</c> escapes applied). A null/empty/whitespace pointer, or the root
+    /// pointer <c>""</c>/<c>"/"</c>, yields an empty list.
+    /// </summary>
+    public static IReadOnlyList<string> Split(string? pointer)
+    {
+        if (string.IsNullOrWhiteSpace(pointer))
+        {
+            return Array.Empty<string>();
+        }
+
+        var trimmed = pointer.Trim();
+        if (!trimmed.StartsWith('/'))
+        {
+            // Tolerate a non-rooted locator (a bare token); treat the whole thing as one segment.
+            return [Unescape(trimmed)];
+        }
+
+        return [.. trimmed[1..]
+            .Split('/')
+            .Where(token => token.Length > 0)
+            .Select(Unescape)];
+    }
+
+    private static string Unescape(string token) =>
+        token.Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal);
+}
+
+/// <summary>
+/// Lightweight client-side check that a string is a parseable GeoJSON geometry literal. This is a shape
+/// gate only — it confirms the value is a JSON object carrying a recognised geometry <c>type</c> and a
+/// <c>coordinates</c> (or, for a GeometryCollection, <c>geometries</c>) member — not full topology
+/// validation, which honua-server owns. Pure and culture-invariant so the same result is produced
+/// regardless of locale; used by the query builder's spatial predicates.
+/// </summary>
+public static class GeoJsonRule
+{
+    private static readonly HashSet<string> GeometryTypes = new(StringComparer.Ordinal)
+    {
+        "Point",
+        "MultiPoint",
+        "LineString",
+        "MultiLineString",
+        "Polygon",
+        "MultiPolygon",
+        "GeometryCollection",
+    };
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="value"/> parses as a JSON object whose
+    /// <c>type</c> is a recognised GeoJSON geometry and which carries the matching geometry payload
+    /// (<c>coordinates</c>, or <c>geometries</c> for a GeometryCollection). Blank input returns
+    /// <see langword="false"/>.
+    /// </summary>
+    public static bool IsValidGeometry(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("type", out var type)
+                || type.ValueKind != JsonValueKind.String)
+            {
+                return false;
+            }
+
+            var typeName = type.GetString();
+            if (string.IsNullOrEmpty(typeName) || !GeometryTypes.Contains(typeName))
+            {
+                return false;
+            }
+
+            return string.Equals(typeName, "GeometryCollection", StringComparison.Ordinal)
+                ? root.TryGetProperty("geometries", out var geometries) && geometries.ValueKind == JsonValueKind.Array
+                : root.TryGetProperty("coordinates", out var coordinates) && coordinates.ValueKind == JsonValueKind.Array;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 }

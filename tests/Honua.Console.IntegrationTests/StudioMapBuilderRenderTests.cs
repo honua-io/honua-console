@@ -27,6 +27,7 @@ public sealed class StudioMapBuilderRenderTests
             Workspace = new StudioMapWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -48,6 +49,7 @@ public sealed class StudioMapBuilderRenderTests
             EditorLoad = new StudioMapEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -105,6 +107,7 @@ public sealed class StudioMapBuilderRenderTests
             EditorLoad = new StudioMapEditorLoad(incomplete, [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -137,6 +140,7 @@ public sealed class StudioMapBuilderRenderTests
             EditorLoad = new StudioMapEditorLoad(PublishedEditor(), [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -168,6 +172,7 @@ public sealed class StudioMapBuilderRenderTests
             new StudioPackageLifecycleClientOptions(baseUri, "key"));
 
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client));
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -239,6 +244,7 @@ public sealed class StudioMapBuilderRenderTests
             EditorLoad = new StudioMapEditorLoad(new StudioMapEditorState(), [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -302,6 +308,7 @@ public sealed class StudioMapBuilderRenderTests
             EditorLoad = new StudioMapEditorLoad(incomplete, [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -346,6 +353,7 @@ public sealed class StudioMapBuilderRenderTests
             }
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();

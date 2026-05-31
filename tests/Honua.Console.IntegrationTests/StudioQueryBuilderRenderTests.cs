@@ -29,6 +29,7 @@ public sealed class StudioQueryBuilderRenderTests
             Workspace = new StudioQueryWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioQueryBuilderPage>();
@@ -57,6 +58,7 @@ public sealed class StudioQueryBuilderRenderTests
                 [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioQueryBuilderPage>();
@@ -77,6 +79,7 @@ public sealed class StudioQueryBuilderRenderTests
         var data = new FakeQueryDataSource { NewQuery = template };
 
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
         var page = ctx.RenderComponent<StudioQueryBuilderPage>();
 
@@ -139,6 +142,7 @@ public sealed class StudioQueryBuilderRenderTests
         };
 
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
         var page = ctx.RenderComponent<StudioQueryBuilderPage>();
 
