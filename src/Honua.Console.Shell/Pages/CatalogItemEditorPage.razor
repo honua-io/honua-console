@@ -1,0 +1,197 @@
+@page "/operate/catalogs/{Key}/items/{ItemId}"
+@using Honua.Console.Shell.Models
+@inject ICatalogDiscoveryDataSource CatalogDiscovery
+
+@* Operate > Catalogs > endpoint > item editor (screens-catalogs.jsx CatalogItemEditor): a single
+   auto-mirrored catalog item. Most fields are derived from the underlying resource/service (calculated);
+   a few are catalog-only (input) — tags, thumbnail, featured, related items. The page renders the field
+   groups (Identity, Catalog presentation, Service bindings, Standards mapping) with the field-state legend
+   (system / calculated / input), the standards-issue callout, and the quick-facts panel. Binds to the
+   honua-server catalog discovery-endpoints registry (honua-server#1279); renders a missing-binding surface
+   when unbound (Console Patterns Charter section 11). *@
+
+<section class="console-page catalogs-item" data-catalogs-item data-catalog-endpoint="@Key" data-catalog-item="@ItemId">
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Catalogs"
+                          Title="Loading item"
+                          Message="Reading the catalog item from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="@_bindingState.State"
+                          Title="Catalog discovery endpoints are not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else if (_item is { } item)
+    {
+        <div class="console-detail-heading">
+            <div>
+                <p class="console-kicker">
+                    <a href="@CatalogsListHref">Catalogs</a> <span class="console-crumb-sep">/</span>
+                    <a href="@EndpointHref">endpoint</a> <span class="console-crumb-sep">/</span> item
+                </p>
+                <h1>
+                    @item.Title
+                    @if (item.AutoMirror)
+                    {
+                        <span class="console-status console-state-info" data-catalog-auto-mirror>auto-mirror</span>
+                    }
+                    @if (item.Live)
+                    {
+                        <span class="console-status console-state-success">live</span>
+                    }
+                </h1>
+                <p class="console-muted">item @item.Id · @item.BackingServiceCount backing services</p>
+            </div>
+            <div class="console-detail-actions">
+                <button class="console-button console-button-secondary" type="button">⧉ Copy item URL</button>
+                <button class="console-button console-button-secondary" type="button">Preview ↗</button>
+                <button class="console-button" type="button">↗ Open Data Resource</button>
+            </div>
+        </div>
+
+        <div class="catalogs-field-legend" data-catalog-field-legend>
+            <span class="catalogs-field-legend__item" data-catalog-field-state="system"><span class="console-status console-state-neutral">system</span> server-assigned</span>
+            <span class="catalogs-field-legend__item" data-catalog-field-state="calculated"><span class="console-status console-state-info">calculated</span> derived from resource / service</span>
+            <span class="catalogs-field-legend__item" data-catalog-field-state="input"><span class="console-status console-state-success">catalog-only</span> editable here</span>
+        </div>
+
+        <div class="console-detail-overview catalogs-item__layout">
+            <div class="console-detail-overview-main">
+                <p class="console-status console-state-info catalogs-card__callout" data-catalog-auto-mirror-note>
+                    <strong>Auto-mirror.</strong> Most fields below come straight from the underlying Data Resource. The
+                    catalog adds a thin layer of presentation — tags, thumbnail, featured flag, related items. Edit the
+                    canonical fields in the resource and they propagate here.
+                </p>
+
+                @foreach (var group in item.Groups)
+                {
+                    <div class="console-field-group catalogs-field-group" data-catalog-field-group="@group.Title">
+                        <header>
+                            <h3>@group.Title</h3>
+                            @if (!string.IsNullOrWhiteSpace(group.Subtitle))
+                            {
+                                <small class="console-muted">@group.Subtitle</small>
+                            }
+                        </header>
+                        <dl class="catalogs-fields">
+                            @foreach (var field in group.Fields)
+                            {
+                                <div class="catalogs-field" data-catalog-field="@field.Label" data-catalog-field-state="@field.State">
+                                    <dt>
+                                        @field.Label
+                                        <span class="@FieldStateClass(field.State)">@FieldStateLabel(field.State)</span>
+                                    </dt>
+                                    <dd>
+                                        <span>@(field.Value ?? "—")</span>
+                                        @if (field.IsCalculated && !string.IsNullOrWhiteSpace(field.DerivedFrom))
+                                        {
+                                            <small class="console-muted catalogs-field__origin">derived from @field.DerivedFrom</small>
+                                        }
+                                    </dd>
+                                </div>
+                            }
+                        </dl>
+                    </div>
+                }
+            </div>
+
+            <aside class="console-detail-overview-side">
+                <div class="console-overview-card" data-catalog-quick-facts>
+                    <header><h3>Quick facts</h3></header>
+                    <div class="console-overview-card-body">
+                        <dl class="catalogs-fields">
+                            <div class="catalogs-field"><dt>Item ID</dt><dd><code>@item.Id</code></dd></div>
+                            <div class="catalogs-field"><dt>Services</dt><dd>@item.BackingServiceCount</dd></div>
+                            <div class="catalogs-field"><dt>Tags</dt><dd>@item.TagCount</dd></div>
+                        </dl>
+                    </div>
+                </div>
+
+                @if (item.HasIssues)
+                {
+                    <p class="console-status console-state-warning catalogs-card__callout" data-catalog-standards-issue>
+                        <strong>@item.IssueCount standards issue@(item.IssueCount > 1 ? "s" : string.Empty).</strong>
+                        Resolve on the backing resource so the catalog standards mappings validate.
+                    </p>
+                }
+
+                <p class="console-muted catalogs-item__note" data-catalog-auto-mirror-warn>
+                    Auto-mirror items can't fork their identity. Uncheck "register in this catalog" on the service to remove this entry.
+                </p>
+            </aside>
+        </div>
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Catalogs"
+                          Title="Item not found"
+                          Message="The catalog discovery-endpoints registry returned no item for this id." />
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string Key { get; set; } = string.Empty;
+
+    [Parameter]
+    public string ItemId { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "workspace")]
+    private string? Workspace { get; set; }
+
+    private CatalogItemView? _item;
+    private CatalogDiscoveryCapabilityState? _bindingState;
+    private bool _loading = true;
+
+    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+
+    // Carry the active workspace back through the endpoint and list breadcrumbs so editing an item in a
+    // non-default workspace keeps that workspace selected on the way back up.
+    private string EndpointHref => $"/operate/catalogs/{Uri.EscapeDataString(Key)}{WorkspaceQuery()}";
+
+    private string CatalogsListHref => $"/operate/catalogs{WorkspaceQuery()}";
+
+    private string WorkspaceQuery() =>
+        ConsoleUrlQuery.ToQueryString(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["workspace"] = Workspace ?? string.Empty
+        });
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _bindingState = null;
+        _item = null;
+
+        var load = await CatalogDiscovery.LoadItemAsync(WorkspaceId, Key, ItemId);
+        if (load.HasItem)
+        {
+            _item = load.Item;
+        }
+        else
+        {
+            _bindingState = load.CapabilityStates.FirstOrDefault();
+        }
+
+        _loading = false;
+    }
+
+    private static string FieldStateClass(string state) => state switch
+    {
+        HonuaCatalogFieldStates.Calculated => "console-status console-state-info",
+        HonuaCatalogFieldStates.Input => "console-status console-state-success",
+        _ => "console-status console-state-neutral"
+    };
+
+    private static string FieldStateLabel(string state) => state switch
+    {
+        HonuaCatalogFieldStates.Calculated => "calculated",
+        HonuaCatalogFieldStates.Input => "catalog-only",
+        _ => "system"
+    };
+}

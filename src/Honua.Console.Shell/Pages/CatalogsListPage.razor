@@ -1,0 +1,207 @@
+@page "/operate/catalogs"
+@using Honua.Console.Shell.Models
+@inject ICatalogDiscoveryDataSource CatalogDiscovery
+
+@* Operate > Catalogs (screens-catalogs.jsx CatalogsList): the discovery-endpoints surface consumers browse
+   to find data — Esri / OGC API Records / OData / STAC / DCAT cards with the server-wide ON/OFF state, the
+   auto-default-on vs opt-in distinction, the feeder list, per-endpoint issues, and the entry/endpoint
+   facts. Distinct from the singular content catalog at /catalog. Binds to the honua-server catalog
+   discovery-endpoints registry (honua-server#1279); renders an explicit missing-binding surface when
+   unbound (Console Patterns Charter section 11). *@
+
+<section class="console-page catalogs-list" data-catalogs-list>
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Catalogs</p>
+            <h1>Catalogs</h1>
+            <p class="console-muted">
+                Discovery endpoints consumers browse to find your data. Server-wide on/off lives in
+                <a href="/operate/settings">Settings → Catalog endpoints</a>. Per-service registration is in each service's settings.
+            </p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Catalogs"
+                          Title="Loading discovery endpoints"
+                          Message="Reading the catalog discovery-endpoints registry from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="@_bindingState.State"
+                          Title="Catalog discovery endpoints are not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else if (_registry is { } registry)
+    {
+        <div class="console-toolbar console-toolbar-spread" data-catalogs-toolbar>
+            <div class="console-chip-row">
+                <span class="console-status console-state-info">status: any</span>
+                <span class="console-status console-state-neutral">has issues</span>
+            </div>
+            <span class="console-muted" data-catalogs-counts>
+                @registry.AutoDefaultCount catalogs auto-default-on · @registry.OptInCount opt-in
+            </span>
+        </div>
+
+        @if (registry.Endpoints.Count == 0)
+        {
+            <ConsoleStateView Kind="empty"
+                              Kicker="Catalogs"
+                              Title="No discovery endpoints"
+                              Message="The registry returned no catalog discovery endpoints for this workspace." />
+        }
+        else
+        {
+            <div class="catalogs-grid" data-catalogs-grid>
+                @foreach (var endpoint in registry.Endpoints)
+                {
+                    <article class="console-overview-card catalogs-card @(endpoint.Enabled ? "catalogs-card--on" : "catalogs-card--off")"
+                             data-catalog-endpoint="@endpoint.Key"
+                             data-catalog-dialect="@endpoint.Dialect"
+                             data-catalog-enabled="@(endpoint.Enabled ? "true" : "false")"
+                             data-catalog-default="@(endpoint.IsAutoDefault ? "auto-default" : "opt-in")">
+                        <header>
+                            <span class="catalogs-card__glyph" aria-hidden="true">⌘</span>
+                            <div class="catalogs-card__heading">
+                                <div class="console-chip-row">
+                                    <strong>@endpoint.Title</strong>
+                                    <span class="@(endpoint.Enabled ? "console-status console-state-success" : "console-status console-state-neutral")"
+                                          data-catalog-state="@(endpoint.Enabled ? "on" : "off")">
+                                        @(endpoint.Enabled ? "ON" : "OFF")
+                                    </span>
+                                    <span class="@(endpoint.IsAutoDefault ? "console-status console-state-info" : "console-status console-state-neutral")"
+                                          data-catalog-registration="@(endpoint.IsAutoDefault ? "auto-default" : "opt-in")">
+                                        @(endpoint.IsAutoDefault ? "auto-default" : "opt-in")
+                                    </span>
+                                    @if (endpoint.HasIssues)
+                                    {
+                                        <span class="console-status console-state-warning" data-catalog-issues="@endpoint.IssueCount">
+                                            @endpoint.IssueCount issue@(endpoint.IssueCount > 1 ? "s" : string.Empty)
+                                        </span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(endpoint.Description))
+                                {
+                                    <small class="console-muted">@endpoint.Description</small>
+                                }
+                            </div>
+                        </header>
+
+                        @if (endpoint.Enabled)
+                        {
+                            <div class="console-overview-card-body catalogs-card__facts">
+                                <dl class="catalogs-facts">
+                                    <dt>Endpoint</dt>
+                                    <dd>
+                                        <code class="catalogs-endpoint-url">@FormatUrl(registry.PublicHost, endpoint.Url)</code>
+                                    </dd>
+                                    <dt>Entries</dt>
+                                    <dd><strong>@endpoint.Entries</strong></dd>
+                                    <dt>Fed by</dt>
+                                    <dd>
+                                        @if (endpoint.Feeders.Count == 0)
+                                        {
+                                            <span class="console-muted">@(endpoint.FedBy ?? "—")</span>
+                                        }
+                                        else
+                                        {
+                                            <ul class="catalogs-feeders" data-catalog-feeders>
+                                                @foreach (var feeder in endpoint.Feeders)
+                                                {
+                                                    <li class="catalogs-feeder" data-catalog-feeder="@feeder.Kind">
+                                                        <span class="console-type-tag">@feeder.Kind</span>
+                                                        <span class="console-muted">@feeder.Label</span>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    </dd>
+                                </dl>
+                                <div class="console-button-row catalogs-card__actions">
+                                    <a class="console-button-link console-button-sm" href="@DetailHref(endpoint.Key)" data-catalog-browse>Browse items →</a>
+                                    <a class="console-button-ghost console-button-sm" href="/operate/settings">Settings</a>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="console-overview-card-body catalogs-card__disabled">
+                                <p class="console-status console-state-info catalogs-card__callout" data-catalog-disabled>
+                                    <strong>Endpoint disabled.</strong> Turn on in
+                                    <a href="/operate/settings">Settings → Catalog endpoints</a> to expose it to consumers.
+                                    @(endpoint.IsAutoDefault
+                                        ? "Already-registered entries will resume on re-enable."
+                                        : "Resources can opt in once enabled.")
+                                </p>
+                            </div>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Catalogs"
+                          Title="No discovery endpoints"
+                          Message="The catalog discovery-endpoints registry returned no data for this workspace." />
+    }
+</section>
+
+@code {
+    private CatalogDiscoveryRegistryView? _registry;
+    private CatalogDiscoveryCapabilityState? _bindingState;
+    private bool _loading = true;
+
+    [SupplyParameterFromQuery(Name = "workspace")]
+    private string? Workspace { get; set; }
+
+    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _bindingState = null;
+        _registry = null;
+
+        var load = await CatalogDiscovery.LoadRegistryAsync(WorkspaceId);
+        if (load.HasRegistry)
+        {
+            _registry = load.Registry;
+        }
+        else
+        {
+            _bindingState = load.CapabilityStates.FirstOrDefault();
+        }
+
+        _loading = false;
+    }
+
+    // Carry the active workspace through drill-down links so browsing a non-default workspace's registry
+    // (e.g. /operate/catalogs?workspace=tenant-a) does not silently switch the detail/item pages back to the
+    // current workspace. An absent workspace stays absent (ToQueryString drops empty values), so the default
+    // never gains a spurious ?workspace=current.
+    private string DetailHref(string key) =>
+        $"/operate/catalogs/{Uri.EscapeDataString(key)}{WorkspaceQuery()}";
+
+    private string WorkspaceQuery() =>
+        ConsoleUrlQuery.ToQueryString(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["workspace"] = Workspace ?? string.Empty
+        });
+
+    private static string FormatUrl(string? host, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "—";
+        }
+
+        return string.IsNullOrWhiteSpace(host) ? path : $"{host.TrimEnd('/')}{path}";
+    }
+}

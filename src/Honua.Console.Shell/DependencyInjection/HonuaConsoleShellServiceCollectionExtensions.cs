@@ -32,6 +32,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddRbacAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddCatalogDiscoveryDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
@@ -434,6 +435,35 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IRbacAccessDataSource, UnsupportedRbacAccessDataSource>();
+    }
+
+    // Binds the Operate > Catalogs discovery-endpoints surface (/operate/catalogs, honua-console#125) to
+    // honua-server's catalog discovery-endpoints registry (honua-server#1279) through the
+    // Honua.Console.Contracts shim when a server base address is configured; otherwise the surface renders an
+    // explicit missing-binding state (never mock endpoint/item data — Console Patterns Charter section 11).
+    // honua-server#1279 is not yet shipped, so in practice the merged runtime renders the missing-binding
+    // state today; the page, data source, and tests already consume the full registry contract so the live
+    // binding activates the moment the server endpoint lands.
+    private static void AddCatalogDiscoveryDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaCatalogDiscoveryClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaCatalogDiscoveryHttpClient(
+                    httpClient,
+                    new HonuaCatalogDiscoveryClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<ICatalogDiscoveryDataSource, HonuaServerCatalogDiscoveryDataSource>();
+            return;
+        }
+
+        services.TryAddSingleton<ICatalogDiscoveryDataSource, UnsupportedCatalogDiscoveryDataSource>();
     }
 
     private static void AddOperateTransitionDataSource(

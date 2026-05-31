@@ -89,6 +89,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/layers/:id            Layer configuration (default + ?tab=configure)
 /operate/layers/:id/style      Layer style editor
 /operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
+/operate/catalogs              Catalogs · discovery-endpoints surface (Esri/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
+/operate/catalogs/:key         Catalogs · one discovery endpoint drill-down (Items/Settings/Access/Activity/Validation tabs + mirrored-items table; honua-server#1279)
+/operate/catalogs/:key/items/:itemId  Catalogs · single catalog item editor (auto-mirror item: derived identity, catalog-only presentation, service bindings, standards mapping; honua-server#1279)
 /operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162)
 /operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)
@@ -171,8 +174,21 @@ will not see Operate while B is active. Confirmed default (§13, Q4).
 ### 2.2 Secondary navigation (within Operate)
 
 Connections, Resources, Publishing, Identity, License, Observability,
-Operations, Control Center, Services, Layers, Settings, Deploy, Server
-Info, Analytics, Legacy.
+Operations, Control Center, Services, Layers, Catalogs, Settings, Deploy,
+Server Info, Analytics, Legacy.
+
+Catalogs (`/operate/catalogs`) is the discovery-endpoints surface
+(`honua-console#125`): which catalog dialects the server publishes
+(Esri / OGC API Records / OData / STAC / DCAT), their server-wide on/off
+state, auto-default-on vs opt-in registration, feeders, and per-endpoint
+issues. It lives under Operate (not the top-level `/catalog`) because it
+is operator administration of server-published endpoints — the same
+information area as `Settings → Catalog endpoints`, which owns the
+server-wide on/off toggles — and is **distinct** from the singular
+content catalog at `/catalog` (`CatalogPage.razor`), which is the
+member-facing content search/list. It binds the catalog
+discovery-endpoints registry (`honua-server#1279`) and renders the
+missing-binding state until that contract ships.
 
 `honua-console#36` implements the first native Blazor transition group:
 Connections, Resources, Services, Layers, and Settings. These entries use
