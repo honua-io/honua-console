@@ -1,6 +1,10 @@
 @page "/studio/dashboard"
 @using Microsoft.AspNetCore.Components.Rendering
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
 @inject IStudioDashboardPackageDataSource DashboardData
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved dashboard changes. Leave this page and discard them?" />
 
 <section class="console-page studio-dashboard-builder">
     <div class="console-page-heading">
@@ -206,9 +210,9 @@
                         <div class="studio-dashboard-bar-actions">
                             <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="OpenAiView">From prompt</button>
                             <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to dashboards</button>
-                            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
+                            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
                             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished)" @onclick="Validate">Validate</button>
-                            <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishView">Publish…</button>
+                            <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="OpenPublishView">Publish…</button>
                             @if (editor.IsPublished)
                             {
                                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
@@ -219,6 +223,20 @@
                     @if (!string.IsNullOrEmpty(_status))
                     {
                         <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+                    }
+
+                    @if (_validation.HasBlockingClientErrors)
+                    {
+                        <article class="console-panel console-panel-warning" aria-labelledby="dashboard-validation-heading">
+                            <p class="console-kicker">Validation</p>
+                            <h3 id="dashboard-validation-heading">Resolve before publish</h3>
+                            <ul class="studio-compact-list">
+                                @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                                {
+                                    <li>@error.Message</li>
+                                }
+                            </ul>
+                        </article>
                     }
 
                     @if (!editor.IsPublished && !readiness.CanPublish)
@@ -280,10 +298,13 @@
 
                                 @foreach (var binding in editor.Bindings)
                                 {
+                                    var bindingIndex = editor.Bindings.IndexOf(binding);
                                     <fieldset class="studio-binding-card" @key="binding">
-                                        <label class="studio-form-label"><span>Alias</span><input class="console-input" @bind="binding.Alias" placeholder="requests" /></label>
-                                        <label class="studio-form-label"><span>Content ref</span><input class="console-input" @bind="binding.ContentRef" placeholder="content:service-requests" /></label>
-                                        <label class="studio-form-label"><span>Version pin</span><input class="console-input" @bind="binding.VersionPin" placeholder="latest" /></label>
+                                        <label class="studio-form-label"><span>Alias</span><input class="console-input" @bind="binding.Alias" @bind:after="OnEdit" placeholder="requests" /></label>
+                                        <ValidationMessageInline FieldKey="@StudioDashboardFieldKeys.BindingAlias(bindingIndex)" State="_validation" />
+                                        <label class="studio-form-label"><span>Content ref</span><input class="console-input" @bind="binding.ContentRef" @bind:after="OnEdit" placeholder="content:service-requests" /></label>
+                                        <ValidationMessageInline FieldKey="@StudioDashboardFieldKeys.BindingContentRef(bindingIndex)" State="_validation" />
+                                        <label class="studio-form-label"><span>Version pin</span><input class="console-input" @bind="binding.VersionPin" @bind:after="OnEdit" placeholder="latest" /></label>
                                         <div class="console-action-row">
                                             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemoveBinding(binding)">Remove</button>
                                         </div>
@@ -337,15 +358,16 @@
                             else
                             {
                                 var panel = selected;
+                                var panelIndex = editor.Panels.IndexOf(panel);
                                 <div class="studio-inspector-head">
                                     <h3>@PanelLabel(panel)</h3>
                                     <p class="console-muted">@PanelSubtitle(panel)</p>
                                 </div>
 
-                                <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="panel.Title" placeholder="Requests by district" /></label>
+                                <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="panel.Title" @bind:after="OnEdit" placeholder="Requests by district" /></label>
                                 <label class="studio-form-label">
                                     <span>Kind</span>
-                                    <select class="console-input" @bind="panel.Kind">
+                                    <select class="console-input" @bind="panel.Kind" @bind:after="OnEdit">
                                         @foreach (var kind in StudioDashboardPanelKinds.All)
                                         {
                                             <option value="@kind">@kind</option>
@@ -354,15 +376,17 @@
                                 </label>
                                 <label class="studio-form-label">
                                     <span>Data binding</span>
-                                    <input class="console-input" @bind="panel.BindingAlias" placeholder="requests" />
+                                    <input class="console-input" @bind="panel.BindingAlias" @bind:after="OnEdit" placeholder="requests" />
                                 </label>
+                                <ValidationMessageInline FieldKey="@StudioDashboardFieldKeys.PanelBindingAlias(panelIndex)" State="_validation" />
 
                                 @if (panel.IsChart)
                                 {
                                     <details class="studio-vega-spec" open>
                                         <summary>Vega-Lite spec (JSON)</summary>
-                                        <textarea class="console-input studio-code" rows="10" @bind="panel.VegaLiteSpec"></textarea>
+                                        <textarea class="console-input studio-code" rows="10" @bind="panel.VegaLiteSpec" @bind:after="OnEdit"></textarea>
                                     </details>
+                                    <ValidationMessageInline FieldKey="@StudioDashboardFieldKeys.PanelVegaLiteSpec(panelIndex)" State="_validation" />
                                 }
 
                                 <div class="console-action-row">
@@ -372,9 +396,11 @@
 
                             <div class="studio-inspector-section">
                                 <h3>Dashboard</h3>
-                                <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="editor.Title" placeholder="Operations dashboard" /></label>
-                                <label class="studio-form-label"><span>Description</span><textarea class="console-input" rows="2" @bind="editor.Description"></textarea></label>
-                                <label class="studio-form-label"><span>Narrative</span><textarea class="console-input" rows="3" @bind="editor.Narrative" placeholder="Context shown above the layout."></textarea></label>
+                                <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Operations dashboard" /></label>
+                                <ValidationMessageInline FieldKey="@StudioDashboardFieldKeys.Title" State="_validation" />
+                                <label class="studio-form-label"><span>Description</span><textarea class="console-input" rows="2" @bind="editor.Description" @bind:after="OnEdit"></textarea></label>
+                                <label class="studio-form-label"><span>Narrative</span><textarea class="console-input" rows="3" @bind="editor.Narrative" @bind:after="OnEdit" placeholder="Context shown above the layout."></textarea></label>
+                                <ValidationMessageInline FieldKey="@StudioDashboardFieldKeys.Panels" State="_validation" />
                             </div>
                         </div>
                     </div>
@@ -404,8 +430,27 @@
     private DashboardView _view = DashboardView.Editor;
     private int _publishStep;
     private readonly List<StudioConversationTurn> _turns = [];
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
 
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+
+    /// <summary>
+    /// Re-runs the client cross-field/referential validator over the current editor and flags it dirty.
+    /// Wired to every bound edit via <c>@bind:after</c>. The server channel is dropped on edit because any
+    /// change makes the last validate-time diagnostics stale; the next Validate/Save rebinds fresh ones.
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_editor is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioDashboardValidator.Instance.Evaluate(_editor));
 
     private async Task LoadWorkspaceAsync()
     {
@@ -439,6 +484,11 @@
             _selectedPanel = result.State?.Panels.FirstOrDefault();
             _publishStep = 0;
             _turns.Clear();
+
+            // A fresh load is the clean baseline: drop local edits/findings and recompute against the load.
+            _validation.Clear();
+            _dirty.MarkClean();
+            RecomputeClientErrors();
             if (_editor is not null)
             {
                 _view = view;
@@ -466,6 +516,8 @@
         _statusFailed = false;
         _view = DashboardView.Editor;
         _turns.Clear();
+        _validation.Clear();
+        _dirty.MarkClean();
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
         // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
         await LoadWorkspaceAsync();
@@ -898,9 +950,17 @@
         }
     }
 
-    private void AddBinding() => _editor?.Bindings.Add(new StudioDashboardBindingEditor());
+    private void AddBinding()
+    {
+        _editor?.Bindings.Add(new StudioDashboardBindingEditor());
+        OnEdit();
+    }
 
-    private void RemoveBinding(StudioDashboardBindingEditor binding) => _editor?.Bindings.Remove(binding);
+    private void RemoveBinding(StudioDashboardBindingEditor binding)
+    {
+        _editor?.Bindings.Remove(binding);
+        OnEdit();
+    }
 
     private void AddPanel()
     {
@@ -912,6 +972,7 @@
         var panel = new StudioDashboardPanelEditor { VegaLiteSpec = StudioDashboardChartSpec.DefaultBarChart() };
         _editor.Panels.Add(panel);
         _selectedPanel = panel;
+        OnEdit();
     }
 
     private void RemovePanel(StudioDashboardPanelEditor panel)
@@ -921,6 +982,8 @@
         {
             _selectedPanel = null;
         }
+
+        OnEdit();
     }
 
     private void SelectPanel(StudioDashboardPanelEditor panel) => _selectedPanel = panel;
@@ -930,6 +993,7 @@
         if (_editor is not null)
         {
             _editor.PreviewBreakpoint = breakpoint;
+            _dirty.MarkDirty();
         }
     }
 
@@ -1004,6 +1068,15 @@
             if (result.State is not null)
             {
                 _editor = result.State;
+            }
+
+            // Re-run the client validator against the post-command editor and bind any field-addressable
+            // server diagnostics onto the same field keys so they surface inline next to the offending input.
+            RecomputeClientErrors();
+            _validation.SetServerErrors(StudioDashboardServerErrorBinder.Map(result.Diagnostics));
+            if (result.Succeeded)
+            {
+                _dirty.MarkClean();
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);

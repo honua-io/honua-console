@@ -153,7 +153,11 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
 
         if (result.Issue is { } issue)
         {
-            return new StudioReportCommandResult(false, issue.Detail, Issue: ToCapabilityState(PolicyContract, issue));
+            return new StudioReportCommandResult(
+                false,
+                issue.Detail,
+                Issue: ToCapabilityState(PolicyContract, issue),
+                FieldErrors: issue.FieldErrors);
         }
 
         // The policy update returns the route only; re-read the detail so the version history panel stays
@@ -184,7 +188,11 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
     {
         if (result.Issue is { } issue)
         {
-            return new StudioReportCommandResult(false, issue.Detail, Issue: ToCapabilityState(contract, issue));
+            return new StudioReportCommandResult(
+                false,
+                issue.Detail,
+                Issue: ToCapabilityState(contract, issue),
+                FieldErrors: issue.FieldErrors);
         }
 
         var detail = result.Data!;

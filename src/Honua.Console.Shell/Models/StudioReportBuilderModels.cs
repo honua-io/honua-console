@@ -302,8 +302,19 @@ public static class StudioReportDocument
 // --- Data-source-facing projections for the authoring surface (immutable). ---
 
 /// <summary>Outcome of a mutating report lifecycle command (publish, republish, rollback, policy).</summary>
+/// <param name="Succeeded">Whether the command succeeded.</param>
+/// <param name="Message">Operator-facing status message.</param>
+/// <param name="Publication">The resulting publication view on success.</param>
+/// <param name="Issue">A capability state when the command failed at the binding/permission/transport level.</param>
+/// <param name="FieldErrors">
+/// Field-addressable server validation errors parsed from a 400 ProblemDetails <c>errors[]</c> (the shared
+/// honua-server <c>FieldValidationError</c> contract). Empty unless the server rejected the publish with
+/// field-level findings; the report builder binds these onto the offending inputs via
+/// <see cref="Honua.Console.Shell.Validation.StudioReportServerErrorBinder"/>.
+/// </param>
 public sealed record StudioReportCommandResult(
     bool Succeeded,
     string Message,
     StudioReportPublicationView? Publication = null,
-    StudioReportCapabilityState? Issue = null);
+    StudioReportCapabilityState? Issue = null,
+    IReadOnlyList<Honua.Console.Contracts.HonuaFieldValidationError>? FieldErrors = null);

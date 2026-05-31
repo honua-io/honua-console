@@ -262,7 +262,40 @@ public sealed record HonuaAdminEndpointIssue(
     string State,
     string Contract,
     string Detail,
-    int? StatusCode = null);
+    int? StatusCode = null)
+{
+    /// <summary>
+    /// Field-addressable validation errors parsed from an RFC-7807 ProblemDetails <c>errors[]</c> extension
+    /// when the server rejected the request with the shared field-level validation contract (the
+    /// honua-server Wave-0 <c>FieldValidationError</c>). Empty for non-validation issues (transport,
+    /// auth, conflict) and for flat rejections that carried no <c>errors[]</c>. Console clients bind these
+    /// onto the offending inputs via the Wave-0 <c>ServerFieldErrorMapper</c>.
+    /// </summary>
+    public IReadOnlyList<HonuaFieldValidationError> FieldErrors { get; init; } = [];
+}
+
+/// <summary>
+/// Wire shape of one RFC-7807 ProblemDetails <c>errors[]</c> item — the honua-server shared
+/// <c>FieldValidationError</c> projection (<c>{code,severity,path,message,fieldId}</c>). Parsed by HTTP
+/// clients from a field-addressable rejection body and surfaced on <see cref="HonuaAdminEndpointIssue"/>.
+/// </summary>
+public sealed record HonuaFieldValidationError
+{
+    [System.Text.Json.Serialization.JsonPropertyName("code")]
+    public string Code { get; init; } = string.Empty;
+
+    [System.Text.Json.Serialization.JsonPropertyName("severity")]
+    public string? Severity { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("path")]
+    public string? Path { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("fieldId")]
+    public string? FieldId { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("message")]
+    public string Message { get; init; } = string.Empty;
+}
 
 public sealed record HonuaAdminApiResponse<T>(
     bool Success,

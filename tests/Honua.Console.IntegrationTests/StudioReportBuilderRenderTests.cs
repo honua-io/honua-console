@@ -121,6 +121,9 @@ public sealed class StudioReportBuilderRenderTests
     {
         var data = new FakeReportDataSource();
         using var ctx = new Bunit.TestContext();
+        // Adding a panel marks the editor dirty, which arms the <UnsavedChangesGuard/> (a JS module import);
+        // run Loose JSInterop so bUnit auto-handles that import.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
 
         var page = ctx.RenderComponent<StudioReportBuilderPage>();
