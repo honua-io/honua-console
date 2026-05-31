@@ -58,8 +58,18 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ASPNETCORE_ENVIRONMENT: 'Development',
-      // Keep the host strictly in missing-binding mode: no server base URL bound.
       DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+      // Keep the host strictly in missing-binding mode regardless of the ambient environment.
+      // Playwright's webServer inherits process.env, so if HONUA_SERVER_BASE_URL (or the
+      // Honua__Server__* config keys) are set on the runner / dev machine, Program.cs would
+      // bind live honua-server services and the no-backend assertions would break. Explicitly
+      // clear every server-binding key Program.cs reads so the smoke is always backend-free.
+      HONUA_SERVER_BASE_URL: '',
+      HONUA_ADMIN_API_KEY: '',
+      HONUA_SERVER_PUBLICATION_IDS: '',
+      Honua__Server__BaseUrl: '',
+      Honua__Server__AdminApiKey: '',
+      Honua__Server__PublicationIds: '',
     },
   },
 });
