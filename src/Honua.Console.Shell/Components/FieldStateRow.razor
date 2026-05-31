@@ -1,0 +1,171 @@
+@*
+    Shared field-state row — design-handoff console-canvas/field-state.jsx (FieldRow + fs-pill
+    vocabulary). Renders a labelled field with a state pill so operators learn one visual language for
+    who owns a value (input / discovered / calculated / system / admin) and whether it is editable.
+
+    Re-expressed against the --honua-* design tokens with `console-field-state` BEM classes rather than
+    the wireframe's raw fs-* palette. The editable control is supplied by the caller as ChildContent so
+    existing @bind two-way binding stays intact; read-only states (calculated/system/admin) render the
+    supplied Value text when no ChildContent is provided.
+*@
+@using Honua.Console.Shell.Models
+@{
+    // Discovered-state override/revert affordances, shared by the labelled and read-only layouts.
+    RenderFragment RenderDiscoveredActions = builder =>
+    {
+        if (State == FieldState.Discovered && OnOverride.HasDelegate)
+        {
+            builder.OpenElement(0, "button");
+            builder.AddAttribute(1, "type", "button");
+            builder.AddAttribute(2, "class", "console-field-state__action console-field-state__action--override");
+            builder.AddAttribute(3, "disabled", Disabled);
+            builder.AddAttribute(4, "title", "Override the discovered value");
+            builder.AddAttribute(5, "onclick", OnOverride);
+            builder.AddContent(6, "Override");
+            builder.CloseElement();
+        }
+
+        if (State == FieldState.Discovered && OnRevert.HasDelegate)
+        {
+            builder.OpenElement(7, "button");
+            builder.AddAttribute(8, "type", "button");
+            builder.AddAttribute(9, "class", "console-field-state__action console-field-state__action--revert");
+            builder.AddAttribute(10, "disabled", Disabled);
+            builder.AddAttribute(11, "title", "Revert to the discovered value");
+            builder.AddAttribute(12, "onclick", OnRevert);
+            builder.AddMarkupContent(13, "↰ revert");
+            builder.CloseElement();
+        }
+    };
+}
+
+<div class="console-field-state console-field-state--@StateSlug" data-field-state="@StateSlug">
+    <span class="console-field-state__icon" aria-hidden="true">@Icon</span>
+    @* When a control is slotted, a <label> wraps both the label text and the control so the visible
+       label is the control's accessible name and clicking it focuses the field (the implicit-label
+       association the plain studio-form-label <label> previously provided). `display: contents` keeps
+       the label-text / value cells placed directly in the row's grid. Read-only states (no control)
+       render a plain block so we never emit a label that points at nothing. *@
+    @if (ChildContent is not null)
+    {
+        <label class="console-field-state__field">
+            <span class="console-field-state__label">
+                <span class="console-field-state__label-text">@Label</span>
+                @if (!string.IsNullOrWhiteSpace(Sub))
+                {
+                    <span class="console-field-state__sub">@Sub</span>
+                }
+            </span>
+            <span class="console-field-state__value">
+                @ChildContent
+                @RenderDiscoveredActions
+            </span>
+        </label>
+    }
+    else
+    {
+        <div class="console-field-state__label">
+            <span class="console-field-state__label-text">@Label</span>
+            @if (!string.IsNullOrWhiteSpace(Sub))
+            {
+                <span class="console-field-state__sub">@Sub</span>
+            }
+        </div>
+        <div class="console-field-state__value">
+            @if (State == FieldState.Calculated && !string.IsNullOrWhiteSpace(DerivedFrom))
+            {
+                <span class="console-field-state__derived">@Value <span class="console-field-state__derived-from">&rarr; from @DerivedFrom</span></span>
+            }
+            else
+            {
+                <span class="console-field-state__readonly">@(string.IsNullOrWhiteSpace(Value) ? "—" : Value)</span>
+            }
+            @RenderDiscoveredActions
+        </div>
+    }
+    <div class="console-field-state__meta">
+        <span class="console-field-state__pill console-field-state__pill--@PillSlug">@PillLabel</span>
+        @if (!string.IsNullOrWhiteSpace(Hint))
+        {
+            <span class="console-field-state__hint">@Hint</span>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The field-state vocabulary value driving icon, pill, and read-only styling.</summary>
+    [Parameter]
+    public FieldState State { get; set; } = FieldState.Input;
+
+    /// <summary>Field label rendered in the second column.</summary>
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Optional sub-label / helper line under the label.</summary>
+    [Parameter]
+    public string? Sub { get; set; }
+
+    /// <summary>Display value for read-only states when no editable <see cref="ChildContent"/> is supplied.</summary>
+    [Parameter]
+    public string? Value { get; set; }
+
+    /// <summary>For <see cref="FieldState.Calculated"/> rows: the source the value is derived from.</summary>
+    [Parameter]
+    public string? DerivedFrom { get; set; }
+
+    /// <summary>Optional meta hint shown beside the pill.</summary>
+    [Parameter]
+    public string? Hint { get; set; }
+
+    /// <summary>Editable control slot (input/select/textarea). Keeps caller-owned <c>@bind</c> intact.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Discovered-state override affordance; rendered only when a handler is wired.</summary>
+    [Parameter]
+    public EventCallback OnOverride { get; set; }
+
+    /// <summary>Discovered-state revert affordance; rendered only when a handler is wired.</summary>
+    [Parameter]
+    public EventCallback OnRevert { get; set; }
+
+    /// <summary>Disables the override/revert affordances (e.g. while a command is in flight).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private string StateSlug => State switch
+    {
+        FieldState.Discovered => "discovered",
+        FieldState.Calculated => "calculated",
+        FieldState.System => "system",
+        FieldState.Admin => "admin",
+        _ => "input",
+    };
+
+    private string PillSlug => State switch
+    {
+        FieldState.Discovered => "discover",
+        FieldState.Calculated => "calc",
+        FieldState.System => "system",
+        FieldState.Admin => "admin",
+        _ => "input",
+    };
+
+    private string PillLabel => State switch
+    {
+        FieldState.Discovered => "auto",
+        FieldState.Calculated => "derived",
+        FieldState.System => "system",
+        FieldState.Admin => "admin only",
+        _ => "input",
+    };
+
+    private string Icon => State switch
+    {
+        FieldState.Discovered => "\U0001F50D",
+        FieldState.Calculated => "\U0001F9EE",
+        FieldState.System => "⚙️",
+        FieldState.Admin => "\U0001F512",
+        _ => "✏️",
+    };
+}

@@ -169,28 +169,28 @@
                     <article class="console-panel">
                         <p class="console-kicker">Details</p>
                         <h3>Form</h3>
-                        <label class="studio-form-label">
-                            <span>Title</span>
+                        @if (editor.IsExistingPackage && !string.IsNullOrWhiteSpace(editor.FormId))
+                        {
+                            <FieldStateRow State="FieldState.System" Label="Form id" Value="@editor.FormId" Hint="@($"v{editor.Version}")" />
+                        }
+                        <FieldStateRow State="FieldState.Input" Label="Title">
                             <input class="console-input" @bind="editor.Title" placeholder="Field inspection form" />
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Description</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Description">
                             <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
-                        </label>
+                        </FieldStateRow>
                     </article>
 
                     <article class="console-panel">
                         <p class="console-kicker">Submit target</p>
                         <h3>Feature service</h3>
                         <p class="console-muted">The feature service and layer that accept submissions. Required and server-validated before publish.</p>
-                        <label class="studio-form-label">
-                            <span>Service id</span>
+                        <FieldStateRow State="FieldState.Input" Label="Service id">
                             <input class="console-input" @bind="editor.ServiceId" placeholder="inspections" />
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Layer id</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Layer id">
                             <input class="console-input" type="number" @bind="editor.LayerId" />
-                        </label>
+                        </FieldStateRow>
                         <div class="console-chip-row studio-form-toggles">
                             <label><input type="checkbox" @bind="editor.AllowCreate" /> <span>Create</span></label>
                             <label><input type="checkbox" @bind="editor.AllowUpdate" /> <span>Update</span></label>
@@ -219,27 +219,35 @@
                     {
                         <fieldset class="studio-form-field" @key="field">
                             <div class="console-panel-grid">
-                                <label class="studio-form-label"><span>Field id</span><input class="console-input" @bind="field.FieldId" placeholder="asset_id" /></label>
-                                <label class="studio-form-label"><span>Label</span><input class="console-input" @bind="field.Label" placeholder="Asset ID" /></label>
-                                <label class="studio-form-label"><span>Group / section</span><input class="console-input" @bind="field.Group" placeholder="Identification" /></label>
-                                <label class="studio-form-label">
-                                    <span>Type</span>
+                                <FieldStateRow State="FieldState.Input" Label="Field id">
+                                    <input class="console-input" @bind="field.FieldId" placeholder="asset_id" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Label">
+                                    <input class="console-input" @bind="field.Label" placeholder="Asset ID" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Group / section">
+                                    <input class="console-input" @bind="field.Group" placeholder="Identification" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Type">
                                     <select class="console-input" @bind="field.Type">
                                         @foreach (var type in StudioFormFieldTypes.All)
                                         {
                                             <option value="@type">@type</option>
                                         }
                                     </select>
-                                </label>
-                                <label class="studio-form-label"><span>Target field</span><input class="console-input" @bind="field.TargetField" placeholder="asset_id" disabled="@field.IsAttachment" /></label>
-                                <label class="studio-form-label">
-                                    <span>Domain</span>
+                                </FieldStateRow>
+                                <FieldStateRow State="@(field.IsAttachment ? FieldState.System : string.IsNullOrWhiteSpace(field.TargetField) ? FieldState.Discovered : FieldState.Input)"
+                                               Label="Target field"
+                                               Hint="@(field.IsAttachment ? "managed by attachment store" : string.IsNullOrWhiteSpace(field.TargetField) ? "defaults to the field id" : null)">
+                                    <input class="console-input" @bind="field.TargetField" placeholder="asset_id" disabled="@field.IsAttachment" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Domain">
                                     <select class="console-input" @bind="field.DomainKind">
                                         <option value="none">No domain</option>
                                         <option value="coded">Coded values</option>
                                         <option value="range">Range</option>
                                     </select>
-                                </label>
+                                </FieldStateRow>
                             </div>
 
                             <div class="console-chip-row studio-form-toggles">
