@@ -214,17 +214,22 @@
                             <div class="studio-report-inspector-body">
                                 <section class="studio-report-fieldgroup">
                                     <p class="console-kicker">Source binding</p>
-                                    <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="sel.Title" placeholder="Parcels overview" /></label>
-                                    <label class="studio-form-label">
-                                        <span>Kind</span>
+                                    <FieldStateRow State="FieldState.Input" Label="Title">
+                                        <input class="console-input" @bind="sel.Title" placeholder="Parcels overview" />
+                                    </FieldStateRow>
+                                    <FieldStateRow State="FieldState.Input" Label="Kind">
                                         <select class="console-input" @bind="sel.Kind">
                                             @foreach (var kind in StudioReportPanelKinds.All)
                                             {
                                                 <option value="@kind">@kind</option>
                                             }
                                         </select>
-                                    </label>
-                                    <label class="studio-form-label"><span>Binding alias</span><input class="console-input" @bind="sel.BindingAlias" placeholder="incidents" /></label>
+                                    </FieldStateRow>
+                                    <FieldStateRow State="@(string.IsNullOrWhiteSpace(sel.BindingAlias) ? FieldState.Input : FieldState.Discovered)"
+                                                   Label="Binding alias"
+                                                   Hint="@(string.IsNullOrWhiteSpace(sel.BindingAlias) ? null : "resolved from data bindings")">
+                                        <input class="console-input" @bind="sel.BindingAlias" placeholder="incidents" />
+                                    </FieldStateRow>
                                 </section>
                                 @if (sel.IsChart)
                                 {
@@ -251,10 +256,22 @@
                             <div class="studio-report-inspector-body">
                                 <section class="studio-report-fieldgroup">
                                     <p class="console-kicker">Details</p>
-                                    <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="editor.Title" placeholder="Monthly infrastructure report" /></label>
-                                    <label class="studio-form-label"><span>Route slug</span><input class="console-input" @bind="editor.RouteSlug" placeholder="monthly-infrastructure" disabled="@editor.IsPublished" /></label>
-                                    <label class="studio-form-label"><span>Description</span><textarea class="console-input" rows="2" @bind="editor.Description"></textarea></label>
-                                    <label class="studio-form-label"><span>Narrative</span><textarea class="console-input" rows="3" @bind="editor.Narrative" placeholder="Context shown above the layout."></textarea></label>
+                                    @if (editor.IsPublished && !string.IsNullOrWhiteSpace(editor.PublicationId))
+                                    {
+                                        <FieldStateRow State="FieldState.System" Label="Publication id" Value="@editor.PublicationId" Hint="@($"r{editor.ActiveRevision}")" />
+                                    }
+                                    <FieldStateRow State="FieldState.Input" Label="Title">
+                                        <input class="console-input" @bind="editor.Title" placeholder="Monthly infrastructure report" />
+                                    </FieldStateRow>
+                                    <FieldStateRow State="FieldState.Input" Label="Route slug" Hint="@(editor.IsPublished ? "locked after publish" : null)">
+                                        <input class="console-input" @bind="editor.RouteSlug" placeholder="monthly-infrastructure" disabled="@editor.IsPublished" />
+                                    </FieldStateRow>
+                                    <FieldStateRow State="FieldState.Input" Label="Description">
+                                        <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
+                                    </FieldStateRow>
+                                    <FieldStateRow State="FieldState.Input" Label="Narrative">
+                                        <textarea class="console-input" rows="3" @bind="editor.Narrative" placeholder="Context shown above the layout."></textarea>
+                                    </FieldStateRow>
                                 </section>
 
                                 <section class="studio-report-fieldgroup">
@@ -295,9 +312,17 @@
                                     @foreach (var binding in editor.Bindings)
                                     {
                                         <div class="studio-report-binding" @key="binding">
-                                            <label class="studio-form-label"><span>Alias</span><input class="console-input" @bind="binding.Alias" placeholder="incidents" /></label>
-                                            <label class="studio-form-label"><span>Content ref</span><input class="console-input" @bind="binding.ContentRef" placeholder="content:incidents" /></label>
-                                            <label class="studio-form-label"><span>Version pin</span><input class="console-input" @bind="binding.VersionPin" placeholder="latest" /></label>
+                                            <FieldStateRow State="FieldState.Input" Label="Alias">
+                                                <input class="console-input" @bind="binding.Alias" placeholder="incidents" />
+                                            </FieldStateRow>
+                                            <FieldStateRow State="FieldState.Input" Label="Content ref">
+                                                <input class="console-input" @bind="binding.ContentRef" placeholder="content:incidents" />
+                                            </FieldStateRow>
+                                            <FieldStateRow State="@(string.IsNullOrWhiteSpace(binding.VersionPin) ? FieldState.Discovered : FieldState.Input)"
+                                                           Label="Version pin"
+                                                           Hint="@(string.IsNullOrWhiteSpace(binding.VersionPin) ? "tracks latest publish" : "pinned")">
+                                                <input class="console-input" @bind="binding.VersionPin" placeholder="latest" />
+                                            </FieldStateRow>
                                             <div class="console-action-row">
                                                 <button class="console-button console-button-secondary console-button-small" type="button" disabled="@_busy" @onclick="() => RemoveBinding(binding)">Remove</button>
                                             </div>

@@ -1,0 +1,129 @@
+@*
+    Shared field-state row — design-handoff console-canvas/field-state.jsx (FieldRow + fs-pill
+    vocabulary). Renders a labelled field with a state pill so operators learn one visual language for
+    who owns a value (input / discovered / calculated / system / admin) and whether it is editable.
+
+    Re-expressed against the --honua-* design tokens with `console-field-state` BEM classes rather than
+    the wireframe's raw fs-* palette. The editable control is supplied by the caller as ChildContent so
+    existing @bind two-way binding stays intact; read-only states (calculated/system/admin) render the
+    supplied Value text when no ChildContent is provided.
+*@
+@using Honua.Console.Shell.Models
+
+<div class="console-field-state console-field-state--@StateSlug" data-field-state="@StateSlug">
+    <span class="console-field-state__icon" aria-hidden="true">@Icon</span>
+    <div class="console-field-state__label">
+        <span class="console-field-state__label-text">@Label</span>
+        @if (!string.IsNullOrWhiteSpace(Sub))
+        {
+            <span class="console-field-state__sub">@Sub</span>
+        }
+    </div>
+    <div class="console-field-state__value">
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else if (State == FieldState.Calculated && !string.IsNullOrWhiteSpace(DerivedFrom))
+        {
+            <span class="console-field-state__derived">@Value <span class="console-field-state__derived-from">&rarr; from @DerivedFrom</span></span>
+        }
+        else
+        {
+            <span class="console-field-state__readonly">@(string.IsNullOrWhiteSpace(Value) ? "—" : Value)</span>
+        }
+        @if (State == FieldState.Discovered && OnOverride.HasDelegate)
+        {
+            <button type="button" class="console-field-state__action console-field-state__action--override" disabled="@Disabled" @onclick="OnOverride" title="Override the discovered value">Override</button>
+        }
+        @if (State == FieldState.Discovered && OnRevert.HasDelegate)
+        {
+            <button type="button" class="console-field-state__action console-field-state__action--revert" disabled="@Disabled" @onclick="OnRevert" title="Revert to the discovered value">&#8624; revert</button>
+        }
+    </div>
+    <div class="console-field-state__meta">
+        <span class="console-field-state__pill console-field-state__pill--@PillSlug">@PillLabel</span>
+        @if (!string.IsNullOrWhiteSpace(Hint))
+        {
+            <span class="console-field-state__hint">@Hint</span>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The field-state vocabulary value driving icon, pill, and read-only styling.</summary>
+    [Parameter]
+    public FieldState State { get; set; } = FieldState.Input;
+
+    /// <summary>Field label rendered in the second column.</summary>
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Optional sub-label / helper line under the label.</summary>
+    [Parameter]
+    public string? Sub { get; set; }
+
+    /// <summary>Display value for read-only states when no editable <see cref="ChildContent"/> is supplied.</summary>
+    [Parameter]
+    public string? Value { get; set; }
+
+    /// <summary>For <see cref="FieldState.Calculated"/> rows: the source the value is derived from.</summary>
+    [Parameter]
+    public string? DerivedFrom { get; set; }
+
+    /// <summary>Optional meta hint shown beside the pill.</summary>
+    [Parameter]
+    public string? Hint { get; set; }
+
+    /// <summary>Editable control slot (input/select/textarea). Keeps caller-owned <c>@bind</c> intact.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Discovered-state override affordance; rendered only when a handler is wired.</summary>
+    [Parameter]
+    public EventCallback OnOverride { get; set; }
+
+    /// <summary>Discovered-state revert affordance; rendered only when a handler is wired.</summary>
+    [Parameter]
+    public EventCallback OnRevert { get; set; }
+
+    /// <summary>Disables the override/revert affordances (e.g. while a command is in flight).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private string StateSlug => State switch
+    {
+        FieldState.Discovered => "discovered",
+        FieldState.Calculated => "calculated",
+        FieldState.System => "system",
+        FieldState.Admin => "admin",
+        _ => "input",
+    };
+
+    private string PillSlug => State switch
+    {
+        FieldState.Discovered => "discover",
+        FieldState.Calculated => "calc",
+        FieldState.System => "system",
+        FieldState.Admin => "admin",
+        _ => "input",
+    };
+
+    private string PillLabel => State switch
+    {
+        FieldState.Discovered => "auto",
+        FieldState.Calculated => "derived",
+        FieldState.System => "system",
+        FieldState.Admin => "admin only",
+        _ => "input",
+    };
+
+    private string Icon => State switch
+    {
+        FieldState.Discovered => "\U0001F50D",
+        FieldState.Calculated => "\U0001F9EE",
+        FieldState.System => "⚙️",
+        FieldState.Admin => "\U0001F512",
+        _ => "✏️",
+    };
+}

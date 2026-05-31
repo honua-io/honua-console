@@ -6833,3 +6833,172 @@ p {
     margin: 0;
     font-size: 0.92rem;
 }
+
+/* ----- field-state vocabulary (design-handoff console-canvas/field-state.jsx) -----
+   A labelled field row carrying a state pill so operators learn one visual language for who owns a
+   value (input / discovered / calculated / system / admin) and whether it is editable. Re-expressed
+   against the --honua-* tokens with `console-field-state` BEM classes (not the wireframe's raw fs-*
+   palette). Rendered by Components/FieldStateRow.razor. */
+.console-field-state {
+    display: grid;
+    grid-template-columns: 22px minmax(140px, 200px) 1fr auto;
+    align-items: start;
+    column-gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--honua-surface-strong);
+    font-size: 0.9rem;
+}
+
+.console-field-state__icon {
+    text-align: center;
+    padding-top: 4px;
+    color: var(--honua-muted);
+    font-size: 0.85rem;
+}
+
+.console-field-state__label {
+    display: grid;
+    gap: 2px;
+    padding-top: 4px;
+}
+
+.console-field-state__label-text {
+    color: var(--honua-text);
+    font-weight: 600;
+}
+
+.console-field-state__sub {
+    color: var(--honua-muted);
+    font-weight: 400;
+    font-size: 0.78rem;
+}
+
+.console-field-state__value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.console-field-state__value .console-input {
+    width: 100%;
+}
+
+.console-field-state__readonly,
+.console-field-state__derived {
+    color: var(--honua-muted);
+}
+
+.console-field-state__derived-from {
+    color: var(--honua-muted);
+    font-size: 0.78rem;
+}
+
+/* Discovered values read as overridable: a dashed editable affordance. */
+.console-field-state--discovered .console-input {
+    border-style: dashed;
+    background: #f6fbf7;
+}
+
+/* Calculated / system / admin are not directly editable — mono / muted / italic display. */
+.console-field-state--calculated .console-field-state__value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+}
+
+.console-field-state--system .console-field-state__value {
+    color: var(--honua-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+}
+
+.console-field-state--admin .console-field-state__value {
+    color: var(--honua-muted);
+    font-style: italic;
+}
+
+.console-field-state__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 4px;
+    text-align: right;
+}
+
+.console-field-state__hint {
+    color: var(--honua-muted);
+    font-size: 0.78rem;
+}
+
+/* state pill */
+.console-field-state__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.66rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+    border: 1px solid var(--honua-border);
+    background: var(--honua-surface);
+    color: var(--honua-muted);
+}
+
+.console-field-state__pill--input {
+    color: var(--honua-text);
+    border-color: var(--honua-border);
+}
+
+.console-field-state__pill--discover {
+    color: var(--honua-accent-strong);
+    border-color: #8fcfa6;
+    background: #ecf7f0;
+}
+
+.console-field-state__pill--calc {
+    color: #1f3f87;
+    border-color: #aac1e8;
+    background: #eaf0fb;
+}
+
+.console-field-state__pill--system {
+    color: var(--honua-muted);
+    border-color: var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.console-field-state__pill--admin {
+    color: #8a5a04;
+    border-color: #e7c97a;
+    background: #fcf3df;
+}
+
+/* override / revert affordances on discovered rows */
+.console-field-state__action {
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.74rem;
+    text-decoration: underline dotted;
+    white-space: nowrap;
+}
+
+.console-field-state__action--override {
+    color: var(--honua-accent-strong);
+}
+
+.console-field-state__action--revert {
+    color: var(--honua-muted);
+}
+
+.console-field-state__action:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}

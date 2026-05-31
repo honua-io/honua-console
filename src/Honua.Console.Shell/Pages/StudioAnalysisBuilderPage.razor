@@ -273,66 +273,72 @@
                     <article class="console-panel">
                         <p class="console-kicker">Plan card</p>
                         <h3>Method</h3>
-                        <label class="studio-form-label">
-                            <span>Title</span>
+                        @if (plan.IsExistingPackage && !string.IsNullOrWhiteSpace(plan.AnalysisId))
+                        {
+                            <FieldStateRow State="FieldState.System" Label="Analysis id" Value="@plan.AnalysisId" Hint="@($"v{plan.Version}")" />
+                        }
+                        <FieldStateRow State="FieldState.Input" Label="Title">
                             <input class="console-input" @bind="plan.Title" placeholder="Hydrant proximity buffer" />
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Description</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Description">
                             <textarea class="console-input" rows="2" @bind="plan.Description"></textarea>
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Goal (analysis intent)</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Goal (analysis intent)">
                             <textarea class="console-input" rows="2" @bind="plan.Goal" placeholder="Find every parcel within 250m of a hydrant"></textarea>
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Method</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Method">
                             <select class="console-input" @bind="plan.Method">
                                 @foreach (var method in StudioAnalysisMethods.All)
                                 {
                                     <option value="@method">@method</option>
                                 }
                             </select>
-                        </label>
+                        </FieldStateRow>
                     </article>
 
                     <article class="console-panel">
                         <p class="console-kicker">Compute</p>
                         <h3>Profile and output</h3>
-                        <label class="studio-form-label">
-                            <span>Compute profile</span>
+                        <FieldStateRow State="FieldState.Input" Label="Compute profile">
                             <select class="console-input" @bind="plan.ComputeProfile">
                                 @foreach (var profile in StudioAnalysisComputeProfiles.All)
                                 {
                                     <option value="@profile">@profile</option>
                                 }
                             </select>
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Output becomes</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Output becomes">
                             <select class="console-input" @bind="plan.OutputContentType">
                                 @foreach (var contentType in StudioAnalysisOutputContentTypes.All)
                                 {
                                     <option value="@contentType">@contentType</option>
                                 }
                             </select>
-                        </label>
+                        </FieldStateRow>
 
                         @if (plan.Estimate is { } estimate)
                         {
-                            <dl class="console-definition-list" data-analysis-estimate="true">
-                                <dt>Estimated runtime</dt>
-                                <dd>@estimate.EstimatedRuntimeSeconds.ToString("0.#") s</dd>
-                                <dt>Estimated input features</dt>
-                                <dd>@estimate.EstimatedInputFeatures.ToString("N0")</dd>
-                                <dt>Compute profile</dt>
-                                <dd>@estimate.ComputeProfile</dd>
+                            <div data-analysis-estimate="true">
+                                <FieldStateRow State="FieldState.Calculated"
+                                               Label="Estimated runtime"
+                                               Value="@($"{estimate.EstimatedRuntimeSeconds.ToString("0.#")} s")"
+                                               DerivedFrom="method · inputs · profile" />
+                                <FieldStateRow State="FieldState.Calculated"
+                                               Label="Estimated input features"
+                                               Value="@estimate.EstimatedInputFeatures.ToString("N0")"
+                                               DerivedFrom="input bindings" />
+                                <FieldStateRow State="FieldState.Calculated"
+                                               Label="Compute profile"
+                                               Value="@estimate.ComputeProfile"
+                                               DerivedFrom="profile selection" />
                                 @if (!string.IsNullOrWhiteSpace(estimate.CostNote))
                                 {
-                                    <dt>Cost</dt>
-                                    <dd>@estimate.CostNote</dd>
+                                    <FieldStateRow State="FieldState.Calculated"
+                                                   Label="Cost"
+                                                   Value="@estimate.CostNote"
+                                                   DerivedFrom="runtime · profile" />
                                 }
-                            </dl>
+                            </div>
                         }
                         else
                         {
@@ -357,9 +363,15 @@
                         @foreach (var input in plan.Inputs)
                         {
                             <div class="studio-analysis-row" @key="input">
-                                <label class="studio-form-label"><span>Role</span><input class="console-input" @bind="input.Role" placeholder="primary" /></label>
-                                <label class="studio-form-label"><span>Service id</span><input class="console-input" @bind="input.ServiceId" placeholder="hydrants" /></label>
-                                <label class="studio-form-label"><span>Layer id</span><input class="console-input" type="number" @bind="input.LayerId" /></label>
+                                <FieldStateRow State="FieldState.Input" Label="Role">
+                                    <input class="console-input" @bind="input.Role" placeholder="primary" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Service id">
+                                    <input class="console-input" @bind="input.ServiceId" placeholder="hydrants" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Layer id">
+                                    <input class="console-input" type="number" @bind="input.LayerId" />
+                                </FieldStateRow>
                                 <div class="console-action-row">
                                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="() => RemoveInput(input)">Remove</button>
                                 </div>
@@ -384,8 +396,12 @@
                         @foreach (var parameter in plan.Parameters)
                         {
                             <div class="studio-analysis-row" @key="parameter">
-                                <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="parameter.Name" placeholder="distanceMeters" /></label>
-                                <label class="studio-form-label"><span>Value</span><input class="console-input" @bind="parameter.Value" placeholder="250" /></label>
+                                <FieldStateRow State="FieldState.Input" Label="Name">
+                                    <input class="console-input" @bind="parameter.Name" placeholder="distanceMeters" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Value">
+                                    <input class="console-input" @bind="parameter.Value" placeholder="250" />
+                                </FieldStateRow>
                                 <div class="console-action-row">
                                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="() => RemoveParameter(parameter)">Remove</button>
                                 </div>
@@ -410,16 +426,17 @@
                         @foreach (var field in plan.OutputSchema)
                         {
                             <div class="studio-analysis-row" @key="field">
-                                <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="field.Name" placeholder="buffer_distance" /></label>
-                                <label class="studio-form-label">
-                                    <span>Type</span>
+                                <FieldStateRow State="FieldState.Input" Label="Name">
+                                    <input class="console-input" @bind="field.Name" placeholder="buffer_distance" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Type">
                                     <select class="console-input" @bind="field.Type">
                                         @foreach (var type in StudioAnalysisFieldTypes.All)
                                         {
                                             <option value="@type">@type</option>
                                         }
                                     </select>
-                                </label>
+                                </FieldStateRow>
                                 <div class="console-action-row">
                                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="() => RemoveOutputField(field)">Remove</button>
                                 </div>

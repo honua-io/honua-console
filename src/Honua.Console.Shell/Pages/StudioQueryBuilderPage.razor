@@ -133,26 +133,25 @@
                     <article class="console-panel">
                         <p class="console-kicker">Source</p>
                         <h3>Source binding</h3>
-                        <label class="studio-form-label">
-                            <span>Title</span>
+                        @if (query.IsExistingQuery && !string.IsNullOrWhiteSpace(query.QueryId))
+                        {
+                            <FieldStateRow State="FieldState.System" Label="Query id" Value="@query.QueryId" Hint="@($"v{query.Version}")" />
+                        }
+                        <FieldStateRow State="FieldState.Input" Label="Title">
                             <input class="console-input" @bind="query.Title" placeholder="Flood-zone permits" />
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Description</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Description">
                             <textarea class="console-input" rows="2" @bind="query.Description"></textarea>
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Natural-language query</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Natural-language query">
                             <textarea class="console-input" rows="2" @bind="query.NaturalLanguageQuery" placeholder="Permits in flood zones issued after 2024"></textarea>
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Service name</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Service name">
                             <input class="console-input" @bind="query.ServiceName" placeholder="permits" />
-                        </label>
-                        <label class="studio-form-label">
-                            <span>Layer id</span>
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Layer id">
                             <input class="console-input" type="number" @bind="query.LayerId" />
-                        </label>
+                        </FieldStateRow>
                     </article>
 
                     <article class="console-panel">
@@ -299,8 +298,12 @@
                     @foreach (var parameter in query.Parameters)
                     {
                         <div class="console-panel-grid" @key="parameter">
-                            <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="parameter.Name" placeholder="minYear" /></label>
-                            <label class="studio-form-label"><span>Value</span><input class="console-input" @bind="parameter.Value" placeholder="2024" /></label>
+                            <FieldStateRow State="FieldState.Input" Label="Name">
+                                <input class="console-input" @bind="parameter.Name" placeholder="minYear" />
+                            </FieldStateRow>
+                            <FieldStateRow State="FieldState.Input" Label="Value">
+                                <input class="console-input" @bind="parameter.Value" placeholder="2024" />
+                            </FieldStateRow>
                             <div class="console-action-row">
                                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemoveParameter(parameter)">Remove</button>
                             </div>
