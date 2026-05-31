@@ -897,6 +897,21 @@ from `/api/v1/admin/observability/logs`, and Studio, publishing, GitOps,
 temporal, alert delivery, import, and maintenance jobs all use
 `/operate/jobs/:jobRunId` as the detail URL.
 
+`OperateObservabilityPage` is the **sole** routable owner of
+`/operate/jobs/:jobRunId` (and of `/operate/observability`,
+`/operate/events/:eventId`, and `/operate/alerts/:alertId`). The workflow
+"Workflow Job Monitor" job-evidence surface is **not** a second component
+on this template — that historical duplicate (`OperateJobPage`) terminated
+the interactive circuit with an ambiguous-route exception. Its
+`IStudioWorkflowPackageClient`-bound evidence (status/logs/artifacts/event
+evidence + the honua-server#1185 missing-binding state) is preserved as the
+non-routable `OperateWorkflowJobEvidencePanel`, which the unified job-run
+detail renders for the deep-linked job id. A `ShellRouteUniquenessTests`
+guard in `tests/Honua.Console.IntegrationTests` enumerates every routable
+component's `@page`/`[Route]` template and fails if any template is owned by
+more than one component, so the combined-route-table ambiguity (which bUnit
+render tests cannot observe) is caught in unit CI.
+
 Workflow publish results reuse `/operate/jobs/:jobRunId` and
 `/operate/events?jobId=<id>` as evidence views only when the server returns a
 `jobId`, not workflow-run ids or workflow editors. They may be opened from a

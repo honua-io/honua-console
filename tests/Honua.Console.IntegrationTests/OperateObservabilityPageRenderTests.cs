@@ -72,6 +72,9 @@ public sealed class OperateObservabilityPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(stub);
+        // The unified job-run deep link also embeds the workflow job-evidence panel, which binds
+        // IStudioWorkflowPackageClient. The unsupported client returns null evidence (missing-binding).
+        ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
 
         var page = ctx.RenderComponent<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedJobRunId, "job-deep-001"));
@@ -103,6 +106,7 @@ public sealed class OperateObservabilityPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(stub);
+        ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
 
         var page = ctx.RenderComponent<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedJobRunId, "job-deep-002"));

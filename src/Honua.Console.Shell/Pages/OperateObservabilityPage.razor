@@ -687,6 +687,18 @@
                         <JobDetailPanel Job="_selectedJob.Value" />
                     }
                 }
+
+                @* The unified /operate/jobs/{jobRunId} deep link also surfaces server-owned
+                   workflow job evidence (the former "Workflow Job Monitor"). This is the single
+                   owner of the route (docs/console-route-map.md §1/§6.5): the non-routable
+                   OperateWorkflowJobEvidencePanel renders the workflow status/logs/artifacts/event
+                   evidence for the deep-linked job id, bound to IStudioWorkflowPackageClient. With
+                   a live server it renders the missing-binding state (honua-server#1185 exposes no
+                   workflow job-evidence read); the in-memory demo adapter renders evidence inline. *@
+                @if (!string.IsNullOrWhiteSpace(SelectedJobRunId))
+                {
+                    <OperateWorkflowJobEvidencePanel JobId="@SelectedJobRunId" />
+                }
             </div>
         }
     </section>
