@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -87,6 +88,47 @@ public sealed class StudioPageRenderTests
         Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void StudioPage_ClientSideNavFromHomeToProofWithPrompt_SeedsAuthoringShell()
+    {
+        // Regression for the same-component client-side nav bug: routing from /studio to
+        // /studio/proof?prompt=... reuses this StudioPage instance, so OnInitializedAsync does NOT re-run.
+        // The seeded prompt must still be applied (now via OnParametersSetAsync) instead of leaving the
+        // authoring shell on its default prompt.
+        var shell = new ControllableStudioAuthoringShell();
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
+        // The /studio home landing renders <StudioHome />, which binds recent projects to the catalog.
+        ctx.Services.AddSingleton<IConsoleCatalogClient>(new EmptyCatalogClient());
+        ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new AuthenticatedReadContextResolver());
+
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        nav.NavigateTo("studio");
+
+        // First render lands on the home landing (no authoring session is read there).
+        var page = ctx.RenderComponent<StudioPage>();
+
+        // Same-component client-side navigation into the inline authoring shell with a seeded prompt.
+        const string seededPrompt = "Map flood risk near hospitals";
+        nav.NavigateTo($"studio/proof?prompt={Uri.EscapeDataString(seededPrompt)}");
+
+        var bound = StudioAuthoringSession.Empty with
+        {
+            Workflows = [new StudioWorkflowOption("map.package", "Map", "map.package", "Generated map", "1.0", SupportLevel: "Supported", PreviewSupported: true, PublishSupported: true)],
+            SelectedWorkflowId = "map.package",
+        };
+        shell.CompleteInitialSession(bound);
+
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.Contains("data-authoring-contract", page.Markup, StringComparison.Ordinal);
+                // The seeded prompt is bound into the authoring shell prompt textarea.
+                Assert.Equal(seededPrompt, page.Find("#studio-prompt").GetAttribute("value"));
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioPage> page, string label) =>
         page.FindAll("button").Single(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -165,5 +207,32 @@ public sealed class StudioPageRenderTests
 
         public Task<StudioAuthoringSession> PublishAsync(StudioAuthoringSession session, CancellationToken cancellationToken = default) =>
             Task.FromResult(session);
+    }
+
+    private sealed class AuthenticatedReadContextResolver : IConsoleCatalogReadContextResolver
+    {
+        public Task<CatalogReadContext> ResolveAsync(string? publicLinkToken, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CatalogReadContext.Authenticated);
+    }
+
+    private sealed class EmptyCatalogClient : IConsoleCatalogClient
+    {
+        public Task<CatalogSearchResult> SearchAsync(CatalogListRequest request, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CatalogSearchResult([], new Dictionary<string, int>(StringComparer.Ordinal), request));
+
+        public Task<CatalogItemReadResult> GetCatalogItemAsync(string idOrSlug, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<CatalogItemReadResult> GetOpenDataItemAsync(string idOrSlug, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MapPackageReadResult> GetMapPackageAsync(string mapId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MapPackageReadResult> GetDraftMapAsync(string sourceItemId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<MapPackageReadResult> AuthorizeEmbedAsync(string mapId, EmbedRouteOptions options, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

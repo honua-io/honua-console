@@ -357,8 +357,14 @@ else
         _session.Draft?.CurrentVersionId is not null
         || _session.ActivePackage.LifecycleState != StudioPackageLifecycleState.Draft;
 
-    protected override async Task OnInitializedAsync()
+    private bool _authoringSessionLoaded;
+    private string? _seededPromptValue;
+
+    protected override async Task OnParametersSetAsync()
     {
+        // Route- and query-dependent initialization lives here (not OnInitializedAsync) because a
+        // client-side nav from /studio to /studio/proof?prompt=... reuses this same StudioPage instance,
+        // so OnInitializedAsync does not run again; only OnParametersSetAsync sees the new route/query.
         // The home landing renders <StudioHome /> and never reads the authoring shell session.
         if (IsHome)
         {
@@ -366,12 +372,21 @@ else
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(SeedPrompt))
+        // Apply the seeded prompt whenever the ?prompt= value actually changes (including the first
+        // navigation into the authoring shell), guarding so re-renders with the same value are a no-op.
+        if (!string.IsNullOrWhiteSpace(SeedPrompt) && !string.Equals(SeedPrompt, _seededPromptValue, StringComparison.Ordinal))
         {
             _prompt = SeedPrompt.Trim();
+            _seededPromptValue = SeedPrompt;
         }
 
-        _session = await AuthoringShell.CreateInitialSessionAsync();
+        // Create the server-backed session once for the lifetime of this authoring-shell instance.
+        if (!_authoringSessionLoaded)
+        {
+            _authoringSessionLoaded = true;
+            _session = await AuthoringShell.CreateInitialSessionAsync();
+        }
+
         _loading = false;
     }
 
