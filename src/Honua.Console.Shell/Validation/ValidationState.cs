@@ -27,6 +27,14 @@ public sealed class ValidationState
     /// </summary>
     public bool HasBlockingErrors => All.Any(error => error.IsBlocking);
 
+    /// <summary>
+    /// True when a <em>client-computed</em> finding blocks the operation. Use this (not
+    /// <see cref="HasBlockingErrors"/>) to gate a re-save: the client channel is recomputed on every edit and
+    /// always reflects the current state, whereas the server channel can hold stale findings from the last
+    /// validation — blocking save on those would deadlock a draft whose server issues the operator is fixing.
+    /// </summary>
+    public bool HasBlockingClientErrors => _clientErrors.Any(error => error.IsBlocking);
+
     /// <summary>Replaces the client-computed channel (e.g. after re-running the editor's validator on edit).</summary>
     public void SetClientErrors(IReadOnlyList<ConsoleFieldError>? errors) =>
         _clientErrors = errors ?? Array.Empty<ConsoleFieldError>();

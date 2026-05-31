@@ -28,6 +28,24 @@ public sealed class ValidationStateTests
     }
 
     [Fact]
+    public void HasBlockingClientErrors_IgnoresServerChannel()
+    {
+        var state = new ValidationState();
+        // A stale server blocker must NOT count toward the client-blocking save gate.
+        state.SetServerErrors([Server("form.serviceId")]);
+
+        Assert.True(state.HasBlockingErrors);
+        Assert.False(state.HasBlockingClientErrors);
+
+        // A client blocker does flip it; clearing the client channel clears it again.
+        state.SetClientErrors([Client("form.title", ConsoleValidationSeverity.Blocker)]);
+        Assert.True(state.HasBlockingClientErrors);
+
+        state.SetClientErrors([Client("form.title", ConsoleValidationSeverity.Warning)]);
+        Assert.False(state.HasBlockingClientErrors);
+    }
+
+    [Fact]
     public void MergesClientAndServerKeyedByFieldKey()
     {
         var state = new ValidationState();

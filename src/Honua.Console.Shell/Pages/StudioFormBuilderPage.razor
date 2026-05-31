@@ -114,7 +114,7 @@
 
                 <div class="console-action-row">
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to forms</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingErrors)" @onclick="Save">Save draft</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished || hasUnsavedEdits)" @onclick="Validate">Validate</button>
                     <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
                     @if (editor.IsPublished)
@@ -128,7 +128,7 @@
                     <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
                 }
 
-                @if (_validation.HasBlockingErrors)
+                @if (_validation.HasBlockingClientErrors)
                 {
                     <article class="console-panel" aria-labelledby="form-validation-blocking-heading" data-validation-summary="blocking">
                         <p class="console-kicker">Validation</p>
@@ -421,6 +421,12 @@
     {
         _dirty.MarkDirty();
         RecomputeClientErrors();
+
+        // An edit invalidates the last server validation (the page already treats LastValidation as stale once
+        // there are unsaved edits), so drop the now-stale server findings. Keeping them would wrongly keep Save
+        // gated even after the operator fixes a server-reported issue — and Validate is itself disabled while
+        // edits are unsaved, which would otherwise deadlock the draft. The next save/validate rebinds fresh ones.
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
     }
 
     private void RecomputeClientErrors() =>

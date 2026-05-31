@@ -90,6 +90,34 @@ public sealed class StudioFormBuilderValidationRenderTests
     }
 
     [Fact]
+    public void ServerBlockingFinding_DoesNotGateSave_AndEditingClearsTheStaleAnnotation()
+    {
+        using var ctx = NewContext();
+        var editor = ReadyEditor();
+        // The last server validation reported a blocking finding on a field. The operator must still be able to
+        // re-save after fixing it (Validate is disabled while edits are unsaved), so server findings never gate Save.
+        editor.LastValidation = new StudioFormValidationView(false,
+            [new StudioFormValidationItem("blocker", "fieldIdDuplicate", "asset_id", "Server duplicate id")]);
+        var data = new FakeFormDataSource { EditorLoad = new StudioFormEditorLoad(editor, []) };
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+
+        var page = OpenEditor(ctx, data);
+
+        // The server finding surfaces inline, but Save stays enabled (no client blocker).
+        page.WaitForAssertion(
+            () => Assert.Contains("Server duplicate id", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.False(FindButton(page, "Save draft").HasAttribute("disabled"));
+
+        // Editing invalidates the stale server validation; the annotation is dropped.
+        page.Find("input[placeholder='Field inspection form']").Change("Hydrant inspection v2");
+        page.WaitForAssertion(
+            () => Assert.DoesNotContain("Server duplicate id", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.False(FindButton(page, "Save draft").HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void Editing_MarksDirty_GuardsNavigation_AndSaveClearsIt()
     {
         using var ctx = NewContext();
