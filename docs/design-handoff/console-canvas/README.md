@@ -25,7 +25,6 @@ Visual primitives:
 2. This file (`README.md`) — the artboard index
 3. `field-state.jsx` and `shell.jsx` — the shared primitives
 4. Pick a section file based on what you need to extend
-5. For implementation planning, use the [Design Artifact Work Breakdown Matrix](../../roadmap/DESIGN_ARTIFACT_WORK_BREAKDOWN.md) before filing child work
 
 ---
 

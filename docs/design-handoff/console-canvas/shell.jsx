@@ -36,7 +36,7 @@ function Sidebar({ active }) {
           width:22,height:22,border:'1.5px solid #141414',borderRadius:5,
           display:'grid',placeItems:'center',fontWeight:700,fontSize:11,background:'#ffe55c'
         }}>H</div>
-        <div style={{fontWeight:700,fontSize:12,letterSpacing:'0.01em'}}>Honua Console</div>
+        <div style={{fontWeight:700,fontSize:12,letterSpacing:'0.01em'}}>Honua Admin</div>
       </div>
       <div style={{height:1, background:'#e4e4e4', margin:'6px 0'}} />
       {NAV.map((g, gi) => (
