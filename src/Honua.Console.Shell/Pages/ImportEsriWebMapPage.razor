@@ -28,7 +28,9 @@
     <EsriImportIntake Noun="Web Map"
                       Result="_result"
                       Parse="ParseWebMap"
-                      OnParsed="OnParsed" />
+                      OnParsed="OnParsed"
+                      SampleJson="@EsriImportSampleDocuments.WebMap"
+                      SampleFileName="@EsriImportSampleDocuments.WebMapFileName" />
 
     @if (_result is { } result)
     {
@@ -104,16 +106,6 @@
 
     private EsriConversionResult? _result;
     private PublishingMissingBinding? _publishBinding;
-
-    protected override void OnInitialized()
-    {
-        // Parse the bundled sample so the surface opens populated; replacing it re-parses through the same path.
-        var outcome = Parser.ParseWebMap(EsriImportSampleDocuments.WebMap, EsriImportSampleDocuments.WebMapFileName);
-        if (outcome.Succeeded)
-        {
-            _result = outcome.Result;
-        }
-    }
 
     private static EsriParseOutcome ParseWebMap(string json, string? fileName) => Parser.ParseWebMap(json, fileName);
 

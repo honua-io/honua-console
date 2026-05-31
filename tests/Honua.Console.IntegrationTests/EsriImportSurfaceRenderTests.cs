@@ -100,6 +100,13 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("From URL / item ID", page.Markup, StringComparison.Ordinal);
         Assert.Contains("From connected ArcGIS", page.Markup, StringComparison.Ordinal);
 
+        // Default state is the empty intake — no preloaded sample masquerading as the user's import.
+        Assert.DoesNotContain("Layer mapping", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Paste or upload a Web Map JSON", page.Markup, StringComparison.Ordinal);
+
+        // Loading the sample parses it through the real parser and populates the surface.
+        page.Find("[data-intake-sample]").Click();
+
         // Mapping table + target preview + schema.
         Assert.Contains("Layer mapping", page.Markup, StringComparison.Ordinal);
         Assert.Contains("honua.map-package.v1", page.Markup, StringComparison.Ordinal);
@@ -114,12 +121,30 @@ public sealed class EsriImportSurfaceRenderTests
     }
 
     [Fact]
+    public void WebMapPage_DefaultState_IsEmptyIntake_NoPreloadedSampleAsUserContent()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+
+        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+
+        // The bundled sample must not auto-populate as if it were the user's own import.
+        Assert.Contains("Paste or upload a Web Map JSON", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Layer mapping", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-esri-binding-banner]"));
+        // The Create CTA is disabled until something is parsed.
+        var create = page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create map package", StringComparison.Ordinal));
+        Assert.True(create.HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void WebMapPage_CreatePackage_WhenPublishUnbound_RendersMissingBinding()
     {
         using var ctx = NewContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
 
         var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        page.Find("[data-intake-sample]").Click();
         page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create map package", StringComparison.Ordinal)).Click();
 
         page.WaitForAssertion(
@@ -135,6 +160,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
 
         var page = ctx.RenderComponent<ImportEsriDashboardPage>();
+        page.Find("[data-intake-sample]").Click();
 
         Assert.Contains("Element → widget mapping", page.Markup, StringComparison.Ordinal);
         Assert.Contains("KPI", page.Markup, StringComparison.Ordinal);
@@ -152,6 +178,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
 
         var page = ctx.RenderComponent<ImportStoryMapPage>();
+        page.Find("[data-intake-sample]").Click();
 
         Assert.Contains("Section → content mapping", page.Markup, StringComparison.Ordinal);
         // Swipe / sidecar degrade, external embed drops.

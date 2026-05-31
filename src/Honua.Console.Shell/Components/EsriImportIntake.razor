@@ -44,6 +44,10 @@
                       @bind:event="oninput"></textarea>
             <div class="console-button-row">
                 <button type="button" class="console-button console-button-sm" @onclick="ParsePaste">Parse JSON</button>
+                @if (!string.IsNullOrWhiteSpace(SampleJson))
+                {
+                    <button type="button" class="console-button-ghost console-button-sm" data-intake-sample @onclick="LoadSample">Load a sample</button>
+                }
                 @if (!string.IsNullOrWhiteSpace(_error))
                 {
                     <span class="console-status console-state-danger" data-intake-error>@_error</span>
@@ -117,7 +121,30 @@
     [Parameter]
     public EventCallback<EsriConversionResult> OnParsed { get; set; }
 
+    /// <summary>
+    /// Optional illustrative sample document. When set, a "Load a sample" action parses it through the same
+    /// parser on an explicit user click — the page never auto-populates with the sample, so the default
+    /// state is the empty intake (the sample is not presented as the user's own import).
+    /// </summary>
+    [Parameter]
+    public string? SampleJson { get; set; }
+
+    /// <summary>Optional file label used when loading the sample.</summary>
+    [Parameter]
+    public string? SampleFileName { get; set; }
+
     private string PastePlaceholder => $"Paste the {Noun} JSON here…";
+
+    private async Task LoadSample()
+    {
+        if (string.IsNullOrWhiteSpace(SampleJson))
+        {
+            return;
+        }
+
+        _pasteValue = SampleJson;
+        await ApplyOutcome(Parse(SampleJson, SampleFileName));
+    }
 
     private void SetMode(string mode)
     {

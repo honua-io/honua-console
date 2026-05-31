@@ -25,7 +25,9 @@
     <EsriImportIntake Noun="StoryMap"
                       Result="_result"
                       Parse="ParseStoryMap"
-                      OnParsed="OnParsed" />
+                      OnParsed="OnParsed"
+                      SampleJson="@EsriImportSampleDocuments.StoryMap"
+                      SampleFileName="@EsriImportSampleDocuments.StoryMapFileName" />
 
     @if (_result is { } result)
     {
@@ -83,15 +85,6 @@
     private EsriConversionResult? _result;
 
     private int LinkedMaps => _result?.Rows.Count(r => r.SourceType.Contains("map", StringComparison.OrdinalIgnoreCase)) ?? 0;
-
-    protected override void OnInitialized()
-    {
-        var outcome = Parser.ParseStoryMap(EsriImportSampleDocuments.StoryMap, EsriImportSampleDocuments.StoryMapFileName);
-        if (outcome.Succeeded)
-        {
-            _result = outcome.Result;
-        }
-    }
 
     private static EsriParseOutcome ParseStoryMap(string json, string? sourceLabel) => Parser.ParseStoryMap(json, sourceLabel);
 

@@ -26,7 +26,9 @@
     <EsriImportIntake Noun="Dashboard"
                       Result="_result"
                       Parse="ParseDashboard"
-                      OnParsed="OnParsed" />
+                      OnParsed="OnParsed"
+                      SampleJson="@EsriImportSampleDocuments.Dashboard"
+                      SampleFileName="@EsriImportSampleDocuments.DashboardFileName" />
 
     @if (_result is { } result)
     {
@@ -84,15 +86,6 @@
     private static readonly EsriContentImportParser Parser = new();
 
     private EsriConversionResult? _result;
-
-    protected override void OnInitialized()
-    {
-        var outcome = Parser.ParseDashboard(EsriImportSampleDocuments.Dashboard, EsriImportSampleDocuments.DashboardFileName);
-        if (outcome.Succeeded)
-        {
-            _result = outcome.Result;
-        }
-    }
 
     private static EsriParseOutcome ParseDashboard(string json, string? fileName) => Parser.ParseDashboard(json, fileName);
 
