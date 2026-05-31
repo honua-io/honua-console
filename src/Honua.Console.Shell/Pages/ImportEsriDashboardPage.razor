@@ -1,0 +1,93 @@
+@page "/operate/import/esri/dashboard"
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+
+@* #101 · Import Esri Dashboard JSON → dashboard package (screens-import-esri.jsx ImportEsriDashboard).
+   Dashboard JSON intake → element inventory → element → widget mapping grid with supported/unsupported
+   callouts, target layout preview, "Create dashboard package →" CTA. The Esri-JSON parse is deterministic
+   Console-side work. *@
+
+<section class="console-page esri-import" data-esri-import="dashboard">
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri <span class="console-crumb-sep">/</span> Dashboard</p>
+            <h1>Import Esri Dashboard</h1>
+            <p class="console-muted">
+                Convert an ArcGIS Dashboard JSON into a Honua dashboard package. Element-by-element support is
+                shown before commit.
+            </p>
+        </div>
+        <div class="console-button-row">
+            <a class="console-button-ghost" href="/operate/import/esri">Discard</a>
+            <a class="console-button" href="/operate/publishing">Create dashboard package →</a>
+        </div>
+    </div>
+
+    <EsriImportIntake Noun="Dashboard"
+                      Result="_result"
+                      Parse="ParseDashboard"
+                      OnParsed="OnParsed"
+                      SampleJson="@EsriImportSampleDocuments.Dashboard"
+                      SampleFileName="@EsriImportSampleDocuments.DashboardFileName" />
+
+    @if (_result is { } result)
+    {
+        <div class="esri-import__split">
+            <div class="esri-import__mapping">
+                <SourceTargetMappingTable Rows="result.Rows"
+                                          Heading="Element → widget mapping"
+                                          Subhead="Esri dashboard element → Honua dashboard widget"
+                                          SourceHeader="Esri element"
+                                          SourceTypeHeader="Kind"
+                                          TargetHeader="→ Honua widget"
+                                          BoundHeader="Data"
+                                          ShowBoundColumn="true" />
+            </div>
+
+            <aside class="esri-import__preview" data-esri-target-preview>
+                <div class="esri-import__preview-head">
+                    <span class="console-kicker">Target layout</span>
+                </div>
+                <div class="esri-dashboard-preview" aria-label="Approximated dashboard layout">
+                    <div class="esri-dashboard-preview__title">@result.SuggestedName</div>
+                    <div class="esri-dashboard-preview__row esri-dashboard-preview__row--kpi">
+                        <span>KPI</span><span>KPI</span><span>radial</span>
+                    </div>
+                    <div class="esri-dashboard-preview__row esri-dashboard-preview__row--split">
+                        <span class="esri-dashboard-preview__chart">area chart</span>
+                        <span class="esri-dashboard-preview__chart">map</span>
+                    </div>
+                    <div class="esri-dashboard-preview__row">
+                        <span class="esri-dashboard-preview__table">table</span>
+                    </div>
+                </div>
+                <dl class="esri-import__facts">
+                    <dt>Name</dt>
+                    <dd><code>@result.SuggestedName</code></dd>
+                    <dt>Widgets in</dt>
+                    <dd>@result.MappedCount of @result.Rows.Count (@result.DropCount dropped)</dd>
+                </dl>
+                <p class="esri-callout esri-callout--info">
+                    Layout approximated from the Esri grid. Re-arrange in Studio after import.
+                </p>
+            </aside>
+        </div>
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Import from Esri"
+                          Title="Paste or upload a Dashboard JSON"
+                          Message="Choose an intake mode above to convert an ArcGIS Dashboard into a dashboard-package preview." />
+    }
+</section>
+
+@code {
+    private static readonly EsriContentImportParser Parser = new();
+
+    private EsriConversionResult? _result;
+
+    private static EsriParseOutcome ParseDashboard(string json, string? fileName) => Parser.ParseDashboard(json, fileName);
+
+    private void OnParsed(EsriConversionResult result) => _result = result;
+}

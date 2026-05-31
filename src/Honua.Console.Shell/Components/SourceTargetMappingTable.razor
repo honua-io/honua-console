@@ -1,0 +1,175 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Shared source -> target mapping table reused across all four Esri content-import surfaces
+    (#100 layer mapping, #101 element->widget grid, #104 section->block mapping, #102 wizard Map step).
+
+    Every row makes the Esri thing -> Honua thing explicit, carries a per-row FidelityBadge, and names the
+    reason for any degrade/drop/binding in the adjacent note column (the design-handoff convention). The
+    SourceTypeHeader / TargetHeader labels are surface-specific; the structure, fidelity badge, and the
+    degrade/drop/binding row-state styling are shared. A "show: all / issues only" filter chip pair mirrors
+    the mockups' FiltChip.
+*@
+<div class="esri-mapping" data-esri-mapping>
+    <div class="esri-mapping__head">
+        <div class="esri-mapping__heading">
+            <h3>@Heading</h3>
+            @if (!string.IsNullOrWhiteSpace(Subhead))
+            {
+                <span class="console-muted esri-mapping__subhead">@Subhead</span>
+            }
+        </div>
+        <div class="esri-mapping__filters console-chip-row">
+            <button type="button"
+                    class="esri-mapping__filter @(IssuesOnly ? string.Empty : "esri-mapping__filter--on")"
+                    aria-pressed="@(!IssuesOnly)"
+                    @onclick="ShowAll">
+                show: all
+            </button>
+            <button type="button"
+                    class="esri-mapping__filter @(IssuesOnly ? "esri-mapping__filter--on" : string.Empty)"
+                    aria-pressed="@IssuesOnly"
+                    @onclick="ShowIssuesOnly">
+                issues only
+            </button>
+        </div>
+    </div>
+
+    <div class="console-table-wrap">
+        <table class="console-table esri-mapping__table" data-esri-mapping-table>
+            <thead>
+                <tr>
+                    <th scope="col" class="esri-mapping__check"><span class="console-muted">incl</span></th>
+                    <th scope="col">@SourceHeader</th>
+                    <th scope="col">@SourceTypeHeader</th>
+                    <th scope="col">@TargetHeader</th>
+                    @if (ShowBoundColumn)
+                    {
+                        <th scope="col">@BoundHeader</th>
+                    }
+                    <th scope="col">Fidelity</th>
+                    <th scope="col">Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in VisibleRows)
+                {
+                    <tr class="esri-mapping__row esri-mapping__row--@Slug(row.Fidelity)"
+                        data-fidelity="@Slug(row.Fidelity)">
+                        <td class="esri-mapping__check">
+                            <input type="checkbox" checked="@row.Included" disabled aria-label="@($"Include {row.SourceName}")" />
+                        </td>
+                        <td><strong>@row.SourceName</strong></td>
+                        <td>@row.SourceType</td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(row.TargetName))
+                            {
+                                <span class="console-muted">—</span>
+                            }
+                            else
+                            {
+                                <code class="esri-mapping__target">@row.TargetName</code>
+                            }
+                        </td>
+                        @if (ShowBoundColumn)
+                        {
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(row.BoundResource))
+                                {
+                                    <span class="console-muted">— no match —</span>
+                                }
+                                else
+                                {
+                                    <span class="esri-mapping__bound">◇ @row.BoundResource</span>
+                                }
+                            </td>
+                        }
+                        <td><FidelityBadge Fidelity="row.Fidelity" /></td>
+                        <td class="@(row.Fidelity == ImportFidelity.Clean ? "console-muted" : "esri-mapping__note")">@row.Note</td>
+                    </tr>
+                }
+                @if (VisibleRows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="@ColumnCount" class="console-muted esri-mapping__empty">No rows match this filter.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (CarryOver.Count > 0)
+    {
+        <div class="esri-mapping__carryover" data-esri-carryover>
+            <span class="console-muted">Also carried over:</span>
+            @foreach (var item in CarryOver)
+            {
+                <span class="console-type-tag @(item.Carried ? "esri-carryover--in" : "esri-carryover--out")">
+                    @item.Label @(item.Carried ? "✓" : "·")
+                </span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlyList<EsriMappingRow> NoRows = [];
+    private static readonly IReadOnlyList<EsriCarryOver> NoCarryOver = [];
+
+    /// <summary>The mapping rows to render.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<EsriMappingRow> Rows { get; set; } = NoRows;
+
+    /// <summary>Table heading (e.g. "Layer mapping", "Element → widget mapping").</summary>
+    [Parameter]
+    public string Heading { get; set; } = "Mapping";
+
+    /// <summary>Optional sub-heading describing the source -> target direction.</summary>
+    [Parameter]
+    public string? Subhead { get; set; }
+
+    /// <summary>Column header for the source-name column.</summary>
+    [Parameter]
+    public string SourceHeader { get; set; } = "Esri item";
+
+    /// <summary>Column header for the source-type column.</summary>
+    [Parameter]
+    public string SourceTypeHeader { get; set; } = "Type";
+
+    /// <summary>Column header for the target column.</summary>
+    [Parameter]
+    public string TargetHeader { get; set; } = "→ Honua";
+
+    /// <summary>Column header for the bound-resource column (when shown).</summary>
+    [Parameter]
+    public string BoundHeader { get; set; } = "Bound resource";
+
+    /// <summary>Whether to render the bound-resource column (the #100 layer table shows it).</summary>
+    [Parameter]
+    public bool ShowBoundColumn { get; set; }
+
+    /// <summary>Optional carried-over artifact chips rendered below the table.</summary>
+    [Parameter]
+    public IReadOnlyList<EsriCarryOver> CarryOver { get; set; } = NoCarryOver;
+
+    private bool IssuesOnly { get; set; }
+
+    private IReadOnlyList<EsriMappingRow> VisibleRows =>
+        IssuesOnly ? Rows.Where(r => r.Fidelity != ImportFidelity.Clean).ToList() : Rows;
+
+    private int ColumnCount => ShowBoundColumn ? 7 : 6;
+
+    private void ShowAll() => IssuesOnly = false;
+
+    private void ShowIssuesOnly() => IssuesOnly = true;
+
+    private static string Slug(ImportFidelity fidelity) => fidelity switch
+    {
+        ImportFidelity.Clean => "clean",
+        ImportFidelity.Degrade => "degrade",
+        ImportFidelity.Drop => "drop",
+        ImportFidelity.Manual => "manual",
+        _ => "unknown",
+    };
+}

@@ -101,6 +101,10 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/environments/:id      Environment detail (drift, fleet tasks)
 /operate/temporal              Temporal data viewer (capability-gated)
 /operate/sync                  Disconnected sync conflict review (capability-gated)
+/operate/import/esri           Import-from-Esri wizard (#102): Source → Select content → Map → Run → Scorecard (?step=0..4). REUSES PublishWizard. Map step shows deterministic per-item conversion fidelity; Run + Scorecard bind the honua-devops migration-run API, else the missing-binding state (Console Patterns Charter §11). Content imports — DISTINCT from the data-layer→PostGIS importer.
+/operate/import/esri/web-map   Import Esri Web Map JSON → honua.map-package.v1 (#100): paste/upload/URL/connected-ArcGIS intake, layer→layer mapping with per-layer fidelity badge, MapPreview target, Create map package CTA → /operate/publishing, inline missing-binding banner when a layer has no resource
+/operate/import/esri/dashboard Import Esri Dashboard JSON → dashboard package (#101): element→widget mapping grid with supported/unsupported callouts, target layout preview, create CTA
+/operate/import/esri/storymap  Import StoryMap / Hub → report content (#104, P4): section→content-block mapping with fidelity badges, target content preview, create CTA
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
 /operate/events                Event evidence view (?jobId=<id>)
