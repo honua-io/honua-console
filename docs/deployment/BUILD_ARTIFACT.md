@@ -71,7 +71,11 @@ for artifact inspection before deployment.
 
 The web host sources `areas` from `ConsoleRouteMap`. The metadata writer reads
 `config/console-areas.json`, and the .NET test suite verifies both registries
-stay aligned.
+stay aligned. `ConsoleBuildMetadataTests` additionally exercises the served
+`/version.json` payload directly: it asserts the contract keys, the
+`HONUA_CONSOLE_LEGACY_*` Portal/Admin status gates (defaulting to `active`),
+the commit/short-commit/ref gates, and that the served `areas` match the same
+`config/console-areas.json` registry the standalone writer consumes.
 
 Promotion-time tooling can re-stamp the artifact metadata without rebuilding:
 

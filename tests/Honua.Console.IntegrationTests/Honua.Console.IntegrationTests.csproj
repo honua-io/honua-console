@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\Honua.Console.Contracts\Honua.Console.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Honua.Console.Native.Core\Honua.Console.Native.Core.csproj" />
     <ProjectReference Include="..\..\src\Honua.Console.Shell\Honua.Console.Shell.csproj" />
+    <ProjectReference Include="..\..\src\Honua.Console.Web\Honua.Console.Web.csproj" />
   </ItemGroup>
 
 </Project>
