@@ -80,6 +80,12 @@ public sealed class ConsoleGitOpsReleaseClientTests
         Assert.NotNull(detail.Operation.RollbackPlan);
         Assert.True(detail.Operation.RollbackPlan!.IsDataAffecting);
 
+        // Data scripts are bound from the package with their rollback coverage.
+        Assert.Equal(2, detail.Scripts.Count);
+        Assert.Contains(detail.Scripts, s => s.FileName == "001_add_parcels_index.sql" && s.Coverage == GitOpsDataScriptCoverage.Covered);
+        Assert.Contains(detail.Scripts, s => s.FileName == "002_drop_zoning_code.sql" && s.Coverage == GitOpsDataScriptCoverage.NoRollback);
+        Assert.True(detail.HasDataScriptCoverageGap);
+
         // X-API-Key admin auth is attached to every request.
         Assert.NotEmpty(handler.Requests);
         Assert.All(handler.Requests, request =>
@@ -214,6 +220,21 @@ public sealed class ConsoleGitOpsReleaseClientTests
         CreatedBy = "operator.live",
         CreatedAt = DateTimeOffset.Parse("2026-05-24T19:00:00Z"),
         UpdatedAt = DateTimeOffset.Parse("2026-05-24T19:30:00Z"),
+        DataScripts =
+        [
+            new MetadataReleaseDataScriptResponse
+            {
+                ScriptId = "001",
+                FileName = "001_add_parcels_index.sql",
+                Coverage = "covered"
+            },
+            new MetadataReleaseDataScriptResponse
+            {
+                ScriptId = "002",
+                FileName = "002_drop_zoning_code.sql",
+                Coverage = "no-rollback"
+            }
+        ],
         Entries =
         [
             new MetadataReleaseEntryResponse

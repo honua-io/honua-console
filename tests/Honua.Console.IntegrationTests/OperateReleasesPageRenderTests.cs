@@ -90,13 +90,38 @@ public sealed class OperateReleasesPageRenderTests
                 Assert.Contains("Promote parcels", page.Markup, StringComparison.Ordinal);
                 var badge = page.Find(".operate-release-title-row .console-status");
                 Assert.Equal("preflight", badge.TextContent.Trim());
-                // Design section tab strip is present for the major views.
+                // Design section tab strip is present for the major views, including the
+                // dedicated Data scripts and Git PR preview tabs (design fidelity).
                 var tabs = page.FindAll(".operate-release-tabs a");
-                Assert.Equal(5, tabs.Count);
+                Assert.Equal(7, tabs.Count);
                 Assert.Contains(tabs, t => t.TextContent.Contains("Semantic diff", StringComparison.Ordinal));
                 Assert.Contains(tabs, t => t.TextContent.Contains("Environment matrix", StringComparison.Ordinal));
+                Assert.Contains(tabs, t => t.TextContent.Contains("Data scripts", StringComparison.Ordinal));
+                Assert.Contains(tabs, t => t.TextContent.Contains("Git PR preview", StringComparison.Ordinal));
                 Assert.Contains(tabs, t => t.TextContent.Contains("CI timeline", StringComparison.Ordinal));
                 Assert.Contains(tabs, t => t.TextContent.Contains("Rollback", StringComparison.Ordinal));
+                // Dedicated Data-scripts section with per-script covered / no-rollback badges.
+                var scriptsSection = page.Find("#scripts.operate-release-scripts");
+                Assert.NotNull(scriptsSection);
+                Assert.Contains("Data scripts", scriptsSection.QuerySelector("#scripts-heading")!.TextContent, StringComparison.Ordinal);
+                Assert.Contains("2", scriptsSection.QuerySelector("#scripts-heading")!.TextContent, StringComparison.Ordinal);
+                var scriptRows = page.FindAll("#scripts .operate-script-row");
+                Assert.Equal(2, scriptRows.Count);
+                Assert.Contains("001_add_parcels_index.sql", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("002_drop_zoning_code.sql", page.Markup, StringComparison.Ordinal);
+                var scriptBadges = page.FindAll("#scripts .operate-script-row .console-status");
+                Assert.Contains(scriptBadges, b => b.TextContent.Trim() == "covered");
+                Assert.Contains(scriptBadges, b => b.TextContent.Trim() == "no rollback");
+                // A coverage gap surfaces on the section header and in the preflight summary.
+                Assert.Contains("coverage gap", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("Data script coverage gap", page.Markup, StringComparison.Ordinal);
+                // Inline Git PR-diff preview region renders the change summary in-page.
+                var prSection = page.Find("#pr-preview.operate-release-pr");
+                Assert.NotNull(prSection);
+                Assert.NotNull(page.Find("#pr-preview ul.operate-pr-diff"));
+                Assert.Contains("field:parcels.zoning", prSection.InnerHtml, StringComparison.Ordinal);
+                // The inline preview keeps the external GitHub link too.
+                Assert.NotNull(page.Find("#pr-preview a.operate-pr-external"));
                 // Two-column detail grid with a main column and a context side rail.
                 Assert.NotNull(page.Find(".operate-release-grid .operate-release-main"));
                 Assert.NotNull(page.Find(".operate-release-grid .operate-release-side"));
@@ -196,6 +221,35 @@ public sealed class OperateReleasesPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void ReleaseDetail_WhenServerReportsNoDataScripts_RendersEmptyScriptsState()
+    {
+        var stub = new StubReleaseClient
+        {
+            Detail = _ => OperateSectionResult<GitOpsReleaseDetail>.Allowed(
+                BuildDetail(blocked: false) with { DataScripts = [] }),
+        };
+
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+
+        var page = ctx.RenderComponent<OperateReleasesPage>(parameters =>
+            parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // The dedicated Data-scripts section still renders, in its empty state.
+                Assert.NotNull(page.Find("#scripts.operate-release-scripts"));
+                Assert.Contains("0", page.Find("#scripts-heading").TextContent, StringComparison.Ordinal);
+                Assert.Contains("reported no data scripts for this release bundle", page.Markup, StringComparison.Ordinal);
+                Assert.Empty(page.FindAll("#scripts .operate-script-row"));
+                // The inline PR preview still renders the change summary.
+                Assert.NotNull(page.Find("#pr-preview ul.operate-pr-diff"));
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
     private static GitOpsReleaseDetail BuildDetail(bool blocked)
     {
         var rollback = new GitOpsRollbackPlan(
@@ -248,7 +302,19 @@ public sealed class OperateReleasesPageRenderTests
             new GitOpsEnvironmentMatrixCell("prod", GitOpsTargetBindingState.Bound, 77, 70),
         };
 
-        return new GitOpsReleaseDetail(proposal, matrix, operation, OperateSectionStatus.Allowed, string.Empty);
+        var dataScripts = new[]
+        {
+            new GitOpsDataScript("001", "001_add_parcels_index.sql", GitOpsDataScriptCoverage.Covered),
+            new GitOpsDataScript("002", "002_drop_zoning_code.sql", GitOpsDataScriptCoverage.NoRollback),
+        };
+
+        return new GitOpsReleaseDetail(
+            proposal,
+            matrix,
+            operation,
+            OperateSectionStatus.Allowed,
+            string.Empty,
+            dataScripts);
     }
 
     private sealed class StubReleaseClient : IConsoleGitOpsReleaseClient

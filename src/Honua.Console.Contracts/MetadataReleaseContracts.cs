@@ -165,6 +165,9 @@ public sealed record MetadataReleasePackageResponse
     [JsonPropertyName("entries")]
     public IReadOnlyList<MetadataReleaseEntryResponse> Entries { get; init; } = [];
 
+    [JsonPropertyName("dataScripts")]
+    public IReadOnlyList<MetadataReleaseDataScriptResponse> DataScripts { get; init; } = [];
+
     [JsonPropertyName("status")]
     public MetadataReleasePackageStatusWire Status { get; init; } = MetadataReleasePackageStatusWire.Draft;
 
@@ -204,6 +207,23 @@ public sealed record MetadataReleaseEntryResponse
 
     [JsonPropertyName("dependentSemanticIds")]
     public IReadOnlyList<string> DependentSemanticIds { get; init; } = [];
+}
+
+/// <summary>
+/// One data script carried by a release bundle and its rollback coverage (#1163
+/// data-script coverage). <c>coverage</c> serializes as kebab/lower string members
+/// (<c>covered</c> / <c>no-rollback</c>); absent/unknown maps to unknown.
+/// </summary>
+public sealed record MetadataReleaseDataScriptResponse
+{
+    [JsonPropertyName("scriptId")]
+    public string ScriptId { get; init; } = string.Empty;
+
+    [JsonPropertyName("fileName")]
+    public string FileName { get; init; } = string.Empty;
+
+    [JsonPropertyName("coverage")]
+    public string? Coverage { get; init; }
 }
 
 /// <summary>Last-observed target environment state for a release entry.</summary>
