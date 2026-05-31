@@ -1,0 +1,166 @@
+name: Console Nightly Live Integration
+
+# Nightly signal lane that actually RUNS the opt-in Testcontainers / live-server
+# suites which skip in PR CI (the PR runner has no Docker and never sets the
+# opt-in env). This lane runs on a Docker-enabled runner, sets the opt-in flags,
+# and pins the honua-server image so the SkippableFacts execute instead of skip.
+#
+# This is a NIGHTLY signal lane, NOT a PR-required check. It only triggers on a
+# schedule and on manual dispatch; it never runs on pull_request/push.
+
+on:
+  schedule:
+    # 07:17 UTC daily (off the top of the hour to avoid the cron stampede).
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+    inputs:
+      server_image:
+        description: "honua-server container image to pin for the connect-only image lanes (overrides the HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE repo variable)."
+        required: false
+        type: string
+      server_ref:
+        description: "honua-server git ref to check out for the source-build live lanes (GitOps / Operate transition). Leave blank to keep those two facts skipped."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: console-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-integration:
+    name: Live Integration (Testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      # Single opt-in flag that enables every live-server lane wired through
+      # ConsoleTrustIntegrationOptions and the Native.Core live-server tests.
+      HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS: "1"
+      HONUA_CONSOLE_INTEGRATION: "1"
+      # Pinned, repo-variable-overridable honua-server image. workflow_dispatch
+      # input wins; then the repo variable; then a literal default. NOTE: a
+      # job-level env block CANNOT read the `env` context, so we reference the
+      # event input and the `vars` context directly with literal fallbacks here.
+      HONUA_CONSOLE_SERVER_IMAGE: ${{ github.event.inputs.server_image || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
+      HONUA_CONSOLE_OPERATE_SERVER_IMAGE: ${{ github.event.inputs.server_image || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
+      # The pinned image boots plain HTTP on 8080 and exposes /healthz/live (the
+      # convention every other Honua live lane uses); override the suite defaults
+      # (https + /health) so the readiness probe matches the real image.
+      HONUA_CONSOLE_SERVER_SCHEME: http
+      HONUA_CONSOLE_SERVER_PORT: "8080"
+      HONUA_CONSOLE_SERVER_HEALTH_PATH: /healthz/live
+      # The image runs in dev-auth bypass so the admin-protected Studio / validate
+      # surfaces are reachable. Repo secrets override when a hardened image needs
+      # real credentials; empty values keep only those few admin-gated facts skipped.
+      HONUA_CONSOLE_ADMIN_API_KEY: ${{ secrets.HONUA_CONSOLE_ADMIN_API_KEY }}
+      HONUA_CONSOLE_ADMIN_TOKEN: ${{ secrets.HONUA_CONSOLE_ADMIN_TOKEN }}
+      # Extra server env handed to the connect-only image so dev-auth + the Operate
+      # observability fixture endpoint are enabled (semicolon-separated KEY=VALUE).
+      HONUA_CONSOLE_SERVER_ENV: "ASPNETCORE_ENVIRONMENT=Test;HONUA_DEV_AUTH=true;HONUA_DEV_AUTH_ALLOW_BYPASS=true;HONUA_REGISTER_TEST_INFRASTRUCTURE=true"
+      # Give the live boot generous headroom on a cold CI runner.
+      HONUA_CONSOLE_LIVE_SERVER_STARTUP_TIMEOUT_SECONDS: "420"
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Optional: check out honua-server source so the two source-build live lanes
+      # (GitOps release + Operate transition) run too. Gated on an explicit ref so
+      # the lane never hard-fails when the cross-repo token is absent — those two
+      # SkippableFacts simply skip with their "project was not found" reason.
+      - name: Check out honua-server (source-build lanes)
+        id: server_src
+        if: ${{ github.event.inputs.server_ref != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: honua-io/honua-server
+          ref: ${{ github.event.inputs.server_ref }}
+          token: ${{ secrets.HONUA_SERVER_CHECKOUT_TOKEN }}
+          path: honua-server
+
+      - name: Resolve honua-server project path
+        if: ${{ steps.server_src.outcome == 'success' }}
+        run: echo "HONUA_SERVER_PROJECT=${GITHUB_WORKSPACE}/honua-server/src/Honua.Server/Honua.Server.csproj" >> "$GITHUB_ENV"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - name: Pre-pull honua-server image
+        run: |
+          echo "Pulling pinned honua-server image: ${HONUA_CONSOLE_SERVER_IMAGE}"
+          docker pull "${HONUA_CONSOLE_SERVER_IMAGE}"
+
+      - name: Restore .NET projects
+        run: dotnet restore Honua.Console.slnx
+
+      - name: Run Native.Core live-server + Testcontainers tests
+        run: |
+          dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj \
+            --no-restore --nologo --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --logger "trx;LogFileName=native-core.trx" \
+            --results-directory artifacts/test-results/native-core
+
+      - name: Run Console integration live-server suites
+        run: |
+          dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj \
+            --no-restore --nologo --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --logger "trx;LogFileName=integration.trx" \
+            --results-directory artifacts/test-results/integration
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Console Nightly Live Integration"
+            echo ""
+            echo "Ran the opt-in Testcontainers / live-server suites with the live env SET."
+            echo ""
+            echo "| Setting | Value |"
+            echo "| --- | --- |"
+            echo "| Server image (connect-only) | \`${HONUA_CONSOLE_SERVER_IMAGE}\` |"
+            echo "| Operate server image | \`${HONUA_CONSOLE_OPERATE_SERVER_IMAGE}\` |"
+            echo "| Server source (source-build lanes) | \`${HONUA_SERVER_PROJECT:-not checked out (those 2 facts skip)}\` |"
+            echo "| Run-live flag | \`HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=${HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS}\` |"
+            echo "| Health probe | \`${HONUA_CONSOLE_SERVER_SCHEME}://:${HONUA_CONSOLE_SERVER_PORT}${HONUA_CONSOLE_SERVER_HEALTH_PATH}\` |"
+            echo ""
+            echo "### Skipped / passed / failed counts"
+            echo ""
+            echo '```'
+            grep -rhoE 'outcome="(Passed|Failed|NotExecuted)"' artifacts/test-results --include='*.trx' 2>/dev/null \
+              | sort | uniq -c || echo "no trx files found"
+            echo '```'
+            echo ""
+            echo "trx + cobertura coverage are uploaded as build artifacts."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results (trx)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-nightly-trx
+          path: artifacts/test-results/**/*.trx
+          if-no-files-found: warn
+
+      - name: Upload code coverage (cobertura)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-nightly-coverage
+          path: artifacts/test-results/**/coverage.cobertura.xml
+          if-no-files-found: warn

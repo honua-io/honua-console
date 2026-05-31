@@ -41,12 +41,15 @@ jobs:
         run: dotnet format Honua.Console.slnx --verify-no-changes --verbosity minimal --no-restore
 
       - name: Run .NET tests
-        run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-restore --nologo --verbosity minimal
+        # Coverage is collected for visibility only (uploaded as an artifact below);
+        # there is no coverage threshold gate.
+        run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/native-core
 
       - name: Run Console render + integration tests
         # Gates the bUnit component-render tests. The opt-in Testcontainers/live-server tests
-        # skip cleanly here (HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS is not set in CI).
-        run: dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --nologo --verbosity minimal
+        # skip cleanly here (HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS is not set in CI); the nightly
+        # console-nightly.yml lane runs those for real. Coverage is collected for visibility only.
+        run: dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/integration
 
       - name: Build Blazor Web host
         run: dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj --no-restore --nologo --verbosity minimal
@@ -83,4 +86,13 @@ jobs:
         with:
           name: console-parity-evidence
           path: smoke-evidence/console-parity.json
+          if-no-files-found: ignore
+
+      - name: Upload code coverage (cobertura)
+        # Visibility only — no coverage threshold gate.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-coverage
+          path: artifacts/test-results/**/coverage.cobertura.xml
           if-no-files-found: ignore
