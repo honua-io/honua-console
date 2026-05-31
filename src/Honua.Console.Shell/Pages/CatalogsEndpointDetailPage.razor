@@ -30,7 +30,7 @@
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">
-                    <a href="/operate/catalogs">Catalogs</a> <span class="console-crumb-sep">/</span> @endpoint.Title
+                    <a href="@CatalogsListHref">Catalogs</a> <span class="console-crumb-sep">/</span> @endpoint.Title
                 </p>
                 <h1>
                     @endpoint.Title
@@ -207,6 +207,16 @@
         _loading = false;
     }
 
+    // Carry the active workspace through the item drill-down and the back-to-list breadcrumb so a non-default
+    // workspace's registry stays selected instead of silently reverting to the current workspace.
     private string ItemHref(string itemId) =>
-        $"/operate/catalogs/{Uri.EscapeDataString(Key)}/items/{Uri.EscapeDataString(itemId)}";
+        $"/operate/catalogs/{Uri.EscapeDataString(Key)}/items/{Uri.EscapeDataString(itemId)}{WorkspaceQuery()}";
+
+    private string CatalogsListHref => $"/operate/catalogs{WorkspaceQuery()}";
+
+    private string WorkspaceQuery() =>
+        ConsoleUrlQuery.ToQueryString(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["workspace"] = Workspace ?? string.Empty
+        });
 }

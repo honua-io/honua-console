@@ -207,28 +207,121 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("data-catalog-quick-facts", page.Markup, StringComparison.Ordinal);
     }
 
-    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data)
+    [Fact]
+    public void List_WithWorkspaceQuery_PreservesWorkspaceOnDrillDownLinks()
+    {
+        // Regression: a non-default workspace (e.g. /operate/catalogs?workspace=tenant-a) must carry the
+        // ?workspace= query through the "Browse items" drill-down so the detail page does not default the
+        // missing query back to the current workspace.
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
+        };
+
+        var page = RenderList(data, workspace: "tenant-a");
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        var browse = page.Find("[data-catalog-browse]");
+        Assert.Equal("/operate/catalogs/esri?workspace=tenant-a", browse.GetAttribute("href"));
+    }
+
+    [Fact]
+    public void List_WithoutWorkspaceQuery_OmitsWorkspaceFromDrillDownLinks()
+    {
+        // The default workspace must not gain a spurious ?workspace=current on the drill-down link.
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
+        };
+
+        var page = RenderList(data, workspace: null);
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        var browse = page.Find("[data-catalog-browse]");
+        Assert.Equal("/operate/catalogs/esri", browse.GetAttribute("href"));
+    }
+
+    [Fact]
+    public void Detail_WithWorkspaceQuery_PreservesWorkspaceOnItemAndBreadcrumbLinks()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
+        };
+
+        var page = RenderDetail(data, "esri", workspace: "tenant-a");
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-catalog-items-table", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Item drill-down carries the workspace.
+        var itemLink = page.Find("[data-catalog-item-link]");
+        Assert.Equal("/operate/catalogs/esri/items/a3bf-0214?workspace=tenant-a", itemLink.GetAttribute("href"));
+
+        // The back-to-list breadcrumb also carries it.
+        Assert.Contains("href=\"/operate/catalogs?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Item_WithWorkspaceQuery_PreservesWorkspaceOnBreadcrumbLinks()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            ItemLoad = new CatalogItemLoad(SampleItem(), [])
+        };
+
+        var page = RenderItem(data, "esri", "a3bf-0214", workspace: "tenant-a");
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-catalog-field-legend", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Endpoint and list breadcrumbs both carry the workspace back up the hierarchy.
+        Assert.Contains("href=\"/operate/catalogs/esri?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("href=\"/operate/catalogs?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
+    }
+
+    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? workspace = null)
     {
         var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        NavigateToWorkspace(ctx, "operate/catalogs", workspace);
         return ctx.RenderComponent<CatalogsListPage>();
     }
 
-    private static IRenderedComponent<CatalogsEndpointDetailPage> RenderDetail(FakeCatalogDiscoveryDataSource data, string key)
+    private static IRenderedComponent<CatalogsEndpointDetailPage> RenderDetail(FakeCatalogDiscoveryDataSource data, string key, string? workspace = null)
     {
         var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        NavigateToWorkspace(ctx, $"operate/catalogs/{key}", workspace);
         return ctx.RenderComponent<CatalogsEndpointDetailPage>(parameters => parameters
             .Add(p => p.Key, key));
     }
 
-    private static IRenderedComponent<CatalogItemEditorPage> RenderItem(FakeCatalogDiscoveryDataSource data, string key, string itemId)
+    private static IRenderedComponent<CatalogItemEditorPage> RenderItem(FakeCatalogDiscoveryDataSource data, string key, string itemId, string? workspace = null)
     {
         var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        NavigateToWorkspace(ctx, $"operate/catalogs/{key}/items/{itemId}", workspace);
         return ctx.RenderComponent<CatalogItemEditorPage>(parameters => parameters
             .Add(p => p.Key, key)
             .Add(p => p.ItemId, itemId));
+    }
+
+    // Drives the page's [SupplyParameterFromQuery] workspace via the navigation URI, since the parameter is
+    // private and cannot be set through the bUnit parameter builder.
+    private static void NavigateToWorkspace(Bunit.TestContext ctx, string path, string? workspace)
+    {
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var query = string.IsNullOrEmpty(workspace) ? string.Empty : $"?workspace={Uri.EscapeDataString(workspace)}";
+        nav.NavigateTo(path + query);
     }
 
     private static CatalogDiscoveryRegistryView SampleRegistry() => CatalogDiscoveryMapper.ToView(new HonuaCatalogDiscoveryRegistry

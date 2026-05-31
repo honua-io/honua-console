@@ -182,7 +182,18 @@
         _loading = false;
     }
 
-    private static string DetailHref(string key) => $"/operate/catalogs/{Uri.EscapeDataString(key)}";
+    // Carry the active workspace through drill-down links so browsing a non-default workspace's registry
+    // (e.g. /operate/catalogs?workspace=tenant-a) does not silently switch the detail/item pages back to the
+    // current workspace. An absent workspace stays absent (ToQueryString drops empty values), so the default
+    // never gains a spurious ?workspace=current.
+    private string DetailHref(string key) =>
+        $"/operate/catalogs/{Uri.EscapeDataString(key)}{WorkspaceQuery()}";
+
+    private string WorkspaceQuery() =>
+        ConsoleUrlQuery.ToQueryString(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["workspace"] = Workspace ?? string.Empty
+        });
 
     private static string FormatUrl(string? host, string? path)
     {

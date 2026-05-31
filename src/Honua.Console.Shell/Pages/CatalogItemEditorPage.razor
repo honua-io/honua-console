@@ -30,7 +30,7 @@
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">
-                    <a href="/operate/catalogs">Catalogs</a> <span class="console-crumb-sep">/</span>
+                    <a href="@CatalogsListHref">Catalogs</a> <span class="console-crumb-sep">/</span>
                     <a href="@EndpointHref">endpoint</a> <span class="console-crumb-sep">/</span> item
                 </p>
                 <h1>
@@ -150,7 +150,17 @@
 
     private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
 
-    private string EndpointHref => $"/operate/catalogs/{Uri.EscapeDataString(Key)}";
+    // Carry the active workspace back through the endpoint and list breadcrumbs so editing an item in a
+    // non-default workspace keeps that workspace selected on the way back up.
+    private string EndpointHref => $"/operate/catalogs/{Uri.EscapeDataString(Key)}{WorkspaceQuery()}";
+
+    private string CatalogsListHref => $"/operate/catalogs{WorkspaceQuery()}";
+
+    private string WorkspaceQuery() =>
+        ConsoleUrlQuery.ToQueryString(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["workspace"] = Workspace ?? string.Empty
+        });
 
     protected override async Task OnParametersSetAsync()
     {
