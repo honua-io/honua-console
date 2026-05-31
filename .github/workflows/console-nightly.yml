@@ -37,10 +37,13 @@ jobs:
     timeout-minutes: 90
 
     env:
-      # Single opt-in flag that enables every live-server lane wired through
-      # ConsoleTrustIntegrationOptions and the Native.Core live-server tests.
-      HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS: "1"
-      HONUA_CONSOLE_INTEGRATION: "1"
+      # Single opt-in flag that enables every live-server lane. Must be the literal
+      # "true": ConsoleTrustIntegrationOptions accepts true/1/yes, but the Native.Core
+      # source-build tests (GitOpsReleaseLiveServerTests / OperateTransitionLiveServerTests)
+      # compare exactly with string.Equals(..., "true", OrdinalIgnoreCase), so "1" would
+      # keep those two facts skipped even when server_ref checks out honua-server source.
+      HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS: "true"
+      HONUA_CONSOLE_INTEGRATION: "true"
       # Pinned, repo-variable-overridable honua-server image. workflow_dispatch
       # input wins; then the repo variable; then a literal default. NOTE: a
       # job-level env block CANNOT read the `env` context, so we reference the
