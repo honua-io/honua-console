@@ -82,6 +82,10 @@
     {
         var editor = _editor;
         var readiness = StudioMapPublishEvaluator.Evaluate(editor);
+        // Publish is gated on BOTH the pre-publish presence gate and the client validator's blocking findings
+        // (e.g. a present-but-inverted initial extent), so the inline validation gates publish consistently
+        // with Save rather than falling through to the server.
+        var canPublish = readiness.CanPublish && !_validation.HasBlockingClientErrors;
         var selectedLayer = SelectedLayer(editor);
 
         @if (_view == EditorView.FromPrompt)
@@ -103,11 +107,11 @@
                         <span class="studio-map-glyph" aria-hidden="true">◐</span>
                         <input class="console-input studio-map-title-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="parcels-use-map" aria-label="Map title" />
                         <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
-                        <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "validation passed" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                        <span class="console-status @(canPublish ? string.Empty : "console-status-warning")">@(canPublish ? "validation passed" : $"{(readiness.UnmetRequirements.Count + (_validation.HasBlockingClientErrors ? _validation.Summary.Count(e => e.IsBlocking) : 0))} to resolve")</span>
                         <div class="studio-ai-preview-head-spacer"></div>
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Save draft</button>
                         <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
-                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishWizard">Publish…</button>
+                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     </PreviewHeader>
                     <PreviewContent>
                         <div class="studio-map-ai-inspect">
@@ -209,7 +213,7 @@
                 </div>
                 <div class="console-chip-row studio-map-status-chips">
                     <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
-                    <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "validation passed" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                    <span class="console-status @(canPublish ? string.Empty : "console-status-warning")">@(canPublish ? "validation passed" : $"{(readiness.UnmetRequirements.Count + (_validation.HasBlockingClientErrors ? _validation.Summary.Count(e => e.IsBlocking) : 0))} to resolve")</span>
                     @* Presence affordance — opens the live Activity rail. Collaboration is unbound until
                        honua-server#1278 ships, so this advertises the surface without fabricating a count. *@
                     <button type="button" class="console-status studio-map-collab-presence-chip" data-collab-presence-chip @onclick='() => SetTab("activity")'>Collaborators</button>
@@ -221,7 +225,7 @@
                     }
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to maps</button>
                     <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishWizard">Publish…</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     @if (editor.IsPublished)
                     {
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
@@ -436,7 +440,7 @@
                             <p class="console-kicker">Publish review</p>
                             <h3 id="map-publish-review-heading">Review before publish</h3>
                         </div>
-                        <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "ready" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                        <span class="console-status @(canPublish ? string.Empty : "console-status-warning")">@(canPublish ? "ready" : $"{(readiness.UnmetRequirements.Count + (_validation.HasBlockingClientErrors ? _validation.Summary.Count(e => e.IsBlocking) : 0))} to resolve")</span>
                     </div>
 
                     @{
@@ -746,7 +750,7 @@
     {
         return
         [
-            new PublishWizardStep("Validate", BuildValidateStep(editor, readiness), IsValid: readiness.CanPublish, ContinueLabel: "Continue · Dependencies →"),
+            new PublishWizardStep("Validate", BuildValidateStep(editor, readiness), IsValid: readiness.CanPublish && !_validation.HasBlockingClientErrors, ContinueLabel: "Continue · Dependencies →"),
             new PublishWizardStep("Dependencies", BuildDependenciesStep(editor), ContinueLabel: "Continue · Visibility →"),
             new PublishWizardStep("Visibility", BuildVisibilityStep(editor), ContinueLabel: "Continue · Embed →"),
             new PublishWizardStep("Embed", BuildEmbedStep(editor), ContinueLabel: "Continue · Rollback →"),
@@ -1071,7 +1075,19 @@
 
     private Task Save() => RunCommandAsync(() => MapData.SaveDraftAsync(_editor!));
 
-    private Task Publish() => RunCommandAsync(() => MapData.PublishAsync(_editor!));
+    private Task Publish()
+    {
+        // Defence in depth: never let a publish fall through to the server while the client validator has a
+        // blocking finding (e.g. a present-but-inverted initial extent that passes the presence-only gate).
+        if (_validation.HasBlockingClientErrors)
+        {
+            _status = "Resolve the blocking validation findings before publishing.";
+            _statusFailed = true;
+            return Task.CompletedTask;
+        }
+
+        return RunCommandAsync(() => MapData.PublishAsync(_editor!));
+    }
 
     private Task Reopen() => RunCommandAsync(() => MapData.ReopenAsync(_editor!));
 

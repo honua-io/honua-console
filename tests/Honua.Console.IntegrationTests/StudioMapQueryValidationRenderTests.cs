@@ -55,6 +55,27 @@ public sealed class StudioMapQueryValidationRenderTests
     }
 
     [Fact]
+    public void Map_PresentButInvalidExtent_GatesPublishConsistentlyWithSave()
+    {
+        using var ctx = NewContext();
+        var editor = MapEditor();
+        // Present (passes the presence-only pre-publish gate) but inverted, so the client validator blocks.
+        editor.InitialExtent = "10,1,1,5";
+        var data = new FakeMapDataSource { EditorLoad = new StudioMapEditorLoad(editor, []) };
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+
+        var page = OpenMap(ctx, data);
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Initial extent is inverted", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        // Both Save AND Publish are gated; the header badge does not claim validation passed.
+        Assert.True(FindButton(page, "Save draft").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.DoesNotContain("validation passed", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Map_ServerDiagnostic_SurfacesOnItsLayerInline_AndDoesNotGateSave()
     {
         using var ctx = NewContext();
