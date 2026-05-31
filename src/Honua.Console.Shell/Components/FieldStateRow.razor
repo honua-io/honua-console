@@ -9,7 +9,33 @@
     supplied Value text when no ChildContent is provided.
 *@
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
 @{
+    // The error slot under the slotted control: an inline message list plus aria-invalid wiring.
+    // Renders nothing when the field has no findings, so existing callers (no Errors supplied) are
+    // visually and structurally unchanged. The worst finding drives the row's invalid styling.
+    RenderFragment RenderErrors = builder =>
+    {
+        if (!HasErrors)
+        {
+            return;
+        }
+
+        builder.OpenElement(0, "ul");
+        builder.AddAttribute(1, "class", "console-field-state__errors");
+        builder.AddAttribute(2, "role", "list");
+        var seq = 3;
+        foreach (var error in ResolvedErrors)
+        {
+            builder.OpenElement(seq++, "li");
+            builder.AddAttribute(seq++, "class", $"console-field-state__error console-field-state__error--{SeveritySlug(error.Severity)}");
+            builder.AddContent(seq++, error.Message);
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
     // Discovered-state override/revert affordances, shared by the labelled and read-only layouts.
     RenderFragment RenderDiscoveredActions = builder =>
     {
@@ -39,7 +65,9 @@
     };
 }
 
-<div class="console-field-state console-field-state--@StateSlug" data-field-state="@StateSlug">
+<div class="console-field-state console-field-state--@StateSlug @(HasErrors ? "console-field-state--invalid" : null)"
+     data-field-state="@StateSlug"
+     aria-invalid="@(HasErrors ? "true" : null)">
     <span class="console-field-state__icon" aria-hidden="true">@Icon</span>
     @* When a control is slotted, a <label> wraps both the label text and the control so the visible
        label is the control's accessible name and clicking it focuses the field (the implicit-label
@@ -83,6 +111,9 @@
             @RenderDiscoveredActions
         </div>
     }
+    @* Error list is a row-level sibling, never nested inside the <label> (invalid HTML + pollutes the
+       control's accessible name). It spans the content columns below the field via CSS. *@
+    @RenderErrors
     <div class="console-field-state__meta">
         <span class="console-field-state__pill console-field-state__pill--@PillSlug">@PillLabel</span>
         @if (!string.IsNullOrWhiteSpace(Hint))
@@ -132,6 +163,32 @@
     /// <summary>Disables the override/revert affordances (e.g. while a command is in flight).</summary>
     [Parameter]
     public bool Disabled { get; set; }
+
+    /// <summary>
+    /// Field-level validation findings to render inline under the slotted control. Defaults to none, so
+    /// existing callers that omit it render exactly as before (no error affordance, no aria-invalid).
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<ConsoleFieldError>? Errors { get; set; }
+
+    /// <summary>
+    /// Forces the invalid affordance on even with no <see cref="Errors"/> (e.g. a caller that owns its
+    /// own message rendering but wants the shared invalid styling + <c>aria-invalid</c>). Optional.
+    /// </summary>
+    [Parameter]
+    public bool Invalid { get; set; }
+
+    private IReadOnlyList<ConsoleFieldError> ResolvedErrors => Errors ?? Array.Empty<ConsoleFieldError>();
+
+    private bool HasErrors => Invalid || ResolvedErrors.Count > 0;
+
+    private static string SeveritySlug(ConsoleValidationSeverity severity) => severity switch
+    {
+        ConsoleValidationSeverity.Info => "info",
+        ConsoleValidationSeverity.Warning => "warning",
+        ConsoleValidationSeverity.Blocker => "blocker",
+        _ => "error",
+    };
 
     private string StateSlug => State switch
     {

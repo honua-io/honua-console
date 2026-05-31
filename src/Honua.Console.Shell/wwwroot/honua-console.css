@@ -7625,4 +7625,64 @@ p {
     padding-left: 18px;
     font-size: 0.88rem;
     line-height: 1.6;
+/* ----- inline field validation (Shell/Validation, Wave 0) -----
+   The error slot rendered under a FieldStateRow's slotted control (and the standalone
+   ValidationMessageInline for plain studio-form-label surfaces). Severity drives the accent so an
+   operator can tell a blocking error from an advisory note at a glance. Re-expressed against the
+   --honua-* tokens with `console-field-state` / `console-validation` BEM classes. */
+:root {
+    --honua-error: #b42318;
+    --honua-warn: #b54708;
+    --honua-info: #1849a9;
+}
+
+.console-field-state--invalid .console-input,
+.console-field-state--invalid .console-field-state__value input,
+.console-field-state--invalid .console-field-state__value select,
+.console-field-state--invalid .console-field-state__value textarea {
+    border-color: var(--honua-error);
+    box-shadow: 0 0 0 1px var(--honua-error);
+}
+
+.console-field-state__errors,
+.console-validation-inline {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+    width: 100%;
+}
+
+/* Row-level error list sits below the field, spanning the content columns (the row is a 4-col grid). */
+.console-field-state__errors {
+    grid-column: 2 / -1;
+}
+
+.console-field-state__error {
+    font-size: 0.78rem;
+    line-height: 1.3;
+    color: var(--honua-error);
+}
+
+.console-field-state__error::before {
+    content: "⚠ ";
+    font-weight: 700;
+}
+
+.console-field-state__error--warning {
+    color: var(--honua-warn);
+}
+
+.console-field-state__error--info {
+    color: var(--honua-info);
+}
+
+.console-field-state__error--info::before {
+    content: "ⓘ ";
+}
+
+.console-field-state__error--blocker {
+    color: var(--honua-error);
+    font-weight: 600;
 }

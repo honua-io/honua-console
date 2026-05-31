@@ -1,0 +1,130 @@
+@*
+    Reusable unsaved-changes navigation guard (Shell/Validation, Wave 0).
+
+    Drop one of these into an editor and bind IsDirty to the editor's FormDirtyState.IsDirty. While
+    dirty it:
+      - intercepts internal SPA navigation via NavigationManager.RegisterLocationChangingHandler and, if
+        the operator confirms they want to leave, lets the navigation proceed; otherwise it calls
+        PreventNavigation() so the editor stays put; and
+      - arms window.onbeforeunload (via the unsaved-changes-guard.js module) so a browser tab close,
+        refresh, or external navigation also prompts.
+    Both registrations are torn down on dispose, and the beforeunload arming tracks IsDirty live.
+
+    This is reusable infra only — Wave 0 does NOT wire it into any editor. The demo harness at
+    /studio/_dev/unsaved-changes-demo exercises it.
+*@
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@code {
+    /// <summary>True while the host editor holds unsaved changes; flips the guard on/off.</summary>
+    [Parameter]
+    public bool IsDirty { get; set; }
+
+    /// <summary>The confirmation message shown in the in-app SPA prompt when leaving with changes.</summary>
+    [Parameter]
+    public string Message { get; set; } = "You have unsaved changes. Leave this page and discard them?";
+
+    private IDisposable? _locationChangingRegistration;
+    private IJSObjectReference? _module;
+    private bool _beforeUnloadArmed;
+    private bool _lastIsDirty;
+
+    protected override void OnInitialized() =>
+        _locationChangingRegistration = Navigation.RegisterLocationChangingHandler(OnLocationChangingAsync);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Keep the browser-level beforeunload arming in lock-step with IsDirty.
+        if (IsDirty != _lastIsDirty)
+        {
+            _lastIsDirty = IsDirty;
+            await SyncBeforeUnloadAsync();
+        }
+    }
+
+    private async ValueTask OnLocationChangingAsync(LocationChangingContext context)
+    {
+        if (!IsDirty)
+        {
+            return;
+        }
+
+        var leave = await ConfirmAsync();
+        if (!leave)
+        {
+            context.PreventNavigation();
+        }
+    }
+
+    private async Task<bool> ConfirmAsync()
+    {
+        try
+        {
+            // A clean leave is the operator confirming the discard; staying is the default-safe outcome.
+            return await JS.InvokeAsync<bool>("confirm", Message);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            // No JS runtime (prerender / bUnit) or interop torn down mid-flight: fail safe by keeping
+            // the operator on the page rather than silently discarding their work.
+            return false;
+        }
+    }
+
+    private async Task SyncBeforeUnloadAsync()
+    {
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/Honua.Console.Shell/unsaved-changes-guard.js");
+
+            if (IsDirty && !_beforeUnloadArmed)
+            {
+                await _module.InvokeVoidAsync("enable");
+                _beforeUnloadArmed = true;
+            }
+            else if (!IsDirty && _beforeUnloadArmed)
+            {
+                await _module.InvokeVoidAsync("disable");
+                _beforeUnloadArmed = false;
+            }
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            // JS interop unavailable (prerender / bUnit): the SPA location-changing handler still
+            // guards internal navigation; the browser-level prompt simply does not arm. Never throw.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _locationChangingRegistration?.Dispose();
+        _locationChangingRegistration = null;
+
+        if (_module is not null)
+        {
+            try
+            {
+                if (_beforeUnloadArmed)
+                {
+                    await _module.InvokeVoidAsync("disable");
+                    _beforeUnloadArmed = false;
+                }
+
+                await _module.DisposeAsync();
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            {
+                // Circuit already gone; nothing to clean up browser-side.
+            }
+            finally
+            {
+                _module = null;
+            }
+        }
+    }
+}
