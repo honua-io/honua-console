@@ -1,5 +1,8 @@
 @page "/studio/form"
+@using Honua.Console.Shell.Validation
 @inject IStudioFormPackageDataSource FormData
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved form changes. Leave this page and discard them?" />
 
 <section class="console-page studio-form-builder">
     <div class="console-page-heading">
@@ -111,7 +114,7 @@
 
                 <div class="console-action-row">
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to forms</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished || hasUnsavedEdits)" @onclick="Validate">Validate</button>
                     <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
                     @if (editor.IsPublished)
@@ -123,6 +126,20 @@
                 @if (!string.IsNullOrEmpty(_status))
                 {
                     <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+                }
+
+                @if (_validation.HasBlockingClientErrors)
+                {
+                    <article class="console-panel" aria-labelledby="form-validation-blocking-heading" data-validation-summary="blocking">
+                        <p class="console-kicker">Validation</p>
+                        <h3 id="form-validation-blocking-heading">Resolve before saving</h3>
+                        <ul class="studio-compact-list">
+                            @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                            {
+                                <li>@error.Message</li>
+                            }
+                        </ul>
+                    </article>
                 }
 
                 @if (!editor.IsPublished && !readiness.CanPublish)
@@ -173,11 +190,11 @@
                         {
                             <FieldStateRow State="FieldState.System" Label="Form id" Value="@editor.FormId" Hint="@($"v{editor.Version}")" />
                         }
-                        <FieldStateRow State="FieldState.Input" Label="Title">
-                            <input class="console-input" @bind="editor.Title" placeholder="Field inspection form" />
+                        <FieldStateRow State="FieldState.Input" Label="Title" Errors="_validation.Errors(StudioFormFieldKeys.Title)">
+                            <input class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Field inspection form" />
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Description">
-                            <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
+                            <textarea class="console-input" rows="2" @bind="editor.Description" @bind:after="OnEdit"></textarea>
                         </FieldStateRow>
                     </article>
 
@@ -185,19 +202,20 @@
                         <p class="console-kicker">Submit target</p>
                         <h3>Feature service</h3>
                         <p class="console-muted">The feature service and layer that accept submissions. Required and server-validated before publish.</p>
-                        <FieldStateRow State="FieldState.Input" Label="Service id">
-                            <input class="console-input" @bind="editor.ServiceId" placeholder="inspections" />
+                        <FieldStateRow State="FieldState.Input" Label="Service id" Errors="_validation.Errors(StudioFormFieldKeys.ServiceId)">
+                            <input class="console-input" @bind="editor.ServiceId" @bind:after="OnEdit" placeholder="inspections" />
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Layer id">
-                            <input class="console-input" type="number" @bind="editor.LayerId" />
+                            <input class="console-input" type="number" @bind="editor.LayerId" @bind:after="OnEdit" />
                         </FieldStateRow>
                         <div class="console-chip-row studio-form-toggles">
-                            <label><input type="checkbox" @bind="editor.AllowCreate" /> <span>Create</span></label>
-                            <label><input type="checkbox" @bind="editor.AllowUpdate" /> <span>Update</span></label>
-                            <label><input type="checkbox" @bind="editor.AllowDelete" /> <span>Delete</span></label>
-                            <label><input type="checkbox" @bind="editor.RequiresGeometry" /> <span>Requires geometry</span></label>
-                            <label><input type="checkbox" @bind="editor.AllowAttachments" /> <span>Allow attachments</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowCreate" @bind:after="OnEdit" /> <span>Create</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowUpdate" @bind:after="OnEdit" /> <span>Update</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowDelete" @bind:after="OnEdit" /> <span>Delete</span></label>
+                            <label><input type="checkbox" @bind="editor.RequiresGeometry" @bind:after="OnEdit" /> <span>Requires geometry</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowAttachments" @bind:after="OnEdit" /> <span>Allow attachments</span></label>
                         </div>
+                        <ValidationMessageInline FieldKey="@StudioFormFieldKeys.SubmitOps" State="_validation" />
                     </article>
                 </div>
 
@@ -213,23 +231,26 @@
                     @if (editor.Fields.Count == 0)
                     {
                         <p class="console-muted">No fields yet. Add at least one field before publishing.</p>
+                        <ValidationMessageInline FieldKey="@StudioFormFieldKeys.Fields" State="_validation" />
                     }
 
-                    @foreach (var field in editor.Fields)
+                    @for (var i = 0; i < editor.Fields.Count; i++)
                     {
+                        var fieldIndex = i;
+                        var field = editor.Fields[fieldIndex];
                         <fieldset class="studio-form-field" @key="field">
                             <div class="console-panel-grid">
-                                <FieldStateRow State="FieldState.Input" Label="Field id">
-                                    <input class="console-input" @bind="field.FieldId" placeholder="asset_id" />
+                                <FieldStateRow State="FieldState.Input" Label="Field id" Errors="_validation.Errors(StudioFormFieldKeys.FieldId(fieldIndex))">
+                                    <input class="console-input" @bind="field.FieldId" @bind:after="OnEdit" placeholder="asset_id" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Label">
-                                    <input class="console-input" @bind="field.Label" placeholder="Asset ID" />
+                                    <input class="console-input" @bind="field.Label" @bind:after="OnEdit" placeholder="Asset ID" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Group / section">
-                                    <input class="console-input" @bind="field.Group" placeholder="Identification" />
+                                    <input class="console-input" @bind="field.Group" @bind:after="OnEdit" placeholder="Identification" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Type">
-                                    <select class="console-input" @bind="field.Type">
+                                    <select class="console-input" @bind="field.Type" @bind:after="OnEdit">
                                         @foreach (var type in StudioFormFieldTypes.All)
                                         {
                                             <option value="@type">@type</option>
@@ -239,10 +260,10 @@
                                 <FieldStateRow State="@(field.IsAttachment ? FieldState.System : string.IsNullOrWhiteSpace(field.TargetField) ? FieldState.Discovered : FieldState.Input)"
                                                Label="Target field"
                                                Hint="@(field.IsAttachment ? "managed by attachment store" : string.IsNullOrWhiteSpace(field.TargetField) ? "defaults to the field id" : null)">
-                                    <input class="console-input" @bind="field.TargetField" placeholder="asset_id" disabled="@field.IsAttachment" />
+                                    <input class="console-input" @bind="field.TargetField" @bind:after="OnEdit" placeholder="asset_id" disabled="@field.IsAttachment" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Domain">
-                                    <select class="console-input" @bind="field.DomainKind">
+                                    <select class="console-input" @bind="field.DomainKind" @bind:after="OnEdit">
                                         <option value="none">No domain</option>
                                         <option value="coded">Coded values</option>
                                         <option value="range">Range</option>
@@ -251,33 +272,38 @@
                             </div>
 
                             <div class="console-chip-row studio-form-toggles">
-                                <label><input type="checkbox" @bind="field.Required" /> <span>Required</span></label>
-                                <label><input type="checkbox" @bind="field.Private" /> <span>Private</span></label>
+                                <label><input type="checkbox" @bind="field.Required" @bind:after="OnEdit" /> <span>Required</span></label>
+                                <label><input type="checkbox" @bind="field.Private" @bind:after="OnEdit" /> <span>Private</span></label>
                                 @if (field.IsAttachment)
                                 {
-                                    <label class="studio-form-label studio-form-inline"><span>Max attachments</span><input class="console-input" type="number" @bind="field.AttachmentMaxCount" /></label>
+                                    <label class="studio-form-label studio-form-inline"><span>Max attachments</span><input class="console-input" type="number" @bind="field.AttachmentMaxCount" @bind:after="OnEdit" /></label>
                                 }
                             </div>
+                            @if (field.IsAttachment)
+                            {
+                                <ValidationMessageInline FieldKey="@StudioFormFieldKeys.FieldAttachmentMaxCount(fieldIndex)" State="_validation" />
+                            }
 
                             @if (string.Equals(field.DomainKind, "coded", StringComparison.OrdinalIgnoreCase))
                             {
                                 <label class="studio-form-label">
                                     <span>Coded values (one per line, <code>code=label</code>)</span>
-                                    <textarea class="console-input" rows="2" @bind="field.Choices" placeholder="good=Good&#10;needs-repair=Needs repair"></textarea>
+                                    <textarea class="console-input" rows="2" @bind="field.Choices" @bind:after="OnEdit" placeholder="good=Good&#10;needs-repair=Needs repair"></textarea>
                                 </label>
                             }
                             else if (string.Equals(field.DomainKind, "range", StringComparison.OrdinalIgnoreCase))
                             {
                                 <div class="console-panel-grid">
-                                    <label class="studio-form-label"><span>Min</span><input class="console-input" @bind="field.RangeMin" /></label>
-                                    <label class="studio-form-label"><span>Max</span><input class="console-input" @bind="field.RangeMax" /></label>
+                                    <label class="studio-form-label"><span>Min</span><input class="console-input" @bind="field.RangeMin" @bind:after="OnEdit" /></label>
+                                    <label class="studio-form-label"><span>Max</span><input class="console-input" @bind="field.RangeMax" @bind:after="OnEdit" /></label>
                                 </div>
+                                <ValidationMessageInline FieldKey="@StudioFormFieldKeys.FieldRangeMin(fieldIndex)" State="_validation" />
                             }
 
                             <div class="console-panel-grid">
                                 <label class="studio-form-label">
                                     <span>Validation</span>
-                                    <select class="console-input" @bind="field.ValidationType">
+                                    <select class="console-input" @bind="field.ValidationType" @bind:after="OnEdit">
                                         <option value="none">None</option>
                                         <option value="minLength">Min length</option>
                                         <option value="maxLength">Max length</option>
@@ -288,24 +314,25 @@
                                 </label>
                                 @if (!string.Equals(field.ValidationType, "none", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    <label class="studio-form-label"><span>Rule value</span><input class="console-input" @bind="field.ValidationValue" /></label>
-                                    <label class="studio-form-label"><span>Message</span><input class="console-input" @bind="field.ValidationMessage" placeholder="Enter a valid value" /></label>
+                                    <label class="studio-form-label"><span>Rule value</span><input class="console-input" @bind="field.ValidationValue" @bind:after="OnEdit" /></label>
+                                    <label class="studio-form-label"><span>Message</span><input class="console-input" @bind="field.ValidationMessage" @bind:after="OnEdit" placeholder="Enter a valid value" /></label>
                                 }
                             </div>
 
                             <div class="console-panel-grid">
-                                <label class="studio-form-label"><span>Visible when field</span><input class="console-input" @bind="field.VisibilityDependsOn" placeholder="condition" /></label>
+                                <label class="studio-form-label"><span>Visible when field</span><input class="console-input" @bind="field.VisibilityDependsOn" @bind:after="OnEdit" placeholder="condition" /></label>
                                 <label class="studio-form-label">
                                     <span>Operator</span>
-                                    <select class="console-input" @bind="field.VisibilityOperator">
+                                    <select class="console-input" @bind="field.VisibilityOperator" @bind:after="OnEdit">
                                         @foreach (var op in StudioFormVisibilityOperators.All)
                                         {
                                             <option value="@op">@op</option>
                                         }
                                     </select>
                                 </label>
-                                <label class="studio-form-label"><span>Compares to</span><input class="console-input" @bind="field.VisibilityValue" /></label>
+                                <label class="studio-form-label"><span>Compares to</span><input class="console-input" @bind="field.VisibilityValue" @bind:after="OnEdit" /></label>
                             </div>
+                            <ValidationMessageInline FieldKey="@StudioFormFieldKeys.FieldVisibilityDependsOn(fieldIndex)" State="_validation" />
 
                             <div class="console-action-row">
                                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemoveField(field)">Remove field</button>
@@ -319,24 +346,26 @@
                         <p class="console-kicker">Attachments</p>
                         <h3>Attachment policy</h3>
                         <div class="console-chip-row studio-form-toggles">
-                            <label><input type="checkbox" @bind="editor.AttachmentsEnabled" /> <span>Enabled</span></label>
-                            <label><input type="checkbox" @bind="editor.RequireExifStripping" /> <span>Strip EXIF</span></label>
-                            <label><input type="checkbox" @bind="editor.RequireFaceBlur" /> <span>Face blur</span></label>
-                            <label><input type="checkbox" @bind="editor.RequireRedaction" /> <span>Redaction</span></label>
+                            <label><input type="checkbox" @bind="editor.AttachmentsEnabled" @bind:after="OnEdit" /> <span>Enabled</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireExifStripping" @bind:after="OnEdit" /> <span>Strip EXIF</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireFaceBlur" @bind:after="OnEdit" /> <span>Face blur</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireRedaction" @bind:after="OnEdit" /> <span>Redaction</span></label>
                         </div>
-                        <label class="studio-form-label"><span>Max attachments / submission</span><input class="console-input" type="number" @bind="editor.MaxAttachmentsPerSubmission" /></label>
-                        <label class="studio-form-label"><span>Allowed content types</span><input class="console-input" @bind="editor.AllowedContentTypes" placeholder="image/*, application/pdf" /></label>
+                        <label class="studio-form-label"><span>Max attachments / submission</span><input class="console-input" type="number" @bind="editor.MaxAttachmentsPerSubmission" @bind:after="OnEdit" /></label>
+                        <ValidationMessageInline FieldKey="@StudioFormFieldKeys.MaxAttachmentsPerSubmission" State="_validation" />
+                        <label class="studio-form-label"><span>Allowed content types</span><input class="console-input" @bind="editor.AllowedContentTypes" @bind:after="OnEdit" placeholder="image/*, application/pdf" /></label>
                     </article>
 
                     <article class="console-panel">
                         <p class="console-kicker">Privacy</p>
                         <h3>Privacy policy</h3>
                         <div class="console-chip-row studio-form-toggles">
-                            <label><input type="checkbox" @bind="editor.CaptureActor" /> <span>Capture actor</span></label>
-                            <label><input type="checkbox" @bind="editor.CaptureDeviceId" /> <span>Capture device id</span></label>
+                            <label><input type="checkbox" @bind="editor.CaptureActor" @bind:after="OnEdit" /> <span>Capture actor</span></label>
+                            <label><input type="checkbox" @bind="editor.CaptureDeviceId" @bind:after="OnEdit" /> <span>Capture device id</span></label>
                         </div>
-                        <label class="studio-form-label"><span>Retention (days)</span><input class="console-input" type="number" @bind="editor.PrivacyRetentionDays" /></label>
-                        <label class="studio-form-label"><span>Required transformations</span><input class="console-input" @bind="editor.RequiredTransformations" placeholder="auditOnly" /></label>
+                        <label class="studio-form-label"><span>Retention (days)</span><input class="console-input" type="number" @bind="editor.PrivacyRetentionDays" @bind:after="OnEdit" /></label>
+                        <ValidationMessageInline FieldKey="@StudioFormFieldKeys.PrivacyRetentionDays" State="_validation" />
+                        <label class="studio-form-label"><span>Required transformations</span><input class="console-input" @bind="editor.RequiredTransformations" @bind:after="OnEdit" placeholder="auditOnly" /></label>
                     </article>
                 </div>
 
@@ -345,13 +374,14 @@
                     <h3 id="form-offline-heading">Offline policy</h3>
                     <p class="console-muted">Field clients sync through honua-server transports. The offline policy must be an explicit, reviewed decision before publish.</p>
                     <div class="console-chip-row studio-form-toggles">
-                        <label><input type="checkbox" @bind="editor.OfflineEnabled" /> <span>Offline capture enabled</span></label>
-                        <label><input type="checkbox" @bind="editor.ReplicaTransportEnabled" /> <span>FeatureServer replica</span></label>
-                        <label><input type="checkbox" @bind="editor.FieldCollectionTransportEnabled" /> <span>FieldCollection sync</span></label>
+                        <label><input type="checkbox" @bind="editor.OfflineEnabled" @bind:after="OnEdit" /> <span>Offline capture enabled</span></label>
+                        <label><input type="checkbox" @bind="editor.ReplicaTransportEnabled" @bind:after="OnEdit" /> <span>FeatureServer replica</span></label>
+                        <label><input type="checkbox" @bind="editor.FieldCollectionTransportEnabled" @bind:after="OnEdit" /> <span>FieldCollection sync</span></label>
                     </div>
+                    <ValidationMessageInline FieldKey="@StudioFormFieldKeys.OfflineTransports" State="_validation" />
                     <label class="studio-form-label">
                         <span>Conflict review mode</span>
-                        <select class="console-input" @bind="editor.ConflictReviewMode">
+                        <select class="console-input" @bind="editor.ConflictReviewMode" @bind:after="OnEdit">
                             @foreach (var mode in StudioFormConflictModes.All)
                             {
                                 <option value="@mode">@mode</option>
@@ -359,7 +389,7 @@
                         </select>
                     </label>
                     <label class="studio-form-review">
-                        <input type="checkbox" @bind="editor.OfflinePolicyReviewed" />
+                        <input type="checkbox" @bind="editor.OfflinePolicyReviewed" @bind:after="OnEdit" />
                         <span>I reviewed the offline/sync policy for this form (required before publish).</span>
                     </label>
                 </article>
@@ -377,8 +407,38 @@
     private StudioFormEditorState? _editor;
     private string? _status;
     private bool _statusFailed;
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
 
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+
+    /// <summary>
+    /// Re-runs the client cross-field/bounds validator over the current editor and flags the editor dirty.
+    /// Called from the markup's <c>@onchange</c> wiring on every bound edit (cheap and synchronous). Server
+    /// findings in <see cref="_validation"/> are left untouched — they are refreshed only on a validate/save.
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+
+        // An edit invalidates the last server validation (the page already treats LastValidation as stale once
+        // there are unsaved edits), so drop the now-stale server findings. Keeping them would wrongly keep Save
+        // gated even after the operator fixes a server-reported issue — and Validate is itself disabled while
+        // edits are unsaved, which would otherwise deadlock the draft. The next save/validate rebinds fresh ones.
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_editor is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioFormValidator.Instance.Evaluate(_editor));
+
+    /// <summary>Rebinds the server validation items onto fields and clears the local dirty/client state for a clean load or save.</summary>
+    private void BindServerErrors() =>
+        _validation.SetServerErrors(_editor is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioFormServerErrorBinder.Map(_editor, _editor.LastValidation));
 
     private async Task LoadWorkspaceAsync()
     {
@@ -407,6 +467,13 @@
             var result = await load();
             ApplyStates(result.CapabilityStates);
             _editor = result.State;
+
+            // A fresh load is the clean baseline: drop local edits/dirty state and recompute findings against
+            // the loaded editor (client + any server validation it arrived with).
+            _validation.Clear();
+            _dirty.MarkClean();
+            RecomputeClientErrors();
+            BindServerErrors();
         }
         finally
         {
@@ -419,14 +486,24 @@
         _editor = null;
         _status = null;
         _statusFailed = false;
+        _validation.Clear();
+        _dirty.MarkClean();
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
         // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
         await LoadWorkspaceAsync();
     }
 
-    private void AddField() => _editor?.Fields.Add(new StudioFormFieldEditor());
+    private void AddField()
+    {
+        _editor?.Fields.Add(new StudioFormFieldEditor());
+        OnEdit();
+    }
 
-    private void RemoveField(StudioFormFieldEditor field) => _editor?.Fields.Remove(field);
+    private void RemoveField(StudioFormFieldEditor field)
+    {
+        _editor?.Fields.Remove(field);
+        OnEdit();
+    }
 
     private Task Save() => RunCommandAsync(() => FormData.SaveDraftAsync(_editor!));
 
@@ -453,6 +530,16 @@
             if (result.State is not null)
             {
                 _editor = result.State;
+            }
+
+            // Re-run the client validator against the post-command editor and rebind the (possibly refreshed)
+            // server validation items onto fields. A successful command leaves the editor on a clean,
+            // server-synced baseline, so clear the dirty flag; a failed command keeps any unsaved edits dirty.
+            RecomputeClientErrors();
+            BindServerErrors();
+            if (result.Succeeded)
+            {
+                _dirty.MarkClean();
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);

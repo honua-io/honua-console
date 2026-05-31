@@ -23,6 +23,9 @@ public sealed class StudioFormBuilderRenderTests
             Workspace = new StudioFormWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.TestContext();
+        // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
+        // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioFormBuilderPage>();
@@ -44,6 +47,9 @@ public sealed class StudioFormBuilderRenderTests
             EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.TestContext();
+        // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
+        // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioFormBuilderPage>();
@@ -69,6 +75,9 @@ public sealed class StudioFormBuilderRenderTests
             EditorLoad = new StudioFormEditorLoad(PublishedEditor(), [])
         };
         using var ctx = new Bunit.TestContext();
+        // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
+        // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioFormBuilderPage>();
@@ -99,6 +108,9 @@ public sealed class StudioFormBuilderRenderTests
             EditorLoad = new StudioFormEditorLoad(incomplete, [])
         };
         using var ctx = new Bunit.TestContext();
+        // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
+        // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioFormBuilderPage>();
@@ -122,6 +134,9 @@ public sealed class StudioFormBuilderRenderTests
             EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.TestContext();
+        // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
+        // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioFormBuilderPage>();
@@ -152,6 +167,9 @@ public sealed class StudioFormBuilderRenderTests
             EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.TestContext();
+        // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
+        // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioFormBuilderPage>();
@@ -190,6 +208,9 @@ public sealed class StudioFormBuilderRenderTests
             EditorLoad = new StudioFormEditorLoad(editor, [])
         };
         using var ctx = new Bunit.TestContext();
+        // The page now hosts an UnsavedChangesGuard, which arms its beforeunload JS module on edit. Tolerate
+        // those interop calls (the guard fails safe without JS); these tests assert page behaviour, not the guard.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioFormBuilderPage>();
