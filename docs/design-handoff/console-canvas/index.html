@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Honua Console · wireframes</title>
+<title>Honua Admin · wireframes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kalam:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -47,6 +47,8 @@
 <script type="text/babel" src="screens-studio-form-workflow.jsx"></script>
 <script type="text/babel" src="screens-studio-rest.jsx"></script>
 <script type="text/babel" src="screens-collab-rbac.jsx"></script>
+<script type="text/babel" src="screens-import-esri.jsx"></script>
+<script type="text/babel" src="screens-import-wizard.jsx"></script>
 
 <script type="text/babel" data-presets="env,react">
 const W = 1280, H = 800;
@@ -55,6 +57,30 @@ const WIDE = 1480, TALL = 900;
 function App() {
   return (
     <DesignCanvas>
+      <DCSection id="import-esri" title="①·d Import from Esri · content migration (issue #122)" subtitle="Content-import surfaces — distinct from the data-layer→PostGIS importer. Web Map / Dashboard / StoryMap conversion with per-item fidelity (clean / degrades / dropped), plus the Operate wizard + parity scorecard. Covers empty · loading · partial · error · missing-binding (Charter §11).">
+        <DCArtboard id="import-webmap" label="#100 · Import Esri Web Map JSON → honua.map-package.v1 (layer mapping + fidelity)" width={WIDE} height={H}>
+          <ImportEsriWebMap />
+        </DCArtboard>
+        <DCArtboard id="import-dashboard" label="#101 · Import Esri Dashboard JSON → dashboard package (element→widget grid)" width={WIDE} height={H}>
+          <ImportEsriDashboard />
+        </DCArtboard>
+        <DCArtboard id="import-storymap" label="#104 · Import StoryMap / Hub site → Console report (section→block mapping)" width={WIDE} height={H}>
+          <ImportStoryMap />
+        </DCArtboard>
+        <DCArtboard id="import-wizard" label="#102 · Import-from-Esri wizard · step 3 Map (mixed content + fidelity)" width={W} height={H}>
+          <ImportEsriWizard />
+        </DCArtboard>
+        <DCArtboard id="import-run" label="#102 · wizard step 4 Run (progress · resumable · 1 failed/retry)" width={W} height={H}>
+          <ImportRunProgress />
+        </DCArtboard>
+        <DCArtboard id="import-scorecard" label="#102 · wizard step 5 Parity scorecard (pass/degraded/binding/failed · export report)" width={W} height={H}>
+          <ParityScorecard />
+        </DCArtboard>
+        <DCArtboard id="import-missing-binding" label="#102 · missing-binding state — no honua-server configured (Charter §11)" width={W} height={H}>
+          <ImportMissingBinding />
+        </DCArtboard>
+      </DCSection>
+
       <DCSection id="collab-rbac" title="⓪·a Collaboration & RBAC" subtitle="Felt-style multiplayer on the Studio Map (presence, cursors, drawing markup, feature-pinned comments, activity sidebar, follow mode) plus hierarchical RBAC across Workspace → Environment → Content → Publication → Resource field.">
         <DCArtboard id="studio-map-collab" label="Studio Map · multiplayer (3 users · cursors · sticky note · arrow · 2 comment pins · follow mode · live activity)" width={WIDE} height={H}>
           <StudioMapCollab />
@@ -332,7 +358,7 @@ function App() {
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="svc" title="⑦ Services & Layers" subtitle="Endpoints (FeatureServer, MapServer, OGC API, WMS, WMTS, OData…) with their layer slots. Catalogs (Esri catalog, OGC Records) auto-appear when you publish services. DCAT/STAC publishing lives in Honua Console.">
+      <DCSection id="svc" title="⑦ Services & Layers" subtitle="Endpoints (FeatureServer, MapServer, OGC API, WMS, WMTS, OData…) with their layer slots. Catalogs (Esri catalog, OGC Records) auto-appear when you publish services. DCAT/STAC publishing lives in the separate Portal product.">
         <DCArtboard id="svc-list" label="Services & layers · flat list" width={W} height={H}>
           <ServicesList />
         </DCArtboard>
@@ -347,8 +373,8 @@ function App() {
         </DCArtboard>
       </DCSection>
 
-      <DCSection id="catalogs" title="⑦·b Catalogs" subtitle="Discovery endpoints — Esri catalog, OGC API Records, OData catalog, STAC, and DCAT in one Console deploy surface.">
-        <DCArtboard id="catalogs-list" label="Catalogs · all five in Console" width={W} height={H}>
+      <DCSection id="catalogs" title="⑦·b Catalogs" subtitle="Discovery endpoints — Esri catalog, OGC API Records, OData catalog (auto-mirror from services); STAC + DCAT (stubs into the Portal product).">
+        <DCArtboard id="catalogs-list" label="Catalogs · all five (3 live + 2 Portal stubs)" width={W} height={H}>
           <CatalogsList />
         </DCArtboard>
         <DCArtboard id="catalog-esri" label="Esri catalog · items grid (auto-mirrored from services)" width={W} height={H}>

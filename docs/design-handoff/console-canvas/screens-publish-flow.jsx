@@ -5,7 +5,7 @@ function PublishFlowMap() {
     <div style={{padding:'20px 24px', overflow:'auto', height:'100%', background:'#fcfcfa', position:'relative', fontFamily:'Inter, system-ui, sans-serif'}}>
       <h2 style={{margin:'0 0 4px', font:'600 16px var(--ui)'}}>Publish flow · conceptual</h2>
       <div className="muted" style={{fontSize:11.5, marginBottom:16}}>
-        How one canonical Data Resource gets exposed via service slots and catalog entries. Esri services → Esri catalog and OGC API → OGC Records are <b>opt-in checkboxes, default on</b>. STAC and DCAT publishing live in Honua Console.
+        How one canonical Data Resource gets exposed via service slots and catalog entries. Esri services → Esri catalog and OGC API → OGC Records are <b>opt-in checkboxes, default on</b>. STAC and DCAT publishing live in the separate Portal product.
       </div>
 
       <div style={{position:'relative', minHeight: 720}}>
@@ -140,7 +140,7 @@ function PublishFlowMap() {
             <div className="card">
               <h3>Catalog registration</h3>
               <div style={{fontSize:11.5,lineHeight:1.55}}>
-                When you publish to an <b>Esri service</b>, a "Register in Esri catalog" checkbox is offered, default checked. Same for <b>OGC API Features</b> → <b>OGC Records</b>. Uncheck if you want the service live but hidden from catalog discovery. STAC and DCAT live in Honua Console.
+                When you publish to an <b>Esri service</b>, a "Register in Esri catalog" checkbox is offered, default checked. Same for <b>OGC API Features</b> → <b>OGC Records</b>. Uncheck if you want the service live but hidden from catalog discovery. STAC and DCAT live in the separate Portal product.
               </div>
             </div>
             <div className="card">

@@ -387,7 +387,7 @@ function ResPublish() {
           <div className="col">
             <Callout kind="info">
               <b>parcels_2024 is the canonical home.</b> Below are the {' '}
-              <b>service / layer slots</b> where it's exposed. Catalog entries are <b>opt-in but default on</b> for the formats that have one: Esri service → Esri catalog, OGC API Features → OGC Records. Each row has a direct link out. <span className="muted">DCAT &amp; STAC publishing happens in Honua Console.</span>
+              <b>service / layer slots</b> where it's exposed. Catalog entries are <b>opt-in but default on</b> for the formats that have one: Esri service → Esri catalog, OGC API Features → OGC Records. Each row has a direct link out. <span className="muted">DCAT &amp; STAC publishing happens in the separate <b>Portal</b> product.</span>
             </Callout>
 
             <div className="card" style={{padding:0}}>
