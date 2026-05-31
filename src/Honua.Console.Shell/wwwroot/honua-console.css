@@ -7654,6 +7654,11 @@ p {
     width: 100%;
 }
 
+/* Row-level error list sits below the field, spanning the content columns (the row is a 4-col grid). */
+.console-field-state__errors {
+    grid-column: 2 / -1;
+}
+
 .console-field-state__error {
     font-size: 0.78rem;
     line-height: 1.3;

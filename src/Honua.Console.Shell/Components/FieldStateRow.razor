@@ -87,7 +87,6 @@
             <span class="console-field-state__value">
                 @ChildContent
                 @RenderDiscoveredActions
-                @RenderErrors
             </span>
         </label>
     }
@@ -110,9 +109,11 @@
                 <span class="console-field-state__readonly">@(string.IsNullOrWhiteSpace(Value) ? "—" : Value)</span>
             }
             @RenderDiscoveredActions
-            @RenderErrors
         </div>
     }
+    @* Error list is a row-level sibling, never nested inside the <label> (invalid HTML + pollutes the
+       control's accessible name). It spans the content columns below the field via CSS. *@
+    @RenderErrors
     <div class="console-field-state__meta">
         <span class="console-field-state__pill console-field-state__pill--@PillSlug">@PillLabel</span>
         @if (!string.IsNullOrWhiteSpace(Hint))

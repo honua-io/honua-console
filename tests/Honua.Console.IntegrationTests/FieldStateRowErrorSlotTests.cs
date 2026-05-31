@@ -62,7 +62,7 @@ public sealed class FieldStateRowErrorSlotTests
     }
 
     [Fact]
-    public void Errors_RenderInValueSlotAlongsideControl()
+    public void Errors_RenderAtRowLevelOutsideTheLabel()
     {
         using var ctx = new Bunit.TestContext();
 
@@ -75,9 +75,13 @@ public sealed class FieldStateRowErrorSlotTests
                 new("f", "c", ConsoleValidationSeverity.Error, "bad value"),
             }));
 
-        // Control and the error list both live inside the value slot (so @bind stays intact).
+        // The control stays inside the label's value slot so @bind two-way binding is intact...
         Assert.NotNull(cut.Find(".console-field-state__value [data-test=\"field\"]"));
-        Assert.NotNull(cut.Find(".console-field-state__value .console-field-state__errors"));
+        // ...but the error list is a row-level sibling, never nested inside the <label> (nesting a <ul>
+        // in a <label> is invalid HTML and pollutes the control's accessible name).
+        Assert.NotNull(cut.Find(".console-field-state > .console-field-state__errors"));
+        Assert.Empty(cut.FindAll(".console-field-state__field .console-field-state__errors"));
+        Assert.Contains("bad value", cut.Find(".console-field-state__errors").TextContent, System.StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,7 +1,9 @@
+using System.Linq;
 using Bunit;
 using Bunit.TestDoubles;
 using Honua.Console.Shell.Components;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -38,7 +40,7 @@ public sealed class UnsavedChangesGuardTests
         var nav = Nav(ctx);
         nav.NavigateTo("/studio/elsewhere");
 
-        Assert.Equal(NavigationState.Prevented, nav.History[^1].State);
+        Assert.Equal(NavigationState.Prevented, nav.History.Last().State);
     }
 
     [Fact]
@@ -54,7 +56,7 @@ public sealed class UnsavedChangesGuardTests
         var nav = Nav(ctx);
         nav.NavigateTo("/studio/elsewhere");
 
-        Assert.Equal(NavigationState.Succeeded, nav.History[^1].State);
+        Assert.Equal(NavigationState.Succeeded, nav.History.Last().State);
     }
 
     [Fact]
@@ -69,7 +71,7 @@ public sealed class UnsavedChangesGuardTests
         var nav = Nav(ctx);
         nav.NavigateTo("/studio/elsewhere");
 
-        Assert.Equal(NavigationState.Succeeded, nav.History[^1].State);
+        Assert.Equal(NavigationState.Succeeded, nav.History.Last().State);
         Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "confirm");
     }
 
@@ -103,6 +105,6 @@ public sealed class UnsavedChangesGuardTests
         var nav = Nav(ctx);
         nav.NavigateTo("/studio/after-dispose");
 
-        Assert.Equal(NavigationState.Succeeded, nav.History[^1].State);
+        Assert.Equal(NavigationState.Succeeded, nav.History.Last().State);
     }
 }

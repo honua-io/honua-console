@@ -22,10 +22,10 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
 
-        // Per-editor unsaved-changes dirty tracking backing the <UnsavedChangesGuard/> (Wave 0).
-        // Scoped so each Blazor circuit / editor instance owns its own flag. Editors are wired in the
-        // per-surface waves; Wave 0 only ships the holder + guard component + beforeunload interop.
-        services.TryAddScoped<FormDirtyState>();
+        // Unsaved-changes dirty tracking (FormDirtyState) is intentionally NOT registered in DI: a
+        // Scoped service lives for the entire Blazor Server circuit, so every editor would share one
+        // flag. Each editor instead owns a private FormDirtyState instance and passes its IsDirty to
+        // the <UnsavedChangesGuard/>. Editors are wired in the per-surface waves.
 
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioAppPackageDataSource(services, honuaServerBaseUrl);

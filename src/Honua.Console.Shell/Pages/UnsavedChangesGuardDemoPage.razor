@@ -1,6 +1,5 @@
 @page "/studio/_dev/unsaved-changes-demo"
 @using Honua.Console.Shell.Validation
-@inject FormDirtyState Dirty
 
 @*
     Demo / manual-test harness for the Wave-0 unsaved-changes guard infra. It is intentionally NOT a
@@ -45,6 +44,9 @@
 
 @code {
     private const string DemoMessage = "You have unsaved changes in the demo. Leave and discard them?";
+
+    // Each editor owns its FormDirtyState instance (not a circuit-shared DI service).
+    private readonly FormDirtyState Dirty = new();
 
     private string _note = string.Empty;
 
