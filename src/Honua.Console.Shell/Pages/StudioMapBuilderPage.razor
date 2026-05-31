@@ -2,7 +2,10 @@
 @using System.Text.Json
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
 @inject IStudioMapPackageDataSource MapData
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved map changes. Leave this page and discard them?" />
 
 <section class="console-page studio-map-builder">
     <div class="console-page-heading">
@@ -79,6 +82,10 @@
     {
         var editor = _editor;
         var readiness = StudioMapPublishEvaluator.Evaluate(editor);
+        // Publish is gated on BOTH the pre-publish presence gate and the client validator's blocking findings
+        // (e.g. a present-but-inverted initial extent), so the inline validation gates publish consistently
+        // with Save rather than falling through to the server.
+        var canPublish = readiness.CanPublish && !_validation.HasBlockingClientErrors;
         var selectedLayer = SelectedLayer(editor);
 
         @if (_view == EditorView.FromPrompt)
@@ -98,13 +105,13 @@
                     </SecondaryRefineActions>
                     <PreviewHeader>
                         <span class="studio-map-glyph" aria-hidden="true">◐</span>
-                        <input class="console-input studio-map-title-input" @bind="editor.Title" placeholder="parcels-use-map" aria-label="Map title" />
+                        <input class="console-input studio-map-title-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="parcels-use-map" aria-label="Map title" />
                         <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
-                        <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "validation passed" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                        <span class="console-status @(canPublish ? string.Empty : "console-status-warning")">@(canPublish ? "validation passed" : $"{(readiness.UnmetRequirements.Count + (_validation.HasBlockingClientErrors ? _validation.Summary.Count(e => e.IsBlocking) : 0))} to resolve")</span>
                         <div class="studio-ai-preview-head-spacer"></div>
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Save draft</button>
                         <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
-                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishWizard">Publish…</button>
+                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     </PreviewHeader>
                     <PreviewContent>
                         <div class="studio-map-ai-inspect">
@@ -200,12 +207,13 @@
                     <span class="studio-map-glyph" aria-hidden="true">◐</span>
                     <div>
                         <p class="console-kicker">@(editor.IsExistingPackage ? $"{editor.MapId} · v{editor.Version}" : "New draft")</p>
-                        <input class="console-input studio-map-title-input" @bind="editor.Title" placeholder="Public works map" aria-label="Map title" />
+                        <input class="console-input studio-map-title-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Public works map" aria-label="Map title" />
+                        <ValidationMessageInline FieldKey="@StudioMapFieldKeys.Title" State="_validation" />
                     </div>
                 </div>
                 <div class="console-chip-row studio-map-status-chips">
                     <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
-                    <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "validation passed" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                    <span class="console-status @(canPublish ? string.Empty : "console-status-warning")">@(canPublish ? "validation passed" : $"{(readiness.UnmetRequirements.Count + (_validation.HasBlockingClientErrors ? _validation.Summary.Count(e => e.IsBlocking) : 0))} to resolve")</span>
                     @* Presence affordance — opens the live Activity rail. Collaboration is unbound until
                        honua-server#1278 ships, so this advertises the surface without fabricating a count. *@
                     <button type="button" class="console-status studio-map-collab-presence-chip" data-collab-presence-chip @onclick='() => SetTab("activity")'>Collaborators</button>
@@ -216,8 +224,8 @@
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToChat">← Back to chat</button>
                     }
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to maps</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="Save">Save draft</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishWizard">Publish…</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     @if (editor.IsPublished)
                     {
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
@@ -228,6 +236,20 @@
             @if (!string.IsNullOrEmpty(_status))
             {
                 <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+            }
+
+            @if (_validation.HasBlockingClientErrors)
+            {
+                <article class="console-panel" aria-labelledby="map-validation-blocking-heading" data-validation-summary="blocking">
+                    <p class="console-kicker">Validation</p>
+                    <h3 id="map-validation-blocking-heading">Resolve before saving</h3>
+                    <ul class="studio-compact-list">
+                        @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                        {
+                            <li>@error.Message</li>
+                        }
+                    </ul>
+                </article>
             }
 
             @* Editor section tabs — Design / Data bindings / Interactions / Access / Package · raw. *@
@@ -269,7 +291,7 @@
                                 var position = index;
                                 <li class="@(position == _selectedLayerIndex ? "studio-map-layer-item studio-map-layer-selected" : "studio-map-layer-item")" @key="layer">
                                     <div class="studio-map-layer-select">
-                                        <input type="checkbox" @bind="layer.Visible" aria-label="Layer visible" />
+                                        <input type="checkbox" @bind="layer.Visible" @bind:after="OnEdit" aria-label="Layer visible" />
                                         <button type="button" class="studio-map-layer-name" @onclick="() => SelectLayer(position)">
                                             @(string.IsNullOrWhiteSpace(layer.Title) ? (string.IsNullOrWhiteSpace(layer.SourceRef) ? "Untitled layer" : layer.SourceRef) : layer.Title)
                                         </button>
@@ -324,18 +346,19 @@
                         {
                             <p class="console-kicker">@(string.IsNullOrWhiteSpace(selectedLayer.Title) ? "Layer" : selectedLayer.Title) · paint</p>
                             <h3>Layer style</h3>
-                            <label class="studio-form-label"><span>Source ref</span><input class="console-input" @bind="selectedLayer.SourceRef" placeholder="content:hydrants@v12" /></label>
-                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="selectedLayer.Title" placeholder="Hydrants" /></label>
-                            <label class="studio-form-label"><span>Style</span><input class="console-input" @bind="selectedLayer.Style" placeholder="style:point-red" /></label>
+                            <label class="studio-form-label"><span>Source ref</span><input class="console-input" @bind="selectedLayer.SourceRef" @bind:after="OnEdit" placeholder="content:hydrants@v12" /></label>
+                            <ValidationMessageInline FieldKey="@StudioMapFieldKeys.LayerSourceRef(_selectedLayerIndex)" State="_validation" />
+                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="selectedLayer.Title" @bind:after="OnEdit" placeholder="Hydrants" /></label>
+                            <label class="studio-form-label"><span>Style</span><input class="console-input" @bind="selectedLayer.Style" @bind:after="OnEdit" placeholder="style:point-red" /></label>
 
                             <div class="studio-inspector-section">
                                 <h3>Filter</h3>
-                                <label class="studio-form-label"><span>WHERE clause</span><input class="console-input" @bind="selectedLayer.Filter" placeholder="status = 'active'" /></label>
+                                <label class="studio-form-label"><span>WHERE clause</span><input class="console-input" @bind="selectedLayer.Filter" @bind:after="OnEdit" placeholder="status = 'active'" /></label>
                             </div>
 
                             <div class="studio-inspector-section">
                                 <h3>Popup template</h3>
-                                <label class="studio-form-label"><span>Popup fields (comma-separated)</span><input class="console-input" @bind="selectedLayer.PopupFields" placeholder="asset_id, condition" /></label>
+                                <label class="studio-form-label"><span>Popup fields (comma-separated)</span><input class="console-input" @bind="selectedLayer.PopupFields" @bind:after="OnEdit" placeholder="asset_id, condition" /></label>
                             </div>
                         }
                     </aside>
@@ -348,17 +371,20 @@
                     <div class="console-panel-grid">
                         <label class="studio-form-label">
                             <span>Basemap</span>
-                            <input class="console-input" @bind="editor.Basemap" placeholder="basemap:streets" />
+                            <input class="console-input" @bind="editor.Basemap" @bind:after="OnEdit" placeholder="basemap:streets" />
+                            <ValidationMessageInline FieldKey="@StudioMapFieldKeys.Basemap" State="_validation" />
                         </label>
                         <label class="studio-form-label">
                             <span>Initial extent (minX,minY,maxX,maxY)</span>
-                            <input class="console-input" @bind="editor.InitialExtent" placeholder="-158.3,21.2,-157.6,21.7" />
+                            <input class="console-input" @bind="editor.InitialExtent" @bind:after="OnEdit" placeholder="-158.3,21.2,-157.6,21.7" />
+                            <ValidationMessageInline FieldKey="@StudioMapFieldKeys.InitialExtent" State="_validation" />
                         </label>
                     </div>
                     <label class="studio-form-label">
                         <span>Description</span>
-                        <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
+                        <textarea class="console-input" rows="2" @bind="editor.Description" @bind:after="OnEdit"></textarea>
                     </label>
+                    <ValidationMessageInline FieldKey="@StudioMapFieldKeys.Layers" State="_validation" />
                 </article>
             }
             else if (string.Equals(_activeTab, "comments", StringComparison.Ordinal)
@@ -390,9 +416,9 @@
                     <p class="console-kicker">Interactions and legend</p>
                     <h3>Map behavior</h3>
                     <div class="console-chip-row studio-map-toggles">
-                        <label><input type="checkbox" @bind="editor.ShowLegend" /> <span>Show legend</span></label>
-                        <label><input type="checkbox" @bind="editor.PopupsEnabled" /> <span>Enable popups</span></label>
-                        <label><input type="checkbox" @bind="editor.InteractionsEnabled" /> <span>Allow pan/zoom</span></label>
+                        <label><input type="checkbox" @bind="editor.ShowLegend" @bind:after="OnEdit" /> <span>Show legend</span></label>
+                        <label><input type="checkbox" @bind="editor.PopupsEnabled" @bind:after="OnEdit" /> <span>Enable popups</span></label>
+                        <label><input type="checkbox" @bind="editor.InteractionsEnabled" @bind:after="OnEdit" /> <span>Allow pan/zoom</span></label>
                     </div>
                 </article>
             }
@@ -414,7 +440,7 @@
                             <p class="console-kicker">Publish review</p>
                             <h3 id="map-publish-review-heading">Review before publish</h3>
                         </div>
-                        <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "ready" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                        <span class="console-status @(canPublish ? string.Empty : "console-status-warning")">@(canPublish ? "ready" : $"{(readiness.UnmetRequirements.Count + (_validation.HasBlockingClientErrors ? _validation.Summary.Count(e => e.IsBlocking) : 0))} to resolve")</span>
                     </div>
 
                     @{
@@ -466,6 +492,9 @@
     private EditorView _view = EditorView.Editor;
     private bool _cameFromPrompt;
     private PreviewDevice _previewDevice = PreviewDevice.Preview;
+
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
 
     private readonly List<StudioConversationTurn> _turns = [];
     private readonly List<StudioConversationClarification> _clarifications = [];
@@ -528,6 +557,24 @@
 
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
 
+    /// <summary>
+    /// Re-runs the client cross-field/bounds validator over the current editor and flags the editor dirty.
+    /// Called from the markup's <c>@bind:after</c> wiring on every bound edit (cheap and synchronous). Server
+    /// findings in <see cref="_validation"/> are dropped on edit so a fixed server-reported issue never keeps
+    /// Save gated (mirrors the Wave-1 form builder); the next save rebinds fresh diagnostics.
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_editor is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioMapValidator.Instance.Evaluate(_editor));
+
     private async Task LoadWorkspaceAsync()
     {
         _loading = true;
@@ -568,6 +615,12 @@
             _cameFromPrompt = view == EditorView.FromPrompt;
             _previewDevice = PreviewDevice.Preview;
             ResetConversation();
+
+            // A fresh load is the clean baseline: drop local edits/dirty state and recompute client findings
+            // against the loaded editor.
+            _validation.Clear();
+            _dirty.MarkClean();
+            RecomputeClientErrors();
         }
         finally
         {
@@ -697,7 +750,7 @@
     {
         return
         [
-            new PublishWizardStep("Validate", BuildValidateStep(editor, readiness), IsValid: readiness.CanPublish, ContinueLabel: "Continue · Dependencies →"),
+            new PublishWizardStep("Validate", BuildValidateStep(editor, readiness), IsValid: readiness.CanPublish && !_validation.HasBlockingClientErrors, ContinueLabel: "Continue · Dependencies →"),
             new PublishWizardStep("Dependencies", BuildDependenciesStep(editor), ContinueLabel: "Continue · Visibility →"),
             new PublishWizardStep("Visibility", BuildVisibilityStep(editor), ContinueLabel: "Continue · Embed →"),
             new PublishWizardStep("Embed", BuildEmbedStep(editor), ContinueLabel: "Continue · Rollback →"),
@@ -828,7 +881,7 @@
             builder.AddAttribute(seq++, "value", tier);
             builder.AddAttribute(seq++, "checked", selected);
             builder.AddAttribute(seq++, "disabled", editor.IsPublished);
-            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create(this, () => { editor.ShareTier = tier; }));
+            builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create(this, () => { editor.ShareTier = tier; OnEdit(); }));
             builder.CloseElement();
 
             builder.OpenElement(seq++, "span");
@@ -881,7 +934,7 @@
         builder.AddAttribute(seq++, "type", "checkbox");
         builder.AddAttribute(seq++, "checked", editor.EmbedAllowed);
         builder.AddAttribute(seq++, "disabled", editor.IsPublished);
-        builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, args => { editor.EmbedAllowed = args.Value is true; }));
+        builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, args => { editor.EmbedAllowed = args.Value is true; OnEdit(); }));
         builder.CloseElement();
         builder.OpenElement(seq++, "span");
         builder.AddContent(seq++, "Allow embed");
@@ -963,6 +1016,8 @@
         _statusFailed = false;
         _view = EditorView.Editor;
         _cameFromPrompt = false;
+        _validation.Clear();
+        _dirty.MarkClean();
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
         // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
         await LoadWorkspaceAsync();
@@ -977,6 +1032,7 @@
 
         _editor.Layers.Add(new StudioMapLayerEditor());
         _selectedLayerIndex = _editor.Layers.Count - 1;
+        OnEdit();
     }
 
     private void RemoveLayer(StudioMapLayerEditor layer)
@@ -991,6 +1047,8 @@
         {
             _selectedLayerIndex = Math.Max(0, _editor.Layers.Count - 1);
         }
+
+        OnEdit();
     }
 
     private void MoveLayerUp(int index)
@@ -1001,6 +1059,7 @@
         }
 
         (_editor.Layers[index - 1], _editor.Layers[index]) = (_editor.Layers[index], _editor.Layers[index - 1]);
+        OnEdit();
     }
 
     private void MoveLayerDown(int index)
@@ -1011,11 +1070,24 @@
         }
 
         (_editor.Layers[index + 1], _editor.Layers[index]) = (_editor.Layers[index], _editor.Layers[index + 1]);
+        OnEdit();
     }
 
     private Task Save() => RunCommandAsync(() => MapData.SaveDraftAsync(_editor!));
 
-    private Task Publish() => RunCommandAsync(() => MapData.PublishAsync(_editor!));
+    private Task Publish()
+    {
+        // Defence in depth: never let a publish fall through to the server while the client validator has a
+        // blocking finding (e.g. a present-but-inverted initial extent that passes the presence-only gate).
+        if (_validation.HasBlockingClientErrors)
+        {
+            _status = "Resolve the blocking validation findings before publishing.";
+            _statusFailed = true;
+            return Task.CompletedTask;
+        }
+
+        return RunCommandAsync(() => MapData.PublishAsync(_editor!));
+    }
 
     private Task Reopen() => RunCommandAsync(() => MapData.ReopenAsync(_editor!));
 
@@ -1036,6 +1108,16 @@
             if (result.State is not null)
             {
                 _editor = result.State;
+            }
+
+            // Re-run the client validator against the post-command editor and bind any server validation
+            // diagnostics the command surfaced onto their fields (JSON-Pointer → console field key). A
+            // successful command leaves the editor on a clean, server-synced baseline.
+            RecomputeClientErrors();
+            _validation.SetServerErrors(result.FieldErrors);
+            if (result.Succeeded)
+            {
+                _dirty.MarkClean();
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);

@@ -349,6 +349,16 @@ public sealed record StudioEndpointIssue(
 {
     /// <summary>True when the server reported an optimistic-concurrency conflict and the caller must reload.</summary>
     public bool IsConflict => StatusCode == (int)HttpStatusCode.Conflict;
+
+    /// <summary>
+    /// Structured Studio validation diagnostics parsed from a non-2xx validation body
+    /// (<see cref="StudioValidationSummary"/> diagnostics <c>{code,severity,path,message}</c>), when the
+    /// server returned one. Empty when the failure carried no validation summary (e.g. a transport error,
+    /// auth failure, or a plain ProblemDetails). The console binds these onto editor fields via the
+    /// Wave-0 <c>ServerFieldErrorMapper</c> + a per-editor JSON-Pointer resolver so a server finding
+    /// surfaces inline next to the offending input instead of being discarded.
+    /// </summary>
+    public IReadOnlyList<StudioValidationDiagnostic> Diagnostics { get; init; } = [];
 }
 
 #endregion
@@ -666,7 +676,13 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         {
             if (!response.IsSuccessStatusCode)
             {
-                return StudioEndpointResult<TResponse>.FromIssue(CreateIssue(contract, response.StatusCode));
+                // The Studio validate/create/update endpoints return a structured validation body on a
+                // rejection (the StudioValidationSummary diagnostics{code,severity,path,message}). Parse and
+                // carry it on the issue instead of discarding it, so the console can bind each diagnostic onto
+                // the offending editor field (map layer / query predicate) via the Wave-0 ServerFieldErrorMapper.
+                var diagnostics = await ReadDiagnosticsAsync(response, cancellationToken).ConfigureAwait(false);
+                return StudioEndpointResult<TResponse>.FromIssue(
+                    CreateIssue(contract, response.StatusCode) with { Diagnostics = diagnostics });
             }
 
             StudioApiResponse<TResponse>? envelope;
@@ -724,6 +740,125 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         };
 
         return new StudioEndpointIssue(state, contract, detail, (int)statusCode);
+    }
+
+    /// <summary>
+    /// Best-effort parse of the Studio validation diagnostics carried on a non-2xx response. The server may
+    /// shape the rejection body in a few ways depending on the route, so this probes the common locations and
+    /// returns the first diagnostics array it finds:
+    /// <list type="bullet">
+    ///   <item>a bare <see cref="StudioValidationSummary"/> (<c>{status,diagnostics[],…}</c>);</item>
+    ///   <item>an <c>ApiResponse</c> envelope whose <c>data</c> is a summary or a draft/version/plan carrying
+    ///   a <c>validation</c> summary; and</item>
+    ///   <item>an RFC-7807 ProblemDetails whose <c>diagnostics</c>/<c>errors</c> extension carries them.</item>
+    /// </list>
+    /// Never throws: a body that does not parse (HTML error page, empty body) yields an empty list so the
+    /// caller still surfaces the HTTP-level issue.
+    /// </summary>
+    private static async Task<IReadOnlyList<StudioValidationDiagnostic>> ReadDiagnosticsAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        string body;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+        {
+            return [];
+        }
+
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return ExtractDiagnostics(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static IReadOnlyList<StudioValidationDiagnostic> ExtractDiagnostics(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        // Top-level diagnostics (bare StudioValidationSummary or a ProblemDetails diagnostics extension).
+        if (TryReadDiagnostics(root, out var direct))
+        {
+            return direct;
+        }
+
+        // ApiResponse envelope: diagnostics live under data (a summary) or data.validation (a draft/version/plan).
+        if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
+        {
+            if (TryReadDiagnostics(data, out var fromData))
+            {
+                return fromData;
+            }
+
+            if (data.TryGetProperty("validation", out var validation)
+                && TryReadDiagnostics(validation, out var fromValidation))
+            {
+                return fromValidation;
+            }
+        }
+
+        // Some flat throwers nest the summary under an "errors" extension.
+        if (root.TryGetProperty("errors", out var errors) && TryReadDiagnostics(errors, out var fromErrors))
+        {
+            return fromErrors;
+        }
+
+        return [];
+    }
+
+    private static bool TryReadDiagnostics(JsonElement element, out IReadOnlyList<StudioValidationDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+
+        JsonElement array;
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            array = element;
+        }
+        else if (element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty("diagnostics", out var nested)
+            && nested.ValueKind == JsonValueKind.Array)
+        {
+            array = nested;
+        }
+        else
+        {
+            return false;
+        }
+
+        var parsed = new List<StudioValidationDiagnostic>();
+        foreach (var item in array.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var diagnostic = item.Deserialize<StudioValidationDiagnostic>(JsonOptions);
+            if (diagnostic is not null && !string.IsNullOrEmpty(diagnostic.Code))
+            {
+                parsed.Add(diagnostic);
+            }
+        }
+
+        diagnostics = parsed;
+        return parsed.Count > 0;
     }
 }
 

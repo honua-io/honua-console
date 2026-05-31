@@ -1,5 +1,9 @@
 @page "/studio/query"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Validation
 @inject IStudioQueryPackageDataSource QueryData
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved query changes. Leave this page and discard them?" />
 
 @* Studio spatial query builder (honua-console#52). Binds to the server-owned saved-query content lifecycle
    (honua-server#1182, AnalysisContentKind.SavedQuery): the missing-binding surface when no honua-server is
@@ -118,13 +122,27 @@
                     <div class="studio-query-bar-actions">
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to queries</button>
                         <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !query.IsExistingQuery)" @onclick="Preview">Run preview</button>
-                        <button class="console-button" type="button" disabled="@_busy" @onclick="Save">Save query</button>
+                        <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="Save">Save query</button>
                     </div>
                 </div>
 
                 @if (!string.IsNullOrEmpty(_status))
                 {
                     <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+                }
+
+                @if (_validation.HasBlockingClientErrors)
+                {
+                    <article class="console-panel" aria-labelledby="query-validation-blocking-heading" data-validation-summary="blocking">
+                        <p class="console-kicker">Validation</p>
+                        <h3 id="query-validation-blocking-heading">Resolve before saving</h3>
+                        <ul class="studio-compact-list">
+                            @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                            {
+                                <li>@error.Message</li>
+                            }
+                        </ul>
+                    </article>
                 }
 
                 <div class="studio-query-workbench" data-query-workbench="true">
@@ -138,19 +156,19 @@
                             <FieldStateRow State="FieldState.System" Label="Query id" Value="@query.QueryId" Hint="@($"v{query.Version}")" />
                         }
                         <FieldStateRow State="FieldState.Input" Label="Title">
-                            <input class="console-input" @bind="query.Title" placeholder="Flood-zone permits" />
+                            <input class="console-input" @bind="query.Title" @bind:after="OnEdit" placeholder="Flood-zone permits" />
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Description">
-                            <textarea class="console-input" rows="2" @bind="query.Description"></textarea>
+                            <textarea class="console-input" rows="2" @bind="query.Description" @bind:after="OnEdit"></textarea>
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Natural-language query">
-                            <textarea class="console-input" rows="2" @bind="query.NaturalLanguageQuery" placeholder="Permits in flood zones issued after 2024"></textarea>
+                            <textarea class="console-input" rows="2" @bind="query.NaturalLanguageQuery" @bind:after="OnEdit" placeholder="Permits in flood zones issued after 2024"></textarea>
                         </FieldStateRow>
-                        <FieldStateRow State="FieldState.Input" Label="Service name">
-                            <input class="console-input" @bind="query.ServiceName" placeholder="permits" />
+                        <FieldStateRow State="FieldState.Input" Label="Service name" Errors="_validation.Errors(StudioQueryFieldKeys.ServiceName)">
+                            <input class="console-input" @bind="query.ServiceName" @bind:after="OnEdit" placeholder="permits" />
                         </FieldStateRow>
-                        <FieldStateRow State="FieldState.Input" Label="Layer id">
-                            <input class="console-input" type="number" @bind="query.LayerId" />
+                        <FieldStateRow State="FieldState.Input" Label="Layer id" Errors="_validation.Errors(StudioQueryFieldKeys.LayerId)">
+                            <input class="console-input" type="number" @bind="query.LayerId" @bind:after="OnEdit" />
                         </FieldStateRow>
                     </article>
 
@@ -159,7 +177,7 @@
                         <h3>Projection and format</h3>
                         <label class="studio-form-label">
                             <span>Output format</span>
-                            <select class="console-input" @bind="query.OutputFormat">
+                            <select class="console-input" @bind="query.OutputFormat" @bind:after="OnEdit">
                                 @foreach (var format in StudioQueryOutputFormats.All)
                                 {
                                     <option value="@format">@format</option>
@@ -168,11 +186,13 @@
                         </label>
                         <label class="studio-form-label">
                             <span>Output SRID (optional)</span>
-                            <input class="console-input" type="number" @bind="_outputSridInput" placeholder="4326" />
+                            <input class="console-input" type="number" @bind="_outputSridInput" @bind:after="OnEdit" placeholder="4326" />
+                            <ValidationMessageInline FieldKey="@StudioQueryFieldKeys.OutputSrid" State="_validation" />
                         </label>
                         <label class="studio-form-label">
                             <span>Preview limit</span>
-                            <input class="console-input" type="number" min="1" @bind="query.PreviewLimit" />
+                            <input class="console-input" type="number" min="1" @bind="query.PreviewLimit" @bind:after="OnEdit" />
+                            <ValidationMessageInline FieldKey="@StudioQueryFieldKeys.PreviewLimit" State="_validation" />
                         </label>
 
                         <div class="console-panel-heading">
@@ -205,7 +225,7 @@
 
                     <label class="studio-form-label">
                         <span>Combine clauses with</span>
-                        <select class="console-input" @bind="query.Combinator">
+                        <select class="console-input" @bind="query.Combinator" @bind:after="OnEdit">
                             @foreach (var combinator in StudioQueryCombinators.All)
                             {
                                 <option value="@combinator">@combinator.ToUpperInvariant()</option>
@@ -218,8 +238,10 @@
                         <p class="console-muted">No predicates yet. An empty filter selects every feature in the source layer.</p>
                     }
 
-                    @foreach (var predicate in query.Predicates)
+                    @for (var p = 0; p < query.Predicates.Count; p++)
                     {
+                        var predicateIndex = p;
+                        var predicate = query.Predicates[predicateIndex];
                         <div class="console-panel-grid" @key="predicate">
                             <label class="studio-form-label">
                                 <span>Kind</span>
@@ -235,48 +257,51 @@
                             {
                                 <label class="studio-form-label">
                                     <span>Operator</span>
-                                    <select class="console-input" @bind="predicate.Operator">
+                                    <select class="console-input" @bind="predicate.Operator" @bind:after="OnEdit">
                                         @foreach (var op in StudioQuerySpatialOperators.All)
                                         {
                                             <option value="@op">@op</option>
                                         }
                                     </select>
                                 </label>
-                                <label class="studio-form-label"><span>Geometry (GeoJSON)</span><input class="console-input" @bind="predicate.Geometry" placeholder='{"type":"Point","coordinates":[0,0]}' /></label>
+                                <label class="studio-form-label"><span>Geometry (GeoJSON)</span><input class="console-input" @bind="predicate.Geometry" @bind:after="OnEdit" placeholder='{"type":"Point","coordinates":[0,0]}' /></label>
+                                <ValidationMessageInline FieldKey="@StudioQueryFieldKeys.PredicateGeometry(predicateIndex)" State="_validation" />
                                 @if (predicate.Operator == "dwithin")
                                 {
-                                    <label class="studio-form-label"><span>Distance</span><input class="console-input" @bind="predicate.Value" placeholder="500" /></label>
-                                    <label class="studio-form-label"><span>Unit</span><input class="console-input" @bind="predicate.DistanceUnit" placeholder="meters" /></label>
+                                    <label class="studio-form-label"><span>Distance</span><input class="console-input" @bind="predicate.Value" @bind:after="OnEdit" placeholder="500" /></label>
+                                    <label class="studio-form-label"><span>Unit</span><input class="console-input" @bind="predicate.DistanceUnit" @bind:after="OnEdit" placeholder="meters" /></label>
+                                    <ValidationMessageInline FieldKey="@StudioQueryFieldKeys.PredicateDistance(predicateIndex)" State="_validation" />
                                 }
                             }
                             else if (predicate.Kind == StudioQueryPredicateKinds.Temporal)
                             {
-                                <label class="studio-form-label"><span>Field</span><input class="console-input" @bind="predicate.Field" placeholder="issued_at" /></label>
+                                <label class="studio-form-label"><span>Field</span><input class="console-input" @bind="predicate.Field" @bind:after="OnEdit" placeholder="issued_at" /></label>
                                 <label class="studio-form-label">
                                     <span>Operator</span>
-                                    <select class="console-input" @bind="predicate.Operator">
+                                    <select class="console-input" @bind="predicate.Operator" @bind:after="OnEdit">
                                         @foreach (var op in StudioQueryTemporalOperators.All)
                                         {
                                             <option value="@op">@op</option>
                                         }
                                     </select>
                                 </label>
-                                <label class="studio-form-label"><span>Start (ISO 8601)</span><input class="console-input" @bind="predicate.Start" placeholder="2024-01-01" /></label>
-                                <label class="studio-form-label"><span>End (ISO 8601)</span><input class="console-input" @bind="predicate.End" placeholder="2024-12-31" /></label>
+                                <label class="studio-form-label"><span>Start (ISO 8601)</span><input class="console-input" @bind="predicate.Start" @bind:after="OnEdit" placeholder="2024-01-01" /></label>
+                                <label class="studio-form-label"><span>End (ISO 8601)</span><input class="console-input" @bind="predicate.End" @bind:after="OnEdit" placeholder="2024-12-31" /></label>
+                                <ValidationMessageInline FieldKey="@StudioQueryFieldKeys.PredicateRange(predicateIndex)" State="_validation" />
                             }
                             else
                             {
-                                <label class="studio-form-label"><span>Field</span><input class="console-input" @bind="predicate.Field" placeholder="status" /></label>
+                                <label class="studio-form-label"><span>Field</span><input class="console-input" @bind="predicate.Field" @bind:after="OnEdit" placeholder="status" /></label>
                                 <label class="studio-form-label">
                                     <span>Operator</span>
-                                    <select class="console-input" @bind="predicate.Operator">
+                                    <select class="console-input" @bind="predicate.Operator" @bind:after="OnEdit">
                                         @foreach (var op in StudioQueryComparisonOperators.All)
                                         {
                                             <option value="@op">@op</option>
                                         }
                                     </select>
                                 </label>
-                                <label class="studio-form-label"><span>Value</span><input class="console-input" @bind="predicate.Value" placeholder="approved" /></label>
+                                <label class="studio-form-label"><span>Value</span><input class="console-input" @bind="predicate.Value" @bind:after="OnEdit" placeholder="approved" /></label>
                             }
 
                             <div class="console-action-row">
@@ -299,10 +324,10 @@
                     {
                         <div class="console-panel-grid" @key="parameter">
                             <FieldStateRow State="FieldState.Input" Label="Name">
-                                <input class="console-input" @bind="parameter.Name" placeholder="minYear" />
+                                <input class="console-input" @bind="parameter.Name" @bind:after="OnEdit" placeholder="minYear" />
                             </FieldStateRow>
                             <FieldStateRow State="FieldState.Input" Label="Value">
-                                <input class="console-input" @bind="parameter.Value" placeholder="2024" />
+                                <input class="console-input" @bind="parameter.Value" @bind:after="OnEdit" placeholder="2024" />
                             </FieldStateRow>
                             <div class="console-action-row">
                                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemoveParameter(parameter)">Remove</button>
@@ -412,6 +437,8 @@
     private StudioQueryEditor? _query;
     private string? _status;
     private bool _statusFailed;
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
 
     private int? _outputSridInput
     {
@@ -426,6 +453,21 @@
     }
 
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+
+    /// <summary>
+    /// Re-runs the client cross-field/bounds validator over the current query and flags the editor dirty.
+    /// Called from the markup's <c>@bind:after</c> wiring on every bound edit (cheap and synchronous).
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_query is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioQueryValidator.Instance.Evaluate(_query));
 
     private async Task LoadWorkspaceAsync()
     {
@@ -454,6 +496,11 @@
             var result = await load();
             ApplyStates(result.CapabilityStates);
             _query = result.Query;
+
+            // A fresh load is the clean baseline: drop local edits/dirty state and recompute client findings.
+            _validation.Clear();
+            _dirty.MarkClean();
+            RecomputeClientErrors();
         }
         finally
         {
@@ -466,12 +513,22 @@
         _query = null;
         _status = null;
         _statusFailed = false;
+        _validation.Clear();
+        _dirty.MarkClean();
         await LoadWorkspaceAsync();
     }
 
-    private void AddPredicate() => _query?.Predicates.Add(new StudioQueryPredicateEditor());
+    private void AddPredicate()
+    {
+        _query?.Predicates.Add(new StudioQueryPredicateEditor());
+        OnEdit();
+    }
 
-    private void RemovePredicate(StudioQueryPredicateEditor predicate) => _query?.Predicates.Remove(predicate);
+    private void RemovePredicate(StudioQueryPredicateEditor predicate)
+    {
+        _query?.Predicates.Remove(predicate);
+        OnEdit();
+    }
 
     private void SetPredicateKind(StudioQueryPredicateEditor predicate, ChangeEventArgs args)
     {
@@ -482,13 +539,26 @@
             StudioQueryPredicateKinds.Temporal => StudioQueryTemporalOperators.All[0],
             _ => StudioQueryComparisonOperators.All[0]
         };
+        OnEdit();
     }
 
-    private void AddParameter() => _query?.Parameters.Add(new StudioQueryParameterEditor());
+    private void AddParameter()
+    {
+        _query?.Parameters.Add(new StudioQueryParameterEditor());
+        OnEdit();
+    }
 
-    private void RemoveParameter(StudioQueryParameterEditor parameter) => _query?.Parameters.Remove(parameter);
+    private void RemoveParameter(StudioQueryParameterEditor parameter)
+    {
+        _query?.Parameters.Remove(parameter);
+        OnEdit();
+    }
 
-    private void AddOutField() => _query?.OutFields.Add(string.Empty);
+    private void AddOutField()
+    {
+        _query?.OutFields.Add(string.Empty);
+        OnEdit();
+    }
 
     private void SetOutField(int index, ChangeEventArgs args)
     {
@@ -496,6 +566,8 @@
         {
             _query.OutFields[index] = args.Value?.ToString() ?? string.Empty;
         }
+
+        OnEdit();
     }
 
     private void RemoveOutField(int index)
@@ -504,6 +576,8 @@
         {
             _query.OutFields.RemoveAt(index);
         }
+
+        OnEdit();
     }
 
     private Task Save() => RunCommandAsync(() => QueryData.SaveAsync(_query!));
@@ -527,6 +601,14 @@
             if (result.Query is not null)
             {
                 _query = result.Query;
+            }
+
+            // Re-run the client validator against the post-command query. A successful command leaves the
+            // editor on a clean, server-synced baseline.
+            RecomputeClientErrors();
+            if (result.Succeeded)
+            {
+                _dirty.MarkClean();
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);

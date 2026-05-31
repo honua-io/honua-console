@@ -1,6 +1,7 @@
 using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Validation;
 // The server wire enum, not any editor-catalog enum of the same simple name.
 using StudioPackageFamily = Honua.Console.Contracts.StudioPackageFamily;
 
@@ -112,7 +113,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
             if (result.Issue is { } updateIssue)
             {
-                return Failure(updateIssue.Detail, ToCapabilityState(UpdateContract, updateIssue));
+                return FailureFrom(UpdateContract, updateIssue);
             }
         }
         else
@@ -126,7 +127,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
             if (result.Issue is { } createIssue)
             {
-                return Failure(createIssue.Detail, ToCapabilityState(CreateContract, createIssue));
+                return FailureFrom(CreateContract, createIssue);
             }
         }
 
@@ -176,7 +177,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
         if (versionResult.Issue is { } versionIssue)
         {
-            return Failure(versionIssue.Detail, ToCapabilityState(SaveVersionContract, versionIssue));
+            return FailureFrom(SaveVersionContract, versionIssue);
         }
 
         var version = versionResult.Data!;
@@ -195,7 +196,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
         if (publishResult.Issue is { } publishIssue)
         {
-            return Failure(publishIssue.Detail, ToCapabilityState(PublishContract, publishIssue));
+            return FailureFrom(PublishContract, publishIssue);
         }
 
         var published = state;
@@ -285,4 +286,16 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
     private static StudioMapCommandResult Failure(string message, StudioMapCapabilityState? issue = null) =>
         new(false, message, Issue: issue);
+
+    /// <summary>
+    /// Builds a failure result from an endpoint issue, mapping any structured Studio validation diagnostics
+    /// the server returned (JSON-Pointer addressed) onto console field keys so the page can surface each one
+    /// inline next to the offending layer/field. The capability state still carries the human-readable detail.
+    /// </summary>
+    private static StudioMapCommandResult FailureFrom(string contract, StudioEndpointIssue issue) =>
+        new(
+            false,
+            issue.Detail,
+            Issue: ToCapabilityState(contract, issue),
+            FieldErrors: StudioMapServerErrorBinder.Map(issue.Diagnostics));
 }
