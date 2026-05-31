@@ -1,0 +1,99 @@
+@page "/operate/import/esri/storymap"
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+
+@* #104 · Import StoryMap / Hub site → report content (screens-import-esri.jsx ImportStoryMap). P4.
+   StoryMap/Hub intake (URL/export) → section/page → content-block mapping with fidelity badges, target
+   content preview, "Create content →" CTA. The Esri-JSON parse is deterministic Console-side work. *@
+
+<section class="console-page esri-import" data-esri-import="storymap">
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri <span class="console-crumb-sep">/</span> StoryMap / Hub</p>
+            <h1>Import StoryMap / Hub site</h1>
+            <p class="console-muted">
+                Convert an ArcGIS StoryMap or Hub / Open-Data site into Console content (a report + linked
+                maps). P4 · lowest priority of the four.
+            </p>
+        </div>
+        <div class="console-button-row">
+            <a class="console-button-ghost" href="/operate/import/esri">Discard</a>
+            <a class="console-button" href="/operate/publishing">Create content →</a>
+        </div>
+    </div>
+
+    <EsriImportIntake Noun="StoryMap"
+                      Result="_result"
+                      Parse="ParseStoryMap"
+                      OnParsed="OnParsed" />
+
+    @if (_result is { } result)
+    {
+        <div class="esri-import__split">
+            <div class="esri-import__mapping">
+                <SourceTargetMappingTable Rows="result.Rows"
+                                          Heading="Section → content mapping"
+                                          Subhead="StoryMap section → Console report block"
+                                          SourceHeader="Section"
+                                          SourceTypeHeader="StoryMap block"
+                                          TargetHeader="→ Console block" />
+            </div>
+
+            <aside class="esri-import__preview" data-esri-target-preview>
+                <div class="esri-import__preview-head">
+                    <span class="console-kicker">Target content preview</span>
+                </div>
+                <div class="esri-story-preview" aria-label="Report content preview">
+                    <div class="esri-story-preview__hero">
+                        <span class="esri-story-preview__hero-title">@result.SuggestedName</span>
+                    </div>
+                    <p class="esri-story-preview__intro">Intro paragraph converted from the StoryMap text block…</p>
+                    <div class="esri-story-preview__map">embedded map</div>
+                    <div class="esri-story-preview__gallery">
+                        <span></span><span></span>
+                    </div>
+                </div>
+                <dl class="esri-import__facts">
+                    <dt>Type</dt>
+                    <dd>Report</dd>
+                    <dt>Blocks in</dt>
+                    <dd>@result.MappedCount of @result.Rows.Count (@result.DropCount dropped)</dd>
+                    <dt>Linked maps</dt>
+                    <dd>@LinkedMaps → map packages</dd>
+                </dl>
+                <p class="esri-callout esri-callout--warn">
+                    Scroll-driven sidecar + swipe degrade to stepped / static.
+                    @result.DropCount external embed@(result.DropCount == 1 ? string.Empty : "s") dropped (link kept in notes).
+                </p>
+            </aside>
+        </div>
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Import from Esri"
+                          Title="Paste an export or enter a StoryMap URL"
+                          Message="Choose an intake mode above to convert an ArcGIS StoryMap / Hub site into report content." />
+    }
+</section>
+
+@code {
+    private static readonly EsriContentImportParser Parser = new();
+
+    private EsriConversionResult? _result;
+
+    private int LinkedMaps => _result?.Rows.Count(r => r.SourceType.Contains("map", StringComparison.OrdinalIgnoreCase)) ?? 0;
+
+    protected override void OnInitialized()
+    {
+        var outcome = Parser.ParseStoryMap(EsriImportSampleDocuments.StoryMap, EsriImportSampleDocuments.StoryMapFileName);
+        if (outcome.Succeeded)
+        {
+            _result = outcome.Result;
+        }
+    }
+
+    private static EsriParseOutcome ParseStoryMap(string json, string? sourceLabel) => Parser.ParseStoryMap(json, sourceLabel);
+
+    private void OnParsed(EsriConversionResult result) => _result = result;
+}

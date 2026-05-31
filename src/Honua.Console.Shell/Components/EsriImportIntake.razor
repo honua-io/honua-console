@@ -1,0 +1,174 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Shared intake bar for the three single-content Esri import surfaces (#100 Web Map, #101 Dashboard,
+    #104 StoryMap), mirroring the design-handoff EsriIntake. Four intake modes — Paste JSON / Upload file /
+    From URL or item ID / From connected ArcGIS. Paste and Upload are deterministic Console-side parses; URL
+    / item ID and connected-ArcGIS need a live server fetch and surface a binding-required note instead of
+    fabricating a fetch (Console Patterns Charter section 11).
+
+    On a successful parse the host page receives the EsriConversionResult via OnParsed and renders the
+    mapping table + target preview. The summary chips reflect the parsed document.
+*@
+<div class="esri-intake" data-esri-intake>
+    <div class="esri-intake__bar">
+        <div class="esri-intake__modes" role="tablist" aria-label="Intake mode">
+            @foreach (var option in ModeOptions)
+            {
+                <button type="button"
+                        role="tab"
+                        class="esri-intake__mode @(option.Mode == _mode ? "esri-intake__mode--on" : string.Empty)"
+                        aria-selected="@(option.Mode == _mode)"
+                        data-intake-mode="@option.Mode"
+                        @onclick="() => SetMode(option.Mode)">
+                    @option.Label
+                </button>
+            }
+        </div>
+        <div class="esri-intake__spacer"></div>
+        @if (Result is not null)
+        {
+            <span class="console-muted esri-intake__source">@Result.SourceLabel · @Result.SourceFile</span>
+        }
+    </div>
+
+    @if (_mode is "paste")
+    {
+        <div class="esri-intake__input">
+            <textarea class="console-input esri-intake__textarea"
+                      rows="5"
+                      placeholder="@PastePlaceholder"
+                      aria-label="@($"Paste {Noun} JSON")"
+                      @bind="_pasteValue"
+                      @bind:event="oninput"></textarea>
+            <div class="console-button-row">
+                <button type="button" class="console-button console-button-sm" @onclick="ParsePaste">Parse JSON</button>
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <span class="console-status console-state-danger" data-intake-error>@_error</span>
+                }
+            </div>
+        </div>
+    }
+    else if (_mode is "upload")
+    {
+        <div class="esri-intake__input">
+            <InputFile class="esri-intake__file" OnChange="OnFileSelected" accept=".json,application/json" aria-label="@($"Upload {Noun} JSON file")" />
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <span class="console-status console-state-danger" data-intake-error>@_error</span>
+            }
+        </div>
+    }
+    else
+    {
+        @* URL / item ID and connected-ArcGIS both require a live fetch -> binding-required note. *@
+        <div class="esri-intake__binding" data-intake-binding>
+            <span class="console-status console-state-info">binding required</span>
+            <span>
+                @(_mode is "url"
+                    ? "Fetching by URL or item ID reads from a connected ArcGIS source through honua-server."
+                    : "Reading from a connected ArcGIS organization requires a bound honua-server.")
+                Paste or upload the @Noun JSON to convert it now without a server.
+            </span>
+        </div>
+    }
+
+    @if (Result is not null)
+    {
+        <div class="esri-intake__summary" data-intake-summary>
+            @foreach (var chip in Result.IntakeSummary)
+            {
+                <span class="console-type-tag">@chip</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string _mode = "paste";
+    private string _pasteValue = string.Empty;
+    private string? _error;
+
+    private readonly record struct ModeOption(string Mode, string Label);
+
+    private static readonly ModeOption[] ModeOptions =
+    [
+        new("paste", "Paste JSON"),
+        new("upload", "Upload file"),
+        new("url", "From URL / item ID"),
+        new("arcgis", "From connected ArcGIS"),
+    ];
+
+    /// <summary>The parsed conversion result the host page is currently showing (null before any parse).</summary>
+    [Parameter]
+    public EsriConversionResult? Result { get; set; }
+
+    /// <summary>The content noun used in placeholders/labels ("Web Map", "Dashboard", "StoryMap").</summary>
+    [Parameter]
+    public string Noun { get; set; } = "content";
+
+    /// <summary>Parses the pasted/uploaded JSON into a conversion result; returns the outcome.</summary>
+    [Parameter, EditorRequired]
+    public Func<string, string?, EsriParseOutcome> Parse { get; set; } = (_, _) => EsriParseOutcome.Failure("No parser bound.");
+
+    /// <summary>Raised with the conversion result on a successful parse.</summary>
+    [Parameter]
+    public EventCallback<EsriConversionResult> OnParsed { get; set; }
+
+    private string PastePlaceholder => $"Paste the {Noun} JSON here…";
+
+    private void SetMode(string mode)
+    {
+        _mode = mode;
+        _error = null;
+    }
+
+    private async Task ParsePaste()
+    {
+        var outcome = Parse(_pasteValue, null);
+        await ApplyOutcome(outcome);
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        string json;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 32 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            json = await reader.ReadToEndAsync();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            _error = $"Could not read the file: {ex.Message}";
+            return;
+        }
+
+        var outcome = Parse(json, file.Name);
+        await ApplyOutcome(outcome);
+    }
+
+    private async Task ApplyOutcome(EsriParseOutcome outcome)
+    {
+        if (outcome.Succeeded)
+        {
+            _error = null;
+            if (OnParsed.HasDelegate)
+            {
+                await OnParsed.InvokeAsync(outcome.Result);
+            }
+        }
+        else
+        {
+            _error = outcome.Error;
+        }
+    }
+}

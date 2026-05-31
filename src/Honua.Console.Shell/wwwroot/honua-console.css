@@ -7093,3 +7093,536 @@ p {
     cursor: not-allowed;
     opacity: 0.5;
 }
+
+/* ---------------------------------------------------------------------------
+   Esri content-import surfaces (issue #122 · #100 Web Map, #101 Dashboard,
+   #104 StoryMap, #102 wizard). Shared fidelity badge + source→target mapping
+   table + intake bar, plus the per-surface preview chrome. Built on the
+   --honua-* design tokens with BEM class names.
+   --------------------------------------------------------------------------- */
+
+/* Shared fidelity badge (mirrors the design-handoff Fid helper). Colour comes
+   from the shared console-state palette; this only tightens the badge metrics. */
+.fidelity-badge {
+    font-size: 0.74rem;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+
+/* Intake bar -------------------------------------------------------------- */
+.esri-intake {
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface);
+    margin: 14px 0 18px;
+    overflow: hidden;
+}
+
+.esri-intake__bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--honua-surface-strong);
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.esri-intake__spacer {
+    flex: 1;
+}
+
+.esri-intake__modes {
+    display: inline-flex;
+    border: 1px solid var(--honua-border);
+    border-radius: 7px;
+    overflow: hidden;
+}
+
+.esri-intake__mode {
+    appearance: none;
+    border: 0;
+    border-right: 1px solid var(--honua-border);
+    background: var(--honua-surface);
+    color: var(--honua-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 5px 12px;
+    cursor: pointer;
+}
+
+.esri-intake__mode:last-child {
+    border-right: 0;
+}
+
+.esri-intake__mode--on {
+    background: var(--honua-accent);
+    color: #fff;
+    font-weight: 700;
+}
+
+.esri-intake__source {
+    font-size: 0.82rem;
+}
+
+.esri-intake__input,
+.esri-intake__binding {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.esri-intake__binding {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.88rem;
+    color: var(--honua-text);
+}
+
+.esri-intake__textarea {
+    width: 100%;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.82rem;
+    resize: vertical;
+}
+
+.esri-intake__file {
+    font-size: 0.88rem;
+}
+
+.esri-intake__summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 14px 12px;
+}
+
+/* Mapping table ----------------------------------------------------------- */
+.esri-mapping {
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface);
+    overflow: hidden;
+}
+
+.esri-mapping__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--honua-border);
+}
+
+.esri-mapping__heading {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.esri-mapping__heading h3 {
+    margin: 0;
+}
+
+.esri-mapping__subhead {
+    font-size: 0.82rem;
+}
+
+.esri-mapping__filters {
+    margin-left: auto;
+}
+
+.esri-mapping__filter {
+    appearance: none;
+    border: 1px solid var(--honua-border);
+    border-radius: 999px;
+    background: var(--honua-surface);
+    color: var(--honua-muted);
+    font: inherit;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    cursor: pointer;
+}
+
+.esri-mapping__filter--on {
+    background: var(--honua-accent);
+    color: #fff;
+    border-color: var(--honua-accent);
+    font-weight: 700;
+}
+
+.esri-mapping__check {
+    width: 36px;
+    text-align: center;
+}
+
+.esri-mapping__target {
+    font-size: 0.82rem;
+}
+
+.esri-mapping__bound {
+    color: var(--honua-muted);
+}
+
+.esri-mapping__note {
+    color: var(--honua-text);
+    font-size: 0.85rem;
+}
+
+.esri-mapping__row--degrade {
+    background: #fff8e6;
+}
+
+.esri-mapping__row--drop {
+    background: #fff0ef;
+}
+
+.esri-mapping__row--manual {
+    background: #edf5ff;
+}
+
+.esri-mapping__empty {
+    text-align: center;
+    padding: 14px;
+}
+
+.esri-mapping__carryover {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--honua-border);
+    font-size: 0.85rem;
+}
+
+.esri-carryover--out {
+    opacity: 0.6;
+}
+
+/* Per-surface layout ------------------------------------------------------ */
+.esri-import__split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 18px;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .esri-import__split {
+        grid-template-columns: 1fr;
+    }
+}
+
+.esri-import__preview {
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.esri-import__preview-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.esri-import__facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.esri-import__facts dt {
+    color: var(--honua-muted);
+}
+
+.esri-import__facts dd {
+    margin: 0;
+    text-align: right;
+}
+
+/* Callouts (mirror the mockups' Callout kinds) ---------------------------- */
+.esri-callout {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    border: 1px solid var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.esri-callout--warn {
+    border-color: #ead08f;
+    background: #fff8e6;
+    color: #7a5300;
+}
+
+.esri-callout--info {
+    border-color: #a7c7ea;
+    background: #edf5ff;
+    color: #175487;
+}
+
+.esri-callout--note {
+    border-color: #efb1ac;
+    background: #fff0ef;
+    color: #9e2b25;
+}
+
+/* Inline missing-binding banner (#100) ------------------------------------ */
+.esri-binding-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 10px 14px;
+    border: 1px solid #a7c7ea;
+    border-radius: 10px;
+    background: #edf5ff;
+    font-size: 0.88rem;
+}
+
+.esri-binding-banner__text {
+    flex: 1;
+}
+
+/* Dashboard layout preview (#101) ----------------------------------------- */
+.esri-dashboard-preview {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--honua-surface);
+}
+
+.esri-dashboard-preview__title {
+    padding: 6px 8px;
+    background: var(--honua-surface-strong);
+    border-bottom: 1px solid var(--honua-border);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.esri-dashboard-preview__row {
+    display: grid;
+    gap: 5px;
+    padding: 8px;
+}
+
+.esri-dashboard-preview__row--kpi {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.esri-dashboard-preview__row--split {
+    grid-template-columns: 1.4fr 1fr;
+    padding-top: 0;
+}
+
+.esri-dashboard-preview__row > span,
+.esri-dashboard-preview__chart,
+.esri-dashboard-preview__table {
+    display: grid;
+    place-items: center;
+    background: var(--honua-surface-strong);
+    border-radius: 4px;
+    font-size: 0.72rem;
+    color: var(--honua-muted);
+    min-height: 34px;
+}
+
+.esri-dashboard-preview__chart,
+.esri-dashboard-preview__table {
+    min-height: 60px;
+}
+
+/* StoryMap content preview (#104) ----------------------------------------- */
+.esri-story-preview {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--honua-surface);
+}
+
+.esri-story-preview__hero {
+    height: 60px;
+    background: #d9a23a;
+    display: flex;
+    align-items: flex-end;
+    padding: 6px 8px;
+}
+
+.esri-story-preview__hero-title {
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+.esri-story-preview__intro {
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+    color: var(--honua-muted);
+}
+
+.esri-story-preview__map {
+    margin: 0 10px 8px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    background: var(--honua-surface-strong);
+    border-radius: 4px;
+    font-size: 0.72rem;
+    color: var(--honua-muted);
+}
+
+.esri-story-preview__gallery {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 0 10px 10px;
+}
+
+.esri-story-preview__gallery span {
+    height: 38px;
+    background: var(--honua-surface-strong);
+    border-radius: 4px;
+}
+
+/* Wizard (#102) ----------------------------------------------------------- */
+.esri-wizard__context {
+    flex-wrap: wrap;
+}
+
+.esri-wizard__step {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.esri-wizard__map-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .esri-wizard__map-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.esri-wizard__summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.esri-wizard__summary-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+}
+
+.esri-wizard__summary-row span {
+    flex: 1;
+}
+
+.esri-wizard__source-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.esri-wizard__select-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.9rem;
+}
+
+.esri-wizard__select-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Run progress bar */
+.esri-run-bar {
+    height: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 7px;
+    overflow: hidden;
+    background: var(--honua-surface-strong);
+}
+
+.esri-run-bar__fill {
+    height: 100%;
+    background: var(--honua-accent);
+}
+
+/* Parity scorecard */
+.esri-scorecard__counts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.esri-scorecard__counts .console-overview-card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.esri-scorecard__counts strong {
+    font-size: 1.3rem;
+}
+
+.esri-scorecard__parity {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.esri-parity-bar {
+    display: flex;
+    height: 14px;
+    border: 1px solid var(--honua-border);
+    border-radius: 7px;
+    overflow: hidden;
+}
+
+.esri-parity-bar__seg--pass {
+    background: #17603a;
+}
+
+.esri-parity-bar__seg--degraded {
+    background: #e0b84d;
+}
+
+.esri-parity-bar__seg--binding {
+    background: #a7c7ea;
+}
+
+.esri-parity-bar__seg--failed {
+    background: #9e2b25;
+}
+
+.esri-missing-binding__steps ol {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: 0.88rem;
+    line-height: 1.6;
+}

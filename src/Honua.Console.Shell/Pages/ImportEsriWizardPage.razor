@@ -1,0 +1,264 @@
+@page "/operate/import/esri"
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IEsriMigrationRunDataSource MigrationRun
+
+@* #102 · "Import from Esri" wizard (screens-import-wizard.jsx). Multi-step, REUSING the shared
+   PublishWizard shell: Source connect → Select content → Map → Run → Scorecard. The Map step shows mixed
+   content types + per-item fidelity (deterministic from the selected content). The Run engine and the
+   Parity scorecard are driven by honua-devops (issue-122 "migration-run API owner"): Console does not own
+   that contract, so when no server / run contract is bound, the Run and Scorecard steps render the explicit
+   missing-binding state (ImportMissingBinding) instead of fabricating run progress or parity numbers
+   (Console Patterns Charter section 11). *@
+
+<section class="console-page esri-wizard" data-esri-wizard>
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri</p>
+            <h1>Import from Esri</h1>
+            <p class="console-muted">
+                Connect an ArcGIS source, select content, review the per-item conversion fidelity, then run
+                the migration and review the parity scorecard.
+            </p>
+        </div>
+        <div class="esri-wizard__context console-chip-row">
+            <span class="console-type-tag">ArcGIS Online</span>
+            <strong>org.maps.arcgis.com / state-gis</strong>
+            <span class="console-muted">migration run → <code>honua-devops</code></span>
+        </div>
+    </div>
+
+    <PublishWizard Steps="Steps"
+                   Current="_step"
+                   CurrentChanged="OnStepChanged"
+                   Kicker="Import from Esri"
+                   Title="Migrate ArcGIS content"
+                   FinishLabel="Finish · open Catalog"
+                   OnFinish="Finish" />
+</section>
+
+@code {
+    private int _step;
+    private MigrationRunLoad? _run;
+    private MigrationScorecardLoad? _scorecard;
+    private bool _runLoaded;
+    private bool _scorecardLoaded;
+
+    private const string MigrationId = "mig-import-esri";
+
+    [SupplyParameterFromQuery(Name = "step")]
+    public string? StepQuery { get; set; }
+
+    private IReadOnlyList<PublishWizardStep> Steps =>
+    [
+        new("Source", SourceStep),
+        new("Select content", SelectStep),
+        new("Map", MapStep, ContinueLabel: "Run migration →"),
+        new("Run", RunStep, ContinueLabel: "View scorecard →"),
+        new("Scorecard", ScorecardStep),
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (int.TryParse(StepQuery, out var requested) && requested >= 0 && requested < 5)
+        {
+            _step = requested;
+        }
+
+        if (_step == 3 && !_runLoaded)
+        {
+            _run = await MigrationRun.LoadRunAsync(MigrationId);
+            _runLoaded = true;
+        }
+
+        if (_step == 4 && !_scorecardLoaded)
+        {
+            _scorecard = await MigrationRun.LoadScorecardAsync(MigrationId);
+            _scorecardLoaded = true;
+        }
+    }
+
+    private async Task OnStepChanged(int next)
+    {
+        _step = next;
+        await OnParametersSetAsync();
+    }
+
+    private void Finish() => _step = 4;
+
+    private RenderFragment SourceStep => @<div class="esri-wizard__step" data-wizard-step="source">
+        <h2>Connect an ArcGIS source</h2>
+        <p class="console-muted">Choose where the content comes from. Reading from a connected ArcGIS organization binds a honua-server in the selected environment.</p>
+        <div class="esri-intake__modes" role="group" aria-label="Source kind">
+            <span class="esri-intake__mode esri-intake__mode--on">ArcGIS Online</span>
+            <span class="esri-intake__mode">ArcGIS Enterprise</span>
+            <span class="esri-intake__mode">Upload export</span>
+        </div>
+        <div class="esri-wizard__source-card console-overview-card">
+            <strong>org.maps.arcgis.com / state-gis</strong>
+            <span class="console-status console-state-success">connected</span>
+            <span class="console-muted">18 items · 3 content types</span>
+        </div>
+    </div>;
+
+    private RenderFragment SelectStep => @<div class="esri-wizard__step" data-wizard-step="select">
+        <h2>Select content</h2>
+        <p class="console-muted">Pick the items to convert. Each becomes a Console content package; per-item fidelity is shown on the next step.</p>
+        <ul class="esri-wizard__select-list">
+            <li><input type="checkbox" checked disabled /> Public Works Web Map <span class="console-type-tag">Web Map</span></li>
+            <li><input type="checkbox" checked disabled /> Q3 Ops Dashboard <span class="console-type-tag">Dashboard</span></li>
+            <li><input type="checkbox" checked disabled /> Watershed StoryMap <span class="console-type-tag">StoryMap</span></li>
+            <li><input type="checkbox" checked disabled /> Parcels FeatureServer <span class="console-type-tag">Feature Service</span></li>
+            <li class="console-muted">+ 14 more items</li>
+        </ul>
+    </div>;
+
+    private RenderFragment MapStep => @<div class="esri-wizard__step esri-wizard__step--map" data-wizard-step="map">
+        <div class="esri-wizard__map-grid">
+            <div>
+                <SourceTargetMappingTable Rows="MapRows"
+                                          Heading="Map selected content"
+                                          Subhead="Each item is converted to a Console content package; items needing a data binding are flagged."
+                                          SourceHeader="Esri item"
+                                          TargetHeader="→ Console"
+                                          BoundHeader="Blockers" />
+            </div>
+            <aside class="esri-wizard__summary">
+                <div class="console-overview-card">
+                    <h3>Conversion summary</h3>
+                    <div class="esri-wizard__summary-row"><FidelityBadge Fidelity="ImportFidelity.Clean" /><span>converts clean</span><strong>@MapRows.Count(r => r.Fidelity == ImportFidelity.Clean)</strong></div>
+                    <div class="esri-wizard__summary-row"><FidelityBadge Fidelity="ImportFidelity.Degrade" /><span>degrades</span><strong>@MapRows.Count(r => r.Fidelity == ImportFidelity.Degrade)</strong></div>
+                    <div class="esri-wizard__summary-row"><FidelityBadge Fidelity="ImportFidelity.Manual" /><span>needs binding</span><strong>@MapRows.Count(r => r.Fidelity == ImportFidelity.Manual)</strong></div>
+                    <div class="esri-wizard__summary-row"><FidelityBadge Fidelity="ImportFidelity.Drop" /><span>can't import</span><strong>@MapRows.Count(r => r.Fidelity == ImportFidelity.Drop)</strong></div>
+                </div>
+                <p class="esri-callout esri-callout--info">
+                    <strong>Migration run owner.</strong> This wizard hands off to <code>honua-devops</code>, which drives the run. You can close the tab — progress resumes on the Run step or in Event Viewer.
+                </p>
+                <p class="esri-callout esri-callout--warn">Items that need a data-resource binding before their maps render are flagged. Bind now or import as drafts and resolve later.</p>
+                <p class="esri-callout esri-callout--note">Nothing is written until you run. Dry preview only.</p>
+            </aside>
+        </div>
+    </div>;
+
+    private RenderFragment RunStep => @<div class="esri-wizard__step" data-wizard-step="run">
+        @if (_run is { HasRun: true, Run: { } run })
+        {
+            <div class="esri-wizard__run-head console-chip-row">
+                <span class="console-status console-state-warning">running · @run.CompletedItems of @run.TotalItems</span>
+                <span>Migration <code>@run.MigrationId</code> · driven by @run.Driver · resumable</span>
+            </div>
+            <div class="esri-run-bar" role="progressbar" aria-valuenow="@run.PercentComplete" aria-valuemin="0" aria-valuemax="100">
+                <div class="esri-run-bar__fill" style="width:@(run.PercentComplete)%"></div>
+            </div>
+            <p class="console-muted">@run.CompletedItems of @run.TotalItems items · @run.EstimatedRemaining · @run.FailedItems failed (retryable)</p>
+            <div class="console-table-wrap">
+                <table class="console-table" data-run-table>
+                    <thead><tr><th>Item</th><th>Type</th><th>State</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in run.Items)
+                        {
+                            <tr><td>@item.Name</td><td>@item.Type</td><td><span class="console-status @RunStateClass(item.State)">@item.State.ToString().ToLowerInvariant()</span></td><td>@item.Result</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            @MissingBindingState(_run?.CapabilityStates)
+        }
+    </div>;
+
+    private RenderFragment ScorecardStep => @<div class="esri-wizard__step" data-wizard-step="scorecard">
+        @if (_scorecard is { HasScorecard: true, Scorecard: { } card })
+        {
+            <div class="esri-scorecard__counts">
+                <div class="console-overview-card"><span class="console-kicker">Passed</span><strong>@card.PassCount</strong><span class="console-status console-state-success">●</span></div>
+                <div class="console-overview-card"><span class="console-kicker">Degraded</span><strong>@card.DegradedCount</strong><span class="console-status console-state-warning">●</span></div>
+                <div class="console-overview-card"><span class="console-kicker">Needs binding</span><strong>@card.BindingCount</strong><span class="console-status console-state-info">●</span></div>
+                <div class="console-overview-card"><span class="console-kicker">Failed</span><strong>@card.FailedCount</strong><span class="console-status console-state-danger">●</span></div>
+            </div>
+            <div class="console-overview-card esri-scorecard__parity">
+                <div class="console-chip-row"><h3>Overall parity</h3><strong>@card.ParityPercent%</strong></div>
+                <div class="esri-parity-bar" role="img" aria-label="@($"Parity {card.ParityPercent}%")">
+                    <span class="esri-parity-bar__seg esri-parity-bar__seg--pass" style="width:@(card.PassPercent)%"></span>
+                    <span class="esri-parity-bar__seg esri-parity-bar__seg--degraded" style="width:@(card.DegradedPercent)%"></span>
+                    <span class="esri-parity-bar__seg esri-parity-bar__seg--binding" style="width:@(card.BindingPercent)%"></span>
+                    <span class="esri-parity-bar__seg esri-parity-bar__seg--failed" style="width:@(card.FailedPercent)%"></span>
+                </div>
+            </div>
+            <div class="console-button-row">
+                <button type="button" class="console-button-ghost console-button-sm" data-export="pdf">Export report (PDF)</button>
+                <button type="button" class="console-button-ghost console-button-sm" data-export="csv">Export findings (CSV)</button>
+            </div>
+            <div class="console-table-wrap">
+                <table class="console-table" data-scorecard-table>
+                    <thead><tr><th>Item</th><th>Result</th><th>Findings</th><th>Output</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in card.Items)
+                        {
+                            <tr><td><strong>@item.Name</strong></td><td><span class="console-status @ParityClass(item.Result)">@item.Result.ToString().ToLowerInvariant()</span></td><td>@item.Findings</td><td><code>@item.Output</code></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            @MissingBindingState(_scorecard?.CapabilityStates)
+        }
+    </div>;
+
+    private RenderFragment MissingBindingState(IReadOnlyList<MigrationRunCapabilityState>? states) => @<div data-esri-missing-binding>
+        @{
+            var state = states is { Count: > 0 } ? states[0] : null;
+        }
+        <ConsoleStateView Kind="missing"
+                          Kicker="@(state?.State ?? "Missing binding")"
+                          Title="No honua-server is configured"
+                          Message="@(state?.Detail ?? "The Esri import wizard drives a migration run against a honua-server in the selected environment. This Console is not bound to one yet, so there is nothing to import into. Console never shows mocked data here.")"
+                          ActionHref="/operate/environments"
+                          ActionLabel="Connect honua-server →" />
+        <div class="esri-missing-binding__steps console-overview-card">
+            <h3>To continue</h3>
+            <ol>
+                <li>Connect a honua-server in <code>Operate → Environments</code></li>
+                <li>Or switch to an environment that already has one bound</li>
+                <li>Then re-open <code>Import from Esri</code></li>
+            </ol>
+            @if (state is not null)
+            {
+                <p class="console-muted">Run engine owner: <code>@state.Contract</code></p>
+            }
+        </div>
+    </div>;
+
+    // Deterministic per-item rows for the Map step, mixing parsed Web Map fidelity with the other selected
+    // content types (dashboard degrade, storymap degrade, unbound web map, unsupported 3D scene).
+    private IReadOnlyList<EsriMappingRow> MapRows =>
+    [
+        new("Public Works Web Map", "Web Map", "map package", ImportFidelity.Clean, "—"),
+        new("Parcels FeatureServer", "Feature Service", "data resource", ImportFidelity.Clean, "migrate · PostGIS"),
+        new("Q3 Ops Dashboard", "Dashboard", "dashboard package", ImportFidelity.Degrade, "1 gauge degrades · 1 iframe dropped"),
+        new("Watershed StoryMap", "StoryMap", "report", ImportFidelity.Degrade, "swipe → static · video dropped"),
+        new("Hydrants Web Map", "Web Map", "map package", ImportFidelity.Manual, "1 layer unbound · pick resource"),
+        new("3D Scene · terrain", "Web Scene", null, ImportFidelity.Drop, "3D scenes not supported in v1", Included: false),
+    ];
+
+    private static string RunStateClass(MigrationItemState state) => state switch
+    {
+        MigrationItemState.Done => "console-state-success",
+        MigrationItemState.Running => "console-state-warning",
+        MigrationItemState.Failed => "console-state-danger",
+        MigrationItemState.Skipped => "console-state-danger",
+        _ => "console-state-neutral",
+    };
+
+    private static string ParityClass(MigrationParityResult result) => result switch
+    {
+        MigrationParityResult.Pass => "console-state-success",
+        MigrationParityResult.Degraded => "console-state-warning",
+        MigrationParityResult.Binding => "console-state-info",
+        _ => "console-state-danger",
+    };
+}

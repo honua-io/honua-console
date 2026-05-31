@@ -35,6 +35,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddCatalogDiscoveryDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddTemporalCapabilityClient(services);
+        AddEsriMigrationRunDataSource(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
@@ -501,6 +502,19 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // Operate bindings above; the page and tests already consume the full ITemporalCapabilityClient.
     private static void AddTemporalCapabilityClient(IServiceCollection services) =>
         services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+
+    // Binds the "Import from Esri" wizard run engine + parity scorecard (#102, /operate/import/esri Run and
+    // Scorecard steps) to the honua-devops migration-run API. The issue-122 handoff flags honua-devops as the
+    // migration-run owner; there is no Console-consumable run contract yet, so the merged build registers only
+    // the missing-binding client: the wizard's earlier steps (Source/Select/Map) render their deterministic,
+    // Console-side parsed conversion preview, but the Run and Scorecard steps stay on an explicit
+    // missing-binding state — Console never fabricates run progress, per-item results, or parity numbers
+    // (Console Patterns Charter section 11). When honua-devops exposes a Console-bindable run contract, wire
+    // the live HTTP-bound client here gated on a configured server base URL exactly like the other bindings;
+    // the wizard and tests already consume the full IEsriMigrationRunDataSource. TryAdd keeps a test/demo
+    // provider overridable.
+    private static void AddEsriMigrationRunDataSource(IServiceCollection services) =>
+        services.TryAddSingleton<IEsriMigrationRunDataSource, UnsupportedEsriMigrationRunDataSource>();
 
     // Binds the Operate publishing workspace (/operate/publishing) matrix + review + republish/rollback
     // lifecycle to the real honua-server content publication registry (honua-server#1183, shipped)

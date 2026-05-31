@@ -1,0 +1,50 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Shared per-item fidelity badge, mirroring the design-handoff `Fid` helper
+    (screens-import-esri.jsx / screens-import-wizard.jsx). Every source -> target mapping row across the
+    four Esri content-import surfaces (#100/#101/#104/#102) carries one:
+
+      clean   -> converts clean (green / success)
+      degrade -> degrades       (yellow / warning)
+      drop    -> dropped         (red / danger)
+      manual  -> needs review    (blue / info)
+
+    It reuses the shared console-status state palette so the badges read consistently with the rest of the
+    Console state vocabulary.
+*@
+<span class="console-status fidelity-badge fidelity-badge--@Slug @StateClass" data-fidelity="@Slug">@Label</span>
+
+@code {
+    /// <summary>The fidelity classification to render.</summary>
+    [Parameter, EditorRequired]
+    public ImportFidelity Fidelity { get; set; }
+
+    private string Slug => Fidelity switch
+    {
+        ImportFidelity.Clean => "clean",
+        ImportFidelity.Degrade => "degrade",
+        ImportFidelity.Drop => "drop",
+        ImportFidelity.Manual => "manual",
+        _ => "unknown",
+    };
+
+    private string Label => Fidelity switch
+    {
+        ImportFidelity.Clean => "converts clean",
+        ImportFidelity.Degrade => "degrades",
+        ImportFidelity.Drop => "dropped",
+        ImportFidelity.Manual => "needs review",
+        _ => "—",
+    };
+
+    private string StateClass => Fidelity switch
+    {
+        ImportFidelity.Clean => "console-state-success",
+        ImportFidelity.Degrade => "console-state-warning",
+        ImportFidelity.Drop => "console-state-danger",
+        ImportFidelity.Manual => "console-state-info",
+        _ => "console-state-neutral",
+    };
+}

@@ -1,0 +1,146 @@
+@page "/operate/import/esri/web-map"
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IPublishingWorkspaceDataSource PublishingData
+
+@* #100 · Import Esri Web Map JSON → honua.map-package.v1 (screens-import-esri.jsx ImportEsriWebMap).
+   Intake (paste/upload/URL/connected ArcGIS) → layer-by-layer source → target mapping with per-layer
+   fidelity badge + reason note, MapPreview target, "Create map package →" CTA wired to /operate/publishing.
+   The Esri-JSON parse is deterministic Console-side work; the publish target binds the real publishing
+   workspace contract, else the inline missing-binding banner shows (Console Patterns Charter section 11). *@
+
+<section class="console-page esri-import" data-esri-import="web-map">
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri <span class="console-crumb-sep">/</span> Web Map</p>
+            <h1>Import Esri Web Map</h1>
+            <p class="console-muted">
+                Convert an ArcGIS Web Map JSON into a Honua map package (<code>honua.map-package.v1</code>).
+                Layer-by-layer fidelity is shown before you commit.
+            </p>
+        </div>
+        <div class="console-button-row">
+            <a class="console-button-ghost" href="/operate/import/esri">Discard</a>
+            <button type="button" class="console-button" @onclick="CreatePackage" disabled="@(_result is null)">Create map package →</button>
+        </div>
+    </div>
+
+    <EsriImportIntake Noun="Web Map"
+                      Result="_result"
+                      Parse="ParseWebMap"
+                      OnParsed="OnParsed" />
+
+    @if (_result is { } result)
+    {
+        <div class="esri-import__split">
+            <div class="esri-import__mapping">
+                <SourceTargetMappingTable Rows="result.Rows"
+                                          Heading="Layer mapping"
+                                          Subhead="Esri operational layer → Honua map-package layer"
+                                          SourceHeader="Esri layer"
+                                          TargetHeader="→ Honua layer"
+                                          ShowBoundColumn="true"
+                                          CarryOver="result.CarryOver" />
+            </div>
+
+            <aside class="esri-import__preview" data-esri-target-preview>
+                <div class="esri-import__preview-head">
+                    <span class="console-kicker">Target map package</span>
+                    <strong><code>@result.TargetSchema</code></strong>
+                </div>
+                <MapPreview Mode="MapPreviewMode.Layer" Height="220" ShowPopup="false" ScaleText="1:24,000" />
+                <dl class="esri-import__facts">
+                    <dt>Name</dt>
+                    <dd><code>@result.SuggestedName</code></dd>
+                    <dt>Layers in</dt>
+                    <dd>@result.MappedCount of @result.Rows.Count (@result.DropCount dropped)</dd>
+                    <dt>Unbound layers</dt>
+                    <dd>@result.ManualCount@(result.FirstUnbound is { } u ? $" · {u.SourceName}" : string.Empty)</dd>
+                    <dt>On unbound layer</dt>
+                    <dd>create draft + flag for binding</dd>
+                </dl>
+                <p class="esri-callout esri-callout--warn" data-esri-summary>
+                    <strong>@result.MappedCount of @result.Rows.Count layers convert.</strong>
+                    @result.ManualCount need@(result.ManualCount == 1 ? "s" : string.Empty) a resource binding ·
+                    @result.DropCount dropped. You can finish in Studio after import.
+                </p>
+            </aside>
+        </div>
+
+        @if (result.FirstUnbound is { } unbound)
+        {
+            <div class="esri-binding-banner" data-esri-binding-banner>
+                <span class="console-status console-state-info">binding required</span>
+                <span class="esri-binding-banner__text">
+                    Layer <strong>@unbound.SourceName</strong> has no matching Data Resource. Bind one, import
+                    the data first, or create the package as a draft with the layer disabled.
+                </span>
+                <div class="console-button-row">
+                    <button type="button" class="console-button console-button-sm" @onclick="CreatePackage">Pick resource…</button>
+                    <a class="console-button-ghost console-button-sm" href="/operate/resources/new">Import data first</a>
+                </div>
+            </div>
+        }
+
+        @if (_publishBinding is not null)
+        {
+            <ConsoleStateView Kind="missing"
+                              Kicker="@_publishBinding.State"
+                              Title="No publish target is bound"
+                              Message="@($"{_publishBinding.Detail} Create the package as a draft and bind it once a honua-server is connected.")" />
+        }
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Import from Esri"
+                          Title="Paste or upload a Web Map JSON"
+                          Message="Choose an intake mode above to convert an ArcGIS Web Map into a honua.map-package.v1 preview." />
+    }
+</section>
+
+@code {
+    private static readonly EsriContentImportParser Parser = new();
+
+    private EsriConversionResult? _result;
+    private PublishingMissingBinding? _publishBinding;
+
+    protected override void OnInitialized()
+    {
+        // Parse the bundled sample so the surface opens populated; replacing it re-parses through the same path.
+        var outcome = Parser.ParseWebMap(EsriImportSampleDocuments.WebMap, EsriImportSampleDocuments.WebMapFileName);
+        if (outcome.Succeeded)
+        {
+            _result = outcome.Result;
+        }
+    }
+
+    private static EsriParseOutcome ParseWebMap(string json, string? fileName) => Parser.ParseWebMap(json, fileName);
+
+    private void OnParsed(EsriConversionResult result)
+    {
+        _result = result;
+        _publishBinding = null;
+    }
+
+    private async Task CreatePackage()
+    {
+        if (_result is null)
+        {
+            return;
+        }
+
+        // Creating a package writes to the real publishing workspace; gate on the live binding (no mock writes).
+        var workspace = await PublishingData.GetWorkspaceAsync();
+        var binding = workspace.CapabilityStates
+            .FirstOrDefault(s => s.State.Contains("binding", StringComparison.OrdinalIgnoreCase)
+                || s.State.Contains("missing", StringComparison.OrdinalIgnoreCase));
+        _publishBinding = binding is null
+            ? new PublishingMissingBinding(
+                "Missing binding",
+                "Connect a honua-server (Honua:Server:BaseUrl / HONUA_SERVER_BASE_URL) to publish this package to /operate/publishing.")
+            : new PublishingMissingBinding(binding.State, binding.Detail);
+    }
+
+    private sealed record PublishingMissingBinding(string State, string Detail);
+}
