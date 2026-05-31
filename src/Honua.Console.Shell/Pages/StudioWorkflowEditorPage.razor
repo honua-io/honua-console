@@ -177,27 +177,16 @@
                         </div>
                         @if (SelectedNode is not null)
                         {
-                            <label>
-                                <span>Node label</span>
+                            <FieldStateRow State="FieldState.Input" Label="Node label">
                                 <input class="console-input" @bind="SelectedNode.Label" @bind:event="oninput" />
-                            </label>
-                            <dl class="console-definition-list">
-                                <dt>Type</dt>
-                                <dd>@SelectedNode.Type</dd>
-                                <dt>Inputs</dt>
-                                <dd>@FormatPorts(SelectedNode.InputPorts)</dd>
-                                <dt>Outputs</dt>
-                                <dd>@FormatPorts(SelectedNode.OutputPorts)</dd>
-                            </dl>
-                            <ul class="workflow-compact-list">
-                                @foreach (var entry in SelectedNode.Configuration)
-                                {
-                                    <li>
-                                        <span>@entry.Key</span>
-                                        <strong>@entry.Value</strong>
-                                    </li>
-                                }
-                            </ul>
+                            </FieldStateRow>
+                            <FieldStateRow State="FieldState.System" Label="Type" Value="@SelectedNode.Type" />
+                            <FieldStateRow State="FieldState.System" Label="Inputs" Value="@FormatPorts(SelectedNode.InputPorts)" Hint="from node type" />
+                            <FieldStateRow State="FieldState.System" Label="Outputs" Value="@FormatPorts(SelectedNode.OutputPorts)" Hint="from node type" />
+                            @foreach (var entry in SelectedNode.Configuration)
+                            {
+                                <FieldStateRow State="FieldState.System" Label="@entry.Key" Value="@entry.Value" @key="entry" />
+                            }
                         }
                     </section>
 

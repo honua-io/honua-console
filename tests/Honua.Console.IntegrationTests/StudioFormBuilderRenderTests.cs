@@ -173,6 +173,42 @@ public sealed class StudioFormBuilderRenderTests
             TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void FormBuilder_OpenForm_RendersFieldStatePillsAcrossStates()
+    {
+        // A field with a blank TargetField surfaces as discovered (the server defaults it from the field id);
+        // an attachment field is system-managed. The existing form identity renders as a system row.
+        var editor = ReadyEditor();
+        editor.Fields.Clear();
+        editor.Fields.Add(new StudioFormFieldEditor { FieldId = "asset_id", Label = "Asset ID", TargetField = string.Empty });
+        editor.Fields.Add(new StudioFormFieldEditor { FieldId = "photo", Label = "Photo", Type = "attachment" });
+        var data = new FakeFormDataSource
+        {
+            Workspace = new StudioFormWorkspace(
+                [new StudioFormPackageListItem("form-1", "Hydrant inspection", "inspections", 7, 2, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioFormEditorLoad(editor, [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioFormBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Hydrant inspection"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Hydrant inspection").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-form-builder", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Input pills for operator-entered fields (Title, Field id, Label, …).
+        Assert.NotEmpty(page.FindAll(".console-field-state--input .console-field-state__pill--input"));
+        // The server-assigned form id renders as a system row.
+        Assert.Contains("console-field-state--system", page.Markup, StringComparison.Ordinal);
+        // The blank target field reads as discovered (server defaults it from the field id).
+        Assert.Contains("console-field-state--discovered", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-field-state=\"discovered\"", page.Markup, StringComparison.Ordinal);
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioFormBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 

@@ -165,25 +165,36 @@
                                 </div>
                                 <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="() => RemovePage(inspected)">Remove page</button>
                             </div>
-                            <label class="studio-form-label"><span>Route</span><input class="console-input" @bind="inspected.Route" placeholder="/map" /></label>
-                            <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="inspected.Title" placeholder="Map" /></label>
-                            <label class="studio-form-label">
-                                <span>Component</span>
+                            <FieldStateRow State="FieldState.Input" Label="Route">
+                                <input class="console-input" @bind="inspected.Route" placeholder="/map" />
+                            </FieldStateRow>
+                            <FieldStateRow State="FieldState.Input" Label="Title">
+                                <input class="console-input" @bind="inspected.Title" placeholder="Map" />
+                            </FieldStateRow>
+                            <FieldStateRow State="FieldState.Input" Label="Component">
                                 <select class="console-input" @bind="inspected.ComponentKind">
                                     @foreach (var kind in StudioAppComponentKinds.All)
                                     {
                                         <option value="@kind">@kind</option>
                                     }
                                 </select>
-                            </label>
-                            <label class="studio-form-label"><span>Content binding</span><input class="console-input" @bind="inspected.ContentBinding" placeholder="content:permits@@v3" /></label>
+                            </FieldStateRow>
+                            <FieldStateRow State="@(string.IsNullOrWhiteSpace(inspected.ContentBinding) ? FieldState.Discovered : FieldState.Input)"
+                                           Label="Content binding"
+                                           Hint="@(string.IsNullOrWhiteSpace(inspected.ContentBinding) ? "resolved from catalog content" : null)">
+                                <input class="console-input" @bind="inspected.ContentBinding" placeholder="content:permits@@v3" />
+                            </FieldStateRow>
                         </section>
                     }
 
                     <section class="studio-inspector-section" data-app-details="true">
                         <h3>App</h3>
-                        <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="editor.Title" placeholder="Field operations app" /></label>
-                        <label class="studio-form-label"><span>Summary</span><textarea class="console-input" rows="2" @bind="editor.Summary"></textarea></label>
+                        <FieldStateRow State="FieldState.Input" Label="Title">
+                            <input class="console-input" @bind="editor.Title" placeholder="Field operations app" />
+                        </FieldStateRow>
+                        <FieldStateRow State="FieldState.Input" Label="Summary">
+                            <textarea class="console-input" rows="2" @bind="editor.Summary"></textarea>
+                        </FieldStateRow>
                     </section>
 
                     <section class="studio-inspector-section" data-app-actions="true">
@@ -198,17 +209,20 @@
                         @foreach (var action in editor.Actions)
                         {
                             <fieldset class="studio-app-action" @key="action">
-                                <label class="studio-form-label"><span>Name</span><input class="console-input" @bind="action.Name" placeholder="submit inspection" /></label>
-                                <label class="studio-form-label"><span>Page route</span><input class="console-input" @bind="action.PageRoute" placeholder="/form" /></label>
-                                <label class="studio-form-label">
-                                    <span>Required permission</span>
+                                <FieldStateRow State="FieldState.Input" Label="Name">
+                                    <input class="console-input" @bind="action.Name" placeholder="submit inspection" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Input" Label="Page route">
+                                    <input class="console-input" @bind="action.PageRoute" placeholder="/form" />
+                                </FieldStateRow>
+                                <FieldStateRow State="FieldState.Admin" Label="Required permission" Hint="enforced by server RBAC">
                                     <select class="console-input" @bind="action.RequiredPermission">
                                         @foreach (var permission in StudioAppPermissions.All)
                                         {
                                             <option value="@permission">@permission</option>
                                         }
                                     </select>
-                                </label>
+                                </FieldStateRow>
                                 <div class="console-action-row">
                                     <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="() => RemoveAction(action)">Remove</button>
                                 </div>

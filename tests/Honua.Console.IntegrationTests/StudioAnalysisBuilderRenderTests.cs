@@ -102,6 +102,13 @@ public sealed class StudioAnalysisBuilderRenderTests
         Assert.Contains("data-analysis-estimate", page.Markup, StringComparison.Ordinal);
         Assert.False(FindButton(page, "Submit job").HasAttribute("disabled"));
 
+        // The compute estimate renders as calculated (derived) field-state rows, and the plan card carries
+        // operator-input rows + a system-assigned analysis id (field-state vocabulary, design-handoff
+        // console-canvas/field-state.jsx).
+        Assert.NotEmpty(page.FindAll("[data-analysis-estimate] .console-field-state--calculated .console-field-state__pill--calc"));
+        Assert.Contains("console-field-state--system", page.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll(".console-field-state--input .console-field-state__pill--input"));
+
         // The design-handoff StudioAnalysisEditor lays the editor out as a header bar over a
         // three-region body: a step rail, the pipeline canvas + run preview, and the plan inspector.
         var editor = page.Find("[data-analysis-builder]");
