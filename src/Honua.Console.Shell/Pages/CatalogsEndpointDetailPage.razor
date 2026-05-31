@@ -1,0 +1,212 @@
+@page "/operate/catalogs/{Key}"
+@using Honua.Console.Shell.Models
+@inject ICatalogDiscoveryDataSource CatalogDiscovery
+
+@* Operate > Catalogs > endpoint detail (screens-catalogs.jsx EsriCatalogDetail): one discovery endpoint's
+   drill-down — the ON/issue header with the endpoint URL, the Items / Settings / Access / Activity /
+   Validation tab strip, and the mirrored-items table (title, item id, source service, resource, tags,
+   thumbnail, license, issues, updated). Binds to the honua-server catalog discovery-endpoints registry
+   (honua-server#1279); renders a missing-binding surface when unbound (Console Patterns Charter section 11). *@
+
+<section class="console-page catalogs-detail" data-catalogs-detail data-catalog-endpoint="@Key">
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Catalogs"
+                          Title="Loading endpoint"
+                          Message="Reading the catalog endpoint detail from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="@_bindingState.State"
+                          Title="Catalog discovery endpoints are not bound"
+                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+    }
+    else if (_detail is { } detail)
+    {
+        var endpoint = detail.Endpoint;
+
+        <div class="console-detail-heading">
+            <div>
+                <p class="console-kicker">
+                    <a href="/operate/catalogs">Catalogs</a> <span class="console-crumb-sep">/</span> @endpoint.Title
+                </p>
+                <h1>
+                    @endpoint.Title
+                    <span class="@(endpoint.Enabled ? "console-status console-state-success" : "console-status console-state-neutral")"
+                          data-catalog-state="@(endpoint.Enabled ? "on" : "off")">
+                        @(endpoint.Enabled ? "ON" : "OFF")
+                    </span>
+                    @if (endpoint.HasIssues)
+                    {
+                        <span class="console-status console-state-warning" data-catalog-issues="@endpoint.IssueCount">
+                            @endpoint.IssueCount issue@(endpoint.IssueCount > 1 ? "s" : string.Empty)
+                        </span>
+                    }
+                </h1>
+                <p class="console-muted">
+                    @(endpoint.Url ?? "—") · @endpoint.Entries items
+                    @if (!string.IsNullOrWhiteSpace(detail.LastRebuild))
+                    {
+                        <span> · last rebuild @detail.LastRebuild</span>
+                    }
+                </p>
+            </div>
+            <div class="console-detail-actions">
+                <button class="console-button console-button-secondary" type="button">⧉ Copy</button>
+                <button class="console-button console-button-secondary" type="button">Open ↗</button>
+                <button class="console-button" type="button">Rebuild index</button>
+            </div>
+        </div>
+
+        <div class="catalogs-endpoint-bar" data-catalog-endpoint-url>
+            <span class="console-kicker">Endpoint</span>
+            <code class="catalogs-endpoint-url">@(endpoint.Url ?? "—")</code>
+        </div>
+
+        <nav class="console-tab-row" aria-label="Catalog endpoint tabs" data-catalog-tabs>
+            <span class="console-button-active" data-catalog-tab="items">Items <small class="console-tab-count">@endpoint.Entries</small></span>
+            <span data-catalog-tab="settings">Settings</span>
+            <span data-catalog-tab="access">Access</span>
+            <span data-catalog-tab="activity">Activity</span>
+            <span data-catalog-tab="validation">
+                Validation
+                @if (endpoint.HasIssues)
+                {
+                    <small class="console-tab-count">@endpoint.IssueCount</small>
+                }
+            </span>
+        </nav>
+
+        @if (detail.Items.Count == 0)
+        {
+            <ConsoleStateView Kind="empty"
+                              Kicker="Items"
+                              Title="No mirrored items"
+                              Message="This endpoint has no published items yet." />
+        }
+        else
+        {
+            <div class="console-table-wrap">
+                <table class="console-table console-content-table-compact" data-catalog-items-table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Title</th>
+                            <th scope="col">Item ID</th>
+                            <th scope="col">From service</th>
+                            <th scope="col">Resource</th>
+                            <th scope="col">Tags</th>
+                            <th scope="col">Thumbnail</th>
+                            <th scope="col">License</th>
+                            <th scope="col">Issues</th>
+                            <th scope="col">Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in detail.Items)
+                        {
+                            <tr data-catalog-item="@item.Id" class="@(item.HasIssues ? "catalogs-row--issue" : null)">
+                                <td>
+                                    <a href="@ItemHref(item.Id)" data-catalog-item-link><strong>@item.Title</strong></a>
+                                </td>
+                                <td><code>@item.Id</code></td>
+                                <td><code>@(item.FromService ?? "—")</code></td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.Resource))
+                                    {
+                                        <span class="console-type-tag">◇ @item.Resource</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="console-muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="console-inline-tags">
+                                        @foreach (var tag in item.Tags)
+                                        {
+                                            <span>#@tag</span>
+                                        }
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (item.HasThumbnail)
+                                    {
+                                        <span class="console-status console-state-success" data-catalog-thumb="ok">✓</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="console-status console-state-warning" data-catalog-thumb="missing">missing</span>
+                                    }
+                                </td>
+                                <td class="console-muted">@(item.License ?? "—")</td>
+                                <td>
+                                    @if (item.HasIssues)
+                                    {
+                                        <span class="console-status console-state-warning">@item.IssueCount</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="console-muted">—</span>
+                                    }
+                                </td>
+                                <td class="console-muted">@(item.Updated ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (detail.AutoMirror)
+            {
+                <p class="console-muted catalogs-detail__footnote" data-catalog-auto-mirror>
+                    Auto-mirror is on. Every service publication appears here unless explicitly unchecked.
+                </p>
+            }
+        }
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Catalogs"
+                          Title="Endpoint not found"
+                          Message="The catalog discovery-endpoints registry returned no detail for this endpoint." />
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string Key { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "workspace")]
+    private string? Workspace { get; set; }
+
+    private CatalogEndpointDetailView? _detail;
+    private CatalogDiscoveryCapabilityState? _bindingState;
+    private bool _loading = true;
+
+    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _bindingState = null;
+        _detail = null;
+
+        var load = await CatalogDiscovery.LoadEndpointAsync(WorkspaceId, Key);
+        if (load.HasDetail)
+        {
+            _detail = load.Detail;
+        }
+        else
+        {
+            _bindingState = load.CapabilityStates.FirstOrDefault();
+        }
+
+        _loading = false;
+    }
+
+    private string ItemHref(string itemId) =>
+        $"/operate/catalogs/{Uri.EscapeDataString(Key)}/items/{Uri.EscapeDataString(itemId)}";
+}
