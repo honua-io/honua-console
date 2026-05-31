@@ -173,7 +173,7 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
             message = $"Server reported {summary.Diagnostics.Count} validation issue(s). {details}".Trim();
         }
 
-        return new StudioDashboardCommandResult(isValid, message, state);
+        return new StudioDashboardCommandResult(isValid, message, state, Diagnostics: summary.Diagnostics);
     }
 
     public async Task<StudioDashboardCommandResult> PublishAsync(

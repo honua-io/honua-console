@@ -1,6 +1,9 @@
 @page "/studio/report"
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
 @inject IStudioReportPublicationDataSource ReportData
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved report changes. Leave this page and discard them?" />
 
 <section class="console-page studio-report-builder">
     <div class="console-page-heading">
@@ -84,6 +87,7 @@
                     <input class="console-input studio-report-name"
                            @bind="editor.Title"
                            @bind:event="oninput"
+                           @bind:after="OnEdit"
                            placeholder="q3-public-works-overview"
                            aria-label="Report title" />
                     <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")" data-report-status-badge="@(editor.IsPublished ? "published" : "draft")">@(editor.IsPublished ? $"published · r{editor.ActiveRevision}" : "draft")</span>
@@ -100,8 +104,22 @@
                     {
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="UpdatePolicy">Update policy</button>
                     }
-                    <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">@(editor.IsPublished ? "Republish…" : "Publish…")</button>
+                    <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">@(editor.IsPublished ? "Republish…" : "Publish…")</button>
                 </div>
+
+                @if (_validation.HasBlockingClientErrors)
+                {
+                    <article class="console-panel studio-report-gate" aria-labelledby="report-validation-heading">
+                        <p class="console-kicker">Validation</p>
+                        <h3 id="report-validation-heading">Resolve before publish</h3>
+                        <ul class="studio-compact-list">
+                            @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                            {
+                                <li>@error.Message</li>
+                            }
+                        </ul>
+                    </article>
+                }
 
                 @if (!readiness.CanPublish)
                 {
@@ -215,10 +233,10 @@
                                 <section class="studio-report-fieldgroup">
                                     <p class="console-kicker">Source binding</p>
                                     <FieldStateRow State="FieldState.Input" Label="Title">
-                                        <input class="console-input" @bind="sel.Title" placeholder="Parcels overview" />
+                                        <input class="console-input" @bind="sel.Title" @bind:after="OnEdit" placeholder="Parcels overview" />
                                     </FieldStateRow>
                                     <FieldStateRow State="FieldState.Input" Label="Kind">
-                                        <select class="console-input" @bind="sel.Kind">
+                                        <select class="console-input" @bind="sel.Kind" @bind:after="OnEdit">
                                             @foreach (var kind in StudioReportPanelKinds.All)
                                             {
                                                 <option value="@kind">@kind</option>
@@ -227,8 +245,9 @@
                                     </FieldStateRow>
                                     <FieldStateRow State="@(string.IsNullOrWhiteSpace(sel.BindingAlias) ? FieldState.Input : FieldState.Discovered)"
                                                    Label="Binding alias"
-                                                   Hint="@(string.IsNullOrWhiteSpace(sel.BindingAlias) ? null : "resolved from data bindings")">
-                                        <input class="console-input" @bind="sel.BindingAlias" placeholder="incidents" />
+                                                   Hint="@(string.IsNullOrWhiteSpace(sel.BindingAlias) ? null : "resolved from data bindings")"
+                                                   Errors="_validation.Errors(StudioReportFieldKeys.PanelBindingAlias(editor.Panels.IndexOf(sel)))">
+                                        <input class="console-input" @bind="sel.BindingAlias" @bind:after="OnEdit" placeholder="incidents" />
                                     </FieldStateRow>
                                 </section>
                                 @if (sel.IsChart)
@@ -237,8 +256,9 @@
                                         <p class="console-kicker">Vega-Lite spec</p>
                                         <label class="studio-form-label">
                                             <span>Spec (JSON)</span>
-                                            <textarea class="console-input studio-code" rows="8" @bind="sel.VegaLiteSpec"></textarea>
+                                            <textarea class="console-input studio-code" rows="8" @bind="sel.VegaLiteSpec" @bind:after="OnEdit"></textarea>
                                         </label>
+                                        <ValidationMessageInline FieldKey="@StudioReportFieldKeys.PanelVegaLiteSpec(editor.Panels.IndexOf(sel))" State="_validation" />
                                     </section>
                                 }
                                 <div class="console-action-row">
@@ -260,11 +280,11 @@
                                     {
                                         <FieldStateRow State="FieldState.System" Label="Publication id" Value="@editor.PublicationId" Hint="@($"r{editor.ActiveRevision}")" />
                                     }
-                                    <FieldStateRow State="FieldState.Input" Label="Title">
-                                        <input class="console-input" @bind="editor.Title" placeholder="Monthly infrastructure report" />
+                                    <FieldStateRow State="FieldState.Input" Label="Title" Errors="_validation.Errors(StudioReportFieldKeys.Title)">
+                                        <input class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Monthly infrastructure report" />
                                     </FieldStateRow>
-                                    <FieldStateRow State="FieldState.Input" Label="Route slug" Hint="@(editor.IsPublished ? "locked after publish" : null)">
-                                        <input class="console-input" @bind="editor.RouteSlug" placeholder="monthly-infrastructure" disabled="@editor.IsPublished" />
+                                    <FieldStateRow State="FieldState.Input" Label="Route slug" Hint="@(editor.IsPublished ? "locked after publish" : null)" Errors="_validation.Errors(StudioReportFieldKeys.RouteSlug)">
+                                        <input class="console-input" @bind="editor.RouteSlug" @bind:after="OnEdit" placeholder="monthly-infrastructure" disabled="@editor.IsPublished" />
                                     </FieldStateRow>
                                     <FieldStateRow State="FieldState.Input" Label="Description">
                                         <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
@@ -278,13 +298,14 @@
                                     <p class="console-kicker">Presentation</p>
                                     <label class="studio-form-label">
                                         <span>Visibility</span>
-                                        <select class="console-input" @bind="editor.Visibility">
+                                        <select class="console-input" @bind="editor.Visibility" @bind:after="OnEdit">
                                             @foreach (var visibility in StudioReportVisibilities.All)
                                             {
                                                 <option value="@visibility">@visibility</option>
                                             }
                                         </select>
                                     </label>
+                                    <ValidationMessageInline FieldKey="@StudioReportFieldKeys.Visibility" State="_validation" />
                                     <label class="studio-form-label-inline">
                                         <input type="checkbox" @bind="editor.Embeddable" />
                                         <span>Allow embedding</span>
@@ -300,6 +321,8 @@
                                     </label>
                                 </section>
 
+                                <ValidationMessageInline FieldKey="@StudioReportFieldKeys.Panels" State="_validation" />
+
                                 <section class="studio-report-fieldgroup" data-report-bindings>
                                     <div class="studio-report-fieldgroup-head">
                                         <p class="console-kicker">Data bindings</p>
@@ -311,17 +334,18 @@
                                     }
                                     @foreach (var binding in editor.Bindings)
                                     {
+                                        var bindingIndex = editor.Bindings.IndexOf(binding);
                                         <div class="studio-report-binding" @key="binding">
-                                            <FieldStateRow State="FieldState.Input" Label="Alias">
-                                                <input class="console-input" @bind="binding.Alias" placeholder="incidents" />
+                                            <FieldStateRow State="FieldState.Input" Label="Alias" Errors="_validation.Errors(StudioReportFieldKeys.BindingAlias(bindingIndex))">
+                                                <input class="console-input" @bind="binding.Alias" @bind:after="OnEdit" placeholder="incidents" />
                                             </FieldStateRow>
-                                            <FieldStateRow State="FieldState.Input" Label="Content ref">
-                                                <input class="console-input" @bind="binding.ContentRef" placeholder="content:incidents" />
+                                            <FieldStateRow State="FieldState.Input" Label="Content ref" Errors="_validation.Errors(StudioReportFieldKeys.BindingContentRef(bindingIndex))">
+                                                <input class="console-input" @bind="binding.ContentRef" @bind:after="OnEdit" placeholder="content:incidents" />
                                             </FieldStateRow>
                                             <FieldStateRow State="@(string.IsNullOrWhiteSpace(binding.VersionPin) ? FieldState.Discovered : FieldState.Input)"
                                                            Label="Version pin"
                                                            Hint="@(string.IsNullOrWhiteSpace(binding.VersionPin) ? "tracks latest publish" : "pinned")">
-                                                <input class="console-input" @bind="binding.VersionPin" placeholder="latest" />
+                                                <input class="console-input" @bind="binding.VersionPin" @bind:after="OnEdit" placeholder="latest" />
                                             </FieldStateRow>
                                             <div class="console-action-row">
                                                 <button class="console-button console-button-secondary console-button-small" type="button" disabled="@_busy" @onclick="() => RemoveBinding(binding)">Remove</button>
@@ -447,9 +471,29 @@
     private string? _status;
     private bool _statusFailed;
     private StudioReportPanelEditor? _selectedPanel;
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
 
     [SupplyParameterFromQuery(Name = "publicationId")]
     public string? PublicationId { get; set; }
+
+    /// <summary>
+    /// Re-runs the client cross-field/referential validator over the current editor and flags it dirty.
+    /// Wired to every bound edit via <c>@bind:after</c> (cheap and synchronous). The server channel is
+    /// dropped on edit because any change makes the last publish-time server findings stale; the next
+    /// publish rebinds fresh ones.
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_editor is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioReportValidator.Instance.Evaluate(_editor));
 
     protected override async Task OnParametersSetAsync()
     {
@@ -469,6 +513,9 @@
         _statusFailed = false;
         _bindingState = null;
         _states = [];
+        _validation.Clear();
+        _dirty.MarkClean();
+        RecomputeClientErrors();
     }
 
     private async Task OpenPublication()
@@ -499,6 +546,11 @@
             var result = await ReportData.LoadAsync(publicationId);
             _publication = result.Publication;
             ApplyStates(result.CapabilityStates);
+
+            // A fresh load is the clean baseline: any open editor's local edits/findings are dropped.
+            _validation.Clear();
+            _dirty.MarkClean();
+            RecomputeClientErrors();
         }
         finally
         {
@@ -513,6 +565,8 @@
         _selectedPanel = null;
         _status = null;
         _statusFailed = false;
+        _validation.Clear();
+        _dirty.MarkClean();
     }
 
     private void EditPublished(StudioReportPublicationView publication)
@@ -531,11 +585,23 @@
         _selectedPanel = null;
         _status = null;
         _statusFailed = false;
+        // Reopening a published report into an editable state is a fresh baseline.
+        _validation.Clear();
+        _dirty.MarkClean();
+        RecomputeClientErrors();
     }
 
-    private void AddBinding() => _editor?.Bindings.Add(new StudioReportBindingEditor());
+    private void AddBinding()
+    {
+        _editor?.Bindings.Add(new StudioReportBindingEditor());
+        OnEdit();
+    }
 
-    private void RemoveBinding(StudioReportBindingEditor binding) => _editor?.Bindings.Remove(binding);
+    private void RemoveBinding(StudioReportBindingEditor binding)
+    {
+        _editor?.Bindings.Remove(binding);
+        OnEdit();
+    }
 
     private void AddPanel()
     {
@@ -547,6 +613,7 @@
         var panel = new StudioReportPanelEditor { VegaLiteSpec = StudioReportChartSpec.DefaultBarChart() };
         _editor.Panels.Add(panel);
         _selectedPanel = panel;
+        OnEdit();
     }
 
     private void RemovePanel(StudioReportPanelEditor panel)
@@ -557,6 +624,7 @@
         }
 
         _editor?.Panels.Remove(panel);
+        OnEdit();
     }
 
     private void SelectPanel(StudioReportPanelEditor? panel) => _selectedPanel = panel;
@@ -590,6 +658,17 @@
             var result = await command();
             _status = result.Message;
             _statusFailed = !result.Succeeded;
+
+            // Re-run the client validator against the current editor and bind any field-addressable server
+            // findings (parsed from a 400 ProblemDetails errors[]) onto the same field keys so they surface
+            // inline next to the offending input, merged with the client findings.
+            RecomputeClientErrors();
+            _validation.SetServerErrors(StudioReportServerErrorBinder.Map(result.FieldErrors));
+
+            if (result.Succeeded)
+            {
+                _dirty.MarkClean();
+            }
 
             if (result.Publication is not null)
             {

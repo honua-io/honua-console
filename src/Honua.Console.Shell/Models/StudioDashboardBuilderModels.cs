@@ -229,11 +229,22 @@ public sealed record StudioDashboardEditorLoad(
 }
 
 /// <summary>Outcome of a mutating dashboard lifecycle command (save, validate, publish, reopen).</summary>
+/// <param name="Succeeded">Whether the command succeeded.</param>
+/// <param name="Message">Operator-facing status message.</param>
+/// <param name="State">The post-command editor state, when the command returned one.</param>
+/// <param name="Issue">A capability state when the command failed at the binding/permission/transport level.</param>
+/// <param name="Diagnostics">
+/// Field-addressable server validation diagnostics (the Studio package validate
+/// <c>{code,severity,path,message}</c> shape) returned by a validate command. Empty unless the server
+/// reported field-level findings; the dashboard builder binds these onto the offending inputs via
+/// <see cref="Honua.Console.Shell.Validation.StudioDashboardServerErrorBinder"/>.
+/// </param>
 public sealed record StudioDashboardCommandResult(
     bool Succeeded,
     string Message,
     StudioDashboardEditorState? State = null,
-    StudioDashboardCapabilityState? Issue = null);
+    StudioDashboardCapabilityState? Issue = null,
+    IReadOnlyList<Honua.Console.Contracts.StudioValidationDiagnostic>? Diagnostics = null);
 
 /// <summary>
 /// Pure pre-publish gate. Publish requires a titled dashboard with at least one panel, every panel bound

@@ -88,6 +88,9 @@ public sealed class StudioDashboardBuilderRenderTests
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.TestContext();
+        // Switching the breakpoint marks the editor dirty, arming the <UnsavedChangesGuard/> (a JS module
+        // import); run Loose JSInterop so bUnit auto-handles that import.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
