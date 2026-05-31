@@ -1,0 +1,74 @@
+name: Console E2E (advisory)
+
+# Thin real-browser Playwright smoke for the Honua Console Blazor Web host.
+#
+# ADVISORY, NOT A REQUIRED GATE. Browser smokes are inherently more flaky than the bUnit
+# render tests in "Validate Console", and this suite currently tolerates a documented
+# pre-existing circuit defect (ambiguous `/operate/jobs/{...}` route). It runs on every PR
+# and push so regressions are visible, but `continue-on-error` keeps a transient or
+# environmental failure from blocking merge. Promote it to a required check (and drop
+# continue-on-error) once it is reliably green and the routing defect is fixed.
+
+on:
+  push:
+    branches:
+      - trunk
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: console-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-smoke:
+    name: Playwright smoke (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Restore .NET projects
+        run: dotnet restore Honua.Console.slnx
+
+      - name: Publish Blazor Web host
+        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+
+      - name: Install Playwright dependencies
+        working-directory: e2e/playwright
+        run: npm ci
+
+      - name: Install Playwright chromium
+        working-directory: e2e/playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Console e2e smoke (chromium, headless)
+        working-directory: e2e/playwright
+        env:
+          CI: "true"
+          # Boot the published artifact instead of `dotnet run` (faster, matches the deployed binary).
+          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+        run: npx playwright test
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-e2e-playwright-report
+          path: e2e/playwright/playwright-report/
+          if-no-files-found: ignore
