@@ -137,6 +137,7 @@ public sealed class HttpConsoleGitOpsReleaseClient : IConsoleGitOpsReleaseClient
 
         var proposal = GitOpsReleaseMapper.MapProposal(package, manifest);
         var matrix = GitOpsReleaseMapper.MapEnvironmentMatrix(package);
+        var dataScripts = GitOpsReleaseMapper.MapDataScripts(package);
 
         GitOpsReleaseOperation? operation = null;
         if (operationFetch.Ok)
@@ -164,7 +165,8 @@ public sealed class HttpConsoleGitOpsReleaseClient : IConsoleGitOpsReleaseClient
             OperationStatus: operationFetch.Status,
             OperationMessage: operationFetch.Ok
                 ? string.Empty
-                : OperationMessage(operationFetch.Status, operationFetch.Message));
+                : OperationMessage(operationFetch.Status, operationFetch.Message),
+            DataScripts: dataScripts);
 
         return OperateSectionResult<GitOpsReleaseDetail>.Allowed(detail);
     }

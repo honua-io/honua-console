@@ -70,6 +70,31 @@ internal static class GitOpsReleaseMapper
         return cells;
     }
 
+    /// <summary>
+    /// Maps the release bundle's data scripts and their rollback coverage (design
+    /// "data script coverage"). Returns an empty list when the server projects none;
+    /// the surface then renders the established empty/missing state rather than a mock.
+    /// </summary>
+    public static IReadOnlyList<GitOpsDataScript> MapDataScripts(MetadataReleasePackageResponse package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        return package.DataScripts
+            .Select(script => new GitOpsDataScript(
+                ScriptId: FirstNonBlank(script.ScriptId, script.FileName),
+                FileName: FirstNonBlank(script.FileName, script.ScriptId),
+                Coverage: MapDataScriptCoverage(script.Coverage)))
+            .ToArray();
+    }
+
+    public static GitOpsDataScriptCoverage MapDataScriptCoverage(string? value) =>
+        (value ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "covered" or "reversible" => GitOpsDataScriptCoverage.Covered,
+            "no-rollback" or "norollback" or "no_rollback" or "uncovered" => GitOpsDataScriptCoverage.NoRollback,
+            _ => GitOpsDataScriptCoverage.Unknown
+        };
+
     public static GitOpsReleaseOperation MapOperation(DeployOperationResponse operation)
     {
         ArgumentNullException.ThrowIfNull(operation);

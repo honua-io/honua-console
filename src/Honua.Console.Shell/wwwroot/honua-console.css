@@ -2029,6 +2029,90 @@ p {
     margin: 18px 20px 0;
 }
 
+/* Data scripts — per-script rollback coverage list (design "Data scripts · N"). */
+.operate-script-list {
+    margin: 0;
+    padding: 8px 20px 18px;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+}
+
+.operate-script-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    background: var(--honua-surface);
+}
+
+.operate-script-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+/* Git PR preview — inline change summary the PR would carry. */
+.operate-pr-external {
+    margin-left: auto;
+}
+
+.operate-pr-meta {
+    margin: 16px 20px 0;
+}
+
+.operate-pr-diff {
+    margin: 12px 20px 18px;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.operate-pr-diff-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 12px;
+    border-left: 3px solid #b58a00;
+    background: #fffaf0;
+}
+
+.operate-pr-diff-gutter {
+    width: 14px;
+    font-family: var(--honua-mono, monospace);
+    font-weight: 700;
+    color: #7a5300;
+    text-align: center;
+}
+
+.operate-pr-diff-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.operate-pr-diff-name {
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.operate-pr-diff-type {
+    font-size: 0.8rem;
+}
+
+.operate-pr-note {
+    margin-top: 0;
+}
+
 .operate-timeline {
     display: grid;
     gap: 8px;

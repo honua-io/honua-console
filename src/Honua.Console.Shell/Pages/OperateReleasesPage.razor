@@ -151,6 +151,8 @@
             <a href="#semantic-diff" class="active">Semantic diff <small>@changeCount</small></a>
             <a href="#env-matrix">Environment matrix</a>
             <a href="#preflight">Compatibility preflight</a>
+            <a href="#scripts">Data scripts <small>@detail.Scripts.Count</small></a>
+            <a href="#pr-preview">Git PR preview</a>
             <a href="#timeline">CI timeline</a>
             <a href="#rollback">Rollback</a>
         </nav>
@@ -256,6 +258,111 @@
                     }
                 </section>
 
+                @* DATA SCRIPTS — dedicated section listing each data script in the release
+                   bundle with its rollback coverage badge (design "Data scripts · N",
+                   covered / no rollback). Bound to the server data-script projection; when
+                   the server reports none, render the established empty/missing state. *@
+                <section id="scripts" class="console-panel operate-table-panel operate-release-scripts" aria-labelledby="scripts-heading">
+                    <div class="console-panel-heading operate-release-card-head">
+                        <div>
+                            <h3 id="scripts-heading">Data scripts &middot; @detail.Scripts.Count</h3>
+                            <p class="console-muted">Each script in the release bundle with its rollback coverage.</p>
+                        </div>
+                        @if (detail.Scripts.Count > 0)
+                        {
+                            <span class="console-status @(detail.AllDataScriptsCovered ? "console-state-success" : detail.HasDataScriptCoverageGap ? "console-state-warning" : "console-state-neutral")">
+                                @(detail.AllDataScriptsCovered ? "all covered" : detail.HasDataScriptCoverageGap ? "coverage gap" : "coverage unverified")
+                            </span>
+                        }
+                    </div>
+                    @if (detail.Scripts.Count == 0)
+                    {
+                        <p class="console-muted operate-release-empty">
+                            The connected server reported no data scripts for this release bundle.
+                        </p>
+                    }
+                    else
+                    {
+                        <ul class="operate-script-list">
+                            @foreach (var script in detail.Scripts)
+                            {
+                                <li class="operate-script-row">
+                                    <span class="console-mono operate-script-name">@script.FileName</span>
+                                    <span class="console-status @GitOpsReleasePresentation.StateClass(script.Coverage)">
+                                        @GitOpsReleasePresentation.Label(script.Coverage)
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                @* GIT PR PREVIEW — inline change summary (the diff the PR would carry),
+                   grouped by resource, rendered in-page rather than only as an external
+                   link. The external "View on GitHub" link is preserved when present. *@
+                <section id="pr-preview" class="console-panel operate-table-panel operate-release-pr" aria-labelledby="pr-preview-heading">
+                    <div class="console-panel-heading operate-release-card-head">
+                        <div>
+                            <h3 id="pr-preview-heading">Git PR preview</h3>
+                            <p class="console-muted">Inline change summary &middot; what this PR would write to the config repository.</p>
+                        </div>
+                        @if (operation?.PrUrl is { Length: > 0 } prHeadUrl)
+                        {
+                            <a class="console-link operate-pr-external" href="@prHeadUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
+                        }
+                    </div>
+                    @if (operation is not null && (!string.IsNullOrWhiteSpace(operation.CommitSha) || operation.PrUrl is { Length: > 0 }))
+                    {
+                        <dl class="console-definition-list operate-pr-meta">
+                            @if (operation.PrUrl is { Length: > 0 } prMetaUrl)
+                            {
+                                <dt>Pull request</dt>
+                                <dd><a class="console-link" href="@prMetaUrl" rel="noopener noreferrer" target="_blank">@prMetaUrl</a></dd>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(operation.CommitSha))
+                            {
+                                <dt>Commit</dt>
+                                <dd class="console-mono">@operation.CommitSha</dd>
+                            }
+                            <dt>Target</dt>
+                            <dd class="console-mono">@(string.IsNullOrWhiteSpace(operation.TargetEnvironment) ? "—" : operation.TargetEnvironment)</dd>
+                        </dl>
+                    }
+                    @if (changeCount == 0)
+                    {
+                        <p class="console-muted operate-release-empty">
+                            This release proposal carries no semantic changes, so the Git PR preview is empty.
+                        </p>
+                    }
+                    else
+                    {
+                        <ul class="operate-pr-diff" aria-label="Pull request change summary">
+                            @foreach (var resource in proposal.ChangedResources)
+                            {
+                                <li class="operate-pr-diff-row">
+                                    <span class="operate-pr-diff-gutter" aria-hidden="true">~</span>
+                                    <div class="operate-pr-diff-body">
+                                        <span class="console-mono operate-pr-diff-name">@resource.DisplayName</span>
+                                        <span class="console-muted operate-pr-diff-type">@resource.ResourceType</span>
+                                        <span class="console-chip-row">
+                                            @foreach (var changeClass in resource.ChangeClasses)
+                                            {
+                                                <span>@GitOpsReleasePresentation.Label(changeClass)</span>
+                                            }
+                                        </span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    @if (operation is null)
+                    {
+                        <p class="console-muted operate-release-empty operate-pr-note">
+                            No release operation has opened a Git PR yet; the preview above reflects the proposed change set.
+                        </p>
+                    }
+                </section>
+
                 @* CI/GITOPS CHECK TIMELINE — chronological stages (design view "CI timeline").
                    Mirrors the GitOpsCITimeline mockup's check-row list. *@
                 <section id="timeline" class="console-panel operate-table-panel" aria-labelledby="timeline-heading">
@@ -356,6 +463,16 @@
                         <li class="@(detail.HasDrift ? "console-state-warning" : "console-state-success")">
                             @(detail.HasDrift ? "Environment drift across targets" : "Targets aligned with desired revision")
                         </li>
+                        @if (detail.Scripts.Count > 0)
+                        {
+                            <li class="@(detail.AllDataScriptsCovered ? "console-state-success" : detail.HasDataScriptCoverageGap ? "console-state-warning" : "console-state-neutral")">
+                                @(detail.AllDataScriptsCovered
+                                    ? "Data scripts covered"
+                                    : detail.HasDataScriptCoverageGap
+                                        ? "Data script coverage gap"
+                                        : "Data script coverage unverified")
+                            </li>
+                        }
                         @if (operation is not null && operation.Warnings.Count > 0)
                         {
                             <li class="console-state-warning">@operation.Warnings.Count operation warning@(operation.Warnings.Count == 1 ? "" : "s")</li>
@@ -389,9 +506,10 @@
                             @GitOpsReleasePresentation.Label(proposal.RollbackClassification)
                         </dd>
                     </dl>
+                    <a class="console-link" href="#pr-preview">View Git PR preview</a>
                     @if (operation?.PrUrl is { Length: > 0 } sidePrUrl)
                     {
-                        <a class="console-link" href="@sidePrUrl" rel="noopener noreferrer" target="_blank">View Git PR preview</a>
+                        <a class="console-link" href="@sidePrUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
                     }
                 </section>
 

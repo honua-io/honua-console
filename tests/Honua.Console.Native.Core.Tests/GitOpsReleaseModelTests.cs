@@ -116,6 +116,60 @@ public sealed class GitOpsReleaseModelTests
     }
 
     [Fact]
+    public void UnknownDataScriptCoverageIsNotCountedAsAllCovered()
+    {
+        var readyProposal = BuildProposal(hasBlockingFindings: false);
+        var matrix = Array.Empty<GitOpsEnvironmentMatrixCell>();
+
+        GitOpsReleaseDetail Detail(params GitOpsDataScript[] scripts) => new(
+            readyProposal,
+            matrix,
+            Operation: null,
+            OperateSectionStatus.Allowed,
+            string.Empty,
+            scripts);
+
+        var allCovered = Detail(
+            new GitOpsDataScript("001", "001.sql", GitOpsDataScriptCoverage.Covered),
+            new GitOpsDataScript("002", "002.sql", GitOpsDataScriptCoverage.Covered));
+        var withGap = Detail(
+            new GitOpsDataScript("001", "001.sql", GitOpsDataScriptCoverage.Covered),
+            new GitOpsDataScript("002", "002.sql", GitOpsDataScriptCoverage.NoRollback));
+        var withUnknown = Detail(
+            new GitOpsDataScript("001", "001.sql", GitOpsDataScriptCoverage.Covered),
+            new GitOpsDataScript("002", "002.sql", GitOpsDataScriptCoverage.Unknown));
+        var none = Detail();
+
+        Assert.True(allCovered.AllDataScriptsCovered);
+        Assert.False(allCovered.HasDataScriptCoverageGap);
+
+        // An explicit no-rollback is a gap and is not "all covered".
+        Assert.False(withGap.AllDataScriptsCovered);
+        Assert.True(withGap.HasDataScriptCoverageGap);
+
+        // Unknown coverage is neither "all covered" nor an explicit gap (neutral).
+        Assert.False(withUnknown.AllDataScriptsCovered);
+        Assert.False(withUnknown.HasDataScriptCoverageGap);
+
+        // No scripts: not "all covered" (nothing to assert covered) and no gap.
+        Assert.False(none.AllDataScriptsCovered);
+        Assert.False(none.HasDataScriptCoverageGap);
+    }
+
+    [Theory]
+    [InlineData(GitOpsDataScriptCoverage.Covered, "covered", "console-state-success")]
+    [InlineData(GitOpsDataScriptCoverage.NoRollback, "no rollback", "console-state-warning")]
+    [InlineData(GitOpsDataScriptCoverage.Unknown, "unknown", "console-state-neutral")]
+    public void DataScriptCoverageRendersLabelAndStateClass(
+        GitOpsDataScriptCoverage coverage,
+        string expectedLabel,
+        string expectedClass)
+    {
+        Assert.Equal(expectedLabel, GitOpsReleasePresentation.Label(coverage));
+        Assert.Equal(expectedClass, GitOpsReleasePresentation.StateClass(coverage));
+    }
+
+    [Fact]
     public void DetailGatesPullRequestOnBothProposalFindingsAndOperationBlockers()
     {
         var readyProposal = BuildProposal(hasBlockingFindings: false);

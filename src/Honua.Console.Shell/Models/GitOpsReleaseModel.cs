@@ -209,17 +209,46 @@ public sealed record GitOpsRollbackPlan(
 }
 
 /// <summary>
+/// Rollback coverage of a data script: whether the release bundle carries a reversible
+/// rollback for it (design "Data scripts" badges: <c>covered</c> / <c>no rollback</c>).
+/// Mirrors the server data-script coverage projection.
+/// </summary>
+public enum GitOpsDataScriptCoverage
+{
+    /// <summary>The server did not report a coverage state for the script.</summary>
+    Unknown,
+
+    /// <summary>The script has an attached, verified rollback (reversible).</summary>
+    Covered,
+
+    /// <summary>The script has no rollback coverage; it is not auto-reversible.</summary>
+    NoRollback
+}
+
+/// <summary>
+/// One data script that a release applies as part of its bundle, with its rollback
+/// coverage (design view "data script coverage"; surface brief "Data Script"). Surfaced
+/// per-script so operators can see a coverage gap before apply without reading raw SQL.
+/// </summary>
+public sealed record GitOpsDataScript(
+    string ScriptId,
+    string FileName,
+    GitOpsDataScriptCoverage Coverage);
+
+/// <summary>
 /// The full release detail surface (design views #1-#6): the proposal summary and
-/// semantic diff, the environment matrix/drift, the CI/GitOps timeline, and the
-/// rollback readiness/window. Bound to the real honua-server release package +
-/// GitOps manifest (#1163) and release operation lifecycle (#1165).
+/// semantic diff, the environment matrix/drift, the data-script coverage, the
+/// CI/GitOps timeline, and the rollback readiness/window. Bound to the real
+/// honua-server release package + GitOps manifest (#1163) and release operation
+/// lifecycle (#1165).
 /// </summary>
 public sealed record GitOpsReleaseDetail(
     GitOpsReleaseProposal Proposal,
     IReadOnlyList<GitOpsEnvironmentMatrixCell> EnvironmentMatrix,
     GitOpsReleaseOperation? Operation,
     OperateSectionStatus OperationStatus,
-    string OperationMessage)
+    string OperationMessage,
+    IReadOnlyList<GitOpsDataScript>? DataScripts = null)
 {
     /// <summary>
     /// Whether a Git PR / deploy action can be offered. Both the proposal-level
@@ -231,6 +260,24 @@ public sealed record GitOpsReleaseDetail(
 
     /// <summary>Whether the environment matrix reports any drift across targets.</summary>
     public bool HasDrift => EnvironmentMatrix.Any(cell => !cell.IsAligned);
+
+    /// <summary>The release's data scripts (never null for iteration).</summary>
+    public IReadOnlyList<GitOpsDataScript> Scripts => DataScripts ?? [];
+
+    /// <summary>
+    /// Whether the server reported an explicit data-script coverage gap: at least one
+    /// script has no rollback. Drives the compatibility-preflight warning line.
+    /// </summary>
+    public bool HasDataScriptCoverageGap =>
+        Scripts.Any(script => script.Coverage == GitOpsDataScriptCoverage.NoRollback);
+
+    /// <summary>
+    /// Whether every data script is explicitly <see cref="GitOpsDataScriptCoverage.Covered"/>.
+    /// A script with unknown coverage is NOT counted as covered, so the surface does not
+    /// claim "all covered" when rollback coverage is unverified before apply.
+    /// </summary>
+    public bool AllDataScriptsCovered =>
+        Scripts.Count > 0 && Scripts.All(script => script.Coverage == GitOpsDataScriptCoverage.Covered);
 }
 
 /// <summary>
@@ -275,6 +322,24 @@ public static class GitOpsReleasePresentation
         GitOpsRollbackClassification.Manual =>
             "Rollback cannot be automated safely and needs manual recovery.",
         _ => "Rollback evidence is incomplete; CI must not auto-promote."
+    };
+
+    public static string Label(GitOpsDataScriptCoverage coverage) => coverage switch
+    {
+        GitOpsDataScriptCoverage.Covered => "covered",
+        GitOpsDataScriptCoverage.NoRollback => "no rollback",
+        _ => "unknown"
+    };
+
+    /// <summary>
+    /// Neutral CSS state class for a data-script coverage badge: covered is success,
+    /// a missing rollback is a warning, unknown is neutral.
+    /// </summary>
+    public static string StateClass(GitOpsDataScriptCoverage coverage) => coverage switch
+    {
+        GitOpsDataScriptCoverage.Covered => "console-state-success",
+        GitOpsDataScriptCoverage.NoRollback => "console-state-warning",
+        _ => "console-state-neutral"
     };
 
     public static string Label(GitOpsTimelineStatus status) => status switch
