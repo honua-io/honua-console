@@ -1,6 +1,7 @@
 using System.Net.Http;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
+using Honua.Console.Shell.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -20,6 +21,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleEnvironmentProfileStore>(
             _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
+
+        // Per-editor unsaved-changes dirty tracking backing the <UnsavedChangesGuard/> (Wave 0).
+        // Scoped so each Blazor circuit / editor instance owns its own flag. Editors are wired in the
+        // per-surface waves; Wave 0 only ships the holder + guard component + beforeunload interop.
+        services.TryAddScoped<FormDirtyState>();
+
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioAppPackageDataSource(services, honuaServerBaseUrl);
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);

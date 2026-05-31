@@ -1,0 +1,64 @@
+@page "/studio/_dev/unsaved-changes-demo"
+@using Honua.Console.Shell.Validation
+@inject FormDirtyState Dirty
+
+@*
+    Demo / manual-test harness for the Wave-0 unsaved-changes guard infra. It is intentionally NOT a
+    wired editor — it exists so the reusable <UnsavedChangesGuard/>, FormDirtyState, and the
+    beforeunload interop can be exercised end-to-end (edit the field, then try to navigate away or
+    refresh) before the per-surface waves wire the guard into real editors. Lives under /_dev so it is
+    discoverable but clearly out of the production IA.
+*@
+
+<UnsavedChangesGuard IsDirty="Dirty.IsDirty" Message="@DemoMessage" />
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Form validation infra · Wave 0</p>
+        <h1>Unsaved-changes guard demo</h1>
+        <p>
+            Edit the field to mark the form dirty, then try navigating away or refreshing — you should
+            be prompted. Save or revert to clear the flag and navigate freely. This harness is for
+            manual verification only; no editor is wired to the guard in Wave 0.
+        </p>
+    </div>
+
+    <article class="console-panel">
+        <label class="studio-form-label" for="demo-note">Note</label>
+        <input id="demo-note"
+               class="console-input"
+               type="text"
+               value="@_note"
+               @oninput="OnNoteInput" />
+
+        <p class="console-muted" role="status">
+            Dirty state: <strong>@(Dirty.IsDirty ? "unsaved changes" : "clean")</strong>
+        </p>
+
+        <div class="console-button-row">
+            <button type="button" class="console-button" @onclick="Save" disabled="@(!Dirty.IsDirty)">Save</button>
+            <button type="button" class="console-button console-button-ghost" @onclick="Revert" disabled="@(!Dirty.IsDirty)">Revert</button>
+            <a class="console-button console-button-ghost" href="/studio">Navigate to Studio</a>
+        </div>
+    </article>
+</section>
+
+@code {
+    private const string DemoMessage = "You have unsaved changes in the demo. Leave and discard them?";
+
+    private string _note = string.Empty;
+
+    private void OnNoteInput(ChangeEventArgs args)
+    {
+        _note = args.Value?.ToString() ?? string.Empty;
+        Dirty.MarkDirty();
+    }
+
+    private void Save() => Dirty.MarkClean();
+
+    private void Revert()
+    {
+        _note = string.Empty;
+        Dirty.MarkClean();
+    }
+}

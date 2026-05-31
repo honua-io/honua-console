@@ -1,0 +1,41 @@
+@*
+    Inline validation message for surfaces that use the plain `studio-form-label` markup rather than a
+    FieldStateRow pill. Drops in next to a labelled control, reads the field's findings from the shared
+    ValidationState, and renders the same `console-field-state__error` affordances. Renders nothing when
+    the field has no findings, so it is safe to leave in place permanently.
+*@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
+
+@if (Errors.Count > 0)
+{
+    <ul class="console-validation-inline" role="list" data-field-key="@FieldKey">
+        @foreach (var error in Errors)
+        {
+            <li class="console-field-state__error console-field-state__error--@SeveritySlug(error.Severity)">@error.Message</li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>The console field key whose findings this message surfaces.</summary>
+    [Parameter, EditorRequired]
+    public string FieldKey { get; set; } = string.Empty;
+
+    /// <summary>The editor's shared validation state (merged client + server findings).</summary>
+    [Parameter, EditorRequired]
+    public ValidationState State { get; set; } = new();
+
+    private IReadOnlyList<ConsoleFieldError> Errors =>
+        State is null || string.IsNullOrEmpty(FieldKey)
+            ? Array.Empty<ConsoleFieldError>()
+            : State.Errors(FieldKey);
+
+    private static string SeveritySlug(ConsoleValidationSeverity severity) => severity switch
+    {
+        ConsoleValidationSeverity.Info => "info",
+        ConsoleValidationSeverity.Warning => "warning",
+        ConsoleValidationSeverity.Blocker => "blocker",
+        _ => "error",
+    };
+}
