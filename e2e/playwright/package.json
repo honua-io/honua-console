@@ -1,0 +1,17 @@
+{
+  "name": "@honua/console-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Thin real-browser Playwright smoke for the Honua Console Blazor Web host.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "e2e:smoke": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2"
+  }
+}
