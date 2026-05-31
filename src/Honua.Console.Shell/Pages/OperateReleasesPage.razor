@@ -270,8 +270,8 @@
                         </div>
                         @if (detail.Scripts.Count > 0)
                         {
-                            <span class="console-status @(detail.HasDataScriptCoverageGap ? "console-state-warning" : "console-state-success")">
-                                @(detail.HasDataScriptCoverageGap ? "coverage gap" : "all covered")
+                            <span class="console-status @(detail.AllDataScriptsCovered ? "console-state-success" : detail.HasDataScriptCoverageGap ? "console-state-warning" : "console-state-neutral")">
+                                @(detail.AllDataScriptsCovered ? "all covered" : detail.HasDataScriptCoverageGap ? "coverage gap" : "coverage unverified")
                             </span>
                         }
                     </div>
@@ -465,8 +465,12 @@
                         </li>
                         @if (detail.Scripts.Count > 0)
                         {
-                            <li class="@(detail.HasDataScriptCoverageGap ? "console-state-warning" : "console-state-success")">
-                                @(detail.HasDataScriptCoverageGap ? "Data script coverage gap" : "Data scripts covered")
+                            <li class="@(detail.AllDataScriptsCovered ? "console-state-success" : detail.HasDataScriptCoverageGap ? "console-state-warning" : "console-state-neutral")">
+                                @(detail.AllDataScriptsCovered
+                                    ? "Data scripts covered"
+                                    : detail.HasDataScriptCoverageGap
+                                        ? "Data script coverage gap"
+                                        : "Data script coverage unverified")
                             </li>
                         }
                         @if (operation is not null && operation.Warnings.Count > 0)

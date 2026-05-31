@@ -265,11 +265,19 @@ public sealed record GitOpsReleaseDetail(
     public IReadOnlyList<GitOpsDataScript> Scripts => DataScripts ?? [];
 
     /// <summary>
-    /// Whether the server reported any data-script coverage gap (a script with no
-    /// rollback). Drives the compatibility-preflight "data script coverage gap" line.
+    /// Whether the server reported an explicit data-script coverage gap: at least one
+    /// script has no rollback. Drives the compatibility-preflight warning line.
     /// </summary>
     public bool HasDataScriptCoverageGap =>
         Scripts.Any(script => script.Coverage == GitOpsDataScriptCoverage.NoRollback);
+
+    /// <summary>
+    /// Whether every data script is explicitly <see cref="GitOpsDataScriptCoverage.Covered"/>.
+    /// A script with unknown coverage is NOT counted as covered, so the surface does not
+    /// claim "all covered" when rollback coverage is unverified before apply.
+    /// </summary>
+    public bool AllDataScriptsCovered =>
+        Scripts.Count > 0 && Scripts.All(script => script.Coverage == GitOpsDataScriptCoverage.Covered);
 }
 
 /// <summary>
