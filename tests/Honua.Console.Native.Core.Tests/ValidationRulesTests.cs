@@ -154,4 +154,95 @@ public sealed class ValidationRulesTests
     [InlineData("*/0 6 * * *")]      // zero step
     public void Cron_RejectsMalformedExpressions(string expression) =>
         Assert.False(CronRule.IsValid(expression));
+
+    // --- Wave 5: email (RBAC invite) ---
+
+    [Theory]
+    [InlineData("name@example.gov")]
+    [InlineData("first.last@sub.example.com")]
+    [InlineData("  trimmed@example.org  ")] // whitespace-tolerant
+    [InlineData("ops+tag@honua.io")]
+    public void Email_PlausibleAddresses_Pass(string value) => Assert.True(EmailRule.IsValid(value));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("no-at-sign")]
+    [InlineData("@example.com")]      // empty local
+    [InlineData("name@")]             // empty domain
+    [InlineData("name@example")]      // no dot in domain
+    [InlineData("name@@example.com")] // double @
+    [InlineData("a b@example.com")]   // inner whitespace
+    [InlineData("name@a..b.com")]     // empty domain label
+    [InlineData("name@.example.com")] // leading dot
+    public void Email_InvalidAddresses_Fail(string value) => Assert.False(EmailRule.IsValid(value));
+
+    // --- Wave 5: CIDR (RBAC IP allowlist) ---
+
+    [Theory]
+    [InlineData("10.0.0.0/8")]
+    [InlineData("192.168.1.0/24")]
+    [InlineData("0.0.0.0/0")]
+    [InlineData("203.0.113.5")]          // bare IPv4 host route
+    [InlineData("2001:db8::/32")]
+    [InlineData("::1/128")]
+    [InlineData("  172.16.0.0/12  ")]    // whitespace-tolerant
+    public void Cidr_ValidBlocks_Pass(string value) => Assert.True(CidrRule.IsValid(value));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-an-ip")]
+    [InlineData("10.0.0.0/33")]    // IPv4 prefix > 32
+    [InlineData("10.0.0.0/-1")]    // negative prefix
+    [InlineData("2001:db8::/129")] // IPv6 prefix > 128
+    [InlineData("10.0.0.0/abc")]   // non-numeric prefix
+    [InlineData("999.0.0.0/8")]    // invalid octet
+    public void Cidr_InvalidBlocks_Fail(string value) => Assert.False(CidrRule.IsValid(value));
+
+    // --- Wave 5: future date (share expiry) ---
+
+    [Fact]
+    public void IsoDate_IsInFuture_TrueWhenAfterNow()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        Assert.True(IsoDateRule.IsInFuture(now.AddMinutes(1), now));
+    }
+
+    [Fact]
+    public void IsoDate_IsInFuture_FalseWhenAtOrBeforeNow()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        Assert.False(IsoDateRule.IsInFuture(now, now));            // equal is not future
+        Assert.False(IsoDateRule.IsInFuture(now.AddMinutes(-1), now));
+    }
+
+    // --- Wave 5: absolute-https URL (environment ServerBaseUri) ---
+
+    [Theory]
+    [InlineData("https://prod.honua.example")]
+    [InlineData("https://prod.honua.example:8443/path")]
+    [InlineData("  https://trimmed.example  ")]
+    public void Url_AbsoluteHttps_Pass(string value) => Assert.True(UrlRule.IsAbsoluteHttps(value));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("http://insecure.example")] // not https
+    [InlineData("ftp://example.com")]
+    [InlineData("prod.honua.example")]      // not absolute
+    [InlineData("https://")]                // no host
+    public void Url_NotAbsoluteHttps_Fail(string value) => Assert.False(UrlRule.IsAbsoluteHttps(value));
+
+    // --- Wave 5: identifier / lookup id (share item id, publication id) ---
+
+    [Theory]
+    [InlineData("item-123")]
+    [InlineData("pub_abc.def:v2")]
+    [InlineData("Content123")]
+    public void Identifier_WellFormed_Pass(string value) => Assert.True(IdentifierRule.IsValid(value));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("has space")]
+    [InlineData("bad/slash")]
+    [InlineData("bad#hash")]
+    public void Identifier_Malformed_Fail(string value) => Assert.False(IdentifierRule.IsValid(value));
 }

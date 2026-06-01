@@ -145,6 +145,26 @@ public sealed class OperatePublishingPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void OperatePublishingPage_MalformedLookupId_ShowsInlineError_AndGatesReview()
+    {
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new InteractivePublishingWorkspaceDataSource());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
+
+        var page = ctx.RenderComponent<OperatePublishingPage>();
+
+        var lookup = page.Find("[data-publication-lookup]");
+        lookup.QuerySelector("input.console-input")!.Input("bad id");
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Publication id may only contain", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("console-validation-inline", page.Markup, StringComparison.Ordinal);
+        // The Review button (the lookup section's primary console-button) is gated on the blocking finding.
+        Assert.True(page.Find("[data-publication-lookup] button.console-button").HasAttribute("disabled"));
+    }
+
     private sealed class InteractivePublishingWorkspaceDataSource : IPublishingWorkspaceDataSource
     {
         public string? LastRollbackTarget { get; private set; }

@@ -277,12 +277,90 @@ public sealed class ShareManagePageRenderTests
         Assert.Contains("data-share-exports-empty", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ShareManage_PastExpiry_ShowsInlineError_AndDisablesMint()
+    {
+        var data = new FakeShareDataSource
+        {
+            Load = new ShareAccessLoad(PublicShare(tier: "public-link", publicLinkEnabled: false, embedEnabled: false, canShare: true, canEmbed: true), [])
+        };
+
+        var page = Render(data, itemId: "item-1");
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-panel=\"public-link\"", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // A past expiry is rejected by the client future-date rule.
+        var past = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-ddTHH:mm:ss");
+        page.Find("[data-share-panel='public-link'] input[type='datetime-local']").Change(past);
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Expiry must be in the future", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.True(page.Find("[data-share-panel='public-link'] button[type='submit']").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void ShareManage_MalformedItemId_ShowsInlineError_AndDisablesOpen()
+    {
+        var data = new FakeShareDataSource
+        {
+            Load = new ShareAccessLoad(PublicShare(tier: "public-link", publicLinkEnabled: false, embedEnabled: false, canShare: true, canEmbed: true), [])
+        };
+
+        var page = Render(data, itemId: "item-1");
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("input[placeholder='item-...']")),
+            TimeSpan.FromSeconds(5));
+
+        page.Find("input[placeholder='item-...']").Change("bad id with spaces");
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Item id may only contain", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        // The open-share button (first console-button in the heading form) is gated.
+        var openButton = page.FindAll("button").First(b => b.TextContent.Contains("Open share access", StringComparison.Ordinal));
+        Assert.True(openButton.HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void ShareManage_Editing_HostsGuard_AndMintClearsDirty()
+    {
+        var data = new FakeShareDataSource
+        {
+            Load = new ShareAccessLoad(PublicShare(tier: "public-link", publicLinkEnabled: false, embedEnabled: false, canShare: true, canEmbed: true), []),
+            Command = new ShareCommandResult(
+                PublicShare(tier: "public-link", publicLinkEnabled: true, embedEnabled: false, canShare: true, canEmbed: true),
+                new ShareMintedSecret("public-link", "tok-2", "opaque-secret-once", null, null),
+                null,
+                [])
+        };
+
+        var page = Render(data, itemId: "item-1");
+        page.WaitForAssertion(
+            () => Assert.Contains("data-share-panel=\"public-link\"", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // A future expiry edit marks the form dirty; the page hosts an <UnsavedChangesGuard/> while dirty.
+        var future = DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-ddTHH:mm:ss");
+        page.Find("[data-share-panel='public-link'] input[type='datetime-local']").Change(future);
+
+        // A successful mint returns the form to a clean baseline (and surfaces the one-time secret).
+        page.Find("[data-share-panel='public-link'] button[type='submit']").Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("opaque-secret-once", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+    }
+
     private static IRenderedComponent<ShareManagePage> Render(
         FakeShareDataSource data,
         string itemId,
         IConsoleCatalogClient? catalog = null)
     {
         var ctx = new Bunit.TestContext();
+        // The page now hosts an <UnsavedChangesGuard/> (Wave 5), which imports a JS module and may call
+        // confirm() on navigation; run Loose JSInterop so those calls no-op in render tests.
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IShareAccessDataSource>(data);
         // The open-data editor reads server-owned content metadata through the catalog client. With no
         // server bound the page renders the missing-binding state; tests inject a fake to exercise the editor.

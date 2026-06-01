@@ -1,9 +1,13 @@
 @page "/share/manage"
 @using Honua.Console.Contracts
+@using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Honua.Console.Shell.Validation
 @inject IShareAccessDataSource ShareData
 @inject IConsoleCatalogClient Catalog
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved share configuration changes. Leave this page and discard them?" />
 
 <section class="console-page share-manage" data-share-config>
     <div class="console-detail-heading">
@@ -34,9 +38,10 @@
             <form class="console-action-row" @onsubmit="OpenItem" @formname="open-share-item">
                 <label class="studio-form-label">
                     <span>Content item id</span>
-                    <input class="console-input" @bind="_itemIdInput" placeholder="item-..." />
+                    <input class="console-input" @bind="_itemIdInput" @bind:after="OnItemIdEdit" placeholder="item-..." />
+                    <ValidationMessageInline FieldKey="@ShareManageFieldKeys.ItemId" State="_validation" />
                 </label>
-                <button class="console-button" type="submit" disabled="@_busy">Open share access</button>
+                <button class="console-button" type="submit" disabled="@(_busy || _validation.Errors(ShareManageFieldKeys.ItemId).Any(e => e.IsBlocking))">Open share access</button>
             </form>
         </div>
     </div>
@@ -256,9 +261,10 @@
                         <form class="console-toolbar" @onsubmit="() => MintPublicLink(share.ItemId)" @formname="mint-public-link">
                             <label class="studio-form-label">
                                 <span>Expires (UTC, optional)</span>
-                                <input class="console-input" type="datetime-local" @bind="_expiresAtInput" />
+                                <input class="console-input" type="datetime-local" @bind="_expiresAtInput" @bind:after="OnExpiresEdit" />
+                                <ValidationMessageInline FieldKey="@ShareManageFieldKeys.ExpiresAt" State="_validation" />
                             </label>
-                            <button class="console-button" type="submit" disabled="@_busy">Mint public-link token</button>
+                            <button class="console-button" type="submit" disabled="@(_busy || _validation.Errors(ShareManageFieldKeys.ExpiresAt).Any(e => e.IsBlocking))">Mint public-link token</button>
                         </form>
                         @if (share.PublicLinkTokens.Count == 0)
                         {
@@ -674,6 +680,34 @@
     private string _tab = "link";
     private string? _itemIdInput;
     private DateTime? _expiresAtInput;
+
+    // Client-side validation (item-id format + future-dated expiry) and unsaved-changes tracking. Share has no
+    // server body-validator (catalog), so the findings are purely client-side and surfaced inline.
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
+
+    private ShareManageState BuildValidationState()
+    {
+        DateTimeOffset? expires = _expiresAtInput is { } local
+            ? new DateTimeOffset(DateTime.SpecifyKind(local, DateTimeKind.Utc))
+            : null;
+        return new ShareManageState(_itemIdInput, expires, DateTimeOffset.UtcNow);
+    }
+
+    private void Revalidate() =>
+        _validation.SetClientErrors(ShareManageValidator.Instance.Evaluate(BuildValidationState()));
+
+    private void OnItemIdEdit()
+    {
+        _dirty.MarkDirty();
+        Revalidate();
+    }
+
+    private void OnExpiresEdit()
+    {
+        _dirty.MarkDirty();
+        Revalidate();
+    }
     private ShareAccessView? _share;
     private ShareMintedSecret? _mintedSecret;
     private ShareDependencyClosureView? _blockedBy;
@@ -765,6 +799,10 @@
             _share = load.Share;
             ApplyStates(load.CapabilityStates);
 
+            // A freshly loaded item is the clean baseline; recompute findings against the opened id.
+            _dirty.MarkClean();
+            Revalidate();
+
             // A newly loaded item invalidates any cached open-data detail; reload if the editor tab is open.
             _detail = null;
             _detailItemId = null;
@@ -787,12 +825,22 @@
     private Task PreviewDependencies(string itemId, string tier) =>
         RunCommandAsync(() => ShareData.PreviewDependenciesAsync(itemId, tier));
 
-    private Task MintPublicLink(string itemId)
+    private async Task MintPublicLink(string itemId)
     {
+        // Gate on the client-side future-date rule before issuing the mint; never fabricate server state.
+        Revalidate();
+        if (_validation.Errors(ShareManageFieldKeys.ExpiresAt).Any(e => e.IsBlocking))
+        {
+            return;
+        }
+
         DateTimeOffset? expiresAt = _expiresAtInput is { } local
             ? new DateTimeOffset(DateTime.SpecifyKind(local, DateTimeKind.Utc))
             : null;
-        return RunCommandAsync(() => ShareData.MintPublicLinkAsync(itemId, expiresAt));
+        await RunCommandAsync(() => ShareData.MintPublicLinkAsync(itemId, expiresAt));
+
+        // A successful mint consumes the staged expiry; the form returns to a clean baseline.
+        _dirty.MarkClean();
     }
 
     private Task RevokePublicLink(string itemId, string tokenId) =>

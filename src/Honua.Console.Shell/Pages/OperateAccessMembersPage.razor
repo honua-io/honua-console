@@ -1,5 +1,7 @@
 @page "/operate/access/members"
+@using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
 @inject IRbacAccessDataSource RbacData
 
 @* Settings > Access > Members (screens-collab-rbac.jsx TeamMembers): the members table (role/scope/
@@ -141,7 +143,8 @@
                         <fieldset class="rbac-invite-group" data-rbac-invite-group="identity">
                             <legend>Identity</legend>
                             <label class="studio-form-label"><span>Email or group</span>
-                                <input class="console-input" placeholder="name@example.gov" @bind="_inviteEmail" /></label>
+                                <input class="console-input" placeholder="name@example.gov" @bind="_inviteEmail" @bind:after="OnInviteEdit" />
+                                <ValidationMessageInline FieldKey="@RbacInviteFieldKeys.Email" State="_inviteValidation" /></label>
                             <label class="studio-form-label"><span>Send via</span>
                                 <select class="console-input" @bind="_inviteSendVia">
                                     <option>Email · OIDC sign-in link</option>
@@ -186,9 +189,10 @@
                             <legend>Scope</legend>
                             <div class="rbac-invite-scope">
                                 <span class="console-muted">Environments</span>
-                                <label class="rbac-check"><input type="checkbox" @bind="_scopeDev" /> dev</label>
-                                <label class="rbac-check"><input type="checkbox" @bind="_scopeStaging" /> staging</label>
-                                <label class="rbac-check"><input type="checkbox" @bind="_scopeProd" /> prod</label>
+                                <label class="rbac-check"><input type="checkbox" @bind="_scopeDev" @bind:after="OnInviteEdit" /> dev</label>
+                                <label class="rbac-check"><input type="checkbox" @bind="_scopeStaging" @bind:after="OnInviteEdit" /> staging</label>
+                                <label class="rbac-check"><input type="checkbox" @bind="_scopeProd" @bind:after="OnInviteEdit" /> prod</label>
+                                <ValidationMessageInline FieldKey="@RbacInviteFieldKeys.Scope" State="_inviteValidation" />
                             </div>
                             <div class="rbac-invite-scope">
                                 <span class="console-muted">Content scope (optional)</span>
@@ -200,11 +204,28 @@
                         <fieldset class="rbac-invite-group" data-rbac-invite-group="limits">
                             <legend>Limits</legend>
                             <label class="studio-form-label"><span>Expires</span>
-                                <select class="console-input"><option>in 30 days · renew required</option><option>no expiry</option></select></label>
-                            <label class="rbac-check"><input type="checkbox" checked /> MFA required</label>
+                                <select class="console-input" @bind="_inviteExpires">
+                                    <option value="in 30 days · renew required">in 30 days · renew required</option>
+                                    <option value="no expiry">no expiry</option>
+                                </select></label>
+                            <label class="rbac-check"><input type="checkbox" @bind="_inviteMfaRequired" /> MFA required</label>
                             <label class="studio-form-label"><span>IP allowlist</span>
-                                <input class="console-input" placeholder="(none · global)" /></label>
+                                <input class="console-input" placeholder="(none · global)" @bind="_inviteIpAllowlist" @bind:after="OnInviteEdit" />
+                                <ValidationMessageInline FieldKey="@RbacInviteFieldKeys.IpAllowlist" State="_inviteValidation" /></label>
                         </fieldset>
+
+                        @if (_inviteValidation.HasBlockingClientErrors)
+                        {
+                            <div class="console-validation-summary" data-rbac-invite-validation="blocking" role="alert">
+                                <p class="console-kicker">Resolve before inviting</p>
+                                <ul>
+                                    @foreach (var error in _inviteValidation.Summary.Where(e => e.IsBlocking))
+                                    {
+                                        <li>@error.Message</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
 
                         <p class="rbac-invite-callout" data-rbac-invite-callout>
                             Invitation creates a scoped role binding. Revoke or narrow scope any time. Every change is audited.
@@ -213,7 +234,7 @@
                     <footer class="rbac-invite-foot">
                         <button class="console-button console-button-secondary" type="button" @onclick="CloseInvite">Cancel</button>
                         <button class="console-button console-button-secondary" type="button">Save as template</button>
-                        <button class="console-button" type="button">Send invite</button>
+                        <button class="console-button" type="button" data-rbac-invite-send disabled="@_inviteValidation.HasBlockingClientErrors">Send invite</button>
                     </footer>
                 </aside>
             }
@@ -241,6 +262,20 @@
     private bool _scopeDev = true;
     private bool _scopeStaging;
     private bool _scopeProd;
+    private string _inviteExpires = "in 30 days · renew required";
+    private bool _inviteMfaRequired = true;
+    private string? _inviteIpAllowlist;
+
+    // Client-side validation for the scoped-invite drawer. There is no server body-validator for invite
+    // (catalog: "RBAC / share: no dedicated body validators"), so this is purely client-side and surfaced inline.
+    private readonly ValidationState _inviteValidation = new();
+
+    private RbacInviteState BuildInviteState() =>
+        new(_inviteEmail, _scopeDev, _scopeStaging, _scopeProd, _inviteIpAllowlist);
+
+    /// <summary>Re-runs the invite validator on every bound edit (cheap and synchronous).</summary>
+    private void OnInviteEdit() =>
+        _inviteValidation.SetClientErrors(RbacInviteValidator.Instance.Evaluate(BuildInviteState()));
 
     [SupplyParameterFromQuery(Name = "workspace")]
     private string? Workspace { get; set; }
@@ -276,7 +311,12 @@
         _loading = false;
     }
 
-    private void OpenInvite() => _inviteOpen = true;
+    private void OpenInvite()
+    {
+        _inviteOpen = true;
+        // Seed findings so the form gates from first render (e.g. no scope / missing email).
+        OnInviteEdit();
+    }
 
     private void CloseInvite() => _inviteOpen = false;
 
