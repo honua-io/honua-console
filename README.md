@@ -122,6 +122,23 @@ HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj 
 dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --filter OperateTransitionLiveServerTests
 ```
 
+The image-based live-server lanes (Share access, catalog discovery, Studio map
+collaboration) boot a pinned honua-server image via Testcontainers. They skip
+unless `HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true`, an image, and an admin key
+are provided. The pinned production image listens on HTTP, enforces an
+admin-password complexity policy, and validates the `Host` header, so a
+representative invocation against `:nightly` is:
+
+```bash
+HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
+HONUA_CONSOLE_SERVER_IMAGE=ghcr.io/honua-io/honua-server:nightly \
+HONUA_CONSOLE_SERVER_SCHEME=http \
+HONUA_CONSOLE_SERVER_HEALTH_PATH=/healthz/live \
+HONUA_CONSOLE_ADMIN_API_KEY='Console-Live-Admin-Key-2026!' \
+HONUA_CONSOLE_SERVER_ENV='HONUA_ADMIN_PASSWORD=Console-Live-Admin-Key-2026!;HostValidation__Enabled=false' \
+dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --filter StudioMapCollaborationLiveServerTests
+```
+
 Validate the shared shell and native-core behavior without a desktop MAUI toolchain:
 
 ```bash

@@ -3,20 +3,19 @@ using Honua.Console.Contracts;
 namespace Honua.Console.IntegrationTests;
 
 [CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class StudioReportPublicationIntegrationCollection : ICollectionFixture<StudioReportPublicationFixture>
+public sealed class StudioMapCollaborationIntegrationCollection : ICollectionFixture<StudioMapCollaborationFixture>
 {
-    public const string Name = "StudioReportPublicationIntegration";
+    public const string Name = "StudioMapCollaborationIntegration";
 }
 
 /// <summary>
-/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-bound report builder can be
-/// asserted against the live content publication registry (honua-server#1183: publish / get / republish /
-/// rollback / policy). Off by default; skips gracefully when Docker, the server image, the opt-in flag, or
-/// the admin API key is unavailable (AC: Testcontainers coverage with Docker-unavailable skip). Reuses
-/// <see cref="HonuaServerTestcontainer"/> so the container-boot mechanics live in one place, mirroring
-/// <see cref="StudioAnalysisContentFixture"/>.
+/// Boots a real honua-server (with PostgreSQL) via Testcontainers so the server-bound Studio map
+/// collaboration surface can be asserted against the live durable collaboration API (honua-server#1278,
+/// slice 1). Off by default; skips gracefully when Docker, the server image, the opt-in flag, or the admin
+/// API key is unavailable. Reuses <see cref="HonuaServerTestcontainer"/> and mirrors
+/// <see cref="ShareAccessFixture"/>.
 /// </summary>
-public sealed class StudioReportPublicationFixture : IAsyncLifetime
+public sealed class StudioMapCollaborationFixture : IAsyncLifetime
 {
     private HonuaServerTestcontainer? _container;
 
@@ -47,7 +46,7 @@ public sealed class StudioReportPublicationFixture : IAsyncLifetime
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            SkipReason = "The honua-server content publication integration container could not start "
+            SkipReason = "The honua-server Console collaboration integration container could not start "
                 + $"({ex.GetType().Name}: {ex.Message}). Ensure Docker is running and the configured server "
                 + "image is pullable, or set HONUA_CONSOLE_EXTERNAL_BASE_URL.";
             if (_container is not null)
@@ -67,12 +66,8 @@ public sealed class StudioReportPublicationFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Builds the production content publication client against the live server, accepting the dev/self-signed
-    /// certificate only when the fixture server is TLS so the test exercises the real client + admin API-key
-    /// path (never an in-memory client).
-    /// </summary>
-    public IHonuaContentPublicationClient CreatePublicationClient()
+    /// <summary>Builds a raw HttpClient (admin key applied per-request) for seeding collaboration threads.</summary>
+    public HttpClient CreateRawClient()
     {
         var handler = new HttpClientHandler();
         if (string.Equals(BaseAddress.Scheme, "https", StringComparison.OrdinalIgnoreCase))
@@ -81,13 +76,21 @@ public sealed class StudioReportPublicationFixture : IAsyncLifetime
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         }
 
-        var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
-        return new HonuaContentPublicationHttpClient(
-            httpClient,
-            new HonuaContentPublicationClientOptions(BaseAddress, Options.StudioAdminApiKey));
+        return new HttpClient(handler) { BaseAddress = BaseAddress };
     }
 
-    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
+    /// <summary>Builds the production collaboration client against the live server with the admin API key.</summary>
+    public IHonuaStudioMapCollaborationClient CreateCollaborationClient()
+    {
+        var httpClient = CreateRawClient();
+        return new HonuaStudioMapCollaborationHttpClient(
+            httpClient,
+            new HonuaStudioMapCollaborationClientOptions(BaseAddress, Options.StudioAdminApiKey));
+    }
+
+    /// <summary>The independent verification oracle that reads collab state back through the server collab API.</summary>
     public ServerStateVerifier CreateVerifier() =>
         new(BaseAddress, Options.StudioAdminApiKey);
+
+    public string? AdminApiKey => Options.StudioAdminApiKey;
 }

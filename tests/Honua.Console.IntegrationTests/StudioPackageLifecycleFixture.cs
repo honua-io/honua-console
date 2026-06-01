@@ -88,4 +88,8 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
             httpClient,
             new StudioPackageLifecycleClientOptions(BaseAddress, Options.StudioAdminApiKey));
     }
+
+    /// <summary>The independent verification oracle that reads server state back through canonical read APIs.</summary>
+    public ServerStateVerifier CreateVerifier() =>
+        new(BaseAddress, Options.StudioAdminApiKey);
 }

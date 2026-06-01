@@ -33,7 +33,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioMapCollaborationDataSource(services);
+        AddStudioMapCollaborationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioAnalysisPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioDashboardPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
@@ -248,18 +248,37 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IStudioMapPackageDataSource, UnsupportedStudioMapPackageDataSource>();
     }
 
-    // Binds the Studio Map multiplayer collaboration surface (/studio/map Comments + Activity tabs,
-    // honua-console#124) to honua-server's collaboration/presence + comments API. That contract does not
-    // exist yet (filed: honua-server#1278), so the merged build registers only the unsupported client: the
-    // collaboration chrome (presence stack, named cursors, shared markup layer, feature-pinned comment
-    // threads, follow-mode, live activity feed) renders to the mockup, but every live-data slot stays empty
-    // behind an explicit missing-binding state — Console never fabricates presence, cursors, comments, or
-    // activity from a standing mock (Console Patterns Charter section 11). When honua-server#1278 lands,
-    // wire the live HTTP-bound client here behind the Honua.Console.Contracts shim, gated on a configured
-    // server base URL exactly like the other Studio bindings; the page and tests already consume the full
-    // IStudioMapCollaborationDataSource. TryAdd keeps an explicit test/demo provider overridable.
-    private static void AddStudioMapCollaborationDataSource(IServiceCollection services) =>
+    // Binds the Studio Map collaboration surface (/studio/map Comments + Activity tabs, honua-console#124)
+    // to honua-server's durable collaboration API (honua-server#1278, slice 1: feature-pinned comment
+    // threads + activity feed) through the Honua.Console.Contracts shim when a server base address is
+    // configured; otherwise the surface renders an explicit missing-binding state (never fabricated
+    // comments/activity, Console Patterns Charter section 11). Only the DURABLE slice is lit up: the
+    // comment drawer and activity sidebar bind live. The real-time presence/cursors/markup/follow-mode
+    // slots stay empty behind the deferred follow-up slice (honua-server#1290) — the live data source
+    // returns empty presence/cursor lists so the chrome renders those affordances disabled-pending. With no
+    // server configured the unsupported client surfaces the missing-binding state across every slot.
+    // TryAdd keeps an explicit test/demo provider overridable.
+    private static void AddStudioMapCollaborationDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaStudioMapCollaborationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaStudioMapCollaborationHttpClient(
+                    httpClient,
+                    new HonuaStudioMapCollaborationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioMapCollaborationDataSource, HonuaServerStudioMapCollaborationDataSource>();
+            return;
+        }
+
         services.TryAddSingleton<IStudioMapCollaborationDataSource, UnsupportedStudioMapCollaborationDataSource>();
+    }
 
     // Binds the Studio analysis-builder surface (/studio/analysis, honua-console#53) to honua-server's
     // analysis content/artifacts contract (#1182) and the closed execution engine (#681/#721/#724) through
@@ -495,11 +514,16 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // The service-layer-publish OPERATION (issue #144) reuses the same admin client + base-URL gate
             // so the publishing wizard's finish action performs a REAL publish against honua-server.
             services.TryAddSingleton<IServiceLayerPublishOperation, HonuaServerServiceLayerPublishOperation>();
+            // The service-configuration OPERATIONS (Wave 5: layer enable/disable + service protocol/
+            // access-policy changes) reuse the same admin client + base-URL gate so the Operate layers/
+            // service-detail surfaces perform REAL mutations against honua-server.
+            services.TryAddSingleton<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation>();
             return;
         }
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
         services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
+        services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to

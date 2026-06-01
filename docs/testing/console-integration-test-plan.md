@@ -228,8 +228,15 @@ These prove the console↔server contract for one code path. They do **not** pro
 **Wave 5 — Service settings + layer enable/extents + publication policy (P1).**
 - Requires the corresponding console mutation surfaces to exist (currently read-only). Service-settings PUTs, layer enabled/extents, `PATCH /publications/{id}/policy` → verify via settings/layers/catalog reads.
 
-**Wave 6 — Cross-cutting hardening (P1/P2).**
+**Wave 6 — Cross-cutting hardening (P1/P2). DELIVERED.**
 - RBAC-forbidden matrix, validation/field-error matrix, idempotency/fidelity matrix, version/contract-drift fact, missing-binding completeness. Add nightly step-summary rows per family.
+- Shipped as `RbacEnforcementCrossCuttingTests`, `ValidationFieldErrorsCrossCuttingTests`,
+  `IdempotencyFidelityCrossCuttingTests`, `VersionContractDriftCrossCuttingTests`, and
+  `MissingBindingCompletenessCrossCuttingTests` (the last is a pure-render no-Docker sweep that also runs in
+  PR CI), all on the shared `CrossCuttingFixture` + `CrossCuttingSeeder`. `ServerStateVerifier` gained
+  `ProbeAnonymousMutationStatusAsync` (the RBAC 401/403-vs-404 discriminator) and `GetServerContractAsync`
+  (the independent version/contract read), and the drift fact emits `ContractDriftEvidence` so the pinned
+  `:nightly` contract is recorded in the run artifacts. **This completes the integration-test plan (W1–W6).**
 
 **Deferred (operations not yet wired — track as product gaps, not test gaps):** GitOps release/rollback/promote mutations (Family F), RBAC invite/role-assignment mutations (Family H), Esri import POST (Family I). Add round-trip tests when the operations land.
 

@@ -200,7 +200,8 @@ public sealed class StudioMapCollaborationRenderTests
             [new StudioMapCommentPin("thread_2f81", "Parcel 04-021-204", "parcels/fill", 2, false, 0.37, 0.52, messages)],
             [new StudioMapActivityEntry("k.tan", "KT", "#2a6fdb", "just now", "editing fill-opacity 0.85 → 0.88")],
             new StudioMapFollowState("p1", "k.tan", "KT", "#2a6fdb"),
-            BindingState: null);
+            BindingState: null,
+            RealtimeBound: true);
     }
 
     private sealed class FakeMapDataSource : IStudioMapPackageDataSource
