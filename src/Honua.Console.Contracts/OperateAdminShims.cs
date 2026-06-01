@@ -289,8 +289,13 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             if (!response.IsSuccessStatusCode)
             {
                 var issue = CreateIssue(contract, response.StatusCode);
+                // The layer-publish endpoint currently returns a flat ApiResponse failure (a `message`
+                // field, no errors[]); surface that actionable server reason instead of the generic
+                // status text so validation/conflict rejections reach the operator verbatim.
+                var serverMessage = ParseFailureMessage(payload);
                 return HonuaAdminEndpointResult<TResponse>.FromIssue(issue with
                 {
+                    Detail = string.IsNullOrWhiteSpace(serverMessage) ? issue.Detail : serverMessage,
                     FieldErrors = ParseFieldErrors(payload)
                 });
             }
@@ -365,6 +370,42 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
         catch (JsonException)
         {
             return [];
+        }
+    }
+
+    // Extracts the server's actionable rejection text from a flat ApiResponse failure body
+    // ({ success:false, message:"..." }) or an RFC-7807 ProblemDetails ({ title/detail }), so the wizard
+    // surfaces the real reason rather than a generic status string. Returns null when no message is present.
+    private static string? ParseFailureMessage(string? payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            foreach (var property in new[] { "message", "detail", "title" })
+            {
+                if (document.RootElement.TryGetProperty(property, out var value)
+                    && value.ValueKind == JsonValueKind.String
+                    && value.GetString() is { Length: > 0 } message)
+                {
+                    return message;
+                }
+            }
+
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

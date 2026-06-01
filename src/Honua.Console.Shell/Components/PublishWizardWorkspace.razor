@@ -92,9 +92,22 @@ else
     private async Task OnFinish()
     {
         var (schema, table) = SplitSchemaTable(SourceTable);
-        var serviceName = _createNewService
-            ? "parcels-fs"
-            : _selectedServiceId ?? "parcels-fs";
+
+        // Build the target from the ACTIVE flow so the POST lands in the slot the review step showed:
+        // quick mode reads the quick service/layer state, author-first reads the author target.
+        string serviceName;
+        if (_mode == PublishModeBar.PublishMode.AuthorFirst)
+        {
+            serviceName = _authorCreateNewService
+                ? "parcels-fs"
+                : _authorTargetId ?? "parcels-fs";
+        }
+        else
+        {
+            serviceName = _createNewService
+                ? "parcels-fs"
+                : _selectedServiceId ?? "parcels-fs";
+        }
 
         var command = new ServiceLayerPublishCommand
         {
