@@ -190,6 +190,13 @@ public static class IsoDateRule
 
         return RangeError.None;
     }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="instant"/> is strictly after <paramref name="now"/>
+    /// (the share public-link / embed expiry must be in the future). The caller supplies <paramref name="now"/>
+    /// so the rule stays pure and unit-testable; default to <see cref="DateTimeOffset.UtcNow"/> at the call site.
+    /// </summary>
+    public static bool IsInFuture(DateTimeOffset instant, DateTimeOffset now) => instant > now;
 }
 
 /// <summary>
@@ -378,6 +385,133 @@ public static class CronRule
 
         return int.TryParse(token, System.Globalization.NumberStyles.None, CultureInfo.InvariantCulture, out var value)
             && value >= min && value <= max;
+    }
+}
+
+/// <summary>
+/// Validates a URL string against the absolute-https requirement the console enforces for a server base URI
+/// (env <c>ServerBaseUri</c>). Pure: returns <see langword="true"/> only when the value parses as an absolute
+/// URI whose scheme is <c>https</c>. The catalog's "URL absolute-https" rule.
+/// </summary>
+public static class UrlRule
+{
+    /// <summary>Returns <see langword="true"/> when <paramref name="value"/> is an absolute https URL.</summary>
+    public static bool IsAbsoluteHttps(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
+            && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+/// <summary>
+/// Validates a resource identifier / lookup-id token (Share <c>ItemId</c>, publication <c>LookupId</c>). A
+/// permissive shape gate: non-empty, no whitespace, and built only from letters, digits, and the separator
+/// set <c>- _ . :</c> (the console's content-ref / publication-id alphabet). The server owns canonical
+/// resolution; this just catches obviously-malformed operator input (spaces, control chars) before submit.
+/// Pure and culture-invariant.
+/// </summary>
+public static class IdentifierRule
+{
+    /// <summary>Returns <see langword="true"/> when <paramref name="value"/> is a well-formed identifier token.</summary>
+    public static bool IsValid(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.All(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.' or ':');
+    }
+}
+
+/// <summary>
+/// Lightweight client-side check that a string is a syntactically plausible email address (the RBAC
+/// scoped-invite identity). A shape gate only — it confirms the value has a single <c>@</c> with a
+/// non-empty local part and a dotted domain whose labels are non-empty — not deliverability, which the
+/// server owns. Pure and culture-invariant. A leading/trailing whitespace is tolerated (trimmed).
+/// </summary>
+public static class EmailRule
+{
+    /// <summary>Returns <see langword="true"/> when <paramref name="value"/> is a plausible email address.</summary>
+    public static bool IsValid(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+
+        // Exactly one '@', non-empty local + domain, no whitespace.
+        var at = trimmed.IndexOf('@');
+        if (at <= 0 || at != trimmed.LastIndexOf('@') || at == trimmed.Length - 1)
+        {
+            return false;
+        }
+
+        if (trimmed.Any(char.IsWhiteSpace))
+        {
+            return false;
+        }
+
+        var local = trimmed[..at];
+        var domain = trimmed[(at + 1)..];
+
+        if (local.Length == 0 || domain.StartsWith('.') || domain.EndsWith('.') || !domain.Contains('.'))
+        {
+            return false;
+        }
+
+        // Every dot-separated domain label must be non-empty (rejects "a..b").
+        return domain.Split('.').All(label => label.Length > 0);
+    }
+}
+
+/// <summary>
+/// Validates a CIDR block (the RBAC IP allowlist entries). Accepts both IPv4 and IPv6 in
+/// <c>address/prefix</c> form, with the prefix length within the address family's valid range (0..32 for
+/// IPv4, 0..128 for IPv6). A bare address with no <c>/prefix</c> is also accepted (treated as a host
+/// route). Pure and culture-invariant; the server owns authoritative allowlist semantics.
+/// </summary>
+public static class CidrRule
+{
+    /// <summary>Returns <see langword="true"/> when <paramref name="value"/> is a well-formed CIDR block or bare IP.</summary>
+    public static bool IsValid(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+        var slash = trimmed.IndexOf('/');
+
+        var addressPart = slash >= 0 ? trimmed[..slash] : trimmed;
+        if (!System.Net.IPAddress.TryParse(addressPart, out var address))
+        {
+            return false;
+        }
+
+        if (slash < 0)
+        {
+            // Bare address (host route) is allowed.
+            return true;
+        }
+
+        var prefixPart = trimmed[(slash + 1)..];
+        if (!int.TryParse(prefixPart, NumberStyles.None, CultureInfo.InvariantCulture, out var prefix))
+        {
+            return false;
+        }
+
+        var maxPrefix = address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? 128 : 32;
+        return prefix >= 0 && prefix <= maxPrefix;
     }
 }
 

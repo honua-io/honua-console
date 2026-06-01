@@ -156,6 +156,35 @@ public sealed class OperateTemporalPageRenderTests
     }
 
     [Fact]
+    public void TemporalViewer_InvertedDiffSelection_ShowsOrderError_AndGatesCompare()
+    {
+        // Two checkpoints with distinct timestamps: cp-now is newer, cp-prev is older.
+        var newer = StampedCheckpoint("cp-now", "Now", DateTimeOffset.UtcNow);
+        var older = StampedCheckpoint("cp-prev", "Before", DateTimeOffset.UtcNow.AddDays(-3));
+        var client = new FakeTemporalClient
+        {
+            Workspace = WorkspaceWith(RollbackSource),
+            // Newest-first: default selection seeds from = checkpoints[1] (older), to = checkpoints[0] (newer) => valid.
+            Checkpoints = new TemporalCheckpointList([newer, older]),
+        };
+        var page = Render(client);
+        InspectFirstSource(page);
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("select[aria-label='From checkpoint']")),
+            TimeSpan.FromSeconds(5));
+
+        // Invert: choose the newer checkpoint as the as-of (from) while to stays at the newer "now".
+        page.Find("select[aria-label='To checkpoint']").Change("cp-prev"); // to = older
+        page.Find("select[aria-label='From checkpoint']").Change("cp-now"); // from = newer => from > to
+
+        page.WaitForAssertion(
+            () => Assert.Contains("must be at or before the now (to) checkpoint", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        var compare = page.FindAll("button").First(b => b.TextContent.Contains("Compare", StringComparison.Ordinal));
+        Assert.True(compare.HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void TemporalViewer_ComputeDiff_RendersNowVersusAsOfSplit()
     {
         var client = new FakeTemporalClient
@@ -544,6 +573,10 @@ public sealed class OperateTemporalPageRenderTests
     private static TemporalCheckpoint Checkpoint(string id, string label) =>
         new(id, "src-parcels", TemporalCursorType.NamedCheckpoint, "2026-05-01T00:00:00Z", label,
             DateTimeOffset.UtcNow, "alice", OperationRef: null, JobRunId: null, MetadataReleaseId: null);
+
+    private static TemporalCheckpoint StampedCheckpoint(string id, string label, DateTimeOffset createdAt) =>
+        new(id, "src-parcels", TemporalCursorType.NamedCheckpoint, "2026-05-01T00:00:00Z", label,
+            createdAt, "alice", OperationRef: null, JobRunId: null, MetadataReleaseId: null);
 
     private static TemporalCheckpoint ReleaseCheckpoint(string id, string label) =>
         new(id, "src-parcels", TemporalCursorType.Release, "2026-05-01T00:00:00Z", label,

@@ -1,4 +1,6 @@
 @page "/operate/temporal"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Validation
 @inject ITemporalCapabilityClient TemporalData
 
 <section class="console-page operate-temporal" data-temporal-viewer="capability-gate">
@@ -174,6 +176,16 @@
     private string? _fromCheckpointId;
     private string? _toCheckpointId;
     private string? _selectedCheckpointId;
+
+    // Client-side validation of the diff selection (from<=to ordering). The live diff/rollback data stays
+    // missing-binding; this validator only gates the selection form before the diff/rollback action runs.
+    private readonly ValidationState _diffValidation = new();
+
+    private void RevalidateDiffSelection() =>
+        _diffValidation.SetClientErrors(TemporalDiffSelectionValidator.Instance.Evaluate(
+            new TemporalDiffSelection(_fromCheckpointId, _toCheckpointId, _checkpoints)));
+
+    private void OnDiffSelectionEdit() => RevalidateDiffSelection();
     private TemporalCheckpoint? _selectedCheckpoint =>
         _checkpoints.FirstOrDefault(c => string.Equals(c.CheckpointId, _selectedCheckpointId, StringComparison.Ordinal));
 
@@ -241,6 +253,7 @@
         _fromCheckpointId = _checkpoints.Count > 1 ? _checkpoints[1].CheckpointId : _checkpoints.FirstOrDefault()?.CheckpointId;
         _toCheckpointId = _checkpoints.FirstOrDefault()?.CheckpointId;
         _selectedCheckpointId = _checkpoints.FirstOrDefault()?.CheckpointId;
+        RevalidateDiffSelection();
 
         if (source.SyncConflictReviewSupported)
         {
@@ -257,6 +270,7 @@
         _fromCheckpointId = null;
         _toCheckpointId = null;
         _selectedCheckpointId = null;
+        _diffValidation.Clear();
         _diff = null;
         _diffBinding = null;
         _featureIdInput = string.Empty;
@@ -373,23 +387,25 @@
                 <div class="operate-temporal-diff-controls">
                     <label>
                         <span>As-of (from)</span>
-                        <select class="console-input" @bind="_fromCheckpointId" aria-label="From checkpoint">
+                        <select class="console-input" @bind="_fromCheckpointId" @bind:after="OnDiffSelectionEdit" aria-label="From checkpoint">
                             @foreach (var checkpoint in _checkpoints)
                             {
                                 <option value="@checkpoint.CheckpointId">@checkpoint.Label</option>
                             }
                         </select>
+                        <ValidationMessageInline FieldKey="@TemporalDiffFieldKeys.From" State="_diffValidation" />
                     </label>
                     <label>
                         <span>Now (to)</span>
-                        <select class="console-input" @bind="_toCheckpointId" aria-label="To checkpoint">
+                        <select class="console-input" @bind="_toCheckpointId" @bind:after="OnDiffSelectionEdit" aria-label="To checkpoint">
                             @foreach (var checkpoint in _checkpoints)
                             {
                                 <option value="@checkpoint.CheckpointId">@checkpoint.Label</option>
                             }
                         </select>
+                        <ValidationMessageInline FieldKey="@TemporalDiffFieldKeys.To" State="_diffValidation" />
                     </label>
-                    <button class="console-button" type="button" disabled="@_diffBusy" @onclick="ComputeDiffAsync">Compare</button>
+                    <button class="console-button" type="button" disabled="@(_diffBusy || _diffValidation.HasBlockingClientErrors)" @onclick="ComputeDiffAsync">Compare</button>
                 </div>
             }
             else
@@ -552,7 +568,7 @@
                     </select>
                 </label>
                 <button class="console-button" type="button"
-                        disabled="@(_rollbackBusy || string.IsNullOrWhiteSpace(_fromCheckpointId))"
+                        disabled="@(_rollbackBusy || _diffValidation.Errors(TemporalDiffFieldKeys.From).Any(e => e.IsBlocking))"
                         @onclick="CreateRollbackPlanAsync">Plan Rollback</button>
             </div>
 
@@ -837,6 +853,13 @@
             return;
         }
 
+        // Gate on the client-side from<=to ordering rule before issuing the diff; never fabricate server state.
+        RevalidateDiffSelection();
+        if (_diffValidation.HasBlockingClientErrors)
+        {
+            return;
+        }
+
         _diffBusy = true;
         try
         {
@@ -984,6 +1007,7 @@
         // Aligning the as-of cursor also seeds the diff "from" side so the now-vs-as-of split compares
         // the scrubbed checkpoint against the latest state.
         _fromCheckpointId = checkpoint.CheckpointId;
+        RevalidateDiffSelection();
     }
 
     private void JumpToLatest()

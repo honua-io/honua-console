@@ -1,7 +1,11 @@
 @page "/environments/new"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Validation
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleHostCapabilities Host
 @inject NavigationManager Nav
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved environment profile. Leave this page and discard it?" />
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -21,19 +25,16 @@
     else
     {
         <article class="console-panel">
-            @if (!string.IsNullOrWhiteSpace(_error))
-            {
-                <p class="console-warning" role="alert">@_error</p>
-            }
-
             <div class="studio-field-grid">
                 <label>
                     <span>Display name</span>
-                    <input class="console-input" @bind="_displayName" placeholder="Honua Production" />
+                    <input class="console-input" @bind="_displayName" @bind:after="OnEdit" placeholder="Honua Production" />
+                    <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.DisplayName" State="_validation" />
                 </label>
                 <label>
                     <span>Server URL</span>
-                    <input class="console-input" @bind="_serverBaseUri" placeholder="https://prod.honua.example" />
+                    <input class="console-input" @bind="_serverBaseUri" @bind:after="OnEdit" placeholder="https://prod.honua.example" />
+                    <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.ServerBaseUri" State="_validation" />
                 </label>
                 <label>
                     <span>Environment kind</span>
@@ -61,11 +62,11 @@
             </div>
 
             <div class="studio-check-row">
-                <input id="native-grpc" type="checkbox" @bind="_nativeGrpc" />
+                <input id="native-grpc" type="checkbox" @bind="_nativeGrpc" @bind:after="OnEdit" />
                 <label for="native-grpc"><span>Enable native gRPC transport</span></label>
             </div>
             <div class="studio-check-row">
-                <input id="native-mtls" type="checkbox" @bind="_mtlsEnabled" />
+                <input id="native-mtls" type="checkbox" @bind="_mtlsEnabled" @bind:after="OnEdit" />
                 <label for="native-mtls"><span>Require client certificate (native mTLS)</span></label>
             </div>
 
@@ -82,7 +83,8 @@
                     </label>
                     <label>
                         <span>Reference value</span>
-                        <input class="console-input" @bind="_certValue" placeholder="CN=Honua Operator" />
+                        <input class="console-input" @bind="_certValue" @bind:after="OnEdit" placeholder="CN=Honua Operator" />
+                        <ValidationMessageInline FieldKey="@EnvironmentProfileFieldKeys.CertValue" State="_validation" />
                     </label>
                     <label>
                         <span>Store name</span>
@@ -103,8 +105,21 @@
                 </div>
             }
 
+            @if (_validation.HasBlockingClientErrors)
+            {
+                <div class="console-validation-summary" data-environment-validation="blocking" role="alert">
+                    <p class="console-kicker">Resolve before creating</p>
+                    <ul>
+                        @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                        {
+                            <li>@error.Message</li>
+                        }
+                    </ul>
+                </div>
+            }
+
             <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@_busy" @onclick="CreateAsync">Create environment</button>
+                <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="CreateAsync">Create environment</button>
                 <a href="/environments">Cancel</a>
             </div>
         </article>
@@ -126,31 +141,36 @@
     private string _storeLocation = "CurrentUser";
     private string _secretName = string.Empty;
     private string _trustProfileId = string.Empty;
-    private string? _error;
     private bool _busy;
+
+    // The former ad-hoc CreateAsync presence/format checks now run through the shared validator so they render
+    // inline with the same ConsoleFieldError/severity vocabulary as the Studio waves.
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
+
+    private void Revalidate() =>
+        _validation.SetClientErrors(EnvironmentProfileValidator.Instance.Evaluate(
+            new EnvironmentProfileState(_displayName, _serverBaseUri, _mtlsEnabled, _certValue)));
+
+    /// <summary>Marks the form dirty and re-runs the validator on every bound edit.</summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        Revalidate();
+    }
 
     private async Task CreateAsync()
     {
-        _error = null;
-
-        if (string.IsNullOrWhiteSpace(_displayName))
+        // Client-side gate (display name, absolute-https server URI, cert-required-when-mTLS). Findings render
+        // inline; blocking findings stop the create.
+        Revalidate();
+        if (_validation.HasBlockingClientErrors)
         {
-            _error = "Display name is required.";
             return;
         }
 
-        if (!Uri.TryCreate(_serverBaseUri, UriKind.Absolute, out var serverUri)
-            || !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            _error = "Server URL must be an absolute https URL.";
-            return;
-        }
-
-        if (_mtlsEnabled && string.IsNullOrWhiteSpace(_certValue))
-        {
-            _error = "A certificate reference value is required when native mTLS is enabled.";
-            return;
-        }
+        // ServerBaseUri passed the absolute-https rule, so this parse always succeeds here.
+        var serverUri = new Uri(_serverBaseUri.Trim(), UriKind.Absolute);
 
         _busy = true;
 
@@ -205,6 +225,9 @@
         };
 
         await Profiles.UpsertProfileAsync(profile);
+
+        // A successful save clears the dirty flag so the navigation guard lets the redirect through.
+        _dirty.MarkClean();
         Nav.NavigateTo($"/environments/{profileId}");
     }
 

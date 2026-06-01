@@ -1,6 +1,7 @@
 @page "/operate/publishing"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
 @inject IPublishingWorkspaceDataSource PublishingData
 
 <section class="console-page">
@@ -37,14 +38,16 @@
                            aria-label="Publication id"
                            @bind="_lookupId"
                            @bind:event="oninput"
+                           @bind:after="OnLookupEdit"
                            disabled="@_busy" />
                     <button class="console-button"
                             type="button"
                             @onclick="LookupAsync"
-                            disabled="@(_busy || string.IsNullOrWhiteSpace(_lookupId))">
+                            disabled="@(_busy || _validation.Errors(PublishingLookupFieldKeys.LookupId).Any(e => e.IsBlocking))">
                         Review
                     </button>
                 </div>
+                <ValidationMessageInline FieldKey="@PublishingLookupFieldKeys.LookupId" State="_validation" />
 
                 @if (_lookup is not null)
                 {
@@ -200,6 +203,14 @@
     private bool _loaded;
     private bool _deepLinkAttempted;
 
+    // Client-side validation of the publication lookup id. The publication registry has no field-addressable
+    // body-validator for the lookup id, so this is purely client-side and surfaced inline.
+    private readonly ValidationState _validation = new();
+
+    private void OnLookupEdit() =>
+        _validation.SetClientErrors(PublishingLookupValidator.Instance.Evaluate(
+            new PublishingLookupState(_lookupId, _republishTitle)));
+
     private static string SupportStateClass(PublishingTargetSupport support) => support switch
     {
         PublishingTargetSupport.Supported => "console-state-success",
@@ -234,6 +245,13 @@
     private async Task LookupAsync()
     {
         if (string.IsNullOrWhiteSpace(_lookupId) || _busy)
+        {
+            return;
+        }
+
+        // Gate on the client-side identifier-format rule before issuing the lookup; never fabricate server state.
+        OnLookupEdit();
+        if (_validation.Errors(PublishingLookupFieldKeys.LookupId).Any(e => e.IsBlocking))
         {
             return;
         }

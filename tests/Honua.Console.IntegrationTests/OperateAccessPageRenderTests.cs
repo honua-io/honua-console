@@ -161,6 +161,85 @@ public sealed class OperateAccessPageRenderTests
     }
 
     [Fact]
+    public void Members_OpenInvite_GatesSendOnValidation_AndBindsLimitsInputs()
+    {
+        var data = new FakeRbacDataSource
+        {
+            MembershipLoad = new TeamMembershipLoad(SampleMembership(), []),
+            OverviewLoad = new RbacOverviewLoad(SampleOverview(), [])
+        };
+
+        var page = RenderMembers(data);
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rbac-invite-open]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rbac-invite-open]").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-rbac-invite-send]")),
+            TimeSpan.FromSeconds(5));
+
+        // Drawer opens with no email and only dev selected by default -> email blocker gates Send.
+        Assert.True(page.Find("[data-rbac-invite-send]").HasAttribute("disabled"));
+
+        // Provide a valid email -> drawer becomes submittable (dev scope is on by default).
+        page.Find("input[placeholder='name@example.gov']").Change("r.kim@example.gov");
+        page.WaitForAssertion(
+            () => Assert.False(page.Find("[data-rbac-invite-send]").HasAttribute("disabled")),
+            TimeSpan.FromSeconds(5));
+
+        // The newly @bind-wired IP allowlist input round-trips and validates as CIDR.
+        page.Find("input[placeholder='(none · global)']").Change("not-a-cidr");
+        page.WaitForAssertion(
+            () => Assert.Contains("valid CIDR block", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Members_OpenInvite_BadEmail_ShowsInlineError()
+    {
+        var data = new FakeRbacDataSource
+        {
+            MembershipLoad = new TeamMembershipLoad(SampleMembership(), []),
+            OverviewLoad = new RbacOverviewLoad(SampleOverview(), [])
+        };
+
+        var page = RenderMembers(data);
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rbac-invite-open]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rbac-invite-open]").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("input[placeholder='name@example.gov']")), TimeSpan.FromSeconds(5));
+
+        page.Find("input[placeholder='name@example.gov']").Change("nope");
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Enter a valid email address", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("console-validation-inline", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Members_OpenInvite_NoScope_ShowsScopeError()
+    {
+        var data = new FakeRbacDataSource
+        {
+            MembershipLoad = new TeamMembershipLoad(SampleMembership(), []),
+            OverviewLoad = new RbacOverviewLoad(SampleOverview(), [])
+        };
+
+        var page = RenderMembers(data);
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rbac-invite-open]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rbac-invite-open]").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rbac-invite-group=\"scope\"] input[type=checkbox]")), TimeSpan.FromSeconds(5));
+
+        // Deselect the default dev scope -> at least one environment scope rule fires.
+        page.Find("[data-rbac-invite-group=\"scope\"] input[type=checkbox]").Change(false);
+
+        page.WaitForAssertion(
+            () => Assert.Contains("at least one environment scope", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void Members_WhenCannotInvite_DisablesInviteAction()
     {
         var membership = SampleMembership() with { CanInvite = false };
