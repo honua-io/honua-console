@@ -109,6 +109,14 @@ public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigura
     {
         Succeeded = false,
         State = issue?.State ?? "Unavailable",
-        Detail = issue?.Detail ?? "The Honua server did not accept the service-configuration request."
+        Detail = issue?.Detail ?? "The Honua server did not accept the service-configuration request.",
+        FieldErrors = (issue?.FieldErrors ?? [])
+            .Select(error => new ServiceConfigurationFieldError(
+                error.Code,
+                error.Message,
+                error.Path,
+                error.FieldId,
+                error.Severity))
+            .ToArray()
     };
 }

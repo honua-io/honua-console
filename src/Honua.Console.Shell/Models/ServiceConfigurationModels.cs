@@ -72,6 +72,13 @@ public sealed record ServiceConfigurationResult
     /// <summary>The service's enabled protocols read back after a settings change.</summary>
     public IReadOnlyList<string> EnabledProtocols { get; init; } = [];
 
+    /// <summary>
+    /// Field-addressable validation errors surfaced when the server rejected the configuration change with
+    /// the shared field-level validation contract (RFC-7807 ProblemDetails <c>errors[]</c>). Empty for
+    /// non-validation failures. Console clients bind these onto the offending inputs.
+    /// </summary>
+    public IReadOnlyList<ServiceConfigurationFieldError> FieldErrors { get; init; } = [];
+
     public static ServiceConfigurationResult MissingBinding(string detail) => new()
     {
         Succeeded = false,
@@ -79,3 +86,11 @@ public sealed record ServiceConfigurationResult
         Detail = detail
     };
 }
+
+/// <summary>A field-addressable validation error surfaced by a service-configuration operation.</summary>
+public sealed record ServiceConfigurationFieldError(
+    string Code,
+    string Message,
+    string? Path = null,
+    string? FieldId = null,
+    string? Severity = null);

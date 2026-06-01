@@ -117,6 +117,35 @@ public sealed class ServiceConfigurationOperationTests
     }
 
     [Fact]
+    public async Task UpdateProtocols_WhenServerReturnsFieldErrors_PropagatesThemToResult()
+    {
+        var operation = new HonuaServerServiceConfigurationOperation(CreateClient(_ =>
+            new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = JsonContent.Create(new
+                {
+                    title = "Validation failed",
+                    errors = new[]
+                    {
+                        new { code = "invalid_protocol", severity = "error", path = "enabledProtocols[1]", fieldId = "enabledProtocols", message = "'Nope' is not a valid protocol." }
+                    }
+                })
+            }));
+
+        var result = await operation.UpdateProtocolsAsync(new ServiceProtocolsCommand
+        {
+            ServiceName = "svc",
+            EnabledProtocols = ["FeatureServer", "Nope"]
+        });
+
+        Assert.False(result.Succeeded);
+        var error = Assert.Single(result.FieldErrors);
+        Assert.Equal("invalid_protocol", error.Code);
+        Assert.Equal("enabledProtocols", error.FieldId);
+        Assert.Contains("not a valid protocol", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UpdateAccessPolicy_IssuesPutToAccessPolicyRoute_WithPolicyBody()
     {
         string? path = null;
