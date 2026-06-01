@@ -513,11 +513,16 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // The service-layer-publish OPERATION (issue #144) reuses the same admin client + base-URL gate
             // so the publishing wizard's finish action performs a REAL publish against honua-server.
             services.TryAddSingleton<IServiceLayerPublishOperation, HonuaServerServiceLayerPublishOperation>();
+            // The service-configuration OPERATIONS (Wave 5: layer enable/disable + service protocol/
+            // access-policy changes) reuse the same admin client + base-URL gate so the Operate layers/
+            // service-detail surfaces perform REAL mutations against honua-server.
+            services.TryAddSingleton<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation>();
             return;
         }
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
         services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
+        services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to

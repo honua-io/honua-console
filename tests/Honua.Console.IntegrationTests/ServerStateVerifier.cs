@@ -224,10 +224,55 @@ public sealed class ServerStateVerifier : IDisposable
             return null;
         }
 
+        VerifiedAccessPolicy? accessPolicy = null;
+        if (data.TryGetProperty("accessPolicy", out var policy) && policy.ValueKind == JsonValueKind.Object)
+        {
+            accessPolicy = new VerifiedAccessPolicy(
+                GetBool(policy, "allowAnonymous"),
+                GetBool(policy, "allowAnonymousWrite"),
+                ReadStringArray(policy, "allowedRoles"),
+                ReadStringArray(policy, "allowedWriteRoles"));
+        }
+
         return new VerifiedServiceSettings(
             GetString(data, "serviceName"),
             ReadStringArray(data, "enabledProtocols"),
-            ReadStringArray(data, "availableProtocols"));
+            ReadStringArray(data, "availableProtocols"),
+            accessPolicy);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //  GeoServices service-root reachability: GET /rest/services/{service}/{protocol}
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Probes a GeoServices protocol surface for a service (e.g. <c>FeatureServer</c> / <c>MapServer</c>) and
+    /// returns whether it currently resolves to a real service document (HTTP 200 with no error payload).
+    /// Used to independently confirm a service protocol-configuration change flipped the protocol on/off in
+    /// the actual protocol surface — not just in the admin settings projection. Returns <c>false</c> when the
+    /// surface is absent (404), errored, or unreachable.
+    /// </summary>
+    public async Task<bool> GeoServicesProtocolResolvesAsync(
+        string serviceName,
+        string protocol,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/rest/services/{Uri.EscapeDataString(serviceName)}/{Uri.EscapeDataString(protocol)}?f=json";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return false;
+        }
+
+        var root = document.RootElement;
+        // A GeoServices error document carries an "error" object; a real service document carries the
+        // protocol's metadata (currentVersion / layers / capabilities).
+        return root.ValueKind == JsonValueKind.Object
+            && !root.TryGetProperty("error", out _)
+            && (root.TryGetProperty("currentVersion", out _)
+                || root.TryGetProperty("layers", out _)
+                || root.TryGetProperty("capabilities", out _)
+                || root.TryGetProperty("serviceDescription", out _));
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -1241,7 +1286,14 @@ public sealed record VerifiedQueryResult(
 public sealed record VerifiedServiceSettings(
     string? ServiceName,
     IReadOnlyList<string> EnabledProtocols,
-    IReadOnlyList<string> AvailableProtocols);
+    IReadOnlyList<string> AvailableProtocols,
+    VerifiedAccessPolicy? AccessPolicy = null);
+
+public sealed record VerifiedAccessPolicy(
+    bool? AllowAnonymous,
+    bool? AllowAnonymousWrite,
+    IReadOnlyList<string> AllowedRoles,
+    IReadOnlyList<string> AllowedWriteRoles);
 
 public sealed record VerifiedCatalogItem(
     string Id,
