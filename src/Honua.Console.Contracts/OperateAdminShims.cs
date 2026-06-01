@@ -44,11 +44,47 @@ public interface IHonuaAdminOperateClient
         HonuaAdminPublishLayerRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Enables or disables a published layer through the real honua-server admin endpoint
+    /// (<c>PUT /api/v1/admin/connections/{id}/layers/{layerId}/enabled</c>). This is the console's
+    /// layer enable/disable OPERATION (Wave 5, plan §3 Family A): it actually toggles the layer's
+    /// enabled state on the server rather than recording local intent, and returns the updated layer
+    /// summary or a field-addressable issue on rejection.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> SetLayerEnabledAsync(
+        string connectionId,
+        int layerId,
+        bool enabled,
+        string? serviceName = null,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSummary[]>> ListServicesAsync(
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> GetServiceSettingsAsync(
         string serviceName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the set of enabled protocols for a service through the real honua-server admin endpoint
+    /// (<c>PUT /api/v1/admin/services/{serviceName}/protocols</c>). This is the console's service
+    /// protocol-configuration OPERATION (Wave 5, plan §3 Family A): the server re-reads and returns the
+    /// updated settings projection, so the result reflects the canonical post-change state.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceProtocolsAsync(
+        string serviceName,
+        IReadOnlyList<string> enabledProtocols,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the access policy (anonymous read/write + allowed roles) for a service through the real
+    /// honua-server admin endpoint (<c>PUT /api/v1/admin/services/{serviceName}/access-policy</c>). This is
+    /// the console's service visibility/access OPERATION (Wave 5). Null request fields are left unchanged
+    /// server-side; the server re-reads and returns the updated settings projection.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceAccessPolicyAsync(
+        string serviceName,
+        HonuaAdminUpdateAccessPolicyRequest request,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
@@ -132,6 +168,29 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> SetLayerEnabledAsync(
+        string connectionId,
+        int layerId,
+        bool enabled,
+        string? serviceName = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+
+        var path =
+            $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/{layerId.ToString(CultureInfo.InvariantCulture)}/enabled";
+        if (!string.IsNullOrWhiteSpace(serviceName))
+        {
+            path += $"?serviceName={Uri.EscapeDataString(serviceName)}";
+        }
+
+        return PutApiResponseAsync<LayerEnabledBody, HonuaAdminPublishedLayerSummary>(
+            path,
+            new LayerEnabledBody(enabled),
+            "PUT /api/v1/admin/connections/{id}/layers/{layerId}/enabled",
+            cancellationToken);
+    }
+
     public Task<HonuaAdminEndpointResult<HonuaAdminServiceSummary[]>> ListServicesAsync(
         CancellationToken cancellationToken = default) =>
         GetApiResponseAsync<HonuaAdminServiceSummary[]>(
@@ -148,6 +207,36 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
         return GetApiResponseAsync<HonuaAdminServiceSettingsResponse>(
             $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings",
             "GET /api/v1/admin/services/{serviceName}/settings",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceProtocolsAsync(
+        string serviceName,
+        IReadOnlyList<string> enabledProtocols,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(enabledProtocols);
+
+        return PutApiResponseAsync<UpdateProtocolsBody, HonuaAdminServiceSettingsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/protocols",
+            new UpdateProtocolsBody(enabledProtocols),
+            "PUT /api/v1/admin/services/{serviceName}/protocols",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceAccessPolicyAsync(
+        string serviceName,
+        HonuaAdminUpdateAccessPolicyRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminUpdateAccessPolicyRequest, HonuaAdminServiceSettingsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/access-policy",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/access-policy",
             cancellationToken);
     }
 
@@ -292,6 +381,80 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
                 // The layer-publish endpoint currently returns a flat ApiResponse failure (a `message`
                 // field, no errors[]); surface that actionable server reason instead of the generic
                 // status text so validation/conflict rejections reach the operator verbatim.
+                var serverMessage = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<TResponse>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(serverMessage) ? issue.Detail : serverMessage,
+                    FieldErrors = ParseFieldErrors(payload)
+                });
+            }
+
+            HonuaAdminApiResponse<TResponse>? envelope;
+            try
+            {
+                envelope = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminApiResponse<TResponse>>(payload, JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported",
+                    contract,
+                    $"The Honua server response did not match the expected admin API shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+
+            if (envelope?.Success == true && envelope.Data is not null)
+            {
+                return HonuaAdminEndpointResult<TResponse>.FromData(envelope.Data);
+            }
+
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                envelope?.Message ?? "The Honua server response did not include data.",
+                (int)response.StatusCode));
+        }
+    }
+
+    private async Task<HonuaAdminEndpointResult<TResponse>> PutApiResponseAsync<TRequest, TResponse>(
+        string path,
+        TRequest body,
+        string contract,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, path)
+        {
+            Content = JsonContent.Create(body, options: JsonOptions)
+        };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            // Read once so a rejection surfaces its field-addressable validation errors and a success
+            // surfaces its data envelope — without re-reading the stream (mirrors the POST path).
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
                 var serverMessage = ParseFailureMessage(payload);
                 return HonuaAdminEndpointResult<TResponse>.FromIssue(issue with
                 {
@@ -551,6 +714,36 @@ public sealed record HonuaAdminPublishLayerRequest
     public string? ServiceName { get; init; }
 
     public bool Enabled { get; init; } = true;
+}
+
+/// <summary>
+/// Wire shape of the honua-server layer enable/disable request body
+/// (<c>PUT /api/v1/admin/connections/{id}/layers/{layerId}/enabled</c>, mirrors <c>LayerEnabledRequest</c>).
+/// </summary>
+internal sealed record LayerEnabledBody(
+    [property: JsonPropertyName("enabled")] bool Enabled);
+
+/// <summary>
+/// Wire shape of the honua-server protocol-update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/protocols</c>, mirrors <c>UpdateProtocolsRequest</c>).
+/// </summary>
+internal sealed record UpdateProtocolsBody(
+    [property: JsonPropertyName("enabledProtocols")] IReadOnlyList<string> EnabledProtocols);
+
+/// <summary>
+/// Wire shape of the honua-server access-policy update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/access-policy</c>, mirrors <c>UpdateAccessPolicyRequest</c>).
+/// Null fields are left unchanged server-side.
+/// </summary>
+public sealed record HonuaAdminUpdateAccessPolicyRequest
+{
+    public bool? AllowAnonymous { get; init; }
+
+    public bool? AllowAnonymousWrite { get; init; }
+
+    public IReadOnlyList<string>? AllowedRoles { get; init; }
+
+    public IReadOnlyList<string>? AllowedWriteRoles { get; init; }
 }
 
 public sealed record HonuaAdminPublishedLayerSummary
