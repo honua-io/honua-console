@@ -64,6 +64,7 @@ public sealed class StudioAnalysisBuilderIntegrationTests
 
         // 3. The analysis builder page renders the seeded plan from the live data source.
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(dataSource);
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
 
