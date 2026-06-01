@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components.Forms;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -328,6 +329,29 @@ public sealed class EsriImportSurfaceRenderTests
         // A valid absolute https URL clears the finding.
         page.Find("input[data-intake-url]").Input("https://org.maps.arcgis.com/home/item.html?id=abc");
         Assert.DoesNotContain("absolute http(s) URL or an ArcGIS item id", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Intake_UploadMode_SelectingFile_ClearsSourceRequired()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+
+        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+
+        // Switch to Upload mode: the source-required finding shows until a file is staged.
+        page.FindAll("button.esri-intake__mode").First(b => b.TextContent.Contains("Upload file", StringComparison.Ordinal)).Click();
+        Assert.Contains("Provide a source", page.Markup, StringComparison.Ordinal);
+
+        // Stage a file that fails to parse (empty content). The source-required finding must clear — the
+        // operator did provide a source — leaving only the parse error, not misleading "provide a source".
+        var file = InputFileContent.CreateFromText(string.Empty, "broken.json");
+        page.FindComponent<InputFile>().UploadFiles(file);
+
+        page.WaitForAssertion(
+            () => Assert.DoesNotContain("Provide a source", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("data-intake-error", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

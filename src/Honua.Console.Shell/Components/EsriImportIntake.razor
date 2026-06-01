@@ -130,6 +130,7 @@
     private string _mode = "paste";
     private string _pasteValue = string.Empty;
     private string _urlValue = string.Empty;
+    private string? _uploadFileName;
     private string? _error;
     private readonly ValidationState _validation = new();
 
@@ -196,7 +197,7 @@
         Kind,
         CurrentMode,
         PastedJson: _pasteValue,
-        UploadFileName: null,
+        UploadFileName: _uploadFileName,
         Url: _urlValue);
 
     private void Revalidate() =>
@@ -230,6 +231,13 @@
     {
         _mode = mode;
         _error = null;
+        // A staged upload file is meaningful only in upload mode; drop it when switching away so the
+        // source-required finding reflects the now-visible input rather than a hidden staged file.
+        if (mode is not "upload")
+        {
+            _uploadFileName = null;
+        }
+
         Revalidate();
     }
 
@@ -255,6 +263,10 @@
         }
 
         Dirty?.MarkDirty();
+        // Record the chosen file as the intake source so the source-required finding clears even if the
+        // read / parse then fails (the operator did provide a source — only the parse error should show).
+        _uploadFileName = file.Name;
+        Revalidate();
 
         string json;
         try
