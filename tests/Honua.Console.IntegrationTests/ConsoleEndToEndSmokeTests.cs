@@ -183,6 +183,7 @@ public sealed class ConsoleEndToEndSmokeTests
         using (var operateContext = new Bunit.TestContext())
         {
             operateContext.Services.AddSingleton<IPublishingWorkspaceDataSource>(publishingDataSource);
+            operateContext.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
             var operatePage = operateContext.RenderComponent<OperatePublishingPage>();
             operatePage.WaitForAssertion(
                 () => Assert.Contains("Publication Matrix", operatePage.Markup, StringComparison.Ordinal),

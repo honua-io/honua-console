@@ -19,6 +19,7 @@ public sealed class OperatePublishingPageRenderTests
     {
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
 
         var page = ctx.RenderComponent<OperatePublishingPage>();
 
@@ -45,6 +46,7 @@ public sealed class OperatePublishingPageRenderTests
     {
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
 
         var page = ctx.RenderComponent<OperatePublishingPage>();
 
@@ -77,6 +79,7 @@ public sealed class OperatePublishingPageRenderTests
     {
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new StubPublishingWorkspaceDataSource());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
 
         var page = ctx.RenderComponent<OperatePublishingPage>();
 
@@ -119,6 +122,7 @@ public sealed class OperatePublishingPageRenderTests
         using var ctx = new Bunit.TestContext();
         var source = new InteractivePublishingWorkspaceDataSource();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(source);
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
 
         var page = ctx.RenderComponent<OperatePublishingPage>();
 

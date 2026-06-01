@@ -138,7 +138,16 @@ public sealed record ConsoleTrustIntegrationOptions
             // mTLS is optional so the admin validate endpoint stays reachable with a bearer token while
             // still validating presented client certificates (honua-server#1171 options).
             ["Authentication__ClientCertificates__Mode"] = "Optional",
-            [DbConnectionEnvKey] = postgresConnectionString
+            [DbConnectionEnvKey] = postgresConnectionString,
+            // The pinned honua-server image resolves its provider from ConnectionStrings__DefaultConnection;
+            // mirror the connection string there so the secure-connection + layer-publishing admin paths boot
+            // (the publish round-trip registers a connection through the encryption service, below).
+            ["ConnectionStrings__DefaultConnection"] = postgresConnectionString,
+            // Secure-connection creation (POST /api/v1/admin/connections) encrypts credentials with a master
+            // key; without it the admin path 500s. Provide a deterministic test key so the live lane can
+            // register the source connection the layer-publish round-trip needs. Real deployments set their
+            // own key; ServerEnvironment overrides this default when supplied.
+            ["Security__ConnectionEncryption__MasterKey"] = "console-integration-test-master-key-0123456789"
         };
 
         foreach (var (key, value) in ParseEnvironmentList(ServerEnvironment))

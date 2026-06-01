@@ -69,6 +69,7 @@ public sealed class PublishingWorkspaceLiveServerTests
         // 5. The page renders the live workspace.
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(dataSource);
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         var page = ctx.RenderComponent<OperatePublishingPage>();
         page.WaitForAssertion(
             () => Assert.Contains("Publication Matrix", page.Markup, StringComparison.Ordinal),

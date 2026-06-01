@@ -32,6 +32,18 @@ public interface IHonuaAdminOperateClient
         string? serviceName = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Publishes a PostGIS table as a queryable service layer through the real honua-server admin
+    /// layer-publishing endpoint (<c>POST /api/v1/admin/connections/{id}/layers</c>). This is the
+    /// console's service-layer-publish OPERATION (issue #144): it actually lands a layer on the server
+    /// rather than recording local intent. The result carries the published layer summary, or a
+    /// field-addressable <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(
+        string connectionId,
+        HonuaAdminPublishLayerRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminServiceSummary[]>> ListServicesAsync(
         CancellationToken cancellationToken = default);
 
@@ -101,6 +113,22 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
         return GetApiResponseAsync<HonuaAdminPublishedLayerSummary[]>(
             path,
             "GET /api/v1/admin/connections/{id}/layers",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary>> PublishLayerAsync(
+        string connectionId,
+        HonuaAdminPublishLayerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var path = $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/layers/";
+        return PostApiResponseAsync<HonuaAdminPublishLayerRequest, HonuaAdminPublishedLayerSummary>(
+            path,
+            request,
+            "POST /api/v1/admin/connections/{id}/layers",
             cancellationToken);
     }
 
@@ -224,6 +252,163 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
         }
     }
 
+    private async Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TRequest, TResponse>(
+        string path,
+        TRequest body,
+        string contract,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = JsonContent.Create(body, options: JsonOptions)
+        };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            // Read the body once so a rejection can surface its field-addressable validation errors,
+            // and a success can surface its data envelope — without re-reading the stream.
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                // The layer-publish endpoint currently returns a flat ApiResponse failure (a `message`
+                // field, no errors[]); surface that actionable server reason instead of the generic
+                // status text so validation/conflict rejections reach the operator verbatim.
+                var serverMessage = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<TResponse>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(serverMessage) ? issue.Detail : serverMessage,
+                    FieldErrors = ParseFieldErrors(payload)
+                });
+            }
+
+            HonuaAdminApiResponse<TResponse>? envelope;
+            try
+            {
+                envelope = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminApiResponse<TResponse>>(payload, JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported",
+                    contract,
+                    $"The Honua server response did not match the expected admin API shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+
+            if (envelope?.Success == true && envelope.Data is not null)
+            {
+                return HonuaAdminEndpointResult<TResponse>.FromData(envelope.Data);
+            }
+
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                envelope?.Message ?? "The Honua server response did not include data.",
+                (int)response.StatusCode));
+        }
+    }
+
+    // Parse the shared RFC-7807 ProblemDetails errors[] extension (the honua-server FieldValidationError
+    // projection) when present so the console can bind field-level rejections onto the offending inputs.
+    // Layer-publish rejections currently return a flat ApiResponse failure message; this stays defensive so
+    // it lights up the moment the endpoint adopts the field-addressable contract (task #70).
+    private static IReadOnlyList<HonuaFieldValidationError> ParseFieldErrors(string? payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("errors", out var errors)
+                || errors.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var parsed = new List<HonuaFieldValidationError>();
+            foreach (var error in errors.EnumerateArray())
+            {
+                if (error.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var item = error.Deserialize<HonuaFieldValidationError>(JsonOptions);
+                if (item is not null && !string.IsNullOrWhiteSpace(item.Message))
+                {
+                    parsed.Add(item);
+                }
+            }
+
+            return parsed;
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    // Extracts the server's actionable rejection text from a flat ApiResponse failure body
+    // ({ success:false, message:"..." }) or an RFC-7807 ProblemDetails ({ title/detail }), so the wizard
+    // surfaces the real reason rather than a generic status string. Returns null when no message is present.
+    private static string? ParseFailureMessage(string? payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            foreach (var property in new[] { "message", "detail", "title" })
+            {
+                if (document.RootElement.TryGetProperty(property, out var value)
+                    && value.ValueKind == JsonValueKind.String
+                    && value.GetString() is { Length: > 0 } message)
+                {
+                    return message;
+                }
+            }
+
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
     {
         var state = statusCode switch
@@ -336,6 +521,36 @@ public sealed record HonuaAdminConnectionSummary
     public DateTimeOffset? CreatedAt { get; init; }
 
     public string? CreatedBy { get; init; }
+}
+
+/// <summary>
+/// Wire shape of the honua-server layer-publish request body
+/// (<c>POST /api/v1/admin/connections/{id}/layers</c>, mirrors <c>PublishLayerRequest</c>). Carries the
+/// source table, layer identity, geometry/SRID/primary-key, selected fields, and target service name.
+/// </summary>
+public sealed record HonuaAdminPublishLayerRequest
+{
+    public required string Schema { get; init; }
+
+    public required string Table { get; init; }
+
+    public required string LayerName { get; init; }
+
+    public string? Description { get; init; }
+
+    public string? GeometryColumn { get; init; }
+
+    public string? GeometryType { get; init; }
+
+    public int? Srid { get; init; }
+
+    public string? PrimaryKey { get; init; }
+
+    public IReadOnlyList<string> Fields { get; init; } = [];
+
+    public string? ServiceName { get; init; }
+
+    public bool Enabled { get; init; } = true;
 }
 
 public sealed record HonuaAdminPublishedLayerSummary
