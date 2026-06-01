@@ -49,7 +49,7 @@
                 <span class="console-muted studio-map-collab-avatars-empty" data-collab-presence-empty>no live presence</span>
             }
         </div>
-        <button type="button" class="console-button console-button-secondary studio-map-collab-invite" disabled="@(!IsBound)">+ Invite</button>
+        <button type="button" class="console-button console-button-secondary studio-map-collab-invite" disabled="@(!IsRealtimeBound)">+ Invite</button>
     </div>
 
     @* The canvas the collaboration chrome overlays — cursors, markup, comment pins, and the follow pill. *@
@@ -97,7 +97,7 @@
             <div class="console-chip-row studio-map-collab-markup-tools" role="group" aria-label="Markup tools">
                 @foreach (var tool in StudioMapMarkupTools.All)
                 {
-                    <button type="button" class="studio-map-collab-markup-tool" disabled="@(!IsBound)" data-collab-markup-tool="@tool.Id">@tool.Label</button>
+                    <button type="button" class="studio-map-collab-markup-tool" disabled="@(!IsRealtimeBound)" data-collab-markup-tool="@tool.Id">@tool.Label</button>
                 }
             </div>
             <p class="console-muted studio-map-collab-markup-note">Markup is per-draft and never touches the canonical style.</p>
@@ -176,8 +176,8 @@
             }
 
             <div class="studio-map-collab-rail-compose">
-                <input class="console-input" placeholder="@("@")mention or quick comment…" disabled="@(!IsBound)" aria-label="Quick comment" />
-                <button type="button" class="console-button" disabled="@(!IsBound)">Send</button>
+                <input class="console-input" placeholder="@("@")mention or quick comment…" disabled="@(!IsRealtimeBound)" aria-label="Quick comment" />
+                <button type="button" class="console-button" disabled="@(!IsRealtimeBound)">Send</button>
             </div>
         }
     </aside>
@@ -223,10 +223,10 @@
                 }
             </div>
             <div class="studio-map-collab-drawer-compose">
-                <textarea class="console-input" rows="2" placeholder="Reply · type @("@") to mention" disabled="@(!IsBound)" aria-label="Reply"></textarea>
+                <textarea class="console-input" rows="2" placeholder="Reply · type @("@") to mention" disabled="@(!IsRealtimeBound)" aria-label="Reply"></textarea>
                 <div class="console-action-row">
-                    <button type="button" class="console-button console-button-secondary" disabled="@(!IsBound)">Mark resolved</button>
-                    <button type="button" class="console-button" disabled="@(!IsBound)">Send</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!IsRealtimeBound)">Mark resolved</button>
+                    <button type="button" class="console-button" disabled="@(!IsRealtimeBound)">Send</button>
                 </div>
             </div>
         </div>
@@ -253,6 +253,12 @@
     private StudioMapCommentPin? _openThread;
 
     private bool IsBound => _session?.IsBound == true;
+
+    // Real-time presence/cursors/markup/follow + the durable WRITE affordances (compose/reply/resolve) stay
+    // disabled-pending until honua-server#1290 ships, even when the durable comments+activity READ surface is
+    // bound. Gating these on IsRealtimeBound (rather than IsBound) keeps the live-server scenario from
+    // enabling no-op controls — the durable read surface lights up, the deferred chrome stays disabled.
+    private bool IsRealtimeBound => _session?.IsRealtimeBound == true;
 
     protected override async Task OnParametersSetAsync()
     {

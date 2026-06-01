@@ -215,6 +215,29 @@ public sealed class StudioMapCollaborationDataSourceTests
 
         // The comment thread (pin) is bound from live data.
         Assert.Single(component.FindAll("[data-collab-pin]"));
+
+        // The DURABLE read surface is live, but the deferred real-time + write affordances stay
+        // disabled-pending (honua-server#1290) — never enabled no-op controls in the live-server scenario.
+        Assert.All(
+            component.FindAll("[data-collab-markup-tool]"),
+            tool => Assert.True(tool.HasAttribute("disabled"), "Markup tools must stay disabled-pending while real-time is deferred."));
+        Assert.True(component.Find(".studio-map-collab-invite").HasAttribute("disabled"));
+        Assert.All(
+            component.FindAll(".studio-map-collab-rail-compose button"),
+            button => Assert.True(button.HasAttribute("disabled"), "Compose/send must stay disabled-pending while writes are deferred."));
+    }
+
+    [Fact]
+    public async Task GetSession_WhenDurableBound_LeavesRealtimeUnbound()
+    {
+        var client = new StubCollaborationClient();
+        var dataSource = new HonuaServerStudioMapCollaborationDataSource(client);
+
+        var session = await dataSource.GetSessionAsync("map-1");
+
+        // Durable comments + activity are bound, but real-time presence/cursors/markup/writes are deferred.
+        Assert.True(session.IsBound);
+        Assert.False(session.IsRealtimeBound);
     }
 
     [Fact]
