@@ -600,6 +600,95 @@ public sealed class ServerStateVerifier : IDisposable
         CancellationToken cancellationToken = default) =>
         ProbeStatusAsync(path, cancellationToken);
 
+    /// <summary>
+    /// Probes an admin-gated MUTATING route (POST/PUT/DELETE) as a genuinely UNAUTHENTICATED client (no admin
+    /// key) and returns the raw HTTP status. A mounted + gated mutation rejects the anonymous request with
+    /// 401/403 BEFORE applying any change; an absent route returns 404. This is the RBAC-enforcement
+    /// discriminator (plan §5.1): it proves the mutation is gated server-side, not merely behind a UI gate.
+    /// A small JSON body is attached so the route's model binding does not 400 before the auth check runs.
+    /// Status 0 signals the server was unreachable.
+    /// </summary>
+    public async Task<int> ProbeAnonymousMutationStatusAsync(
+        HttpMethod method,
+        string path,
+        string? jsonBody = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(method, path);
+        if (jsonBody is not null)
+        {
+            request.Content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
+        }
+
+        try
+        {
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            return (int)response.StatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return 0;
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //  Version / capabilities (contract pinning): GET /api/v1/admin/version + /capabilities
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the server's own version + metadata-contract descriptor through the canonical admin version and
+    /// capabilities routes (<c>GET /api/v1/admin/version</c> + <c>/capabilities</c>), independently of the
+    /// console operate projection. Returns the server version, metadata API version, and metadata schema
+    /// version so a test can record them in the run evidence and assert the pinned <c>:nightly</c> contract is
+    /// what the console expects — making a drift between the console's expected contract and the live server
+    /// visible (plan §5.5). Returns <c>null</c> when neither version route is mounted (a contract-drift signal
+    /// in its own right).
+    /// </summary>
+    public async Task<VerifiedServerContract?> GetServerContractAsync(CancellationToken cancellationToken = default)
+    {
+        string? version = null;
+        string? metadataApiVersion = null;
+        string? metadataSchemaVersion = null;
+        var versionRouteMounted = false;
+        var capabilitiesRouteMounted = false;
+
+        using (var versionDoc = await GetJsonAsync("/api/v1/admin/version", cancellationToken).ConfigureAwait(false))
+        {
+            if (versionDoc is not null && versionDoc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var root = versionDoc.RootElement;
+                versionRouteMounted = true;
+                version = GetString(root, "version");
+                metadataApiVersion = GetString(root, "metadataApiVersion");
+                metadataSchemaVersion = GetString(root, "metadataSchemaVersion");
+            }
+        }
+
+        using (var capabilitiesDoc = await GetJsonAsync("/api/v1/admin/capabilities", cancellationToken).ConfigureAwait(false))
+        {
+            if (capabilitiesDoc is not null && capabilitiesDoc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var root = capabilitiesDoc.RootElement;
+                capabilitiesRouteMounted = true;
+                version ??= GetString(root, "serverVersion");
+                metadataApiVersion ??= GetString(root, "metadataApiVersion");
+                metadataSchemaVersion ??= GetString(root, "metadataSchemaVersion");
+            }
+        }
+
+        if (!versionRouteMounted && !capabilitiesRouteMounted)
+        {
+            return null;
+        }
+
+        return new VerifiedServerContract(
+            version,
+            metadataApiVersion,
+            metadataSchemaVersion,
+            versionRouteMounted,
+            capabilitiesRouteMounted);
+    }
+
     // ---------------------------------------------------------------------------------------------
     //  Collaboration comments: GET /api/v1/console/maps/{mapId}/collab/comments (+ /activity)
     // ---------------------------------------------------------------------------------------------
@@ -1255,3 +1344,16 @@ public sealed record VerifiedFormPackage(
 /// transports. Lets a test prove the publish landed a resolvable runtime policy, not just an admin row.
 /// </summary>
 public sealed record VerifiedFormOfflinePolicy(bool Enabled, IReadOnlyList<string> Transports);
+
+/// <summary>
+/// The server-owned version + metadata-contract descriptor read through the admin version/capabilities
+/// routes. Recorded in the run evidence so a drift between the console's expected contract and the pinned
+/// <c>:nightly</c> server is visible (plan §5.5). <see cref="VersionRouteMounted"/> /
+/// <see cref="CapabilitiesRouteMounted"/> distinguish a present-but-empty descriptor from an absent route.
+/// </summary>
+public sealed record VerifiedServerContract(
+    string? Version,
+    string? MetadataApiVersion,
+    string? MetadataSchemaVersion,
+    bool VersionRouteMounted,
+    bool CapabilitiesRouteMounted);

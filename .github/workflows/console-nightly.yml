@@ -149,7 +149,15 @@ jobs:
               | sort | uniq -c || echo "no trx files found"
             echo '```'
             echo ""
-            echo "trx + cobertura coverage are uploaded as build artifacts."
+            echo "### Cross-cutting (Wave 6) — version / contract drift"
+            echo ""
+            echo "Pinned server version + metadata contract the cross-cutting suite recorded (drift evidence):"
+            echo ""
+            echo '```json'
+            cat smoke-evidence/console-contract-drift.json 2>/dev/null || echo "no contract-drift evidence emitted (the version/contract-drift fact skipped)"
+            echo '```'
+            echo ""
+            echo "trx + cobertura coverage + contract-drift evidence are uploaded as build artifacts."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test results (trx)
@@ -166,4 +174,12 @@ jobs:
         with:
           name: console-nightly-coverage
           path: artifacts/test-results/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+      - name: Upload cross-cutting contract-drift evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-nightly-contract-drift
+          path: smoke-evidence/console-contract-drift.json
           if-no-files-found: warn
