@@ -17,7 +17,7 @@ public sealed class UnsupportedCatalogDiscoveryDataSource : ICatalogDiscoveryDat
         Surface,
         "Missing binding",
         "Honua:Server:BaseUrl",
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the Catalogs surface can bind the server-owned catalog discovery-endpoints registry (honua-server#1279). honua-server does not yet expose this contract.");
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the Catalogs surface can bind the server-owned catalog discovery-endpoints registry (honua-server#1279).");
 
     public Task<CatalogDiscoveryRegistryLoad> LoadRegistryAsync(string workspaceId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new CatalogDiscoveryRegistryLoad(null, [MissingBinding]));

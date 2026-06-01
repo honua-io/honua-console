@@ -447,12 +447,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     }
 
     // Binds the Operate > Catalogs discovery-endpoints surface (/operate/catalogs, honua-console#125) to
-    // honua-server's catalog discovery-endpoints registry (honua-server#1279) through the
+    // honua-server's catalog discovery-endpoints registry read API (honua-server#1279, SHIPPED:
+    // GET /api/v1/console/catalog-endpoints/{workspaceId}[/{endpointKey}[/items/{itemId}]]) through the
     // Honua.Console.Contracts shim when a server base address is configured; otherwise the surface renders an
     // explicit missing-binding state (never mock endpoint/item data — Console Patterns Charter section 11).
-    // honua-server#1279 is not yet shipped, so in practice the merged runtime renders the missing-binding
-    // state today; the page, data source, and tests already consume the full registry contract so the live
-    // binding activates the moment the server endpoint lands.
+    // The registry is workspace-scoped: a deployment that publishes no discovery dialects for a workspace
+    // returns the structured NotFound envelope, which the live data source surfaces as the "Unsupported"
+    // capability state rather than fabricated cards. The admin API key is sent as X-API-Key.
     private static void AddCatalogDiscoveryDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,

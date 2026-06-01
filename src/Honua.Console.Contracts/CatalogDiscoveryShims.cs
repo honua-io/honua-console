@@ -14,14 +14,15 @@ namespace Honua.Console.Contracts;
 // /api/v1/console/content) that backs /catalog: the discovery-endpoints registry is the operator surface
 // for which catalog dialects the server publishes, not the content items themselves.
 //
-// honua-server does not yet expose a Console catalog discovery-endpoints registry contract (verified
-// against Honua.Server.Features.Console — only content, share, and workflow-package routes exist). Per the
-// Console Patterns Charter section 11 and SDK_SHIM_POLICY, the wire records below describe the expected
-// server projection so the Console surface can bind a thin HttpClient behind this single
-// Honua.Console.Contracts boundary the moment honua-server#1279 lands. Until then the Console Catalogs
-// surface renders an explicit missing-binding state rather than fabricating endpoint/item data, and no
-// sibling-repo ProjectReference is added. Swap these for SDK types when honua-sdk-dotnet ships a consumable
-// projection.
+// honua-server#1279 has SHIPPED the Console catalog discovery-endpoints registry read API
+// (Honua.Server.Features.Console.CatalogDiscoveryEndpoints: GET
+// /api/v1/console/catalog-endpoints/{workspaceId}[/{endpointKey}[/items/{itemId}]]). The wire records below
+// mirror that server projection exactly (matching [JsonPropertyName] on every field), so the Console
+// surface binds a thin HttpClient behind this single Honua.Console.Contracts boundary; no sibling-repo
+// ProjectReference is added. Per the Console Patterns Charter section 11 the surface still renders an
+// explicit missing-binding/unsupported state rather than fabricating endpoint/item data when no server is
+// configured or the workspace publishes no registry. Swap these for SDK types when honua-sdk-dotnet ships a
+// consumable projection.
 //
 // The reads are admin reads wrapped in the shared {success,data,message,timestamp} envelope
 // (Honua.Infrastructure.Models.ApiResponse<T>), so this client reuses the shared HonuaAdminApiResponse<T>
@@ -180,7 +181,7 @@ public sealed class HonuaCatalogDiscoveryHttpClient : IHonuaCatalogDiscoveryClie
                 {
                     System.Net.HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
                     System.Net.HttpStatusCode.Forbidden => "The current principal lacks permission to read catalog discovery endpoints.",
-                    System.Net.HttpStatusCode.NotFound => "The Honua server does not expose the catalog discovery-endpoints registry (honua-server#1279).",
+                    System.Net.HttpStatusCode.NotFound => "The Honua server published no catalog discovery-endpoints registry for the requested workspace/endpoint/item (honua-server#1279).",
                     _ => $"The Honua server returned HTTP {(int)response.StatusCode} ({response.StatusCode})."
                 };
                 return HonuaAdminEndpointResult<T>.FromIssue(

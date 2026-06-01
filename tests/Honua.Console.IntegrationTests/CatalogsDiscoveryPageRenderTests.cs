@@ -14,8 +14,10 @@ namespace Honua.Console.IntegrationTests;
 /// screens-catalogs.jsx mockup — the endpoint list, the ON/OFF state badge, the auto-default-on vs opt-in
 /// distinction, the feeder list, per-endpoint issues, the detail drill-down items table, the auto-mirror
 /// item field groups with the field-state legend — plus the missing-binding surface. Drives the pages
-/// through a fake <see cref="ICatalogDiscoveryDataSource"/> rather than a mock server; the live binding
-/// follows the established opt-in Testcontainers pattern once honua-server#1279 ships.
+/// through a fake <see cref="ICatalogDiscoveryDataSource"/> rather than a mock server. The live binding is
+/// covered by <see cref="CatalogsDiscoveryLiveBindingRenderTests"/> (production data source over a stub
+/// client) and <see cref="CatalogsDiscoveryLiveServerTests"/> (opt-in Testcontainers against honua-server
+/// #1279, now shipped).
 /// </summary>
 public sealed class CatalogsDiscoveryPageRenderTests
 {
