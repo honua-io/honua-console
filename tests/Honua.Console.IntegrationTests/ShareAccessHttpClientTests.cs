@@ -126,6 +126,25 @@ public sealed class ShareAccessHttpClientTests
     }
 
     [Fact]
+    public async Task RevokePublicLink_WhenServerReturnsSuccessWithNullData_IsTreatedAsAck()
+    {
+        // The real honua-server revoke returns {success:true, data:null, message:"Public-link token revoked."}.
+        // The client must surface this as a successful ack, not a false Unavailable issue (regression guard for
+        // the Share token round-trip, where a misreported revoke broke the revoke→denied negative companion).
+        using var client = CreateClient(new RecordingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(HonuaAdminApiResponseLike<object?>(true, null, "Public-link token revoked."))
+            }));
+
+        var result = await client.RevokePublicLinkAsync("item-1", "tok-9");
+
+        Assert.Null(result.Issue);
+        Assert.NotNull(result.Data);
+        Assert.Equal("Public-link token revoked.", result.Data!.Message);
+    }
+
+    [Fact]
     public async Task SetEmbed_OnConflict_SurfacesTypedConflictWithServerMessage()
     {
         using var client = CreateClient(new RecordingHandler(_ =>
