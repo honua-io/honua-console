@@ -132,4 +132,26 @@ public sealed class ValidationRulesTests
         Assert.True(NumericBoundsRule.IsOrdered(5, null));
         Assert.True(NumericBoundsRule.IsOrdered(null, null));
     }
+
+    [Theory]
+    [InlineData("0 6 * * *")]
+    [InlineData("*/15 * * * *")]
+    [InlineData("0 0,12 1-15 * MON-FRI")]
+    [InlineData("30 9 * JAN,DEC SUN")]
+    public void Cron_AcceptsWellFormedExpressions(string expression) =>
+        Assert.True(CronRule.IsValid(expression));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not a cron")]
+    [InlineData("0 6 * *")]          // only four fields
+    [InlineData("0 6 * * * *")]      // six fields
+    [InlineData("60 6 * * *")]       // minute out of range
+    [InlineData("0 24 * * *")]       // hour out of range
+    [InlineData("0 6 0 * *")]        // day-of-month below 1
+    [InlineData("0 6 * 13 *")]       // month out of range
+    [InlineData("0 6 * * 8")]        // day-of-week out of range
+    [InlineData("*/0 6 * * *")]      // zero step
+    public void Cron_RejectsMalformedExpressions(string expression) =>
+        Assert.False(CronRule.IsValid(expression));
 }

@@ -1,5 +1,8 @@
 @page "/studio/app"
+@using Honua.Console.Shell.Validation
 @inject IStudioAppPackageDataSource AppData
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved app changes. Leave this page and discard them?" />
 
 @* Studio app builder (honua-console#58). Three-pane editor matching the StudioAppEditor design handoff
    (docs/design-handoff/console-canvas/screens-studio-rest.jsx): an app-identity toolbar, a page tree +
@@ -51,12 +54,25 @@
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Preview">Live preview ↗</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Validate">Validate</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Save">Save draft</button>
-                <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish)" @onclick="Publish">Publish…</button>
+                <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">Publish…</button>
             </div>
 
             @if (!string.IsNullOrEmpty(_status))
             {
                 <p class="@(_statusFailed ? "console-warning" : "console-status") studio-app-status" role="status" aria-live="polite">@_status</p>
+            }
+
+            @if (_validation.HasBlockingClientErrors)
+            {
+                <div class="console-warning studio-app-validation-summary" role="alert" data-app-validation="blocking">
+                    <p>Resolve these before publishing:</p>
+                    <ul class="studio-compact-list">
+                        @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                        {
+                            <li>@error.Message</li>
+                        }
+                    </ul>
+                </div>
             }
 
             @* Three panes: page tree + component palette · responsive canvas · component-binding inspector. *@
@@ -66,6 +82,8 @@
                         <h3>Pages</h3>
                         <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="AddPage">+ Page</button>
                     </div>
+
+                    <ValidationMessageInline FieldKey="@StudioAppFieldKeys.Pages" State="_validation" />
 
                     @if (editor.Pages.Count == 0)
                     {
@@ -165,14 +183,14 @@
                                 </div>
                                 <button class="console-button console-button-secondary console-button-sm" type="button" disabled="@_busy" @onclick="() => RemovePage(inspected)">Remove page</button>
                             </div>
-                            <FieldStateRow State="FieldState.Input" Label="Route">
-                                <input class="console-input" @bind="inspected.Route" placeholder="/map" />
+                            <FieldStateRow State="FieldState.Input" Label="Route" Errors="_validation.Errors(StudioAppFieldKeys.PageRoute(editor.Pages.IndexOf(inspected)))">
+                                <input class="console-input" @bind="inspected.Route" @bind:after="OnEdit" placeholder="/map" />
                             </FieldStateRow>
                             <FieldStateRow State="FieldState.Input" Label="Title">
-                                <input class="console-input" @bind="inspected.Title" placeholder="Map" />
+                                <input class="console-input" @bind="inspected.Title" @bind:after="OnEdit" placeholder="Map" />
                             </FieldStateRow>
                             <FieldStateRow State="FieldState.Input" Label="Component">
-                                <select class="console-input" @bind="inspected.ComponentKind">
+                                <select class="console-input" @bind="inspected.ComponentKind" @bind:after="OnEdit">
                                     @foreach (var kind in StudioAppComponentKinds.All)
                                     {
                                         <option value="@kind">@kind</option>
@@ -181,19 +199,20 @@
                             </FieldStateRow>
                             <FieldStateRow State="@(string.IsNullOrWhiteSpace(inspected.ContentBinding) ? FieldState.Discovered : FieldState.Input)"
                                            Label="Content binding"
-                                           Hint="@(string.IsNullOrWhiteSpace(inspected.ContentBinding) ? "resolved from catalog content" : null)">
-                                <input class="console-input" @bind="inspected.ContentBinding" placeholder="content:permits@@v3" />
+                                           Hint="@(string.IsNullOrWhiteSpace(inspected.ContentBinding) ? "resolved from catalog content" : null)"
+                                           Errors="_validation.Errors(StudioAppFieldKeys.PageBinding(editor.Pages.IndexOf(inspected)))">
+                                <input class="console-input" @bind="inspected.ContentBinding" @bind:after="OnEdit" placeholder="content:permits@@v3" />
                             </FieldStateRow>
                         </section>
                     }
 
                     <section class="studio-inspector-section" data-app-details="true">
                         <h3>App</h3>
-                        <FieldStateRow State="FieldState.Input" Label="Title">
-                            <input class="console-input" @bind="editor.Title" placeholder="Field operations app" />
+                        <FieldStateRow State="FieldState.Input" Label="Title" Errors="_validation.Errors(StudioAppFieldKeys.Title)">
+                            <input class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Field operations app" />
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Summary">
-                            <textarea class="console-input" rows="2" @bind="editor.Summary"></textarea>
+                            <textarea class="console-input" rows="2" @bind="editor.Summary" @bind:after="OnEdit"></textarea>
                         </FieldStateRow>
                     </section>
 
@@ -210,13 +229,13 @@
                         {
                             <fieldset class="studio-app-action" @key="action">
                                 <FieldStateRow State="FieldState.Input" Label="Name">
-                                    <input class="console-input" @bind="action.Name" placeholder="submit inspection" />
+                                    <input class="console-input" @bind="action.Name" @bind:after="OnEdit" placeholder="submit inspection" />
                                 </FieldStateRow>
-                                <FieldStateRow State="FieldState.Input" Label="Page route">
-                                    <input class="console-input" @bind="action.PageRoute" placeholder="/form" />
+                                <FieldStateRow State="FieldState.Input" Label="Page route" Errors="_validation.Errors(StudioAppFieldKeys.ActionPageRoute(editor.Actions.IndexOf(action)))">
+                                    <input class="console-input" @bind="action.PageRoute" @bind:after="OnEdit" placeholder="/form" />
                                 </FieldStateRow>
-                                <FieldStateRow State="FieldState.Admin" Label="Required permission" Hint="enforced by server RBAC">
-                                    <select class="console-input" @bind="action.RequiredPermission">
+                                <FieldStateRow State="FieldState.Admin" Label="Required permission" Hint="enforced by server RBAC" Errors="_validation.Errors(StudioAppFieldKeys.ActionPermission(editor.Actions.IndexOf(action)))">
+                                    <select class="console-input" @bind="action.RequiredPermission" @bind:after="OnEdit">
                                         @foreach (var permission in StudioAppPermissions.All)
                                         {
                                             <option value="@permission">@permission</option>
@@ -235,18 +254,19 @@
                         <p class="console-muted">The share visibility and embed policy must be an explicit, reviewed decision before publish.</p>
                         <label class="studio-form-label">
                             <span>Visibility</span>
-                            <select class="console-input" @bind="editor.Visibility">
+                            <select class="console-input" @bind="editor.Visibility" @bind:after="OnEdit">
                                 @foreach (var visibility in StudioAppVisibilityModes.All)
                                 {
                                     <option value="@visibility">@visibility</option>
                                 }
                             </select>
                         </label>
+                        <ValidationMessageInline FieldKey="@StudioAppFieldKeys.Visibility" State="_validation" />
                         <div class="console-chip-row studio-form-toggles">
-                            <label><input type="checkbox" @bind="editor.EmbedEnabled" /> <span>Embeddable</span></label>
+                            <label><input type="checkbox" @bind="editor.EmbedEnabled" @bind:after="OnEdit" /> <span>Embeddable</span></label>
                         </div>
                         <label class="studio-form-review">
-                            <input type="checkbox" @bind="editor.ShareEmbedPolicyReviewed" />
+                            <input type="checkbox" @bind="editor.ShareEmbedPolicyReviewed" @bind:after="OnEdit" />
                             <span>I reviewed the share/embed policy for this app (required before publish).</span>
                         </label>
                     </section>
@@ -264,7 +284,7 @@
                         </section>
                     }
 
-                    @if (_validation is { } validation)
+                    @if (_serverValidation is { } validation)
                     {
                         <section class="studio-inspector-section" data-app-validation="true" aria-labelledby="app-validation-heading">
                             <div class="studio-app-inspector-head">
@@ -333,10 +353,29 @@
     private StudioAppPageState? _selectedPage;
     private StudioAppCapabilityState? _bindingState;
     private IReadOnlyList<StudioAppCapabilityState> _states = [];
-    private StudioAppValidationView? _validation;
+    private StudioAppValidationView? _serverValidation;
     private StudioAppVersionHistory? _history;
     private string? _status;
     private bool _statusFailed;
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
+
+    /// <summary>
+    /// Re-runs the client cross-field/referential validator over the current editor and flags it dirty.
+    /// Wired to every bound edit via <c>@bind:after</c>. The server channel is dropped on edit because any
+    /// change makes the last validate/publish-time server findings stale; the next call rebinds fresh ones.
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_editor is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioAppValidator.Instance.Evaluate(_editor));
 
     private StudioAppPageState? SelectedPage
     {
@@ -366,6 +405,11 @@
         _selectedPage = _editor?.Pages.FirstOrDefault();
         _loading = false;
 
+        // A fresh load is the clean baseline.
+        _validation.Clear();
+        _dirty.MarkClean();
+        RecomputeClientErrors();
+
         if (_editor?.ItemId is { } itemId)
         {
             await LoadHistoryAsync(itemId);
@@ -391,19 +435,23 @@
         return $"honua.example/a/{slug}{route}";
     }
 
-    private Task Save() => RunCommandAsync(() => AppData.SaveDraftAsync(_editor!), reloadHistory: true);
+    // Save/Publish persist the in-memory edits as a new server version; Reopen/Rollback replace the editor
+    // with a fresh clean server version. All four make the local edits durable, so they clear the dirty
+    // flag. Validate/Preview only operate on the existing server draft and do NOT persist the current edits,
+    // so they must leave the draft dirty (the unsaved-changes guard must still warn).
+    private Task Save() => RunCommandAsync(() => AppData.SaveDraftAsync(_editor!), reloadHistory: true, clearsDirty: true);
 
     private Task Validate() => RunCommandAsync(() => AppData.ValidateAsync(_editor!));
 
     private Task Preview() => RunCommandAsync(() => AppData.PreviewAsync(_editor!));
 
-    private Task Publish() => RunCommandAsync(() => AppData.PublishAsync(_editor!), reloadHistory: true);
+    private Task Publish() => RunCommandAsync(() => AppData.PublishAsync(_editor!), reloadHistory: true, clearsDirty: true);
 
     private Task Reopen(Guid itemId, Guid versionId) =>
-        RunCommandAsync(() => AppData.ReopenAsync(itemId, versionId), reloadHistory: true);
+        RunCommandAsync(() => AppData.ReopenAsync(itemId, versionId), reloadHistory: true, clearsDirty: true);
 
     private Task Rollback(Guid itemId, Guid versionId) =>
-        RunCommandAsync(() => AppData.RollbackAsync(itemId, versionId, reason: null), reloadHistory: true);
+        RunCommandAsync(() => AppData.RollbackAsync(itemId, versionId, reason: null), reloadHistory: true, clearsDirty: true);
 
     private async Task RefreshHistory()
     {
@@ -429,6 +477,7 @@
         var page = new StudioAppPageState();
         _editor.Pages.Add(page);
         _selectedPage = page;
+        OnEdit();
     }
 
     private void RemovePage(StudioAppPageState page)
@@ -443,13 +492,23 @@
         {
             _selectedPage = _editor.Pages.FirstOrDefault();
         }
+
+        OnEdit();
     }
 
-    private void AddAction() => _editor?.Actions.Add(new StudioAppActionState());
+    private void AddAction()
+    {
+        _editor?.Actions.Add(new StudioAppActionState());
+        OnEdit();
+    }
 
-    private void RemoveAction(StudioAppActionState action) => _editor?.Actions.Remove(action);
+    private void RemoveAction(StudioAppActionState action)
+    {
+        _editor?.Actions.Remove(action);
+        OnEdit();
+    }
 
-    private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command, bool reloadHistory = false)
+    private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command, bool reloadHistory = false, bool clearsDirty = false)
     {
         if (_busy || _editor is null)
         {
@@ -462,12 +521,25 @@
             var result = await command();
             _status = result.Message;
             _statusFailed = !result.Succeeded;
-            _validation = result.Validation ?? _validation;
+            _serverValidation = result.Validation ?? _serverValidation;
 
             if (result.State is not null)
             {
                 _editor = result.State;
                 _selectedPage = _editor.Pages.FirstOrDefault();
+            }
+
+            // Re-run the client validator against the current editor and bind any field-addressable server
+            // diagnostics (the app.package validate items) onto the same field keys so they surface inline
+            // next to the offending input, merged with the client findings.
+            RecomputeClientErrors();
+            _validation.SetServerErrors(StudioAppServerErrorBinder.Map(result.Validation?.Issues));
+
+            // Only a command that persisted/replaced the editor state clears the dirty flag; Validate/Preview
+            // leave unsaved edits dirty so the guard still warns on navigation.
+            if (result.Succeeded && clearsDirty)
+            {
+                _dirty.MarkClean();
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);

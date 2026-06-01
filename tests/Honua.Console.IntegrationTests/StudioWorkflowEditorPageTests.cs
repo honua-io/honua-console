@@ -21,6 +21,9 @@ public sealed class StudioWorkflowEditorPageTests
     {
         var client = new RecordingWorkflowPackageClient();
         using var ctx = new Bunit.TestContext();
+        // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
+        // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
 
         var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
@@ -63,6 +66,9 @@ public sealed class StudioWorkflowEditorPageTests
     {
         var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
         using var ctx = new Bunit.TestContext();
+        // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
+        // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
 
         var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
@@ -94,6 +100,9 @@ public sealed class StudioWorkflowEditorPageTests
     {
         var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
         using var ctx = new Bunit.TestContext();
+        // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
+        // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
 
         var page = ctx.RenderComponent<StudioWorkflowEditorPage>(

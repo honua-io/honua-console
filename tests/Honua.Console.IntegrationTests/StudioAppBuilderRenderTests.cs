@@ -25,6 +25,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(null, [MissingBinding])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();
@@ -43,6 +44,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(StudioAppPackageMapper.CreateTemplate(), [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();
@@ -69,6 +71,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();
@@ -122,6 +125,7 @@ public sealed class StudioAppBuilderRenderTests
         });
         var data = new FakeAppDataSource { Load = new StudioAppEditorLoad(state, []) };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();
@@ -148,6 +152,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();
@@ -179,6 +184,7 @@ public sealed class StudioAppBuilderRenderTests
             ])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();
@@ -212,6 +218,7 @@ public sealed class StudioAppBuilderRenderTests
             PreviewResult = new StudioAppCommandResult(true, "Preview plan ready (inline). Steps: validate-envelope.", existing)
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAppBuilderPage>();

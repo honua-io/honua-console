@@ -1,6 +1,9 @@
 @page "/studio/workflows/{DraftId}"
+@using Honua.Console.Shell.Validation
 @inject IStudioWorkflowPackageClient Workflows
 @inject NavigationManager Navigation
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved workflow changes. Leave this page and discard them?" />
 
 <section class="console-page workflow-page">
     <div class="console-page-heading">
@@ -45,15 +48,28 @@
     {
         <header class="workflow-editor-header" aria-label="Workflow package header">
             <span class="workflow-editor-glyph" aria-hidden="true">⇋</span>
-            <input class="console-input workflow-title-input" aria-label="Workflow name" @bind="_draft.Title" @bind:event="oninput" />
+            <input class="console-input workflow-title-input" aria-label="Workflow name" @bind="_draft.Title" @bind:event="oninput" @bind:after="OnEdit" />
             <span class="console-status workflow-badge-draft">@DraftStatusBadge(_draft)</span>
             <span class="console-status @(IsGraphValid ? string.Empty : "console-status-warning") workflow-badge-dag">@(IsGraphValid ? "DAG valid · acyclic" : "DAG needs a sink")</span>
             <div class="workflow-editor-header-spacer"></div>
-            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="DryRunAsync">Run once</button>
-            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="SaveAsync">Save draft</button>
-            <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">Publish…</button>
+            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="DryRunAsync">Run once</button>
+            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="SaveAsync">Save draft</button>
+            <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="PublishAsync">Publish…</button>
             <a class="console-button-link console-button-secondary" href="/studio">Studio Home</a>
         </header>
+
+        @if (_validation.HasBlockingClientErrors)
+        {
+            <div class="console-warning workflow-validation-summary" role="alert" data-workflow-validation="blocking">
+                <p>Resolve these before saving, dry-running, or publishing:</p>
+                <ul class="workflow-compact-list">
+                    @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                    {
+                        <li>@error.Message</li>
+                    }
+                </ul>
+            </div>
+        }
 
         <nav class="console-tab-row workflow-tab-row" aria-label="Workflow editor sections">
             <a href="#workflow-graph" class="active">Graph</a>
@@ -88,11 +104,11 @@
                     <div class="workflow-form-grid">
                         <label>
                             <span>Title</span>
-                            <input class="console-input" @bind="_draft.Title" @bind:event="oninput" />
+                            <input class="console-input" @bind="_draft.Title" @bind:event="oninput" @bind:after="OnEdit" />
                         </label>
                         <label>
                             <span>Summary</span>
-                            <textarea class="console-input" rows="3" @bind="_draft.Summary" @bind:event="oninput"></textarea>
+                            <textarea class="console-input" rows="3" @bind="_draft.Summary" @bind:event="oninput" @bind:after="OnEdit"></textarea>
                         </label>
                         <dl class="console-definition-list">
                             <dt>Package</dt>
@@ -112,6 +128,7 @@
                         <p class="console-kicker">Graph</p>
                         <h2>Sources, Transforms, Sinks</h2>
                     </div>
+                    <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.Graph" State="_validation" />
                     <div class="workflow-canvas" role="group" aria-label="Workflow DAG canvas">
                         <svg class="workflow-canvas-edges" viewBox="0 0 1000 340" preserveAspectRatio="none" aria-hidden="true">
                             <defs>
@@ -178,7 +195,7 @@
                         @if (SelectedNode is not null)
                         {
                             <FieldStateRow State="FieldState.Input" Label="Node label">
-                                <input class="console-input" @bind="SelectedNode.Label" @bind:event="oninput" />
+                                <input class="console-input" @bind="SelectedNode.Label" @bind:event="oninput" @bind:after="OnEdit" />
                             </FieldStateRow>
                             <FieldStateRow State="FieldState.System" Label="Type" Value="@SelectedNode.Type" />
                             <FieldStateRow State="FieldState.System" Label="Inputs" Value="@FormatPorts(SelectedNode.InputPorts)" Hint="from node type" />
@@ -199,7 +216,7 @@
                             @foreach (var parameter in _draft.Parameters)
                             {
                                 <div class="workflow-table-row">
-                                    <input class="console-input" aria-label="Parameter name" @bind="parameter.Name" @bind:event="oninput" />
+                                    <input class="console-input" aria-label="Parameter name" @bind="parameter.Name" @bind:event="oninput" @bind:after="OnEdit" />
                                     <select class="console-input" aria-label="Parameter type" @bind="parameter.Type">
                                         @foreach (var type in ParameterTypes)
                                         {
@@ -210,7 +227,7 @@
                                         <input type="checkbox" @bind="parameter.Required" />
                                         <span>Required</span>
                                     </label>
-                                    <input class="console-input" aria-label="Parameter default value" @bind="parameter.DefaultValue" @bind:event="oninput" />
+                                    <input class="console-input" aria-label="Parameter default value" @bind="parameter.DefaultValue" @bind:event="oninput" @bind:after="OnEdit" />
                                 </div>
                             }
                         </div>
@@ -235,7 +252,7 @@
                         <div class="workflow-form-grid workflow-form-grid-compact">
                             <label>
                                 <span>Schedule mode</span>
-                                <select class="console-input" @bind="_draft.Schedule.Mode">
+                                <select class="console-input" @bind="_draft.Schedule.Mode" @bind:after="OnEdit">
                                     <option value="manual">manual</option>
                                     <option value="cron">cron</option>
                                     <option value="event">event</option>
@@ -243,15 +260,16 @@
                             </label>
                             <label>
                                 <span>Cron</span>
-                                <input class="console-input" @bind="_draft.Schedule.Cron" @bind:event="oninput" />
+                                <input class="console-input" @bind="_draft.Schedule.Cron" @bind:event="oninput" @bind:after="OnEdit" />
+                                <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.Cron" State="_validation" />
                             </label>
                             <label>
                                 <span>Time zone</span>
-                                <input class="console-input" @bind="_draft.Schedule.TimeZone" @bind:event="oninput" />
+                                <input class="console-input" @bind="_draft.Schedule.TimeZone" @bind:event="oninput" @bind:after="OnEdit" />
                             </label>
                             <label>
                                 <span>Worker profile</span>
-                                <select class="console-input" @bind="_draft.WorkerProfile.ProfileId">
+                                <select class="console-input" @bind="_draft.WorkerProfile.ProfileId" @bind:after="OnEdit">
                                     <option value="standard-geospatial">standard-geospatial</option>
                                     <option value="memory-optimized">memory-optimized</option>
                                     <option value="high-throughput">high-throughput</option>
@@ -259,19 +277,22 @@
                             </label>
                             <label>
                                 <span>Runtime</span>
-                                <input class="console-input" @bind="_draft.WorkerProfile.Runtime" @bind:event="oninput" />
+                                <input class="console-input" @bind="_draft.WorkerProfile.Runtime" @bind:event="oninput" @bind:after="OnEdit" />
                             </label>
                             <label>
                                 <span>CPU</span>
-                                <input class="console-input" type="number" min="1" max="32" @bind="_draft.WorkerProfile.Cpu" />
+                                <input class="console-input" type="number" min="1" max="32" @bind="_draft.WorkerProfile.Cpu" @bind:after="OnEdit" />
+                                <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.Cpu" State="_validation" />
                             </label>
                             <label>
                                 <span>Memory GB</span>
-                                <input class="console-input" type="number" min="2" max="256" @bind="_draft.WorkerProfile.MemoryGb" />
+                                <input class="console-input" type="number" min="2" max="256" @bind="_draft.WorkerProfile.MemoryGb" @bind:after="OnEdit" />
+                                <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MemoryGb" State="_validation" />
                             </label>
                             <label>
                                 <span>Max parallelism</span>
-                                <input class="console-input" type="number" min="1" max="64" @bind="_draft.WorkerProfile.MaxParallelism" />
+                                <input class="console-input" type="number" min="1" max="64" @bind="_draft.WorkerProfile.MaxParallelism" @bind:after="OnEdit" />
+                                <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MaxParallelism" State="_validation" />
                             </label>
                         </div>
                     </section>
@@ -284,15 +305,17 @@
                         <div class="workflow-form-grid workflow-form-grid-compact">
                             <label>
                                 <span>Attempts</span>
-                                <input class="console-input" type="number" min="0" max="10" @bind="_draft.RetryPolicy.MaxAttempts" />
+                                <input class="console-input" type="number" min="0" max="10" @bind="_draft.RetryPolicy.MaxAttempts" @bind:after="OnEdit" />
+                                <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MaxAttempts" State="_validation" />
                             </label>
                             <label>
                                 <span>Backoff seconds</span>
-                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" />
+                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" @bind:after="OnEdit" />
+                                <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.BackoffSeconds" State="_validation" />
                             </label>
                             <label>
                                 <span>Failure mode</span>
-                                <select class="console-input" @bind="_draft.RetryPolicy.FailureMode">
+                                <select class="console-input" @bind="_draft.RetryPolicy.FailureMode" @bind:after="OnEdit">
                                     <option value="route-failure-edges">route-failure-edges</option>
                                     <option value="fail-fast">fail-fast</option>
                                     <option value="quarantine-artifacts">quarantine-artifacts</option>
@@ -337,7 +360,8 @@
                         </label>
                         <label>
                             <span>Route slug</span>
-                            <input class="console-input" @bind="_draft.PublicationIntent.RouteSlug" @bind:event="oninput" />
+                            <input class="console-input" @bind="_draft.PublicationIntent.RouteSlug" @bind:event="oninput" @bind:after="OnEdit" />
+                            <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.RouteSlug" State="_validation" />
                         </label>
                         <label class="workflow-checkbox">
                             <input type="checkbox" @bind="_draft.PublicationIntent.ExposeInvocationEndpoint" />
@@ -613,6 +637,49 @@
     private StudioWorkflowPublishResult? _lastPublish;
     private StudioWorkflowRunHistory? _runHistory;
     private string? _savedDraftFingerprint;
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
+
+    /// <summary>
+    /// Re-runs the client validator over the current draft and flags it dirty. Wired to every bound edit via
+    /// <c>@bind:after</c>. The server channel is dropped on edit because any change makes the last
+    /// save/publish-time server findings stale; the next operation rebinds fresh ones.
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_draft is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioWorkflowValidator.Instance.Evaluate(_draft));
+
+    // Re-homes the server-returned workflow validation issues onto field keys. The client flattens each
+    // WorkflowPackageValidationFailure into a StudioWorkflowValidationIssue whose Scope carries the original
+    // fieldPath (falling back to the code); project that back through the field-path resolver so a server
+    // error lands on the same field key the client validator uses, merged into the inspector inline.
+    private void BindServerErrors(IReadOnlyList<StudioWorkflowValidationIssue>? issues)
+    {
+        if (issues is null || issues.Count == 0)
+        {
+            _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+            return;
+        }
+
+        var failures = issues
+            .Where(issue => !string.Equals(issue.Severity, "warning", StringComparison.OrdinalIgnoreCase))
+            .Select(issue => new Contracts.WorkflowPackageValidationFailure
+            {
+                Code = issue.Scope,
+                Message = issue.Message,
+                FieldPath = issue.Scope,
+            });
+
+        _validation.SetServerErrors(StudioWorkflowServerErrorBinder.Map(failures));
+    }
 
     private StudioWorkflowNode? SelectedNode =>
         _draft?.Nodes.FirstOrDefault(node => string.Equals(node.Id, _selectedNodeId, StringComparison.Ordinal)) ??
@@ -677,6 +744,11 @@
             : StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
         _loading = false;
 
+        // A fresh load is the clean baseline.
+        _validation.Clear();
+        _dirty.MarkClean();
+        RecomputeClientErrors();
+
         await RefreshRunHistoryAsync();
     }
 
@@ -711,6 +783,9 @@
                 return;
             }
 
+            RecomputeClientErrors();
+            BindServerErrors(_lastSave.ValidationIssues);
+
             // A save that fails server validation creates no version. Leave the draft dirty (do not refresh
             // the fingerprint or move the route) so a later publish cannot reuse a stale prior version and
             // silently drop the current edits; the validation issues render in-place from _lastSave.
@@ -720,6 +795,7 @@
             }
 
             _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
+            _dirty.MarkClean();
             NavigateToPersistedDraft();
         }
         finally
@@ -782,7 +858,16 @@
                 return;
             }
 
+            RecomputeClientErrors();
+            BindServerErrors(_lastPublish.ValidationIssues);
+
+            if (IsBlockedPublish(_lastPublish))
+            {
+                return;
+            }
+
             _savedDraftFingerprint = StudioWorkflowPackageDraftContent.CreateFingerprint(_draft);
+            _dirty.MarkClean();
             await RefreshRunHistoryAsync();
         }
         finally
@@ -952,6 +1037,8 @@
                 ]
             });
         }
+
+        OnEdit();
     }
 
     private void AddParameter()
@@ -963,6 +1050,8 @@
             Required = false,
             Description = "Workflow parameter."
         });
+
+        OnEdit();
     }
 
     // Canvas geometry mirrors the design mockup's DAG layout: nodes flow left-to-right by column with a

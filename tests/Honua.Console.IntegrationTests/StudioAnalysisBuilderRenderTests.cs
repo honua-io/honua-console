@@ -23,6 +23,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             Workspace = new StudioAnalysisWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
@@ -58,6 +59,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             Workspace = new StudioAnalysisWorkspace([], [listGated, estimateGated])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
@@ -87,6 +89,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(ReadyPlan(), [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
@@ -140,6 +143,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(incomplete, [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
@@ -177,6 +181,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(plan, [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
@@ -213,6 +218,7 @@ public sealed class StudioAnalysisBuilderRenderTests
                 ["layer", "content", "workflow"])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
@@ -255,6 +261,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(plan, [])
         };
         using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
