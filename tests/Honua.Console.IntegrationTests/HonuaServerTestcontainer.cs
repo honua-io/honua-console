@@ -18,15 +18,27 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
     private PostgreSqlContainer? _postgres;
     private IContainer? _server;
 
-    private HonuaServerTestcontainer(INetwork network, PostgreSqlContainer postgres, IContainer server, Uri baseAddress)
+    private HonuaServerTestcontainer(
+        INetwork network,
+        PostgreSqlContainer postgres,
+        IContainer server,
+        Uri baseAddress,
+        string postgresConnectionString)
     {
         _network = network;
         _postgres = postgres;
         _server = server;
         BaseAddress = baseAddress;
+        PostgresConnectionString = postgresConnectionString;
     }
 
     public Uri BaseAddress { get; }
+
+    /// <summary>
+    /// Host-reachable connection string for the shared PostGIS container (mapped host port), so a test can
+    /// seed source tables directly in the same database the server connects to over the Docker network.
+    /// </summary>
+    public string PostgresConnectionString { get; }
 
     public static async Task<HonuaServerTestcontainer> StartAsync(
         ConsoleTrustIntegrationOptions options,
@@ -88,7 +100,10 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
                 options.ServerScheme,
                 server.Hostname,
                 server.GetMappedPublicPort(options.ServerPort)).Uri;
-            return new HonuaServerTestcontainer(network, postgres, server, baseAddress);
+            // The PostgreSqlContainer's own connection string targets the mapped host port, so a test on the
+            // host can seed the very database the server reaches over the Docker network (host=postgres).
+            var postgresConnectionString = postgres.GetConnectionString();
+            return new HonuaServerTestcontainer(network, postgres, server, baseAddress, postgresConnectionString);
         }
         catch
         {

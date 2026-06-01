@@ -1,5 +1,7 @@
 using Bunit;
 using Honua.Console.Shell.Components;
+using Honua.Console.Shell.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -20,6 +22,9 @@ public sealed class PublishWizardWorkspaceRenderTests
         // The Projection step embeds MapPreview, which probes JS interop; loose mode keeps the
         // schematic placeholder without a real browser runtime.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        // The finish action drives the real service-layer-publish operation; with no server configured
+        // the wizard binds the missing-binding implementation (no network call, no fabricated publish).
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         return ctx;
     }
 

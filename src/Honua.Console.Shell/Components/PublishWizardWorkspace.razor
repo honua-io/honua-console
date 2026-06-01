@@ -1,5 +1,7 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IServiceLayerPublishOperation PublishOperation
 
 @*
     Functional publish wizards for the Operate publishing workspace, implementing the design-handoff
@@ -17,10 +19,13 @@
     card, compare-against rail), and the side rails ("You're publishing into" / "What gets created" /
     URL preview).
 
-    This is workflow scaffolding for the publishing IA, exactly like PublishFlowMap: it never reads
-    or fabricates honua-server publication state (Console Patterns Charter section 11). It captures
-    the operator's intent locally; the live registry reads / republish / rollback stay on the data
-    source the page already binds.
+    The step bodies are workflow scaffolding for the publishing IA, exactly like PublishFlowMap, and
+    never fabricate honua-server publication state (Console Patterns Charter section 11). The FINISH
+    action, however, is wired to a REAL service-layer-publish operation (issue #144): on finish the
+    quick-publish flow drives IServiceLayerPublishOperation, which POSTs to honua-server's admin
+    layer-publishing endpoint when a server base URL is configured, and surfaces an explicit
+    missing-binding result otherwise (never a fabricated success). The live registry reads /
+    republish / rollback stay on the data source the page already binds.
 *@
 
 <PublishModeBar Mode="_mode" ModeChanged="OnModeChanged" />
@@ -67,6 +72,7 @@ else
     private bool _authorCreateNewService;
     private string? _authorTargetId = "public-works-fs";
     private bool _published;
+    private ServiceLayerPublishResult? _publishResult;
 
     // ---- Projection preview controls (shared by both Projection steps) ----
     private bool _showLabels = true;
@@ -80,7 +86,42 @@ else
 
     private void OnAuthorCurrentChanged(int next) => _authorCurrent = next;
 
-    private void OnFinish() => _published = true;
+    // Drives the REAL service-layer-publish operation (issue #144). The step bodies above are design
+    // scaffolding, so the command is built from the wizard's source context + selected slot; when no
+    // server is configured the operation returns a missing-binding result and nothing is fabricated.
+    private async Task OnFinish()
+    {
+        var (schema, table) = SplitSchemaTable(SourceTable);
+        var serviceName = _createNewService
+            ? "parcels-fs"
+            : _selectedServiceId ?? "parcels-fs";
+
+        var command = new ServiceLayerPublishCommand
+        {
+            ConnectionId = SourceConnection,
+            Schema = schema,
+            Table = table,
+            LayerName = _selectedResourceId ?? "parcels",
+            ServiceName = serviceName,
+            GeometryColumn = "geom",
+            GeometryType = "Polygon",
+            Srid = 4326,
+            PrimaryKey = "gid",
+            Fields = [],
+            Enabled = true
+        };
+
+        _publishResult = await PublishOperation.PublishAsync(command);
+        _published = _publishResult.Succeeded;
+    }
+
+    private static (string Schema, string Table) SplitSchemaTable(string sourceTable)
+    {
+        var separator = sourceTable.IndexOf('.', StringComparison.Ordinal);
+        return separator > 0
+            ? (sourceTable[..separator], sourceTable[(separator + 1)..])
+            : ("public", sourceTable);
+    }
 
     private void ToggleLabels() => _showLabels = !_showLabels;
     private void TogglePopups() => _showPopups = !_showPopups;
@@ -401,12 +442,39 @@ else
             <aside class="publish-wizard-rail">
                 <p class="publish-callout publish-callout-info"><strong>Service settings are unchanged.</strong> You reused the existing service, so its CRS, capabilities, cache, anonymous access, and output formats all apply.</p>
                 @UrlPreviewCard("/public/pw/FeatureServer/8")
-                @if (_published)
-                {
-                    <p class="publish-callout publish-callout-info" data-publish-result>Published. The layer slot is now live; unpublish reverses it in one click.</p>
-                }
+                @PublishResultCallout
             </aside>
         </div>
+    };
+
+    private RenderFragment PublishResultCallout => __builder =>
+    {
+        if (_publishResult is null)
+        {
+            return;
+        }
+
+        if (_publishResult.Succeeded)
+        {
+            <p class="publish-callout publish-callout-info" data-publish-result data-publish-state="published">
+                Published @(_publishResult.LayerName ?? "layer")@(_publishResult.LayerId is { } id ? $" (layer {id})" : null) into @(_publishResult.ServiceName ?? "the service"). The layer slot is now live and queryable; unpublish reverses it in one click.
+            </p>
+        }
+        else
+        {
+            <p class="publish-callout publish-callout-warning" data-publish-result data-publish-state="@_publishResult.State.ToLowerInvariant().Replace(' ', '-')">
+                @_publishResult.Detail
+            </p>
+            @if (_publishResult.FieldErrors.Count > 0)
+            {
+                <ul class="publish-field-errors" data-publish-field-errors>
+                    @foreach (var error in _publishResult.FieldErrors)
+                    {
+                        <li><strong>@(error.Path ?? error.FieldId ?? error.Code):</strong> @error.Message</li>
+                    }
+                </ul>
+            }
+        }
     };
 
     // ===================================================================================
@@ -686,10 +754,7 @@ else
             </div>
             <aside class="publish-wizard-rail">
                 @UrlPreviewCard("/public/pw/FeatureServer/8")
-                @if (_published)
-                {
-                    <p class="publish-callout publish-callout-info" data-publish-result>Validated and published. A new Publication record was created; existing slots are untouched.</p>
-                }
+                @PublishResultCallout
             </aside>
         </div>
     };

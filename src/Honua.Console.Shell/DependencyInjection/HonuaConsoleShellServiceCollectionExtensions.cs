@@ -490,10 +490,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                     new HonuaAdminOperateClientOptions(baseUri, honuaServerAdminApiKey));
             });
             services.TryAddSingleton<IOperateTransitionDataSource, HonuaServerOperateTransitionDataSource>();
+            // The service-layer-publish OPERATION (issue #144) reuses the same admin client + base-URL gate
+            // so the publishing wizard's finish action performs a REAL publish against honua-server.
+            services.TryAddSingleton<IServiceLayerPublishOperation, HonuaServerServiceLayerPublishOperation>();
             return;
         }
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
+        services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal)
