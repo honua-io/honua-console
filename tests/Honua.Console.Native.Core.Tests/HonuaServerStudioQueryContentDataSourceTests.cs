@@ -341,6 +341,19 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
             return Task.FromResult(CreateItemResult);
         }
 
+        public Task<HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>> ListItemsAsync(
+            HonuaAnalysisContentListQuery query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>.FromData(
+                new HonuaAnalysisContentItemListResponse()));
+
+        public Task<HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>> EstimateAsync(
+            string itemId,
+            int version,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>.FromIssue(
+                new HonuaAdminEndpointIssue("Unavailable", "POST estimate", "not configured")));
+
         public Task<HonuaAdminEndpointResult<HonuaAnalysisContentVersionResponse>> GetItemAsync(
             string itemId,
             CancellationToken cancellationToken = default) =>

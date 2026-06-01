@@ -176,6 +176,72 @@ public static class StudioAnalysisPackageMapper
         return plan;
     }
 
+    /// <summary>
+    /// Projects a server analysis content list item (honua-server#1237 list endpoint) into the
+    /// /studio/analysis list row. The server item carries no separate draft/published version split, so the
+    /// current version is surfaced as the draft version and the published column stays empty (the analysis
+    /// content contract has no publish lifecycle distinct from immutable versioning).
+    /// </summary>
+    public static StudioAnalysisPlanListItem ToListItem(HonuaAnalysisContentItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        return new StudioAnalysisPlanListItem(
+            item.ItemId,
+            string.IsNullOrWhiteSpace(item.Title) ? item.Name : item.Title!,
+            ResolveListMethod(item),
+            ResolveListComputeProfile(item),
+            DraftVersion: item.CurrentVersion,
+            PublishedVersion: null,
+            UpdatedAt: item.UpdatedAt);
+    }
+
+    /// <summary>
+    /// Maps the server-computed runtime/cost estimate (honua-server#1237 estimate endpoint) into the plan
+    /// card estimate. The runtime and input feature count are real server figures; the cost note carries the
+    /// server's compute-units and USD cost so the operator reviews a server-priced figure before submit.
+    /// </summary>
+    public static StudioAnalysisComputeEstimate ToComputeEstimate(
+        HonuaAnalysisContentEstimate estimate,
+        string computeProfile)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+
+        var costNote = string.Format(
+            CultureInfo.InvariantCulture,
+            "~{0:0.###} compute units · ${1:0.####} (server estimate)",
+            estimate.EstimatedComputeUnits,
+            estimate.EstimatedCostUsd);
+
+        return new StudioAnalysisComputeEstimate(
+            estimate.EstimatedRuntimeSeconds,
+            estimate.EstimatedInputFeatureCount ?? 0,
+            computeProfile,
+            costNote);
+    }
+
+    private static string ResolveListMethod(HonuaAnalysisContentItem item)
+    {
+        // The list item carries only roots/metadata, not the package content. The Console-authored method is
+        // encoded in the item name slug (BuildName: "<method-or-title-slug>-<guid>") as a best-effort label;
+        // the authoritative method is resolved on open (LoadAsync) from the version content.
+        var name = item.Name;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return StudioAnalysisMethods.All[0];
+        }
+
+        var head = name.Split('-', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        return StudioAnalysisMethods.All.Contains(head, StringComparer.OrdinalIgnoreCase)
+            ? head!
+            : StudioAnalysisMethods.All[0];
+    }
+
+    private static string ResolveListComputeProfile(HonuaAnalysisContentItem item)
+        // The list endpoint returns item roots without package metadata, so the compute profile is not
+        // resolvable from the list. Surface the default; the real profile binds on open from the version.
+        => StudioAnalysisComputeProfiles.All[0];
+
     /// <summary>Projects the server-compiled plan into the Console DAG/pipeline view (AC#2).</summary>
     public static IReadOnlyList<StudioAnalysisPipelineNode> ToPipeline(HonuaAnalysisPlan plan, string title)
     {

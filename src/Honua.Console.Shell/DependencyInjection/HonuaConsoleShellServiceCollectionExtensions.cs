@@ -13,7 +13,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         this IServiceCollection services,
         string? honuaServerBaseUrl = null,
         string? honuaServerAdminApiKey = null,
-        string? honuaServerPublicationIds = null)
+        string? honuaServerPublicationIds = null,
+        string? honuaServerTemporalSources = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -41,7 +42,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddRbacAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddCatalogDiscoveryDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateTransitionDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddTemporalCapabilityClient(services);
+        AddTemporalCapabilityClient(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerTemporalSources);
         AddEsriMigrationRunDataSource(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
@@ -500,19 +501,44 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
     }
 
-    // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal)
-    // to honua-server's temporal data history API (#1166: as-of query, diff, attribution, rollback) and
-    // the disconnected replica conflict review API (#1167: named replica metadata + conflict reads /
-    // resolution writes). Both server contracts are still open/unlanded, so the merged build registers
-    // only the missing-binding client: every temporal operation (capabilities, checkpoints, diff, feature
-    // timeline, rollback plan/execute, replica queue/review, conflict resolution) returns a
-    // missing-binding state, the viewer renders an explicit capability explanation, and Console never
-    // fabricates temporal history or sync conflicts from a standing mock (Console Patterns Charter
-    // section 11). When #1166/#1167 land, wire the live HTTP-bound client here behind the
-    // Honua.Console.Contracts shim, gated on a configured server base URL exactly like the Studio /
-    // Operate bindings above; the page and tests already consume the full ITemporalCapabilityClient.
-    private static void AddTemporalCapabilityClient(IServiceCollection services) =>
+    // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
+    // honua-server's temporal data history API (#1166 slice 1: capability discovery + as-of read) and the
+    // disconnected replica management API (#1167 slice 1: replica list + detail) through the
+    // IHonuaTemporalClient shim when a server base address is configured. The temporal API is per
+    // service/layer with no enumeration verb, so — like the publishing workspace keying off configured
+    // publication ids — the viewer is keyed by a configured list of candidate sources
+    // (Honua:Server:TemporalSources / HONUA_SERVER_TEMPORAL_SOURCES, "serviceId:layerId"). The deferred
+    // server slices (diff/timeline/rollback execution #1285, replica conflict-review #1287) are NOT merged;
+    // the live client binds what exists and renders the rest as the established not-yet-available state,
+    // never fabricated (Console Patterns Charter section 11). When no base URL is configured the
+    // missing-binding client is registered and the viewer renders an explicit capability explanation.
+    private static void AddTemporalCapabilityClient(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey,
+        string? honuaServerTemporalSources)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaTemporalClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaTemporalHttpClient(
+                    httpClient,
+                    new HonuaTemporalClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+
+            var options = HonuaServerTemporalOptions.FromConfiguredList(honuaServerTemporalSources);
+            services.TryAddSingleton<ITemporalCapabilityClient>(serviceProvider =>
+                new HonuaServerTemporalCapabilityClient(
+                    serviceProvider.GetRequiredService<IHonuaTemporalClient>(),
+                    options));
+            return;
+        }
+
         services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+    }
 
     // Binds the "Import from Esri" wizard run engine + parity scorecard (#102, /operate/import/esri Run and
     // Scorecard steps) to the honua-devops migration-run API. The issue-122 handoff flags honua-devops as the

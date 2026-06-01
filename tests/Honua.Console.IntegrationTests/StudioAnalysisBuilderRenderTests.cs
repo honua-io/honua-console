@@ -35,28 +35,20 @@ public sealed class StudioAnalysisBuilderRenderTests
     }
 
     [Fact]
-    public void AnalysisBuilder_WhenListAndEstimateGatedOn1237_RendersDegradedCapabilityStates()
+    public void AnalysisBuilder_WhenListBound_RendersLiveListRowsNotDegradedCopy()
     {
-        // honua-server#1182 (core analysis content/artifacts) is live-bound, but honua-server#1237
-        // (analysis content API: list + cost-estimate) is still open. Those two capabilities degrade to
-        // explicit, labelled capability states instead of fabricated data. Drive the page with the same
-        // capability states the live HonuaServerStudioAnalysisContentDataSource emits.
-        var listGated = new StudioAnalysisCapabilityState(
-            "Analysis builder",
-            "Unsupported",
-            "GET /api/v1/analysis/content/items (list)",
-            "honua-server does not yet expose an analysis-package list endpoint, so existing packages cannot "
-            + "be enumerated from live data. This list binds automatically once honua-server#1237 adds a list route.");
-        var estimateGated = new StudioAnalysisCapabilityState(
-            "Analysis builder",
-            "Unsupported",
-            "POST /api/v1/analysis/content/items/{itemId}/versions/{contentVersion}/estimate",
-            "Estimate unavailable from server: honua-server does not yet expose a runtime/cost estimate "
-            + "route, so this estimate is a local Console projection. It binds once honua-server#1237 adds the route.");
-
+        // honua-server#1237 (analysis content API: list) is merged and live-bound, so the page renders the
+        // real list rows the live data source projects — not the prior degraded "Unsupported list" copy.
         var data = new FakeAnalysisDataSource
         {
-            Workspace = new StudioAnalysisWorkspace([], [listGated, estimateGated])
+            Workspace = new StudioAnalysisWorkspace(
+                [
+                    new StudioAnalysisPlanListItem("analysis-7", "Hydrant buffer", "buffer", "standard", 3, null,
+                        new DateTimeOffset(2026, 5, 28, 9, 0, 0, TimeSpan.Zero)),
+                    new StudioAnalysisPlanListItem("analysis-9", "Flood overlay", "overlay", "standard", 1, null,
+                        new DateTimeOffset(2026, 5, 27, 8, 0, 0, TimeSpan.Zero)),
+                ],
+                [])
         };
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
@@ -64,18 +56,15 @@ public sealed class StudioAnalysisBuilderRenderTests
 
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
 
-        // The degraded list and estimate states render as explicit server capability states (no mock list,
-        // no fabricated server estimate) referencing the open server issue.
+        // Live list values render in the table; no degraded list/estimate capability state is shown.
         page.WaitForAssertion(
-            () => Assert.Equal(2, page.FindAll("[data-analysis-capability]").Count),
+            () => Assert.Equal(2, page.FindAll("table.console-table tbody tr").Count),
             TimeSpan.FromSeconds(5));
-        Assert.Contains(
-            "[data-analysis-capability=\"GET /api/v1/analysis/content/items (list)\"]",
-            page.FindAll("[data-analysis-capability]").Select(e => $"[data-analysis-capability=\"{e.GetAttribute("data-analysis-capability")}\"]"));
-        Assert.Contains("honua-server#1237", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Estimate unavailable from server", page.Markup, StringComparison.Ordinal);
-        // No analysis-package list was fabricated.
-        Assert.DoesNotContain("data-analysis-builder", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Hydrant buffer", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Flood overlay", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("does not yet expose an analysis-package list", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Estimate unavailable from server", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-analysis-capability]"));
     }
 
     [Fact]
