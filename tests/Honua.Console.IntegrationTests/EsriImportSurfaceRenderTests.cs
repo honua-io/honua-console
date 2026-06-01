@@ -276,6 +276,154 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("Failed", card.Markup, StringComparison.Ordinal);
     }
 
+    // ---- Wave 6: intake validation + dirty-guard wiring ----
+
+    [Fact]
+    public void Intake_PasteInvalidJson_RendersInlineErrorAndAriaInvalid_NoParse()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+
+        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+
+        // Paste structurally-broken JSON and ask to parse it.
+        page.Find("textarea.esri-intake__textarea").Input("{ not json");
+        page.FindAll("button.console-button-sm").First(b => b.TextContent.Contains("Parse JSON", StringComparison.Ordinal)).Click();
+
+        // Inline finding + aria-invalid on the control; no mapping table is produced (the parse is gated).
+        Assert.Contains("Not valid JSON", page.Markup, StringComparison.Ordinal);
+        var textarea = page.Find("textarea.esri-intake__textarea");
+        Assert.Equal("true", textarea.GetAttribute("aria-invalid"));
+        Assert.DoesNotContain("Layer mapping", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Intake_PasteJsonArray_RendersNotAnObjectError()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+
+        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        page.Find("textarea.esri-intake__textarea").Input("[1, 2, 3]");
+
+        Assert.Contains("must be a JSON object", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Intake_UrlMode_RendersBoundUrlInputAndValidatesBadUrl()
+    {
+        using var ctx = NewContext();
+
+        var page = ctx.RenderComponent<ImportEsriDashboardPage>();
+
+        // Switch to URL / item id mode — a bound URL input replaces the static binding note.
+        page.FindAll("button.esri-intake__mode").First(b => b.TextContent.Contains("URL", StringComparison.Ordinal)).Click();
+        var urlInput = page.Find("input[data-intake-url]");
+
+        // A garbage value (spaces) is neither an absolute URL nor an item id -> inline error + aria-invalid.
+        urlInput.Input("not a url");
+        Assert.Contains("absolute http(s) URL or an ArcGIS item id", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("true", page.Find("input[data-intake-url]").GetAttribute("aria-invalid"));
+
+        // A valid absolute https URL clears the finding.
+        page.Find("input[data-intake-url]").Input("https://org.maps.arcgis.com/home/item.html?id=abc");
+        Assert.DoesNotContain("absolute http(s) URL or an ArcGIS item id", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Intake_ValidPaste_Parses_NoInlineErrors()
+    {
+        using var ctx = NewContext();
+
+        var page = ctx.RenderComponent<ImportStoryMapPage>();
+        page.Find("textarea.esri-intake__textarea").Input("""{ "nodes": { "n1": { "type": "text", "title": "Intro" } } }""");
+        page.FindAll("button.console-button-sm").First(b => b.TextContent.Contains("Parse JSON", StringComparison.Ordinal)).Click();
+
+        // A valid paste parses to the section mapping with no inline finding remaining.
+        Assert.Contains("Section → content mapping", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Not valid JSON", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("must be a JSON object", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DirtyGuard_EditingIntake_PreventsNavigation()
+    {
+        using var ctx = NewContext();
+        // confirm() returns false => operator chose to stay on the page when leaving with unsaved intake.
+        ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+
+        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+
+        // Editing the intake marks the form dirty (the inline JSON finding appears once edited); the
+        // <UnsavedChangesGuard/> intercepts internal SPA navigation and (confirm() => false) keeps the
+        // operator on the page.
+        page.Find("textarea.esri-intake__textarea").Input("{ \"title\": \"draft\"");
+        page.WaitForAssertion(
+            () => Assert.Contains("data-field-key", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        nav.NavigateTo("/operate");
+        Assert.Equal(Bunit.TestDoubles.NavigationState.Prevented, nav.History.Last().State);
+    }
+
+    [Fact]
+    public void DirtyGuard_SuccessfulParse_ClearsDirty_AllowsNavigation()
+    {
+        using var ctx = NewContext();
+        ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
+        ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+
+        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+
+        // Stage an edit, then parse a valid Web Map. A successful parse marks the intake clean.
+        page.Find("textarea.esri-intake__textarea").Input(EsriImportSampleDocumentsValidWebMap);
+        page.FindAll("button.console-button-sm").First(b => b.TextContent.Contains("Parse JSON", StringComparison.Ordinal)).Click();
+        page.WaitForAssertion(
+            () => Assert.Contains("Layer mapping", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // The clean baseline lets navigation proceed without a prompt.
+        nav.NavigateTo("/operate/after-parse");
+        page.WaitForAssertion(
+            () => Assert.Equal(Bunit.TestDoubles.NavigationState.Succeeded, nav.History.Last().State),
+            TimeSpan.FromSeconds(5));
+    }
+
+    private const string EsriImportSampleDocumentsValidWebMap =
+        """{ "title": "Draft Map", "operationalLayers": [ { "id": "p", "title": "Parcels", "layerType": "ArcGISFeatureLayer", "url": "https://services.arcgis.com/x/FeatureServer/0" } ] }""";
+
+    // ---- Wave 6: wizard step gating ----
+
+    [Fact]
+    public void WizardPage_SourceStep_ConnectedSource_AllowsAdvance()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new UnsupportedEsriMigrationRunDataSource());
+
+        var page = RenderWizardAtStep(ctx, 0);
+
+        // A connected source gates the Source step valid -> the Continue control is enabled.
+        var next = page.Find("button.publish-wizard-next");
+        Assert.False(next.HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void WizardPage_MapStep_ResolvableMappings_AllowsRun()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new UnsupportedEsriMigrationRunDataSource());
+
+        var page = RenderWizardAtStep(ctx, 2);
+
+        // The Map step resolves at least one non-dropped mapping -> the "Run migration →" control is enabled.
+        var run = page.Find("button.publish-wizard-next");
+        Assert.False(run.HasAttribute("disabled"));
+        Assert.Contains("Run migration", run.TextContent, StringComparison.Ordinal);
+    }
+
     private sealed class StubMigrationRunDataSource : IEsriMigrationRunDataSource
     {
         public Task<MigrationPlanLoad> LoadPlanAsync(string migrationId, CancellationToken cancellationToken = default) =>

@@ -1,6 +1,9 @@
 @page "/operate/import/esri/web-map"
+@using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Honua.Console.Shell.Validation
+@implements IDisposable
 @inject IPublishingWorkspaceDataSource PublishingData
 
 @* #100 · Import Esri Web Map JSON → honua.map-package.v1 (screens-import-esri.jsx ImportEsriWebMap).
@@ -8,6 +11,8 @@
    fidelity badge + reason note, MapPreview target, "Create map package →" CTA wired to /operate/publishing.
    The Esri-JSON parse is deterministic Console-side work; the publish target binds the real publishing
    workspace contract, else the inline missing-binding banner shows (Console Patterns Charter section 11). *@
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Web Map import. Leave this page and discard it?" />
 
 <section class="console-page esri-import" data-esri-import="web-map">
     <div class="console-detail-heading">
@@ -26,9 +31,11 @@
     </div>
 
     <EsriImportIntake Noun="Web Map"
+                      Kind="EsriContentKind.WebMap"
                       Result="_result"
                       Parse="ParseWebMap"
                       OnParsed="OnParsed"
+                      Dirty="_dirty"
                       SampleJson="@EsriImportSampleDocuments.WebMap"
                       SampleFileName="@EsriImportSampleDocuments.WebMapFileName" />
 
@@ -106,6 +113,15 @@
 
     private EsriConversionResult? _result;
     private PublishingMissingBinding? _publishBinding;
+
+    // The intake carries unsaved import state (pasted/uploaded JSON, mapping preview); the intake marks
+    // this dirty on edit and clean on a successful parse, and the guard warns on navigation while dirty.
+    private readonly FormDirtyState _dirty = new();
+
+    // The dirty flag is flipped by the child intake; re-render so the hosted <UnsavedChangesGuard/> sees it.
+    protected override void OnInitialized() => _dirty.Changed += StateHasChanged;
+
+    public void Dispose() => _dirty.Changed -= StateHasChanged;
 
     private static EsriParseOutcome ParseWebMap(string json, string? fileName) => Parser.ParseWebMap(json, fileName);
 

@@ -1,5 +1,6 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
 
 @*
     Shared intake bar for the three single-content Esri import surfaces (#100 Web Map, #101 Dashboard,
@@ -7,6 +8,12 @@
     From URL or item ID / From connected ArcGIS. Paste and Upload are deterministic Console-side parses; URL
     / item ID and connected-ArcGIS need a live server fetch and surface a binding-required note instead of
     fabricating a fetch (Console Patterns Charter section 11).
+
+    Intake is validated before a parse / fetch (EsriImportValidator): a source must be provided, pasted JSON
+    must parse to a JSON object, and a typed URL / item id must be an absolute http(s) URL or a plausible
+    item-id token. Findings render inline via ValidationMessageInline. The intake carries unsaved state, so
+    it marks the host's FormDirtyState on edit and clears it on a successful parse; the host renders the
+    <UnsavedChangesGuard/> bound to that dirty flag.
 
     On a successful parse the host page receives the EsriConversionResult via OnParsed and renders the
     mapping table + target preview. The summary chips reflect the parsed document.
@@ -40,8 +47,12 @@
                       rows="5"
                       placeholder="@PastePlaceholder"
                       aria-label="@($"Paste {Noun} JSON")"
+                      aria-invalid="@(_validation.HasErrorsFor(EsriImportFieldKeys.Json) ? "true" : null)"
                       @bind="_pasteValue"
-                      @bind:event="oninput"></textarea>
+                      @bind:event="oninput"
+                      @bind:after="OnPasteEdit"></textarea>
+            <ValidationMessageInline FieldKey="@EsriImportFieldKeys.Json" State="_validation" />
+            <ValidationMessageInline FieldKey="@EsriImportFieldKeys.Source" State="_validation" />
             <div class="console-button-row">
                 <button type="button" class="console-button console-button-sm" @onclick="ParsePaste">Parse JSON</button>
                 @if (!string.IsNullOrWhiteSpace(SampleJson))
@@ -59,21 +70,46 @@
     {
         <div class="esri-intake__input">
             <InputFile class="esri-intake__file" OnChange="OnFileSelected" accept=".json,application/json" aria-label="@($"Upload {Noun} JSON file")" />
+            <ValidationMessageInline FieldKey="@EsriImportFieldKeys.Source" State="_validation" />
             @if (!string.IsNullOrWhiteSpace(_error))
             {
                 <span class="console-status console-state-danger" data-intake-error>@_error</span>
             }
         </div>
     }
+    else if (_mode is "url")
+    {
+        <div class="esri-intake__input">
+            <label class="studio-form-label">
+                <span>@($"{Noun} URL or item id")</span>
+                <input class="console-input"
+                       type="text"
+                       data-intake-url
+                       placeholder="https://… or item id"
+                       aria-label="@($"{Noun} URL or item id")"
+                       aria-invalid="@(_validation.HasErrorsFor(EsriImportFieldKeys.Url) ? "true" : null)"
+                       @bind="_urlValue"
+                       @bind:event="oninput"
+                       @bind:after="OnUrlEdit" />
+                <ValidationMessageInline FieldKey="@EsriImportFieldKeys.Url" State="_validation" />
+                <ValidationMessageInline FieldKey="@EsriImportFieldKeys.Source" State="_validation" />
+            </label>
+            <div class="esri-intake__binding" data-intake-binding>
+                <span class="console-status console-state-info">binding required</span>
+                <span>
+                    Fetching by URL or item ID reads from a connected ArcGIS source through honua-server.
+                    Paste or upload the @Noun JSON to convert it now without a server.
+                </span>
+            </div>
+        </div>
+    }
     else
     {
-        @* URL / item ID and connected-ArcGIS both require a live fetch -> binding-required note. *@
+        @* connected-ArcGIS requires a live fetch -> binding-required note. *@
         <div class="esri-intake__binding" data-intake-binding>
             <span class="console-status console-state-info">binding required</span>
             <span>
-                @(_mode is "url"
-                    ? "Fetching by URL or item ID reads from a connected ArcGIS source through honua-server."
-                    : "Reading from a connected ArcGIS organization requires a bound honua-server.")
+                Reading from a connected ArcGIS organization requires a bound honua-server.
                 Paste or upload the @Noun JSON to convert it now without a server.
             </span>
         </div>
@@ -93,7 +129,9 @@
 @code {
     private string _mode = "paste";
     private string _pasteValue = string.Empty;
+    private string _urlValue = string.Empty;
     private string? _error;
+    private readonly ValidationState _validation = new();
 
     private readonly record struct ModeOption(string Mode, string Label);
 
@@ -113,6 +151,10 @@
     [Parameter]
     public string Noun { get; set; } = "content";
 
+    /// <summary>The content kind, used by the intake validator's shape expectation.</summary>
+    [Parameter]
+    public EsriContentKind Kind { get; set; } = EsriContentKind.WebMap;
+
     /// <summary>Parses the pasted/uploaded JSON into a conversion result; returns the outcome.</summary>
     [Parameter, EditorRequired]
     public Func<string, string?, EsriParseOutcome> Parse { get; set; } = (_, _) => EsriParseOutcome.Failure("No parser bound.");
@@ -120,6 +162,13 @@
     /// <summary>Raised with the conversion result on a successful parse.</summary>
     [Parameter]
     public EventCallback<EsriConversionResult> OnParsed { get; set; }
+
+    /// <summary>
+    /// The host editor's dirty-state holder. The intake marks it dirty on edit and clears it on a
+    /// successful parse, so the host's <c>&lt;UnsavedChangesGuard/&gt;</c> warns when intake is unsaved.
+    /// </summary>
+    [Parameter]
+    public FormDirtyState? Dirty { get; set; }
 
     /// <summary>
     /// Optional illustrative sample document. When set, a "Load a sample" action parses it through the same
@@ -135,6 +184,36 @@
 
     private string PastePlaceholder => $"Paste the {Noun} JSON here…";
 
+    private EsriIntakeMode CurrentMode => _mode switch
+    {
+        "upload" => EsriIntakeMode.Upload,
+        "url" => EsriIntakeMode.Url,
+        "arcgis" => EsriIntakeMode.ConnectedArcGis,
+        _ => EsriIntakeMode.Paste,
+    };
+
+    private EsriImportIntakeState BuildIntakeState() => new(
+        Kind,
+        CurrentMode,
+        PastedJson: _pasteValue,
+        UploadFileName: null,
+        Url: _urlValue);
+
+    private void Revalidate() =>
+        _validation.SetClientErrors(EsriImportValidator.Instance.Evaluate(BuildIntakeState()));
+
+    private void OnPasteEdit()
+    {
+        Dirty?.MarkDirty();
+        Revalidate();
+    }
+
+    private void OnUrlEdit()
+    {
+        Dirty?.MarkDirty();
+        Revalidate();
+    }
+
     private async Task LoadSample()
     {
         if (string.IsNullOrWhiteSpace(SampleJson))
@@ -143,19 +222,28 @@
         }
 
         _pasteValue = SampleJson;
-        await ApplyOutcome(Parse(SampleJson, SampleFileName));
+        Dirty?.MarkDirty();
+        await ParseAndApply(SampleJson, SampleFileName);
     }
 
     private void SetMode(string mode)
     {
         _mode = mode;
         _error = null;
+        Revalidate();
     }
 
     private async Task ParsePaste()
     {
-        var outcome = Parse(_pasteValue, null);
-        await ApplyOutcome(outcome);
+        Revalidate();
+        // Don't issue the parse when the intake is structurally invalid (no source / bad JSON / bad URL).
+        if (_validation.HasBlockingClientErrors
+            || _validation.HasErrorsFor(EsriImportFieldKeys.Json))
+        {
+            return;
+        }
+
+        await ParseAndApply(_pasteValue, null);
     }
 
     private async Task OnFileSelected(InputFileChangeEventArgs args)
@@ -165,6 +253,8 @@
         {
             return;
         }
+
+        Dirty?.MarkDirty();
 
         string json;
         try
@@ -179,15 +269,18 @@
             return;
         }
 
-        var outcome = Parse(json, file.Name);
-        await ApplyOutcome(outcome);
+        await ParseAndApply(json, file.Name);
     }
 
-    private async Task ApplyOutcome(EsriParseOutcome outcome)
+    private async Task ParseAndApply(string json, string? fileName)
     {
+        var outcome = Parse(json, fileName);
         if (outcome.Succeeded)
         {
             _error = null;
+            _validation.Clear();
+            // A successful parse is the saved baseline for this intake.
+            Dirty?.MarkClean();
             if (OnParsed.HasDelegate)
             {
                 await OnParsed.InvokeAsync(outcome.Result);
