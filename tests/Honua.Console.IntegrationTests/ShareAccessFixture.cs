@@ -87,5 +87,12 @@ public sealed class ShareAccessFixture : IAsyncLifetime
             new HonuaConsoleShareClientOptions(BaseAddress, Options.StudioAdminApiKey));
     }
 
+    /// <summary>
+    /// The independent verification oracle that reads server state back through canonical read APIs and the
+    /// anonymous Console Share surface — never the admin Share mutation path the operation went through.
+    /// </summary>
+    public ServerStateVerifier CreateVerifier() =>
+        new(BaseAddress, Options.StudioAdminApiKey);
+
     public string? AdminApiKey => Options.StudioAdminApiKey;
 }

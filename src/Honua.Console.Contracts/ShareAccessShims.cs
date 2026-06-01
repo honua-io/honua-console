@@ -320,9 +320,21 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
                     (int)response.StatusCode));
             }
 
-            if (envelope?.Success == true && envelope.Data is not null)
+            if (envelope?.Success == true)
             {
-                return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
+                if (envelope.Data is not null)
+                {
+                    return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
+                }
+
+                // A successful command that returns no projection (e.g. public-link revoke) wraps a
+                // message-only ack with data:null. Surface it as a successful ack rather than a false
+                // Unavailable so callers (and the Share lifecycle round-trip) see the operation succeed.
+                if (typeof(T) == typeof(HonuaConsoleShareCommandAck))
+                {
+                    var ack = (T)(object)new HonuaConsoleShareCommandAck { Message = envelope.Message };
+                    return HonuaAdminEndpointResult<T>.FromData(ack);
+                }
             }
 
             return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(

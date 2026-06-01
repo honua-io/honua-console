@@ -284,6 +284,133 @@ public sealed class ServerStateVerifier : IDisposable
     }
 
     // ---------------------------------------------------------------------------------------------
+    //  Console catalog detail: GET /api/v1/console/content/{id}
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads a single console content item's catalog projection (title, itemType, visibility) independently
+    /// of the operation that created it. Returns <c>null</c> when the item is absent or the surface is
+    /// unavailable.
+    /// </summary>
+    public async Task<VerifiedCatalogItem?> GetCatalogItemAsync(
+        string itemId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/console/content/{Uri.EscapeDataString(itemId)}";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return null;
+        }
+
+        // The console content GET returns either the bare item or a {success,data,...} envelope.
+        var root = document.RootElement;
+        var item = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? data
+            : root;
+
+        var id = GetString(item, "id");
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        return new VerifiedCatalogItem(
+            id!,
+            GetString(item, "title"),
+            GetString(item, "itemType"),
+            GetString(item, "visibility"));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //  Content publication admin detail: GET /api/v1/console/publications/{id}
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the admin content-publication route state (route slug/path, kind, active revision, visibility)
+    /// independently of the console publish operation. Returns <c>null</c> when absent / unavailable.
+    /// </summary>
+    public async Task<VerifiedPublicationRoute?> GetPublicationRouteAsync(
+        string publicationId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/console/publications/{Uri.EscapeDataString(publicationId)}";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null || !document.RootElement.TryGetProperty("route", out var route) || route.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        string? visibility = null;
+        if (route.TryGetProperty("policy", out var policy) && policy.ValueKind == JsonValueKind.Object)
+        {
+            visibility = GetString(policy, "visibility");
+        }
+
+        return new VerifiedPublicationRoute(
+            GetString(route, "publicationId"),
+            GetString(route, "routeSlug"),
+            GetString(route, "routePath"),
+            GetString(route, "kind"),
+            GetInt(route, "activeRevision"),
+            visibility);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //  Published-route reachability (anonymous): GET /api/v1/published/{routeSlug}
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Fetches a published artifact by its route slug through the public <c>/api/v1/published</c> surface as
+    /// an UNAUTHENTICATED client (no admin key). Returns the HTTP status and the resolved title/revision so a
+    /// test can assert a public publication is actually reachable anonymously (200) while a private one is
+    /// denied (401/403/404) — the independent proof the route landed and enforces visibility.
+    /// </summary>
+    public Task<VerifiedAnonymousFetch> FetchPublishedRouteAnonymouslyAsync(
+        string routeSlug,
+        CancellationToken cancellationToken = default)
+    {
+        var trimmed = routeSlug.TrimStart('/');
+        return FetchAnonymousAsync($"/api/v1/published/{trimmed}", cancellationToken);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //  Anonymous Console Share resolution: GET /api/v1/console/share/...
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Resolves a public-link token through the anonymous Console Share surface
+    /// (<c>GET /api/v1/console/share/link/{token}</c>) as an UNAUTHENTICATED client. A granted token returns
+    /// 200 with the item's presentation projection; an unknown/expired/revoked/forbidden token returns 404
+    /// with a constant denial body. This is the independent proof a minted token actually grants the scope.
+    /// </summary>
+    public Task<VerifiedAnonymousFetch> ResolvePublicLinkAnonymouslyAsync(
+        string token,
+        CancellationToken cancellationToken = default) =>
+        FetchAnonymousAsync($"/api/v1/console/share/link/{Uri.EscapeDataString(token)}", cancellationToken);
+
+    /// <summary>
+    /// Resolves a public-indexed content item through the anonymous Console Share surface
+    /// (<c>GET /api/v1/console/share/content/{id}</c>) as an UNAUTHENTICATED client. A public-indexed item
+    /// returns 200; a private/missing/no-longer-public item returns 404. The independent proof an access-tier
+    /// raise actually grants anonymous content access.
+    /// </summary>
+    public Task<VerifiedAnonymousFetch> ResolvePublicContentAnonymouslyAsync(
+        string itemId,
+        CancellationToken cancellationToken = default) =>
+        FetchAnonymousAsync($"/api/v1/console/share/content/{Uri.EscapeDataString(itemId)}", cancellationToken);
+
+    /// <summary>
+    /// Redeems an embed token through the anonymous Console Share surface
+    /// (<c>POST /api/v1/console/share/embed/{token}/redeem</c>) as an UNAUTHENTICATED client. A live embed
+    /// token returns 200 with the embed resolution; an expired/disabled token returns 404.
+    /// </summary>
+    public Task<VerifiedAnonymousFetch> RedeemEmbedTokenAnonymouslyAsync(
+        string token,
+        CancellationToken cancellationToken = default) =>
+        FetchAnonymousAsync($"/api/v1/console/share/embed/{Uri.EscapeDataString(token)}/redeem", cancellationToken, HttpMethod.Post);
+
+    // ---------------------------------------------------------------------------------------------
     //  STAC: GET /stac/collections
     // ---------------------------------------------------------------------------------------------
 
@@ -355,6 +482,65 @@ public sealed class ServerStateVerifier : IDisposable
             {
                 return null;
             }
+        }
+    }
+
+    /// <summary>
+    /// Issues a request WITHOUT the admin API key (a genuinely anonymous client) and projects the HTTP status
+    /// plus, on success, a few presentation fields parsed defensively from the response body. Transport
+    /// failures surface as status 0 so a caller can distinguish "server unreachable" from a real denial.
+    /// </summary>
+    private async Task<VerifiedAnonymousFetch> FetchAnonymousAsync(
+        string path,
+        CancellationToken cancellationToken,
+        HttpMethod? method = null)
+    {
+        using var request = new HttpRequestMessage(method ?? HttpMethod.Get, path);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return new VerifiedAnonymousFetch(0, false, null, null, null);
+        }
+
+        using (response)
+        {
+            var status = (int)response.StatusCode;
+            var success = response.IsSuccessStatusCode;
+            string? itemId = null;
+            string? title = null;
+            string? accessTier = null;
+
+            if (success)
+            {
+                var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(payload))
+                {
+                    try
+                    {
+                        using var document = JsonDocument.Parse(payload);
+                        var root = document.RootElement;
+                        // The anonymous Share resolutions wrap the projection in {success,data,...}; the
+                        // published-route read returns the view object directly. Handle both.
+                        var body = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+                            ? data
+                            : root;
+                        itemId = GetString(body, "itemId") ?? GetString(body, "publicationId");
+                        title = GetString(body, "title");
+                        accessTier = GetString(body, "accessTier");
+                    }
+                    catch (JsonException)
+                    {
+                        // Leave the projection fields null; the status code is the load-bearing assertion.
+                    }
+                }
+            }
+
+            return new VerifiedAnonymousFetch(status, success, itemId, title, accessTier);
         }
     }
 
@@ -457,3 +643,29 @@ public sealed record VerifiedServiceSettings(
     string? ServiceName,
     IReadOnlyList<string> EnabledProtocols,
     IReadOnlyList<string> AvailableProtocols);
+
+public sealed record VerifiedCatalogItem(
+    string Id,
+    string? Title,
+    string? ItemType,
+    string? Visibility);
+
+public sealed record VerifiedPublicationRoute(
+    string? PublicationId,
+    string? RouteSlug,
+    string? RoutePath,
+    string? Kind,
+    int? ActiveRevision,
+    string? Visibility);
+
+/// <summary>
+/// Result of an UNAUTHENTICATED fetch against a public/anonymous surface: the HTTP status (0 on transport
+/// failure), whether it was a 2xx grant, and the presentation fields parsed on success. Lets a test assert
+/// "an anonymous client is granted (200) / denied (4xx) access" without trusting the operation's own path.
+/// </summary>
+public sealed record VerifiedAnonymousFetch(
+    int StatusCode,
+    bool Granted,
+    string? ItemId,
+    string? Title,
+    string? AccessTier);
