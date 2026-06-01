@@ -687,6 +687,206 @@ public sealed class ServerStateVerifier : IDisposable
     }
 
     // ---------------------------------------------------------------------------------------------
+    //  Studio content-item version: GET /api/v1/studio/content-items/{itemId}/versions[/{versionId}]
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads a single immutable Studio content-item version back through the canonical server content API
+    /// (honua-server#1180/#1183), independently of the console builder data source: the package family/kind,
+    /// the envelope schema version, the integer version number, the content hash, and the publication-intent
+    /// visibility/route carried on the frozen envelope. This is the round-trip proof that a Studio
+    /// authoring→publish (map / dashboard) actually landed a content version with the right shape, read via
+    /// a DIFFERENT client than the one the publish went through (plan §4 rule #2). Returns <c>null</c> when the
+    /// version is absent (404) or the surface is unavailable.
+    /// </summary>
+    public async Task<VerifiedStudioContentVersion?> GetStudioContentVersionAsync(
+        Guid itemId,
+        Guid versionId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/studio/content-items/{itemId}/versions/{versionId}";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return null;
+        }
+
+        // The Studio API wraps the version in the shared {success,data,...} envelope; the version may also
+        // be returned bare. Handle both.
+        var root = document.RootElement;
+        var item = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? data
+            : root;
+
+        if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("versionId", out _))
+        {
+            return null;
+        }
+
+        string? family = null;
+        string? schemaVersion = null;
+        string? visibility = null;
+        string? route = null;
+        if (item.TryGetProperty("envelope", out var envelope) && envelope.ValueKind == JsonValueKind.Object)
+        {
+            family = GetString(envelope, "family");
+            schemaVersion = GetString(envelope, "schemaVersion");
+            if (envelope.TryGetProperty("publicationIntent", out var intent) && intent.ValueKind == JsonValueKind.Object)
+            {
+                visibility = GetString(intent, "visibility");
+                route = GetString(intent, "route");
+            }
+        }
+
+        return new VerifiedStudioContentVersion(
+            GetString(item, "itemId"),
+            GetString(item, "versionId"),
+            GetInt(item, "versionNumber"),
+            GetString(item, "packageKey"),
+            family,
+            schemaVersion,
+            GetString(item, "contentHash"),
+            visibility,
+            route);
+    }
+
+    /// <summary>
+    /// Lists the immutable Studio content-item versions for an item through the canonical server content API,
+    /// independently of the console builder. Returns the integer version numbers present, so a test can prove a
+    /// freshly cut version actually landed (and that a republish advanced to a second version). Empty when the
+    /// item is absent or the surface is unavailable.
+    /// </summary>
+    public async Task<IReadOnlyList<int>> ListStudioContentVersionNumbersAsync(
+        Guid itemId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/studio/content-items/{itemId}/versions";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return [];
+        }
+
+        var root = document.RootElement;
+        var body = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? data
+            : root;
+
+        if (body.ValueKind != JsonValueKind.Object || !body.TryGetProperty("versions", out var versions) || versions.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var numbers = new List<int>();
+        foreach (var version in versions.EnumerateArray())
+        {
+            if (GetInt(version, "versionNumber") is { } number)
+            {
+                numbers.Add(number);
+            }
+        }
+
+        return numbers;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //  Form package: GET /api/v1/admin/forms/packages/{formId}[/versions/{version}]
+    //               + GET /api/v1/forms/packages/{formId}/offline-policy
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads a form package's current server-side state back through the admin form-package API
+    /// (honua-server#1184), independently of the console form builder data source: the form id, title, target
+    /// service/layer, version number, and the lifecycle status (draft / published). This is the round-trip
+    /// proof a form authoring→publish actually flipped the published version on the server. Returns
+    /// <c>null</c> when the form is absent (404) or the surface is unavailable.
+    /// </summary>
+    public async Task<VerifiedFormPackage?> GetFormPackageAsync(
+        string formId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/admin/forms/packages/{Uri.EscapeDataString(formId)}";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return null;
+        }
+
+        var root = document.RootElement;
+        var item = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? data
+            : root;
+
+        if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("formId", out _))
+        {
+            return null;
+        }
+
+        string? title = null;
+        string? serviceId = null;
+        int? layerId = null;
+        if (item.TryGetProperty("package", out var package) && package.ValueKind == JsonValueKind.Object)
+        {
+            title = GetString(package, "title");
+            if (package.TryGetProperty("target", out var target) && target.ValueKind == JsonValueKind.Object)
+            {
+                serviceId = GetString(target, "serviceId");
+                layerId = GetInt(target, "layerId");
+            }
+        }
+
+        return new VerifiedFormPackage(
+            GetString(item, "formId"),
+            title,
+            serviceId,
+            layerId,
+            GetInt(item, "version"),
+            GetString(item, "status"));
+    }
+
+    /// <summary>
+    /// Reads a published form's runtime offline-sync policy through the canonical RUNTIME contract
+    /// (<c>GET /api/v1/forms/packages/{formId}/offline-policy</c>, honua-server#1184) — a genuinely different
+    /// surface than the admin publish route the operation went through. Returns whether offline is enabled and
+    /// the available transports, or <c>null</c> when the form has no published version / the route is absent.
+    /// </summary>
+    public async Task<VerifiedFormOfflinePolicy?> GetFormOfflinePolicyAsync(
+        string formId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/forms/packages/{Uri.EscapeDataString(formId)}/offline-policy";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return null;
+        }
+
+        var root = document.RootElement;
+        var item = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? data
+            : root;
+
+        if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("enabled", out _))
+        {
+            return null;
+        }
+
+        var transports = new List<string>();
+        if (item.TryGetProperty("availableTransports", out var array) && array.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var transport in array.EnumerateArray())
+            {
+                if (transport.ValueKind == JsonValueKind.String && transport.GetString() is { Length: > 0 } value)
+                {
+                    transports.Add(value);
+                }
+            }
+        }
+
+        return new VerifiedFormOfflinePolicy(GetBool(item, "enabled") ?? false, transports);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     //  STAC: GET /stac/collections
     // ---------------------------------------------------------------------------------------------
 
@@ -1018,3 +1218,40 @@ public sealed record VerifiedCommentThread(
     bool Resolved,
     int? CommentCount,
     IReadOnlyList<string> Messages);
+
+/// <summary>
+/// An immutable Studio content-item version read back through the canonical server content API: the content
+/// item + version ids, the integer version number, the package key, the envelope family (map/dashboard/…),
+/// the envelope schema version, the content hash, and the publication-intent visibility/route. Lets a test
+/// assert a Studio authoring→publish landed the right content shape independently of the publish path.
+/// </summary>
+public sealed record VerifiedStudioContentVersion(
+    string? ItemId,
+    string? VersionId,
+    int? VersionNumber,
+    string? PackageKey,
+    string? Family,
+    string? SchemaVersion,
+    string? ContentHash,
+    string? Visibility,
+    string? Route);
+
+/// <summary>
+/// A form package's server-side state read back through the admin form-package API: the form id, title,
+/// target service/layer, version number, and lifecycle status (draft / published). Lets a test assert a form
+/// authoring→publish flipped the published version with the right shape independently of the publish path.
+/// </summary>
+public sealed record VerifiedFormPackage(
+    string? FormId,
+    string? Title,
+    string? ServiceId,
+    int? LayerId,
+    int? Version,
+    string? Status);
+
+/// <summary>
+/// A published form's runtime offline-sync policy read back through the runtime offline-policy contract (a
+/// different surface than the admin publish route): whether offline use is enabled and the available
+/// transports. Lets a test prove the publish landed a resolvable runtime policy, not just an admin row.
+/// </summary>
+public sealed record VerifiedFormOfflinePolicy(bool Enabled, IReadOnlyList<string> Transports);
