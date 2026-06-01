@@ -88,26 +88,45 @@ public sealed class CatalogDiscoveryRoundTripTests
         var consoleKeys = load.Registry.Endpoints.Select(e => e.Key).OrderBy(k => k).ToArray();
         Assert.Equal(serverKeys, consoleKeys);
 
-        // --- Endpoint + item drill-down round-trip (only when an endpoint with items exists). ---
+        // --- Endpoint + item drill-down round-trip (only when the registry advertises an endpoint). ---
+        // Once the server advertises an endpoint, the console MUST bind its detail (asserting the drill-down
+        // route the test is meant to cover) — a failed binding is a real failure or an explicit skip with the
+        // reported issue, never a silent pass (Codex #154). The detail/item routes are part of #1279, so a
+        // detail binding that comes back unbound on a not-yet-ready image skips cleanly; a bound detail that
+        // disagrees with the advertised endpoint fails.
         var endpointWithItems = serverRegistry.Endpoints.FirstOrDefault(e => (e.Entries ?? 0) > 0)
             ?? serverRegistry.Endpoints.FirstOrDefault();
         if (endpointWithItems?.Key is { Length: > 0 } endpointKey)
         {
             var detail = await dataSource.LoadEndpointAsync(Workspace, endpointKey);
-            if (detail.HasDetail)
-            {
-                Assert.Equal(endpointKey, detail.Detail!.Endpoint.Key);
+            Skip.If(
+                !detail.HasDetail,
+                "The catalog discovery endpoint-detail route is not ready on this image "
+                + $"({DescribeStates(detail.CapabilityStates)}); the registry list round-trip above stands.");
 
-                var item = detail.Detail.Items.FirstOrDefault();
-                if (item is not null)
-                {
-                    var itemLoad = await dataSource.LoadItemAsync(Workspace, endpointKey, item.Id);
-                    if (itemLoad.HasItem)
-                    {
-                        Assert.Equal(item.Id, itemLoad.Item!.Id);
-                    }
-                }
+            Assert.Equal(endpointKey, detail.Detail!.Endpoint.Key);
+
+            // An endpoint that advertised entries must expose its mirrored items table.
+            if ((endpointWithItems.Entries ?? 0) > 0)
+            {
+                Assert.NotEmpty(detail.Detail.Items);
+            }
+
+            var item = detail.Detail.Items.FirstOrDefault();
+            if (item is not null)
+            {
+                var itemLoad = await dataSource.LoadItemAsync(Workspace, endpointKey, item.Id);
+                Skip.If(
+                    !itemLoad.HasItem,
+                    "The catalog discovery item-editor route is not ready on this image "
+                    + $"({DescribeStates(itemLoad.CapabilityStates)}); the endpoint-detail round-trip above stands.");
+                Assert.Equal(item.Id, itemLoad.Item!.Id);
             }
         }
     }
+
+    private static string DescribeStates(IReadOnlyList<Honua.Console.Shell.Models.CatalogDiscoveryCapabilityState> states) =>
+        states.Count == 0
+            ? "<no capability states>"
+            : string.Join("; ", states.Select(s => $"{s.State}: {s.Detail}"));
 }
