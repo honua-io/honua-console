@@ -1,10 +1,15 @@
 @page "/operate/import/esri/storymap"
+@using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Honua.Console.Shell.Validation
+@implements IDisposable
 
 @* #104 · Import StoryMap / Hub site → report content (screens-import-esri.jsx ImportStoryMap). P4.
    StoryMap/Hub intake (URL/export) → section/page → content-block mapping with fidelity badges, target
    content preview, "Create content →" CTA. The Esri-JSON parse is deterministic Console-side work. *@
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved StoryMap import. Leave this page and discard it?" />
 
 <section class="console-page esri-import" data-esri-import="storymap">
     <div class="console-detail-heading">
@@ -23,9 +28,11 @@
     </div>
 
     <EsriImportIntake Noun="StoryMap"
+                      Kind="EsriContentKind.StoryMap"
                       Result="_result"
                       Parse="ParseStoryMap"
                       OnParsed="OnParsed"
+                      Dirty="_dirty"
                       SampleJson="@EsriImportSampleDocuments.StoryMap"
                       SampleFileName="@EsriImportSampleDocuments.StoryMapFileName" />
 
@@ -83,6 +90,12 @@
     private static readonly EsriContentImportParser Parser = new();
 
     private EsriConversionResult? _result;
+    private readonly FormDirtyState _dirty = new();
+
+    // The dirty flag is flipped by the child intake; re-render so the hosted <UnsavedChangesGuard/> sees it.
+    protected override void OnInitialized() => _dirty.Changed += StateHasChanged;
+
+    public void Dispose() => _dirty.Changed -= StateHasChanged;
 
     private int LinkedMaps => _result?.Rows.Count(r => r.SourceType.Contains("map", StringComparison.OrdinalIgnoreCase)) ?? 0;
 

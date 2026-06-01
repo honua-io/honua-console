@@ -406,6 +406,23 @@ public static class UrlRule
         return Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
             && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="value"/> is an absolute http or https URL. Used
+    /// by intake surfaces (e.g. the Esri import URL / item-id field) that accept either scheme; the
+    /// authoritative fetch is owned by honua-server.
+    /// </summary>
+    public static bool IsAbsoluteHttp(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
+            && (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 /// <summary>

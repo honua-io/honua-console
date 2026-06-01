@@ -51,12 +51,22 @@
 
     private IReadOnlyList<PublishWizardStep> Steps =>
     [
-        new("Source", SourceStep),
-        new("Select content", SelectStep),
-        new("Map", MapStep, ContinueLabel: "Run migration →"),
+        // A valid source must be connected before selecting/mapping content; the migration run requires at
+        // least one resolvable mapping (a row that isn't dropped) before it can advance to Run.
+        new("Source", SourceStep, IsValid: _sourceConnected),
+        new("Select content", SelectStep, IsValid: _sourceConnected),
+        new("Map", MapStep, ContinueLabel: "Run migration →", IsValid: HasResolvableMappings),
         new("Run", RunStep, ContinueLabel: "View scorecard →"),
         new("Scorecard", ScorecardStep),
     ];
+
+    // The wizard binds a connected ArcGIS source (org.maps.arcgis.com / state-gis). When no source is
+    // connected the Source step does not advance — Console never advances on an unresolved source.
+    private bool _sourceConnected = true;
+
+    // The Map step advances to the run only when at least one selected item resolves to a Console target
+    // (a mapping row that is not dropped). An all-dropped selection has nothing to migrate.
+    private bool HasResolvableMappings => MapRows.Any(row => row.Fidelity != ImportFidelity.Drop);
 
     protected override async Task OnParametersSetAsync()
     {

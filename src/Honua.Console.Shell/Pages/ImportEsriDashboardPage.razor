@@ -1,11 +1,16 @@
 @page "/operate/import/esri/dashboard"
+@using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Honua.Console.Shell.Validation
+@implements IDisposable
 
 @* #101 · Import Esri Dashboard JSON → dashboard package (screens-import-esri.jsx ImportEsriDashboard).
    Dashboard JSON intake → element inventory → element → widget mapping grid with supported/unsupported
    callouts, target layout preview, "Create dashboard package →" CTA. The Esri-JSON parse is deterministic
    Console-side work. *@
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Dashboard import. Leave this page and discard it?" />
 
 <section class="console-page esri-import" data-esri-import="dashboard">
     <div class="console-detail-heading">
@@ -24,9 +29,11 @@
     </div>
 
     <EsriImportIntake Noun="Dashboard"
+                      Kind="EsriContentKind.Dashboard"
                       Result="_result"
                       Parse="ParseDashboard"
                       OnParsed="OnParsed"
+                      Dirty="_dirty"
                       SampleJson="@EsriImportSampleDocuments.Dashboard"
                       SampleFileName="@EsriImportSampleDocuments.DashboardFileName" />
 
@@ -86,6 +93,12 @@
     private static readonly EsriContentImportParser Parser = new();
 
     private EsriConversionResult? _result;
+    private readonly FormDirtyState _dirty = new();
+
+    // The dirty flag is flipped by the child intake; re-render so the hosted <UnsavedChangesGuard/> sees it.
+    protected override void OnInitialized() => _dirty.Changed += StateHasChanged;
+
+    public void Dispose() => _dirty.Changed -= StateHasChanged;
 
     private static EsriParseOutcome ParseDashboard(string json, string? fileName) => Parser.ParseDashboard(json, fileName);
 
