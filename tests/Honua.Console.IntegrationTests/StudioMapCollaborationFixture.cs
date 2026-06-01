@@ -88,5 +88,9 @@ public sealed class StudioMapCollaborationFixture : IAsyncLifetime
             new HonuaStudioMapCollaborationClientOptions(BaseAddress, Options.StudioAdminApiKey));
     }
 
+    /// <summary>The independent verification oracle that reads collab state back through the server collab API.</summary>
+    public ServerStateVerifier CreateVerifier() =>
+        new(BaseAddress, Options.StudioAdminApiKey);
+
     public string? AdminApiKey => Options.StudioAdminApiKey;
 }

@@ -411,6 +411,282 @@ public sealed class ServerStateVerifier : IDisposable
         FetchAnonymousAsync($"/api/v1/console/share/embed/{Uri.EscapeDataString(token)}/redeem", cancellationToken, HttpMethod.Post);
 
     // ---------------------------------------------------------------------------------------------
+    //  Temporal capability: GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/capabilities
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the server-owned temporal capability descriptor for a layer (honua-server#1166) — whether the
+    /// layer supports history / as-of reads, the backing temporal column + cursor kind, and the current
+    /// generation. This is the canonical server temporal read, independent of the console temporal client.
+    /// Returns <c>null</c> when the capability route is absent (404) so a caller can distinguish a
+    /// route-mounted-but-unsupported layer (200 with supportsHistory=false) from a missing contract.
+    /// </summary>
+    public async Task<VerifiedTemporalCapability?> GetTemporalCapabilityAsync(
+        string serviceId,
+        int layerId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{layerId.ToString(CultureInfo.InvariantCulture)}/capabilities";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return null;
+        }
+
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("supportsHistory", out _))
+        {
+            return null;
+        }
+
+        return new VerifiedTemporalCapability(
+            GetString(root, "serviceId"),
+            GetInt(root, "layerId"),
+            GetBool(root, "supportsHistory") ?? false,
+            GetBool(root, "supportsAsOf") ?? false,
+            GetString(root, "temporalColumn"),
+            GetString(root, "cursorKind"),
+            GetLong(root, "currentGeneration"));
+    }
+
+    /// <summary>
+    /// Performs an as-of read for a layer at a generation cursor (honua-server#1166). Returns the resolved /
+    /// current generation and the collapsed feature-change set (object ids + net operations). Returns
+    /// <c>null</c> when the layer does not support temporal reads (the server answers 409 Conflict) or the
+    /// route is absent, so the caller can assert the unsupported path independently.
+    /// </summary>
+    public async Task<VerifiedTemporalAsOf?> ReadTemporalAsOfAsync(
+        string serviceId,
+        int layerId,
+        long? generation = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = generation is { } gen ? $"?generation={gen.ToString(CultureInfo.InvariantCulture)}" : string.Empty;
+        var path = $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{layerId.ToString(CultureInfo.InvariantCulture)}/as-of{query}";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null)
+        {
+            return null;
+        }
+
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("features", out var features) || features.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var changes = new List<VerifiedTemporalChange>();
+        foreach (var feature in features.EnumerateArray())
+        {
+            changes.Add(new VerifiedTemporalChange(
+                GetLong(feature, "objectId"),
+                GetString(feature, "operation")));
+        }
+
+        return new VerifiedTemporalAsOf(
+            GetLong(root, "resolvedGeneration"),
+            GetLong(root, "currentGeneration"),
+            GetString(root, "requestedCursorKind"),
+            changes);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    //  Replica management: GET /api/v1/admin/services/{serviceId}/replicas (+ /{replicaId})
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the named-replica registry for a service (honua-server#1167) and returns each replica's id /
+    /// name / sync model / last-sync generation. This is the canonical server replica read, independent of
+    /// the console replica list. Returns an empty list when the service exposes no replicas or the surface
+    /// is unavailable.
+    /// </summary>
+    public async Task<IReadOnlyList<VerifiedReplica>> ListReplicasAsync(
+        string serviceId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        if (!data.TryGetProperty("replicas", out var replicas) || replicas.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var results = new List<VerifiedReplica>();
+        foreach (var replica in replicas.EnumerateArray())
+        {
+            results.Add(ToVerifiedReplica(replica));
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Reads a single named replica's detail (honua-server#1167). Returns <c>null</c> for a foreign /
+    /// unknown replica id (the server answers 404) or when the surface is unavailable.
+    /// </summary>
+    public async Task<VerifiedReplica?> GetReplicaAsync(
+        string serviceId,
+        string replicaId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/{Uri.EscapeDataString(replicaId)}";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return ToVerifiedReplica(data);
+    }
+
+    private static VerifiedReplica ToVerifiedReplica(JsonElement replica) =>
+        new(
+            GetString(replica, "replicaId"),
+            GetString(replica, "replicaName"),
+            GetString(replica, "serviceId"),
+            GetString(replica, "syncModel"),
+            GetLong(replica, "lastSyncGeneration"));
+
+    // ---------------------------------------------------------------------------------------------
+    //  Catalog discovery registry: GET /api/v1/console/catalog-endpoints/{workspaceId}
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the server-owned catalog discovery-endpoints registry (honua-server#1279) and returns the
+    /// endpoint keys/dialects + per-endpoint entry counts. This is the canonical server registry read,
+    /// independent of the console catalogs data source. Returns <c>null</c> when the registry route is absent.
+    /// </summary>
+    public async Task<VerifiedCatalogRegistry?> GetCatalogDiscoveryRegistryAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/console/catalog-endpoints/{Uri.EscapeDataString(workspaceId)}";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var endpoints = new List<VerifiedCatalogEndpoint>();
+        if (data.TryGetProperty("endpoints", out var endpointsElement) && endpointsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var endpoint in endpointsElement.EnumerateArray())
+            {
+                endpoints.Add(new VerifiedCatalogEndpoint(
+                    GetString(endpoint, "key"),
+                    GetString(endpoint, "dialect"),
+                    GetBool(endpoint, "enabled"),
+                    GetInt(endpoint, "entries")));
+            }
+        }
+
+        return new VerifiedCatalogRegistry(GetString(data, "workspaceId"), endpoints);
+    }
+
+    /// <summary>
+    /// Probes an admin-gated route as a genuinely UNAUTHENTICATED client and returns the raw HTTP status.
+    /// This is the strong route-mounted discriminator (vs. asserting an opaque "Unsupported" projection): a
+    /// mounted + gated route rejects an anonymous request with 401 (matching the server's
+    /// <c>AnonymousRequests_AreRejectedWithoutAdminAuthorization</c> tests), while an absent route returns
+    /// 404. Status 0 signals the server was unreachable.
+    /// </summary>
+    public Task<int> ProbeAdminRouteAnonymousStatusAsync(
+        string path,
+        CancellationToken cancellationToken = default) =>
+        ProbeStatusAsync(path, cancellationToken);
+
+    // ---------------------------------------------------------------------------------------------
+    //  Collaboration comments: GET /api/v1/console/maps/{mapId}/collab/comments (+ /activity)
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the durable comment threads for a map through the server collaboration API (honua-server#1278),
+    /// independently of the console collaboration data source. Returns each thread's id / feature label /
+    /// resolved flag / message count + bodies. Returns an empty list when the surface is unavailable.
+    /// </summary>
+    public async Task<IReadOnlyList<VerifiedCommentThread>> ListCollabThreadsAsync(
+        string mapId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/console/maps/{Uri.EscapeDataString(mapId)}/collab/comments";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        if (!data.TryGetProperty("threads", out var threads) || threads.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var results = new List<VerifiedCommentThread>();
+        foreach (var thread in threads.EnumerateArray())
+        {
+            var bodies = new List<string>();
+            if (thread.TryGetProperty("messages", out var messages) && messages.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var message in messages.EnumerateArray())
+                {
+                    var body = GetString(message, "body");
+                    if (!string.IsNullOrWhiteSpace(body))
+                    {
+                        bodies.Add(body!);
+                    }
+                }
+            }
+
+            results.Add(new VerifiedCommentThread(
+                GetString(thread, "threadId"),
+                GetString(thread, "featureLabel"),
+                GetString(thread, "layerRef"),
+                GetBool(thread, "resolved") ?? false,
+                GetInt(thread, "commentCount"),
+                bodies));
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Reads the durable collaboration activity feed for a map through the server collaboration API
+    /// (honua-server#1278), independently of the console data source. Returns the activity action strings.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ListCollabActivityAsync(
+        string mapId,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"/api/v1/console/maps/{Uri.EscapeDataString(mapId)}/collab/activity";
+        using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        if (document is null || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        if (!data.TryGetProperty("activity", out var activity) || activity.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var actions = new List<string>();
+        foreach (var entry in activity.EnumerateArray())
+        {
+            var action = GetString(entry, "action");
+            if (!string.IsNullOrWhiteSpace(action))
+            {
+                actions.Add(action!);
+            }
+        }
+
+        return actions;
+    }
+
+    // ---------------------------------------------------------------------------------------------
     //  STAC: GET /stac/collections
     // ---------------------------------------------------------------------------------------------
 
@@ -544,6 +820,25 @@ public sealed class ServerStateVerifier : IDisposable
         }
     }
 
+    /// <summary>
+    /// Issues a request WITHOUT the admin API key and returns the raw HTTP status code (0 on transport
+    /// failure). Used for the 401-vs-404 route-mounted discriminator: a gated route returns 401 while an
+    /// absent route returns 404.
+    /// </summary>
+    private async Task<int> ProbeStatusAsync(string path, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        try
+        {
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            return (int)response.StatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return 0;
+        }
+    }
+
     private static string? GetString(JsonElement element, string property) =>
         element.ValueKind == JsonValueKind.Object
         && element.TryGetProperty(property, out var value)
@@ -562,6 +857,21 @@ public sealed class ServerStateVerifier : IDisposable
         {
             JsonValueKind.Number when value.TryGetInt32(out var number) => number,
             JsonValueKind.String when int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private static long? GetLong(JsonElement element, string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(property, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt64(out var number) => number,
+            JsonValueKind.String when long.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
             _ => null
         };
     }
@@ -669,3 +979,42 @@ public sealed record VerifiedAnonymousFetch(
     string? ItemId,
     string? Title,
     string? AccessTier);
+
+public sealed record VerifiedTemporalCapability(
+    string? ServiceId,
+    int? LayerId,
+    bool SupportsHistory,
+    bool SupportsAsOf,
+    string? TemporalColumn,
+    string? CursorKind,
+    long? CurrentGeneration);
+
+public sealed record VerifiedTemporalChange(long? ObjectId, string? Operation);
+
+public sealed record VerifiedTemporalAsOf(
+    long? ResolvedGeneration,
+    long? CurrentGeneration,
+    string? RequestedCursorKind,
+    IReadOnlyList<VerifiedTemporalChange> Changes)
+{
+    public int Count => Changes.Count;
+}
+
+public sealed record VerifiedReplica(
+    string? ReplicaId,
+    string? ReplicaName,
+    string? ServiceId,
+    string? SyncModel,
+    long? LastSyncGeneration);
+
+public sealed record VerifiedCatalogEndpoint(string? Key, string? Dialect, bool? Enabled, int? Entries);
+
+public sealed record VerifiedCatalogRegistry(string? WorkspaceId, IReadOnlyList<VerifiedCatalogEndpoint> Endpoints);
+
+public sealed record VerifiedCommentThread(
+    string? ThreadId,
+    string? FeatureLabel,
+    string? LayerRef,
+    bool Resolved,
+    int? CommentCount,
+    IReadOnlyList<string> Messages);
