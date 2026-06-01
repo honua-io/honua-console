@@ -53,11 +53,13 @@ public sealed class RbacInviteValidator : IFieldValidator<RbacInviteState>
 
         if (string.IsNullOrWhiteSpace(state.Email))
         {
-            errors.Add(Blocker(RbacInviteFieldKeys.Email, "rbac.invite.email.required", "Enter an email or group to invite."));
+            errors.Add(Blocker(RbacInviteFieldKeys.Email, "rbac.invite.identity.required", "Enter an email or group to invite."));
         }
-        else if (!EmailRule.IsValid(state.Email))
+        else if (!IsValidIdentity(state.Email))
         {
-            errors.Add(Error(RbacInviteFieldKeys.Email, "rbac.invite.email.format", "Enter a valid email address (name@example.gov)."));
+            // The drawer accepts an email OR a group principal. An identity containing '@' is treated as an
+            // email and held to the email rule; any other non-empty, whitespace-free token is a group principal.
+            errors.Add(Error(RbacInviteFieldKeys.Email, "rbac.invite.email.format", "Enter a valid email address (name@example.gov) or a group identity."));
         }
 
         if (!state.ScopeDev && !state.ScopeStaging && !state.ScopeProd)
@@ -71,6 +73,26 @@ public sealed class RbacInviteValidator : IFieldValidator<RbacInviteState>
         EvaluateAllowlist(state.IpAllowlist, errors);
 
         return errors;
+    }
+
+    /// <summary>
+    /// True when the identity is acceptable: an <c>@</c>-bearing value must be a valid email; any other
+    /// non-empty, whitespace-free token is accepted as a group / directory principal (e.g. <c>group:operators</c>).
+    /// </summary>
+    private static bool IsValidIdentity(string? identity)
+    {
+        if (string.IsNullOrWhiteSpace(identity))
+        {
+            return false;
+        }
+
+        var trimmed = identity.Trim();
+        if (trimmed.Any(char.IsWhiteSpace))
+        {
+            return false;
+        }
+
+        return trimmed.Contains('@', StringComparison.Ordinal) ? EmailRule.IsValid(trimmed) : true;
     }
 
     private static void EvaluateAllowlist(string? allowlist, List<ConsoleFieldError> errors)

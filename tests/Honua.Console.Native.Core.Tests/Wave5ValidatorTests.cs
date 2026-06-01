@@ -30,8 +30,27 @@ public sealed class Wave5ValidatorTests
     [Fact]
     public void RbacInvite_BadEmail_ErrorsOnEmail()
     {
+        // An '@'-bearing identity is held to the email rule.
         var error = Assert.Single(
-            RbacInviteValidator.Instance.Evaluate(ValidInvite() with { Email = "not-an-email" }),
+            RbacInviteValidator.Instance.Evaluate(ValidInvite() with { Email = "bad@nodot" }),
+            e => e.FieldKey == RbacInviteFieldKeys.Email);
+        Assert.Equal("rbac.invite.email.format", error.Code);
+    }
+
+    [Fact]
+    public void RbacInvite_GroupIdentity_IsAccepted()
+    {
+        // A non-email group principal (no '@') is accepted; the drawer is labeled "Email or group".
+        Assert.DoesNotContain(
+            RbacInviteValidator.Instance.Evaluate(ValidInvite() with { Email = "group:operators" }),
+            e => e.FieldKey == RbacInviteFieldKeys.Email);
+    }
+
+    [Fact]
+    public void RbacInvite_WhitespaceInIdentity_Errors()
+    {
+        var error = Assert.Single(
+            RbacInviteValidator.Instance.Evaluate(ValidInvite() with { Email = "two words" }),
             e => e.FieldKey == RbacInviteFieldKeys.Email);
         Assert.Equal("rbac.invite.email.format", error.Code);
     }

@@ -208,7 +208,7 @@ public sealed class OperateAccessPageRenderTests
         page.Find("[data-rbac-invite-open]").Click();
         page.WaitForAssertion(() => Assert.NotNull(page.Find("input[placeholder='name@example.gov']")), TimeSpan.FromSeconds(5));
 
-        page.Find("input[placeholder='name@example.gov']").Change("nope");
+        page.Find("input[placeholder='name@example.gov']").Change("bad@nodot");
 
         page.WaitForAssertion(
             () => Assert.Contains("Enter a valid email address", page.Markup, StringComparison.Ordinal),

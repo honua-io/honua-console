@@ -38,7 +38,7 @@
                 </label>
                 <label>
                     <span>Environment kind</span>
-                    <select class="console-input" @bind="_environmentKind">
+                    <select class="console-input" @bind="_environmentKind" @bind:after="OnEdit">
                         <option value="development">development</option>
                         <option value="staging">staging</option>
                         <option value="production">production</option>
@@ -46,18 +46,18 @@
                 </label>
                 <label>
                     <span>Tenant ID</span>
-                    <input class="console-input" @bind="_tenantId" placeholder="honua-prod" />
+                    <input class="console-input" @bind="_tenantId" @bind:after="OnEdit" placeholder="honua-prod" />
                 </label>
                 <label>
                     <span>Account model</span>
-                    <select class="console-input" @bind="_authMode">
+                    <select class="console-input" @bind="_authMode" @bind:after="OnEdit">
                         <option value="@nameof(ConsoleAccountAuthMode.AccountRbac)">Account / RBAC</option>
                         <option value="@nameof(ConsoleAccountAuthMode.Anonymous)">Anonymous</option>
                     </select>
                 </label>
                 <label>
                     <span>Account ID</span>
-                    <input class="console-input" @bind="_accountId" placeholder="operator.prod" />
+                    <input class="console-input" @bind="_accountId" @bind:after="OnEdit" placeholder="operator.prod" />
                 </label>
             </div>
 
@@ -75,7 +75,7 @@
                 <div class="studio-field-grid">
                     <label>
                         <span>Certificate reference kind</span>
-                        <select class="console-input" @bind="_certKind">
+                        <select class="console-input" @bind="_certKind" @bind:after="OnEdit">
                             <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreSubject)">Store subject</option>
                             <option value="@nameof(ConsoleClientCertificateReferenceKind.StoreThumbprint)">Store thumbprint</option>
                             <option value="@nameof(ConsoleClientCertificateReferenceKind.FilePath)">File path</option>
@@ -88,19 +88,19 @@
                     </label>
                     <label>
                         <span>Store name</span>
-                        <input class="console-input" @bind="_storeName" placeholder="My" />
+                        <input class="console-input" @bind="_storeName" @bind:after="OnEdit" placeholder="My" />
                     </label>
                     <label>
                         <span>Store location</span>
-                        <input class="console-input" @bind="_storeLocation" placeholder="CurrentUser" />
+                        <input class="console-input" @bind="_storeLocation" @bind:after="OnEdit" placeholder="CurrentUser" />
                     </label>
                     <label>
                         <span>Secret name (file password, optional)</span>
-                        <input class="console-input" @bind="_secretName" placeholder="secret://certs/prod/[redacted]" />
+                        <input class="console-input" @bind="_secretName" @bind:after="OnEdit" placeholder="secret://certs/prod/[redacted]" />
                     </label>
                     <label>
                         <span>Trust profile ID (optional)</span>
-                        <input class="console-input" @bind="_trustProfileId" placeholder="operators-prod" />
+                        <input class="console-input" @bind="_trustProfileId" @bind:after="OnEdit" placeholder="operators-prod" />
                     </label>
                 </div>
             }
