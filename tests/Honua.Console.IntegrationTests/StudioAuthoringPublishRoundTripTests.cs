@@ -73,11 +73,11 @@ public sealed class StudioMapPublishRoundTripTests
         state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
 
         var saved = await source.SaveDraftAsync(state);
-        Skip.If(!saved.Succeeded, $"The live server did not accept the map draft save: {saved.Message}");
+        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "map draft save");
         Assert.NotNull(saved.State!.DraftId);
 
         var published = await source.PublishAsync(saved.State);
-        Skip.If(!published.Succeeded, $"The live server did not accept the map publish: {published.Message}");
+        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "map publish");
         Assert.Equal(StudioMapStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.VersionId);
@@ -150,10 +150,15 @@ public sealed class StudioMapPublishRoundTripTests
             diagnostic => diagnostic.Severity is StudioPackageDiagnosticSeverity.Error or StudioPackageDiagnosticSeverity.Blocker);
         Assert.Contains(summary.Diagnostics, diagnostic => !string.IsNullOrWhiteSpace(diagnostic.Path));
 
-        // Independently confirm NOTHING landed: the invalid draft cut no content version on the server.
+        // Exercise the GATED publish path the operation uses (Codex #155): drive cut-version → publish-request
+        // and assert no PUBLISHED content lands for a blocker-validated draft. Some server images defer
+        // validation enforcement to publish-request (the cut is allowed but the publish is refused), so accept
+        // a rejection at EITHER gate; what must never happen is an accepted publish request.
+        await StudioLifecycleSkips.AssertInvalidDraftNeverPublishesAsync(client, draft);
+
+        // Independently confirm NOTHING landed as published: the publication route for the item is absent.
         using var verifier = _fixture.CreateVerifier();
-        var versions = await verifier.ListStudioContentVersionNumbersAsync(draft.ItemId);
-        Assert.Empty(versions);
+        Assert.Null(await verifier.GetPublicationRouteAsync(draft.ItemId.ToString()));
     }
 }
 
@@ -182,14 +187,14 @@ public sealed class StudioDashboardPublishRoundTripTests
 
         // --- OPERATION: save → server-validate → publish (freezes an immutable content version). ---
         var saved = await source.SaveDraftAsync(editor);
-        Skip.If(!saved.Succeeded, $"The live server did not accept a dashboard draft: {saved.Message}");
+        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "dashboard draft save");
         Assert.NotNull(saved.State!.DraftId);
 
         var validated = await source.ValidateAsync(saved.State);
-        Assert.True(validated.Succeeded, validated.Message);
+        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(validated.Succeeded, validated.Issue?.State, validated.Message, "dashboard validate");
 
         var published = await source.PublishAsync(validated.State!);
-        Skip.If(!published.Succeeded, $"The live server did not accept the dashboard publish: {published.Message}");
+        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "dashboard publish");
         Assert.Equal(StudioDashboardStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.CurrentVersionId);
@@ -256,10 +261,14 @@ public sealed class StudioDashboardPublishRoundTripTests
             diagnostic => diagnostic.Severity is StudioPackageDiagnosticSeverity.Error or StudioPackageDiagnosticSeverity.Blocker);
         Assert.Contains(summary.Diagnostics, diagnostic => !string.IsNullOrWhiteSpace(diagnostic.Path));
 
-        // Independently confirm NOTHING landed: the invalid draft cut no content version on the server.
+        // Exercise the GATED publish path the operation uses (Codex #155): drive cut-version → publish-request
+        // and assert no PUBLISHED content lands for a blocker-validated draft (rejection accepted at either
+        // gate; an accepted publish request must never happen).
+        await StudioLifecycleSkips.AssertInvalidDraftNeverPublishesAsync(client, draft);
+
+        // Independently confirm NOTHING landed as published: the publication route for the item is absent.
         using var verifier = _fixture.CreateVerifier();
-        var versions = await verifier.ListStudioContentVersionNumbersAsync(draft.ItemId);
-        Assert.Empty(versions);
+        Assert.Null(await verifier.GetPublicationRouteAsync(draft.ItemId.ToString()));
     }
 
     private static StudioDashboardEditorState ReadyDashboard(string title)
@@ -437,10 +446,10 @@ public sealed class StudioFormPublishRoundTripTests
         Assert.False(string.IsNullOrWhiteSpace(formId));
 
         var validated = await dataSource.ValidateAsync(saved.State);
-        Skip.If(!validated.Succeeded, $"The live server did not validate the form draft: {validated.Message}");
+        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(validated.Succeeded, validated.Issue?.State, validated.Message, "form validate");
 
         var published = await dataSource.PublishAsync(validated.State!);
-        Skip.If(!published.Succeeded, $"The live server did not accept the form publish: {published.Message}");
+        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "form publish");
         Assert.Equal(HonuaFormStatuses.Published, published.State!.Status);
         var publishedVersion = published.State.Version;
 
@@ -539,6 +548,77 @@ public sealed class StudioFormPublishRoundTripTests
 /// </summary>
 internal static class StudioLifecycleSkips
 {
+    // Server-readiness states the builder data sources surface on their capability state when the pinned image
+    // cannot service a lifecycle path (transport/5xx → "Unavailable"; missing route/verb → "Unsupported";
+    // permission gaps → "Missing permission"). These are NOT console regressions, so they justify a clean skip.
+    private static readonly string[] ServerNotReadyStates =
+        ["Unavailable", "Unsupported", "Missing permission"];
+
+    /// <summary>
+    /// For a console builder OPERATION driven with a known-good input: succeed silently, SKIP cleanly when the
+    /// failure carries a server-not-ready capability state (the pinned image lacks the path — mirrors W1/W3), or
+    /// FAIL when the operation failed for any other reason (a real console-side regression — e.g. the operation
+    /// built an invalid envelope/publish request). This is the Codex #155 fix: a rejected publish of a valid
+    /// input must fail, not silently skip and let the nightly lane look green while nothing was published.
+    /// </summary>
+    public static void SkipOrFailOnConsoleOperation(bool succeeded, string? issueState, string message, string operation)
+    {
+        if (succeeded)
+        {
+            return;
+        }
+
+        var serverNotReady = issueState is not null
+            && ServerNotReadyStates.Any(state => string.Equals(state, issueState, StringComparison.OrdinalIgnoreCase));
+
+        Skip.If(
+            serverNotReady,
+            $"The pinned honua-server image could not service the {operation} path ({issueState} — {message}); "
+            + "the authoring→publish round-trip needs a server build whose Studio lifecycle is ready.");
+
+        Assert.True(
+            succeeded,
+            $"The console {operation} operation failed against a ready server (no server-not-ready signal): {message}. "
+            + "A regression in the operation under test must fail here, not skip.");
+    }
+
+    /// <summary>
+    /// Drives the gated cut-version → publish-request path for a blocker-validated draft and asserts no
+    /// PUBLISHED content lands (Codex #155). Server images differ on WHERE the validation gate enforces: some
+    /// refuse the version cut, others allow the cut but refuse the publish request. Accept a rejection at
+    /// either gate; the only forbidden outcome is an accepted publish request. When the cut is allowed and the
+    /// publish request is rejected, the cut version is an unpublished draft revision — that is fine; the
+    /// caller's independent publication-route check proves nothing reachable landed.
+    /// </summary>
+    public static async Task AssertInvalidDraftNeverPublishesAsync(
+        IStudioPackageLifecycleClient client,
+        StudioPackageDraft draft)
+    {
+        var versionAttempt = await client.SaveContentVersionAsync(
+            draft.DraftId,
+            new SaveStudioContentVersionRequest { ChangeNote = "invalid-draft negative companion" });
+
+        if (versionAttempt.Issue is not null)
+        {
+            // The server gated at the version-cut step — no version, nothing to publish.
+            Assert.Null(versionAttempt.Data);
+            return;
+        }
+
+        // The cut was allowed; the publish request MUST be the gate that refuses a blocker-validated version.
+        var version = versionAttempt.Data!;
+        var publishAttempt = await client.CreatePublishRequestAsync(
+            version.ItemId,
+            version.VersionId,
+            new CreateStudioPublicationRequest());
+
+        Assert.True(
+            publishAttempt.Issue is not null
+                || publishAttempt.Data?.Status is StudioPublicationRequestStatus.Rejected,
+            "A blocker-validated draft must not yield an accepted publish request; "
+            + $"the server accepted it (status {publishAttempt.Data?.Status}).");
+    }
+
     public static void SkipIfDraftNotReady(StudioEndpointIssue? issue)
     {
         if (issue is null)
