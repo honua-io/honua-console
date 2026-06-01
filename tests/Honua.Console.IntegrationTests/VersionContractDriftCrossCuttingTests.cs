@@ -35,14 +35,21 @@ public sealed class VersionContractDriftCrossCuttingTests
         // --- Independent read: the server-owned version + metadata-contract descriptor. ---
         using var verifier = _fixture.CreateVerifier();
         var contract = await verifier.GetServerContractAsync();
-        Skip.If(
-            contract is null,
-            "The pinned honua-server image mounts neither /api/v1/admin/version nor /api/v1/admin/capabilities; "
-            + "the contract-drift fact needs at least one of the console's expected contract routes present.");
 
-        // The console EXPECTS its pinned contract routes to resolve. A rename/removal is the exact drift this
-        // fact catches: at least one of version/capabilities must be mounted (asserted via the route flags),
-        // and a mounted version route must carry a non-empty server version.
+        // The console EXPECTS its pinned contract routes to resolve. A rename/removal of BOTH
+        // /api/v1/admin/version AND /api/v1/admin/capabilities is the EXACT drift this fact exists to catch,
+        // so it must FAIL (and record evidence) rather than skip — a skip here would let the drift slip
+        // through a green nightly run, which is the failure mode Codex flagged.
+        if (contract is null)
+        {
+            await WriteDisappearedEvidenceAsync();
+            Assert.Fail(
+                "Neither /api/v1/admin/version nor /api/v1/admin/capabilities resolved against the pinned server "
+                + "— the console's expected contract routes have drifted (both renamed/removed). Evidence recorded.");
+        }
+
+        // At least one of version/capabilities is mounted (asserted via the route flags); a mounted version
+        // route must carry a non-empty server version.
         Assert.True(
             contract!.VersionRouteMounted || contract.CapabilitiesRouteMounted,
             "Neither the version nor the capabilities contract route resolved against the pinned server.");
@@ -86,6 +93,26 @@ public sealed class VersionContractDriftCrossCuttingTests
             VersionRouteMounted = contract.VersionRouteMounted,
             CapabilitiesRouteMounted = contract.CapabilitiesRouteMounted,
             ConsoleProjectedVersion = consoleProjectedVersion
+        };
+        await evidence.WriteAsync();
+    }
+
+    // Records the drift (both contract routes absent) in the evidence file so the failure is collected as a
+    // nightly artifact alongside the failing assertion, rather than vanishing into a skipped fact.
+    private async Task WriteDisappearedEvidenceAsync()
+    {
+        var evidence = new ContractDriftEvidence
+        {
+            ServerImage = _fixture.Options.ServerImage
+                ?? _fixture.Options.ExternalBaseUri?.ToString()
+                ?? _fixture.BaseAddress.ToString(),
+            ServerBaseAddress = _fixture.BaseAddress.ToString(),
+            ServerVersion = null,
+            MetadataApiVersion = null,
+            MetadataSchemaVersion = null,
+            VersionRouteMounted = false,
+            CapabilitiesRouteMounted = false,
+            ConsoleProjectedVersion = null
         };
         await evidence.WriteAsync();
     }

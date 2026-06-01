@@ -40,7 +40,12 @@ public sealed class CrossCuttingFixture : IAsyncLifetime
 
         if (Options.ExternalBaseUri is not null)
         {
+            // An external server target has no host-reachable PostGIS to seed; the RBAC / validation /
+            // idempotency round-trips seed a PostGIS table directly (CrossCuttingSeeder), so flag a clean
+            // skip rather than failing with a null Npgsql connection — mirroring ServiceLayerPublishFixture.
             BaseAddress = Options.ExternalBaseUri;
+            SkipReason = "The cross-cutting round-trips seed a PostGIS table directly and require the "
+                + "Testcontainers PostGIS; set HONUA_CONSOLE_SERVER_IMAGE instead of HONUA_CONSOLE_EXTERNAL_BASE_URL.";
             return;
         }
 
