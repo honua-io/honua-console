@@ -584,7 +584,11 @@
         OnEdit();
     }
 
-    private Task Save() => RunCommandAsync(() => AnalysisData.SaveDraftAsync(_plan!));
+    // Only Save persists the current in-memory plan edits as a new server version, so only it clears the
+    // dirty flag. Estimate (a local projection), Preview, Submit (runs the already-saved version), and
+    // artifact resolution do NOT persist the current edits, so they must leave the draft dirty (the
+    // unsaved-changes guard must still warn).
+    private Task Save() => RunCommandAsync(() => AnalysisData.SaveDraftAsync(_plan!), clearsDirty: true);
 
     private Task Estimate() => RunCommandAsync(() => AnalysisData.EstimateAsync(_plan!));
 
@@ -595,7 +599,7 @@
     private Task ResolveArtifact() =>
         RunCommandAsync(() => AnalysisData.ResolveArtifactAsync(_artifactId.Trim(), _plan!));
 
-    private async Task RunCommandAsync(Func<Task<StudioAnalysisCommandResult>> command)
+    private async Task RunCommandAsync(Func<Task<StudioAnalysisCommandResult>> command, bool clearsDirty = false)
     {
         if (_busy || _plan is null)
         {
@@ -620,7 +624,9 @@
             RecomputeClientErrors();
             _validation.SetServerErrors(StudioAnalysisServerErrorBinder.Map(result.FieldErrors));
 
-            if (result.Succeeded)
+            // Only a command that persisted the plan edits clears the dirty flag; estimate/preview/submit/
+            // resolve leave unsaved edits dirty so the guard still warns on navigation.
+            if (result.Succeeded && clearsDirty)
             {
                 _dirty.MarkClean();
             }
