@@ -20,14 +20,27 @@ public sealed record StudioMapCollaborationSession(
     IReadOnlyList<StudioMapCommentPin> CommentPins,
     IReadOnlyList<StudioMapActivityEntry> Activity,
     StudioMapFollowState? Following,
-    StudioMapCollaborationState? BindingState)
+    StudioMapCollaborationState? BindingState,
+    bool RealtimeBound = false)
 {
-    /// <summary>True when no real collaboration contract is bound; the surface must render the explanation.</summary>
+    /// <summary>
+    /// True when the DURABLE collaboration read surface (feature-pinned comment threads + activity feed) is
+    /// bound — the comments list, activity feed, and thread-drawer messages render live data
+    /// (honua-server#1278, slice 1). False renders the missing-binding explanation across those slots.
+    /// </summary>
     public bool IsBound => BindingState is null;
 
-    /// <summary>An empty, explicitly-unbound session — the only state the merged build returns today.</summary>
+    /// <summary>
+    /// True only when the REAL-TIME collaboration transport is also bound — live presence, named cursors,
+    /// the collaborative markup layer, follow-mode, and the durable WRITE affordances (compose/reply/resolve).
+    /// These stay deferred until honua-server#1290 ships, so the durable read binding alone leaves these
+    /// affordances disabled-pending rather than enabled no-ops. Never true unless <see cref="IsBound"/> is.
+    /// </summary>
+    public bool IsRealtimeBound => IsBound && RealtimeBound;
+
+    /// <summary>An empty, explicitly-unbound session — every slot renders the missing-binding explanation.</summary>
     public static StudioMapCollaborationSession Unbound(StudioMapCollaborationState state) =>
-        new([], [], [], [], null, state);
+        new([], [], [], [], null, state, RealtimeBound: false);
 }
 
 /// <summary>
