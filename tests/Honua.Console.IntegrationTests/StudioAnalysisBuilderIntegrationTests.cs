@@ -62,19 +62,25 @@ public sealed class StudioAnalysisBuilderIntegrationTests
         Assert.NotEmpty(load.Plan.ServerPipeline);
         Assert.Contains(load.Plan.ServerPipeline, node => node.Method == "buffer");
 
-        // 3. The analysis builder page renders the seeded plan from the live data source.
+        // 3. The merged list endpoint (honua-server#1237) enumerates the seeded package from live data.
+        var workspace = await dataSource.GetWorkspaceAsync();
+        Assert.Empty(workspace.CapabilityStates);
+        Assert.Contains(workspace.Plans, plan => plan.AnalysisId == analysisId);
+
+        // 4. The merged estimate endpoint (honua-server#1237) returns a server-computed runtime/cost figure.
+        var estimateResult = await dataSource.EstimateAsync(load.Plan);
+        Assert.True(estimateResult.Succeeded, $"The live server rejected the estimate request: {estimateResult.Message}");
+        Assert.NotNull(load.Plan.Estimate);
+        Assert.Contains("server estimate", load.Plan.Estimate!.CostNote, StringComparison.OrdinalIgnoreCase);
+
+        // 5. The analysis builder page renders the seeded plan from the live data source (live list row).
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(dataSource);
         var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
 
-        // The workspace cannot list (no server list route), so deep-open the seeded analysis by id through
-        // the page's load path and assert it renders the live plan card + DAG view.
-        var opened = await dataSource.LoadAsync(analysisId);
-        Assert.True(opened.HasEditor);
-
         page.WaitForAssertion(
-            () => Assert.Contains("Analysis builder", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains(title, page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
     }
 }

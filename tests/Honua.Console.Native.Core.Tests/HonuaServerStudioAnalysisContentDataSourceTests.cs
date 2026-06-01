@@ -15,16 +15,63 @@ namespace Honua.Console.Native.Core.Tests;
 public sealed class HonuaServerStudioAnalysisContentDataSourceTests
 {
     [Fact]
-    public async Task GetWorkspace_HasNoListRoute_SurfacesUnsupportedListStateNotMockData()
+    public async Task GetWorkspace_BindsLiveListEndpoint_ProjectsServerItems()
     {
-        var source = new HonuaServerStudioAnalysisContentDataSource(new FakeAnalysisContentClient());
+        var client = new FakeAnalysisContentClient
+        {
+            ListItemsResult = HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>.FromData(
+                new HonuaAnalysisContentItemListResponse
+                {
+                    Items =
+                    [
+                        new HonuaAnalysisContentItem
+                        {
+                            ItemId = "analysis-7",
+                            Kind = HonuaAnalysisContentKinds.AnalysisPackage,
+                            Name = "buffer-abc123",
+                            Title = "Hydrant buffer",
+                            CurrentVersion = 3,
+                            CurrentVersionId = "analysis-7-v3",
+                            UpdatedAt = new DateTimeOffset(2026, 5, 28, 9, 0, 0, TimeSpan.Zero)
+                        }
+                    ],
+                    TotalCount = 1,
+                    Limit = 50,
+                    Offset = 0
+                })
+        };
+        var source = new HonuaServerStudioAnalysisContentDataSource(client);
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        // Live list values, not the degraded "Unsupported list" copy.
+        Assert.Empty(workspace.CapabilityStates);
+        var plan = Assert.Single(workspace.Plans);
+        Assert.Equal("analysis-7", plan.AnalysisId);
+        Assert.Equal("Hydrant buffer", plan.Title);
+        Assert.Equal("buffer", plan.Method);
+        Assert.Equal(3, plan.DraftVersion);
+        Assert.Equal(1, client.ListItemsCalls);
+        // The list is scoped to active analysis packages.
+        Assert.Equal(HonuaAnalysisContentKinds.AnalysisPackage, client.LastListQuery!.Kind);
+        Assert.Equal("active", client.LastListQuery.Lifecycle);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_ListEndpointFails_SurfacesIssueNotMockData()
+    {
+        var client = new FakeAnalysisContentClient
+        {
+            ListItemsResult = HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>.FromIssue(
+                new HonuaAdminEndpointIssue("Unavailable", "GET list", "Server unreachable."))
+        };
+        var source = new HonuaServerStudioAnalysisContentDataSource(client);
 
         var workspace = await source.GetWorkspaceAsync();
 
         Assert.Empty(workspace.Plans);
         var state = Assert.Single(workspace.CapabilityStates);
-        Assert.Equal("Unsupported", state.State);
-        Assert.Contains("list", state.Contract, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Unavailable", state.State);
     }
 
     [Fact]
@@ -143,9 +190,29 @@ public sealed class HonuaServerStudioAnalysisContentDataSourceTests
     }
 
     [Fact]
-    public async Task Estimate_NoServerRoute_ProducesLocalEstimateAndDocumentsGap()
+    public async Task Estimate_BindsLiveServerEstimate_ProjectsServerRuntimeAndCost()
     {
-        var client = new FakeAnalysisContentClient();
+        var client = new FakeAnalysisContentClient
+        {
+            EstimateResult = HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>.FromData(
+                new HonuaAnalysisContentEstimateResponse
+                {
+                    ItemId = "analysis-7",
+                    Version = 3,
+                    VersionId = "analysis-7-v3",
+                    Estimate = new HonuaAnalysisContentEstimate
+                    {
+                        StepCount = 2,
+                        QueryStepCount = 1,
+                        GeoprocessStepCount = 1,
+                        EstimatedInputFeatureCount = 8_400,
+                        EstimatedComputeUnits = 3.5,
+                        EstimatedCostUsd = 0.0125m,
+                        EstimatedRuntimeSeconds = 18.2,
+                        IsLowerBound = false
+                    }
+                })
+        };
         var source = new HonuaServerStudioAnalysisContentDataSource(client);
         var plan = ReadyPlan(analysisId: "analysis-7");
         plan.Estimate = null;
@@ -153,12 +220,34 @@ public sealed class HonuaServerStudioAnalysisContentDataSourceTests
         var result = await source.EstimateAsync(plan);
 
         Assert.True(result.Succeeded);
+        Assert.Equal(1, client.EstimateCalls);
+        // Live server figures, not a local projection or the degraded "estimate route pending" copy.
         Assert.NotNull(plan.Estimate);
-        Assert.True(plan.Estimate!.EstimatedRuntimeSeconds > 0);
-        // The local estimate is accompanied by an explicit capability state naming the missing server route.
-        Assert.NotNull(result.Issue);
-        Assert.Equal("Unsupported", result.Issue!.State);
-        Assert.Contains("estimate", result.Issue.Contract, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(18.2, plan.Estimate!.EstimatedRuntimeSeconds);
+        Assert.Equal(8_400, plan.Estimate.EstimatedInputFeatures);
+        Assert.Contains("server estimate", plan.Estimate.CostNote, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(result.Issue);
+        Assert.DoesNotContain("local", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Estimate_ServerEstimateFails_SurfacesIssueNotLocalProjection()
+    {
+        var client = new FakeAnalysisContentClient
+        {
+            EstimateResult = HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>.FromIssue(
+                new HonuaAdminEndpointIssue("Unavailable", "POST estimate", "Server unreachable."))
+        };
+        var source = new HonuaServerStudioAnalysisContentDataSource(client);
+        var plan = ReadyPlan(analysisId: "analysis-7");
+        plan.Estimate = null;
+
+        var result = await source.EstimateAsync(plan);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Unavailable", result.Issue!.State);
+        // A failed server estimate must not fabricate a local estimate onto the plan.
+        Assert.Null(plan.Estimate);
     }
 
     [Fact]
@@ -485,6 +574,38 @@ public sealed class HonuaServerStudioAnalysisContentDataSourceTests
             CreateItemCalls++;
             LastCreatedItem = request;
             return Task.FromResult(CreateItemResult);
+        }
+
+        public int ListItemsCalls { get; private set; }
+
+        public int EstimateCalls { get; private set; }
+
+        public HonuaAnalysisContentListQuery? LastListQuery { get; private set; }
+
+        public HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse> ListItemsResult { get; set; } =
+            HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>.FromData(
+                new HonuaAnalysisContentItemListResponse());
+
+        public HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse> EstimateResult { get; set; } =
+            HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>.FromIssue(
+                new HonuaAdminEndpointIssue("Unavailable", "POST estimate", "not configured"));
+
+        public Task<HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>> ListItemsAsync(
+            HonuaAnalysisContentListQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            ListItemsCalls++;
+            LastListQuery = query;
+            return Task.FromResult(ListItemsResult);
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>> EstimateAsync(
+            string itemId,
+            int version,
+            CancellationToken cancellationToken = default)
+        {
+            EstimateCalls++;
+            return Task.FromResult(EstimateResult);
         }
 
         public Task<HonuaAdminEndpointResult<HonuaAnalysisContentVersionResponse>> GetItemAsync(

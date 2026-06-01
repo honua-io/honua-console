@@ -1,0 +1,470 @@
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Honua.Console.Contracts;
+
+// SHIM(honua-server#1166 / honua-server#1167 / honua-sdk-dotnet): honua-server owns the temporal data
+// history API (Honua.Server.Features.Temporal: capability discovery + as-of read, slice 1 of #1166) and
+// the disconnected replica management API (Honua.Server.Features.Admin.ReplicaManagementEndpoints:
+// replica list + detail, slice 1 of #1167). honua-sdk-dotnet does not yet project these as a consumable
+// stable package, and honua-console wires no SDK NuGet feed (see SDK_SHIM_POLICY.md). Per the Console
+// Patterns Charter section 11 and SDK_SHIM_POLICY, the temporal viewer binds through a thin HttpClient
+// behind this single Honua.Console.Contracts boundary: the wire records below mirror the server
+// responses, and the client speaks the real routes. Swap these for SDK types when honua-sdk-dotnet ships
+// a consumable temporal projection and honua-console#7 wires the feed.
+//
+// The temporal capability + as-of endpoints return their DTO body directly (Results.Json of the
+// response). The replica management endpoints wrap their payload in the shared ApiResponse<T> envelope
+// ({success,data,message}); this client deserializes each accordingly and maps status semantics
+// (400 validation, 404 not found, 409 conflict/not-supported, 401/403 auth) to issues.
+//
+// MERGED SCOPE: #1166 slice 1 (capabilities + as-of) and #1167 slice 1 (replica list + detail). The
+// deferred temporal slices — diff/timeline/rollback execution (#1285) and replica conflict-review
+// (#1287) — are NOT merged; the Console binds what exists and renders the rest as the established
+// not-yet-available state rather than fabricating it.
+public sealed record HonuaTemporalClientOptions(Uri BaseUri, string? ApiKey = null);
+
+public interface IHonuaTemporalClient
+{
+    Uri BaseUri { get; }
+
+    Task<HonuaAdminEndpointResult<HonuaTemporalCapabilityResponse>> GetCapabilityAsync(
+        string serviceId,
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaTemporalAsOfResponse>> ReadAsOfAsync(
+        string serviceId,
+        int layerId,
+        long? generation,
+        string? timestamp,
+        int? limit,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaReplicaManagementListResponse>> ListReplicasAsync(
+        string serviceId,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaReplicaManagementDetail>> GetReplicaAsync(
+        string serviceId,
+        string replicaId,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private readonly HttpClient _httpClient;
+    private readonly string? _apiKey;
+
+    public HonuaTemporalHttpClient(HttpClient httpClient, HonuaTemporalClientOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        ArgumentNullException.ThrowIfNull(options);
+
+        BaseUri = options.BaseUri;
+        _apiKey = options.ApiKey;
+        _httpClient = httpClient;
+        _httpClient.BaseAddress ??= BaseUri;
+    }
+
+    public Uri BaseUri { get; }
+
+    public Task<HonuaAdminEndpointResult<HonuaTemporalCapabilityResponse>> GetCapabilityAsync(
+        string serviceId,
+        int layerId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+
+        return GetDirectAsync<HonuaTemporalCapabilityResponse>(
+            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/capabilities",
+            "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/capabilities",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaTemporalAsOfResponse>> ReadAsOfAsync(
+        string serviceId,
+        int layerId,
+        long? generation,
+        string? timestamp,
+        int? limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+
+        var parameters = new List<string>();
+        if (generation is { } gen)
+        {
+            parameters.Add($"generation={gen.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(timestamp))
+        {
+            parameters.Add($"timestamp={Uri.EscapeDataString(timestamp)}");
+        }
+
+        if (limit is { } lim)
+        {
+            parameters.Add($"limit={lim.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        var queryString = parameters.Count == 0 ? string.Empty : "?" + string.Join("&", parameters);
+
+        return GetDirectAsync<HonuaTemporalAsOfResponse>(
+            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/as-of{queryString}",
+            "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/as-of",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaReplicaManagementListResponse>> ListReplicasAsync(
+        string serviceId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+
+        return GetEnvelopeAsync<HonuaReplicaManagementListResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/",
+            "GET /api/v1/admin/services/{serviceId}/replicas",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaReplicaManagementDetail>> GetReplicaAsync(
+        string serviceId,
+        string replicaId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(replicaId);
+
+        return GetEnvelopeAsync<HonuaReplicaManagementDetail>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/{Uri.EscapeDataString(replicaId)}",
+            "GET /api/v1/admin/services/{serviceId}/replicas/{replicaId}",
+            cancellationToken);
+    }
+
+    public void Dispose() => _httpClient.Dispose();
+
+    private static string Layer(int layerId) => layerId.ToString(CultureInfo.InvariantCulture);
+
+    // The temporal capability/as-of endpoints return the DTO body directly (not wrapped in ApiResponse<T>).
+    private async Task<HonuaAdminEndpointResult<T>> GetDirectAsync<T>(
+        string path,
+        string contract,
+        CancellationToken cancellationToken)
+    {
+        var (response, transportIssue) = await SendAsync(path, contract, cancellationToken).ConfigureAwait(false);
+        if (transportIssue is not null)
+        {
+            return HonuaAdminEndpointResult<T>.FromIssue(transportIssue);
+        }
+
+        using var http = response!;
+        if (!http.IsSuccessStatusCode)
+        {
+            return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, http.StatusCode));
+        }
+
+        T? payload;
+        try
+        {
+            payload = await http.Content
+                .ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException ex)
+        {
+            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported",
+                contract,
+                $"The Honua server temporal response did not match the expected contract: {ex.Message}",
+                (int)http.StatusCode));
+        }
+
+        return payload is null
+            ? HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                "The Honua server temporal response body was empty.",
+                (int)http.StatusCode))
+            : HonuaAdminEndpointResult<T>.FromData(payload);
+    }
+
+    // The replica management endpoints wrap their payload in the shared ApiResponse<T> envelope.
+    private async Task<HonuaAdminEndpointResult<T>> GetEnvelopeAsync<T>(
+        string path,
+        string contract,
+        CancellationToken cancellationToken)
+    {
+        var (response, transportIssue) = await SendAsync(path, contract, cancellationToken).ConfigureAwait(false);
+        if (transportIssue is not null)
+        {
+            return HonuaAdminEndpointResult<T>.FromIssue(transportIssue);
+        }
+
+        using var http = response!;
+        if (!http.IsSuccessStatusCode)
+        {
+            return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, http.StatusCode));
+        }
+
+        HonuaTemporalApiResponse<T>? envelope;
+        try
+        {
+            envelope = await http.Content
+                .ReadFromJsonAsync<HonuaTemporalApiResponse<T>>(JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException ex)
+        {
+            return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported",
+                contract,
+                $"The Honua server response did not match the expected admin API shape: {ex.Message}",
+                (int)http.StatusCode));
+        }
+
+        if (envelope?.Success == true && envelope.Data is not null)
+        {
+            return HonuaAdminEndpointResult<T>.FromData(envelope.Data);
+        }
+
+        return HonuaAdminEndpointResult<T>.FromIssue(new HonuaAdminEndpointIssue(
+            "Unavailable",
+            contract,
+            envelope?.Message ?? "The Honua server response did not include data.",
+            (int)http.StatusCode));
+    }
+
+    private async Task<(HttpResponseMessage? Response, HonuaAdminEndpointIssue? Issue)> SendAsync(
+        string path,
+        string contract,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        try
+        {
+            var response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            return (response, null);
+        }
+        catch (HttpRequestException ex)
+        {
+            return (null, new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server temporal endpoint could not be reached: {ex.Message}"));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            return (null, new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server temporal endpoint could not be reached: {ex.Message}"));
+        }
+    }
+
+    private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
+    {
+        var state = statusCode switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Forbidden",
+            HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
+            HttpStatusCode.Conflict => "Unsupported",
+            HttpStatusCode.BadRequest => "Rejected",
+            _ => "Unavailable"
+        };
+
+        var detail = statusCode switch
+        {
+            HttpStatusCode.Unauthorized => "The Honua server rejected the request because temporal-history read authentication is missing.",
+            HttpStatusCode.Forbidden => "The Honua server rejected the request because the current principal lacks the temporal-history read entitlement.",
+            HttpStatusCode.NotFound => "The Honua server temporal service, layer, or replica was not found.",
+            HttpStatusCode.MethodNotAllowed => "The Honua server exposes the temporal route but not the required verb.",
+            HttpStatusCode.NotImplemented => "The Honua server reports the temporal capability is not implemented.",
+            HttpStatusCode.Conflict => "The Honua server reports this layer does not support the requested temporal capability.",
+            HttpStatusCode.BadRequest => "The Honua server rejected the temporal request as invalid.",
+            HttpStatusCode.ServiceUnavailable => "The Honua server temporal store is currently unavailable.",
+            _ => string.Format(
+                CultureInfo.InvariantCulture,
+                "The Honua server returned HTTP {0} ({1}) for the temporal request.",
+                (int)statusCode,
+                statusCode)
+        };
+
+        return new HonuaAdminEndpointIssue(state, contract, detail, (int)statusCode);
+    }
+}
+
+// --- ApiResponse envelope (mirrors Honua.Infrastructure.Models.ApiResponse<T> success body). ---
+
+internal sealed record HonuaTemporalApiResponse<T>
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; init; }
+
+    [JsonPropertyName("data")]
+    public T? Data { get; init; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
+}
+
+// --- Wire records mirroring honua-server temporal capability + as-of (TemporalHistoryApiModels). ---
+
+public sealed record HonuaTemporalCapabilityResponse
+{
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("layerName")]
+    public string? LayerName { get; init; }
+
+    [JsonPropertyName("supportsHistory")]
+    public bool SupportsHistory { get; init; }
+
+    [JsonPropertyName("supportsAsOf")]
+    public bool SupportsAsOf { get; init; }
+
+    [JsonPropertyName("temporalColumn")]
+    public string? TemporalColumn { get; init; }
+
+    [JsonPropertyName("cursorKind")]
+    public string CursorKind { get; init; } = string.Empty;
+
+    [JsonPropertyName("currentGeneration")]
+    public long? CurrentGeneration { get; init; }
+
+    [JsonPropertyName("deferred")]
+    public HonuaTemporalDeferredCapabilities Deferred { get; init; } = new();
+}
+
+public sealed record HonuaTemporalDeferredCapabilities
+{
+    [JsonPropertyName("supportsDiff")]
+    public bool SupportsDiff { get; init; }
+
+    [JsonPropertyName("supportsTimeline")]
+    public bool SupportsTimeline { get; init; }
+
+    [JsonPropertyName("supportsAttribution")]
+    public bool SupportsAttribution { get; init; }
+
+    [JsonPropertyName("supportsRollback")]
+    public bool SupportsRollback { get; init; }
+}
+
+public sealed record HonuaTemporalAsOfResponse
+{
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("requestedCursorKind")]
+    public string RequestedCursorKind { get; init; } = string.Empty;
+
+    [JsonPropertyName("resolvedGeneration")]
+    public long ResolvedGeneration { get; init; }
+
+    [JsonPropertyName("currentGeneration")]
+    public long CurrentGeneration { get; init; }
+
+    [JsonPropertyName("features")]
+    public HonuaTemporalFeatureState[] Features { get; init; } = [];
+}
+
+public sealed record HonuaTemporalFeatureState
+{
+    [JsonPropertyName("objectId")]
+    public long ObjectId { get; init; }
+
+    [JsonPropertyName("operation")]
+    public string Operation { get; init; } = string.Empty;
+
+    [JsonPropertyName("changedAt")]
+    public string ChangedAt { get; init; } = string.Empty;
+
+    [JsonPropertyName("attributes")]
+    public Dictionary<string, JsonElement>? Attributes { get; init; }
+}
+
+// --- Wire records mirroring honua-server replica management (ReplicaManagementModels, #1167). ---
+
+public sealed record HonuaReplicaManagementListResponse
+{
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("replicas")]
+    public HonuaReplicaManagementSummary[] Replicas { get; init; } = [];
+}
+
+public sealed record HonuaReplicaManagementSummary
+{
+    [JsonPropertyName("replicaId")]
+    public string ReplicaId { get; init; } = string.Empty;
+
+    [JsonPropertyName("replicaName")]
+    public string ReplicaName { get; init; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("syncModel")]
+    public string SyncModel { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerIds")]
+    public int[] LayerIds { get; init; } = [];
+
+    [JsonPropertyName("createdAt")]
+    public DateTimeOffset CreatedAt { get; init; }
+
+    [JsonPropertyName("lastSyncTime")]
+    public DateTimeOffset LastSyncTime { get; init; }
+}
+
+public sealed record HonuaReplicaManagementDetail
+{
+    [JsonPropertyName("replicaId")]
+    public string ReplicaId { get; init; } = string.Empty;
+
+    [JsonPropertyName("replicaName")]
+    public string ReplicaName { get; init; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("syncModel")]
+    public string SyncModel { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerIds")]
+    public int[] LayerIds { get; init; } = [];
+
+    [JsonPropertyName("createdAt")]
+    public DateTimeOffset CreatedAt { get; init; }
+
+    [JsonPropertyName("lastSyncTime")]
+    public DateTimeOffset LastSyncTime { get; init; }
+
+    [JsonPropertyName("lastSyncGeneration")]
+    public long LastSyncGeneration { get; init; }
+}

@@ -24,10 +24,11 @@ namespace Honua.Console.Contracts;
 // so this client deserializes the body straight into the contract type and maps analysis content
 // status semantics (400 validation, 404 not found, 409 conflict, 503 store unavailable) to issues.
 //
-// KNOWN SERVER GAP (honua-server#1182): the contract exposes no analysis-package list route
-// (GET /api/v1/analysis/content/items has no list verb) and no runtime/cost ESTIMATE route. The
-// Console binds every route that exists; the list and estimate capabilities are surfaced as explicit
-// "Unsupported" capability states until honua-server adds them, never fabricated.
+// honua-server#1237 (now merged) added the analysis-content LIST verb
+// (GET /api/v1/analysis/content/items?kind=&lifecycle=&limit=&offset=) and the server-computed
+// runtime/cost ESTIMATE route (POST .../items/{itemId}/versions/{contentVersion}/estimate). The Console
+// binds every route that exists; the list + estimate bindings below replace the prior degraded
+// "Unsupported list" / "local projection estimate" states with the real merged endpoints.
 public sealed record HonuaAnalysisContentClientOptions(Uri BaseUri, string? ApiKey = null);
 
 public interface IHonuaAnalysisContentClient
@@ -36,6 +37,15 @@ public interface IHonuaAnalysisContentClient
 
     Task<HonuaAdminEndpointResult<HonuaAnalysisContentVersionResponse>> CreateItemAsync(
         HonuaCreateAnalysisContentItemRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>> ListItemsAsync(
+        HonuaAnalysisContentListQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>> EstimateAsync(
+        string itemId,
+        int version,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaAnalysisContentVersionResponse>> GetItemAsync(
@@ -112,6 +122,56 @@ public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient
             $"{ContentBase}/items",
             "POST /api/v1/analysis/content/items",
             body: request,
+            cancellationToken: cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAnalysisContentItemListResponse>> ListItemsAsync(
+        HonuaAnalysisContentListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var parameters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(query.Kind))
+        {
+            parameters.Add($"kind={Uri.EscapeDataString(query.Kind)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Lifecycle))
+        {
+            parameters.Add($"lifecycle={Uri.EscapeDataString(query.Lifecycle)}");
+        }
+
+        if (query.Limit is { } limit)
+        {
+            parameters.Add($"limit={limit.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        if (query.Offset is { } offset)
+        {
+            parameters.Add($"offset={offset.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        var queryString = parameters.Count == 0 ? string.Empty : "?" + string.Join("&", parameters);
+
+        return SendAsync<HonuaAnalysisContentItemListResponse>(
+            HttpMethod.Get,
+            $"{ContentBase}/items{queryString}",
+            "GET /api/v1/analysis/content/items (list)",
+            cancellationToken: cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAnalysisContentEstimateResponse>> EstimateAsync(
+        string itemId,
+        int version,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(itemId);
+
+        return SendAsync<HonuaAnalysisContentEstimateResponse>(
+            HttpMethod.Post,
+            $"{ContentBase}/items/{Uri.EscapeDataString(itemId)}/versions/{Version(version)}/estimate",
+            "POST /api/v1/analysis/content/items/{itemId}/versions/{contentVersion}/estimate",
             cancellationToken: cancellationToken);
     }
 
@@ -489,6 +549,89 @@ public sealed record HonuaAnalysisContentVersionResponse
 
     [JsonPropertyName("version")]
     public HonuaAnalysisContentVersion Version { get; init; } = new();
+}
+
+// honua-server#1237 list query. Kind/lifecycle are the camelCase server enum wire names
+// ("analysisPackage"/"savedQuery", "active"/"archived"/"deleted"); null omits the filter.
+public sealed record HonuaAnalysisContentListQuery(
+    string? Kind = null,
+    string? Lifecycle = null,
+    int? Limit = null,
+    int? Offset = null);
+
+public sealed record HonuaAnalysisContentItemListResponse
+{
+    [JsonPropertyName("items")]
+    public HonuaAnalysisContentItem[] Items { get; init; } = [];
+
+    [JsonPropertyName("totalCount")]
+    public long TotalCount { get; init; }
+
+    [JsonPropertyName("limit")]
+    public int Limit { get; init; }
+
+    [JsonPropertyName("offset")]
+    public int Offset { get; init; }
+}
+
+public sealed record HonuaAnalysisContentEstimateResponse
+{
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; init; } = string.Empty;
+
+    [JsonPropertyName("version")]
+    public int Version { get; init; }
+
+    [JsonPropertyName("versionId")]
+    public string VersionId { get; init; } = string.Empty;
+
+    [JsonPropertyName("estimate")]
+    public HonuaAnalysisContentEstimate Estimate { get; init; } = new();
+}
+
+public sealed record HonuaAnalysisContentEstimate
+{
+    [JsonPropertyName("stepCount")]
+    public int StepCount { get; init; }
+
+    [JsonPropertyName("queryStepCount")]
+    public int QueryStepCount { get; init; }
+
+    [JsonPropertyName("geoprocessStepCount")]
+    public int GeoprocessStepCount { get; init; }
+
+    [JsonPropertyName("estimatedInputFeatureCount")]
+    public long? EstimatedInputFeatureCount { get; init; }
+
+    [JsonPropertyName("estimatedComputeUnits")]
+    public double EstimatedComputeUnits { get; init; }
+
+    [JsonPropertyName("estimatedCostUsd")]
+    public decimal EstimatedCostUsd { get; init; }
+
+    [JsonPropertyName("estimatedRuntimeSeconds")]
+    public double EstimatedRuntimeSeconds { get; init; }
+
+    [JsonPropertyName("isLowerBound")]
+    public bool IsLowerBound { get; init; }
+
+    [JsonPropertyName("inputs")]
+    public HonuaAnalysisContentLayerEstimate[] Inputs { get; init; } = [];
+}
+
+public sealed record HonuaAnalysisContentLayerEstimate
+{
+    [JsonPropertyName("stepId")]
+    public string StepId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("estimatedFeatureCount")]
+    public long? EstimatedFeatureCount { get; init; }
+
+    [JsonPropertyName("unresolved")]
+    public bool Unresolved { get; init; }
 }
 
 public sealed record HonuaAnalysisContentJobResponse

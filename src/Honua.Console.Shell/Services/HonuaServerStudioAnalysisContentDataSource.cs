@@ -13,24 +13,21 @@ namespace Honua.Console.Shell.Services;
 /// result (Console Patterns Charter section 11).
 ///
 /// The core analysis content/artifacts contract (honua-server#1182) is CLOSED and bound live (create item,
-/// create version, id-addressed load, run, job-failure, artifact resolve). Two capabilities the issue scopes
-/// remain gated on the still-OPEN analysis content API (honua-server#1237: list + cost-estimate endpoints)
-/// and are surfaced as explicit capability states rather than fabricated:
-///   - Analysis-package listing: honua-server#1237 has not landed the list verb, so the workspace cannot
-///     enumerate existing packages from live data. New plans and id-addressed loads work; the list binds
-///     automatically once #1237 lands.
-///   - Runtime/cost estimate: honua-server#1237 has not landed the server cost-estimate route, so the
-///     compute estimate is a Console-side projection over the authored plan, clearly labelled as a local
-///     estimate, until the server endpoint lands. The estimate still gates submit (AC#2) so the operator
-///     reviews runtime/cost before a job is queued.
+/// create version, id-addressed load, run, job-failure, artifact resolve). The analysis content list +
+/// cost-estimate endpoints (honua-server#1237) are now MERGED and bound live here:
+///   - Analysis-package listing: the workspace enumerates active analysis packages from the server list
+///     endpoint (GET .../content/items?kind=analysisPackage&amp;lifecycle=active).
+///   - Runtime/cost estimate: the plan card binds the server-computed runtime/cost estimate
+///     (POST .../versions/{contentVersion}/estimate) — a real server figure, not a Console projection.
+///     The estimate still gates submit (AC#2) so the operator reviews runtime/cost before a job is queued.
+/// One capability the issue scopes remains unsupported on the server contract and is surfaced as an
+/// explicit capability state rather than fabricated:
 ///   - Analysis-package dry-run preview: the server preview route is saved-query only, so a preview of an
 ///     analysis package is surfaced as unsupported until the server adds an analysis-package preview.
 /// </summary>
 public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysisPackageDataSource
 {
     private const string Surface = "Analysis builder";
-    private const string ListContract = "GET /api/v1/analysis/content/items (list)";
-    private const string EstimateContract = "POST /api/v1/analysis/content/items/{itemId}/versions/{contentVersion}/estimate";
     private const string PreviewContract = "POST /api/v1/analysis/content/items/{itemId}/versions/{contentVersion}/preview";
 
     private readonly IHonuaAnalysisContentClient _client;
@@ -40,20 +37,28 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
-    public Task<StudioAnalysisWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+    public async Task<StudioAnalysisWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
-        // honua-server#1237 (analysis content API: list endpoint) is still open. Surface that explicitly
-        // instead of mocking a list: operators reach an analysis by id (deep link / known id) or author a
-        // new plan.
-        var listUnsupported = new StudioAnalysisCapabilityState(
-            Surface,
-            "Unsupported",
-            ListContract,
-            "honua-server does not yet expose an analysis-package list endpoint, so existing packages cannot "
-            + "be enumerated from live data. Open a known analysis by id or create a new analysis. This list "
-            + "binds automatically once honua-server#1237 adds a list route.");
+        // honua-server#1237 (analysis content API: list endpoint) is merged. Enumerate the active
+        // analysis packages from live data so the /studio/analysis list view shows real items.
+        var result = await _client
+            .ListItemsAsync(
+                new HonuaAnalysisContentListQuery(
+                    Kind: HonuaAnalysisContentKinds.AnalysisPackage,
+                    Lifecycle: "active"),
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        return Task.FromResult(new StudioAnalysisWorkspace([], [listUnsupported]));
+        if (result.Issue is { } issue)
+        {
+            return new StudioAnalysisWorkspace([], [ToCapabilityState(issue)]);
+        }
+
+        var plans = result.Data!.Items
+            .Select(StudioAnalysisPackageMapper.ToListItem)
+            .ToArray();
+
+        return new StudioAnalysisWorkspace(plans, []);
     }
 
     public async Task<StudioAnalysisEditorLoad> LoadAsync(
@@ -135,7 +140,7 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             saved);
     }
 
-    public Task<StudioAnalysisCommandResult> EstimateAsync(
+    public async Task<StudioAnalysisCommandResult> EstimateAsync(
         StudioAnalysisPlanEditor plan,
         CancellationToken cancellationToken = default)
     {
@@ -143,32 +148,31 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
 
         if (!plan.IsExistingPackage)
         {
-            return Task.FromResult(Failure("Save the analysis before estimating runtime and cost."));
+            return Failure("Save the analysis before estimating runtime and cost.");
         }
 
-        // honua-server#1237 (analysis content API: cost-estimate endpoint) is still open. Until it lands,
-        // project a transparent Console-side estimate over the authored plan so the operator still reviews
-        // runtime/cost before submit (AC#2). This is NOT fabricated server data: it is a clearly-labelled
-        // local projection and is accompanied by an explicit capability state documenting the missing route.
-        var estimate = StudioAnalysisEstimator.Estimate(plan);
+        // honua-server#1237 (analysis content API: cost-estimate endpoint) is merged. Bind the
+        // server-computed runtime/cost estimate so the plan card shows a real server figure, not a local
+        // projection. The estimate still gates submit (AC#2) so the operator reviews runtime/cost first.
+        var result = await _client
+            .EstimateAsync(plan.AnalysisId!, plan.Version, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Issue is { } issue)
+        {
+            return Failure(issue.Detail, ToCapabilityState(issue), issue.FieldErrors);
+        }
+
+        var estimate = StudioAnalysisPackageMapper.ToComputeEstimate(result.Data!.Estimate, plan.ComputeProfile);
         plan.Estimate = estimate;
 
-        var note = new StudioAnalysisCapabilityState(
-            Surface,
-            "Unsupported",
-            EstimateContract,
-            "Estimate unavailable from server: honua-server does not yet expose a runtime/cost estimate "
-            + "route, so this estimate is a local Console projection over the authored plan (inputs x "
-            + "parameters x compute profile), not a server-computed figure. It binds to the server estimate "
-            + "once honua-server#1237 adds the route.");
-
-        return Task.FromResult(new StudioAnalysisCommandResult(
+        var lowerBound = result.Data.Estimate.IsLowerBound ? " (lower bound; some input statistics unresolved)" : string.Empty;
+        return new StudioAnalysisCommandResult(
             true,
-            $"Local estimate ready: ~{estimate.EstimatedRuntimeSeconds.ToString("0.#", CultureInfo.InvariantCulture)}s "
-            + $"over ~{estimate.EstimatedInputFeatures.ToString("N0", CultureInfo.InvariantCulture)} features "
-            + "(server estimate route pending).",
-            plan,
-            note));
+            $"Server estimate ready: ~{estimate.EstimatedRuntimeSeconds.ToString("0.#", CultureInfo.InvariantCulture)}s "
+            + $"over ~{estimate.EstimatedInputFeatures.ToString("N0", CultureInfo.InvariantCulture)} features"
+            + $"{lowerBound}.",
+            plan);
     }
 
     public Task<StudioAnalysisCommandResult> PreviewAsync(
