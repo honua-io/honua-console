@@ -264,6 +264,124 @@ public static class JsonPointer
 }
 
 /// <summary>
+/// Validates a standard 5-field cron expression (minute hour day-of-month month day-of-week). A shape /
+/// range gate only: each field is either <c>*</c>, a <c>*/step</c> step, a comma list, a hyphen range, or
+/// a single value, and every numeric value is within the field's allowed range. Names (JAN, MON, …) are
+/// accepted for the month and day-of-week fields. Pure and culture-invariant. The server owns the
+/// authoritative schedule semantics; this catches obviously-malformed operator input before submit.
+/// </summary>
+public static class CronRule
+{
+    private static readonly (int Min, int Max)[] FieldRanges =
+    [
+        (0, 59),   // minute
+        (0, 23),   // hour
+        (1, 31),   // day of month
+        (1, 12),   // month
+        (0, 7),    // day of week (0 and 7 are both Sunday)
+    ];
+
+    private static readonly HashSet<string> MonthNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+    };
+
+    private static readonly HashSet<string> DayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT",
+    };
+
+    /// <summary>Returns <see langword="true"/> when <paramref name="value"/> is a well-formed 5-field cron expression.</summary>
+    public static bool IsValid(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var fields = value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (fields.Length != 5)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < 5; i++)
+        {
+            if (!IsFieldValid(fields[i], FieldRanges[i].Min, FieldRanges[i].Max, i))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsFieldValid(string field, int min, int max, int fieldIndex)
+    {
+        // Each comma-separated term is independently valid.
+        foreach (var term in field.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            // Optional step suffix: <range>/<step>.
+            var slash = term.Split('/');
+            if (slash.Length > 2)
+            {
+                return false;
+            }
+
+            if (slash.Length == 2 && (!int.TryParse(slash[1], out var step) || step <= 0))
+            {
+                return false;
+            }
+
+            var range = slash[0];
+            if (range == "*")
+            {
+                continue;
+            }
+
+            // A hyphen range a-b, or a single value.
+            var bounds = range.Split('-');
+            if (bounds.Length > 2)
+            {
+                return false;
+            }
+
+            foreach (var bound in bounds)
+            {
+                if (!IsValueInRange(bound, min, max, fieldIndex))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsValueInRange(string token, int min, int max, int fieldIndex)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return false;
+        }
+
+        // Named months / days are allowed in their respective fields.
+        if (fieldIndex == 3 && MonthNames.Contains(token))
+        {
+            return true;
+        }
+
+        if (fieldIndex == 4 && DayNames.Contains(token))
+        {
+            return true;
+        }
+
+        return int.TryParse(token, System.Globalization.NumberStyles.None, CultureInfo.InvariantCulture, out var value)
+            && value >= min && value <= max;
+    }
+}
+
+/// <summary>
 /// Lightweight client-side check that a string is a parseable GeoJSON geometry literal. This is a shape
 /// gate only — it confirms the value is a JSON object carrying a recognised geometry <c>type</c> and a
 /// <c>coordinates</c> (or, for a GeometryCollection, <c>geometries</c>) member — not full topology

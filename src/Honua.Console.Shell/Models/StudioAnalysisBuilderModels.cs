@@ -240,8 +240,14 @@ public sealed record StudioAnalysisEditorLoad(
 }
 
 /// <summary>Outcome of a mutating analysis lifecycle command (save, estimate, preview, submit).</summary>
+/// <param name="FieldErrors">
+/// Field-addressable validation errors parsed from a 400 ProblemDetails <c>errors[]</c> (the honua-server
+/// Wave-4 field-level analysis-content contract), bound onto the offending plan inputs by the page via
+/// <c>StudioAnalysisServerErrorBinder</c>. Empty for non-validation failures and for successes.
+/// </param>
 public sealed record StudioAnalysisCommandResult(
     bool Succeeded,
     string Message,
     StudioAnalysisPlanEditor? Plan = null,
-    StudioAnalysisCapabilityState? Issue = null);
+    StudioAnalysisCapabilityState? Issue = null,
+    IReadOnlyList<Honua.Console.Contracts.HonuaFieldValidationError>? FieldErrors = null);

@@ -122,7 +122,7 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
 
         if (result.Issue is { } issue)
         {
-            return Failure(issue.Detail, ToCapabilityState(issue));
+            return Failure(issue.Detail, ToCapabilityState(issue), issue.FieldErrors);
         }
 
         var saved = StudioAnalysisPackageMapper.ToEditorState(result.Data!);
@@ -239,7 +239,7 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
 
         if (run.Issue is { } issue)
         {
-            return Failure(issue.Detail, ToCapabilityState(issue));
+            return Failure(issue.Detail, ToCapabilityState(issue), issue.FieldErrors);
         }
 
         var job = run.Data!;
@@ -297,7 +297,7 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
         var result = await _client.GetArtifactAsync(artifactId, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
-            return Failure(issue.Detail, ToCapabilityState(issue));
+            return Failure(issue.Detail, ToCapabilityState(issue), issue.FieldErrors);
         }
 
         var view = StudioAnalysisPackageMapper.ToArtifactView(result.Data!.Artifact, result.Data.Binding);
@@ -327,8 +327,11 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
         return $"{slug}-{Guid.NewGuid():N}";
     }
 
-    private static StudioAnalysisCommandResult Failure(string message, StudioAnalysisCapabilityState? issue = null) =>
-        new(false, message, Issue: issue);
+    private static StudioAnalysisCommandResult Failure(
+        string message,
+        StudioAnalysisCapabilityState? issue = null,
+        IReadOnlyList<Honua.Console.Contracts.HonuaFieldValidationError>? fieldErrors = null) =>
+        new(false, message, Issue: issue, FieldErrors: fieldErrors);
 
     private static StudioAnalysisCapabilityState ToCapabilityState(HonuaAdminEndpointIssue issue) =>
         new(

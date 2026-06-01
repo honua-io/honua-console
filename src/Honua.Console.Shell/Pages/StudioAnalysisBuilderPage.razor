@@ -1,5 +1,8 @@
 @page "/studio/analysis"
+@using Honua.Console.Shell.Validation
 @inject IStudioAnalysisPackageDataSource AnalysisData
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved analysis changes. Leave this page and discard them?" />
 
 <section class="console-page studio-analysis-builder">
     <div class="console-page-heading">
@@ -114,16 +117,29 @@
                     <div class="studio-analysis-editor-bar-spacer"></div>
                     <div class="console-action-row studio-analysis-editor-actions">
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to analyses</button>
-                        <button class="console-button" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="Save">Save draft</button>
+                        <button class="console-button" type="button" disabled="@(_busy || plan.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
                         <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Estimate">Estimate</button>
                         <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Preview">Preview job</button>
-                        <button class="console-button" type="button" disabled="@(_busy || !readiness.CanSubmit)" @onclick="Submit">Submit job</button>
+                        <button class="console-button" type="button" disabled="@(_busy || !readiness.CanSubmit || _validation.HasBlockingClientErrors)" @onclick="Submit">Submit job</button>
                     </div>
                 </header>
 
                 @if (!string.IsNullOrEmpty(_status))
                 {
                     <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
+                }
+
+                @if (_validation.HasBlockingClientErrors)
+                {
+                    <div class="console-warning studio-analysis-validation-summary" role="alert" data-analysis-validation="blocking">
+                        <p>Resolve these before saving or submitting:</p>
+                        <ul class="studio-compact-list">
+                            @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                            {
+                                <li>@error.Message</li>
+                            }
+                        </ul>
+                    </div>
                 }
 
                 <div class="studio-analysis-editor-body">
@@ -278,16 +294,16 @@
                             <FieldStateRow State="FieldState.System" Label="Analysis id" Value="@plan.AnalysisId" Hint="@($"v{plan.Version}")" />
                         }
                         <FieldStateRow State="FieldState.Input" Label="Title">
-                            <input class="console-input" @bind="plan.Title" placeholder="Hydrant proximity buffer" />
+                            <input class="console-input" @bind="plan.Title" @bind:after="OnEdit" placeholder="Hydrant proximity buffer" />
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Description">
-                            <textarea class="console-input" rows="2" @bind="plan.Description"></textarea>
+                            <textarea class="console-input" rows="2" @bind="plan.Description" @bind:after="OnEdit"></textarea>
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Goal (analysis intent)">
-                            <textarea class="console-input" rows="2" @bind="plan.Goal" placeholder="Find every parcel within 250m of a hydrant"></textarea>
+                            <textarea class="console-input" rows="2" @bind="plan.Goal" @bind:after="OnEdit" placeholder="Find every parcel within 250m of a hydrant"></textarea>
                         </FieldStateRow>
-                        <FieldStateRow State="FieldState.Input" Label="Method">
-                            <select class="console-input" @bind="plan.Method">
+                        <FieldStateRow State="FieldState.Input" Label="Method" Errors="_validation.Errors(StudioAnalysisFieldKeys.Method)">
+                            <select class="console-input" @bind="plan.Method" @bind:after="OnEdit">
                                 @foreach (var method in StudioAnalysisMethods.All)
                                 {
                                     <option value="@method">@method</option>
@@ -300,7 +316,7 @@
                         <p class="console-kicker">Compute</p>
                         <h3>Profile and output</h3>
                         <FieldStateRow State="FieldState.Input" Label="Compute profile">
-                            <select class="console-input" @bind="plan.ComputeProfile">
+                            <select class="console-input" @bind="plan.ComputeProfile" @bind:after="OnEdit">
                                 @foreach (var profile in StudioAnalysisComputeProfiles.All)
                                 {
                                     <option value="@profile">@profile</option>
@@ -308,7 +324,7 @@
                             </select>
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Output becomes">
-                            <select class="console-input" @bind="plan.OutputContentType">
+                            <select class="console-input" @bind="plan.OutputContentType" @bind:after="OnEdit">
                                 @foreach (var contentType in StudioAnalysisOutputContentTypes.All)
                                 {
                                     <option value="@contentType">@contentType</option>
@@ -364,13 +380,13 @@
                         {
                             <div class="studio-analysis-row" @key="input">
                                 <FieldStateRow State="FieldState.Input" Label="Role">
-                                    <input class="console-input" @bind="input.Role" placeholder="primary" />
+                                    <input class="console-input" @bind="input.Role" @bind:after="OnEdit" placeholder="primary" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Service id">
-                                    <input class="console-input" @bind="input.ServiceId" placeholder="hydrants" />
+                                    <input class="console-input" @bind="input.ServiceId" @bind:after="OnEdit" placeholder="hydrants" />
                                 </FieldStateRow>
-                                <FieldStateRow State="FieldState.Input" Label="Layer id">
-                                    <input class="console-input" type="number" @bind="input.LayerId" />
+                                <FieldStateRow State="FieldState.Input" Label="Layer id" Errors="_validation.Errors(StudioAnalysisFieldKeys.InputLayerId(plan.Inputs.IndexOf(input)))">
+                                    <input class="console-input" type="number" @bind="input.LayerId" @bind:after="OnEdit" />
                                 </FieldStateRow>
                                 <div class="console-action-row">
                                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="() => RemoveInput(input)">Remove</button>
@@ -396,11 +412,11 @@
                         @foreach (var parameter in plan.Parameters)
                         {
                             <div class="studio-analysis-row" @key="parameter">
-                                <FieldStateRow State="FieldState.Input" Label="Name">
-                                    <input class="console-input" @bind="parameter.Name" placeholder="distanceMeters" />
+                                <FieldStateRow State="FieldState.Input" Label="Name" Errors="_validation.Errors(StudioAnalysisFieldKeys.ParameterName(plan.Parameters.IndexOf(parameter)))">
+                                    <input class="console-input" @bind="parameter.Name" @bind:after="OnEdit" placeholder="distanceMeters" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Value">
-                                    <input class="console-input" @bind="parameter.Value" placeholder="250" />
+                                    <input class="console-input" @bind="parameter.Value" @bind:after="OnEdit" placeholder="250" />
                                 </FieldStateRow>
                                 <div class="console-action-row">
                                     <button class="console-button console-button-secondary" type="button" disabled="@(_busy || plan.IsPublished)" @onclick="() => RemoveParameter(parameter)">Remove</button>
@@ -426,11 +442,11 @@
                         @foreach (var field in plan.OutputSchema)
                         {
                             <div class="studio-analysis-row" @key="field">
-                                <FieldStateRow State="FieldState.Input" Label="Name">
-                                    <input class="console-input" @bind="field.Name" placeholder="buffer_distance" />
+                                <FieldStateRow State="FieldState.Input" Label="Name" Errors="_validation.Errors(StudioAnalysisFieldKeys.OutputFieldName(plan.OutputSchema.IndexOf(field)))">
+                                    <input class="console-input" @bind="field.Name" @bind:after="OnEdit" placeholder="buffer_distance" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Type">
-                                    <select class="console-input" @bind="field.Type">
+                                    <select class="console-input" @bind="field.Type" @bind:after="OnEdit">
                                         @foreach (var type in StudioAnalysisFieldTypes.All)
                                         {
                                             <option value="@type">@type</option>
@@ -460,6 +476,25 @@
     private string? _status;
     private bool _statusFailed;
     private string _artifactId = string.Empty;
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
+
+    /// <summary>
+    /// Re-runs the client validator over the current plan and flags it dirty. Wired to every bound edit via
+    /// <c>@bind:after</c> (cheap and synchronous). The server channel is dropped on edit because any change
+    /// makes the last submit-time server findings stale; the next save/submit rebinds fresh ones.
+    /// </summary>
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        RecomputeClientErrors();
+        _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_plan is null
+            ? Array.Empty<ConsoleFieldError>()
+            : StudioAnalysisValidator.Instance.Evaluate(_plan));
 
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
 
@@ -490,6 +525,10 @@
             var result = await load();
             ApplyStates(result.CapabilityStates);
             _plan = result.Plan;
+            // A fresh load is the clean baseline.
+            _validation.Clear();
+            _dirty.MarkClean();
+            RecomputeClientErrors();
         }
         finally
         {
@@ -502,22 +541,48 @@
         _plan = null;
         _status = null;
         _statusFailed = false;
+        _validation.Clear();
+        _dirty.MarkClean();
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
         // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
         await LoadWorkspaceAsync();
     }
 
-    private void AddInput() => _plan?.Inputs.Add(new StudioAnalysisInputEditor());
+    private void AddInput()
+    {
+        _plan?.Inputs.Add(new StudioAnalysisInputEditor());
+        OnEdit();
+    }
 
-    private void RemoveInput(StudioAnalysisInputEditor input) => _plan?.Inputs.Remove(input);
+    private void RemoveInput(StudioAnalysisInputEditor input)
+    {
+        _plan?.Inputs.Remove(input);
+        OnEdit();
+    }
 
-    private void AddParameter() => _plan?.Parameters.Add(new StudioAnalysisParameterEditor());
+    private void AddParameter()
+    {
+        _plan?.Parameters.Add(new StudioAnalysisParameterEditor());
+        OnEdit();
+    }
 
-    private void RemoveParameter(StudioAnalysisParameterEditor parameter) => _plan?.Parameters.Remove(parameter);
+    private void RemoveParameter(StudioAnalysisParameterEditor parameter)
+    {
+        _plan?.Parameters.Remove(parameter);
+        OnEdit();
+    }
 
-    private void AddOutputField() => _plan?.OutputSchema.Add(new StudioAnalysisOutputFieldEditor());
+    private void AddOutputField()
+    {
+        _plan?.OutputSchema.Add(new StudioAnalysisOutputFieldEditor());
+        OnEdit();
+    }
 
-    private void RemoveOutputField(StudioAnalysisOutputFieldEditor field) => _plan?.OutputSchema.Remove(field);
+    private void RemoveOutputField(StudioAnalysisOutputFieldEditor field)
+    {
+        _plan?.OutputSchema.Remove(field);
+        OnEdit();
+    }
 
     private Task Save() => RunCommandAsync(() => AnalysisData.SaveDraftAsync(_plan!));
 
@@ -547,6 +612,17 @@
             if (result.Plan is not null)
             {
                 _plan = result.Plan;
+            }
+
+            // Re-run the client validator against the current plan and bind any field-addressable server
+            // findings (parsed from a 400 ProblemDetails errors[]) onto the same field keys so they surface
+            // inline next to the offending input, merged with the client findings.
+            RecomputeClientErrors();
+            _validation.SetServerErrors(StudioAnalysisServerErrorBinder.Map(result.FieldErrors));
+
+            if (result.Succeeded)
+            {
+                _dirty.MarkClean();
             }
 
             ApplyStates(result.Issue is null ? [] : [result.Issue]);

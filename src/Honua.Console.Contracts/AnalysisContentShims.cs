@@ -277,7 +277,21 @@ public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient
         {
             if (!response.IsSuccessStatusCode)
             {
-                return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, response.StatusCode));
+                var issue = CreateIssue(contract, response.StatusCode);
+
+                // A 400 carries the shared field-addressable validation contract (RFC-7807 ProblemDetails
+                // errors[] of FieldValidationError, honua-server Wave 4); parse it so Console can bind each
+                // finding onto the offending plan input rather than only surfacing the flat detail.
+                if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    var fieldErrors = await ReadFieldErrorsAsync(response, cancellationToken).ConfigureAwait(false);
+                    if (fieldErrors.Count > 0)
+                    {
+                        issue = issue with { FieldErrors = fieldErrors };
+                    }
+                }
+
+                return HonuaAdminEndpointResult<T>.FromIssue(issue);
             }
 
             T? payload;
@@ -303,6 +317,61 @@ public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient
                     "The Honua server analysis content response body was empty.",
                     (int)response.StatusCode))
                 : HonuaAdminEndpointResult<T>.FromData(payload);
+        }
+    }
+
+    // Parses the RFC-7807 ProblemDetails errors[] extension into the shared field-validation shape. Returns
+    // an empty list for a body that is not a field-addressable validation rejection (flat ProblemDetails,
+    // empty body, malformed JSON). Mirrors the ContentPublication client's parser.
+    private static async Task<IReadOnlyList<HonuaFieldValidationError>> ReadFieldErrorsAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        string body;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+        {
+            return [];
+        }
+
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("errors", out var errors)
+                || errors.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var parsed = new List<HonuaFieldValidationError>();
+            foreach (var item in errors.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var error = item.Deserialize<HonuaFieldValidationError>(JsonOptions);
+                if (error is not null && !string.IsNullOrEmpty(error.Code))
+                {
+                    parsed.Add(error);
+                }
+            }
+
+            return parsed;
+        }
+        catch (JsonException)
+        {
+            return [];
         }
     }
 
