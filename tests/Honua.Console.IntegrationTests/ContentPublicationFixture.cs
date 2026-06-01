@@ -92,4 +92,22 @@ public sealed class ContentPublicationFixture : IAsyncLifetime
         new(BaseAddress, Options.StudioAdminApiKey);
 
     public string? AdminApiKey => Options.StudioAdminApiKey;
+
+    /// <summary>
+    /// True when the server target runs with dev-auth bypass (HONUA_DEV_AUTH_ALLOW_BYPASS), which
+    /// auto-authenticates every request — including the verifier's "anonymous" probe — on auth-gated
+    /// surfaces like /api/v1/published. Negative anonymous-denial assertions cannot be proven in that
+    /// profile and are skipped ONLY when this is set, so a genuine leak still fails in a non-bypass run.
+    /// </summary>
+    public bool DevAuthBypassEnabled =>
+        (Options.ServerEnvironment ?? string.Empty)
+            .Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(entry => entry.Split('=', 2))
+            .Any(parts =>
+                parts.Length == 2
+                && parts[0].Trim().Equals("HONUA_DEV_AUTH_ALLOW_BYPASS", StringComparison.OrdinalIgnoreCase)
+                && parts[1].Trim() is var value
+                && (value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                    || value == "1"
+                    || value.Equals("yes", StringComparison.OrdinalIgnoreCase)));
 }

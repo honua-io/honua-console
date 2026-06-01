@@ -116,10 +116,14 @@ public sealed class PublishCatalogLandingRoundTripTests
         // result. The private visibility above is the authoritative independent landing proof regardless.
         var anon = await verifier.FetchPublishedRouteAnonymouslyAsync(route.RouteSlug!);
         SkipIfPublishedRouteNotReady(anon);
+        // Only the dev-auth-bypass profile can excuse a 2xx here (the probe is auto-authenticated as admin).
+        // Gate the skip on that explicit signal so a genuine anonymous leak still FAILS in a non-bypass run,
+        // rather than being silently masked. (Codex review #147.)
         Skip.If(
-            anon.Granted,
-            "The server auto-authenticates the probe (dev-auth bypass profile), so anonymous denial of a "
-            + "private published route cannot be proven here; the authoritative private-visibility admin read above is the landing proof.");
+            anon.Granted && _fixture.DevAuthBypassEnabled,
+            "The server runs with dev-auth bypass (HONUA_DEV_AUTH_ALLOW_BYPASS), which auto-authenticates the "
+            + "probe, so anonymous denial of a private published route cannot be proven here; the authoritative "
+            + "private-visibility admin read above is the landing proof.");
         Assert.False(anon.Granted, $"A private publication was anonymously reachable (HTTP {anon.StatusCode}).");
     }
 
