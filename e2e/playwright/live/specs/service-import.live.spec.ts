@@ -65,6 +65,28 @@ test.describe('Operate · Import from a service (live)', () => {
     );
   });
 
+  test('imports a selected layer and the job runs to completion', async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.goto('/operate/import/service');
+    await page.getByPlaceholder(/rest\/services/).fill(SAMPLE_FEATURE_SERVER);
+    await page.getByRole('button', { name: 'Discover service' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Service discovered' })).toBeVisible({ timeout: 60_000 });
+
+    // Import to a PostGIS table only (auto-publish off) so the assertion isn't coupled to publish-side state.
+    await page.getByLabel('Auto-publish imported layers').uncheck();
+    await page.locator('[data-layer-checkbox]').first().check();
+    await expect(page.locator('[data-selection-count]')).toContainText('1 of');
+
+    await page.locator('[data-import-selected]').click();
+
+    // A job row appears and the server-side import runs to completion.
+    const jobRow = page.locator('[data-import-job]').first();
+    await expect(jobRow).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-import-job][data-import-status="Completed"]')).toHaveCount(1, { timeout: 120_000 });
+    await expect(jobRow).toContainText(/imp_wildfire/i);
+  });
+
   test('discovers an ArcGIS catalog root and lists many services in the tree', async ({ page }) => {
     test.setTimeout(300_000);
     await page.goto('/operate/import/service');

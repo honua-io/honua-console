@@ -1,5 +1,8 @@
 @page "/operate/import/service"
+@using System.Text
+@using System.Threading
 @using Honua.Console.Shell.Models
+@implements IDisposable
 @inject IConsoleServiceImportOperation ServiceImport
 
 <section class="console-page">
@@ -132,15 +135,48 @@
                     <button class="console-button-link" type="button" @onclick="SelectAll" data-select-all>Select all</button>
                     <button class="console-button-link" type="button" @onclick="DeselectAll" data-deselect-all>Deselect all</button>
                     <span class="console-muted" data-selection-count>@_selected.Count of @_totalLayers layers selected</span>
-                    <button class="console-button" type="button" disabled="@(_selected.Count == 0)" @onclick="ImportSelected" data-import-selected>
-                        Import selected layers
+                    <label class="console-inline-check">
+                        <input type="checkbox" @bind="_autoPublish" aria-label="Auto-publish imported layers" />
+                        <span>Auto-publish</span>
+                    </label>
+                    <button class="console-button" type="button" disabled="@(_selected.Count == 0 || _importing)" @onclick="StartImportsAsync" data-import-selected>
+                        @(_importing ? "Importing…" : "Import selected layers")
                     </button>
                 </div>
 
-                @if (_importNotice is not null)
+                @if (_importError is not null)
                 {
-                    <div class="console-panel console-state-info" role="status" data-import-selection-notice>
-                        <p>@_importNotice</p>
+                    <div class="console-validation-summary" role="alert" data-import-error>
+                        <ul><li>@_importError</li></ul>
+                    </div>
+                }
+
+                @if (_jobs.Count > 0)
+                {
+                    <div class="console-table-wrap">
+                        <table class="console-table" data-import-jobs>
+                            <thead>
+                                <tr><th>Layer</th><th>Target table</th><th>Status</th><th>Features</th><th>Published</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var job in _jobs)
+                                {
+                                    <tr data-import-job data-import-status="@job.Status">
+                                        <td>@job.LayerName</td>
+                                        <td class="console-mono">@job.TableName</td>
+                                        <td>
+                                            <span class="@JobStatusClass(job)">@job.Status</span>
+                                            @if (!string.IsNullOrWhiteSpace(job.Detail))
+                                            {
+                                                <small class="console-muted"> · @job.Detail</small>
+                                            }
+                                        </td>
+                                        <td class="console-mono">@(job.Features > 0 ? job.Features.ToString("N0") : "—")</td>
+                                        <td class="console-mono">@(job.PublishedLayerId?.ToString() ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
                     </div>
                 }
 
@@ -206,7 +242,6 @@
 
     private bool _busy;
     private string? _clientError;
-    private string? _importNotice;
     private ConsoleServiceImportResult? _result;
 
     private readonly List<FolderNode> _tree = new();
@@ -214,15 +249,24 @@
     private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
     private int _totalLayers;
 
+    private bool _autoPublish = true;
+    private bool _importing;
+    private string? _importError;
+    private readonly List<ImportJobRow> _jobs = new();
+    private Timer? _pollTimer;
+    private bool _polling;
+
     private void ClearResult()
     {
         _clientError = null;
-        _importNotice = null;
+        _importError = null;
         _result = null;
         _tree.Clear();
         _selected.Clear();
         _expanded.Clear();
         _totalLayers = 0;
+        StopPolling();
+        _jobs.Clear();
     }
 
     private async Task DiscoverAsync()
@@ -358,6 +402,7 @@
                     Key = serviceKey,
                     Name = service.ServiceName,
                     Type = service.ServiceType ?? "service",
+                    ServiceUrl = service.ServiceUrl,
                 };
 
                 foreach (var layer in service.Layers)
@@ -367,6 +412,8 @@
                     {
                         Key = layerKey,
                         Display = layer.LayerId is { } id ? $"{id} · {layer.Name}" : layer.Name,
+                        RawName = layer.Name,
+                        LayerId = layer.LayerId,
                         GeometryType = layer.GeometryType,
                         FeatureCount = layer.FeatureCount,
                     });
@@ -416,7 +463,7 @@
             }
         }
 
-        _importNotice = null;
+        _importError = null;
     }
 
     private void ToggleLayer(string key, bool selected)
@@ -430,7 +477,7 @@
             _selected.Remove(key);
         }
 
-        _importNotice = null;
+        _importError = null;
     }
 
     private void SelectAll()
@@ -440,20 +487,214 @@
             _selected.Add(layer.Key);
         }
 
-        _importNotice = null;
+        _importError = null;
     }
 
     private void DeselectAll()
     {
         _selected.Clear();
-        _importNotice = null;
+        _importError = null;
     }
 
-    private void ImportSelected()
+    private async Task StartImportsAsync()
     {
-        _importNotice = _selected.Count == 0
-            ? null
-            : $"{_selected.Count} layer(s) queued for import. Imports run through honua-server; track progress on the Resources surface.";
+        _importError = null;
+        StopPolling();
+        _jobs.Clear();
+
+        var selections = new List<(ServiceNode Service, LayerNode Layer)>();
+        foreach (var service in _tree.SelectMany(f => f.Services))
+        {
+            foreach (var layer in service.Layers)
+            {
+                if (_selected.Contains(layer.Key))
+                {
+                    selections.Add((service, layer));
+                }
+            }
+        }
+
+        if (selections.Count == 0)
+        {
+            return;
+        }
+
+        var importable = selections
+            .Where(s => s.Service.IsArcGis && s.Layer.LayerId is not null && !string.IsNullOrWhiteSpace(s.Service.ServiceUrl))
+            .ToList();
+        var skipped = selections.Count - importable.Count;
+
+        if (importable.Count == 0)
+        {
+            _importError = "The selected layers can't be imported from here yet — this action supports ArcGIS FeatureServer/MapServer layers.";
+            return;
+        }
+
+        _importing = true;
+        var auth = TryBuildAuth(out var built, out _) ? built : null;
+        try
+        {
+            foreach (var (service, layer) in importable)
+            {
+                var table = BuildTableName(service.Name, layer.LayerId!.Value, layer.RawName);
+                var row = new ImportJobRow { LayerName = $"{service.Name} · {layer.Display}", TableName = table };
+                _jobs.Add(row);
+
+                var run = await ServiceImport.StartLayerImportAsync(new ConsoleServiceImportRunRequest
+                {
+                    ServiceUrl = service.ServiceUrl!,
+                    LayerId = layer.LayerId!.Value,
+                    TableName = table,
+                    AutoPublish = _autoPublish,
+                    ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
+                    Auth = auth,
+                });
+
+                if (run.Succeeded && !string.IsNullOrWhiteSpace(run.JobId))
+                {
+                    row.JobId = run.JobId;
+                    row.Status = run.State;
+                }
+                else
+                {
+                    row.Terminal = true;
+                    row.Succeeded = false;
+                    row.Status = "Failed to queue";
+                    row.Detail = run.Detail;
+                }
+            }
+
+            if (skipped > 0)
+            {
+                _importError = $"{skipped} non-ArcGIS layer(s) were skipped — import those from their own source page.";
+            }
+
+            StartPolling();
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    private void StartPolling()
+    {
+        if (_jobs.All(j => j.Terminal))
+        {
+            return;
+        }
+
+        _pollTimer = new Timer(_ => _ = PollAsync(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+    }
+
+    private async Task PollAsync()
+    {
+        if (_polling)
+        {
+            return;
+        }
+
+        _polling = true;
+        try
+        {
+            var active = _jobs.Where(j => !j.Terminal && !string.IsNullOrWhiteSpace(j.JobId)).ToList();
+            if (active.Count == 0)
+            {
+                StopPolling();
+                return;
+            }
+
+            foreach (var row in active)
+            {
+                var job = await ServiceImport.GetImportJobAsync(row.JobId!);
+                row.Status = job.Status;
+                row.Terminal = job.Terminal;
+                row.Succeeded = job.Succeeded;
+                row.Features = job.FeaturesProcessed;
+                row.PublishedLayerId = job.PublishedLayerId;
+                row.Detail = job.Detail;
+            }
+
+            await InvokeAsync(StateHasChanged);
+
+            if (_jobs.All(j => j.Terminal))
+            {
+                StopPolling();
+            }
+        }
+        finally
+        {
+            _polling = false;
+        }
+    }
+
+    private void StopPolling()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+    }
+
+    public void Dispose() => StopPolling();
+
+    private static string JobStatusClass(ImportJobRow job) =>
+        job.Terminal && !job.Succeeded ? "console-status console-status-danger" : "console-status";
+
+    private static string BuildTableName(string serviceName, int layerId, string layerName)
+    {
+        var sb = new StringBuilder("imp_");
+        AppendSanitized(sb, serviceName);
+        sb.Append('_');
+        AppendSanitized(sb, layerName);
+        var s = sb.ToString();
+        while (s.Contains("__", StringComparison.Ordinal))
+        {
+            s = s.Replace("__", "_");
+        }
+
+        s = s.Trim('_');
+        if (s.Length == 0)
+        {
+            s = "imp";
+        }
+
+        if (s.Length > 48)
+        {
+            s = s[..48].Trim('_');
+        }
+
+        return $"{s}_{layerId}";
+    }
+
+    private static string BuildServiceName(string serviceName)
+    {
+        var sb = new StringBuilder("imp_");
+        AppendSanitized(sb, serviceName);
+        var s = sb.ToString().Trim('_');
+        if (s.Length == 0)
+        {
+            s = "imp";
+        }
+
+        return s.Length > 56 ? s[..56].Trim('_') : s;
+    }
+
+    private static void AppendSanitized(StringBuilder sb, string value)
+    {
+        foreach (var ch in value)
+        {
+            if (ch is >= 'a' and <= 'z' or >= '0' and <= '9')
+            {
+                sb.Append(ch);
+            }
+            else if (ch is >= 'A' and <= 'Z')
+            {
+                sb.Append((char)(ch + 32));
+            }
+            else
+            {
+                sb.Append('_');
+            }
+        }
     }
 
     private static string? NullIfBlank(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -470,14 +711,34 @@
         public required string Key { get; init; }
         public required string Name { get; init; }
         public required string Type { get; init; }
+        public string? ServiceUrl { get; init; }
         public List<LayerNode> Layers { get; } = new();
+
+        public bool IsArcGis =>
+            Type.Equals("FeatureServer", StringComparison.OrdinalIgnoreCase) ||
+            Type.Equals("MapServer", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class LayerNode
     {
         public required string Key { get; init; }
         public required string Display { get; init; }
+        public required string RawName { get; init; }
+        public int? LayerId { get; init; }
         public string? GeometryType { get; init; }
         public int? FeatureCount { get; init; }
+    }
+
+    private sealed class ImportJobRow
+    {
+        public required string LayerName { get; init; }
+        public required string TableName { get; init; }
+        public string? JobId { get; set; }
+        public string Status { get; set; } = "Queued";
+        public bool Terminal { get; set; }
+        public bool Succeeded { get; set; }
+        public int Features { get; set; }
+        public int? PublishedLayerId { get; set; }
+        public string? Detail { get; set; }
     }
 }

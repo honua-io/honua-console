@@ -70,6 +70,63 @@ public sealed record ConsoleServiceImportLayer
     public string? ServiceUrl { get; init; }
 }
 
+/// <summary>Request to import a single discovered ArcGIS layer into Honua (queues a server-side import job).</summary>
+public sealed record ConsoleServiceImportRunRequest
+{
+    public required string ServiceUrl { get; init; }
+
+    public required int LayerId { get; init; }
+
+    /// <summary>Target PostGIS table name (letters/numbers/underscores).</summary>
+    public required string TableName { get; init; }
+
+    public string? TargetSchema { get; init; }
+
+    public bool AutoPublish { get; init; } = true;
+
+    /// <summary>Optional Honua service name to auto-publish the imported layer into.</summary>
+    public string? ServiceName { get; init; }
+
+    public ConsoleServiceImportAuth? Auth { get; init; }
+}
+
+/// <summary>Outcome of queuing an import job.</summary>
+public sealed record ConsoleServiceImportRun
+{
+    public bool Succeeded { get; init; }
+
+    public string? JobId { get; init; }
+
+    public required string State { get; init; }
+
+    public string? Detail { get; init; }
+}
+
+/// <summary>Progress snapshot of a queued import job.</summary>
+public sealed record ConsoleServiceImportJob
+{
+    public required string JobId { get; init; }
+
+    /// <summary>Human-readable status label (Queued, Inserting features, Completed, Failed, …).</summary>
+    public required string Status { get; init; }
+
+    public bool Terminal { get; init; }
+
+    public bool Succeeded { get; init; }
+
+    public int FeaturesProcessed { get; init; }
+
+    public int? EstimatedTotalFeatures { get; init; }
+
+    public double? PercentComplete { get; init; }
+
+    public string? TableName { get; init; }
+
+    public int? PublishedLayerId { get; init; }
+
+    public string? Detail { get; init; }
+}
+
 /// <summary>
 /// Credentials the operator supplies to authenticate against a protected service or catalog. Held only for
 /// the duration of a discovery request; the console never persists secrets.

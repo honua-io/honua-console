@@ -99,6 +99,22 @@ public interface IHonuaAdminOperateClient
         HonuaAdminExternalServiceCredentials? credentials = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Queues an ArcGIS GeoServices layer import (<c>POST /api/v1/admin/import/geoservices/start</c>). Returns a
+    /// job descriptor (HTTP 202) whose id is polled via <see cref="GetGeoservicesImportJobAsync"/>.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(
+        HonuaAdminGeoservicesImportRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the progress of a queued GeoServices import job
+    /// (<c>GET /api/v1/admin/import/geoservices/jobs/{jobId}</c>).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>> GetGeoservicesImportJobAsync(
+        string jobId,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -466,6 +482,123 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
                 return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(new HonuaAdminEndpointIssue(
                     "Unsupported", contract,
                     $"The Honua server response did not match the expected discovery shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(
+        HonuaAdminGeoservicesImportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        const string contract = "POST /api/v1/admin/import/geoservices/start";
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/import/geoservices/start")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            httpRequest.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                var message = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(message) ? issue.Detail : message,
+                });
+            }
+
+            try
+            {
+                var job = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminGeoservicesImportJob>(payload, JsonOptions);
+                return job is null || string.IsNullOrWhiteSpace(job.JobId)
+                    ? HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(new HonuaAdminEndpointIssue(
+                        "Unsupported", contract, "The Honua server did not return an import job id.",
+                        (int)response.StatusCode))
+                    : HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromData(job);
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected import-job shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>> GetGeoservicesImportJobAsync(
+        string jobId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+
+        const string contract = "GET /api/v1/admin/import/geoservices/jobs/{jobId}";
+        var path = $"/api/v1/admin/import/geoservices/jobs/{Uri.EscapeDataString(jobId)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                var message = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(message) ? issue.Detail : message,
+                });
+            }
+
+            try
+            {
+                var progress = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminGeoservicesImportProgress>(payload, JsonOptions);
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromData(
+                    progress ?? new HonuaAdminGeoservicesImportProgress());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected import-progress shape: {ex.Message}",
                     (int)response.StatusCode));
             }
         }
@@ -1147,6 +1280,79 @@ public sealed record HonuaAdminExternalServiceDiscovery
 
     /// <summary>Discovered services (one for a single service URL; many for a catalog), grouped by folder.</summary>
     public IReadOnlyList<HonuaAdminExternalServiceSummary> Services { get; init; } = [];
+}
+
+/// <summary>Request body for <c>POST /api/v1/admin/import/geoservices/start</c>.</summary>
+public sealed record HonuaAdminGeoservicesImportRequest
+{
+    public required string ServiceUrl { get; init; }
+
+    public int LayerId { get; init; }
+
+    public required string TableName { get; init; }
+
+    public string? TargetSchema { get; init; }
+
+    public int? TargetSrid { get; init; }
+
+    public bool? OverwriteExisting { get; init; }
+
+    public bool? AutoPublish { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public HonuaAdminGeoservicesImportCredentials? Credentials { get; init; }
+}
+
+/// <summary>ArcGIS import credentials (server-side queued imports may require secret references).</summary>
+public sealed record HonuaAdminGeoservicesImportCredentials
+{
+    public string? Mode { get; init; }
+
+    public string? AccessToken { get; init; }
+
+    public string? Username { get; init; }
+
+    public string? Password { get; init; }
+}
+
+/// <summary>Response (HTTP 202) when a GeoServices import job is queued.</summary>
+public sealed record HonuaAdminGeoservicesImportJob
+{
+    public string? JobId { get; init; }
+
+    public string? Message { get; init; }
+
+    public string? StatusUrl { get; init; }
+
+    public string? CancelUrl { get; init; }
+}
+
+/// <summary>Progress of a queued GeoServices import job (<c>GET .../jobs/{jobId}</c>).</summary>
+public sealed record HonuaAdminGeoservicesImportProgress
+{
+    public string? JobId { get; init; }
+
+    /// <summary>Numeric GeoservicesImportStatus enum: 0 Queued, 1 Discovering, 2 RetrievingFeatures,
+    /// 3 CreatingTable, 4 InsertingFeatures, 5 Publishing, 6 Completed, 7 Failed, 8 Cancelled.</summary>
+    [JsonPropertyName("status")]
+    public int? StatusCode { get; init; }
+
+    public int FeaturesProcessed { get; init; }
+
+    public int? EstimatedTotalFeatures { get; init; }
+
+    public double? PercentComplete { get; init; }
+
+    public string? TableName { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public int? PublishedLayerId { get; init; }
+
+    public string? ErrorMessage { get; init; }
+
+    public string? CurrentPhase { get; init; }
 }
 
 /// <summary>A single service discovered within a catalog (or the sole service for a single-service URL).</summary>

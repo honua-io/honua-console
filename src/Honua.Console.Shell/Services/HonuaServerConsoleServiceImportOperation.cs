@@ -60,6 +60,126 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
         };
     }
 
+    public async Task<ConsoleServiceImportRun> StartLayerImportAsync(
+        ConsoleServiceImportRunRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var result = await _client.StartGeoservicesImportAsync(
+                new HonuaAdminGeoservicesImportRequest
+                {
+                    ServiceUrl = request.ServiceUrl,
+                    LayerId = request.LayerId,
+                    TableName = request.TableName,
+                    TargetSchema = request.TargetSchema,
+                    OverwriteExisting = true,
+                    AutoPublish = request.AutoPublish,
+                    ServiceName = request.ServiceName,
+                    Credentials = MapImportCredentials(request.Auth),
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Data is { } job && !string.IsNullOrWhiteSpace(job.JobId))
+        {
+            return new ConsoleServiceImportRun
+            {
+                Succeeded = true,
+                JobId = job.JobId,
+                State = "Queued",
+                Detail = job.Message,
+            };
+        }
+
+        var issue = result.Issue;
+        return new ConsoleServiceImportRun
+        {
+            Succeeded = false,
+            State = issue?.State ?? "Unavailable",
+            Detail = issue?.Detail ?? "The Honua server could not queue the import.",
+        };
+    }
+
+    public async Task<ConsoleServiceImportJob> GetImportJobAsync(
+        string jobId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+
+        var result = await _client.GetGeoservicesImportJobAsync(jobId, cancellationToken).ConfigureAwait(false);
+        if (result.Data is { } p)
+        {
+            var (label, terminal, succeeded) = MapStatus(p.StatusCode);
+            return new ConsoleServiceImportJob
+            {
+                JobId = jobId,
+                Status = label,
+                Terminal = terminal,
+                Succeeded = succeeded,
+                FeaturesProcessed = p.FeaturesProcessed,
+                EstimatedTotalFeatures = p.EstimatedTotalFeatures,
+                PercentComplete = p.PercentComplete,
+                TableName = p.TableName,
+                PublishedLayerId = p.PublishedLayerId,
+                Detail = p.ErrorMessage ?? p.CurrentPhase,
+            };
+        }
+
+        var issue = result.Issue;
+        return new ConsoleServiceImportJob
+        {
+            JobId = jobId,
+            Status = issue?.State ?? "Unavailable",
+            Terminal = true,
+            Succeeded = false,
+            Detail = issue?.Detail ?? "The Honua server could not report the import job.",
+        };
+    }
+
+    private static (string Label, bool Terminal, bool Succeeded) MapStatus(int? code) => code switch
+    {
+        0 => ("Queued", false, false),
+        1 => ("Discovering", false, false),
+        2 => ("Retrieving features", false, false),
+        3 => ("Creating table", false, false),
+        4 => ("Inserting features", false, false),
+        5 => ("Publishing", false, false),
+        6 => ("Completed", true, true),
+        7 => ("Failed", true, false),
+        8 => ("Cancelled", true, false),
+        _ => ("Working", false, false),
+    };
+
+    private static HonuaAdminGeoservicesImportCredentials? MapImportCredentials(ConsoleServiceImportAuth? auth)
+    {
+        if (auth is null || !auth.RequiresCredentials)
+        {
+            return null;
+        }
+
+        // Map the discovery auth onto the import credential descriptor. Note: server-side queued imports may
+        // require secret references for non-anonymous modes; inline secrets are forwarded best-effort and the
+        // server surfaces a clear rejection if it requires a stored secret.
+        return auth.Mode switch
+        {
+            "token" => new HonuaAdminGeoservicesImportCredentials { Mode = "token", AccessToken = auth.Token },
+            "basic" => new HonuaAdminGeoservicesImportCredentials
+            {
+                Mode = "basic",
+                Username = auth.Username,
+                Password = auth.Password,
+            },
+            "arcgis-token" => new HonuaAdminGeoservicesImportCredentials
+            {
+                Mode = "arcgis-token",
+                Username = auth.Username,
+                Password = auth.Password,
+            },
+            _ => new HonuaAdminGeoservicesImportCredentials { Mode = auth.Mode },
+        };
+    }
+
     private static HonuaAdminExternalServiceCredentials? MapCredentials(ConsoleServiceImportAuth? auth)
     {
         if (auth is null || !auth.RequiresCredentials)

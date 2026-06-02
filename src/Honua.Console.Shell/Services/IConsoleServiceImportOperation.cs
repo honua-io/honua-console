@@ -19,4 +19,14 @@ public interface IConsoleServiceImportOperation
         string serviceUrl,
         ConsoleServiceImportAuth? auth = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Queues a server-side import of a single discovered ArcGIS layer; returns the job descriptor.</summary>
+    Task<ConsoleServiceImportRun> StartLayerImportAsync(
+        ConsoleServiceImportRunRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Reads the current progress of a queued import job.</summary>
+    Task<ConsoleServiceImportJob> GetImportJobAsync(
+        string jobId,
+        CancellationToken cancellationToken = default);
 }
