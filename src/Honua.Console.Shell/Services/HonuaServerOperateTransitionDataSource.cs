@@ -658,6 +658,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         string status)
     {
         if (string.Equals(status, "Passed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "Untested", StringComparison.OrdinalIgnoreCase)
             || string.Equals(status, "Unknown", StringComparison.OrdinalIgnoreCase))
         {
             return null;
@@ -753,9 +754,12 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         }
 
         var healthStatus = connection.HealthStatus?.Trim();
-        if (string.IsNullOrWhiteSpace(healthStatus))
+        // A connection that has never been health-checked reports null/empty or the literal "Unknown".
+        // That is NOT a failure — render it as a neutral "Untested" state, not a red "Failed" badge.
+        if (string.IsNullOrWhiteSpace(healthStatus)
+            || string.Equals(healthStatus, "Unknown", StringComparison.OrdinalIgnoreCase))
         {
-            return "Unknown";
+            return "Untested";
         }
 
         if (string.Equals(healthStatus, "Healthy", StringComparison.OrdinalIgnoreCase))

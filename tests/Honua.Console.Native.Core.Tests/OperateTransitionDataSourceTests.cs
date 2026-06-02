@@ -570,6 +570,9 @@ public sealed class OperateTransitionDataSourceTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(dataSource);
+        // The connection detail page depends on the connection operation (for its Test button); the
+        // missing-binding impl is the right no-network stand-in for these render tests.
+        services.AddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
         await using var serviceProvider = services.BuildServiceProvider();
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         await using var renderer = new HtmlRenderer(serviceProvider, loggerFactory);

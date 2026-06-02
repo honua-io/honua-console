@@ -517,12 +517,16 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // access-policy changes) reuse the same admin client + base-URL gate so the Operate layers/
             // service-detail surfaces perform REAL mutations against honua-server.
             services.TryAddSingleton<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation>();
+            // The connection-create OPERATION reuses the same admin client + base-URL gate so the Add
+            // Connection form performs a REAL create against honua-server (POST /api/v1/admin/connections).
+            services.TryAddSingleton<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation>();
             return;
         }
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
         services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
         services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
+        services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to

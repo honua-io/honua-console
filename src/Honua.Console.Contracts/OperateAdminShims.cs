@@ -27,6 +27,38 @@ public interface IHonuaAdminOperateClient
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary[]>> ListConnectionsAsync(
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates a data connection through the real honua-server admin endpoint
+    /// (<c>POST /api/v1/admin/connections/</c>, mirrors <c>CreateConnectionRequest</c>). This is the console's
+    /// connection-create OPERATION: it actually persists the connection on the server rather than recording
+    /// local intent, and returns the created connection summary or a field-addressable
+    /// <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary>> CreateConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tests a draft connection's health WITHOUT persisting it through the real honua-server admin endpoint
+    /// (<c>POST /api/v1/admin/connections/test</c>). This is the console's pre-save connection-test OPERATION:
+    /// the server opens the target with the supplied credentials and reports health, so the Add Connection
+    /// form can prove connectivity before creating the connection. Returns the test result or a
+    /// field-addressable <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestDraftConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tests an EXISTING connection's health through the real honua-server admin endpoint
+    /// (<c>POST /api/v1/admin/connections/{id}/test</c>). Unlike the draft test, the server persists the
+    /// resulting health status on the connection, so a subsequent read reflects it. Returns the test result or
+    /// an <see cref="HonuaAdminEndpointIssue"/> when the connection is missing or the server rejects the request.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -132,6 +164,44 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             "/api/v1/admin/connections/",
             "GET /api/v1/admin/connections",
             cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary>> CreateConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostApiResponseAsync<HonuaAdminCreateConnectionRequest, HonuaAdminConnectionSummary>(
+            "/api/v1/admin/connections/",
+            request,
+            "POST /api/v1/admin/connections",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestDraftConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostApiResponseAsync<HonuaAdminCreateConnectionRequest, HonuaAdminConnectionTestResult>(
+            "/api/v1/admin/connections/test",
+            request,
+            "POST /api/v1/admin/connections/test",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+
+        return PostApiResponseAsync<HonuaAdminConnectionTestResult>(
+            $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/test",
+            "POST /api/v1/admin/connections/{id}/test",
+            cancellationToken);
+    }
 
     public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
@@ -341,16 +411,33 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
         }
     }
 
-    private async Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TRequest, TResponse>(
+    // No-body POST for action endpoints whose input is entirely in the route (e.g. test-by-id). Reuses the
+    // same envelope/field-error handling as the bodied overload via a shared core.
+    private Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TResponse>(
+        string path,
+        string contract,
+        CancellationToken cancellationToken) =>
+        SendApiResponseAsync<TResponse>(() => new HttpRequestMessage(HttpMethod.Post, path), contract, cancellationToken);
+
+    private Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TRequest, TResponse>(
         string path,
         TRequest body,
         string contract,
+        CancellationToken cancellationToken) =>
+        SendApiResponseAsync<TResponse>(
+            () => new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = JsonContent.Create(body, options: JsonOptions)
+            },
+            contract,
+            cancellationToken);
+
+    private async Task<HonuaAdminEndpointResult<TResponse>> SendApiResponseAsync<TResponse>(
+        Func<HttpRequestMessage> requestFactory,
+        string contract,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, path)
-        {
-            Content = JsonContent.Create(body, options: JsonOptions)
-        };
+        using var request = requestFactory();
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -650,6 +737,53 @@ public sealed record HonuaAdminApiResponse<T>(
     T? Data,
     string? Message,
     DateTimeOffset? Timestamp);
+
+/// <summary>
+/// Wire shape of the honua-server connection-create request body
+/// (<c>POST /api/v1/admin/connections/</c>, mirrors <c>CreateConnectionRequest</c>). Carries the connection
+/// identity, PostGIS target (host/port/database), credentials, provider, and SSL posture. The secret
+/// (<see cref="Password"/>) is sent to the server secret store and never echoed back in the summary.
+/// </summary>
+public sealed record HonuaAdminCreateConnectionRequest
+{
+    public required string Name { get; init; }
+
+    public string? Description { get; init; }
+
+    public required string Host { get; init; }
+
+    public int Port { get; init; } = 5432;
+
+    public required string DatabaseName { get; init; }
+
+    public required string Username { get; init; }
+
+    public required string Password { get; init; }
+
+    public string Provider { get; init; } = "postgis";
+
+    public bool SslRequired { get; init; }
+
+    public string SslMode { get; init; } = "Disable";
+}
+
+/// <summary>
+/// Wire shape of the honua-server connection-test response (<c>ConnectionTestResult</c>), returned by both the
+/// draft test (<c>POST /api/v1/admin/connections/test</c>) and the existing-connection test
+/// (<c>POST /api/v1/admin/connections/{id}/test</c>). <see cref="ConnectionId"/> is <c>Guid.Empty</c> for a draft test.
+/// </summary>
+public sealed record HonuaAdminConnectionTestResult
+{
+    public Guid ConnectionId { get; init; }
+
+    public string? ConnectionName { get; init; }
+
+    public bool IsHealthy { get; init; }
+
+    public DateTimeOffset? TestedAt { get; init; }
+
+    public string? Message { get; init; }
+}
 
 public sealed record HonuaAdminConnectionSummary
 {
