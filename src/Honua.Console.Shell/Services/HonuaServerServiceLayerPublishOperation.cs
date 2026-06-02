@@ -75,4 +75,35 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
                 .ToArray()
         };
     }
+
+    public async Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+
+        var result = await _client.ListConnectionTablesAsync(connectionId, cancellationToken).ConfigureAwait(false);
+        if (result.Data is not { } tables)
+        {
+            return [];
+        }
+
+        return tables
+            .Where(table => !string.IsNullOrWhiteSpace(table.Table))
+            .Select(table => new ServiceLayerPublishTable
+            {
+                Schema = table.Schema ?? "public",
+                Table = table.Table!,
+                GeometryColumn = table.GeometryColumn,
+                GeometryType = table.GeometryType,
+                Srid = table.Srid,
+                EstimatedRows = table.EstimatedRows,
+                Columns = (table.Columns ?? [])
+                    .Select(column => column.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name!)
+                    .ToArray()
+            })
+            .ToArray();
+    }
 }

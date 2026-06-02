@@ -59,6 +59,15 @@ public interface IHonuaAdminOperateClient
         string connectionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Discovers the publishable (PostGIS spatial) tables on a connection through the real honua-server admin
+    /// endpoint (<c>GET /api/v1/admin/connections/{id}/tables</c>, Issue #57). Powers the publish-layer table
+    /// picker. Note: this endpoint returns a bare <c>{ "tables": [...] }</c> body (not the ApiResponse envelope).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -201,6 +210,61 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/test",
             "POST /api/v1/admin/connections/{id}/test",
             cancellationToken);
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+
+        const string contract = "GET /api/v1/admin/connections/{id}/tables";
+        var path = $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/tables";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(CreateIssue(contract, response.StatusCode));
+            }
+
+            // This endpoint returns a bare { "tables": [...] } body, NOT the ApiResponse<T> envelope.
+            HonuaAdminTableDiscoveryBody? body;
+            try
+            {
+                body = await response.Content
+                    .ReadFromJsonAsync<HonuaAdminTableDiscoveryBody>(JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected table-discovery shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+
+            return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromData(body?.Tables ?? []);
+        }
     }
 
     public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
@@ -783,6 +847,38 @@ public sealed record HonuaAdminConnectionTestResult
     public DateTimeOffset? TestedAt { get; init; }
 
     public string? Message { get; init; }
+}
+
+/// <summary>Wire shape of the honua-server table-discovery response (<c>GET /connections/{id}/tables</c>, Issue #57).</summary>
+internal sealed record HonuaAdminTableDiscoveryBody
+{
+    public HonuaAdminTableInfo[]? Tables { get; init; }
+}
+
+/// <summary>A publishable (PostGIS spatial) table discovered on a connection.</summary>
+public sealed record HonuaAdminTableInfo
+{
+    public string? Schema { get; init; }
+
+    public string? Table { get; init; }
+
+    public string? GeometryColumn { get; init; }
+
+    public string? GeometryType { get; init; }
+
+    public int? Srid { get; init; }
+
+    public long? EstimatedRows { get; init; }
+
+    public IReadOnlyList<HonuaAdminColumnInfo> Columns { get; init; } = [];
+}
+
+/// <summary>A column within a discovered table.</summary>
+public sealed record HonuaAdminColumnInfo
+{
+    public string? Name { get; init; }
+
+    public string? DataType { get; init; }
 }
 
 public sealed record HonuaAdminConnectionSummary

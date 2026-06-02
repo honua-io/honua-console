@@ -25,6 +25,10 @@ export interface AdminApi {
   deleteConnection(id: string): Promise<void>;
   /** Register a connection name so the fixture deletes it (by lookup) during teardown. */
   trackConnectionName(name: string): void;
+  /** Admin layer registry for a service slot (metadata validation). */
+  listLayers(connectionId: string, serviceName?: string): Promise<any[]>;
+  /** GET arbitrary server JSON (e.g. GeoServices /rest/services catalog or a FeatureServer /query). */
+  getJson(path: string): Promise<any>;
 }
 
 export const test = base.extend<{ admin: AdminApi }>({
@@ -60,6 +64,18 @@ export const test = base.extend<{ admin: AdminApi }>({
       },
       trackConnectionName(name) {
         tracked.add(name);
+      },
+      async listLayers(connectionId, serviceName) {
+        const q = serviceName ? `?serviceName=${encodeURIComponent(serviceName)}` : '';
+        const res = await ctx.get(`/api/v1/admin/connections/${connectionId}/layers/${q}`);
+        expect(res.ok(), `list layers failed: ${res.status()}`).toBeTruthy();
+        const body = await res.json();
+        return (body.data ?? []) as any[];
+      },
+      async getJson(path) {
+        const res = await ctx.get(path);
+        expect(res.ok(), `GET ${path} failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+        return res.json();
       },
     };
 

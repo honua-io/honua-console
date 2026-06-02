@@ -19,4 +19,12 @@ public interface IServiceLayerPublishOperation
     Task<ServiceLayerPublishResult> PublishAsync(
         ServiceLayerPublishCommand command,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the publishable (PostGIS spatial) tables on a connection so the publish-layer form can offer a
+    /// real table picker. Returns an empty list when no server is configured or the connection exposes none.
+    /// </summary>
+    Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default);
 }

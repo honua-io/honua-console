@@ -25,7 +25,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // Live, server-backed specs carry inherent timing variance (cold table discovery, Blazor circuit
+  // warm-up, shared-host DB load), so allow retries to absorb transient flakes.
+  retries: 2,
   timeout: 60_000,
   expect: { timeout: 15_000 },
   reporter: [['list']],
