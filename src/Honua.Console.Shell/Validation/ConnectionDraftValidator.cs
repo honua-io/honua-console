@@ -15,6 +15,7 @@ public static class ConnectionFieldKeys
     public const string Username = "connection.username";
     public const string Password = "connection.password";
     public const string Provider = "connection.provider";
+    public const string SecretReference = "connection.secretReference";
 }
 
 /// <summary>
@@ -30,7 +31,9 @@ public sealed record ConnectionDraftState(
     string? Username,
     string? Password,
     string? Provider,
-    IReadOnlySet<string> ExistingNames);
+    IReadOnlySet<string> ExistingNames,
+    bool UsesSecretReference = false,
+    string? SecretReference = null);
 
 /// <summary>
 /// Pure client-side validator for the Add Connection form. Presence/format/duplicate rules rendered inline via
@@ -62,6 +65,29 @@ public sealed class ConnectionDraftValidator : IFieldValidator<ConnectionDraftSt
                 $"A connection named '{name}' already exists. Choose a different name."));
         }
 
+        if (state.UsesSecretReference)
+        {
+            // The secret reference holds the full connection string; host/port/database/username/password are
+            // supplied inside the resolved secret, so only the reference itself is validated here.
+            var reference = state.SecretReference?.Trim();
+            if (string.IsNullOrWhiteSpace(reference))
+            {
+                errors.Add(Blocker(
+                    ConnectionFieldKeys.SecretReference,
+                    "connection.secretReference.required",
+                    "A secret reference is required (e.g. env:PROD_DB_DSN)."));
+            }
+            else if (!IsWellFormedSecretReference(reference))
+            {
+                errors.Add(Blocker(
+                    ConnectionFieldKeys.SecretReference,
+                    "connection.secretReference.format",
+                    "Use the form provider:path, e.g. env:PROD_DB_DSN or aws:secretsmanager:prod-db-creds."));
+            }
+
+            return errors;
+        }
+
         if (string.IsNullOrWhiteSpace(state.Host))
         {
             errors.Add(Blocker(ConnectionFieldKeys.Host, "connection.host.required", "Host is required."));
@@ -88,6 +114,13 @@ public sealed class ConnectionDraftValidator : IFieldValidator<ConnectionDraftSt
         }
 
         return errors;
+    }
+
+    /// <summary>A reference is well-formed when it is <c>provider:path</c> with non-empty provider and path.</summary>
+    private static bool IsWellFormedSecretReference(string reference)
+    {
+        var colon = reference.IndexOf(':');
+        return colon > 0 && colon < reference.Length - 1;
     }
 
     private static ConsoleFieldError Blocker(string key, string code, string message) =>

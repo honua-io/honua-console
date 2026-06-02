@@ -15,6 +15,7 @@ export interface AdminConnection {
   host?: string;
   databaseName?: string;
   healthStatus?: string;
+  storageType?: string;
 }
 
 export interface AdminApi {

@@ -11,21 +11,34 @@ public sealed record ConsoleConnectionCreateCommand
 
     public string? Description { get; init; }
 
-    public required string Host { get; init; }
+    /// <summary>"password" (inline credentials) or "secret" (external secret reference holding the connection).</summary>
+    public string CredentialSource { get; init; } = "password";
+
+    public string? Host { get; init; }
 
     public int Port { get; init; } = 5432;
 
-    public required string DatabaseName { get; init; }
+    public string? DatabaseName { get; init; }
 
-    public required string Username { get; init; }
+    public string? Username { get; init; }
 
-    public required string Password { get; init; }
+    public string? Password { get; init; }
+
+    /// <summary>External secret reference (e.g. <c>env:PROD_DB_DSN</c>, <c>aws:secretsmanager:prod-db-creds</c>).</summary>
+    public string? SecretReference { get; init; }
+
+    /// <summary>Secret store kind derived from the reference prefix (env, aws, azure).</summary>
+    public string? SecretType { get; init; }
 
     public string Provider { get; init; } = "postgis";
 
     public bool SslRequired { get; init; }
 
     public string SslMode { get; init; } = "Disable";
+
+    /// <summary>True when the operator chose to supply an external secret reference instead of a password.</summary>
+    public bool UsesSecretReference =>
+        string.Equals(CredentialSource, "secret", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>

@@ -32,40 +32,70 @@
                 </select>
             </label>
             <label>
-                <span>Host</span>
-                <input class="console-input" @bind="_host" @bind:event="oninput" @bind:after="OnEdit" placeholder="db-prod.honua.internal" />
-                <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Host" State="_validation" />
+                <span>Credential source</span>
+                <select class="console-input" aria-label="Credential source" @bind="_credentialSource" @bind:after="OnEdit" data-credential-source>
+                    <option value="password">Password (enter host &amp; credentials)</option>
+                    <option value="secret">Secret reference (full connection string)</option>
+                </select>
+                <small class="console-muted">A secret reference resolves the entire connection string from an external store at connection time; Honua stores only the reference, never the secret.</small>
             </label>
-            <label>
-                <span>Port</span>
-                <input class="console-input" type="number" min="1" max="65535" @bind="_port" @bind:after="OnEdit" />
-                <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Port" State="_validation" />
-            </label>
-            <label>
-                <span>@CurrentProvider.DatabaseLabel</span>
-                <input class="console-input" @bind="_database" @bind:event="oninput" @bind:after="OnEdit" placeholder="honua_geo" />
-                @if (CurrentProvider.DatabaseHint is { } hint)
-                {
-                    <small class="console-muted">@hint</small>
-                }
-                <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Database" State="_validation" />
-            </label>
-            <label>
-                <span>Username</span>
-                <input class="console-input" @bind="_username" @bind:event="oninput" @bind:after="OnEdit" placeholder="honua_reader" />
-                <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Username" State="_validation" />
-            </label>
-            <label>
-                <span>Password</span>
-                <input class="console-input" type="password" @bind="_password" @bind:event="oninput" @bind:after="OnEdit" placeholder="••••••••••••" />
-                <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Password" State="_validation" />
-            </label>
+
+            @if (!UsesSecret)
+            {
+                <label>
+                    <span>Host</span>
+                    <input class="console-input" @bind="_host" @bind:event="oninput" @bind:after="OnEdit" placeholder="db-prod.honua.internal" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Host" State="_validation" />
+                </label>
+                <label>
+                    <span>Port</span>
+                    <input class="console-input" type="number" min="1" max="65535" @bind="_port" @bind:after="OnEdit" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Port" State="_validation" />
+                </label>
+                <label>
+                    <span>@CurrentProvider.DatabaseLabel</span>
+                    <input class="console-input" @bind="_database" @bind:event="oninput" @bind:after="OnEdit" placeholder="honua_geo" />
+                    @if (CurrentProvider.DatabaseHint is { } hint)
+                    {
+                        <small class="console-muted">@hint</small>
+                    }
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Database" State="_validation" />
+                </label>
+                <label>
+                    <span>Username</span>
+                    <input class="console-input" @bind="_username" @bind:event="oninput" @bind:after="OnEdit" placeholder="honua_reader" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Username" State="_validation" />
+                </label>
+                <label>
+                    <span>Password</span>
+                    <input class="console-input" type="password" @bind="_password" @bind:event="oninput" @bind:after="OnEdit" placeholder="••••••••••••" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Password" State="_validation" />
+                </label>
+            }
+            else
+            {
+                <label>
+                    <span>Secret reference</span>
+                    <input class="console-input" @bind="_secretReference" @bind:event="oninput" @bind:after="OnEdit"
+                           placeholder="env:PROD_DB_DSN" data-secret-reference />
+                    <small class="console-muted">
+                        Form provider:path — e.g. <code>env:PROD_DB_DSN</code>, <code>aws:secretsmanager:prod-db-creds</code>, <code>azure:keyvault:vault:secret</code>.
+                        @if (SecretTypeFromReference is { } secretType)
+                        {
+                            <text> Resolved store: <strong data-secret-type>@secretType</strong>.</text>
+                        }
+                    </small>
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.SecretReference" State="_validation" />
+                </label>
+            }
             <label>
                 <span>SSL mode</span>
                 <select class="console-input" @bind="_sslMode" @bind:after="OnEdit">
                     <option value="Disable">Disable</option>
+                    <option value="Allow">Allow</option>
                     <option value="Prefer">Prefer</option>
                     <option value="Require">Require</option>
+                    <option value="VerifyCa">Verify CA</option>
                     <option value="VerifyFull">Verify full</option>
                 </select>
             </label>
@@ -133,13 +163,28 @@
 
     private string _name = string.Empty;
     private string _provider = "postgis";
+    private string _credentialSource = "password";
     private string _host = string.Empty;
     private int _port = 5432;
     private string _database = string.Empty;
     private string _username = string.Empty;
     private string _password = string.Empty;
+    private string _secretReference = string.Empty;
     private string _sslMode = "Disable";
     private string _description = string.Empty;
+
+    private bool UsesSecret => string.Equals(_credentialSource, "secret", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The secret store kind derived from the reference prefix (env, aws, azure), or null if unparseable.</summary>
+    private string? SecretTypeFromReference
+    {
+        get
+        {
+            var reference = _secretReference.Trim();
+            var colon = reference.IndexOf(':');
+            return colon > 0 ? reference[..colon].ToLowerInvariant() : null;
+        }
+    }
 
     private bool _busy;
     private bool _testing;
@@ -193,17 +238,21 @@
     }
 
     private ConnectionDraftState BuildState() =>
-        new(_name, _host, _port, _database, _username, _password, _provider, _existingNames);
+        new(_name, _host, _port, _database, _username, _password, _provider, _existingNames,
+            UsesSecret, _secretReference);
 
     private ConsoleConnectionCreateCommand BuildCommand() => new()
     {
         Name = _name.Trim(),
         Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+        CredentialSource = _credentialSource,
         Host = _host.Trim(),
         Port = _port,
         DatabaseName = _database.Trim(),
         Username = _username.Trim(),
         Password = _password,
+        SecretReference = string.IsNullOrWhiteSpace(_secretReference) ? null : _secretReference.Trim(),
+        SecretType = UsesSecret ? SecretTypeFromReference : null,
         Provider = _provider,
         SslRequired = !string.Equals(_sslMode, "Disable", StringComparison.OrdinalIgnoreCase),
         SslMode = _sslMode
@@ -300,6 +349,7 @@
         if (token.Contains("database", StringComparison.Ordinal)) return ConnectionFieldKeys.Database;
         if (token.Contains("user", StringComparison.Ordinal)) return ConnectionFieldKeys.Username;
         if (token.Contains("password", StringComparison.Ordinal)) return ConnectionFieldKeys.Password;
+        if (token.Contains("secret", StringComparison.Ordinal)) return ConnectionFieldKeys.SecretReference;
         if (token.Contains("provider", StringComparison.Ordinal)) return ConnectionFieldKeys.Provider;
         return ServerFieldErrorMapper.FormLevelFieldKey;
     }

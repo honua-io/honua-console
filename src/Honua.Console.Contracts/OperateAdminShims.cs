@@ -1151,15 +1151,26 @@ public sealed record HonuaAdminCreateConnectionRequest
 
     public string? Description { get; init; }
 
-    public required string Host { get; init; }
+    /// <summary>Optional with a secret reference (display metadata only); required with an inline password.</summary>
+    public string? Host { get; init; }
 
     public int Port { get; init; } = 5432;
 
-    public required string DatabaseName { get; init; }
+    public string? DatabaseName { get; init; }
 
-    public required string Username { get; init; }
+    public string? Username { get; init; }
 
-    public required string Password { get; init; }
+    /// <summary>Inline password. Mutually exclusive with <see cref="SecretReference"/>.</summary>
+    public string? Password { get; init; }
+
+    /// <summary>
+    /// External secret reference holding the full connection string (e.g. <c>env:PROD_DB_DSN</c>,
+    /// <c>aws:secretsmanager:prod-db-creds</c>). Mutually exclusive with <see cref="Password"/>.
+    /// </summary>
+    public string? SecretReference { get; init; }
+
+    /// <summary>Secret store kind (env, aws, azure) — required when <see cref="SecretReference"/> is set.</summary>
+    public string? SecretType { get; init; }
 
     public string Provider { get; init; } = "postgis";
 

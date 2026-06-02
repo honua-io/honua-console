@@ -105,19 +105,27 @@ public sealed class HonuaServerConsoleConnectionCreateOperation : IConsoleConnec
         };
     }
 
-    private static HonuaAdminCreateConnectionRequest ToRequest(ConsoleConnectionCreateCommand command) => new()
+    private static HonuaAdminCreateConnectionRequest ToRequest(ConsoleConnectionCreateCommand command)
     {
-        Name = command.Name,
-        Description = command.Description,
-        Host = command.Host,
-        Port = command.Port,
-        DatabaseName = command.DatabaseName,
-        Username = command.Username,
-        Password = command.Password,
-        Provider = command.Provider,
-        SslRequired = command.SslRequired,
-        SslMode = command.SslMode
-    };
+        var usesSecret = command.UsesSecretReference;
+        return new HonuaAdminCreateConnectionRequest
+        {
+            Name = command.Name,
+            Description = command.Description,
+            // With a secret reference the resolved secret holds the full connection string, so host/db/user/
+            // password are omitted; the server treats the secret as the source of truth.
+            Host = usesSecret ? null : command.Host,
+            Port = command.Port,
+            DatabaseName = usesSecret ? null : command.DatabaseName,
+            Username = usesSecret ? null : command.Username,
+            Password = usesSecret ? null : command.Password,
+            SecretReference = usesSecret ? command.SecretReference : null,
+            SecretType = usesSecret ? command.SecretType : null,
+            Provider = command.Provider,
+            SslRequired = command.SslRequired,
+            SslMode = command.SslMode
+        };
+    }
 
     private static IReadOnlyList<ConsoleConnectionCreateFieldError> MapFieldErrors(HonuaAdminEndpointIssue? issue) =>
         (issue?.FieldErrors ?? [])

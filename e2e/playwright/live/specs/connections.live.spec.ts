@@ -56,6 +56,35 @@ test.describe('Operate · Add Connection (live)', () => {
     expect(tested!.healthStatus).toBe('Healthy');
   });
 
+  test('secret-reference connection: full connection string resolved from an env secret', async ({ page, admin }) => {
+    // The server is launched with HONUA_TEST_DB_DSN holding a full PostGIS connection string for the testbed;
+    // this exercises the "whole connection string as a secret" path (no host/credentials entered in the UI).
+    const name = `e2e-secretref-${stamp}`;
+    admin.trackConnectionName(name);
+
+    await page.goto('/operate/connections/new');
+    await page.getByPlaceholder('prod-postgis').fill(name);
+
+    // Switch to secret-reference mode: the host/port/database/username/password fields are replaced by a
+    // single reference field, and the store kind is derived from the reference prefix.
+    await page.getByLabel('Credential source').selectOption('secret');
+    await expect(page.getByPlaceholder('db-prod.honua.internal')).toHaveCount(0);
+    await page.locator('[data-secret-reference]').fill('env:HONUA_TEST_DB_DSN');
+    await expect(page.locator('[data-secret-type]')).toHaveText('env');
+
+    // Draft test resolves the env secret (a full connection string) server-side → Healthy.
+    await page.getByRole('button', { name: 'Test connection' }).click();
+    await expect(page.getByText('Connection test passed')).toBeVisible();
+
+    // Create → detail page. The server stores only the reference (external storage), never the secret.
+    await page.getByRole('button', { name: 'Create connection' }).click();
+    await expect(page).toHaveURL(/\/operate\/connections\/[0-9a-fA-F-]{36}$/);
+
+    const created = await admin.findConnectionByName(name);
+    expect(created, 'secret-ref connection should exist on the server').toBeTruthy();
+    expect(created!.storageType).toBe('external');
+  });
+
   test('duplicate connection name is blocked before any POST', async ({ page, admin }) => {
     const name = `e2e-dup-${stamp}`;
     // Seed an existing connection via the admin API (not the UI).
