@@ -523,6 +523,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // The file-import OPERATION reuses the same admin client so the Import UI uploads a real file to
             // honua-server's streamed import endpoint (POST /api/v1/admin/import/upload).
             services.TryAddSingleton<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation>();
+            // The service-import OPERATION discovers remote Esri/OGC services via honua-server
+            // (POST /api/v1/admin/external-services/discover).
+            services.TryAddSingleton<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation>();
             return;
         }
 
@@ -531,6 +534,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
         services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
         services.TryAddSingleton<IConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>();
+        services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to

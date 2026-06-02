@@ -7686,3 +7686,63 @@ p {
     color: var(--honua-error);
     font-weight: 600;
 }
+
+/* Import-from-service catalog tree picker */
+.console-tree {
+    margin-top: 0.75rem;
+    border: 1px solid var(--honua-border, #e0e0e0);
+    border-radius: 4px;
+    max-height: 28rem;
+    overflow: auto;
+    background: var(--honua-surface, #fafafa);
+    font-size: 0.85rem;
+}
+
+.console-tree-folder,
+.console-tree-service,
+.console-tree-layer {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem 0.6rem;
+    border-bottom: 1px solid var(--honua-border-subtle, #f0f0f0);
+}
+
+.console-tree-folder {
+    background: var(--honua-surface-muted, #f1f1f1);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+}
+
+.console-tree-service {
+    padding-left: 1.1rem;
+    font-weight: 600;
+}
+
+.console-tree-layer {
+    padding-left: 2.4rem;
+}
+
+.console-tree-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.console-tree-icon {
+    width: 1.1rem;
+    text-align: center;
+    color: var(--honua-muted, #666);
+}
+
+.console-tree-toggle {
+    border: none;
+    background: none;
+    cursor: pointer;
+    width: 1rem;
+    color: var(--honua-muted, #999);
+    padding: 0;
+}

@@ -89,6 +89,16 @@ public interface IHonuaAdminOperateClient
         string? targetSchema,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Discovers the importable layers of a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>,
+    /// JSON <c>{ "url": "https://…" }</c>; the server requires an HTTPS URL). Returns the service type/name and
+    /// candidate layers, or a field-addressable <see cref="HonuaAdminEndpointIssue"/> on rejection. Bare body.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(
+        string url,
+        HonuaAdminExternalServiceCredentials? credentials = null,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -398,6 +408,64 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
                 return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(new HonuaAdminEndpointIssue(
                     "Unsupported", contract,
                     $"The Honua server response did not match the expected import-result shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(
+        string url,
+        HonuaAdminExternalServiceCredentials? credentials = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+
+        const string contract = "POST /api/v1/admin/external-services/discover";
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/external-services/discover")
+        {
+            Content = JsonContent.Create(new ExternalServiceDiscoverBody(url, credentials), options: JsonOptions),
+        };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                var message = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(message) ? issue.Detail : message,
+                });
+            }
+
+            try
+            {
+                var discovery = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminExternalServiceDiscovery>(payload, JsonOptions);
+                return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromData(discovery ?? new HonuaAdminExternalServiceDiscovery());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected discovery shape: {ex.Message}",
                     (int)response.StatusCode));
             }
         }
@@ -1024,6 +1092,95 @@ public sealed record HonuaAdminImportFormats
 
     public IReadOnlyDictionary<string, string> FormatDescriptions { get; init; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Wire shape of the external-service discovery request body.</summary>
+internal sealed record ExternalServiceDiscoverBody(
+    [property: JsonPropertyName("url")] string Url,
+    [property: JsonPropertyName("credentials")] HonuaAdminExternalServiceCredentials? Credentials = null);
+
+/// <summary>
+/// Credentials supplied to authenticate against a protected external service or catalog. Secrets are used
+/// only for the discovery request and are never stored by the console.
+/// </summary>
+public sealed record HonuaAdminExternalServiceCredentials
+{
+    /// <summary>arcgis-token, token, basic, or oauth.</summary>
+    public string? Mode { get; init; }
+
+    public string? Username { get; init; }
+
+    public string? Password { get; init; }
+
+    public string? Token { get; init; }
+
+    public string? TokenUrl { get; init; }
+
+    public string? ClientId { get; init; }
+
+    public string? ClientSecret { get; init; }
+
+    public string? Referer { get; init; }
+}
+
+/// <summary>Result of discovering a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>).</summary>
+public sealed record HonuaAdminExternalServiceDiscovery
+{
+    public string? SourceUrl { get; init; }
+
+    public string? NormalizedUrl { get; init; }
+
+    public string? SourceKind { get; init; }
+
+    public string? ServiceType { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public string? Description { get; init; }
+
+    public int? Srid { get; init; }
+
+    /// <summary>True when the URL was an ArcGIS catalog root/folder enumerated into multiple services.</summary>
+    public bool IsCatalog { get; init; }
+
+    public IReadOnlyList<HonuaAdminExternalLayerCandidate> Candidates { get; init; } = [];
+
+    /// <summary>Discovered services (one for a single service URL; many for a catalog), grouped by folder.</summary>
+    public IReadOnlyList<HonuaAdminExternalServiceSummary> Services { get; init; } = [];
+}
+
+/// <summary>A single service discovered within a catalog (or the sole service for a single-service URL).</summary>
+public sealed record HonuaAdminExternalServiceSummary
+{
+    public string? SourceKind { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public string? ServiceType { get; init; }
+
+    public string? ServiceUrl { get; init; }
+
+    public string? FolderPath { get; init; }
+
+    public int? Srid { get; init; }
+
+    public IReadOnlyList<HonuaAdminExternalLayerCandidate> Candidates { get; init; } = [];
+}
+
+/// <summary>A candidate layer discovered on a remote service.</summary>
+public sealed record HonuaAdminExternalLayerCandidate
+{
+    public int? LayerId { get; init; }
+
+    public string? Name { get; init; }
+
+    public string? GeometryType { get; init; }
+
+    public int? FeatureCount { get; init; }
+
+    public string? Description { get; init; }
+
+    public string? ServiceUrl { get; init; }
 }
 
 /// <summary>Result of a geospatial file import (<c>POST /api/v1/admin/import/upload</c>).</summary>
