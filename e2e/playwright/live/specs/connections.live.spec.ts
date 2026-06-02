@@ -6,12 +6,16 @@ import { test, expect } from '../admin-api';
 // Unique per run so reruns don't collide on the unique-name constraint; cleaned up by the fixture.
 const stamp = `${Date.now().toString(36)}`;
 
+// The testbed's dedicated PostGIS (the honua-server's own DB) is reachable from the server host on port 5544.
+const DATA_PORT = '5544';
+
 function fillConnectionForm(
   page: import('@playwright/test').Page,
   fields: { host: string; database: string; username: string; password: string },
 ) {
   return (async () => {
     await page.getByPlaceholder('db-prod.honua.internal').fill(fields.host);
+    await page.getByRole('spinbutton', { name: 'Port' }).fill(DATA_PORT);
     await page.getByPlaceholder('honua_geo').fill(fields.database);
     await page.getByPlaceholder('honua_reader').fill(fields.username);
     await page.getByPlaceholder('••••••••••••').fill(fields.password);
@@ -91,7 +95,7 @@ test.describe('Operate · Add Connection (live)', () => {
     await admin.createConnection({
       name,
       host: 'localhost',
-      port: 5432,
+      port: Number(DATA_PORT),
       databaseName: 'honua_dev',
       username: 'honua_user',
       password: 'honua_password',

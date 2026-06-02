@@ -87,6 +87,39 @@ public sealed record ServiceConfigurationResult
     };
 }
 
+/// <summary>
+/// Current server-read configuration of a service: its enabled + available protocols and access policy.
+/// <see cref="Bound"/> is false (with <see cref="Detail"/> explaining why) when no server is configured or
+/// the settings could not be read — the surface then shows a missing-binding state instead of fabricating one.
+/// </summary>
+public sealed record ServiceSettingsView
+{
+    public bool Bound { get; init; }
+
+    public string? Detail { get; init; }
+
+    public required string ServiceName { get; init; }
+
+    public IReadOnlyList<string> EnabledProtocols { get; init; } = [];
+
+    public IReadOnlyList<string> AvailableProtocols { get; init; } = [];
+
+    public bool AllowAnonymous { get; init; }
+
+    public bool AllowAnonymousWrite { get; init; }
+
+    public IReadOnlyList<string> AllowedRoles { get; init; } = [];
+
+    public IReadOnlyList<string> AllowedWriteRoles { get; init; } = [];
+
+    public static ServiceSettingsView Unbound(string serviceName, string detail) => new()
+    {
+        Bound = false,
+        ServiceName = serviceName,
+        Detail = detail
+    };
+}
+
 /// <summary>A field-addressable validation error surfaced by a service-configuration operation.</summary>
 public sealed record ServiceConfigurationFieldError(
     string Code,

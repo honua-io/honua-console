@@ -779,9 +779,12 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
     {
         var read = accessPolicy.AllowAnonymous == true ? "anonymous read" : "authenticated read";
         var write = accessPolicy.AllowAnonymousWrite == true ? "anonymous write" : "authenticated write";
-        var roles = accessPolicy.AllowedRoles.Count == 0
+        // AllowedRoles defaults to [] but the server can send an explicit JSON null, which overrides the
+        // initializer — guard against null so a service with a null role allow-list doesn't 500 the surface.
+        var allowedRoles = accessPolicy.AllowedRoles;
+        var roles = allowedRoles is null || allowedRoles.Count == 0
             ? "no role allow-list"
-            : $"roles: {string.Join(", ", accessPolicy.AllowedRoles)}";
+            : $"roles: {string.Join(", ", allowedRoles)}";
 
         return $"{read}, {write}, {roles}";
     }

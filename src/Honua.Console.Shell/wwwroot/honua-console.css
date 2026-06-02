@@ -7746,3 +7746,17 @@ p {
     color: var(--honua-muted, #999);
     padding: 0;
 }
+
+/* Service-config protocol checkbox grid */
+.console-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.35rem 1rem;
+    margin: 0.5rem 0 0.75rem;
+}
+
+.console-inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}

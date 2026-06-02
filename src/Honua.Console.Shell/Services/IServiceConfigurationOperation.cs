@@ -18,6 +18,11 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 public interface IServiceConfigurationOperation
 {
+    /// <summary>Reads a service's current enabled/available protocols and access policy from the server.</summary>
+    Task<ServiceSettingsView> GetSettingsAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceConfigurationResult> SetLayerEnabledAsync(
         ServiceLayerEnableCommand command,
         CancellationToken cancellationToken = default);

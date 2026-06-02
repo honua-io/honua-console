@@ -18,6 +18,33 @@ public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigura
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
+    public async Task<ServiceSettingsView> GetSettingsAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        var result = await _client.GetServiceSettingsAsync(serviceName, cancellationToken).ConfigureAwait(false);
+        if (result.Data is { } settings)
+        {
+            return new ServiceSettingsView
+            {
+                Bound = true,
+                ServiceName = settings.ServiceName ?? serviceName,
+                EnabledProtocols = settings.EnabledProtocols ?? [],
+                AvailableProtocols = settings.AvailableProtocols ?? [],
+                AllowAnonymous = settings.AccessPolicy?.AllowAnonymous ?? false,
+                AllowAnonymousWrite = settings.AccessPolicy?.AllowAnonymousWrite ?? false,
+                AllowedRoles = settings.AccessPolicy?.AllowedRoles ?? [],
+                AllowedWriteRoles = settings.AccessPolicy?.AllowedWriteRoles ?? []
+            };
+        }
+
+        return ServiceSettingsView.Unbound(
+            serviceName,
+            result.Issue?.Detail ?? "The Honua server did not return settings for this service.");
+    }
+
     public async Task<ServiceConfigurationResult> SetLayerEnabledAsync(
         ServiceLayerEnableCommand command,
         CancellationToken cancellationToken = default)
