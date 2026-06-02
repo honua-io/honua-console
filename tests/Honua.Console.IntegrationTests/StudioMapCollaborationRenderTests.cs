@@ -150,6 +150,9 @@ public sealed class StudioMapCollaborationRenderTests
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         // The merged build registers only the unsupported collaboration source (no honua-server contract).
         ctx.Services.AddSingleton<IStudioMapCollaborationDataSource, UnsupportedStudioMapCollaborationDataSource>();
+        // The map builder injects the style-picker catalog source (#161); the unsupported (no-server) impl
+        // degrades the inspector to the legacy free-form style input.
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
         return ctx;
     }
 

@@ -65,6 +65,7 @@ public sealed class StudioMapBuilderIntegrationTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(source);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(
             () => Assert.DoesNotContain("Map package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
