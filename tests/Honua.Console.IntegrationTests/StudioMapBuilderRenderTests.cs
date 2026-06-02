@@ -29,6 +29,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
 
@@ -51,6 +52,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
@@ -109,6 +111,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Incomplete"), TimeSpan.FromSeconds(5));
@@ -142,6 +145,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
@@ -174,6 +178,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client));
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
 
@@ -246,6 +251,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
@@ -310,6 +316,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Incomplete"), TimeSpan.FromSeconds(5));
@@ -355,6 +362,7 @@ public sealed class StudioMapBuilderRenderTests
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
@@ -388,6 +396,87 @@ public sealed class StudioMapBuilderRenderTests
         // The Confirm step's finish action publishes through the data source.
         page.FindAll("button.publish-wizard-finish").Single().Click();
         page.WaitForAssertion(() => Assert.True(published), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void MapBuilder_Inspector_StylePicker_BindsServerStyleIds_AndPreservesLegacyValue()
+    {
+        // The layer holds a legacy free-form style ("style:point-red") that the server does NOT advertise.
+        // The inspector's style picker (#161) must render a <select> of the real server styleIds AND keep the
+        // legacy value selected as a "(custom: …)" option so an existing saved map is never silently rewritten.
+        var editor = ReadyEditor();
+        editor.Layers[0].Style = "style:point-red";
+        var data = new FakeMapDataSource
+        {
+            Workspace = new StudioMapWorkspace(
+                [new StudioMapPackageListItem("map-1", "Public works", 1, 3, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioMapEditorLoad(editor, [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new StubStyleCatalog(new StudioMapStyleCatalog(
+            [new StudioMapStyleOption("topographic", "Topographic"), new StudioMapStyleOption("night", null)],
+            "topographic",
+            null)));
+
+        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Public works").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find(".studio-style-picker")),
+            TimeSpan.FromSeconds(5));
+
+        // A real select drives the binding (the opaque free-form input is gone on the common path).
+        var picker = page.Find(".studio-style-picker[data-style-picker-mode='select'] select");
+        var optionValues = picker.QuerySelectorAll("option").Select(o => o.GetAttribute("value")).ToArray();
+        Assert.Contains("topographic", optionValues);
+        Assert.Contains("night", optionValues);
+
+        // The legacy value survives as a selectable custom option, and stays the current selection.
+        Assert.Contains("style:point-red", optionValues);
+        Assert.Contains("(custom: style:point-red)", page.Markup, StringComparison.Ordinal);
+
+        // Selecting a real server styleId commits it onto the layer.
+        picker.Change("topographic");
+        page.WaitForAssertion(
+            () => Assert.Equal("topographic", editor.Layers[0].Style),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void MapBuilder_Inspector_StylePicker_DegradesToTextInput_WhenCatalogUnbound()
+    {
+        // With no style catalog bound (unsupported / missing-binding), the picker degrades to the legacy
+        // free-form text input so authoring still works against a server that does not expose /ogc/styles.
+        var data = new FakeMapDataSource
+        {
+            Workspace = new StudioMapWorkspace(
+                [new StudioMapPackageListItem("map-1", "Public works", 1, 3, null, DateTimeOffset.UtcNow)],
+                []),
+            EditorLoad = new StudioMapEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
+
+        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
+        FindButton(page, "Public works").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find(".studio-style-picker[data-style-picker-mode='custom']")),
+            TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(page.Find(".studio-style-picker[data-style-picker-mode='custom'] input"));
+        Assert.Empty(page.FindAll(".studio-style-picker[data-style-picker-mode='select']"));
+    }
+
+    private sealed class StubStyleCatalog(StudioMapStyleCatalog catalog) : IStudioMapStyleCatalogDataSource
+    {
+        public Task<StudioMapStyleCatalog> GetStyleCatalogAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(catalog);
     }
 
     private static IElement FindButton(IRenderedComponent<StudioMapBuilderPage> page, string label) =>
