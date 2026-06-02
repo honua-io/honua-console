@@ -29,6 +29,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 ## Contributor Reference
 
 - [Route Implementation Checklist](docs/reference/ROUTE_IMPLEMENTATION_CHECKLIST.md) — end-to-end guide for adding a new route/feature slice (route-map entry → IA/nav → component → guards → data-client seam → tests → parity smoke), with the `/catalog` route as a worked example.
+- [Agent Browser Testing (Claude Code + Playwright MCP)](docs/testing/AGENT_BROWSER_TESTING.md) — root setup-and-run guide for driving the live Console UI in a real browser with Claude on Windows (app in WSL, browser on Windows): PostGIS-backed server + Console bring-up, Windows reachability, and Playwright MCP wiring.
 - [Shared Component API Reference](docs/reference/SHARED_COMPONENT_API.md) — reusable Razor components in the shared library, their public parameters/events, and usage notes.
 
 ## Migration Coordination
