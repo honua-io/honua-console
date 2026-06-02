@@ -520,6 +520,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // The connection-create OPERATION reuses the same admin client + base-URL gate so the Add
             // Connection form performs a REAL create against honua-server (POST /api/v1/admin/connections).
             services.TryAddSingleton<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation>();
+            // The file-import OPERATION reuses the same admin client so the Import UI uploads a real file to
+            // honua-server's streamed import endpoint (POST /api/v1/admin/import/upload).
+            services.TryAddSingleton<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation>();
             return;
         }
 
@@ -527,6 +530,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
         services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
         services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
+        services.TryAddSingleton<IConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to

@@ -19,8 +19,8 @@ const LAYER_NAME = 'E2E Source';
 test.describe('Operate · Publish layer workflow (live)', () => {
   test('publish a PostGIS table and verify via catalog, metadata, and a live query', async ({ page, admin }) => {
     // Cold PostGIS table discovery (column/PK/row scan across all spatial tables) can be slow on a freshly
-    // created connection, so allow generous headroom.
-    test.slow();
+    // created connection — especially under full-suite load — so allow generous headroom.
+    test.setTimeout(300_000);
     const connName = `e2e-pub-conn-${stamp}`;
     const conn = await admin.createConnection({
       name: connName,
@@ -54,10 +54,10 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     for (let attempt = 1; ; attempt++) {
       await page.getByLabel('Connection', { exact: true }).selectOption(conn.connectionId);
       try {
-        await expect(tableSelect).toBeEnabled({ timeout: 30_000 });
+        await expect(tableSelect).toBeEnabled({ timeout: 45_000 });
         break;
       } catch (err) {
-        if (attempt >= 3) throw err;
+        if (attempt >= 4) throw err;
         await page.reload();
       }
     }

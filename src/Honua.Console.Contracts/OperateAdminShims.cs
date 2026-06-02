@@ -68,6 +68,27 @@ public interface IHonuaAdminOperateClient
         string connectionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists the geospatial file formats the server can import (<c>GET /api/v1/admin/import/formats</c>),
+    /// so the console can validate a chosen file's extension before uploading. Bare
+    /// <c>{ supportedExtensions, formatDescriptions }</c> body (not the ApiResponse envelope).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uploads a geospatial file to be imported into PostgreSQL via streamed multipart ingest
+    /// (<c>POST /api/v1/admin/import/upload</c>; multipart <c>file</c> + <c>TableName</c> + optional
+    /// <c>TargetSchema</c>). Returns the import result (bare body, HTTP 200 even on a failed import — check
+    /// <see cref="HonuaAdminImportResult.Success"/>).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(
+        byte[] fileContent,
+        string fileName,
+        string tableName,
+        string? targetSchema,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -264,6 +285,121 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             }
 
             return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromData(body?.Tables ?? []);
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        const string contract = "GET /api/v1/admin/import/formats";
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/import/formats");
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(CreateIssue(contract, response.StatusCode));
+            }
+
+            try
+            {
+                var formats = await response.Content
+                    .ReadFromJsonAsync<HonuaAdminImportFormats>(JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromData(formats ?? new HonuaAdminImportFormats());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected formats shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(
+        byte[] fileContent,
+        string fileName,
+        string tableName,
+        string? targetSchema,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(fileContent);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        const string contract = "POST /api/v1/admin/import/upload";
+        using var form = new MultipartFormDataContent();
+        var fileEntry = new ByteArrayContent(fileContent);
+        fileEntry.Headers.TryAddWithoutValidation("Content-Type", "application/octet-stream");
+        form.Add(fileEntry, "file", fileName);
+        form.Add(new StringContent(tableName), "TableName");
+        if (!string.IsNullOrWhiteSpace(targetSchema))
+        {
+            form.Add(new StringContent(targetSchema), "TargetSchema");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/import/upload") { Content = form };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(issue with
+                {
+                    Detail = ParseFailureMessage(payload) is { Length: > 0 } m ? m : issue.Detail,
+                });
+            }
+
+            try
+            {
+                var result = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminImportResult>(payload, JsonOptions);
+                return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromData(result ?? new HonuaAdminImportResult());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected import-result shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
         }
     }
 
@@ -879,6 +1015,33 @@ public sealed record HonuaAdminColumnInfo
     public string? Name { get; init; }
 
     public string? DataType { get; init; }
+}
+
+/// <summary>Supported geospatial import formats (<c>GET /api/v1/admin/import/formats</c>).</summary>
+public sealed record HonuaAdminImportFormats
+{
+    public IReadOnlyList<string> SupportedExtensions { get; init; } = [];
+
+    public IReadOnlyDictionary<string, string> FormatDescriptions { get; init; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Result of a geospatial file import (<c>POST /api/v1/admin/import/upload</c>).</summary>
+public sealed record HonuaAdminImportResult
+{
+    public bool Success { get; init; }
+
+    public long FeatureCount { get; init; }
+
+    public string? TableName { get; init; }
+
+    public string? Format { get; init; }
+
+    public string? ErrorMessage { get; init; }
+
+    public IReadOnlyList<string> ValidationErrors { get; init; } = [];
+
+    public IReadOnlyList<string> Warnings { get; init; } = [];
 }
 
 public sealed record HonuaAdminConnectionSummary
