@@ -169,4 +169,71 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     await catalog('/ogc/records/collections?f=json', '"collections"'); // OGC API Records (CSW-equivalent)
     await catalog('/ogc/features/collections?f=json', '"collections"'); // OGC API Features collection catalog
   });
+
+  test('the layer renders through the map-preview proxy (credentials stay server-side)', async ({ page, admin }) => {
+    // Resolve the published layer's global id from the admin layer listing.
+    const connName = `e2e-preview-conn-${stamp}`;
+    const conn = await admin.createConnection({
+      name: connName,
+      host: 'localhost',
+      port: 5544,
+      databaseName: 'honua_dev',
+      username: 'honua_user',
+      password: 'honua_password',
+      provider: 'postgis',
+      sslRequired: false,
+      sslMode: 'Disable',
+    });
+    admin.trackConnectionName(connName);
+    const layers =
+      (await admin.getJson(`/api/v1/admin/connections/${conn.connectionId}/layers/?serviceName=${SERVICE_NAME}`)).data ?? [];
+    const layer = layers.find((l: any) => l.layerName === LAYER_NAME) ?? layers[0];
+    expect(layer, 'the published layer should be listed').toBeTruthy();
+
+    // The console map-proxy serves honua-server's MapLibre style WITHOUT the browser sending the admin key
+    // (page.request has no X-API-Key), and rewrites the tile URLs back through the proxy.
+    const styleRes = await page.request.get(`/map-proxy/styles/${layer.layerId}.json`);
+    expect(styleRes.ok(), `proxy style -> ${styleRes.status()}`).toBeTruthy();
+    const style = await styleRes.json();
+    expect(style.version, 'a MapLibre v8 style').toBe(8);
+    expect(JSON.stringify(style), 'tile urls routed through the proxy').toContain('/map-proxy/tiles/');
+
+    // A tile through the proxy returns a tile (or 204 for an empty tile) — never 401.
+    const tileRes = await page.request.get(`/map-proxy/tiles/${layer.layerId}/0/0/0.mvt`);
+    expect([200, 204], `proxy tile -> ${tileRes.status()}`).toContain(tileRes.status());
+  });
+
+  test('author a coded-value domain on a field via the layer detail page', async ({ page, admin }) => {
+    test.slow();
+    // A connection must exist for the layer to appear in the console's layers view.
+    const connName = `e2e-domains-conn-${stamp}`;
+    await admin.createConnection({
+      name: connName,
+      host: 'localhost',
+      port: 5544,
+      databaseName: 'honua_dev',
+      username: 'honua_user',
+      password: 'honua_password',
+      provider: 'postgis',
+      sslRequired: false,
+      sslMode: 'Disable',
+    });
+    admin.trackConnectionName(connName);
+
+    // Open the published layer's detail page from the layers list.
+    await page.goto('/operate/layers');
+    await page.getByRole('row', { name: new RegExp(LAYER_NAME) }).getByRole('link').first().click();
+    await expect(page.locator('[data-fields-panel]')).toBeVisible({ timeout: 30_000 });
+
+    // Author a coded-value domain on the 'name' field through the console UI.
+    await page.locator('[data-domain-field]').selectOption('name');
+    await page.locator('[data-domain-name]').fill('e2e_status');
+    await page.locator('[data-domain-codes]').fill('a=Alpha\nb=Beta\nc=Gamma');
+    await page.locator('[data-domain-save]').click();
+    await expect(page.locator('[data-domain-result]')).toContainText('Updated', { timeout: 30_000 });
+
+    // After save the page re-reads fields from the server, so the row reflecting the new domain proves the
+    // server persisted it (round-trip through GET/PUT /admin/metadata/layers/{id}/fields).
+    await expect(page.locator('[data-field-row][data-field-name="name"] [data-field-domain]')).toContainText('e2e_status');
+  });
 });

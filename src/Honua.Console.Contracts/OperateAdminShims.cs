@@ -115,6 +115,23 @@ public interface IHonuaAdminOperateClient
         string jobId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reads a layer's persisted field configuration — aliases, coded-value domains, visibility
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/fields</c>). <paramref name="layerId"/> is the global id.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a layer's field configuration — set/clear coded-value domains and aliases
+    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/fields</c>).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
+        int layerId,
+        HonuaAdminLayerFieldsUpdate request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -711,6 +728,28 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerFields>(
+            $"/api/v1/admin/metadata/layers/{layerId}/fields",
+            "GET /api/v1/admin/metadata/layers/{layerId}/fields",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
+        int layerId,
+        HonuaAdminLayerFieldsUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerFieldsUpdate, HonuaAdminLayerFields>(
+            $"/api/v1/admin/metadata/layers/{layerId}/fields",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/fields",
+            cancellationToken);
+    }
+
     public Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
         CancellationToken cancellationToken = default) =>
         GetApiResponseAsync<HonuaAdminVersionResponse>(
@@ -1291,6 +1330,66 @@ public sealed record HonuaAdminExternalServiceDiscovery
 
     /// <summary>Discovered services (one for a single service URL; many for a catalog), grouped by folder.</summary>
     public IReadOnlyList<HonuaAdminExternalServiceSummary> Services { get; init; } = [];
+}
+
+/// <summary>A layer's persisted field configuration (<c>GET /api/v1/admin/metadata/layers/{id}/fields</c>).</summary>
+public sealed record HonuaAdminLayerFields
+{
+    public int LayerId { get; init; }
+
+    public IReadOnlyList<HonuaAdminLayerField> Fields { get; init; } = [];
+}
+
+/// <summary>One field's persisted configuration: type, alias, coded-value domain, visibility.</summary>
+public sealed record HonuaAdminLayerField
+{
+    public string? Name { get; init; }
+
+    public string? Type { get; init; }
+
+    public string? Alias { get; init; }
+
+    public HonuaAdminFieldDomain? Domain { get; init; }
+
+    public bool Hidden { get; init; }
+}
+
+/// <summary>A coded-value domain on a field.</summary>
+public sealed record HonuaAdminFieldDomain
+{
+    public string? Name { get; init; }
+
+    /// <summary>"codedValue" (the only kind the console authors).</summary>
+    public string? Type { get; init; }
+
+    public IReadOnlyList<HonuaAdminCodedValue> CodedValues { get; init; } = [];
+}
+
+/// <summary>A single code/label pair in a coded-value domain.</summary>
+public sealed record HonuaAdminCodedValue
+{
+    public string? Code { get; init; }
+
+    public string? Name { get; init; }
+}
+
+/// <summary>Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/fields</c>.</summary>
+public sealed record HonuaAdminLayerFieldsUpdate
+{
+    public IReadOnlyList<HonuaAdminLayerFieldUpdate> Fields { get; init; } = [];
+}
+
+/// <summary>A single field update: set/clear the coded-value domain (and optionally alias/hidden).</summary>
+public sealed record HonuaAdminLayerFieldUpdate
+{
+    public required string Name { get; init; }
+
+    public string? Alias { get; init; }
+
+    /// <summary>Set the coded-value domain; null clears it.</summary>
+    public HonuaAdminFieldDomain? Domain { get; init; }
+
+    public bool? Hidden { get; init; }
 }
 
 /// <summary>Request body for <c>POST /api/v1/admin/import/geoservices/start</c>.</summary>

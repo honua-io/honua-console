@@ -526,6 +526,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // The service-import OPERATION discovers remote Esri/OGC services via honua-server
             // (POST /api/v1/admin/external-services/discover).
             services.TryAddSingleton<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation>();
+            // Layer field-domain authoring (GET/PUT /api/v1/admin/metadata/layers/{id}/fields).
+            services.TryAddSingleton<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation>();
             return;
         }
 
@@ -535,6 +537,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
         services.TryAddSingleton<IConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>();
         services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
+        services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
