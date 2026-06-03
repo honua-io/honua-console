@@ -51,4 +51,23 @@ public interface IStudioReportPublicationDataSource
         bool embeddable,
         string? expectedEtag = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads whether natural-language report generation is available on the bound server and which providers
+    /// (local GIS model / Claude / GPT) are enabled+configured, or a binding state when the surface is
+    /// unbound. Drives the "Report from prompt" provider selector and its availability state.
+    /// </summary>
+    Task<StudioReportAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (fresh) or refines (when the editor state already has panels) a report document from a
+    /// natural-language prompt. The server grounds the proposal in the available content bindings and
+    /// validates it before returning, so the outcome is either a server-produced document, a structured
+    /// clarification request, an unsupported/refused turn, or a binding state - never a fabricated report.
+    /// </summary>
+    Task<StudioReportGenerationOutcome> GenerateAsync(
+        StudioReportEditorState currentState,
+        StudioReportGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }

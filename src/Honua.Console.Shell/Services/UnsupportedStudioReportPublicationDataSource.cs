@@ -42,6 +42,16 @@ public sealed class UnsupportedStudioReportPublicationDataSource : IStudioReport
         CancellationToken cancellationToken = default) =>
         Task.FromResult(MissingBindingCommand());
 
+    public Task<StudioReportAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioReportAiCapability.Blocked(MissingBinding));
+
+    public Task<StudioReportGenerationOutcome> GenerateAsync(
+        StudioReportEditorState currentState,
+        StudioReportGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioReportGenerationOutcome.Blocked(MissingBinding));
+
     private static StudioReportCommandResult MissingBindingCommand() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

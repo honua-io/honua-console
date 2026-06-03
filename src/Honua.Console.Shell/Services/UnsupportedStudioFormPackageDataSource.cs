@@ -48,6 +48,16 @@ public sealed class UnsupportedStudioFormPackageDataSource : IStudioFormPackageD
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new StudioFormOfflinePolicyView(false, [], MissingBinding));
 
+    public Task<StudioFormAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioFormAiCapability.Blocked(MissingBinding));
+
+    public Task<StudioFormGenerationOutcome> GenerateAsync(
+        StudioFormEditorState currentState,
+        StudioFormGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioFormGenerationOutcome.Blocked(MissingBinding));
+
     private static StudioFormCommandResult BindingFailure() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

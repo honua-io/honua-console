@@ -45,4 +45,23 @@ public interface IStudioFormPackageDataSource
     Task<StudioFormOfflinePolicyView> GetOfflinePolicyAsync(
         string formId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads whether natural-language form generation is available on the bound server and which providers
+    /// (local GIS model / Claude / GPT) are enabled+configured, or a binding state when the surface is
+    /// unbound. Drives the "Form from prompt" provider selector and its availability state.
+    /// </summary>
+    Task<StudioFormAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (fresh) or refines (when the editor state already has fields) a form package from a
+    /// natural-language prompt. The server grounds the proposal in the target service/layer schema and
+    /// validates it before returning, so the outcome is either a server-produced document, a structured
+    /// clarification request, an unsupported/refused turn, or a binding state - never a fabricated form.
+    /// </summary>
+    Task<StudioFormGenerationOutcome> GenerateAsync(
+        StudioFormEditorState currentState,
+        StudioFormGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }
