@@ -1,0 +1,193 @@
+@page "/studio/styles"
+@page "/studio/styles/{StyleId}"
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Services
+@inject IStudioMapStyleCatalogDataSource StyleData
+
+<section class="console-page studio-style-editor" data-style-editor>
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio / Styles</p>
+        <h1>Style editor</h1>
+        <p>Author a style in either MapLibre (canonical) or Esri renderer mode over one canonical style. Switching modes re-fetches the style in the target encoding — the server converts (ADR-0002), so the two views never diverge.</p>
+    </div>
+
+    <article class="console-panel">
+        <div class="studio-field-grid">
+            <label>
+                <span>Style</span>
+                <StyleReferencePicker Catalog="_catalog" @bind-Value="_styleId" OnChanged="OnStyleSelectedAsync" />
+            </label>
+            <label>
+                <span>Edit mode</span>
+                <select class="console-input" aria-label="Edit mode" @bind="_modeValue" @bind:after="OnModeChangedAsync" data-style-mode>
+                    <option value="MapLibre">MapLibre (visual canonical)</option>
+                    <option value="Esri">Esri renderer (drawingInfo)</option>
+                </select>
+                <small class="console-muted">Switching re-fetches the style in this encoding from the server.</small>
+            </label>
+        </div>
+
+        @if (string.IsNullOrWhiteSpace(_styleId))
+        {
+            <p class="console-muted">Select a style to edit.</p>
+        }
+        else if (_loadIssue is { } issue)
+        {
+            <div class="console-panel console-state-warning" role="status" data-style-load-issue>
+                <p class="console-kicker">@issue.State</p>
+                <p>@issue.Detail</p>
+            </div>
+        }
+        else
+        {
+            <label>
+                <span>@(_mode == HonuaOgcStyleEncoding.Esri ? "Esri drawingInfo (JSON)" : "MapLibre style (JSON)")</span>
+                <textarea class="console-input console-mono" rows="18" @bind="_content" @bind:event="oninput"
+                          spellcheck="false" data-style-content></textarea>
+            </label>
+
+            <div class="console-toolbar">
+                <label class="console-inline-check">
+                    <input type="checkbox" @bind="_strict" data-style-strict />
+                    <span>Strict validation (reject lossy/invalid)</span>
+                </label>
+                <button class="console-button" type="button" disabled="@(_saving || string.IsNullOrWhiteSpace(_content))"
+                        @onclick="SaveAsync" data-style-save>
+                    @(_saving ? "Saving…" : "Save style")
+                </button>
+                <button class="console-button-link" type="button" disabled="@_loading" @onclick="ReloadAsync">Reload</button>
+            </div>
+
+            @if (_saveResult is { } result)
+            {
+                <div class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-style-result>
+                    <p class="console-kicker">@result.State</p>
+                    @if (!string.IsNullOrWhiteSpace(result.Detail))
+                    {
+                        <p>@result.Detail</p>
+                    }
+                    else if (result.Succeeded)
+                    {
+                        <p>Saved. The canonical MapLibre style was stored@(_mode == HonuaOgcStyleEncoding.Esri ? " (converted from the Esri renderer)" : "").</p>
+                    }
+                    @if (result.UnsupportedSymbolizers.Count > 0)
+                    {
+                        <p class="console-kicker">Lossy conversion — surfaced, not dropped:</p>
+                        <ul data-style-warnings>
+                            @foreach (var warning in result.UnsupportedSymbolizers)
+                            {
+                                <li>@warning</li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+        }
+    </article>
+</section>
+
+@code {
+    [Parameter]
+    public string? StyleId { get; set; }
+
+    private Honua.Console.Shell.Models.StudioMapStyleCatalog _catalog =
+        Honua.Console.Shell.Models.StudioMapStyleCatalog.Empty;
+    private string _styleId = string.Empty;
+    private string _modeValue = "MapLibre";
+    private HonuaOgcStyleEncoding _mode = HonuaOgcStyleEncoding.MapLibre;
+    private string _content = string.Empty;
+    private bool _strict;
+    private bool _loading;
+    private bool _saving;
+    private HonuaAdminEndpointIssue? _loadIssue;
+    private HonuaOgcStyleSaveResult? _saveResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _catalog = await StyleData.GetStyleCatalogAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(StyleId) && !string.Equals(StyleId, _styleId, StringComparison.Ordinal))
+        {
+            _styleId = StyleId;
+            await LoadAsync();
+        }
+    }
+
+    private Task OnStyleSelectedAsync() => LoadAsync();
+
+    private Task OnModeChangedAsync()
+    {
+        _mode = string.Equals(_modeValue, "Esri", StringComparison.OrdinalIgnoreCase)
+            ? HonuaOgcStyleEncoding.Esri
+            : HonuaOgcStyleEncoding.MapLibre;
+        // Re-fetch the style in the target encoding so the two modes stay consistent (server is authoritative).
+        return LoadAsync();
+    }
+
+    private Task ReloadAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        // A fresh selection / mode switch / explicit reload clears the previous save result.
+        _saveResult = null;
+        await FetchContentAsync();
+    }
+
+    private async Task FetchContentAsync()
+    {
+        _loadIssue = null;
+        if (string.IsNullOrWhiteSpace(_styleId))
+        {
+            _content = string.Empty;
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var result = await StyleData.GetStylesheetAsync(_styleId, _mode);
+            if (result.Data is { } sheet)
+            {
+                _content = sheet.Content;
+            }
+            else
+            {
+                _loadIssue = result.Issue;
+                _content = string.Empty;
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_styleId))
+        {
+            return;
+        }
+
+        _saving = true;
+        _saveResult = null;
+        try
+        {
+            _saveResult = await StyleData.SaveStylesheetAsync(_styleId, _mode, _content, _strict);
+            if (_saveResult.Succeeded)
+            {
+                // Re-fetch the content so the editor reflects what the server stored/derived (round-trip truth),
+                // but keep _saveResult so its warnings stay visible.
+                await FetchContentAsync();
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

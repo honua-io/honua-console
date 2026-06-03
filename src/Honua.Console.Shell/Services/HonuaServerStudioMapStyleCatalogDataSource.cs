@@ -39,6 +39,20 @@ public sealed class HonuaServerStudioMapStyleCatalogDataSource : IStudioMapStyle
         return new StudioMapStyleCatalog(options, list.Default, null);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        CancellationToken cancellationToken = default) =>
+        _client.GetStylesheetAsync(styleId, encoding, cancellationToken);
+
+    public Task<HonuaOgcStyleSaveResult> SaveStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        string content,
+        bool strict,
+        CancellationToken cancellationToken = default) =>
+        _client.UpdateStylesheetAsync(styleId, encoding, content, strict, cancellationToken);
+
     private static StudioMapCapabilityState ToCapabilityState(HonuaAdminEndpointIssue issue) =>
         new(
             Surface,
