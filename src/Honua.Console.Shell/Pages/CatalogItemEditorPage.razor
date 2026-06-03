@@ -1,6 +1,10 @@
 @page "/operate/catalogs/{Key}/items/{ItemId}"
 @using Honua.Console.Shell.Models
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 @inject ICatalogDiscoveryDataSource CatalogDiscovery
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 @* Operate > Catalogs > endpoint > item editor (screens-catalogs.jsx CatalogItemEditor): a single
    auto-mirrored catalog item. Most fields are derived from the underlying resource/service (calculated);
@@ -47,9 +51,17 @@
                 <p class="console-muted">item @item.Id · @item.BackingServiceCount backing services</p>
             </div>
             <div class="console-detail-actions">
-                <button class="console-button console-button-secondary" type="button">⧉ Copy item URL</button>
-                <button class="console-button console-button-secondary" type="button">Preview ↗</button>
-                <button class="console-button" type="button">↗ Open Data Resource</button>
+                @* Copy item URL copies THIS item-editor page's absolute URL to the clipboard — a real,
+                   self-contained target. The former "Preview ↗" and "↗ Open Data Resource" controls were
+                   removed: the catalog discovery-endpoints item projection (honua-server#1279) carries no
+                   public-link slug / public item URL and no backing data-resource URL, so there is no honest
+                   target to navigate to. They were dead buttons (no @@onclick) and shipping them would
+                   fabricate a capability the contract does not yet expose; restore them when #1279 lands
+                   those fields. *@
+                <button class="console-button console-button-secondary" type="button"
+                        data-catalog-copy-url @onclick="CopyItemUrlAsync">
+                    @(_copied ? "✓ Copied" : "⧉ Copy item URL")
+                </button>
             </div>
         </div>
 
@@ -147,6 +159,8 @@
     private CatalogItemView? _item;
     private CatalogDiscoveryCapabilityState? _bindingState;
     private bool _loading = true;
+    private bool _copied;
+    private IJSObjectReference? _clipboardModule;
 
     private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
 
@@ -167,6 +181,7 @@
         _loading = true;
         _bindingState = null;
         _item = null;
+        _copied = false;
 
         var load = await CatalogDiscovery.LoadItemAsync(WorkspaceId, Key, ItemId);
         if (load.HasItem)
@@ -179,6 +194,44 @@
         }
 
         _loading = false;
+    }
+
+    // Copy this item-editor page's absolute URL to the clipboard via a small JS interop module (the same
+    // wwwroot-module pattern as UnsavedChangesGuard / MapPreview). Interop failures (prerender / bUnit /
+    // circuit torn down) are swallowed so the action never throws; the button simply does not flip to
+    // "Copied".
+    private async Task CopyItemUrlAsync()
+    {
+        try
+        {
+            _clipboardModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/Honua.Console.Shell/catalog-item-editor.js");
+            var copied = await _clipboardModule.InvokeAsync<bool>("copyText", Navigation.Uri);
+            _copied = copied;
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            _copied = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_clipboardModule is not null)
+        {
+            try
+            {
+                await _clipboardModule.DisposeAsync();
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            {
+                // Circuit already gone; nothing to clean up browser-side.
+            }
+            finally
+            {
+                _clipboardModule = null;
+            }
+        }
     }
 
     private static string FieldStateClass(string state) => state switch

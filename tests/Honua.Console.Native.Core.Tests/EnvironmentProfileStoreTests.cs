@@ -6,16 +6,16 @@ namespace Honua.Console.Native.Core.Tests;
 public sealed class EnvironmentProfileStoreTests
 {
     [Fact]
-    public async Task NewNativeProfileStoreSeedsAtLeastTwoHonuaEnvironments()
+    public async Task NewNativeProfileStoreStartsEmpty()
     {
+        // No-mocks: the native profile store must NOT ship fabricated demo environments. First run is
+        // empty so the operator creates their first environment via /environments/new.
         var store = new JsonConsoleEnvironmentProfileStore(new InMemoryConsoleProfileStorage());
 
         var profiles = await store.ListProfilesAsync();
 
-        Assert.Contains(profiles, profile => profile.Id == ConsoleEnvironmentProfileDefaults.DevelopmentProfileId);
-        Assert.Contains(profiles, profile => profile.Id == ConsoleEnvironmentProfileDefaults.StagingProfileId);
-        Assert.Contains(profiles, profile => profile.TransportCapabilities.NativeGrpc);
-        Assert.Contains(profiles, profile => profile.ClientCertificate.Enabled);
+        Assert.Empty(profiles);
+        Assert.Null(await store.GetActiveProfileAsync());
     }
 
     [Fact]

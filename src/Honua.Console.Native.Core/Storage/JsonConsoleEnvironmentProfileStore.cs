@@ -152,11 +152,14 @@ public sealed class JsonConsoleEnvironmentProfileStore : IConsoleEnvironmentProf
         var json = await _storage.GetAsync(StorageKey, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(json))
         {
-            return EnvironmentProfileSnapshot.CreateSeeded();
+            // First run: start EMPTY, not seeded. Environment profiles are host-owned local state
+            // (Console Patterns Charter §11), but they must never ship fabricated demo environments —
+            // the operator creates their first environment via /environments/new.
+            return new EnvironmentProfileSnapshot();
         }
 
         return JsonSerializer.Deserialize<EnvironmentProfileSnapshot>(json, JsonOptions)
-            ?? EnvironmentProfileSnapshot.CreateSeeded();
+            ?? new EnvironmentProfileSnapshot();
     }
 
     private sealed class EnvironmentProfileSnapshot
@@ -166,12 +169,5 @@ public sealed class JsonConsoleEnvironmentProfileStore : IConsoleEnvironmentProf
         public List<ConsoleEnvironmentProfile> Profiles { get; set; } = [];
 
         public List<ConsoleEnvironmentState> States { get; set; } = [];
-
-        public static EnvironmentProfileSnapshot CreateSeeded() => new()
-        {
-            ActiveProfileId = ConsoleEnvironmentProfileDefaults.DevelopmentProfileId,
-            Profiles = ConsoleEnvironmentProfileDefaults.CreateProfiles().ToList(),
-            States = ConsoleEnvironmentProfileDefaults.CreateStates().ToList()
-        };
     }
 }
