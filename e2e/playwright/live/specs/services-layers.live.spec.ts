@@ -236,4 +236,53 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // server persisted it (round-trip through GET/PUT /admin/metadata/layers/{id}/fields).
     await expect(page.locator('[data-field-row][data-field-name="name"] [data-field-domain]')).toContainText('e2e_status');
   });
+
+  test('authored renderer, popupInfo, and relationships emit in FeatureServer metadata', async ({ page, admin }) => {
+    test.slow();
+    const base = admin.serverUrl;
+    const headers = { 'X-API-Key': ADMIN_KEY, 'Content-Type': 'application/json' };
+    const LID = 1; // e2e_src_fs's published layer is the first global layer on the fresh dedicated DB.
+
+    // Author a UniqueValue renderer, a popupInfo template, and a (self-)relationship via the new admin setters.
+    await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/drawing-info`, {
+      headers,
+      data: {
+        renderer: {
+          type: 'uniqueValue',
+          field1: 'name',
+          uniqueValueInfos: [
+            { value: 'a', label: 'A', symbol: { type: 'esriSFS', style: 'esriSFSSolid', color: [255, 0, 0, 255] } },
+          ],
+        },
+      },
+    });
+    await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/popup-info`, {
+      headers,
+      data: { title: '{name}', fieldInfos: [{ fieldName: 'name', label: 'Name', visible: true }] },
+    });
+    await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/relationships`, {
+      headers,
+      data: {
+        relationships: [
+          { id: 'rel0', name: 'self', relatedLayerId: LID, role: 'origin', cardinality: 'one-to-many', originField: 'id', destinationField: 'id', esriRelationshipId: 7 },
+        ],
+      },
+    });
+
+    // The FeatureServer layer metadata now carries all three (poll absorbs the post-write cache invalidation).
+    await expect
+      .poll(
+        async () => {
+          const r = await page.request.get(`${base}/rest/services/${SERVICE_NAME}/FeatureServer/${LID}?f=json`, { headers });
+          if (!r.ok()) return null;
+          return (await r.json()).drawingInfo?.renderer?.type ?? null;
+        },
+        { timeout: 30_000, intervals: [500, 1000, 2000] },
+      )
+      .toBe('uniqueValue');
+
+    const layer = await (await page.request.get(`${base}/rest/services/${SERVICE_NAME}/FeatureServer/${LID}?f=json`, { headers })).json();
+    expect(layer.popupInfo?.title, 'popupInfo emitted').toBe('{name}');
+    expect((layer.relationships ?? []).length, 'relationship emitted').toBeGreaterThan(0);
+  });
 });
