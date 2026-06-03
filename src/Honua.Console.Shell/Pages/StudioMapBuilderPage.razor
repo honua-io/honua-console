@@ -4,6 +4,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
 @inject IStudioMapPackageDataSource MapData
+@inject IStudioMapStyleCatalogDataSource StyleCatalog
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved map changes. Leave this page and discard them?" />
 
@@ -349,7 +350,13 @@
                             <label class="studio-form-label"><span>Source ref</span><input class="console-input" @bind="selectedLayer.SourceRef" @bind:after="OnEdit" placeholder="content:hydrants@v12" /></label>
                             <ValidationMessageInline FieldKey="@StudioMapFieldKeys.LayerSourceRef(_selectedLayerIndex)" State="_validation" />
                             <label class="studio-form-label"><span>Title</span><input class="console-input" @bind="selectedLayer.Title" @bind:after="OnEdit" placeholder="Hydrants" /></label>
-                            <label class="studio-form-label"><span>Style</span><input class="console-input" @bind="selectedLayer.Style" @bind:after="OnEdit" placeholder="style:point-red" /></label>
+                            <label class="studio-form-label">
+                                <span>Style</span>
+                                <StyleReferencePicker Value="@selectedLayer.Style"
+                                                      ValueChanged="@(value => selectedLayer.Style = value)"
+                                                      Catalog="_styleCatalog"
+                                                      OnChanged="OnEdit" />
+                            </label>
 
                             <div class="studio-inspector-section">
                                 <h3>Filter</h3>
@@ -480,6 +487,7 @@
     private bool _loading = true;
     private bool _busy;
     private StudioMapWorkspace _workspace = new([], []);
+    private StudioMapStyleCatalog _styleCatalog = StudioMapStyleCatalog.Empty;
     private StudioMapCapabilityState? _bindingState;
     private StudioMapCapabilityState? _listNotice;
     private StudioMapEditorState? _editor;
@@ -579,6 +587,10 @@
     {
         _loading = true;
         _workspace = await MapData.GetWorkspaceAsync();
+        // The per-layer style picker (#161) binds to the styleIds the server advertises on /ogc/styles.
+        // A capability issue (no server bound, missing permission, unsupported) is carried on the catalog so
+        // the inspector picker degrades to the legacy free-form style input rather than blocking the load.
+        _styleCatalog = await StyleCatalog.GetStyleCatalogAsync();
         ApplyStates(_workspace.CapabilityStates);
         // A non-blocking workspace state (e.g. the server exposes no map list verb) is shown on the list
         // view so operators know existing maps cannot be enumerated yet but a new map can still be authored.

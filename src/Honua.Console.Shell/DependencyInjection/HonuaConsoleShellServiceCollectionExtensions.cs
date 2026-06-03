@@ -236,16 +236,27 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        _ = honuaServerAdminApiKey;
-
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
             services.TryAddSingleton<IStudioMapPackageDataSource, HonuaServerStudioMapPackageDataSource>();
+
+            // The per-layer style picker (#161, ADR-0048) binds the layer's styleId to the styles the server
+            // advertises on the PUBLIC OGC API - Styles list (GET /ogc/styles). The admin key is forwarded
+            // only if configured (harmless on the public read; future-proof if the surface is ever gated).
+            services.TryAddSingleton<IHonuaOgcStylesClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaOgcStylesHttpClient(
+                    httpClient,
+                    new HonuaOgcStylesClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioMapStyleCatalogDataSource, HonuaServerStudioMapStyleCatalogDataSource>();
             return;
         }
 
         services.TryAddSingleton<IStudioMapPackageDataSource, UnsupportedStudioMapPackageDataSource>();
+        services.TryAddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
     }
 
     // Binds the Studio Map collaboration surface (/studio/map Comments + Activity tabs, honua-console#124)

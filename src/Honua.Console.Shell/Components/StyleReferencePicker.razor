@@ -1,0 +1,135 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Per-layer style reference picker (#161, ADR-0048). Replaces the opaque free-form style string in the
+    Studio map builder with a picker bound to the styleIds the server advertises on the OGC API - Styles list
+    (GET /ogc/styles), so an author selects a real styleId instead of typing an unverified string.
+
+    Backward compatibility (a hard requirement of the issue): a previously-saved map may hold a legacy style
+    string that is NOT a server-advertised styleId. The picker keeps that value selected, surfaces it as a
+    distinct "(custom: …)" option, and never silently drops it. A "Custom value" escape hatch also lets an
+    author type a free-form reference when the styles list is empty or does not yet contain the value they
+    need — this preserves the prior authoring path while steering the common path onto real styleIds.
+
+    When the catalog carries a capability issue (no server bound, missing permission, unsupported), the picker
+    degrades to the plain text input it replaced rather than fabricating a list.
+*@
+
+@if (Catalog.Issue is not null || _customMode)
+{
+    <div class="studio-style-picker" data-style-picker-mode="custom">
+        <input class="console-input"
+               value="@Value"
+               @oninput="OnTextInput"
+               placeholder="style:point-red"
+               aria-label="Layer style reference" />
+        @if (Catalog.Issue is not null)
+        {
+            <span class="console-muted studio-style-picker-note">@Catalog.Issue.Detail</span>
+        }
+        else if (Catalog.HasStyles)
+        {
+            <button type="button" class="console-link studio-style-picker-toggle" @onclick="() => SetCustomMode(false)">
+                Pick from server styles
+            </button>
+        }
+    </div>
+}
+else
+{
+    <div class="studio-style-picker" data-style-picker-mode="select">
+        <select class="console-input"
+                value="@SelectValue"
+                @onchange="OnSelectChanged"
+                aria-label="Layer style reference">
+            <option value="">@UnstyledLabel</option>
+            @foreach (var option in Catalog.Styles)
+            {
+                <option value="@option.StyleId">@StyleOptionLabel(option)</option>
+            }
+            @if (HasUnknownValue)
+            {
+                @* Preserve a legacy / not-yet-advertised value so an existing saved map is never silently
+                   rewritten when its style is not in the current styles list. *@
+                <option value="@Value">@($"(custom: {Value})")</option>
+            }
+            <option value="@CustomSentinel">Custom value…</option>
+        </select>
+        <button type="button" class="console-link studio-style-picker-toggle" @onclick="() => SetCustomMode(true)">
+            Enter a custom value
+        </button>
+    </div>
+}
+
+@code {
+    // A select <option> value cannot be null; this sentinel routes the select into the free-form text mode.
+    private const string CustomSentinel = "__custom__";
+
+    private bool _customMode;
+
+    /// <summary>The current per-layer style reference (the legacy <c>StudioMapLayerEditor.Style</c> string).</summary>
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    /// <summary>Two-way binding callback for <see cref="Value"/> (enables <c>@bind-Value</c>).</summary>
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>The server-advertised style catalog (or one carrying a capability issue).</summary>
+    [Parameter, EditorRequired]
+    public StudioMapStyleCatalog Catalog { get; set; } = StudioMapStyleCatalog.Empty;
+
+    /// <summary>Raised after a committed change so the host can mark the editor dirty / re-validate.</summary>
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    // True when the layer holds a non-empty value that the server does not advertise — a legacy or
+    // not-yet-listed styleId that must stay selectable rather than being dropped.
+    private bool HasUnknownValue => !string.IsNullOrWhiteSpace(Value) && !Catalog.IsKnown(Value);
+
+    private string SelectValue => string.IsNullOrWhiteSpace(Value) ? string.Empty : Value;
+
+    private string UnstyledLabel =>
+        Catalog.DefaultStyleId is { Length: > 0 } d ? $"Unstyled (server default: {d})" : "Unstyled";
+
+    private static string StyleOptionLabel(StudioMapStyleOption option) =>
+        string.Equals(option.Label, option.StyleId, StringComparison.Ordinal)
+            ? option.StyleId
+            : $"{option.Title} ({option.StyleId})";
+
+    private void SetCustomMode(bool custom) => _customMode = custom;
+
+    private async Task OnSelectChanged(ChangeEventArgs args)
+    {
+        var selected = args.Value as string ?? string.Empty;
+        if (string.Equals(selected, CustomSentinel, StringComparison.Ordinal))
+        {
+            _customMode = true;
+            return;
+        }
+
+        await CommitAsync(selected);
+    }
+
+    private Task OnTextInput(ChangeEventArgs args) => CommitAsync(args.Value as string ?? string.Empty);
+
+    private async Task CommitAsync(string next)
+    {
+        if (string.Equals(next, Value, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        Value = next;
+        if (ValueChanged.HasDelegate)
+        {
+            await ValueChanged.InvokeAsync(next);
+        }
+
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync();
+        }
+    }
+}
