@@ -359,6 +359,15 @@ public sealed record ConsoleContentDetail
     public ConsoleContentActivity[] Activity { get; init; } = [];
 
     public ConsoleContentUsage[] Usage { get; init; } = [];
+
+    /// <summary>
+    /// True only when a real dependency/usage (blast-radius) source populated <see cref="Usage"/>. The
+    /// honua-server Console metadata v2 content API (honua-server#1162) does not expose a
+    /// dependency/usage endpoint, so the server-bound mapper leaves this false and the Catalog Usage tab
+    /// renders an explicit missing-binding state rather than a falsely-reassuring "no consumers" empty
+    /// state (Console Patterns Charter section 11). The in-memory/demo client sets it true.
+    /// </summary>
+    public bool UsageBound { get; init; }
 }
 
 public sealed record ConsoleContentVersion(string VersionId, string Label, DateTimeOffset CreatedAt, string CreatedBy);

@@ -1,0 +1,444 @@
+@page "/operate/sync"
+@using Honua.Console.Shell.Components
+@inject ITemporalCapabilityClient TemporalData
+
+<section class="console-page operate-sync" data-sync-review="capability-gate">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Disconnected sync review</h1>
+        <p>Review disconnected replica edits against current server state, compare the base, client, and server revisions, choose a per-conflict or batch resolution, and confirm the committed change set and audit evidence. Sync conflict review is server-owned: each source declares whether it supports replica conflict review, and unsupported or unbound sources show a capability explanation rather than an empty queue.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Disconnected sync review"
+                          Title="Loading sync capability"
+                          Message="Reading server-owned disconnected replica capability from honua-server." />
+    }
+    else if (_bindingState is not null)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="@_bindingState.State"
+                          Title="Sync conflict review is not bound"
+                          Message="@(_bindingState.Detail + " (contract: " + _bindingState.Contract + ")")" />
+    }
+    else
+    {
+        @if (_states.Count > 0)
+        {
+            <section class="console-section" aria-label="Server capability states">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Sync binding</p>
+                    <h2>Server Capability States</h2>
+                </div>
+                <div class="console-panel-grid">
+                    @foreach (var state in _states)
+                    {
+                        <article class="console-panel">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@state.State</p>
+                                    <h2>@state.Surface</h2>
+                                </div>
+                            </div>
+                            <p class="console-muted">@state.Detail</p>
+                            <dl class="console-definition-list">
+                                <dt>Contract</dt>
+                                <dd>@state.Contract</dd>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (_syncSources.Count == 0)
+        {
+            <EmptyState Area="operate" Subject="sync-eligible sources" />
+        }
+        else
+        {
+            <section class="console-section" aria-label="Sync-eligible sources">
+                <div class="console-table-wrap">
+                    <table class="console-table" aria-label="Disconnected sync sources">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Layer</th>
+                                <th>Sync</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var source in _syncSources)
+                            {
+                                var active = string.Equals(source.SourceId, _selectedSource?.SourceId, StringComparison.Ordinal);
+                                <tr class="@(active ? "console-row-selected" : string.Empty)">
+                                    <td>
+                                        <strong>@source.ResourceId</strong>
+                                        <small>@source.SourceId</small>
+                                    </td>
+                                    <td>@source.LayerId</td>
+                                    <td>@source.SyncCapability</td>
+                                    <td>
+                                        <button class="console-button console-button-secondary" type="button"
+                                                @onclick="() => SelectSourceAsync(source)">Open queue</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            @if (_selectedSource is not null)
+            {
+                <section class="console-section operate-sync-detail" aria-label="Replica conflict queue"
+                         data-sync-region="replica-queue" data-sync-source="@_selectedSource.SourceId">
+                    <div class="console-page-heading">
+                        <p class="console-kicker">@_selectedSource.ResourceId</p>
+                        <h2>Replica Conflict Queue</h2>
+                    </div>
+
+                    @if (_replicaBinding is not null)
+                    {
+                        <ConsoleStateView Kind="missing"
+                                          Kicker="@_replicaBinding.State"
+                                          Title="Replica queue is not bound"
+                                          Message="@(_replicaBinding.Detail + " (contract: " + _replicaBinding.Contract + ")")" />
+                    }
+                    else if (_replicas.Count == 0)
+                    {
+                        <EmptyState Area="operate" Subject="disconnected replicas" />
+                    }
+                    else
+                    {
+                        <div class="console-table-wrap">
+                            <table class="console-table" aria-label="Disconnected replicas">
+                                <thead>
+                                    <tr>
+                                        <th>Replica</th>
+                                        <th>Owner</th>
+                                        <th>Device</th>
+                                        <th>Base checkpoint</th>
+                                        <th>Server gen</th>
+                                        <th>Last sync</th>
+                                        <th>Conflicts</th>
+                                        <th>Status</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var replica in _replicas)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@replica.ReplicaName</strong>
+                                                <small>@replica.ReplicaId</small>
+                                            </td>
+                                            <td>@replica.OwnerId</td>
+                                            <td>@(string.IsNullOrWhiteSpace(replica.DeviceId) ? "-" : replica.DeviceId)</td>
+                                            <td>@replica.BaseCheckpointId</td>
+                                            <td>@replica.ReplicaServerGen</td>
+                                            <td>@(replica.LastSyncAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt") ?? "-")</td>
+                                            <td>@replica.PendingConflictCount</td>
+                                            <td><span class="console-status @StatusClass(replica.Status)">@replica.Status</span></td>
+                                            <td>
+                                                <button class="console-button console-button-secondary" type="button"
+                                                        @onclick="() => ReviewReplicaAsync(replica)">Review</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="console-panel operate-sync-rules" data-sync-region="auto-resolution">
+                            <p class="console-kicker">Auto-resolution rules</p>
+                            <ul>
+                                <li>latest-wins on identical fields</li>
+                                <li>server wins past final-published versions</li>
+                                <li>geometry conflicts always require manual review</li>
+                            </ul>
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (_selectedReplica is not null && _replicaBinding is null)
+            {
+                <section class="console-section operate-sync-merge" aria-label="Base/client/server comparison"
+                         data-sync-region="conflict-merge">
+                    <div class="console-page-heading">
+                        <p class="console-kicker">@_selectedReplica.ReplicaName</p>
+                        <h2>Base / Client / Server Comparison</h2>
+                    </div>
+
+                    @if (_conflictReviewBinding is not null)
+                    {
+                        <ConsoleStateView Kind="missing"
+                                          Kicker="@_conflictReviewBinding.State"
+                                          Title="Conflict review is not bound"
+                                          Message="@(_conflictReviewBinding.Detail + " (contract: " + _conflictReviewBinding.Contract + ")")" />
+                    }
+                    else if (_conflicts.Count == 0)
+                    {
+                        <EmptyState Area="operate" Subject="pending conflicts" />
+                    }
+                    else
+                    {
+                        <div class="console-panel operate-sync-batch" data-sync-region="batch-panel">
+                            <p class="console-kicker">Batch resolution</p>
+                            <p class="console-muted">Select conflicts below, choose an action, then apply it to the whole selection.</p>
+                            <div class="console-toolbar">
+                                <label>
+                                    <span>Batch action</span>
+                                    <select class="console-input" aria-label="Batch action" @bind="_batchAction">
+                                        @foreach (var action in Enum.GetValues<SyncResolutionAction>())
+                                        {
+                                            <option value="@action">@DescribeAction(action)</option>
+                                        }
+                                    </select>
+                                </label>
+                                <button class="console-button" type="button"
+                                        disabled="@(_resolveBusy || _selectedConflictIds.Count == 0)"
+                                        @onclick="ApplyBatchAsync" data-sync-batch-apply>
+                                    @(_resolveBusy ? "Applying..." : ("Apply to " + _selectedConflictIds.Count + " selected"))
+                                </button>
+                            </div>
+                        </div>
+
+                        @foreach (var conflict in _conflicts)
+                        {
+                            <article class="console-panel operate-sync-conflict" data-sync-conflict="@conflict.ConflictId">
+                                <div class="console-panel-heading">
+                                    <div>
+                                        <label class="console-inline-check">
+                                            <input type="checkbox"
+                                                   checked="@_selectedConflictIds.Contains(conflict.ConflictId)"
+                                                   @onchange="e => ToggleConflict(conflict.ConflictId, e)" />
+                                            <span>Feature @conflict.FeatureId, layer @conflict.LayerId</span>
+                                        </label>
+                                        <p class="console-kicker">@conflict.ConflictType conflict</p>
+                                    </div>
+                                    <span class="console-status console-state-neutral">@conflict.Status</span>
+                                </div>
+
+                                @if (conflict.GeometryConflict)
+                                {
+                                    <p class="console-status console-state-warning">Geometry conflict</p>
+                                }
+
+                                @if (conflict.FieldConflicts.Count > 0)
+                                {
+                                    <div class="console-table-wrap operate-sync-3way">
+                                        <table class="console-table" aria-label="Field comparison">
+                                            <thead>
+                                                <tr>
+                                                    <th>Field</th>
+                                                    <th class="operate-sync-col-base">Base</th>
+                                                    <th class="operate-sync-col-client">Client</th>
+                                                    <th class="operate-sync-col-server">Server</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var field in conflict.FieldConflicts)
+                                                {
+                                                    <tr>
+                                                        <td class="console-mono">@field.Field</td>
+                                                        <td class="operate-sync-col-base">@(field.BaseValue ?? "-")</td>
+                                                        <td class="operate-sync-col-client">@(field.ClientValue ?? "-")</td>
+                                                        <td class="operate-sync-col-server">@(field.ServerValue ?? "-")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+
+                                <div class="console-toolbar operate-sync-choices" role="group" aria-label="Resolution choices">
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_resolveBusy"
+                                            @onclick="() => ResolveOneAsync(conflict, SyncResolutionAction.AcceptClient)">Client wins</button>
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_resolveBusy"
+                                            @onclick="() => ResolveOneAsync(conflict, SyncResolutionAction.KeepServer)">Server wins</button>
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_resolveBusy"
+                                            @onclick="() => ResolveOneAsync(conflict, SyncResolutionAction.MergeFields)">Field merge</button>
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_resolveBusy"
+                                            @onclick="() => ResolveOneAsync(conflict, SyncResolutionAction.RestoreBase)">Restore base</button>
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_resolveBusy"
+                                            @onclick="() => ResolveOneAsync(conflict, SyncResolutionAction.Defer)">Defer</button>
+                                </div>
+                            </article>
+                        }
+                    }
+
+                    @if (_lastResolution is { } resolution)
+                    {
+                        @if (_resolutionBinding is not null)
+                        {
+                            <ConsoleStateView Kind="missing"
+                                              Kicker="@_resolutionBinding.State"
+                                              Title="Resolution write is not bound"
+                                              Message="@(_resolutionBinding.Detail + " (contract: " + _resolutionBinding.Contract + ")")" />
+                        }
+                        else if (resolution.WroteAuditedChangeSet)
+                        {
+                            <div class="console-panel console-state-success" role="status" data-sync-region="committed">
+                                <p class="console-kicker">Committed Change Set</p>
+                                <dl class="console-definition-list">
+                                    <dt>Change set</dt>
+                                    <dd class="console-mono">@resolution.ResultChangeSetId</dd>
+                                    @if (!string.IsNullOrWhiteSpace(resolution.ResultRevisionId))
+                                    {
+                                        <dt>Result revision</dt>
+                                        <dd class="console-mono">@resolution.ResultRevisionId</dd>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(resolution.JobRunId))
+                                    {
+                                        <dt>Job</dt>
+                                        <dd><a href="@("/operate/jobs/" + resolution.JobRunId)">@resolution.JobRunId</a></dd>
+                                    }
+                                    <dt>Audit events</dt>
+                                    <dd>@string.Join(", ", resolution.AuditEventIds)</dd>
+                                </dl>
+                            </div>
+                        }
+                    }
+                </section>
+            }
+        }
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private TemporalCapabilityState? _bindingState;
+    private IReadOnlyList<TemporalCapabilityState> _states = [];
+    private IReadOnlyList<TemporalSourceCapability> _syncSources = [];
+
+    private TemporalSourceCapability? _selectedSource;
+    private IReadOnlyList<DisconnectedReplica> _replicas = [];
+    private TemporalBindingState? _replicaBinding;
+
+    private DisconnectedReplica? _selectedReplica;
+    private IReadOnlyList<SyncConflict> _conflicts = [];
+    private TemporalBindingState? _conflictReviewBinding;
+
+    private readonly HashSet<string> _selectedConflictIds = new(StringComparer.Ordinal);
+    private SyncResolutionAction _batchAction = SyncResolutionAction.KeepServer;
+    private bool _resolveBusy;
+    private SyncConflictResolutionResult? _lastResolution;
+    private TemporalBindingState? _resolutionBinding;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        var workspace = await TemporalData.GetWorkspaceAsync();
+        _bindingState = workspace.CapabilityStates.FirstOrDefault(state =>
+            string.Equals(state.State, TemporalBindingState.MissingBinding, StringComparison.OrdinalIgnoreCase));
+        _states = workspace.CapabilityStates
+            .Where(state => !ReferenceEquals(state, _bindingState))
+            .ToArray();
+        _syncSources = workspace.Sources
+            .Where(source => source.SyncConflictReviewSupported)
+            .ToArray();
+        _loading = false;
+    }
+
+    private async Task SelectSourceAsync(TemporalSourceCapability source)
+    {
+        _selectedSource = source;
+        ResetReviewState();
+        var queue = await TemporalData.GetReplicaConflictQueueAsync(source.SourceId);
+        _replicaBinding = queue.BindingState;
+        _replicas = queue.Replicas;
+    }
+
+    private async Task ReviewReplicaAsync(DisconnectedReplica replica)
+    {
+        _selectedReplica = replica;
+        _selectedConflictIds.Clear();
+        _lastResolution = null;
+        _resolutionBinding = null;
+        var review = await TemporalData.GetReplicaConflictReviewAsync(replica.ReplicaId);
+        _conflictReviewBinding = review.BindingState;
+        _conflicts = review.Conflicts;
+    }
+
+    private void ResetReviewState()
+    {
+        _replicas = [];
+        _replicaBinding = null;
+        _selectedReplica = null;
+        _conflicts = [];
+        _conflictReviewBinding = null;
+        _selectedConflictIds.Clear();
+        _lastResolution = null;
+        _resolutionBinding = null;
+    }
+
+    private void ToggleConflict(string conflictId, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _selectedConflictIds.Add(conflictId);
+        }
+        else
+        {
+            _selectedConflictIds.Remove(conflictId);
+        }
+    }
+
+    private Task ResolveOneAsync(SyncConflict conflict, SyncResolutionAction action) =>
+        ResolveAsync([conflict.ConflictId], action);
+
+    private Task ApplyBatchAsync() =>
+        ResolveAsync([.. _selectedConflictIds], _batchAction);
+
+    private async Task ResolveAsync(IReadOnlyList<string> conflictIds, SyncResolutionAction action)
+    {
+        if (conflictIds.Count == 0 || _selectedReplica is null)
+        {
+            return;
+        }
+
+        _resolveBusy = true;
+        try
+        {
+            _lastResolution = await TemporalData.ResolveConflictsAsync(
+                new SyncConflictResolutionRequest(conflictIds, action));
+            _resolutionBinding = _lastResolution.BindingState;
+            if (_resolutionBinding is null)
+            {
+                var review = await TemporalData.GetReplicaConflictReviewAsync(_selectedReplica.ReplicaId);
+                _conflictReviewBinding = review.BindingState;
+                _conflicts = review.Conflicts;
+                _selectedConflictIds.Clear();
+            }
+        }
+        finally
+        {
+            _resolveBusy = false;
+        }
+    }
+
+    private static string StatusClass(ReplicaStatus status) => status switch
+    {
+        ReplicaStatus.Active => "console-state-success",
+        ReplicaStatus.Conflicted => "console-state-warning",
+        ReplicaStatus.Expired => "console-state-danger",
+        _ => "console-state-neutral"
+    };
+
+    private static string DescribeAction(SyncResolutionAction action) => action switch
+    {
+        SyncResolutionAction.AcceptClient => "Client wins",
+        SyncResolutionAction.KeepServer => "Server wins",
+        SyncResolutionAction.MergeFields => "Field merge",
+        SyncResolutionAction.RestoreBase => "Restore base",
+        SyncResolutionAction.RejectClientEdit => "Reject client edit",
+        SyncResolutionAction.Defer => "Defer",
+        _ => action.ToString()
+    };
+}

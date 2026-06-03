@@ -1,0 +1,100 @@
+@page "/operate/alerts/rules"
+@using Honua.Console.Shell.Components
+@inject IOperateAlertRulesDataSource RulesData
+
+@* Realtime / geofence / threshold / dwell alert RULE list (UI-042; honua-server#1169). The rule
+   DEFINITION surface, distinct from the firing-alert evidence detail at /operate/alerts/{alertId}.
+   Bound to the alert rules data source; renders an honest missing-binding capability state until the
+   server rule definition contract lands (Console Patterns Charter section 11). *@
+
+<section class="console-page operate-alert-rules" data-alert-rules="list">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Alert rules</h1>
+        <p>Author and review the realtime, geofence, threshold, and dwell rules that raise alerts. This is the rule definition surface; a firing alert opens its own evidence detail. Rule definitions are server-owned: the list and editor render a capability explanation rather than fabricated rules when the server rule contract is not bound.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Alert rules"
+                          Title="Loading alert rules"
+                          Message="Reading server-owned alert rule definitions from honua-server." />
+    }
+    else if (_view.BindingState is { } binding)
+    {
+        <ConsoleStateView Kind="@StateKind(binding.State)"
+                          Kicker="@binding.State"
+                          Title="Alert rules are not bound"
+                          Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
+    }
+    else if (_view.Rules.Count == 0)
+    {
+        <EmptyState Area="operate" Subject="alert rules" />
+    }
+    else
+    {
+        <section class="console-section" aria-label="Alert rules">
+            <div class="console-table-wrap">
+                <table class="console-table" aria-label="Alert rule definitions">
+                    <thead>
+                        <tr>
+                            <th>Rule</th>
+                            <th>Type</th>
+                            <th>Condition</th>
+                            <th>Delivery</th>
+                            <th>State</th>
+                            <th>Incidents</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var rule in _view.Rules)
+                        {
+                            <tr data-alert-rule="@rule.RuleId">
+                                <td>
+                                    <strong>@rule.Name</strong>
+                                    <small>@rule.RuleId</small>
+                                </td>
+                                <td>@rule.RuleType</td>
+                                <td>@rule.ConditionSummary</td>
+                                <td>@rule.DeliverySummary</td>
+                                <td>
+                                    <span class="console-status @StatusClass(rule)">@(rule.Enabled ? "enabled" : "disabled")</span>
+                                </td>
+                                <td>@rule.ActiveIncidentCount</td>
+                                <td>
+                                    <a class="console-button-link" href="@OperateAlertRulesRoutes.Detail(rule.RuleId)">Open</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private OperateAlertRulesView _view = new([]);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        _view = await RulesData.GetRulesAsync();
+        _loading = false;
+    }
+
+    private static string StateKind(string state) => state switch
+    {
+        OperateAlertRulesBindingState.Forbidden => "forbidden",
+        OperateAlertRulesBindingState.Unsupported => "unsupported",
+        _ => "missing"
+    };
+
+    private static string StatusClass(OperateAlertRule rule) =>
+        !rule.IsValid ? "console-state-danger"
+        : rule.Enabled ? "console-state-success"
+        : "console-state-neutral";
+}
