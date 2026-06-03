@@ -5833,6 +5833,25 @@ p {
     flex: 1;
 }
 
+.studio-ai-provider-select select {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    height: auto;
+}
+
+.studio-ai-provider-label {
+    font-size: 0.66rem;
+}
+
+.workflow-ai-unavailable {
+    margin-bottom: 12px;
+}
+
+.workflow-ai-empty {
+    margin: 8px 0 0;
+    font-size: 0.72rem;
+}
+
 .studio-ai-preview {
     display: flex;
     flex-direction: column;

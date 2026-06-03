@@ -319,6 +319,23 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
         }
     }
 
+    // The in-memory scaffold has no model backend and deliberately does NOT simulate one (real-deal phase:
+    // no fabricated AI). It reports generation as off; the "Workflow from prompt" page renders its
+    // AI-unavailable state. A live model is reached only through ServerStudioWorkflowPackageClient.
+    public Task<StudioWorkflowAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioWorkflowAiCapability.Off);
+
+    public Task<StudioWorkflowGenerationOutcome> GenerateAsync(
+        StudioWorkflowPackageDraft currentDraft,
+        StudioWorkflowGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new StudioWorkflowGenerationOutcome
+        {
+            Status = StudioWorkflowGenerationStatuses.Unsupported,
+            Rationale = "AI workflow generation requires a honua-server with the generation contract."
+        });
+
     private void RecordRun(
         StudioWorkflowPackageDraft draft,
         string jobId,

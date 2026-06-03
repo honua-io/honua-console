@@ -356,6 +356,117 @@ public sealed record RunWorkflowPublicationRequest
 
 #endregion
 
+#region AI generation DTOs (workflow-generation)
+
+// Wire contract for natural-language -> workflow.package generation. The honua-server side is scoped in
+// honua-server/docs/design/ai-workflow-generation.md: a provider-pluggable planner (local GIS model default,
+// Claude + GPT options) grounded in the node registry, gated by WorkflowPackageGraphValidator, exposed as the
+// two admin endpoints below. This shim is the FROZEN executable spec the server implements. Until the server
+// ships these endpoints they return 404 -> the console renders the honest "AI generation unavailable" state
+// (no fabricated workflow). camelCase props; PascalCase string enums; null props omitted.
+
+/// <summary>A selectable generation provider advertised by the server (only configured+enabled ones appear).</summary>
+public sealed record WorkflowGenerationProviderInfo
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("label")] public string Label { get; init; } = string.Empty;
+    /// <summary>"local" | "anthropic" | "openai" | "deterministic".</summary>
+    [JsonPropertyName("kind")] public string Kind { get; init; } = string.Empty;
+    [JsonPropertyName("available")] public bool Available { get; init; }
+    [JsonPropertyName("detail")] public string? Detail { get; init; }
+}
+
+/// <summary>Result of GET /workflow-generation/providers: whether AI generation is on, and which providers.</summary>
+public sealed record WorkflowGenerationProviders
+{
+    [JsonPropertyName("enabled")] public bool Enabled { get; init; }
+    [JsonPropertyName("defaultProvider")] public string? DefaultProvider { get; init; }
+    [JsonPropertyName("providers")] public IReadOnlyList<WorkflowGenerationProviderInfo> Providers { get; init; } = [];
+}
+
+public sealed record WorkflowGenerationClarificationChoice
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("label")] public string Label { get; init; } = string.Empty;
+    [JsonPropertyName("effect")] public string? Effect { get; init; }
+}
+
+/// <summary>A structured question the planner needs answered before it can propose a graph (flattened
+/// projection of the server's McpClarificationEnvelope). The console renders these as selectable cards.</summary>
+public sealed record WorkflowGenerationClarification
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    /// <summary>"source" | "unit" | "field" | "schedule" | "target" | ...</summary>
+    [JsonPropertyName("kind")] public string Kind { get; init; } = string.Empty;
+    [JsonPropertyName("prompt")] public string Prompt { get; init; } = string.Empty;
+    [JsonPropertyName("reason")] public string? Reason { get; init; }
+    [JsonPropertyName("choices")] public IReadOnlyList<WorkflowGenerationClarificationChoice> Choices { get; init; } = [];
+}
+
+/// <summary>AI-builder capability state for a requested operation (supported/degraded/unsupported/auth_denied/oversized).</summary>
+public sealed record WorkflowGenerationCapabilityState
+{
+    [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("state")] public string State { get; init; } = string.Empty;
+    [JsonPropertyName("reason")] public string? Reason { get; init; }
+}
+
+public sealed record WorkflowGenerationUsage
+{
+    [JsonPropertyName("promptTokens")] public int? PromptTokens { get; init; }
+    [JsonPropertyName("completionTokens")] public int? CompletionTokens { get; init; }
+    [JsonPropertyName("latencyMs")] public int? LatencyMs { get; init; }
+}
+
+/// <summary>Result of POST /workflow-packages/generate. <c>status</c> mirrors the plan-analysis statuses:
+/// "generated" | "needs-clarification" | "unsupported" | "refused" | "error".</summary>
+public sealed record WorkflowGenerationResult
+{
+    [JsonPropertyName("status")] public string Status { get; init; } = string.Empty;
+    /// <summary>The proposed graph (same shape PUT /workflow-packages/{id} accepts). Present iff status=="generated".</summary>
+    [JsonPropertyName("graph")] public WorkflowGraph? Graph { get; init; }
+    [JsonPropertyName("rationale")] public string? Rationale { get; init; }
+    [JsonPropertyName("clarifications")] public IReadOnlyList<WorkflowGenerationClarification> Clarifications { get; init; } = [];
+    /// <summary>The server's own validator result on the proposed graph (never trust raw model output).</summary>
+    [JsonPropertyName("validation")] public WorkflowPackageValidationResult? Validation { get; init; }
+    /// <summary>Things the prompt asked for that have no matching node type (grounding gaps), surfaced not dropped.</summary>
+    [JsonPropertyName("unmappedRequests")] public IReadOnlyList<string> UnmappedRequests { get; init; } = [];
+    [JsonPropertyName("capabilityState")] public WorkflowGenerationCapabilityState? CapabilityState { get; init; }
+    [JsonPropertyName("provider")] public string? Provider { get; init; }
+    [JsonPropertyName("model")] public string? Model { get; init; }
+    [JsonPropertyName("registryVersion")] public string? RegistryVersion { get; init; }
+    [JsonPropertyName("usage")] public WorkflowGenerationUsage? Usage { get; init; }
+}
+
+public sealed record WorkflowGenerationAnswer
+{
+    [JsonPropertyName("questionId")] public string QuestionId { get; init; } = string.Empty;
+    [JsonPropertyName("optionId")] public string OptionId { get; init; } = string.Empty;
+}
+
+public sealed record WorkflowGenerationTurn
+{
+    /// <summary>"user" | "assistant".</summary>
+    [JsonPropertyName("role")] public string Role { get; init; } = string.Empty;
+    [JsonPropertyName("content")] public string Content { get; init; } = string.Empty;
+}
+
+public sealed record GenerateWorkflowRequest
+{
+    [JsonPropertyName("prompt")] public string Prompt { get; init; } = string.Empty;
+    /// <summary>Provider id to use; null selects the server default.</summary>
+    [JsonPropertyName("provider")] public string? Provider { get; init; }
+    /// <summary>Optional per-call model override.</summary>
+    [JsonPropertyName("model")] public string? Model { get; init; }
+    /// <summary>Current graph for a REFINE turn; null requests fresh generation.</summary>
+    [JsonPropertyName("graph")] public WorkflowGraph? Graph { get; init; }
+    [JsonPropertyName("conversation")] public IReadOnlyList<WorkflowGenerationTurn> Conversation { get; init; } = [];
+    /// <summary>Answers to a prior needs-clarification turn.</summary>
+    [JsonPropertyName("answers")] public IReadOnlyList<WorkflowGenerationAnswer> Answers { get; init; } = [];
+}
+
+#endregion
+
 #region Envelope + result types
 
 public sealed record WorkflowApiResponse<T>(
@@ -453,6 +564,15 @@ public interface IWorkflowPackageApiClient
     Task<WorkflowEndpointResult<WorkflowPublicationRunResult>> RunPublicationAsync(
         string publicationId,
         RunWorkflowPublicationRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Lists the AI generation providers the server has enabled+configured (UI selector / enablement).</summary>
+    Task<WorkflowEndpointResult<WorkflowGenerationProviders>> ListGenerationProvidersAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Generates (or refines) a workflow.package graph from a natural-language prompt.</summary>
+    Task<WorkflowEndpointResult<WorkflowGenerationResult>> GenerateWorkflowAsync(
+        GenerateWorkflowRequest request,
         CancellationToken cancellationToken = default);
 }
 
@@ -625,6 +745,28 @@ public sealed class HttpWorkflowPackageApiClient : IWorkflowPackageApiClient, ID
             $"{ConsoleRoot}/workflow-publications/{Uri.EscapeDataString(publicationId)}/runs",
             request,
             "POST /api/v1/console/workflow-publications/{publicationId}/runs",
+            cancellationToken);
+    }
+
+    public Task<WorkflowEndpointResult<WorkflowGenerationProviders>> ListGenerationProvidersAsync(
+        CancellationToken cancellationToken = default) =>
+        SendAsync<object, WorkflowGenerationProviders>(
+            HttpMethod.Get,
+            $"{ConsoleRoot}/workflow-generation/providers",
+            null,
+            "GET /api/v1/console/workflow-generation/providers",
+            cancellationToken);
+
+    public Task<WorkflowEndpointResult<WorkflowGenerationResult>> GenerateWorkflowAsync(
+        GenerateWorkflowRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return SendAsync<GenerateWorkflowRequest, WorkflowGenerationResult>(
+            HttpMethod.Post,
+            $"{ConsoleRoot}/workflow-packages/generate",
+            request,
+            "POST /api/v1/console/workflow-packages/generate",
             cancellationToken);
     }
 

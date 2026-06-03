@@ -7,20 +7,23 @@
 @*
     Studio · Workflow · New from prompt (screens-studio-form-workflow.jsx → StudioWorkflowAI).
 
-    The conversational entry point for a workflow.package draft: a "Workflow from prompt" chat on the
-    left (shared StudioAiConversation primitive) and, on the right, a live readiness summary
-    (steps · duration · trigger · failure route · evidence retention) over a DAG preview the editor opens.
+    Conversational authoring for a workflow.package: a "Workflow from prompt" chat on the left (shared
+    StudioAiConversation primitive) and, on the right, a live readiness summary + DAG preview of the
+    server-proposed graph.
 
-    The draft is always server-bound. OpenEditorAsync(null) returns a real draft + node registry, or a
-    missing-binding surface (charter §11) — never seeded/mock workflow data. Refine/clarification turns
-    edit that server draft; "Open editor →" saves it and hands the persisted draft to the existing editor.
+    The draft and every proposal are server-owned. OpenEditorAsync(null) returns a real draft + node
+    registry (or a missing-binding surface, charter §11). A prompt/refine turn calls the server's
+    natural-language generation contract (honua-server/docs/design/ai-workflow-generation.md): the server
+    grounds the proposal in the node registry and validates it before returning, so the page only ever
+    renders a server-produced graph, a structured clarification request, or an honest unavailable/blocked
+    state - never a fabricated workflow. "Open editor →" saves and hands the persisted draft to the editor.
 *@
 
 <section class="console-page workflow-page studio-workflow-ai-page">
     <div class="console-page-heading">
         <p class="console-kicker">Studio · Workflow · New from prompt</p>
         <h1>Workflow from prompt</h1>
-        <p>Describe the pipeline in plain language; Honua proposes a DAG with a trigger, steps, failure routing, and evidence retention. Review the readiness summary, then open the editor to refine the server-owned workflow package.</p>
+        <p>Describe the pipeline in plain language; Honua grounds a proposal in the available step catalog — a trigger, steps, failure routing — validates it on the server, and shows the readiness summary. Review it, refine by chatting, then open the editor.</p>
     </div>
 
     @if (_loading)
@@ -47,10 +50,33 @@
     else
     {
         <StudioAiConversation ConversationTitle="Workflow from prompt"
-                              RefinePlaceholder="Refine the pipeline — add a step, change the trigger, route failures…"
+                              RefinePlaceholder="@RefinePlaceholder"
                               Turns="_turns"
-                              Busy="_busy"
-                              OnSend="HandleRefineAsync">
+                              Clarifications="_clarifications"
+                              Busy="@(_busy || !AiEnabled)"
+                              OnSend="HandleSendAsync"
+                              OnAnswer="HandleAnswerAsync">
+            <SecondaryRefineActions>
+                @if (AiEnabled)
+                {
+                    @if (_availableProviders.Count > 1)
+                    {
+                        <label class="studio-ai-provider-select">
+                            <span class="console-visually-hidden">Generation model</span>
+                            <select class="console-input" aria-label="Generation model" @bind="_selectedProvider" data-workflow-ai-provider>
+                                @foreach (var provider in _availableProviders)
+                                {
+                                    <option value="@provider.Id">@provider.Label</option>
+                                }
+                            </select>
+                        </label>
+                    }
+                    else if (_availableProviders.Count == 1)
+                    {
+                        <span class="console-muted studio-ai-provider-label" data-workflow-ai-provider>via @_availableProviders[0].Label</span>
+                    }
+                }
+            </SecondaryRefineActions>
             <PreviewHeader>
                 <span class="workflow-editor-glyph" aria-hidden="true">⇋</span>
                 <input class="console-input workflow-title-input"
@@ -66,6 +92,15 @@
             </PreviewHeader>
             <PreviewContent>
                 <div class="workflow-ai-preview">
+                    @if (!AiEnabled)
+                    {
+                        <section class="console-panel console-state-warning workflow-ai-unavailable" role="status" data-workflow-ai-unavailable>
+                            <p class="console-kicker">AI generation unavailable</p>
+                            <p>@AiUnavailableDetail</p>
+                            <p class="console-muted">You can still build this workflow by hand — open the editor and drag steps from the palette.</p>
+                        </section>
+                    }
+
                     <section class="console-panel workflow-ai-readiness" aria-label="Workflow readiness summary">
                         <div class="workflow-section-heading">
                             <p class="console-kicker">Readiness</p>
@@ -80,8 +115,8 @@
                             <dd>@TriggerSummary</dd>
                             <dt>On failure</dt>
                             <dd>@FailureSummary</dd>
-                            <dt>Evidence retention</dt>
-                            <dd>@RetentionSummary</dd>
+                            <dt>Retry policy</dt>
+                            <dd>@RetrySummary</dd>
                         </dl>
                         <ul class="workflow-ai-durations" aria-label="Step durations">
                             @foreach (var step in StepDurations)
@@ -91,6 +126,22 @@
                             <li class="console-muted workflow-ai-duration-total">~ @EstimatedDuration · estimated</li>
                         </ul>
                     </section>
+
+                    @if (_warnings.Count > 0)
+                    {
+                        <section class="console-panel console-state-warning workflow-ai-warnings" role="status" aria-label="Generation notes" data-workflow-ai-warnings>
+                            <div class="workflow-section-heading">
+                                <p class="console-kicker">Notes</p>
+                                <h2>Surfaced, not dropped</h2>
+                            </div>
+                            <ul class="workflow-compact-list">
+                                @foreach (var warning in _warnings)
+                                {
+                                    <li>@warning</li>
+                                }
+                            </ul>
+                        </section>
+                    }
 
                     <section class="console-panel workflow-canvas-band workflow-ai-dag" aria-label="Workflow DAG preview">
                         <div class="workflow-section-heading">
@@ -136,6 +187,10 @@
                                 }
                             </div>
                         </div>
+                        @if (_draft.Nodes.Count == 0)
+                        {
+                            <p class="console-muted workflow-ai-empty">No steps yet — @(AiEnabled ? "describe the pipeline on the left to generate one." : "open the editor to add steps.")</p>
+                        }
                         <ol class="workflow-edge-list" aria-label="Workflow edges">
                             @foreach (var edge in _draft.Edges)
                             {
@@ -213,9 +268,23 @@
     private StudioWorkflowPackageDraft? _draft;
     private StudioWorkflowBindingState? _binding;
     private IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions = [];
+    private StudioWorkflowAiCapability _capability = StudioWorkflowAiCapability.Off;
+    private IReadOnlyList<StudioWorkflowAiProvider> _availableProviders = [];
+    private string? _selectedProvider;
     private StudioWorkflowDryRunResult? _lastDryRun;
     private StudioWorkflowPublishResult? _lastPublish;
     private readonly List<StudioConversationTurn> _turns = [];
+    private List<StudioConversationClarification> _clarifications = [];
+    private List<string> _warnings = [];
+
+    private bool AiEnabled => _capability.Enabled && _availableProviders.Count > 0;
+
+    private string RefinePlaceholder => AiEnabled
+        ? "Describe the pipeline — source, steps, schedule, what to do on failure…"
+        : "AI generation is unavailable on this server.";
+
+    private string AiUnavailableDetail => _capability.BindingState?.Detail
+        ?? "This server has the workflow API but natural-language generation is turned off or no model provider is configured. See ai-workflow-generation.md to enable a local GIS model, Claude, or GPT.";
 
     protected override async Task OnInitializedAsync()
     {
@@ -225,28 +294,90 @@
         _binding = context.BindingState;
         _nodeDefinitions = context.NodeDefinitions;
         _draft = context.Draft;
-        _loading = false;
 
         if (_binding is null && _draft is not null)
         {
-            SeedConversation();
+            // Generation capability is a separate, optional contract; a failure to read it must not block the
+            // page (the user can still build by hand), but a transport/auth block surfaces in place.
+            _capability = await Workflows.GetGenerationCapabilityAsync();
+            if (_capability.BindingState is not null)
+            {
+                _binding = _capability.BindingState;
+            }
+            else
+            {
+                _availableProviders = _capability.Providers.Where(provider => provider.Available).ToArray();
+                _selectedProvider = _availableProviders.Any(provider => provider.Id == _capability.DefaultProvider)
+                    ? _capability.DefaultProvider
+                    : _availableProviders.FirstOrDefault()?.Id;
+                SeedConversation();
+            }
         }
+
+        _loading = false;
     }
 
-    // Opens the conversation with the author's intent echoed back as a Honua readiness turn, derived from
-    // the live server draft (not invented). Refine turns append to this log.
+    // Opens with a Honua turn appropriate to the state: an invitation to describe the pipeline when AI is
+    // ready, or an honest note that generation is unavailable. Never invents a readiness summary for the
+    // empty starting draft.
     private void SeedConversation()
     {
+        if (!AiEnabled)
+        {
+            _turns.Add(new StudioConversationTurn(
+                StudioConversationRole.Honua,
+                AiUnavailableDetail + " You can still open the editor to build a pipeline by hand.",
+                Tone: StudioConversationTone.Neutral));
+            return;
+        }
+
         _turns.Add(new StudioConversationTurn(
             StudioConversationRole.Honua,
-            $"Workflow ready · {StepCount} steps · ~{EstimatedDuration} estimated. {TriggerSummary} · failure routes to {FailureSummary} · evidence retained {RetentionSummary}.",
-            Tone: StudioConversationTone.Ready,
-            EvidenceLabel: "View readiness summary"));
+            "Describe the pipeline in plain language — the source, the steps, when it should run, and what to do on failure — and I'll propose a workflow you can review and refine.",
+            Tone: StudioConversationTone.Neutral));
     }
 
-    private async Task HandleRefineAsync(string prompt)
+    private Task HandleSendAsync(string prompt)
     {
-        if (_draft is null || string.IsNullOrWhiteSpace(prompt))
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return Task.CompletedTask;
+        }
+
+        var request = new StudioWorkflowGenerationRequest
+        {
+            Prompt = prompt,
+            Provider = _selectedProvider,
+            Conversation = SnapshotConversation(),
+        };
+
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt));
+        return GenerateAsync(request);
+    }
+
+    // Answering a clarification card sends just that answer back with the running conversation context; the
+    // server resumes generation. The card is removed once answered.
+    private Task HandleAnswerAsync((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        var request = new StudioWorkflowGenerationRequest
+        {
+            Prompt = string.Empty,
+            Provider = _selectedProvider,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioWorkflowGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        };
+
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.You,
+            $"{answer.Question.Label} → {answer.Choice.Label}"));
+        _clarifications = _clarifications.Where(item => item.Id != answer.Question.Id).ToList();
+
+        return GenerateAsync(request);
+    }
+
+    private async Task GenerateAsync(StudioWorkflowGenerationRequest request)
+    {
+        if (_draft is null)
         {
             return;
         }
@@ -254,16 +385,53 @@
         _busy = true;
         try
         {
-            _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt));
+            var outcome = await Workflows.GenerateAsync(_draft, request);
 
-            // A refine adds a transform step to the server-owned draft graph (the same edit the editor makes
-            // from its palette). The authoritative graph validation still happens server-side on save.
-            AppendTransformNode(prompt);
+            if (outcome.BindingState is not null)
+            {
+                _binding = outcome.BindingState;
+                return;
+            }
 
-            _turns.Add(new StudioConversationTurn(
-                StudioConversationRole.Honua,
-                $"Updated · {StepCount} steps · ~{EstimatedDuration} estimated. Open the editor to tune step configuration, schedule, and secrets.",
-                Tone: StudioConversationTone.Ready));
+            _warnings = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability &&
+                !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                _warnings.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
+
+            if (outcome.IsGenerated)
+            {
+                _draft = outcome.Draft ?? _draft;
+                _clarifications = [];
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale)
+                        ? $"Proposed · {StepCount} steps · ~{EstimatedDuration} · {TriggerSummary}. Refine by chatting, or open the editor."
+                        : outcome.Rationale,
+                    Tone: StudioConversationTone.Ready,
+                    EvidenceLabel: "View readiness summary"));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications = outcome.Clarifications.ToList();
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale)
+                        ? "I need a little more detail before I can propose the workflow."
+                        : outcome.Rationale,
+                    Tone: StudioConversationTone.Clarification));
+            }
+            else
+            {
+                // unsupported / refused / error
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale)
+                        ? "I couldn't turn that into a workflow."
+                        : outcome.Rationale,
+                    Tone: StudioConversationTone.Neutral));
+            }
         }
         finally
         {
@@ -271,52 +439,14 @@
         }
     }
 
-    private void AppendTransformNode(string prompt)
-    {
-        if (_draft is null)
-        {
-            return;
-        }
-
-        var definition = _nodeDefinitions.FirstOrDefault(item => item.Category == StudioWorkflowContractValues.NodeCategoryTransform)
-            ?? _nodeDefinitions.FirstOrDefault();
-
-        var label = Truncate(prompt, 24);
-        var transformNodes = _draft.Nodes.Count(node => node.Category == StudioWorkflowContractValues.NodeCategoryTransform) + 1;
-        var node = new StudioWorkflowNode
-        {
-            Id = $"transform-refine-{_draft.Nodes.Count + 1}",
-            Type = definition?.Type ?? "transform.refine",
-            Category = StudioWorkflowContractValues.NodeCategoryTransform,
-            Label = string.IsNullOrWhiteSpace(label) ? $"Step {transformNodes}" : label,
-            Column = _draft.Nodes.Count == 0 ? 1 : _draft.Nodes.Max(item => item.Column) + 1,
-            Row = 1,
-            InputPorts = definition?.InputPorts.ToList() ?? ["in"],
-            OutputPorts = definition?.OutputPorts.ToList() ?? ["out"],
-            Configuration = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["source"] = "ai-refine",
-                ["prompt"] = prompt
-            }
-        };
-
-        var previous = _draft.Nodes.LastOrDefault(item => item.Category != StudioWorkflowContractValues.NodeCategorySink);
-        _draft.Nodes.Add(node);
-
-        if (previous is not null)
-        {
-            _draft.Edges.Add(new StudioWorkflowEdge
-            {
-                Id = $"edge-{previous.Id}-{node.Id}",
-                FromNodeId = previous.Id,
-                ToNodeId = node.Id,
-                FromPort = previous.OutputPorts.FirstOrDefault() ?? "out",
-                ToPort = node.InputPorts.FirstOrDefault() ?? "in",
-                Kind = StudioWorkflowContractValues.EdgeKindSuccess,
-                Label = node.Category
-            });
-        }
-    }
+    // The conversation context sent to the server is the turn log up to (not including) the turn being
+    // added now, mapped to the server's user/assistant roles.
+    private IReadOnlyList<StudioWorkflowGenerationTurn> SnapshotConversation() =>
+        _turns
+            .Select(turn => new StudioWorkflowGenerationTurn(
+                turn.Role == StudioConversationRole.You ? "user" : "assistant",
+                turn.Body))
+            .ToArray();
 
     // "Open editor →" persists the conversed draft (so it has a content item id the editor reopens) and
     // navigates into the full pipeline editor. A blocked save surfaces the missing-binding state in place.
@@ -468,9 +598,9 @@
 
             return _draft.Schedule.Mode switch
             {
-                "cron" => $"Trigger: cron · {_draft.Schedule.Cron} ({_draft.Schedule.TimeZone})",
-                "event" => "Trigger: event-driven",
-                _ => "Trigger: manual"
+                "cron" => $"cron · {_draft.Schedule.Cron} ({_draft.Schedule.TimeZone})",
+                "event" => "event-driven",
+                _ => "manual"
             };
         }
     }
@@ -484,18 +614,30 @@
                 return "unknown";
             }
 
+            var mode = FriendlyFailureMode(_draft.RetryPolicy.FailureMode);
             var failureSink = _draft.Edges
                 .Where(edge => edge.Kind == StudioWorkflowContractValues.EdgeKindFailure)
                 .Select(edge => GetNodeLabel(edge.ToNodeId))
                 .FirstOrDefault();
 
-            return failureSink ?? _draft.RetryPolicy.FailureMode;
+            return failureSink is null ? mode : $"{mode} → {failureSink}";
         }
     }
 
-    private string RetentionSummary => _draft is null
+    // The draft stores a machine token (e.g. "route-failure-edges") in RetryPolicy.FailureMode; render it as
+    // a readable phrase rather than leaking the token into the readiness summary.
+    private static string FriendlyFailureMode(string failureMode) => failureMode switch
+    {
+        "route-failure-edges" => "route to failure steps",
+        "halt" or "stop" => "halt the run",
+        "continue" => "continue past failures",
+        "" or null => "halt the run",
+        _ => failureMode.Replace('-', ' ')
+    };
+
+    private string RetrySummary => _draft is null
         ? "unknown"
-        : $"{_draft.RetryPolicy.MaxAttempts} attempts · {_draft.RetryPolicy.FailureMode}";
+        : $"{_draft.RetryPolicy.MaxAttempts} attempt{(_draft.RetryPolicy.MaxAttempts == 1 ? string.Empty : "s")} · {_draft.RetryPolicy.BackoffSeconds}s backoff";
 
     private bool IsGraphValid =>
         _draft is not null &&
@@ -507,9 +649,6 @@
     private static bool HasDryRunJobEvidence(StudioWorkflowDryRunResult dryRun) =>
         !string.IsNullOrWhiteSpace(dryRun.OperateJobUrl) &&
         !string.IsNullOrWhiteSpace(dryRun.OperateEventsUrl);
-
-    private static string Truncate(string value, int max) =>
-        value.Length <= max ? value.Trim() : value[..max].Trim() + "…";
 
     // Canvas geometry mirrors the StudioWorkflowEditorPage layout so the DAG preview and the editor read the
     // same: nodes flow left-to-right by column with a small vertical fan-out for sink rows.

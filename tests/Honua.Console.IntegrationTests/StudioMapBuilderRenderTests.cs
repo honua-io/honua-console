@@ -477,6 +477,23 @@ public sealed class StudioMapBuilderRenderTests
     {
         public Task<StudioMapStyleCatalog> GetStyleCatalogAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(catalog);
+
+        // The map builder only lists styles; the dual-mode style editor read/write is exercised by the style
+        // editor's own tests, so this stub reports the editor read/write as unbound.
+        public Task<Honua.Console.Contracts.HonuaAdminEndpointResult<Honua.Console.Contracts.HonuaOgcStylesheet>> GetStylesheetAsync(
+            string styleId,
+            Honua.Console.Contracts.HonuaOgcStyleEncoding encoding,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Honua.Console.Contracts.HonuaAdminEndpointResult<Honua.Console.Contracts.HonuaOgcStylesheet>.FromIssue(
+                new Honua.Console.Contracts.HonuaAdminEndpointIssue("Unsupported", "GET /ogc/styles/{styleId}", "Style editing is not exercised by the map builder stub.")));
+
+        public Task<Honua.Console.Contracts.HonuaOgcStyleSaveResult> SaveStylesheetAsync(
+            string styleId,
+            Honua.Console.Contracts.HonuaOgcStyleEncoding encoding,
+            string content,
+            bool strict,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Honua.Console.Contracts.HonuaOgcStyleSaveResult.Fail("Unsupported", "Style editing is not exercised by the map builder stub."));
     }
 
     private static IElement FindButton(IRenderedComponent<StudioMapBuilderPage> page, string label) =>

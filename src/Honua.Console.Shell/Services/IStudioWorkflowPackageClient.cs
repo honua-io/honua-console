@@ -90,4 +90,23 @@ public interface IStudioWorkflowPackageClient
     Task<StudioWorkflowRunHistory> ListRunHistoryAsync(
         string contentItemId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads whether natural-language workflow generation is available on the bound server and which
+    /// providers (local GIS model / Claude / GPT) are enabled+configured, or a binding state when the
+    /// surface is unbound. Drives the "Workflow from prompt" provider selector and its availability state.
+    /// </summary>
+    Task<StudioWorkflowAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (fresh) or refines (when <paramref name="currentDraft"/> already has nodes) a workflow
+    /// package from a natural-language prompt. The server grounds the proposal in the node registry and
+    /// validates it before returning, so the outcome is either a server-produced graph, a structured
+    /// clarification request, an unsupported/refused turn, or a binding state - never a fabricated graph.
+    /// </summary>
+    Task<StudioWorkflowGenerationOutcome> GenerateAsync(
+        StudioWorkflowPackageDraft currentDraft,
+        StudioWorkflowGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }

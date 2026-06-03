@@ -334,6 +334,187 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         return new StudioWorkflowRunHistory(runs);
     }
 
+    public async Task<StudioWorkflowAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var providers = await _api.ListGenerationProvidersAsync(cancellationToken).ConfigureAwait(false);
+        if (!providers.IsSuccess || providers.Data is null)
+        {
+            // A 404/501 means this server has the workflow API but not the generation contract yet: AI is
+            // simply off here (honest "unavailable"), not a missing server binding. Other issues (transport,
+            // auth) block the surface so the page shows the shared blocked state.
+            if (providers.Issue?.StatusCode is 404 or 501)
+            {
+                return StudioWorkflowAiCapability.Off;
+            }
+
+            return StudioWorkflowAiCapability.Blocked(ToBindingState(providers.Issue));
+        }
+
+        return new StudioWorkflowAiCapability
+        {
+            Enabled = providers.Data.Enabled,
+            DefaultProvider = providers.Data.DefaultProvider,
+            Providers = providers.Data.Providers
+                .Select(provider => new StudioWorkflowAiProvider(
+                    provider.Id,
+                    string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,
+                    provider.Kind,
+                    provider.Available,
+                    provider.Detail))
+                .ToArray()
+        };
+    }
+
+    public async Task<StudioWorkflowGenerationOutcome> GenerateAsync(
+        StudioWorkflowPackageDraft currentDraft,
+        StudioWorkflowGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentDraft);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // A refine turn ships the current graph so the server edits it; a first turn ships null (fresh).
+        var hasGraph = currentDraft.Nodes.Count > 0;
+        var wire = new GenerateWorkflowRequest
+        {
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Graph = hasGraph ? ToSaveRequest(currentDraft).Graph : null,
+            Conversation = request.Conversation
+                .Select(turn => new WorkflowGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new WorkflowGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _api.GenerateWorkflowAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (!result.IsSuccess || result.Data is null)
+        {
+            if (result.Issue?.StatusCode is 404 or 501)
+            {
+                return new StudioWorkflowGenerationOutcome
+                {
+                    Status = StudioWorkflowGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI workflow generation yet."
+                };
+            }
+
+            return StudioWorkflowGenerationOutcome.Blocked(ToBindingState(result.Issue));
+        }
+
+        // Only fetch the registry (for node category/ports/layout) when there is a graph to project.
+        IReadOnlyList<StudioWorkflowNodeDefinition> definitions = [];
+        if (result.Data.Graph is not null &&
+            string.Equals(result.Data.Status, StudioWorkflowGenerationStatuses.Generated, StringComparison.Ordinal))
+        {
+            var registry = await _api.GetNodeRegistryAsync(cancellationToken).ConfigureAwait(false);
+            definitions = registry.IsSuccess && registry.Data is not null
+                ? MapNodeDefinitions(registry.Data)
+                : [];
+        }
+
+        return MapGeneration(currentDraft, result.Data, definitions);
+    }
+
+    private StudioWorkflowGenerationOutcome MapGeneration(
+        StudioWorkflowPackageDraft currentDraft,
+        WorkflowGenerationResult result,
+        IReadOnlyList<StudioWorkflowNodeDefinition> definitions)
+    {
+        var warnings = new List<string>();
+        if (result.Validation is not null)
+        {
+            warnings.AddRange(result.Validation.Warnings);
+        }
+
+        warnings.AddRange(result.UnmappedRequests
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No matching step for: {item}"));
+
+        var clarifications = result.Clarifications
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                question.Choices
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioWorkflowPackageDraft? draft = null;
+        var generated = string.Equals(result.Status, StudioWorkflowGenerationStatuses.Generated, StringComparison.Ordinal);
+        if (generated && result.Graph is not null)
+        {
+            draft = ApplyGeneratedGraph(currentDraft, result.Graph, definitions);
+
+            // Surface validator errors too (non-blocking here): the page re-validates authoritatively on save.
+            if (result.Validation is { IsValid: false })
+            {
+                warnings.AddRange(result.Validation.Failures.Select(failure => failure.Message));
+            }
+        }
+
+        return new StudioWorkflowGenerationOutcome
+        {
+            Status = NormalizeStatus(result.Status),
+            Draft = draft,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioWorkflowGenerationCapability(
+                    result.CapabilityState.Name,
+                    result.CapabilityState.State,
+                    result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    // Projects a server-proposed graph onto the live draft, reusing the same node/edge mapping as a reopened
+    // package so the DAG preview reads identically. Identity (package/version ids, title) is preserved; the
+    // version pin is cleared because the graph changed and must be re-saved + re-validated before any run.
+    private StudioWorkflowPackageDraft ApplyGeneratedGraph(
+        StudioWorkflowPackageDraft current,
+        WorkflowGraph graph,
+        IReadOnlyList<StudioWorkflowNodeDefinition> definitions)
+    {
+        var definitionsByType = definitions.ToDictionary(definition => definition.Type, StringComparer.Ordinal);
+        var editorState = ReadEditorState(graph);
+
+        current.Nodes = graph.Nodes
+            .Select((node, index) => ToNode(node, index, definitionsByType))
+            .ToList();
+        current.Edges = graph.Edges.Select(ToEdge).ToList();
+        current.Schedule = ToSchedule(graph.Schedule, editorState.ScheduleMode);
+        current.CurrentVersionId = string.Empty;
+
+        // The server may suggest a package name in the graph editor metadata; adopt it only while the draft
+        // still has its placeholder title, so a user rename is never clobbered by a refine.
+        if (graph.EditorMetadata.TryGetValue("console.title", out var suggested) &&
+            !string.IsNullOrWhiteSpace(suggested) &&
+            (string.IsNullOrWhiteSpace(current.Title) ||
+             string.Equals(current.Title, "Untitled workflow package", StringComparison.Ordinal)))
+        {
+            current.Title = suggested;
+        }
+
+        return current;
+    }
+
+    private static string NormalizeStatus(string? status) => status switch
+    {
+        StudioWorkflowGenerationStatuses.Generated => StudioWorkflowGenerationStatuses.Generated,
+        StudioWorkflowGenerationStatuses.NeedsClarification => StudioWorkflowGenerationStatuses.NeedsClarification,
+        StudioWorkflowGenerationStatuses.Unsupported => StudioWorkflowGenerationStatuses.Unsupported,
+        StudioWorkflowGenerationStatuses.Refused => StudioWorkflowGenerationStatuses.Refused,
+        _ => StudioWorkflowGenerationStatuses.Error
+    };
+
     private static StudioWorkflowRunHistoryEntry MapRun(WorkflowPublication publication) =>
         new()
         {

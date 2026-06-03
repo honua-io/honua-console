@@ -67,4 +67,14 @@ public sealed class UnsupportedStudioWorkflowPackageClient : IStudioWorkflowPack
         string contentItemId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(StudioWorkflowRunHistory.Blocked(MissingBinding));
+
+    public Task<StudioWorkflowAiCapability> GetGenerationCapabilityAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioWorkflowAiCapability.Blocked(MissingBinding));
+
+    public Task<StudioWorkflowGenerationOutcome> GenerateAsync(
+        StudioWorkflowPackageDraft currentDraft,
+        StudioWorkflowGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioWorkflowGenerationOutcome.Blocked(MissingBinding));
 }
