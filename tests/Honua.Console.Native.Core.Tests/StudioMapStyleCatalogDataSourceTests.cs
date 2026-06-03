@@ -93,5 +93,22 @@ public sealed class StudioMapStyleCatalogDataSourceTests
 
         public Task<HonuaAdminEndpointResult<HonuaOgcStylesList>> ListStylesAsync(
             CancellationToken cancellationToken = default) => Task.FromResult(result);
+
+        // The map-builder style-catalog tests only exercise the list; the dual-mode editor read/write is
+        // covered by the style editor's own tests, so report it unbound here.
+        public Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
+            string styleId,
+            HonuaOgcStyleEncoding encoding,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "GET /ogc/styles/{styleId}", "Not exercised by this stub.")));
+
+        public Task<HonuaOgcStyleSaveResult> UpdateStylesheetAsync(
+            string styleId,
+            HonuaOgcStyleEncoding encoding,
+            string content,
+            bool strict,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaOgcStyleSaveResult.Fail("Unsupported", "Not exercised by this stub."));
     }
 }

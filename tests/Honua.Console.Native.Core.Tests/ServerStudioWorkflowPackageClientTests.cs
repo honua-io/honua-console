@@ -572,6 +572,17 @@ public sealed class ServerStudioWorkflowPackageClientTests
             }));
         }
 
+        public Task<WorkflowEndpointResult<WorkflowGenerationProviders>> ListGenerationProvidersAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(WorkflowEndpointResult<WorkflowGenerationProviders>.FromData(
+                new WorkflowGenerationProviders { Enabled = false }));
+
+        public Task<WorkflowEndpointResult<WorkflowGenerationResult>> GenerateWorkflowAsync(
+            GenerateWorkflowRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(WorkflowEndpointResult<WorkflowGenerationResult>.FromIssue(
+                new WorkflowEndpointIssue("Unsupported", "POST generate", "Generation not exercised by this fake.", 404)));
+
         private static WorkflowNodePortSchema Port(string name) => new()
         {
             Name = name,
