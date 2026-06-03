@@ -19,8 +19,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+        // Environment profiles are host-owned local state (Console Patterns Charter §11 local-state
+        // carve-out), but they must not ship fabricated demo profiles. The default store starts EMPTY so
+        // the first-run experience is "create your first environment", never seeded dev.honua.local /
+        // staging.honua.example fakes. The native host replaces this with the persistent
+        // JsonConsoleEnvironmentProfileStore (also empty until the operator adds one). The seeded factory
+        // (InMemoryConsoleEnvironmentProfileStore.CreateSeeded) stays test/demo-only — never the DI default.
         services.TryAddSingleton<IConsoleEnvironmentProfileStore>(
-            _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
+            _ => new InMemoryConsoleEnvironmentProfileStore([]));
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
 
         // Unsaved-changes dirty tracking (FormDirtyState) is intentionally NOT registered in DI: a
