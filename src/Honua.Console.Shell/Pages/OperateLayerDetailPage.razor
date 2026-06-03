@@ -16,6 +16,9 @@
             <p class="console-kicker">Operate / Layers</p>
             <h1>@_exposures[0].Layer.Name</h1>
             <p>Layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
+            </div>
         </div>
 
         <div class="console-panel-grid">

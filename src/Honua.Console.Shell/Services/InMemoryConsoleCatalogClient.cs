@@ -606,6 +606,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             Bindings = bindings,
             Publications = publications,
             Usage = usage,
+            UsageBound = true,
             Versions =
             [
                 new("v3", "Current", modified, owner),

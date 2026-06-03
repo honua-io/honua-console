@@ -52,6 +52,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddEsriMigrationRunDataSource(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddOperateAlertRulesDataSource(services, honuaServerBaseUrl);
+        AddOperateLayerStyleOverrideDataSource(services);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
         // Operate observability binds to a real honua-server through a thin
@@ -645,6 +647,38 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IPublishingWorkspaceDataSource, UnsupportedPublishingWorkspaceDataSource>();
     }
+
+    // Binds the alert RULE definition surface (/operate/alerts/rules and /operate/alerts/rules/{ruleId},
+    // honua-console UI-042) to honua-server. The rule LIST reuses the live observability rules projection
+    // (/api/v1/admin/observability, already registered) through ServerOperateAlertRulesDataSource when a
+    // server base address is configured; the rule detail/condition editor and rule save await the alert rule
+    // DEFINITION contract (honua-server#1169) and render an explicit missing-binding state until it ships
+    // (Console Patterns Charter section 11). With no server configured the unsupported source surfaces the
+    // missing-binding state across the list and editor. TryAdd keeps a test/demo provider overridable.
+    private static void AddOperateAlertRulesDataSource(IServiceCollection services, string? honuaServerBaseUrl)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IOperateAlertRulesDataSource>(serviceProvider =>
+                new ServerOperateAlertRulesDataSource(
+                    serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>()));
+            return;
+        }
+
+        services.TryAddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
+    }
+
+    // Binds the Operate resource-presentation per-slot style/popup OVERRIDE surface
+    // (/operate/layers/{id}/style, honua-console UI-032). honua-server does not yet expose a per-slot
+    // presentation-override contract, so the merged build registers the unsupported source: the override
+    // read/write render an explicit missing-binding state and never fabricate per-slot overrides (Console
+    // Patterns Charter section 11). The page still reads the REAL /ogc/styles list through the already
+    // registered IStudioMapStyleCatalogDataSource. When the override contract lands, wire a Server*
+    // implementation here gated on a configured server base URL exactly like the other bindings. TryAdd keeps
+    // a test/demo provider overridable.
+    private static void AddOperateLayerStyleOverrideDataSource(IServiceCollection services) =>
+        services.TryAddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
 
     private static HttpClient CreateOperateObservabilityHttpClient() =>
         new(new SocketsHttpHandler

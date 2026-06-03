@@ -1,0 +1,191 @@
+@page "/operate/layers/{ResourceId}/style"
+@using Honua.Console.Shell.Components
+@inject IOperateLayerStyleOverrideDataSource OverrideData
+@inject IStudioMapStyleCatalogDataSource StyleCatalog
+
+<section class="console-page operate-layer-style" data-layer-style="@ResourceId">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Layers</p>
+        <h1>Resource presentation</h1>
+        <p>Override the style and popup template per publication slot for this layer. Each slot is one service exposure; the available base styles come from the live server style list (/ogc/styles). The Studio style editor authors the canonical styles; this Operate surface only overrides how each publication slot presents them.</p>
+        <p><a href="@("/operate/layers/" + ResourceId)">Back to layer</a></p>
+    </div>
+
+    <article class="console-panel" data-layer-style-catalog>
+        <p class="console-kicker">Available base styles</p>
+        <h2>Server style list</h2>
+        @if (_catalog.Issue is { } catalogState)
+        {
+            <div class="console-panel console-state-warning" role="status" data-style-catalog-state>
+                <p class="console-kicker">@catalogState.State</p>
+                <p>@catalogState.Detail</p>
+            </div>
+        }
+        else if (_catalog.Styles.Count == 0)
+        {
+            <p class="console-muted">The connected server advertises no styles on /ogc/styles.</p>
+        }
+        else
+        {
+            <ul class="console-chip-row" data-style-catalog-list>
+                @foreach (var style in _catalog.Styles)
+                {
+                    <li><span class="console-status console-state-neutral">@style.Label</span></li>
+                }
+            </ul>
+        }
+    </article>
+
+    <section class="console-section" aria-label="Publication slot overrides">
+        <div class="console-page-heading">
+            <p class="console-kicker">Per-slot presentation</p>
+            <h2>Publication slot overrides</h2>
+        </div>
+
+        @if (_loading)
+        {
+            <ConsoleStateView Kind="loading"
+                              Kicker="Resource presentation"
+                              Title="Loading slot overrides"
+                              Message="Reading server-owned per-slot style/popup overrides from honua-server." />
+        }
+        else if (_overrides.BindingState is { } binding)
+        {
+            <ConsoleStateView Kind="@StateKind(binding.State)"
+                              Kicker="@binding.State"
+                              Title="Per-slot overrides are not bound"
+                              Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
+        }
+        else if (_overrides.Slots.Count == 0)
+        {
+            <EmptyState Area="operate" Subject="publication slots" />
+        }
+        else
+        {
+            @foreach (var slot in _overrides.Slots)
+            {
+                <article class="console-panel" data-style-slot="@slot.SlotId">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@slot.ServiceName</p>
+                            <h3>@slot.ServiceDisplayName</h3>
+                        </div>
+                    </div>
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Style override</span>
+                            <select class="console-input" data-slot-style
+                                    value="@StyleValue(slot.SlotId)"
+                                    @onchange="e => SetStyle(slot.SlotId, e)">
+                                <option value="">Use canonical style</option>
+                                @foreach (var style in _catalog.Styles)
+                                {
+                                    <option value="@style.StyleId">@style.Label</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            <span>Popup template override</span>
+                            <textarea class="console-input console-mono" rows="3" data-slot-popup
+                                      value="@PopupValue(slot.SlotId)"
+                                      @onchange="e => SetPopup(slot.SlotId, e)"></textarea>
+                        </label>
+                    </div>
+                    <div class="console-action-row">
+                        <button class="console-button" type="button" disabled="@_saving"
+                                @onclick="() => SaveSlotAsync(slot)" data-slot-save>
+                            @(_saving ? "Saving..." : "Save override")
+                        </button>
+                    </div>
+                </article>
+            }
+
+            @if (_saveResult is { } result && result.BindingState is { } saveBinding)
+            {
+                <ConsoleStateView Kind="@StateKind(saveBinding.State)"
+                                  Kicker="@saveBinding.State"
+                                  Title="Override save is not bound"
+                                  Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />
+            }
+            else if (_saveResult is { Succeeded: true })
+            {
+                <div class="console-panel console-state-success" role="status" data-slot-saved>
+                    <p class="console-kicker">Saved</p>
+                    <p>The slot presentation override was saved on honua-server.</p>
+                </div>
+            }
+        }
+    </section>
+</section>
+
+@code {
+    [Parameter]
+    public string ResourceId { get; set; } = string.Empty;
+
+    private bool _loading = true;
+    private bool _saving;
+    private StudioMapStyleCatalog _catalog = StudioMapStyleCatalog.Empty;
+    private OperateLayerStyleOverrideView _overrides = new(string.Empty, []);
+    private OperateLayerStyleOverrideSaveResult? _saveResult;
+
+    // Per-slot edit state, keyed by slot id, seeded from the loaded overrides.
+    private readonly Dictionary<string, string> _styleEdits = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _popupEdits = new(StringComparer.Ordinal);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _saveResult = null;
+        _catalog = await StyleCatalog.GetStyleCatalogAsync();
+        _overrides = await OverrideData.GetOverridesAsync(ResourceId);
+        _styleEdits.Clear();
+        _popupEdits.Clear();
+        foreach (var slot in _overrides.Slots)
+        {
+            _styleEdits[slot.SlotId] = slot.StyleIdOverride ?? string.Empty;
+            _popupEdits[slot.SlotId] = slot.PopupTemplateOverride ?? string.Empty;
+        }
+
+        _loading = false;
+    }
+
+    private string StyleValue(string slotId) =>
+        _styleEdits.TryGetValue(slotId, out var value) ? value : string.Empty;
+
+    private string PopupValue(string slotId) =>
+        _popupEdits.TryGetValue(slotId, out var value) ? value : string.Empty;
+
+    private void SetStyle(string slotId, ChangeEventArgs e) =>
+        _styleEdits[slotId] = e.Value?.ToString() ?? string.Empty;
+
+    private void SetPopup(string slotId, ChangeEventArgs e) =>
+        _popupEdits[slotId] = e.Value?.ToString() ?? string.Empty;
+
+    private async Task SaveSlotAsync(OperateLayerSlotStyleOverride slot)
+    {
+        _saving = true;
+        _saveResult = null;
+        try
+        {
+            var style = StyleValue(slot.SlotId);
+            var popup = PopupValue(slot.SlotId);
+            var edit = new OperateLayerSlotStyleOverrideEdit(
+                ResourceId,
+                slot.SlotId,
+                string.IsNullOrWhiteSpace(style) ? null : style,
+                string.IsNullOrWhiteSpace(popup) ? null : popup);
+            _saveResult = await OverrideData.SaveOverrideAsync(edit);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string StateKind(string state) => state switch
+    {
+        OperateLayerStyleBindingState.Forbidden => "forbidden",
+        OperateLayerStyleBindingState.Unsupported => "unsupported",
+        _ => "missing"
+    };
+}
