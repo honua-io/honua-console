@@ -583,6 +583,15 @@ public sealed class ServerStudioWorkflowPackageClientTests
             Task.FromResult(WorkflowEndpointResult<WorkflowGenerationResult>.FromIssue(
                 new WorkflowEndpointIssue("Unsupported", "POST generate", "Generation not exercised by this fake.", 404)));
 
+        public int FeedbackCount { get; private set; }
+
+        public Task<bool> RecordGenerationFeedbackAsync(
+            WorkflowGenerationFeedbackRequest request, CancellationToken cancellationToken = default)
+        {
+            FeedbackCount++;
+            return Task.FromResult(true);
+        }
+
         private static WorkflowNodePortSchema Port(string name) => new()
         {
             Name = name,

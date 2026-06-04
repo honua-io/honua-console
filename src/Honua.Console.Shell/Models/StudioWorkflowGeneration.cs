@@ -76,6 +76,9 @@ public sealed record StudioWorkflowGenerationOutcome
 
     public string? Model { get; init; }
 
+    /// <summary>Correlates this turn to later accept/edit/publish feedback (the training flywheel).</summary>
+    public string? FeedbackId { get; init; }
+
     public bool IsGenerated => string.Equals(Status, StudioWorkflowGenerationStatuses.Generated, StringComparison.Ordinal);
 
     public bool NeedsClarification =>

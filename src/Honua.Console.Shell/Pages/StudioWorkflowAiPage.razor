@@ -276,6 +276,7 @@
     private readonly List<StudioConversationTurn> _turns = [];
     private List<StudioConversationClarification> _clarifications = [];
     private List<string> _warnings = [];
+    private string? _feedbackId;
 
     private bool AiEnabled => _capability.Enabled && _availableProviders.Count > 0;
 
@@ -393,6 +394,7 @@
                 return;
             }
 
+            _feedbackId = outcome.FeedbackId ?? _feedbackId;
             _warnings = outcome.Warnings.ToList();
             if (outcome.CapabilityState is { } capability &&
                 !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
@@ -467,6 +469,13 @@
                 return;
             }
 
+            // Opening a generated proposal into the editor is the "accepted" flywheel signal (the saved
+            // draft is the operator's final graph). Best-effort.
+            if (_feedbackId is not null)
+            {
+                await Workflows.RecordGenerationFeedbackAsync(_feedbackId, "accepted", _draft);
+            }
+
             var draftRoute = !string.IsNullOrWhiteSpace(_draft.ContentItemId)
                 ? _draft.ContentItemId
                 : _draft.DraftId;
@@ -537,6 +546,11 @@
             if (_lastPublish.BindingState is not null)
             {
                 _binding = _lastPublish.BindingState;
+            }
+            else if (_feedbackId is not null && !IsBlockedPublish(_lastPublish))
+            {
+                // Publishing the generated (possibly edited) workflow is the strongest positive signal.
+                await Workflows.RecordGenerationFeedbackAsync(_feedbackId, "published", _draft);
             }
         }
         finally

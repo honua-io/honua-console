@@ -436,6 +436,8 @@ public sealed record WorkflowGenerationResult
     [JsonPropertyName("model")] public string? Model { get; init; }
     [JsonPropertyName("registryVersion")] public string? RegistryVersion { get; init; }
     [JsonPropertyName("usage")] public WorkflowGenerationUsage? Usage { get; init; }
+    /// <summary>Correlates this turn to later accept/edit/publish feedback (the training flywheel).</summary>
+    [JsonPropertyName("feedbackId")] public string? FeedbackId { get; init; }
 }
 
 public sealed record WorkflowGenerationAnswer
@@ -463,6 +465,17 @@ public sealed record GenerateWorkflowRequest
     [JsonPropertyName("conversation")] public IReadOnlyList<WorkflowGenerationTurn> Conversation { get; init; } = [];
     /// <summary>Answers to a prior needs-clarification turn.</summary>
     [JsonPropertyName("answers")] public IReadOnlyList<WorkflowGenerationAnswer> Answers { get; init; } = [];
+}
+
+/// <summary>Feedback posted after a generation turn (training flywheel). <c>action</c> is one of
+/// "accepted" | "edited" | "published" | "rejected".</summary>
+public sealed record WorkflowGenerationFeedbackRequest
+{
+    [JsonPropertyName("feedbackId")] public string FeedbackId { get; init; } = string.Empty;
+    [JsonPropertyName("action")] public string Action { get; init; } = string.Empty;
+    /// <summary>The operator's final graph (for accepted/edited/published) — the training target.</summary>
+    [JsonPropertyName("finalGraph")] public WorkflowGraph? FinalGraph { get; init; }
+    [JsonPropertyName("note")] public string? Note { get; init; }
 }
 
 #endregion
@@ -573,6 +586,12 @@ public interface IWorkflowPackageApiClient
     /// <summary>Generates (or refines) a workflow.package graph from a natural-language prompt.</summary>
     Task<WorkflowEndpointResult<WorkflowGenerationResult>> GenerateWorkflowAsync(
         GenerateWorkflowRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Records accept/edit/publish feedback for a generation turn (training flywheel). Best-effort:
+    /// returns true when the server accepted it; never throws.</summary>
+    Task<bool> RecordGenerationFeedbackAsync(
+        WorkflowGenerationFeedbackRequest request,
         CancellationToken cancellationToken = default);
 }
 
@@ -768,6 +787,36 @@ public sealed class HttpWorkflowPackageApiClient : IWorkflowPackageApiClient, ID
             request,
             "POST /api/v1/console/workflow-packages/generate",
             cancellationToken);
+    }
+
+    public async Task<bool> RecordGenerationFeedbackAsync(
+        WorkflowGenerationFeedbackRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Best-effort fire-and-forget: never throw, never block the editor. The endpoint returns a
+        // no-data success envelope, so success is keyed on the HTTP status, not response data.
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"{ConsoleRoot}/workflow-generation/feedback");
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            message.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        message.Content = JsonContent.Create(request, request.GetType(), options: JsonOptions);
+        try
+        {
+            using var response = await _httpClient.SendAsync(message, cancellationToken).ConfigureAwait(false);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 
     public void Dispose() => _httpClient.Dispose();

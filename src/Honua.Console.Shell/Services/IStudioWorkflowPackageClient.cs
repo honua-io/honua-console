@@ -109,4 +109,16 @@ public interface IStudioWorkflowPackageClient
         StudioWorkflowPackageDraft currentDraft,
         StudioWorkflowGenerationRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records what the operator did with a generated proposal (accepted/edited/published/rejected),
+    /// correlated by <paramref name="feedbackId"/> from the generation outcome — the supervision signal
+    /// for model improvement. Best-effort: never throws; a no-op when the surface is unbound.
+    /// </summary>
+    Task RecordGenerationFeedbackAsync(
+        string feedbackId,
+        string action,
+        StudioWorkflowPackageDraft? finalDraft,
+        string? note = null,
+        CancellationToken cancellationToken = default);
 }

@@ -336,6 +336,14 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
             Rationale = "AI workflow generation requires a honua-server with the generation contract."
         });
 
+    public Task RecordGenerationFeedbackAsync(
+        string feedbackId,
+        string action,
+        StudioWorkflowPackageDraft? finalDraft,
+        string? note = null,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
     private void RecordRun(
         StudioWorkflowPackageDraft draft,
         string jobId,

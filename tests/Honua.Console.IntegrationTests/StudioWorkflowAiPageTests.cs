@@ -253,6 +253,9 @@ public sealed class StudioWorkflowAiPageTests
         public Task<StudioWorkflowRunHistory> ListRunHistoryAsync(string contentItemId, CancellationToken cancellationToken = default) =>
             Task.FromResult(StudioWorkflowRunHistory.Empty);
 
+        public Task RecordGenerationFeedbackAsync(string feedbackId, string action, StudioWorkflowPackageDraft? finalDraft, string? note = null, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
         private static StudioWorkflowPackageDraft NewDraft() => new()
         {
             Title = "Untitled workflow package",

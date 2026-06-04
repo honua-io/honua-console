@@ -471,8 +471,34 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
                     result.CapabilityState.State,
                     result.CapabilityState.Reason),
             Provider = result.Provider,
-            Model = result.Model
+            Model = result.Model,
+            FeedbackId = result.FeedbackId
         };
+    }
+
+    public async Task RecordGenerationFeedbackAsync(
+        string feedbackId,
+        string action,
+        StudioWorkflowPackageDraft? finalDraft,
+        string? note = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(feedbackId))
+        {
+            return;
+        }
+
+        // Best-effort: the operator's accept/edit/publish on a generated draft is the flywheel signal.
+        // The final graph (when present) is the training target; the HTTP client never throws.
+        await _api.RecordGenerationFeedbackAsync(
+            new WorkflowGenerationFeedbackRequest
+            {
+                FeedbackId = feedbackId,
+                Action = action,
+                FinalGraph = finalDraft is { Nodes.Count: > 0 } ? ToSaveRequest(finalDraft).Graph : null,
+                Note = note
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     // Projects a server-proposed graph onto the live draft, reusing the same node/edge mapping as a reopened

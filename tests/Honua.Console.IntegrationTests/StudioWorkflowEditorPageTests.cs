@@ -255,5 +255,8 @@ public sealed class StudioWorkflowEditorPageTests
             StudioWorkflowGenerationRequest request,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioWorkflowGenerationOutcome { Status = StudioWorkflowGenerationStatuses.Unsupported });
+
+        public Task RecordGenerationFeedbackAsync(string feedbackId, string action, StudioWorkflowPackageDraft? finalDraft, string? note = null, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }
