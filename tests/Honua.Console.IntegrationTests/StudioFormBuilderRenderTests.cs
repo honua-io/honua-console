@@ -274,6 +274,13 @@ public sealed class StudioFormBuilderRenderTests
 
     private sealed class FakeFormDataSource : IStudioFormPackageDataSource
     {
+        public Task<StudioFormAiCapability> GetGenerationCapabilityAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioFormAiCapability.Off);
+
+        public Task<StudioFormGenerationOutcome> GenerateAsync(
+            StudioFormEditorState currentState, StudioFormGenerationRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioFormGenerationOutcome { Status = StudioFormGenerationStatuses.Unsupported });
+
         public StudioFormWorkspace Workspace { get; set; } = new([], []);
 
         public StudioFormEditorLoad EditorLoad { get; set; } = new(null, []);

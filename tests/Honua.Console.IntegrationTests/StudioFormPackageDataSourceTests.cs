@@ -243,6 +243,14 @@ public sealed class StudioFormPackageDataSourceTests
 
     private sealed class FakeFormPackageClient : IHonuaFormPackageClient
     {
+        public Task<HonuaAdminEndpointResult<HonuaFormGenerationProviders>> ListGenerationProvidersAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaFormGenerationProviders>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "GET providers", "Not exercised by this fake.")));
+
+        public Task<HonuaAdminEndpointResult<HonuaFormGenerationResult>> GenerateFormAsync(GenerateFormPackageRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
+
         public Uri BaseUri { get; } = new("https://honua.test");
 
         public HonuaAdminEndpointResult<HonuaFormPackageSummary[]> Packages { get; set; } =

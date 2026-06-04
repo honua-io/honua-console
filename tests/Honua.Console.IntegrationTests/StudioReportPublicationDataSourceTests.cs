@@ -330,6 +330,14 @@ public sealed class StudioReportPublicationDataSourceTests
 
     private sealed class FakePublicationClient : IHonuaContentPublicationClient
     {
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationProviders>> ListReportGenerationProvidersAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationProviders>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "GET providers", "Not exercised by this fake.")));
+
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateReportAsync(GenerateReportContentRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
+
         public FakePublicationClient(HonuaAdminEndpointResult<HonuaContentPublicationDetail>? getResult = null)
         {
             GetResult = getResult;
