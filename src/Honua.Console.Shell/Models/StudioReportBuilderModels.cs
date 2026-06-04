@@ -279,6 +279,68 @@ public static class StudioReportDocument
         return JsonSerializer.Serialize(document, DocumentOptions);
     }
 
+    /// <summary>
+    /// Applies a server report document (the same shape <see cref="Serialize"/> produces) onto an editor
+    /// state. Used by the "Report from prompt" generated turn to project a server-proposed document into a
+    /// fresh, reviewable draft — the inverse of <see cref="Serialize"/>.
+    /// </summary>
+    public static void ApplyTo(StudioReportEditorState state, JsonElement document)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (document.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        state.Title = GetString(document, "title");
+        state.Description = GetString(document, "description");
+        state.Narrative = GetString(document, "narrative");
+
+        state.Bindings.Clear();
+        if (document.TryGetProperty("bindings", out var bindings) && bindings.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var binding in bindings.EnumerateArray())
+            {
+                state.Bindings.Add(new StudioReportBindingEditor
+                {
+                    Alias = GetString(binding, "alias"),
+                    ContentRef = GetString(binding, "contentRef"),
+                    VersionPin = GetString(binding, "versionPin")
+                });
+            }
+        }
+
+        state.Panels.Clear();
+        if (document.TryGetProperty("panels", out var panels) && panels.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var panel in panels.EnumerateArray())
+            {
+                var kind = GetString(panel, "kind");
+                var editor = new StudioReportPanelEditor
+                {
+                    Title = GetString(panel, "title"),
+                    Kind = string.IsNullOrWhiteSpace(kind) ? StudioReportPanelKinds.Chart : kind,
+                    BindingAlias = GetString(panel, "bindingAlias")
+                };
+
+                if (panel.TryGetProperty("chartSpec", out var spec) &&
+                    spec.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+                {
+                    editor.VegaLiteSpec = spec.ValueKind == JsonValueKind.String
+                        ? spec.GetString() ?? string.Empty
+                        : spec.GetRawText();
+                }
+
+                state.Panels.Add(editor);
+            }
+        }
+    }
+
+    private static string GetString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
+
     private static object? ParseChartSpec(string spec)
     {
         if (string.IsNullOrWhiteSpace(spec))
