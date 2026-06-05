@@ -1,0 +1,15 @@
+@if (!string.IsNullOrWhiteSpace(Value))
+{
+    <div class="support-context-row">
+        <dt>@Label</dt>
+        <dd>@Value</dd>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Value { get; set; }
+}

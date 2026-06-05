@@ -630,6 +630,8 @@ the smoke pipeline (§10).
 | `/environments` | `host-support` | empty environment profiles; browser native actions unsupported | — | shell |
 | `/environments/new` | `native-host` (`SupportsNativeTransports`) | unsupported-native on web | — | shell |
 | `/environments/:profileId` | `host-support` | missing environment profile | browser native actions unsupported | shell |
+| `/support` | `auth` | unsupported-binding when honua-support base URL unset | unauth-redirect | shell |
+| `/support/tickets/:ticketId` | `auth` | missing/forbidden/unavailable ticket via shared section surface | unauth-redirect | shell |
 | `*` | `anonymous` | notfound | — | shell |
 
 `/groups` lives in the shell chunk (not Operate or Catalog) because it
