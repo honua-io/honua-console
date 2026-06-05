@@ -7776,6 +7776,115 @@ p {
     background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
 }
 
+/* trust-visibility (#166): escalation rationale, remote-session banner, scorecard. */
+.support-escalation-card {
+    border-left: 4px solid #d97706;
+}
+
+.support-escalation-headline {
+    font-weight: 600;
+    margin: 0.25rem 0 0.5rem;
+}
+
+.support-session-banner {
+    border-left: 4px solid var(--honua-accent, #0f766e);
+}
+
+.support-session-banner.support-session-active {
+    border-left-color: #d97706;
+}
+
+.support-session-banner.support-session-expired {
+    border-left-color: #b91c1c;
+}
+
+.support-session-countdown {
+    font-size: 1.05rem;
+    margin: 0.25rem 0;
+}
+
+.support-session-countdown strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.support-session-expiry,
+.support-session-visibility {
+    margin: 0.25rem 0;
+}
+
+.support-session-actions {
+    margin-top: 0.75rem;
+}
+
+.support-session-link {
+    font-weight: 600;
+    color: var(--honua-accent-strong, #134e4a);
+    text-decoration: none;
+}
+
+.support-session-link:hover {
+    text-decoration: underline;
+}
+
+.support-scorecard-result {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.support-scorecard-pass {
+    color: #065f46;
+    background: rgba(16, 185, 129, 0.15);
+}
+
+.support-scorecard-fail {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.support-scorecard-list {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+}
+
+.support-scorecard-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.support-scorecard-mark {
+    font-weight: 700;
+    width: 1rem;
+    text-align: center;
+}
+
+.support-scorecard-ok .support-scorecard-mark {
+    color: #059669;
+}
+
+.support-scorecard-bad .support-scorecard-mark {
+    color: #dc2626;
+}
+
+.support-scorecard-unknown .support-scorecard-mark {
+    color: var(--honua-muted, #64748b);
+}
+
+.support-scorecard-raw {
+    margin: 0.5rem 0 0;
+    padding: 0.75rem;
+    border-radius: 0.4rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
+}
+
 .console-nav-help {
     margin-top: auto;
 }
