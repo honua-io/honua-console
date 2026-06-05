@@ -177,7 +177,7 @@ public sealed class StudioMapBuilderRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client));
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient()));
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
@@ -246,7 +246,16 @@ public sealed class StudioMapBuilderRenderTests
         var data = new FakeMapDataSource
         {
             Workspace = new StudioMapWorkspace([], []),
-            EditorLoad = new StudioMapEditorLoad(new StudioMapEditorState(), [])
+            EditorLoad = new StudioMapEditorLoad(new StudioMapEditorState(), []),
+            // Sending a prompt drives the real generate path. Return a generated outcome whose proposed
+            // map is still empty (no layers bound) so the conversation surfaces "view evidence" without
+            // the inspector fabricating layer state — the server owns what, if anything, gets bound.
+            OnGenerate = _ => new StudioMapGenerationOutcome
+            {
+                Status = StudioMapGenerationStatuses.Generated,
+                State = new StudioMapEditorState(),
+                Rationale = "Proposed a parcels map coloured by use code."
+            }
         };
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
@@ -628,5 +637,10 @@ public sealed class StudioMapBuilderRenderTests
 
         public Task<StudioMapCommandResult> ReopenAsync(StudioMapEditorState state, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioMapCommandResult(true, "Reopened.", new StudioMapEditorState { MapId = state.MapId, Version = state.Version + 1 }));
+
+        public Func<StudioMapEditorState, StudioMapGenerationOutcome>? OnGenerate { get; set; }
+
+        public Task<StudioMapGenerationOutcome> GenerateAsync(StudioMapEditorState currentState, StudioMapGenerationRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OnGenerate?.Invoke(currentState) ?? new StudioMapGenerationOutcome { Status = StudioMapGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 }

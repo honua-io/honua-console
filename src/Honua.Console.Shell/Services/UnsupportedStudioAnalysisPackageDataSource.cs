@@ -49,6 +49,12 @@ public sealed class UnsupportedStudioAnalysisPackageDataSource : IStudioAnalysis
         CancellationToken cancellationToken = default) =>
         Task.FromResult(BindingFailure());
 
+    public Task<StudioAnalysisGenerationOutcome> GenerateAsync(
+        StudioAnalysisPlanEditor currentPlan,
+        StudioAnalysisGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioAnalysisGenerationOutcome.Blocked(MissingBinding));
+
     private static StudioAnalysisCommandResult BindingFailure() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

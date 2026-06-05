@@ -247,6 +247,18 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            // NL->map generation grounds + validates + runs a bounded repair loop on the server, and against
+            // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
+            // these legitimately-slow generations client-side (surfacing as a false "endpoint could not be
+            // reached"). Match the server's own request timeout (10 min) so the real path works — mirrors the
+            // workflow generation client.
+            services.TryAddSingleton<IStudioMapGenerationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                return new HttpStudioMapGenerationClient(
+                    httpClient,
+                    new StudioMapGenerationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
             services.TryAddSingleton<IStudioMapPackageDataSource, HonuaServerStudioMapPackageDataSource>();
 
             // The per-layer style picker (#161, ADR-0048) binds the layer's styleId to the styles the server

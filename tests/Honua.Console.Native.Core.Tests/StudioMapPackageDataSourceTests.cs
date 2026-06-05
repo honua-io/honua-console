@@ -351,7 +351,7 @@ public sealed class StudioMapPackageDataSourceTests
         var client = new HttpStudioPackageLifecycleClient(
             httpClient,
             new StudioPackageLifecycleClientOptions(BaseUri, "test-api-key"));
-        return new HonuaServerStudioMapPackageDataSource(client);
+        return new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient());
     }
 
     private static string DraftJson(Guid draftId, Guid itemId, long generation)

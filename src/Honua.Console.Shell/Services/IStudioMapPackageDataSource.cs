@@ -38,4 +38,16 @@ public interface IStudioMapPackageDataSource
     Task<StudioMapCommandResult> ReopenAsync(
         StudioMapEditorState state,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (or refines) a map package from a natural-language prompt against the server's
+    /// map-packages/generate contract. The server grounds the proposal and validates it before returning, so
+    /// the outcome only ever carries a server-produced map (status=="generated", the editor hydrates from the
+    /// returned MapPackage), a structured clarification request, or an honest unavailable/refused/blocked
+    /// state — never a fabricated map (Console Patterns Charter section 11).
+    /// </summary>
+    Task<StudioMapGenerationOutcome> GenerateAsync(
+        StudioMapEditorState currentState,
+        StudioMapGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }

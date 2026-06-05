@@ -81,6 +81,12 @@ public interface IHonuaAnalysisContentClient
     Task<HonuaAdminEndpointResult<HonuaAnalysisJobFailure>> GetJobFailureAsync(
         string jobId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Generates (or refines) an analysis package from a natural-language prompt
+    /// (POST /api/v1/analysis/content/generate). Mirrors the workflow generation contract.</summary>
+    Task<HonuaAdminEndpointResult<HonuaAnalysisGenerationResult>> GenerateAsync(
+        HonuaGenerateAnalysisRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient, IDisposable
@@ -281,6 +287,20 @@ public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient
             HttpMethod.Get,
             $"{JobBase}/{Uri.EscapeDataString(jobId)}/failure",
             "GET /api/v1/analysis/jobs/{jobId}/failure",
+            cancellationToken: cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAnalysisGenerationResult>> GenerateAsync(
+        HonuaGenerateAnalysisRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaAnalysisGenerationResult>(
+            HttpMethod.Post,
+            $"{ContentBase}/generate",
+            "POST /api/v1/analysis/content/generate",
+            body: request,
             cancellationToken: cancellationToken);
     }
 
@@ -1035,4 +1055,155 @@ public sealed record HonuaAnalysisJobFailure
 
     [JsonPropertyName("failedAt")]
     public DateTimeOffset? FailedAt { get; init; }
+}
+
+// --- Natural-language -> analysis.package generation (POST /api/v1/analysis/content/generate). ---
+// Mirrors the workflow generation contract (StudioWorkflowShims): a provider-pluggable planner grounded in
+// the analysis method catalog + process registry, gated by the server's analysis-package validator. Until the
+// server ships this endpoint it returns 404 -> the console renders the honest "AI generation unavailable"
+// state (no fabricated analysis). camelCase props.
+
+public sealed record HonuaAnalysisGenerationClarificationChoice
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("label")]
+    public string Label { get; init; } = string.Empty;
+
+    [JsonPropertyName("effect")]
+    public string? Effect { get; init; }
+}
+
+public sealed record HonuaAnalysisGenerationClarification
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>"input" | "method" | "parameter" | "output" | ...</summary>
+    [JsonPropertyName("kind")]
+    public string Kind { get; init; } = string.Empty;
+
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; init; } = string.Empty;
+
+    [JsonPropertyName("reason")]
+    public string? Reason { get; init; }
+
+    [JsonPropertyName("choices")]
+    public HonuaAnalysisGenerationClarificationChoice[] Choices { get; init; } = [];
+}
+
+public sealed record HonuaAnalysisGenerationCapabilityState
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("state")]
+    public string State { get; init; } = string.Empty;
+
+    [JsonPropertyName("reason")]
+    public string? Reason { get; init; }
+}
+
+public sealed record HonuaAnalysisGenerationValidationFailure
+{
+    [JsonPropertyName("code")]
+    public string Code { get; init; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; init; } = string.Empty;
+
+    [JsonPropertyName("fieldPath")]
+    public string? FieldPath { get; init; }
+}
+
+public sealed record HonuaAnalysisGenerationValidationResult
+{
+    [JsonPropertyName("isValid")]
+    public bool IsValid { get; init; }
+
+    [JsonPropertyName("failures")]
+    public HonuaAnalysisGenerationValidationFailure[] Failures { get; init; } = [];
+
+    [JsonPropertyName("warnings")]
+    public string[] Warnings { get; init; } = [];
+}
+
+/// <summary>Result of POST /api/v1/analysis/content/generate. <c>status</c> mirrors the plan-analysis
+/// statuses: "generated" | "needs-clarification" | "unsupported" | "refused" | "error". <c>analysis</c> is
+/// the proposed analysis package content (the same shape CreateItem/CreateVersion accept), present iff
+/// status=="generated".</summary>
+public sealed record HonuaAnalysisGenerationResult
+{
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = string.Empty;
+
+    [JsonPropertyName("analysis")]
+    public HonuaAnalysisPackageContent? Analysis { get; init; }
+
+    [JsonPropertyName("rationale")]
+    public string? Rationale { get; init; }
+
+    [JsonPropertyName("clarifications")]
+    public HonuaAnalysisGenerationClarification[] Clarifications { get; init; } = [];
+
+    [JsonPropertyName("validation")]
+    public HonuaAnalysisGenerationValidationResult? Validation { get; init; }
+
+    [JsonPropertyName("unmappedRequests")]
+    public string[] UnmappedRequests { get; init; } = [];
+
+    [JsonPropertyName("capabilityState")]
+    public HonuaAnalysisGenerationCapabilityState? CapabilityState { get; init; }
+
+    [JsonPropertyName("provider")]
+    public string? Provider { get; init; }
+
+    [JsonPropertyName("model")]
+    public string? Model { get; init; }
+}
+
+public sealed record HonuaAnalysisGenerationAnswer
+{
+    [JsonPropertyName("questionId")]
+    public string QuestionId { get; init; } = string.Empty;
+
+    [JsonPropertyName("optionId")]
+    public string OptionId { get; init; } = string.Empty;
+}
+
+public sealed record HonuaAnalysisGenerationTurn
+{
+    /// <summary>"user" | "assistant".</summary>
+    [JsonPropertyName("role")]
+    public string Role { get; init; } = string.Empty;
+
+    [JsonPropertyName("content")]
+    public string Content { get; init; } = string.Empty;
+}
+
+public sealed record HonuaGenerateAnalysisRequest
+{
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; init; } = string.Empty;
+
+    /// <summary>Provider id to use; null selects the server default.</summary>
+    [JsonPropertyName("provider")]
+    public string? Provider { get; init; }
+
+    /// <summary>Optional per-call model override.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; init; }
+
+    /// <summary>Current analysis package content for a REFINE turn; null requests fresh generation.</summary>
+    [JsonPropertyName("analysis")]
+    public HonuaAnalysisPackageContent? Analysis { get; init; }
+
+    [JsonPropertyName("conversation")]
+    public HonuaAnalysisGenerationTurn[] Conversation { get; init; } = [];
+
+    /// <summary>Answers to a prior needs-clarification turn.</summary>
+    [JsonPropertyName("answers")]
+    public HonuaAnalysisGenerationAnswer[] Answers { get; init; } = [];
 }

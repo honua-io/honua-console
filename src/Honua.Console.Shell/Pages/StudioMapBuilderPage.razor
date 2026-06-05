@@ -650,26 +650,29 @@
         // StudioMapEditorState. Until the author describes the map there are no turns and no clarifications.
         _turns.Add(new StudioConversationTurn(
             StudioConversationRole.Honua,
-            "Describe the map you want — the layers, how features should be coloured, and what a popup should show. I'll bind real data sources in the editor; nothing is fabricated.",
+            "Describe the map you want — the layers, how features should be coloured, and what a popup should show — and I'll propose a map you can review and refine. Every proposal is grounded in the real catalog and validated on the server before it appears; nothing is fabricated.",
             "just now",
             StudioConversationTone.Neutral));
     }
 
-    private async Task OnPromptSend(string prompt)
+    // A prompt/refine turn calls the server's natural-language map generation contract
+    // (POST /api/v1/studio/map-packages/generate). The server grounds the proposal in the catalog and
+    // validates it before returning, so the page only ever renders a server-produced map (status==generated,
+    // the editor hydrates from the returned MapPackage), a structured clarification request, or an honest
+    // unavailable/refused/blocked state — never a fabricated map (no-mock, Charter §11).
+    private Task OnPromptSend(string prompt)
     {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return Task.CompletedTask;
+        }
+
         _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt, "just now"));
-
-        // Honua acknowledges the intent and points the author at the binding surfaces. The conversation
-        // remains advisory: it does not invent layers, styles, or data — the author binds those in the
-        // editor against the live honua-server package lifecycle (no-mock, Charter §11).
-        _turns.Add(new StudioConversationTurn(
-            StudioConversationRole.Honua,
-            "Noted. Open the editor to bind data sources, styling, and the popup template for this map. Each binding is validated against honua-server before publish.",
-            "just now",
-            StudioConversationTone.Neutral,
-            "view evidence"));
-
-        await Task.CompletedTask;
+        return GenerateAsync(new StudioMapGenerationRequest
+        {
+            Prompt = prompt,
+            Conversation = SnapshotConversation()
+        });
     }
 
     private Task OnClarificationAnswered((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
@@ -679,8 +682,117 @@
             StudioConversationRole.You,
             $"{answer.Question.Label}: {answer.Choice.Label}",
             "just now"));
-        return Task.CompletedTask;
+
+        return GenerateAsync(new StudioMapGenerationRequest
+        {
+            Prompt = string.Empty,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioMapGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        });
     }
+
+    // The conversation context sent to the server is the turn log mapped to the server's user/assistant roles.
+    private IReadOnlyList<StudioMapGenerationTurn> SnapshotConversation() =>
+        _turns
+            .Select(turn => new StudioMapGenerationTurn(
+                turn.Role == StudioConversationRole.You ? "user" : "assistant",
+                turn.Body))
+            .ToArray();
+
+    private async Task GenerateAsync(StudioMapGenerationRequest request)
+    {
+        if (_editor is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var outcome = await MapData.GenerateAsync(_editor, request);
+
+            if (outcome.BindingState is not null)
+            {
+                // A missing binding blocks the whole surface; other capability issues surface as a chat note.
+                if (string.Equals(outcome.BindingState.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+                {
+                    _bindingState = outcome.BindingState;
+                    return;
+                }
+
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    $"{outcome.BindingState.Detail} (contract: {outcome.BindingState.Contract})",
+                    "just now",
+                    StudioConversationTone.Neutral));
+                return;
+            }
+
+            var notes = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability
+                && !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                notes.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
+
+            if (outcome.IsGenerated)
+            {
+                if (outcome.State is not null)
+                {
+                    _editor = outcome.State;
+                }
+
+                _clarifications.Clear();
+                _selectedLayerIndex = 0;
+                _dirty.MarkDirty();
+                RecomputeClientErrors();
+
+                var summary = string.IsNullOrWhiteSpace(outcome.Rationale)
+                    ? $"Proposed a map · {_editor.Layers.Count} layer(s). Refine by chatting, or open the editor."
+                    : outcome.Rationale;
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(summary, notes),
+                    "just now",
+                    StudioConversationTone.Ready,
+                    "view evidence"));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications.Clear();
+                _clarifications.AddRange(outcome.Clarifications);
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I need a little more detail before I can propose the map."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Clarification));
+            }
+            else
+            {
+                // unsupported / refused / error
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I couldn't turn that into a map."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Neutral));
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string AppendNotes(string body, IReadOnlyList<string> notes) =>
+        notes.Count == 0 ? body : $"{body}\n\nNotes:\n- {string.Join("\n- ", notes)}";
 
     private Task OnEvidenceRequested(StudioConversationTurn turn) => Task.CompletedTask;
 

@@ -405,5 +405,10 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
             string jobId,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("The query builder does not resolve job failures.");
+
+        public Task<HonuaAdminEndpointResult<HonuaAnalysisGenerationResult>> GenerateAsync(
+            HonuaGenerateAnalysisRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The query builder does not generate analysis packages.");
     }
 }
