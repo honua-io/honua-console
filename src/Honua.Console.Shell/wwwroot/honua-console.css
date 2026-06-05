@@ -7686,3 +7686,96 @@ p {
     color: var(--honua-error);
     font-weight: 600;
 }
+
+/* In-product support loop (#164) */
+.support-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+@media (max-width: 960px) {
+    .support-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.support-symptoms-field {
+    display: block;
+    margin-top: 1rem;
+}
+
+.support-symptoms-field > span {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+}
+
+.support-symptoms-field textarea {
+    width: 100%;
+    resize: vertical;
+}
+
+.support-context-panel {
+    position: sticky;
+    top: 1rem;
+}
+
+.support-context-list {
+    margin: 0;
+}
+
+.support-context-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--honua-border, rgba(148, 163, 184, 0.25));
+}
+
+.support-context-row dt {
+    font-weight: 600;
+    margin: 0;
+}
+
+.support-context-row dd {
+    margin: 0;
+    text-align: right;
+    word-break: break-word;
+}
+
+.support-context-errors {
+    margin-top: 1rem;
+}
+
+.support-context-errors ul,
+.support-command-list,
+.support-validation-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.support-command-list li {
+    margin-bottom: 0.4rem;
+}
+
+.support-command-list code {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.3rem;
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
+}
+
+.support-phase-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
+}
+
+.console-nav-help {
+    margin-top: auto;
+}

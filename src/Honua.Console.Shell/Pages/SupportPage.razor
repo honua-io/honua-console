@@ -1,0 +1,198 @@
+@page "/support"
+@inject IConsoleSupportTicketClient SupportClient
+@inject ConsoleSupportContextBuilder ContextBuilder
+@inject NavigationManager Nav
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Support</p>
+        <h1>Contact support</h1>
+        <p>
+            Open a support ticket without copying log dumps. The Console auto-attaches who you are, the connected
+            environment, the running Console build, your current route, and the server's recent errors so support gets
+            context, not a paste of logs. You can review and edit everything before you submit.
+        </p>
+    </div>
+
+    <div class="console-page-body support-layout">
+        <article class="console-panel">
+            <div class="studio-field-grid">
+                <label>
+                    <span>Severity</span>
+                    <select class="console-input" @bind="_severity">
+                        <option value="sev1">Sev1 - critical / outage</option>
+                        <option value="sev2">Sev2 - major impact</option>
+                        <option value="sev3">Sev3 - minor / question</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Service</span>
+                    <input class="console-input" @bind="_service" placeholder="honua-server" />
+                </label>
+                <label>
+                    <span>Requested action</span>
+                    <input class="console-input" @bind="_requestedAction" placeholder="Diagnose elevated 500s on FeatureServer" />
+                </label>
+                <label>
+                    <span>Allowed access mode</span>
+                    <select class="console-input" @bind="_allowedAccessMode">
+                        <option value="read-only">Read-only</option>
+                        <option value="guided-fix">Guided fix</option>
+                        <option value="operator-scoped">Operator scoped</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Access TTL (minutes)</span>
+                    <input class="console-input" type="number" min="5" @bind="_ttlMinutes" />
+                </label>
+                <label>
+                    <span>Scoped telemetry key (optional)</span>
+                    <input class="console-input" @bind="_scopedKey" placeholder="key for support auto-bundle telemetry pull" />
+                </label>
+            </div>
+
+            <label class="support-symptoms-field">
+                <span>Symptoms</span>
+                <textarea class="console-input" rows="5" @bind="_symptoms"
+                          placeholder="What did you observe? Steps, timing, affected layers/services."></textarea>
+            </label>
+
+            <div class="studio-check-row">
+                <input id="support-rollback" type="checkbox" @bind="_rollbackExpected" />
+                <label for="support-rollback"><span>A rollback may be expected as part of the fix</span></label>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="console-validation-summary" role="alert">
+                    <p class="console-kicker">Could not submit</p>
+                    <p>@_error</p>
+                </div>
+            }
+
+            <div class="console-action-row">
+                <button class="console-button" type="button" disabled="@(_busy || !CanSubmit)" @onclick="SubmitAsync">
+                    @(_busy ? "Submitting..." : "Submit ticket")
+                </button>
+            </div>
+        </article>
+
+        <aside class="console-panel support-context-panel" aria-label="Auto-attached context">
+            <div class="console-panel-heading">
+                <h2>Auto-attached context</h2>
+                <p class="console-muted">Captured for you. Submitted with the ticket - no copy/paste required.</p>
+            </div>
+
+            @if (_context is null)
+            {
+                <p class="console-muted">Capturing context...</p>
+            }
+            else
+            {
+                <dl class="support-context-list">
+                    <ContextRow Label="User" Value="@(string.IsNullOrWhiteSpace(_context.UserDisplayName) ? _context.UserId : _context.UserDisplayName)" />
+                    <ContextRow Label="Tenant" Value="@_context.TenantId" />
+                    <ContextRow Label="Roles" Value="@(_context.Roles.Count == 0 ? null : string.Join(", ", _context.Roles))" />
+                    <ContextRow Label="Environment" Value="@(string.IsNullOrWhiteSpace(_context.EnvironmentName) ? _context.EnvironmentKind : $"{_context.EnvironmentName} ({_context.EnvironmentKind})")" />
+                    <ContextRow Label="Server" Value="@_context.ServerUri" />
+                    <ContextRow Label="Console version" Value="@_context.AppVersion" />
+                    <ContextRow Label="Console commit" Value="@_context.Commit" />
+                    <ContextRow Label="Route" Value="@_context.CurrentRoute" />
+                </dl>
+
+                <div class="support-context-errors">
+                    <p class="console-kicker">Recent server errors</p>
+                    @if (_context.RecentErrors.Count > 0)
+                    {
+                        <ul>
+                            @foreach (var error in _context.RecentErrors)
+                            {
+                                <li><code>HTTP @error.StatusCode</code> @error.Path <span class="console-muted">@error.Timestamp.ToString("u")</span></li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="console-muted">@(_context.RecentErrorsNote ?? "No recent server errors retained.")</p>
+                    }
+                </div>
+            }
+        </aside>
+    </div>
+</section>
+
+@code {
+    private string _severity = "sev3";
+    private string _service = "honua-server";
+    private string _requestedAction = string.Empty;
+    private string _allowedAccessMode = "read-only";
+    private int _ttlMinutes = 60;
+    private string _scopedKey = string.Empty;
+    private string _symptoms = string.Empty;
+    private bool _rollbackExpected;
+
+    private ConsoleSupportContext? _context;
+    private bool _busy;
+    private string _error = string.Empty;
+
+    private bool CanSubmit =>
+        !string.IsNullOrWhiteSpace(_symptoms) && !string.IsNullOrWhiteSpace(_requestedAction);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var route = Nav.ToBaseRelativePath(Nav.Uri);
+        _context = await ContextBuilder.CaptureAsync(string.IsNullOrWhiteSpace(route) ? "/" : $"/{route}");
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy || !CanSubmit)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = string.Empty;
+
+        // Re-capture so the attached context reflects the route/session/errors at
+        // submit time, then fold it into the symptoms so the operator (and triage)
+        // get full context inline even before the auto-bundle telemetry contract
+        // lands (honua-support#20). The scoped key is captured here for that same
+        // auto-bundle pull; until the formal contract exists it is recorded with
+        // the symptom context so it is not silently dropped.
+        var route = Nav.ToBaseRelativePath(Nav.Uri);
+        _context = await ContextBuilder.CaptureAsync(string.IsNullOrWhiteSpace(route) ? "/" : $"/{route}");
+
+        var symptoms = $"{_symptoms.Trim()}\n\n{_context.ToSymptomContext()}";
+        if (!string.IsNullOrWhiteSpace(_scopedKey))
+        {
+            symptoms = $"{symptoms}\nScoped telemetry key: {_scopedKey.Trim()}";
+        }
+
+        var request = new CreateSupportTicketRequest
+        {
+            Severity = _severity,
+            Environment = string.IsNullOrWhiteSpace(_context.EnvironmentKind) ? "production" : _context.EnvironmentKind,
+            Service = string.IsNullOrWhiteSpace(_service) ? "honua-server" : _service.Trim(),
+            Symptoms = symptoms,
+            RequestedAction = _requestedAction.Trim(),
+            AllowedAccessMode = _allowedAccessMode,
+            TtlMinutes = _ttlMinutes < 5 ? 5 : _ttlMinutes,
+            RollbackExpected = _rollbackExpected,
+            InstanceUrl = _context.ServerUri,
+            CustomerId = string.IsNullOrWhiteSpace(_context.TenantId) ? null : _context.TenantId
+        };
+
+        var result = await SupportClient.CreateTicketAsync(request);
+        if (result.IsAllowed)
+        {
+            Nav.NavigateTo($"/support/tickets/{result.Value!.Id}");
+            return;
+        }
+
+        _error = string.IsNullOrWhiteSpace(result.Message)
+            ? OperateSectionPresentation.FallbackMessage(result.Status)
+            : result.Message;
+        _busy = false;
+    }
+}

@@ -178,5 +178,8 @@ public sealed class OperateObservabilityPageRenderTests
 
         public Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<IReadOnlyList<OperateInvestigation>>.Allowed([]));
+
+        public Task<OperateSectionResult<IReadOnlyList<OperateRecentError>>> GetRecentErrorsAsync(int limit = 10, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<IReadOnlyList<OperateRecentError>>.Allowed([]));
     }
 }
