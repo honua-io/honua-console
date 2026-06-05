@@ -219,9 +219,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            // The query + analysis builders share this client, and it now carries the NL-generation routes
+            // (POST .../queries/generate and .../generate). NL generation grounds + validates + runs a
+            // bounded repair loop on the server, and against a local CPU model a single turn can take
+            // minutes. The default HttpClient.Timeout of 100s cancels these legitimately-slow generations
+            // client-side (surfacing as a false "endpoint could not be reached"). Match the server's own
+            // request timeout (10 min) so the real path works — mirrors the workflow/map generation clients.
             services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaAnalysisContentHttpClient(
                     httpClient,
                     new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
@@ -323,9 +329,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            // Shared with the query builder; the 10-minute timeout covers the NL-generation routes on this
+            // client (see AddStudioQueryPackageDataSource for the rationale). TryAdd keeps whichever
+            // registration ran first, so both register the identical client.
             services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaAnalysisContentHttpClient(
                     httpClient,
                     new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
@@ -359,7 +368,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                     httpClient,
                     new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
             });
-            services.TryAddSingleton<IStudioDashboardPackageDataSource, HonuaServerStudioDashboardPackageDataSource>();
+            // Dashboard generation (NL -> dashboard.document) shares the content publications/generate
+            // endpoint with reports (dispatched on kind=dashboard), so it speaks the content-publication
+            // client rather than the Studio package lifecycle. TryAdd keeps a single client across the
+            // report/dashboard/publishing surfaces. Generation grounds + validates + runs a bounded repair
+            // loop on the server and against a local CPU model a single turn can take minutes, so match the
+            // server's own 10-min request timeout — mirrors the map/analysis/workflow generation clients.
+            services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                return new HonuaContentPublicationHttpClient(
+                    httpClient,
+                    new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioDashboardPackageDataSource>(serviceProvider =>
+                new HonuaServerStudioDashboardPackageDataSource(
+                    serviceProvider.GetRequiredService<IStudioPackageLifecycleClient>(),
+                    serviceProvider.GetRequiredService<IHonuaContentPublicationClient>()));
             return;
         }
 

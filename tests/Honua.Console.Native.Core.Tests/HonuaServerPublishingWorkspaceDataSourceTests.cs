@@ -156,6 +156,10 @@ public sealed class HonuaServerPublishingWorkspaceDataSourceTests
             Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
                 new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
 
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateDashboardAsync(GenerateDashboardContentRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
+
         public Uri BaseUri { get; } = new("https://honua.test");
 
         public Dictionary<string, HonuaContentPublicationDetail> Details { get; } = new(StringComparer.Ordinal);

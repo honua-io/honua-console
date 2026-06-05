@@ -83,6 +83,16 @@ public interface IHonuaContentPublicationClient
     Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateReportAsync(
         GenerateReportContentRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (or refines) a dashboard document from a natural-language prompt. Dashboards share the
+    /// <c>POST /api/v1/console/publications/generate</c> endpoint with reports, dispatched server-side on
+    /// the request <c>kind</c> ("dashboard"). The request/response shape matches the report contract; the
+    /// returned <see cref="HonuaReportGenerationResult.Document"/> is a honua.dashboard-document.v1 payload.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateDashboardAsync(
+        GenerateDashboardContentRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublicationClient, IDisposable
@@ -215,6 +225,23 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        return SendAsync<HonuaReportGenerationResult>(
+            HttpMethod.Post,
+            $"{Base}/generate",
+            "POST /api/v1/console/publications/generate",
+            cancellationToken,
+            request);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateDashboardAsync(
+        GenerateDashboardContentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Same endpoint as report generation; the server dispatches on the request kind ("dashboard") and
+        // returns the same {status, document, routeSlug, rationale, clarifications, unmappedRequests,
+        // capabilityState, provider, model} envelope — only the document is a honua.dashboard-document.v1.
         return SendAsync<HonuaReportGenerationResult>(
             HttpMethod.Post,
             $"{Base}/generate",
@@ -871,6 +898,28 @@ public sealed record GenerateReportContentRequest
     /// <summary>Optional per-call model override.</summary>
     [JsonPropertyName("model")] public string? Model { get; init; }
     /// <summary>Current report-document payload for a REFINE turn; null requests fresh generation.</summary>
+    [JsonPropertyName("document")] public JsonElement? Document { get; init; }
+    [JsonPropertyName("conversation")] public HonuaReportGenerationTurn[] Conversation { get; init; } = [];
+    /// <summary>Answers to a prior needs-clarification turn.</summary>
+    [JsonPropertyName("answers")] public HonuaReportGenerationAnswer[] Answers { get; init; } = [];
+}
+
+/// <summary>
+/// Wire request for natural-language -> dashboard.document generation. Dashboards share the
+/// <c>publications/generate</c> endpoint with reports, dispatched server-side on <c>kind</c>; the shape
+/// matches <see cref="GenerateReportContentRequest"/> with the kind pinned to "dashboard". The optional
+/// <c>document</c> carries a current honua.dashboard-document.v1 payload for a REFINE turn.
+/// </summary>
+public sealed record GenerateDashboardContentRequest
+{
+    /// <summary>Always "dashboard" for the dashboard builder; the endpoint is shared with other content kinds.</summary>
+    [JsonPropertyName("kind")] public string Kind { get; init; } = HonuaContentPublicationKinds.Dashboard;
+    [JsonPropertyName("prompt")] public string Prompt { get; init; } = string.Empty;
+    /// <summary>Provider id to use; null selects the server default.</summary>
+    [JsonPropertyName("provider")] public string? Provider { get; init; }
+    /// <summary>Optional per-call model override.</summary>
+    [JsonPropertyName("model")] public string? Model { get; init; }
+    /// <summary>Current dashboard-document payload for a REFINE turn; null requests fresh generation.</summary>
     [JsonPropertyName("document")] public JsonElement? Document { get; init; }
     [JsonPropertyName("conversation")] public HonuaReportGenerationTurn[] Conversation { get; init; } = [];
     /// <summary>Answers to a prior needs-clarification turn.</summary>

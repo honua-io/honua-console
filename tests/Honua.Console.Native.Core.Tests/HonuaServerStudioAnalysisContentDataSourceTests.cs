@@ -675,5 +675,10 @@ public sealed class HonuaServerStudioAnalysisContentDataSourceTests
             LastGenerateRequest = request;
             return Task.FromResult(GenerateResult);
         }
+
+        public Task<HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>> GenerateQueryAsync(
+            HonuaGenerateSavedQueryRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The analysis builder does not generate saved queries.");
     }
 }

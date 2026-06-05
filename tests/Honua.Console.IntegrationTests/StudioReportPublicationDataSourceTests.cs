@@ -338,6 +338,10 @@ public sealed class StudioReportPublicationDataSourceTests
             Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
                 new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
 
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateDashboardAsync(GenerateDashboardContentRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
+
         public FakePublicationClient(HonuaAdminEndpointResult<HonuaContentPublicationDetail>? getResult = null)
         {
             GetResult = getResult;

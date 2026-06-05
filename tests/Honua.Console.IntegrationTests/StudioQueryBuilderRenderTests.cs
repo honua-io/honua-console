@@ -83,11 +83,11 @@ public sealed class StudioQueryBuilderRenderTests
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
         var page = ctx.RenderComponent<StudioQueryBuilderPage>();
 
-        // Click "New query" to enter the authoring editor.
+        // Click "New blank query" to enter the authoring editor directly (not the from-prompt surface).
         page.WaitForAssertion(
-            () => Assert.Contains("New query", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("New blank query", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        page.Find("button.console-button").Click();
+        page.FindAll("button").First(b => b.TextContent.Contains("New blank query", StringComparison.Ordinal)).Click();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-query-editor", page.Markup, StringComparison.Ordinal),
@@ -115,6 +115,57 @@ public sealed class StudioQueryBuilderRenderTests
         // than a fabricated table.
         Assert.Contains("data-query-preview-empty", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-query-preview-table", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QueryBuilder_NewFromPrompt_RendersConversationAndHydratesGeneratedQuery()
+    {
+        // New-from-prompt opens the StudioAiConversation surface; a send drives the server NL-generation
+        // contract and, on a 'generated' outcome, hydrates the right-side query inspector from the proposal.
+        var data = new FakeQueryDataSource
+        {
+            NewQuery = new StudioQueryEditor(),
+            GenerateOutcome = current =>
+            {
+                current.ServiceName = "permits";
+                current.LayerId = 9;
+                current.Predicates.Add(new StudioQueryPredicateEditor { Field = "status", Operator = "=", Value = "approved" });
+                current.OutFields.Add("permit_id");
+                return new StudioQueryGenerationOutcome
+                {
+                    Status = StudioQueryGenerationStatuses.Generated,
+                    Query = current,
+                    Rationale = "Proposed a permits-in-flood-zones query."
+                };
+            }
+        };
+
+        using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
+        var page = ctx.RenderComponent<StudioQueryBuilderPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("New from prompt", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        page.FindAll("button").First(b => b.TextContent.Contains("New from prompt", StringComparison.Ordinal)).Click();
+
+        // The from-prompt conversation surface is up (not the raw editor).
+        page.WaitForAssertion(
+            () => Assert.Contains("data-query-ai", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // Type a prompt and send it; the generated outcome hydrates the inspector from the real editor state.
+        page.Find("textarea.studio-ai-refine-input").Input("approved permits in flood zones");
+        page.FindAll("button").First(b => b.TextContent.Contains("Send", StringComparison.Ordinal)).Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Proposed a permits-in-flood-zones query.", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        // The inspector reflects the server-proposed query (never fabricated), including the generated SQL.
+        var readout = page.Find("[data-query-ai-readout]").TextContent;
+        Assert.Contains("permits/layer/9", readout, StringComparison.Ordinal);
+        Assert.Contains("status = 'approved'", readout, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -197,5 +248,14 @@ public sealed class StudioQueryBuilderRenderTests
 
         public Task<StudioQueryCommandResult> PreviewAsync(StudioQueryEditor query, CancellationToken cancellationToken = default) =>
             Task.FromResult(PreviewResult);
+
+        public Func<StudioQueryEditor, StudioQueryGenerationOutcome>? GenerateOutcome { get; init; }
+
+        public Task<StudioQueryGenerationOutcome> GenerateAsync(
+            StudioQueryEditor currentQuery,
+            StudioQueryGenerationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(GenerateOutcome?.Invoke(currentQuery)
+                ?? new StudioQueryGenerationOutcome { Status = StudioQueryGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 }

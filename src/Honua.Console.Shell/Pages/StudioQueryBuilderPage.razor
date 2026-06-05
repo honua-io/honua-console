@@ -64,7 +64,8 @@
         @if (_query is null)
         {
             <div class="console-toolbar">
-                <button class="console-button" type="button" disabled="@_busy" @onclick="NewQuery">New query</button>
+                <button class="console-button" type="button" disabled="@_busy" @onclick="NewFromPrompt">New from prompt</button>
+                <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="NewQuery">New blank query</button>
             </div>
 
             <div class="studio-query-workspace" data-query-builder="query.package">
@@ -105,6 +106,88 @@
                 }
             </div>
         }
+        else if (_view == EditorView.FromPrompt)
+        {
+            @* StudioQueryAI — conversation + clarification on the left, a live query inspector on the right
+               driven by the real authoring state (never fabricated). A prompt/refine turn calls the
+               server's natural-language query generation contract; the page only ever renders a
+               server-produced query, a structured clarification request, or an honest
+               unavailable/refused/blocked state. *@
+            <div class="studio-query-ai" data-query-ai="query.package">
+                <StudioAiConversation ConversationTitle="Query from prompt"
+                                      RefinePlaceholder="Describe the query — the source layer, the filter predicates, and what fields to return…"
+                                      Turns="_turns"
+                                      Clarifications="_clarifications"
+                                      Busy="_busy"
+                                      OnSend="OnPromptSend"
+                                      OnAnswer="OnClarificationAnswered">
+                    <PreviewHeader>
+                        <span class="studio-query-bar-glyph" aria-hidden="true">◇</span>
+                        <input class="console-input studio-query-title-input" @bind="_query.Title" @bind:after="OnEdit" placeholder="Flood-zone permits" aria-label="Query title" />
+                        <span class="console-status console-status-warning">@(_query.IsExistingQuery ? $"draft v{_query.Version}" : "draft")</span>
+                        <div class="studio-ai-preview-head-spacer"></div>
+                        <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
+                    </PreviewHeader>
+                    <PreviewContent>
+                        <div class="studio-query-ai-inspect">
+                            <aside class="studio-query-ai-package" aria-label="Saved query">
+                                <div class="studio-query-ai-package-head">
+                                    <p class="console-kicker">Saved query</p>
+                                    <p class="studio-query-ai-package-id">@(string.IsNullOrWhiteSpace(_query.Title) ? "new query" : _query.Title) · @QuerySummary(_query)</p>
+                                </div>
+
+                                <p class="console-muted studio-query-ai-section">Source</p>
+                                <div class="studio-mono">@(string.IsNullOrWhiteSpace(_query.ServiceName) ? "unbound service" : _query.ServiceName)/layer @_query.LayerId · @_query.OutputFormat</div>
+
+                                <p class="console-muted studio-query-ai-section">Predicates · @_query.Predicates.Count (@_query.Combinator.ToUpperInvariant())</p>
+                                @if (_query.Predicates.Count == 0)
+                                {
+                                    <p class="console-muted">No predicates yet. An empty filter selects every feature; describe the filter on the left.</p>
+                                }
+                                else
+                                {
+                                    <ul class="studio-query-ai-predicate-list">
+                                        @foreach (var predicate in _query.Predicates)
+                                        {
+                                            <li class="studio-mono">@PredicateSummary(predicate)</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-query-ai-section">Projection · @_query.OutFields.Count(f => !string.IsNullOrWhiteSpace(f))</p>
+                                @if (_query.OutFields.Count(f => !string.IsNullOrWhiteSpace(f)) == 0)
+                                {
+                                    <p class="console-muted">All fields returned.</p>
+                                }
+                                else
+                                {
+                                    <ul class="studio-query-ai-field-list">
+                                        @foreach (var field in _query.OutFields.Where(f => !string.IsNullOrWhiteSpace(f)))
+                                        {
+                                            <li class="studio-mono">@field</li>
+                                        }
+                                    </ul>
+                                }
+
+                                @if (_query.Parameters.Count > 0)
+                                {
+                                    <p class="console-muted studio-query-ai-section">Parameters · @_query.Parameters.Count</p>
+                                    <ul class="studio-query-ai-param-list">
+                                        @foreach (var parameter in _query.Parameters)
+                                        {
+                                            <li class="studio-mono">@parameter.Name = @parameter.Value</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-query-ai-section">Generated SQL</p>
+                                <pre class="console-code studio-query-sql" data-query-ai-readout="true">@StudioQueryReadoutGenerator.Generate(_query)</pre>
+                            </aside>
+                        </div>
+                    </PreviewContent>
+                </StudioAiConversation>
+            </div>
+        }
         else
         {
             var query = _query;
@@ -120,6 +203,10 @@
                     <span class="console-status console-status-warning studio-query-bar-badge">@(query.IsExistingQuery ? $"draft v{query.Version}" : "draft")</span>
                     <span class="console-muted studio-query-bar-summary" data-query-summary="true">@QuerySummary(query)</span>
                     <div class="studio-query-bar-actions">
+                        @if (_cameFromPrompt)
+                        {
+                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToChat">← Back to chat</button>
+                        }
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to queries</button>
                         <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !query.IsExistingQuery)" @onclick="Preview">Run preview</button>
                         <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="Save">Save query</button>
@@ -429,6 +516,12 @@
 </section>
 
 @code {
+    private enum EditorView
+    {
+        FromPrompt,
+        Editor,
+    }
+
     private bool _loading = true;
     private bool _busy;
     private StudioQueryWorkspace _workspace = new([], []);
@@ -439,6 +532,11 @@
     private bool _statusFailed;
     private readonly ValidationState _validation = new();
     private readonly FormDirtyState _dirty = new();
+
+    private EditorView _view = EditorView.Editor;
+    private bool _cameFromPrompt;
+    private readonly List<StudioConversationTurn> _turns = [];
+    private readonly List<StudioConversationClarification> _clarifications = [];
 
     private int? _outputSridInput
     {
@@ -477,11 +575,13 @@
         _loading = false;
     }
 
-    private Task NewQuery() => RunLoadAsync(() => QueryData.LoadAsync(null));
+    private Task NewFromPrompt() => RunLoadAsync(() => QueryData.LoadAsync(null), EditorView.FromPrompt);
 
-    private Task OpenQuery(string queryId) => RunLoadAsync(() => QueryData.LoadAsync(queryId));
+    private Task NewQuery() => RunLoadAsync(() => QueryData.LoadAsync(null), EditorView.Editor);
 
-    private async Task RunLoadAsync(Func<Task<StudioQueryEditorLoad>> load)
+    private Task OpenQuery(string queryId) => RunLoadAsync(() => QueryData.LoadAsync(queryId), EditorView.Editor);
+
+    private async Task RunLoadAsync(Func<Task<StudioQueryEditorLoad>> load, EditorView view)
     {
         if (_busy)
         {
@@ -496,6 +596,9 @@
             var result = await load();
             ApplyStates(result.CapabilityStates);
             _query = result.Query;
+            _view = view;
+            _cameFromPrompt = view == EditorView.FromPrompt;
+            ResetConversation();
 
             // A fresh load is the clean baseline: drop local edits/dirty state and recompute client findings.
             _validation.Clear();
@@ -508,11 +611,181 @@
         }
     }
 
+    private void ResetConversation()
+    {
+        _turns.Clear();
+        _clarifications.Clear();
+
+        // The conversation log is Console-local authoring UX — it echoes the author's intent and Honua's
+        // proposal rationale, never fabricated query state. The right-side inspector reflects the real
+        // StudioQueryEditor. Until the author describes the query there is just an opening prompt.
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Describe the query you want — the source layer, the filter predicates (attribute, spatial, or temporal), and which fields to return — and I'll propose a saved query you can review and refine. Every proposal is grounded in the real layer/field catalog and validated on the server before it appears; nothing is fabricated.",
+            "just now",
+            StudioConversationTone.Neutral));
+    }
+
+    private void OpenEditorFromPrompt()
+    {
+        _view = EditorView.Editor;
+        _cameFromPrompt = true;
+    }
+
+    private void BackToChat()
+    {
+        if (_query is null)
+        {
+            return;
+        }
+
+        _view = EditorView.FromPrompt;
+    }
+
+    // A prompt/refine turn calls the server's natural-language query generation contract
+    // (POST /api/v1/analysis/content/queries/generate). The server grounds the proposal in the layer/field
+    // catalog and validates it before returning, so the page only ever renders a server-produced query
+    // (status == generated, the editor hydrates from the returned SavedQueryContent), a structured
+    // clarification request, or an honest unavailable/refused/blocked state — never a fabricated query
+    // (Charter §11).
+    private Task OnPromptSend(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return Task.CompletedTask;
+        }
+
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt, "just now"));
+        return GenerateAsync(new StudioQueryGenerationRequest
+        {
+            Prompt = prompt,
+            Conversation = SnapshotConversation()
+        });
+    }
+
+    private Task OnClarificationAnswered((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        _clarifications.RemoveAll(question => string.Equals(question.Id, answer.Question.Id, StringComparison.Ordinal));
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.You,
+            $"{answer.Question.Label}: {answer.Choice.Label}",
+            "just now"));
+
+        return GenerateAsync(new StudioQueryGenerationRequest
+        {
+            Prompt = string.Empty,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioQueryGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        });
+    }
+
+    private IReadOnlyList<StudioQueryGenerationTurn> SnapshotConversation() =>
+        _turns
+            .Select(turn => new StudioQueryGenerationTurn(
+                turn.Role == StudioConversationRole.You ? "user" : "assistant",
+                turn.Body))
+            .ToArray();
+
+    private async Task GenerateAsync(StudioQueryGenerationRequest request)
+    {
+        if (_query is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var outcome = await QueryData.GenerateAsync(_query, request);
+
+            if (outcome.BindingState is not null)
+            {
+                if (string.Equals(outcome.BindingState.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+                {
+                    _bindingState = outcome.BindingState;
+                    return;
+                }
+
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    $"{outcome.BindingState.Detail} (contract: {outcome.BindingState.Contract})",
+                    "just now",
+                    StudioConversationTone.Neutral));
+                return;
+            }
+
+            var notes = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability
+                && !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                notes.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
+
+            if (outcome.IsGenerated)
+            {
+                if (outcome.Query is not null)
+                {
+                    _query = outcome.Query;
+                }
+
+                _clarifications.Clear();
+                _dirty.MarkDirty();
+                RecomputeClientErrors();
+
+                var summary = string.IsNullOrWhiteSpace(outcome.Rationale)
+                    ? $"Proposed a query · {(string.IsNullOrWhiteSpace(_query.ServiceName) ? "unbound" : _query.ServiceName)}/layer {_query.LayerId} · {_query.Predicates.Count} predicate(s). Refine by chatting, or open the editor."
+                    : outcome.Rationale;
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(summary, notes),
+                    "just now",
+                    StudioConversationTone.Ready,
+                    "view evidence"));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications.Clear();
+                _clarifications.AddRange(outcome.Clarifications);
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I need a little more detail before I can propose the query."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Clarification));
+            }
+            else
+            {
+                // unsupported / refused / error
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I couldn't turn that into a query."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Neutral));
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string AppendNotes(string body, IReadOnlyList<string> notes) =>
+        notes.Count == 0 ? body : $"{body}\n\nNotes:\n- {string.Join("\n- ", notes)}";
+
     private async Task BackToList()
     {
         _query = null;
         _status = null;
         _statusFailed = false;
+        _view = EditorView.Editor;
+        _cameFromPrompt = false;
         _validation.Clear();
         _dirty.MarkClean();
         await LoadWorkspaceAsync();
@@ -626,6 +899,17 @@
         var fields = fieldCount == 0 ? "all fields" : $"{fieldCount} field{(fieldCount == 1 ? string.Empty : "s")}";
         return $"{sourceCount} source · {query.Predicates.Count} predicate{(query.Predicates.Count == 1 ? string.Empty : "s")} · {query.Parameters.Count} param{(query.Parameters.Count == 1 ? string.Empty : "s")} · {fields}";
     }
+
+    private static string PredicateSummary(StudioQueryPredicateEditor predicate) => predicate.Kind switch
+    {
+        StudioQueryPredicateKinds.Spatial => string.Equals(predicate.Operator, "dwithin", StringComparison.OrdinalIgnoreCase)
+            ? $"geometry {predicate.Operator} {predicate.Value} {predicate.DistanceUnit}"
+            : $"geometry {predicate.Operator}",
+        StudioQueryPredicateKinds.Temporal => string.IsNullOrWhiteSpace(predicate.End)
+            ? $"{predicate.Field} {predicate.Operator} {predicate.Start}"
+            : $"{predicate.Field} {predicate.Operator} {predicate.Start}..{predicate.End}",
+        _ => $"{predicate.Field} {predicate.Operator} {predicate.Value}"
+    };
 
     private static string ParameterReadout(StudioQueryEditor query) =>
         string.Join(" · ", query.Parameters

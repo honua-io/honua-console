@@ -87,6 +87,14 @@ public interface IHonuaAnalysisContentClient
     Task<HonuaAdminEndpointResult<HonuaAnalysisGenerationResult>> GenerateAsync(
         HonuaGenerateAnalysisRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Generates (or refines) a saved query from a natural-language prompt
+    /// (POST /api/v1/analysis/content/queries/generate). Mirrors the analysis generation contract; the
+    /// proposed document is a <see cref="HonuaSavedQueryContent"/> (the same shape CreateItem/CreateVersion
+    /// accept for an AnalysisContentKind.SavedQuery item).</summary>
+    Task<HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>> GenerateQueryAsync(
+        HonuaGenerateSavedQueryRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient, IDisposable
@@ -300,6 +308,20 @@ public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient
             HttpMethod.Post,
             $"{ContentBase}/generate",
             "POST /api/v1/analysis/content/generate",
+            body: request,
+            cancellationToken: cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>> GenerateQueryAsync(
+        HonuaGenerateSavedQueryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaSavedQueryGenerationResult>(
+            HttpMethod.Post,
+            $"{ContentBase}/queries/generate",
+            "POST /api/v1/analysis/content/queries/generate",
             body: request,
             cancellationToken: cancellationToken);
     }
@@ -1199,6 +1221,72 @@ public sealed record HonuaGenerateAnalysisRequest
     /// <summary>Current analysis package content for a REFINE turn; null requests fresh generation.</summary>
     [JsonPropertyName("analysis")]
     public HonuaAnalysisPackageContent? Analysis { get; init; }
+
+    [JsonPropertyName("conversation")]
+    public HonuaAnalysisGenerationTurn[] Conversation { get; init; } = [];
+
+    /// <summary>Answers to a prior needs-clarification turn.</summary>
+    [JsonPropertyName("answers")]
+    public HonuaAnalysisGenerationAnswer[] Answers { get; init; } = [];
+}
+
+// --- Natural-language -> savedQuery generation (POST /api/v1/analysis/content/queries/generate). ---
+// Mirrors the analysis generation contract above (same provider-pluggable planner, clarification cards,
+// validation gate, unmapped-request surfacing), but the proposed document is a HonuaSavedQueryContent
+// (the saved-query content graph) rather than an analysis package. Until the server ships this endpoint it
+// returns 404 -> the console renders the honest "AI generation unavailable" state (no fabricated query).
+// camelCase props.
+
+/// <summary>Result of POST /api/v1/analysis/content/queries/generate. <c>status</c> mirrors the analysis
+/// statuses: "generated" | "needs-clarification" | "unsupported" | "refused" | "error". <c>query</c> is the
+/// proposed saved-query content (the same shape CreateItem/CreateVersion accept), present iff
+/// status=="generated".</summary>
+public sealed record HonuaSavedQueryGenerationResult
+{
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = string.Empty;
+
+    [JsonPropertyName("query")]
+    public HonuaSavedQueryContent? Query { get; init; }
+
+    [JsonPropertyName("rationale")]
+    public string? Rationale { get; init; }
+
+    [JsonPropertyName("clarifications")]
+    public HonuaAnalysisGenerationClarification[] Clarifications { get; init; } = [];
+
+    [JsonPropertyName("validation")]
+    public HonuaAnalysisGenerationValidationResult? Validation { get; init; }
+
+    [JsonPropertyName("unmappedRequests")]
+    public string[] UnmappedRequests { get; init; } = [];
+
+    [JsonPropertyName("capabilityState")]
+    public HonuaAnalysisGenerationCapabilityState? CapabilityState { get; init; }
+
+    [JsonPropertyName("provider")]
+    public string? Provider { get; init; }
+
+    [JsonPropertyName("model")]
+    public string? Model { get; init; }
+}
+
+public sealed record HonuaGenerateSavedQueryRequest
+{
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; init; } = string.Empty;
+
+    /// <summary>Provider id to use; null selects the server default.</summary>
+    [JsonPropertyName("provider")]
+    public string? Provider { get; init; }
+
+    /// <summary>Optional per-call model override.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; init; }
+
+    /// <summary>Current saved-query content for a REFINE turn; null requests fresh generation.</summary>
+    [JsonPropertyName("query")]
+    public HonuaSavedQueryContent? Query { get; init; }
 
     [JsonPropertyName("conversation")]
     public HonuaAnalysisGenerationTurn[] Conversation { get; init; } = [];

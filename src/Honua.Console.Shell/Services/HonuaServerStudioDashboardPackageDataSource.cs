@@ -1,3 +1,4 @@
+using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 // The server wire enum, not an editor-catalog enum.
@@ -44,11 +45,23 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         "GET /api/v1/studio/content-items",
         "The honua-server Studio API does not yet expose a dashboard package listing endpoint. Create a new dashboard or open one by id; saved versions persist on the server.");
 
+    private const string GenerateContract = "POST /api/v1/console/publications/generate";
+
     private readonly IStudioPackageLifecycleClient _client;
 
-    public HonuaServerStudioDashboardPackageDataSource(IStudioPackageLifecycleClient client)
+    // Dashboard generation shares the content publications/generate endpoint with reports (dispatched on
+    // kind), so it speaks the content-publication client rather than the Studio package lifecycle. Optional
+    // so unit tests exercising the save/validate/publish/reopen lifecycle can construct the data source with
+    // just the lifecycle client; the DI path injects both and the from-prompt page only calls GenerateAsync
+    // through the server-bound composition.
+    private readonly IHonuaContentPublicationClient? _publicationClient;
+
+    public HonuaServerStudioDashboardPackageDataSource(
+        IStudioPackageLifecycleClient client,
+        IHonuaContentPublicationClient? publicationClient = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _publicationClient = publicationClient;
     }
 
     public Task<StudioDashboardWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
@@ -289,6 +302,133 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         state.PublishedVersion = version;
         return new StudioDashboardCommandResult(true, $"Reopened v{version} as a new draft.", state);
     }
+
+    public async Task<StudioDashboardGenerationOutcome> GenerateAsync(
+        StudioDashboardEditorState currentState,
+        StudioDashboardGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentState);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // No content-publication client was composed (e.g. lifecycle-only construction in a unit test): the
+        // generation surface is unbound, not fabricated.
+        if (_publicationClient is null)
+        {
+            return StudioDashboardGenerationOutcome.Blocked(new StudioDashboardCapabilityState(
+                Surface,
+                "Missing binding",
+                GenerateContract,
+                "The dashboard generation endpoint is not bound. Configure Honua:Server:BaseUrl so the content publications/generate endpoint is reachable."));
+        }
+
+        // A refine turn ships the current dashboard document so the server edits it; a first turn ships null
+        // (fresh). The "has content" probe keys off any authored intent so a blank scaffold requests fresh
+        // generation. The document round-trips through the same dashboard package body the editor authors.
+        var refine = currentState.Panels.Count > 0
+            || currentState.Bindings.Count > 0
+            || !string.IsNullOrWhiteSpace(currentState.Title)
+            || !string.IsNullOrWhiteSpace(currentState.Narrative);
+
+        var wire = new GenerateDashboardContentRequest
+        {
+            Kind = HonuaContentPublicationKinds.Dashboard,
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Document = refine ? StudioDashboardPackageMapper.BuildEnvelopeBody(currentState) : null,
+            Conversation = request.Conversation
+                .Select(turn => new HonuaReportGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new HonuaReportGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _publicationClient.GenerateDashboardAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            // A 404/501 means this server lacks the dashboard generation contract: AI is simply off here
+            // (honest "unsupported"), not a missing server binding. Other issues block the surface.
+            if (issue.StatusCode is 404 or 501)
+            {
+                return new StudioDashboardGenerationOutcome
+                {
+                    Status = StudioDashboardGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI dashboard generation yet."
+                };
+            }
+
+            return StudioDashboardGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
+        }
+
+        return MapGeneration(result.Data!);
+    }
+
+    private static StudioDashboardGenerationOutcome MapGeneration(HonuaReportGenerationResult result)
+    {
+        // The server serializes empty collections as null (source-gen omits empty arrays), so guard each
+        // collection before LINQ — a valid 'generated' result carries no clarifications/unmapped.
+        var warnings = (result.UnmappedRequests ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No matching binding/panel for: {item}")
+            .ToList();
+
+        var clarifications = (result.Clarifications ?? [])
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                (question.Choices ?? [])
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioDashboardEditorState? state = null;
+        if (string.Equals(result.Status, StudioDashboardGenerationStatuses.Generated, StringComparison.Ordinal)
+            && result.Document is { } document)
+        {
+            // A generated document becomes a fresh, unsaved draft the operator reviews and publishes.
+            state = StudioDashboardPackageMapper.CreateTemplate();
+            var mapperNotes = StudioDashboardDocument.ApplyGeneratedDocument(state, document);
+            warnings.AddRange(mapperNotes);
+        }
+
+        return new StudioDashboardGenerationOutcome
+        {
+            Status = NormalizeGenerationStatus(result.Status),
+            State = state,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioDashboardGenerationCapability(
+                    result.CapabilityState.Name,
+                    result.CapabilityState.State,
+                    result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    private static string NormalizeGenerationStatus(string? status) => status switch
+    {
+        StudioDashboardGenerationStatuses.Generated => StudioDashboardGenerationStatuses.Generated,
+        StudioDashboardGenerationStatuses.NeedsClarification => StudioDashboardGenerationStatuses.NeedsClarification,
+        StudioDashboardGenerationStatuses.Unsupported => StudioDashboardGenerationStatuses.Unsupported,
+        StudioDashboardGenerationStatuses.Refused => StudioDashboardGenerationStatuses.Refused,
+        _ => StudioDashboardGenerationStatuses.Error
+    };
+
+    private static StudioDashboardCapabilityState ToCapabilityState(string contract, HonuaAdminEndpointIssue issue) =>
+        new(
+            Surface,
+            issue.State,
+            issue.Contract ?? contract,
+            issue.StatusCode is null
+                ? issue.Detail
+                : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
 
     private static StudioPackageEnvelope BuildEnvelope(StudioDashboardEditorState state) =>
         new()

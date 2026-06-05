@@ -155,8 +155,9 @@ public sealed class StudioDashboardBuilderRenderTests
         Assert.NotNull(page.Find("[data-studio-ai-pane]"));
         Assert.Contains("Dashboard from prompt", page.Markup, StringComparison.Ordinal);
 
-        // The conversation seeds a turn describing the REAL draft (its actual panel count) — not mock content.
-        Assert.Contains("1 panel", page.Markup, StringComparison.Ordinal);
+        // The conversation seeds a neutral intro turn inviting the author to describe the dashboard; the
+        // proposal is server-grounded and validated, never fabricated (it does not describe the draft).
+        Assert.Contains("Describe the dashboard you want", page.Markup, StringComparison.Ordinal);
 
         // The live preview reflects the real draft's panels (the seeded chart panel) tagged Vega-Lite.
         var preview = page.Find("[data-dashboard-preview]");
@@ -171,14 +172,26 @@ public sealed class StudioDashboardBuilderRenderTests
     }
 
     [Fact]
-    public void DashboardBuilder_RefinePrompt_ForwardsToServerDraftAndEchoesResult()
+    public void DashboardBuilder_RefinePrompt_ForwardsToServerGenerationAndRendersResult()
     {
+        StudioDashboardGenerationRequest? sent = null;
         var data = new FakeDashboardDataSource
         {
             Workspace = new StudioDashboardWorkspace([], []),
-            EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
+            EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), []),
+            // A refine prompt drives the real server generation contract (not SaveDraftAsync). Return a
+            // generated outcome whose proposed document hydrates the editor and surfaces "view evidence".
+            OnGenerate = state => new StudioDashboardGenerationOutcome
+            {
+                Status = StudioDashboardGenerationStatuses.Generated,
+                State = state,
+                Rationale = "Added a county filter panel to the dashboard."
+            }
         };
         using var ctx = new Bunit.TestContext();
+        // A generated outcome marks the editor dirty, so the UnsavedChangesGuard syncs its beforeunload
+        // handler over JS interop; loose mode lets that no-op in the renderer harness.
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
         var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
@@ -189,12 +202,14 @@ public sealed class StudioDashboardBuilderRenderTests
         page.Find(".studio-ai-refine-input").Input("Add a filter for county");
         page.Find(".studio-ai-send").Click();
 
-        // The prompt is forwarded to the real draft (SaveDraftAsync) and the conversation echoes the server result.
+        // The prompt is echoed and the server-produced result renders (rationale + a "view evidence" turn);
+        // nothing is saved to a draft on a generate turn (SaveDraftAsync is the explicit save action).
         page.WaitForAssertion(
-            () => Assert.True(data.SaveCount >= 1, "expected the refine prompt to forward to SaveDraftAsync"),
+            () => Assert.Contains("view evidence", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Add a filter for county", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Saved the draft", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Added a county filter panel to the dashboard.", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(0, data.SaveCount);
     }
 
     [Fact]
@@ -325,5 +340,10 @@ public sealed class StudioDashboardBuilderRenderTests
 
         public Task<StudioDashboardCommandResult> ReopenAsync(string dashboardId, int version, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioDashboardCommandResult(true, "Reopened.", new StudioDashboardEditorState { DashboardId = dashboardId, Version = version + 1 }));
+
+        public Func<StudioDashboardEditorState, StudioDashboardGenerationOutcome>? OnGenerate { get; set; }
+
+        public Task<StudioDashboardGenerationOutcome> GenerateAsync(StudioDashboardEditorState currentState, StudioDashboardGenerationRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OnGenerate?.Invoke(currentState) ?? new StudioDashboardGenerationOutcome { Status = StudioDashboardGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 }

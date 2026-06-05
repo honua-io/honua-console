@@ -426,3 +426,154 @@ public static class StudioDashboardPackageMapper
         }
     }
 }
+
+/// <summary>
+/// Maps the server's canonical <c>honua.dashboard-document.v1</c> payload onto a fresh
+/// <see cref="StudioDashboardEditorState"/> for the "Dashboard from prompt" generated turn. This is the
+/// inverse of the publish-side <see cref="StudioDashboardPackageMapper"/> body projection, but it consumes
+/// the AI generation document (title/description/narrative/routeSlug/breakpoint + bindings[] +
+/// panels[]{id,kind,title,bindingAlias,chartSpec,field}) rather than the package envelope body. The
+/// generated document becomes a fresh, unsaved draft the operator reviews and publishes — nothing is
+/// fabricated here; an empty/non-object document yields an empty editor and a note (Console Patterns Charter
+/// section 11).
+/// </summary>
+public static class StudioDashboardDocument
+{
+    public const string Format = "honua.dashboard-document.v1";
+
+    /// <summary>
+    /// The dashboard document panel kind the editor has no native slot for. The editor's
+    /// <see cref="StudioDashboardPanelKinds"/> catalog is chart/map/table/filter; a server-proposed
+    /// <c>metric</c> (single-value KPI) is mapped to the nearest existing kind (<c>table</c>) so the value
+    /// + binding still surface in the editor and preview, and the mapping is reported as a note.
+    /// </summary>
+    public const string MetricPanelKind = "metric";
+
+    /// <summary>The editor panel kind a server <c>metric</c> panel is downgraded to (nearest existing slot).</summary>
+    public const string MetricMappedToKind = StudioDashboardPanelKinds.Table;
+
+    /// <summary>
+    /// Lifts a server dashboard document onto a fresh editor state. Returns human-readable notes for any
+    /// lossy mapping (a <c>metric</c> panel downgraded to the nearest existing kind) so the page can surface
+    /// them as warnings rather than dropping them silently.
+    /// </summary>
+    public static IReadOnlyList<string> ApplyGeneratedDocument(StudioDashboardEditorState state, JsonElement document)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        var notes = new List<string>();
+        if (document.ValueKind != JsonValueKind.Object)
+        {
+            return notes;
+        }
+
+        state.Title = GetString(document, "title");
+        state.Description = GetString(document, "description");
+        state.Narrative = GetString(document, "narrative");
+
+        var breakpoint = GetString(document, "breakpoint");
+        if (!string.IsNullOrWhiteSpace(breakpoint))
+        {
+            state.PreviewBreakpoint = breakpoint;
+        }
+
+        state.Bindings.Clear();
+        if (document.TryGetProperty("bindings", out var bindings) && bindings.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var binding in bindings.EnumerateArray())
+            {
+                state.Bindings.Add(new StudioDashboardBindingEditor
+                {
+                    Alias = FirstString(binding, "alias", "key"),
+                    ContentRef = FirstString(binding, "contentRef", "ref"),
+                    VersionPin = FirstString(binding, "versionPin")
+                });
+            }
+        }
+
+        state.Panels.Clear();
+        if (document.TryGetProperty("panels", out var panels) && panels.ValueKind == JsonValueKind.Array)
+        {
+            var metricCount = 0;
+            foreach (var panel in panels.EnumerateArray())
+            {
+                var rawKind = GetString(panel, "kind");
+                var kind = NormalizeKind(rawKind, ref metricCount);
+
+                var editor = new StudioDashboardPanelEditor
+                {
+                    Title = GetString(panel, "title"),
+                    Kind = kind,
+                    // The document carries the data column on "field" and the source on "bindingAlias"; the
+                    // editor surfaces the binding alias (the data column is captured in the chart spec).
+                    BindingAlias = FirstString(panel, "bindingAlias", "field")
+                };
+
+                if (string.Equals(kind, StudioDashboardPanelKinds.Chart, StringComparison.OrdinalIgnoreCase)
+                    && panel.TryGetProperty("chartSpec", out var spec)
+                    && spec.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+                {
+                    editor.VegaLiteSpec = spec.ValueKind == JsonValueKind.String
+                        ? spec.GetString() ?? string.Empty
+                        : spec.GetRawText();
+                }
+
+                state.Panels.Add(editor);
+            }
+
+            if (metricCount > 0)
+            {
+                notes.Add(
+                    $"{metricCount} metric panel{(metricCount == 1 ? string.Empty : "s")} mapped to the nearest existing "
+                    + $"'{MetricMappedToKind}' kind — the editor has no metric panel kind yet.");
+            }
+        }
+
+        return notes;
+    }
+
+    private static string NormalizeKind(string rawKind, ref int metricCount)
+    {
+        if (string.IsNullOrWhiteSpace(rawKind))
+        {
+            return StudioDashboardPanelKinds.Chart;
+        }
+
+        if (string.Equals(rawKind, MetricPanelKind, StringComparison.OrdinalIgnoreCase))
+        {
+            metricCount++;
+            return MetricMappedToKind;
+        }
+
+        // Pass through any kind the editor catalog knows; anything else falls back to the table slot so the
+        // panel still renders rather than being dropped.
+        foreach (var known in StudioDashboardPanelKinds.All)
+        {
+            if (string.Equals(rawKind, known, StringComparison.OrdinalIgnoreCase))
+            {
+                return known;
+            }
+        }
+
+        return StudioDashboardPanelKinds.Table;
+    }
+
+    private static string GetString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
+
+    private static string FirstString(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = GetString(element, name);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+}

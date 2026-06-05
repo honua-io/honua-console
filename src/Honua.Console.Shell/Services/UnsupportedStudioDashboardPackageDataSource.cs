@@ -44,6 +44,12 @@ public sealed class UnsupportedStudioDashboardPackageDataSource : IStudioDashboa
         CancellationToken cancellationToken = default) =>
         Task.FromResult(BindingFailure());
 
+    public Task<StudioDashboardGenerationOutcome> GenerateAsync(
+        StudioDashboardEditorState currentState,
+        StudioDashboardGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioDashboardGenerationOutcome.Blocked(MissingBinding));
+
     private static StudioDashboardCommandResult BindingFailure() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

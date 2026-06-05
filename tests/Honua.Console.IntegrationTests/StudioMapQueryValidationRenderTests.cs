@@ -362,5 +362,11 @@ public sealed class StudioMapQueryValidationRenderTests
 
         public Task<StudioQueryCommandResult> PreviewAsync(StudioQueryEditor query, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioQueryCommandResult(true, "Previewed.", query));
+
+        public Task<StudioQueryGenerationOutcome> GenerateAsync(
+            StudioQueryEditor currentQuery,
+            StudioQueryGenerationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioQueryGenerationOutcome { Status = StudioQueryGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 }
