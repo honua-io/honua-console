@@ -392,7 +392,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IWorkflowPackageApiClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                // NL->workflow generation grounds + validates + runs a bounded repair loop on the
+                // server, and against a local CPU model a single turn can take minutes. The default
+                // HttpClient.Timeout of 100s cancels these legitimately-slow generations client-side
+                // (surfacing as a false "endpoint could not be reached"). Match the server's own
+                // request timeout (Limits:Connections:RequestTimeout = 10 min) so the real path works.
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HttpWorkflowPackageApiClient(
                     httpClient,
                     new WorkflowPackageClientOptions(baseUri, honuaServerAdminApiKey));

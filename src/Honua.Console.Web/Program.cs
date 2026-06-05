@@ -6,7 +6,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options => options.DetailedErrors = true);
+
+// NL->workflow generation against a local CPU model can hold a circuit for minutes and
+// return a graph payload larger than SignalR's 32 KB default receive cap. Raise the cap and
+// the client timeout so a slow-but-valid generation renders instead of terminating the circuit.
+builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+{
+    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB
+    options.ClientTimeoutInterval = TimeSpan.FromMinutes(5);
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddHttpClient("honua-map-proxy");
 builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Server:BaseUrl"] ?? builder.Configuration["HONUA_SERVER_BASE_URL"],

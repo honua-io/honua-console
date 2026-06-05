@@ -31,6 +31,11 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
 
     private static readonly JsonSerializerOptions EditorStateOptions = new(JsonSerializerDefaults.Web);
 
+    // Shared empty map for normalizing null collections on freshly-generated graphs (the server
+    // omits empty maps via System.Text.Json source-gen, so they deserialize to null).
+    private static readonly IReadOnlyDictionary<string, string> EmptyStringMap =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     private readonly IWorkflowPackageApiClient _api;
 
     public ServerStudioWorkflowPackageClient(IWorkflowPackageApiClient api)
@@ -424,22 +429,26 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         WorkflowGenerationResult result,
         IReadOnlyList<StudioWorkflowNodeDefinition> definitions)
     {
+        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
+        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
+        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws
+        // ArgumentNullException here and terminates the Blazor circuit, freezing the page.
         var warnings = new List<string>();
         if (result.Validation is not null)
         {
-            warnings.AddRange(result.Validation.Warnings);
+            warnings.AddRange(result.Validation.Warnings ?? []);
         }
 
-        warnings.AddRange(result.UnmappedRequests
+        warnings.AddRange((result.UnmappedRequests ?? [])
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .Select(item => $"No matching step for: {item}"));
 
-        var clarifications = result.Clarifications
+        var clarifications = (result.Clarifications ?? [])
             .Select(question => new StudioConversationClarification(
                 question.Id,
                 string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
                 question.Reason ?? string.Empty,
-                question.Choices
+                (question.Choices ?? [])
                     .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
                     .ToArray()))
             .ToArray();
@@ -453,7 +462,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             // Surface validator errors too (non-blocking here): the page re-validates authoritatively on save.
             if (result.Validation is { IsValid: false })
             {
-                warnings.AddRange(result.Validation.Failures.Select(failure => failure.Message));
+                warnings.AddRange((result.Validation.Failures ?? []).Select(failure => failure.Message));
             }
         }
 
@@ -512,16 +521,17 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         var definitionsByType = definitions.ToDictionary(definition => definition.Type, StringComparer.Ordinal);
         var editorState = ReadEditorState(graph);
 
-        current.Nodes = graph.Nodes
+        current.Nodes = (graph.Nodes ?? [])
             .Select((node, index) => ToNode(node, index, definitionsByType))
             .ToList();
-        current.Edges = graph.Edges.Select(ToEdge).ToList();
+        current.Edges = (graph.Edges ?? []).Select(ToEdge).ToList();
         current.Schedule = ToSchedule(graph.Schedule, editorState.ScheduleMode);
         current.CurrentVersionId = string.Empty;
 
         // The server may suggest a package name in the graph editor metadata; adopt it only while the draft
         // still has its placeholder title, so a user rename is never clobbered by a refine.
-        if (graph.EditorMetadata.TryGetValue("console.title", out var suggested) &&
+        if (graph.EditorMetadata is not null &&
+            graph.EditorMetadata.TryGetValue("console.title", out var suggested) &&
             !string.IsNullOrWhiteSpace(suggested) &&
             (string.IsNullOrWhiteSpace(current.Title) ||
              string.Equals(current.Title, "Untitled workflow package", StringComparison.Ordinal)))
@@ -730,19 +740,24 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
     {
         definitionsByType.TryGetValue(node.NodeTypeId, out var definition);
 
+        // A freshly generated node carries null Metadata/Parameters (server omits empty maps); the
+        // Dictionary copy-ctor and TryGetValue both throw on null, so normalize to empty first.
+        var metadata = node.Metadata ?? EmptyStringMap;
+        var parameters = node.Parameters ?? EmptyStringMap;
+
         return new StudioWorkflowNode
         {
             Id = node.NodeId,
             Type = node.NodeTypeId,
             Category = definition?.Category ?? StudioWorkflowContractValues.NodeCategoryTransform,
-            Label = node.Metadata.TryGetValue(NodeLabelKey, out var label) && !string.IsNullOrWhiteSpace(label)
+            Label = metadata.TryGetValue(NodeLabelKey, out var label) && !string.IsNullOrWhiteSpace(label)
                 ? label
                 : definition?.Label ?? node.NodeTypeId,
-            Column = ReadInt(node.Metadata, NodeColumnKey) ?? index + 1,
-            Row = ReadInt(node.Metadata, NodeRowKey) ?? 1,
+            Column = ReadInt(metadata, NodeColumnKey) ?? index + 1,
+            Row = ReadInt(metadata, NodeRowKey) ?? 1,
             InputPorts = definition?.InputPorts.ToList() ?? [],
             OutputPorts = definition?.OutputPorts.ToList() ?? [],
-            Configuration = new Dictionary<string, string>(node.Parameters, StringComparer.Ordinal)
+            Configuration = new Dictionary<string, string>(parameters, StringComparer.Ordinal)
         };
     }
 
@@ -1053,7 +1068,10 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
 
     private WorkflowEditorState ReadEditorState(WorkflowGraph graph)
     {
-        if (!graph.EditorMetadata.TryGetValue(EditorStateKey, out var raw) || string.IsNullOrWhiteSpace(raw))
+        // EditorMetadata is null on a freshly generated graph (server omits the empty dict).
+        if (graph.EditorMetadata is null ||
+            !graph.EditorMetadata.TryGetValue(EditorStateKey, out var raw) ||
+            string.IsNullOrWhiteSpace(raw))
         {
             return new WorkflowEditorState();
         }
