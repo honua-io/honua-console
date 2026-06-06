@@ -204,17 +204,20 @@ public static class StudioQueryPackageMapper
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        var columns = result.Features
-            .SelectMany(feature => feature.Attributes.Keys)
+        // Server omits empty collections as JSON null; coalesce Features + each feature's Attributes (the
+        // same null hazard the rest of this mapper already guards) before enumerating.
+        var features0 = result.Features ?? [];
+        var columns = features0
+            .SelectMany(feature => (feature.Attributes ?? EmptyAttributes).Keys)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        var features = result.Features
+        var features = features0
             .Select(feature => new StudioQueryPreviewFeatureView(
                 feature.Id,
                 feature.HasGeometry,
-                feature.Attributes.ToDictionary(
+                (feature.Attributes ?? EmptyAttributes).ToDictionary(
                     pair => pair.Key,
                     pair => RenderAttribute(pair.Value),
                     StringComparer.Ordinal)))
@@ -407,6 +410,8 @@ public static class StudioQueryPackageMapper
     };
 
     private static readonly IReadOnlyDictionary<string, string> EmptyMetadata = new Dictionary<string, string>(0);
+
+    private static readonly Dictionary<string, JsonElement> EmptyAttributes = new(0);
 
     private static string ResolveTitle(HonuaAnalysisContentItem item, IReadOnlyDictionary<string, string> metadata)
     {
