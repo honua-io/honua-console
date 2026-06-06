@@ -327,10 +327,11 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         var generated = string.Equals(result.Status, StudioMapGenerationStatuses.Generated, StringComparison.Ordinal);
         if (generated && result.Package is { } package)
         {
-            // Hydrate the editor from the returned map.package body, preserving the current server-owned
-            // identity/generation so a refine on an already-saved draft does not lose its draft id. This is the
-            // inverse of BuildEnvelopeBody.
-            StudioMapPackageMapper.ApplyEnvelopeBody(currentState, package);
+            // Hydrate the editor from the returned honua_map_package.v1 body (sourceBindings/styleRefs/
+            // initialView/popupBindings/legend) — a DIFFERENT shape from the console's round-trip envelope,
+            // so use the generation-specific mapper, NOT ApplyEnvelopeBody (which reads the `layers` shape and
+            // would bind zero layers). Server-owned identity/generation on currentState is preserved.
+            warnings.AddRange(StudioMapPackageMapper.ApplyGeneratedPackage(currentState, package));
             // The proposed map changed; it must be re-saved + re-validated before any publish.
             currentState.Status = StudioMapStatuses.Draft;
             state = currentState;

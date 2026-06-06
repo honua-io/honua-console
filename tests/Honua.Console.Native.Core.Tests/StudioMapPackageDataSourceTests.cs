@@ -18,6 +18,55 @@ public sealed class StudioMapPackageDataSourceTests
     private static readonly Uri BaseUri = new("https://server.example");
 
     [Fact]
+    public void ApplyGeneratedPackage_BindsOneLayerPerSourceBinding_NotTheRoundTripLayersShape()
+    {
+        // A server-generated honua_map_package.v1 body uses sourceBindings/initialView/popupBindings/legend —
+        // NOT the console round-trip `layers` shape that ApplyEnvelopeBody reads. Regression: the map "from
+        // prompt" flow fed this body to ApplyEnvelopeBody and bound 0 layers; the generation mapper must bind
+        // one editor layer per sourceBinding and lift the extent/popups/legend.
+        var package = JsonSerializer.Deserialize<JsonElement>(
+            """
+            {
+              "mapPackageId": "map_city_parks",
+              "format": "honua_map_package.v1",
+              "sourceBindings": [
+                { "sourceId": "src_city_parks", "protocol": "geoservices_feature_service", "filter": "type='park'" },
+                { "sourceId": "src_streets", "protocol": "vector_tile" }
+              ],
+              "styleRefs": null,
+              "initialView": { "bbox": [-122.4194, 37.7749, -122.0574, 37.8749], "crs": "EPSG:4326" },
+              "popupBindings": [
+                { "sourceId": "src_city_parks", "fieldName": "name" },
+                { "sourceId": "src_city_parks", "fieldName": "acres" }
+              ],
+              "legend": [ { "label": "City Parks", "color": "#2D69A5" } ]
+            }
+            """);
+        var state = new StudioMapEditorState();
+
+        StudioMapPackageMapper.ApplyGeneratedPackage(state, package);
+
+        Assert.Equal(2, state.Layers.Count);
+        Assert.Equal("src_city_parks", state.Layers[0].SourceRef);
+        Assert.Equal("City Parks", state.Layers[0].Title);
+        Assert.Equal("type='park'", state.Layers[0].Filter);
+        Assert.Equal("name, acres", state.Layers[0].PopupFields);
+        Assert.Equal("src_streets", state.Layers[1].SourceRef);
+        Assert.Equal("-122.4194,37.7749,-122.0574,37.8749", state.InitialExtent);
+        Assert.True(state.ShowLegend);
+        Assert.Equal("City Parks", state.Title);
+    }
+
+    [Fact]
+    public void ApplyGeneratedPackage_NullOrEmptyBody_DoesNotThrowAndBindsNoLayers()
+    {
+        var state = new StudioMapEditorState();
+        StudioMapPackageMapper.ApplyGeneratedPackage(state, null);
+        StudioMapPackageMapper.ApplyGeneratedPackage(state, JsonSerializer.Deserialize<JsonElement>("{}"));
+        Assert.Empty(state.Layers);
+    }
+
+    [Fact]
     public void EnvelopeBody_RoundTripsLayersFrameBehaviourAndSharePolicy()
     {
         var state = new StudioMapEditorState
