@@ -177,15 +177,13 @@
         _error = string.Empty;
 
         // Re-capture so the attached context reflects the route/session/errors at
-        // submit time, then fold it into the symptoms so the operator (and triage)
-        // get full context inline even before the auto-bundle telemetry contract
-        // lands (honua-support#20). The scoped key is captured here for that same
-        // auto-bundle pull; until the formal contract exists it is recorded with
-        // the symptom context so it is not silently dropped.
+        // submit time, then emit it as the structured support-context-v1 block on
+        // the request (context.*) instead of folding it into free-text symptoms
+        // (honua-support#22). Symptoms now carries only the user's own description.
         var route = Nav.ToBaseRelativePath(Nav.Uri);
         _context = await ContextBuilder.CaptureAsync(string.IsNullOrWhiteSpace(route) ? "/" : $"/{route}");
 
-        var symptoms = $"{_symptoms.Trim()}\n\n{_context.ToSymptomContext()}";
+        var symptoms = _symptoms.Trim();
 
         // "Still need help?" — fold the L0 self-service activity (assistant
         // transcript + viewed KB items) into the ticket so support inherits what
@@ -196,10 +194,10 @@
             symptoms = $"{symptoms}\n\n{selfServiceContext}";
         }
 
-        if (!string.IsNullOrWhiteSpace(_scopedKey))
-        {
-            symptoms = $"{symptoms}\nScoped telemetry key: {_scopedKey.Trim()}";
-        }
+        // The scoped key is a secret carried only on the structured context block
+        // (context.scopedKey) for the auto-bundle telemetry pull — never folded
+        // into symptoms or rendered back.
+        var context = _context.ToContextRequest(_scopedKey);
 
         var request = new CreateSupportTicketRequest
         {
@@ -212,7 +210,8 @@
             TtlMinutes = _ttlMinutes < 5 ? 5 : _ttlMinutes,
             RollbackExpected = _rollbackExpected,
             InstanceUrl = _context.ServerUri,
-            CustomerId = string.IsNullOrWhiteSpace(_context.TenantId) ? null : _context.TenantId
+            CustomerId = string.IsNullOrWhiteSpace(_context.TenantId) ? null : _context.TenantId,
+            Context = context
         };
 
         var result = await SupportClient.CreateTicketAsync(request);

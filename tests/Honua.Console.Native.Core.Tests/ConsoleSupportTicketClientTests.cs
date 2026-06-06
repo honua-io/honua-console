@@ -111,6 +111,100 @@ public sealed class ConsoleSupportTicketClientTests
         Assert.Contains("HTTP 500 /api/v1/featureserver", rendered);
     }
 
+    [Fact]
+    public void ToContextRequestProjectsStructuredSupportContextV1()
+    {
+        var context = new ConsoleSupportContext
+        {
+            UserId = "operator.live",
+            UserDisplayName = "Live Operator",
+            TenantId = "honua-prod",
+            EnvironmentKind = "production",
+            ServerUri = "https://server.example/",
+            AppVersion = "2.5.0",
+            Commit = "abc1234",
+            CurrentRoute = "/support",
+            RecentErrors =
+            [
+                new OperateRecentError(DateTimeOffset.Parse("2026-06-05T12:00:00Z"), "corr-1", "/api/v1/featureserver", 500, "boom")
+            ]
+        };
+
+        var request = context.ToContextRequest("scoped-telemetry-key");
+
+        Assert.Equal("1.0", request.SchemaVersion);
+        Assert.Equal("operator.live", request.User!.Id);
+        Assert.Equal("Live Operator", request.User.DisplayName);
+        Assert.Equal("honua-prod", request.Tenant!.Id);
+        Assert.Equal("production", request.EnvKind);
+        Assert.Equal("2.5.0", request.AppVersion);
+        Assert.Equal("abc1234", request.Commit);
+        Assert.Equal("/support", request.Route);
+        Assert.Equal("https://server.example/", request.InstanceUrl);
+        Assert.Equal("scoped-telemetry-key", request.ScopedKey);
+
+        var error = Assert.Single(request.RecentErrors!);
+        Assert.Equal("/api/v1/featureserver", error.Path);
+        Assert.Equal(500, error.StatusCode);
+        Assert.Equal("corr-1", error.CorrelationId);
+        Assert.Equal("boom", error.Message);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-05T12:00:00Z"), error.Timestamp);
+    }
+
+    [Fact]
+    public void ToContextRequestCollapsesEmptyOptionalsToNullAndOmitsScopedKey()
+    {
+        var context = new ConsoleSupportContext
+        {
+            EnvironmentKind = string.Empty,
+            CurrentRoute = "/support"
+        };
+
+        var request = context.ToContextRequest(scopedKey: null);
+
+        Assert.Equal("1.0", request.SchemaVersion);
+        Assert.Null(request.User);
+        Assert.Null(request.Tenant);
+        Assert.Null(request.EnvKind);
+        Assert.Null(request.AppVersion);
+        Assert.Null(request.Commit);
+        Assert.Null(request.InstanceUrl);
+        Assert.Null(request.RecentErrors);
+        Assert.Null(request.ScopedKey);
+        Assert.Equal("/support", request.Route);
+    }
+
+    [Fact]
+    public void CreateRequestSerializesContextBlockAndNeverLeaksScopedKeyIntoSymptoms()
+    {
+        var context = new ConsoleSupportContext
+        {
+            UserId = "operator.live",
+            TenantId = "honua-prod",
+            EnvironmentKind = "production",
+            ServerUri = "https://server.example/",
+            CurrentRoute = "/support"
+        };
+
+        var request = new CreateSupportTicketRequest
+        {
+            Severity = "sev2",
+            Environment = "production",
+            Symptoms = "elevated 500s",
+            RequestedAction = "diagnose",
+            InstanceUrl = context.ServerUri,
+            Context = context.ToContextRequest("super-secret-key")
+        };
+
+        var json = JsonSerializer.Serialize(request, SupportTicketJsonContext.Default.CreateSupportTicketRequest);
+
+        // Secret rides only in the structured context block, never in symptoms.
+        Assert.Contains("\"scopedKey\":\"super-secret-key\"", json);
+        Assert.DoesNotContain("super-secret-key", request.Symptoms);
+        Assert.Contains("\"schemaVersion\":\"1.0\"", json);
+        Assert.Contains("\"context\":", json);
+    }
+
     private static HttpSupportTicketClient CreateClient(HttpMessageHandler handler)
     {
         var profile = SampleProfile();
