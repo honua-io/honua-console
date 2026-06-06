@@ -79,6 +79,63 @@ public sealed record ConsoleSupportContext
         return builder.ToString().TrimEnd();
     }
 
+    /// <summary>
+    /// Projects the captured context into the structured <c>support-context-v1</c>
+    /// block (<see cref="SupportContextRequest"/>) carried as a real request field
+    /// instead of folded into <see cref="ToSymptomContext"/> free text. The
+    /// <paramref name="scopedKey"/> is the short-lived telemetry key for the
+    /// auto-bundle pull; it is a secret carried only on the request and is never
+    /// rendered back. Empty/whitespace inputs collapse to null so the wire stays
+    /// trim (DefaultIgnoreCondition.WhenWritingNull).
+    /// </summary>
+    public SupportContextRequest ToContextRequest(string? scopedKey = null)
+    {
+        SupportContextUser? user = null;
+        if (!string.IsNullOrWhiteSpace(UserId) || !string.IsNullOrWhiteSpace(UserDisplayName))
+        {
+            user = new SupportContextUser
+            {
+                Id = Trimmed(UserId),
+                DisplayName = Trimmed(UserDisplayName)
+            };
+        }
+
+        SupportContextTenant? tenant = null;
+        if (!string.IsNullOrWhiteSpace(TenantId))
+        {
+            tenant = new SupportContextTenant { Id = Trimmed(TenantId) };
+        }
+
+        IReadOnlyList<SupportContextError>? recentErrors = null;
+        if (RecentErrors.Count > 0)
+        {
+            recentErrors = RecentErrors
+                .Select(error => new SupportContextError
+                {
+                    Timestamp = error.Timestamp,
+                    Message = Trimmed(error.Message),
+                    CorrelationId = Trimmed(error.CorrelationId),
+                    Path = Trimmed(error.Path),
+                    StatusCode = error.StatusCode
+                })
+                .ToList();
+        }
+
+        return new SupportContextRequest
+        {
+            SchemaVersion = "1.0",
+            User = user,
+            Tenant = tenant,
+            EnvKind = Trimmed(EnvironmentKind),
+            AppVersion = Trimmed(AppVersion),
+            Commit = Trimmed(Commit),
+            Route = Trimmed(CurrentRoute),
+            RecentErrors = recentErrors,
+            InstanceUrl = Trimmed(ServerUri),
+            ScopedKey = Trimmed(scopedKey)
+        };
+    }
+
     private static void AppendIfPresent(StringBuilder builder, string label, string? value)
     {
         if (!string.IsNullOrWhiteSpace(value))
@@ -86,6 +143,9 @@ public sealed record ConsoleSupportContext
             builder.AppendLine($"{label}: {value.Trim()}");
         }
     }
+
+    private static string? Trimmed(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 /// <summary>

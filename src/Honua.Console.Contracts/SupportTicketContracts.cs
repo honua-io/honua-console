@@ -30,9 +30,10 @@ public static class SupportTicketRoutes
 
 /// <summary>
 /// Mirrors honua-support <c>CreateTicketRequest</c>. The Console fills the
-/// operational fields from a small form and auto-attaches captured context
-/// (session, environment, build, route, recent errors) into <see cref="Symptoms"/>
-/// so customers ship context, not log dumps.
+/// operational fields from a small form and auto-attaches captured telemetry as
+/// the structured <see cref="Context"/> block (<c>support-context-v1</c>) so
+/// customers ship context, not log dumps. <see cref="Symptoms"/> carries only the
+/// user's own description (plus L0 self-service activity).
 /// </summary>
 public sealed record CreateSupportTicketRequest
 {
@@ -55,7 +56,93 @@ public sealed record CreateSupportTicketRequest
     public string? InstanceUrl { get; init; }
 
     public string? CustomerId { get; init; }
+
+    /// <summary>
+    /// Structured telemetry/context block (<c>support-context-v1</c>). Optional so
+    /// callers that omit it stay backward compatible. See <see cref="SupportContextRequest"/>.
+    /// </summary>
+    public SupportContextRequest? Context { get; init; }
 }
+
+// ===== support-context-v1 (honua-support#22) =================================
+// SHIM: mirrors honua-support's CreateTicketRequest.Context shape
+// (Honua.Support.Api/Contracts/CreateTicketRequest.cs → SupportContextRequest)
+// which is itself the C# projection of docs/contracts/support-context-v1.schema.json.
+// honua-console takes NO code dependency on honua-support; this is the Console-side
+// boundary. The Console collects these structured fields at ticket-create time and
+// honua-support persists them so honua-devops can auto-bundle telemetry / scope
+// diagnosis. Every field except SchemaVersion is optional. On the wire (camelCase):
+//   context.{ schemaVersion, user{id,email,displayName}, tenant{id,name}, envKind,
+//             appVersion, commit, route, recentErrors[], instanceUrl, scopedKey }
+// scopedKey is a SECRET (short-lived, least-privilege telemetry key): it is sent on
+// the request only and is never rendered back / echoed by the read side.
+
+/// <summary>
+/// Structured support context (<c>support-context-v1</c>, <c>schemaVersion</c> "1.0").
+/// Mirrors honua-support <c>SupportContextRequest</c>; all fields optional except
+/// <see cref="SchemaVersion"/>.
+/// </summary>
+public sealed record SupportContextRequest
+{
+    /// <summary>Contract version. Always "1.0" for v1; additive fields keep v1.</summary>
+    public string SchemaVersion { get; init; } = "1.0";
+
+    public SupportContextUser? User { get; init; }
+
+    public SupportContextTenant? Tenant { get; init; }
+
+    /// <summary>Deployment topology of the affected instance (e.g. development, staging, production).</summary>
+    public string? EnvKind { get; init; }
+
+    public string? AppVersion { get; init; }
+
+    public string? Commit { get; init; }
+
+    public string? Route { get; init; }
+
+    public IReadOnlyList<SupportContextError>? RecentErrors { get; init; }
+
+    public string? InstanceUrl { get; init; }
+
+    /// <summary>
+    /// Short-lived, least-privilege read-only telemetry key for the SaaS server-side
+    /// auto-bundle pull. SECRET — sent on the request only; never rendered/echoed back.
+    /// </summary>
+    public string? ScopedKey { get; init; }
+}
+
+/// <summary>Reporter identity for <see cref="SupportContextRequest.User"/>.</summary>
+public sealed record SupportContextUser
+{
+    public string? Id { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? DisplayName { get; init; }
+}
+
+/// <summary>Owning tenant for <see cref="SupportContextRequest.Tenant"/>.</summary>
+public sealed record SupportContextTenant
+{
+    public string? Id { get; init; }
+
+    public string? Name { get; init; }
+}
+
+/// <summary>One client-observed recent error in <see cref="SupportContextRequest.RecentErrors"/>.</summary>
+public sealed record SupportContextError
+{
+    public DateTimeOffset? Timestamp { get; init; }
+
+    public string? Message { get; init; }
+
+    public string? CorrelationId { get; init; }
+
+    public string? Path { get; init; }
+
+    public int? StatusCode { get; init; }
+}
+// ===== end support-context-v1 ================================================
 
 public sealed record SupportTicketApproval
 {
@@ -347,6 +434,11 @@ public sealed record SupportTicketResponse
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CreateSupportTicketRequest))]
 [JsonSerializable(typeof(SupportTicketResponse))]
+// support-context-v1 (honua-support#22): structured context block + nested shapes.
+[JsonSerializable(typeof(SupportContextRequest))]
+[JsonSerializable(typeof(SupportContextUser))]
+[JsonSerializable(typeof(SupportContextTenant))]
+[JsonSerializable(typeof(SupportContextError))]
 // trust-visibility (#166): escalation rationale + access boundary nested shapes.
 [JsonSerializable(typeof(SupportEscalationRationale))]
 [JsonSerializable(typeof(SupportAccessBoundary))]
