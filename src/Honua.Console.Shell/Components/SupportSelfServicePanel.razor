@@ -1,0 +1,256 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Services
+@inject IConsoleSupportAssistantClient Assistant
+@inject IConsoleSupportKnowledgeBase KnowledgeBase
+
+@*
+    L0 self-service deflection (honua-console#165), shown ABOVE the ticket form on
+    /support. Two deflection paths before a ticket is filed:
+
+      - Assistant box: a qwen-backed chat over the SAME OpenAI-compatible
+        /v1/chat/completions endpoint honua-support's L1 triage uses. Hidden
+        entirely when no LLM endpoint is configured (graceful degrade).
+      - KB search: lexical retrieval over the bundled honua-gis-llm support KB.
+        Hidden when the KB artifact is absent.
+
+    The component owns the transcript + viewed-KB state and raises OnContextChanged
+    so the page can carry it into the ticket as context and measure deflection.
+*@
+
+@if (Assistant.IsConfigured || KnowledgeBase.IsLoaded)
+{
+    <article class="console-panel support-selfservice-panel" aria-label="Self-service help">
+        <div class="console-panel-heading">
+            <p class="console-kicker">Before you file a ticket</p>
+            <h2>Try self-service first</h2>
+            <p class="console-muted">
+                Ask the Honua GIS assistant or search known issues. Anything you do here is carried into the
+                ticket as context if you still need help.
+            </p>
+        </div>
+
+        @if (Assistant.IsConfigured)
+        {
+            <section class="support-assistant" aria-label="GIS assistant">
+                <p class="console-kicker">GIS assistant</p>
+
+                @if (_turns.Count > 0)
+                {
+                    <div class="support-assistant-log" aria-live="polite">
+                        @foreach (var turn in _turns)
+                        {
+                            <div class="support-assistant-turn support-assistant-turn-@turn.Role">
+                                <span class="support-assistant-author">@(turn.Role == "user" ? "You" : "Assistant")</span>
+                                <p class="support-assistant-body">@turn.Content</p>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_assistantError))
+                {
+                    <div class="console-validation-summary" role="alert">
+                        <p>@_assistantError</p>
+                    </div>
+                }
+
+                <div class="support-assistant-ask">
+                    <textarea class="console-input"
+                              rows="2"
+                              placeholder="Describe what you're seeing, e.g. 'spatial join is duplicating parcel rows'"
+                              aria-label="Ask the GIS assistant"
+                              disabled="@_assistantBusy"
+                              @bind="_assistantInput"
+                              @bind:event="oninput"></textarea>
+                    <div class="console-action-row">
+                        <span class="console-muted">Answers are advisory and may be incomplete.</span>
+                        <button class="console-button" type="button"
+                                disabled="@(_assistantBusy || string.IsNullOrWhiteSpace(_assistantInput))"
+                                @onclick="AskAssistantAsync">
+                            @(_assistantBusy ? "Asking..." : "Ask")
+                        </button>
+                    </div>
+                </div>
+            </section>
+        }
+
+        @if (KnowledgeBase.IsLoaded)
+        {
+            <section class="support-kb" aria-label="Known issues search">
+                <p class="console-kicker">Search known issues</p>
+                <div class="support-kb-search">
+                    <input class="console-input"
+                           placeholder="Search the GIS knowledge base"
+                           aria-label="Search known issues"
+                           @bind="_kbQuery"
+                           @bind:event="oninput"
+                           @onkeyup="OnKbKeyUp" />
+                    <button class="console-button console-button-secondary" type="button" @onclick="RunKbSearch">Search</button>
+                </div>
+
+                @if (_kbSearched)
+                {
+                    @if (_kbMatches.Count == 0)
+                    {
+                        <p class="console-muted">No matching known issues. Try the assistant above or file a ticket.</p>
+                    }
+                    else
+                    {
+                        <ul class="support-kb-results">
+                            @foreach (var match in _kbMatches)
+                            {
+                                var record = match.Record;
+                                var expanded = _expandedKbIds.Contains(record.Id);
+                                <li class="support-kb-result">
+                                    <button type="button" class="support-kb-result-toggle" @onclick="() => ToggleKbItem(record)">
+                                        <span class="support-kb-result-title">@record.Title</span>
+                                        @if (record.Symptoms.Count > 0)
+                                        {
+                                            <span class="console-muted support-kb-result-symptom">@record.Symptoms[0]</span>
+                                        }
+                                    </button>
+                                    @if (expanded)
+                                    {
+                                        <div class="support-kb-result-detail">
+                                            @if (record.Symptoms.Count > 0)
+                                            {
+                                                <p class="console-kicker">Symptoms</p>
+                                                <ul>
+                                                    @foreach (var symptom in record.Symptoms)
+                                                    {
+                                                        <li>@symptom</li>
+                                                    }
+                                                </ul>
+                                            }
+                                            @if (record.Remediation.Count > 0)
+                                            {
+                                                <p class="console-kicker">Remediation</p>
+                                                <ol>
+                                                    @foreach (var step in record.Remediation)
+                                                    {
+                                                        <li>@step</li>
+                                                    }
+                                                </ol>
+                                            }
+                                        </div>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+            </section>
+        }
+    </article>
+}
+
+@code {
+    private string _assistantInput = string.Empty;
+    private bool _assistantBusy;
+    private string _assistantError = string.Empty;
+    private readonly List<ChatCompletionMessage> _turns = [];
+
+    private string _kbQuery = string.Empty;
+    private bool _kbSearched;
+    private IReadOnlyList<SupportKbMatch> _kbMatches = [];
+    private readonly HashSet<string> _expandedKbIds = new(StringComparer.Ordinal);
+
+    // Distinct KB ids the user actually opened, carried into the ticket + counted
+    // for the deflection signal.
+    private readonly Dictionary<string, SupportKbRecord> _viewedKb = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Seeds the KB search box with the user's symptom text so the page can
+    /// pre-fill it from the ticket form. Optional.
+    /// </summary>
+    [Parameter]
+    public string? SeedQuery { get; set; }
+
+    /// <summary>
+    /// Raised whenever the assistant transcript or viewed-KB set changes, so the
+    /// page can fold the captured context into the ticket and track activity.
+    /// </summary>
+    [Parameter]
+    public EventCallback<SupportSelfServiceContext> OnContextChanged { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(SeedQuery))
+        {
+            _kbQuery = SeedQuery.Trim();
+        }
+    }
+
+    private async Task AskAssistantAsync()
+    {
+        if (_assistantBusy || string.IsNullOrWhiteSpace(_assistantInput))
+        {
+            return;
+        }
+
+        _assistantBusy = true;
+        _assistantError = string.Empty;
+        _turns.Add(new ChatCompletionMessage { Role = "user", Content = _assistantInput.Trim() });
+        _assistantInput = string.Empty;
+
+        var result = await Assistant.AskAsync(_turns);
+        if (result.IsAllowed)
+        {
+            _turns.Add(new ChatCompletionMessage { Role = "assistant", Content = result.Reply! });
+        }
+        else
+        {
+            _assistantError = string.IsNullOrWhiteSpace(result.Message)
+                ? "The assistant is unavailable right now."
+                : result.Message;
+        }
+
+        _assistantBusy = false;
+        await RaiseContextAsync();
+    }
+
+    private void OnKbKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            RunKbSearch();
+        }
+    }
+
+    private void RunKbSearch()
+    {
+        _kbSearched = true;
+        _kbMatches = KnowledgeBase.Search(_kbQuery, 3);
+    }
+
+    private async Task ToggleKbItem(SupportKbRecord record)
+    {
+        if (!_expandedKbIds.Add(record.Id))
+        {
+            _expandedKbIds.Remove(record.Id);
+            return;
+        }
+
+        // First open of an item counts as "viewed" and is carried into the ticket.
+        if (_viewedKb.TryAdd(record.Id, record))
+        {
+            await RaiseContextAsync();
+        }
+    }
+
+    private Task RaiseContextAsync()
+    {
+        if (!OnContextChanged.HasDelegate)
+        {
+            return Task.CompletedTask;
+        }
+
+        return OnContextChanged.InvokeAsync(new SupportSelfServiceContext
+        {
+            Transcript = _turns.ToArray(),
+            ViewedKb = _viewedKb.Values.ToArray(),
+            AssistantTurns = _turns.Count(turn => turn.Role == "user")
+        });
+    }
+}

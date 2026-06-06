@@ -15,4 +15,13 @@
     <ProjectReference Include="..\Honua.Console.Contracts\Honua.Console.Contracts.csproj" />
   </ItemGroup>
 
+  <!-- L0 deflection (honua-console#165): bundle the honua-gis-llm support KB
+       seed next to the Shell assembly so FileConsoleSupportKnowledgeBase can
+       load it at runtime. The README documents provenance + the embeddings
+       TODO and is excluded from output. -->
+  <ItemGroup>
+    <Content Include="SupportKb\support-kb.jsonl" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="SupportKb\README.md" />
+  </ItemGroup>
+
 </Project>
