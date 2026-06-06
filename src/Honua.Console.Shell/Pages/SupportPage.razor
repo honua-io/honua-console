@@ -1,6 +1,8 @@
 @page "/support"
+@implements IDisposable
 @inject IConsoleSupportTicketClient SupportClient
 @inject ConsoleSupportContextBuilder ContextBuilder
+@inject IConsoleSupportDeflectionLog DeflectionLog
 @inject NavigationManager Nav
 
 <section class="console-page">
@@ -13,6 +15,12 @@
             context, not a paste of logs. You can review and edit everything before you submit.
         </p>
     </div>
+
+    @* L0 self-service deflection (honua-console#165): qwen assistant + KB search,
+       shown BEFORE the ticket form. The panel hides itself when neither the LLM
+       endpoint nor the KB artifact is configured. Its activity is carried into
+       the ticket as context and feeds the deflection-rate signal. *@
+    <SupportSelfServicePanel SeedQuery="@_symptoms" OnContextChanged="OnSelfServiceContextChanged" />
 
     <div class="console-page-body support-layout">
         <article class="console-panel">
@@ -135,8 +143,22 @@
     private bool _busy;
     private string _error = string.Empty;
 
+    // L0 self-service state: latest activity captured from the assistant/KB
+    // panel, and whether the session ended by filing a ticket (so leaving the
+    // page without a ticket logs as deflected).
+    private SupportSelfServiceContext _selfService = new();
+    private bool _ticketFiled;
+
     private bool CanSubmit =>
         !string.IsNullOrWhiteSpace(_symptoms) && !string.IsNullOrWhiteSpace(_requestedAction);
+
+    private SupportDeflectionActivity DeflectionActivity => new()
+    {
+        AssistantTurns = _selfService.AssistantTurns,
+        KbItemsViewed = _selfService.ViewedKb.Count
+    };
+
+    private void OnSelfServiceContextChanged(SupportSelfServiceContext context) => _selfService = context;
 
     protected override async Task OnInitializedAsync()
     {
@@ -164,6 +186,16 @@
         _context = await ContextBuilder.CaptureAsync(string.IsNullOrWhiteSpace(route) ? "/" : $"/{route}");
 
         var symptoms = $"{_symptoms.Trim()}\n\n{_context.ToSymptomContext()}";
+
+        // "Still need help?" — fold the L0 self-service activity (assistant
+        // transcript + viewed KB items) into the ticket so support inherits what
+        // was already tried (honua-console#165).
+        var selfServiceContext = _selfService.ToSymptomContext();
+        if (!string.IsNullOrWhiteSpace(selfServiceContext))
+        {
+            symptoms = $"{symptoms}\n\n{selfServiceContext}";
+        }
+
         if (!string.IsNullOrWhiteSpace(_scopedKey))
         {
             symptoms = $"{symptoms}\nScoped telemetry key: {_scopedKey.Trim()}";
@@ -186,7 +218,12 @@
         var result = await SupportClient.CreateTicketAsync(request);
         if (result.IsAllowed)
         {
-            Nav.NavigateTo($"/support/tickets/{result.Value!.Id}");
+            // Session proceeded to a ticket: log the outcome with the L0 activity
+            // so deflection rate is measurable, and suppress the dispose-time
+            // "deflected" log.
+            _ticketFiled = true;
+            DeflectionLog.ProceededToTicket(DeflectionActivity, result.Value!.Id);
+            Nav.NavigateTo($"/support/tickets/{result.Value.Id}");
             return;
         }
 
@@ -194,5 +231,16 @@
             ? OperateSectionPresentation.FallbackMessage(result.Status)
             : result.Message;
         _busy = false;
+    }
+
+    // The session ended without a ticket. If the user engaged L0 at all
+    // (assistant or KB), count it as a deflection so the deflection rate is
+    // measurable against tickets filed.
+    public void Dispose()
+    {
+        if (!_ticketFiled && (_selfService.AssistantTurns > 0 || _selfService.ViewedKb.Count > 0))
+        {
+            DeflectionLog.Deflected(DeflectionActivity);
+        }
     }
 }
