@@ -164,9 +164,10 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         // The policy update returns the route only; re-read the detail so the version history panel stays
         // consistent after a visibility/embed change.
         var refreshed = await LoadAsync(publicationId, cancellationToken).ConfigureAwait(false);
+        var policy = result.Data!.Route.Policy;
         return new StudioReportCommandResult(
             true,
-            $"Updated visibility to {result.Data!.Route.Policy.Visibility} (embed {(result.Data.Route.Policy.Embed.AllowEmbedding ? "on" : "off")}).",
+            $"Updated visibility to {policy?.Visibility ?? HonuaContentPublicationVisibilities.Private} (embed {(policy?.Embed?.AllowEmbedding == true ? "on" : "off")}).",
             refreshed.Publication);
     }
 
@@ -249,7 +250,8 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
 
     private static StudioReportGenerationOutcome MapGeneration(HonuaReportGenerationResult result)
     {
-        // The server omits empty collections (System.Text.Json source-gen serializes them as null), so a
+        // Each collection declares a non-null initializer, but System.Text.Json overrides it with null when
+        // the server emits an explicit JSON null for the key (an omitted key keeps the initializer), so a
         // perfectly valid 'generated' result commonly arrives with null UnmappedRequests/Clarifications/
         // Choices. Coalesce before LINQ — otherwise a normal generated turn NREs and freezes the page
         // (mirrors the dashboard mapper; this family had regressed by dropping the guards).

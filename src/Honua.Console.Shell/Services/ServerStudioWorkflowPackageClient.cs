@@ -31,10 +31,17 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
 
     private static readonly JsonSerializerOptions EditorStateOptions = new(JsonSerializerDefaults.Web);
 
-    // Shared empty map for normalizing null collections on freshly-generated graphs (the server
-    // omits empty maps via System.Text.Json source-gen, so they deserialize to null).
+    // Shared empty map for normalizing null collections on deserialized wire DTOs. A wire DTO declares its
+    // maps non-nullable with an initializer, but System.Text.Json overrides that initializer with null when
+    // the server emits an explicit JSON null for the key (an OMITTED key keeps the initializer; an EXPLICIT
+    // null overrides it), so every map deref must coalesce against this before LINQ/copy-ctor/TryGetValue.
     private static readonly IReadOnlyDictionary<string, string> EmptyStringMap =
         new Dictionary<string, string>(StringComparer.Ordinal);
+
+    // Shared empty schema-property map for the same null-coalescing reason (nested WorkflowSchemaDefinition
+    // properties deserialize to null when the server emits an explicit JSON null for the key).
+    private static readonly IReadOnlyDictionary<string, WorkflowSchemaDefinition> EmptySchemaMap =
+        new Dictionary<string, WorkflowSchemaDefinition>(StringComparer.Ordinal);
 
     private readonly IWorkflowPackageApiClient _api;
 
@@ -87,7 +94,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             return [];
         }
 
-        return result.Data.Items
+        return (result.Data.Items ?? [])
             .Select(package => new StudioWorkflowDraftSummary
             {
                 DraftId = package.PackageId,
@@ -330,7 +337,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         // honua-server#1185 lists publications, not per-execution runs; project each publication for this
         // package into a run-history row. Row-level (processed/rejected) counts and Operate job links are not
         // exposed on this contract yet, so leave them empty rather than fabricate them (#60 owns job evidence).
-        var runs = publications.Data.Items
+        var runs = (publications.Data.Items ?? [])
             .Where(publication => string.Equals(publication.PackageId, contentItemId, StringComparison.Ordinal))
             .OrderByDescending(publication => publication.CreatedAt)
             .Select(MapRun)
@@ -429,9 +436,10 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         WorkflowGenerationResult result,
         IReadOnlyList<StudioWorkflowNodeDefinition> definitions)
     {
-        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
-        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
-        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws
+        // Each collection on the deserialized result declares a non-null initializer, but System.Text.Json
+        // overrides that initializer with null when the server emits an explicit JSON null for the key (an
+        // OMITTED key keeps the initializer; an EXPLICIT null overrides it). Guard each before LINQ —
+        // otherwise a perfectly valid 'generated' result (which carries no clarifications/unmapped) throws
         // ArgumentNullException here and terminates the Blazor circuit, freezing the page.
         var warnings = new List<string>();
         if (result.Validation is not null)
@@ -565,7 +573,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
                 : StudioWorkflowRunStatus.Failed,
             Mode = MapPublicationMode(publication.Target),
             Trigger = publication.Target == WorkflowPublicationTarget.Schedule ? "scheduled" : "publish",
-            Logs = publication.Provenance
+            Logs = (publication.Provenance ?? EmptyStringMap)
                 .Select(entry => $"{entry.Key}: {entry.Value}")
                 .ToArray(),
             ProvenanceUrl = $"/catalog/{publication.PackageId}",
@@ -663,15 +671,15 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
     }
 
     private static IReadOnlyList<StudioWorkflowNodeDefinition> MapNodeDefinitions(WorkflowNodeRegistrySnapshot snapshot) =>
-        snapshot.Nodes
+        (snapshot.Nodes ?? [])
             .Select(node => new StudioWorkflowNodeDefinition
             {
                 Type = node.NodeTypeId,
                 Category = DeriveCategory(node),
                 Label = node.Title,
                 Summary = node.Description,
-                InputPorts = node.InputSchemas.Select(port => port.Name).ToList(),
-                OutputPorts = node.OutputSchemas.Select(port => port.Name).ToList()
+                InputPorts = (node.InputSchemas ?? []).Select(port => port.Name).ToList(),
+                OutputPorts = (node.OutputSchemas ?? []).Select(port => port.Name).ToList()
             })
             .ToArray();
 
@@ -679,12 +687,12 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
     // shape via ports, so derive the bucket from port presence (no inputs => source, no outputs => sink).
     private static string DeriveCategory(WorkflowNodeDefinition node)
     {
-        if (node.InputSchemas.Count == 0)
+        if ((node.InputSchemas?.Count ?? 0) == 0)
         {
             return StudioWorkflowContractValues.NodeCategorySource;
         }
 
-        return node.OutputSchemas.Count == 0
+        return (node.OutputSchemas?.Count ?? 0) == 0
             ? StudioWorkflowContractValues.NodeCategorySink
             : StudioWorkflowContractValues.NodeCategoryTransform;
     }
@@ -696,10 +704,10 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         var definitionsByType = definitions.ToDictionary(definition => definition.Type, StringComparer.Ordinal);
         var editorState = ReadEditorState(package.Graph);
 
-        var nodes = package.Graph.Nodes
+        var nodes = (package.Graph?.Nodes ?? [])
             .Select((node, index) => ToNode(node, index, definitionsByType))
             .ToList();
-        var edges = package.Graph.Edges.Select(ToEdge).ToList();
+        var edges = (package.Graph?.Edges ?? []).Select(ToEdge).ToList();
 
         return new StudioWorkflowPackageDraft
         {
@@ -716,14 +724,14 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             CurrentVersionId = string.Empty,
             VersionNumber = package.LatestVersion ?? 0,
             PackageType = StudioWorkflowContractValues.PackageType,
-            SchemaVersion = package.Graph.SchemaVersion,
+            SchemaVersion = package.Graph?.SchemaVersion ?? "workflow-package.v1",
             Title = package.Name,
             Summary = package.Description ?? string.Empty,
             Nodes = nodes,
             Edges = edges,
             Parameters = editorState.Parameters,
-            Schedule = ToSchedule(package.Graph.Schedule, editorState.ScheduleMode),
-            WorkerProfile = ResolveWorkerProfile(package.Graph.WorkerProfile, editorState.WorkerProfile),
+            Schedule = ToSchedule(package.Graph?.Schedule, editorState.ScheduleMode),
+            WorkerProfile = ResolveWorkerProfile(package.Graph?.WorkerProfile, editorState.WorkerProfile),
             RetryPolicy = editorState.RetryPolicy,
             PublicationIntent = editorState.PublicationIntent,
             OutputSchemas = editorState.OutputSchemas,
@@ -740,7 +748,8 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
     {
         definitionsByType.TryGetValue(node.NodeTypeId, out var definition);
 
-        // A freshly generated node carries null Metadata/Parameters (server omits empty maps); the
+        // A freshly generated node can carry null Metadata/Parameters (the server emitted an explicit JSON
+        // null for the key, overriding the DTO initializer); the
         // Dictionary copy-ctor and TryGetValue both throw on null, so normalize to empty first.
         var metadata = node.Metadata ?? EmptyStringMap;
         var parameters = node.Parameters ?? EmptyStringMap;
@@ -847,21 +856,21 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
                 dryRun.EstimatedDurationSeconds,
                 dryRun.EstimatedCostWeight)
         };
-        logs.AddRange(dryRun.Logs.Select(entry =>
+        logs.AddRange((dryRun.Logs ?? []).Select(entry =>
             string.IsNullOrWhiteSpace(entry.NodeId)
                 ? $"[{entry.Level}] {entry.Message}"
                 : $"[{entry.Level}] {entry.Message} ({entry.NodeId})"));
-        logs.AddRange(dryRun.Validation.Failures.Select(failure => $"[validation] {failure.Message}"));
+        logs.AddRange((dryRun.Validation?.Failures ?? []).Select(failure => $"[validation] {failure.Message}"));
 
         return new StudioWorkflowDryRunResult
         {
             JobId = string.Empty,
             JobKind = StudioWorkflowContractValues.DryRunJobKind,
-            Status = dryRun.Validation.IsValid ? "succeeded" : "blocked",
+            Status = dryRun.Validation?.IsValid == true ? "succeeded" : "blocked",
             SampleRows = 0,
             Logs = logs,
-            Artifacts = dryRun.Artifacts.Select(artifact => $"{artifact.Kind}: {artifact.Label}").ToArray(),
-            OutputSchemas = dryRun.OutputSchemas.Select(ToOutputSchema).ToArray(),
+            Artifacts = (dryRun.Artifacts ?? []).Select(artifact => $"{artifact.Kind}: {artifact.Label}").ToArray(),
+            OutputSchemas = (dryRun.OutputSchemas ?? []).Select(ToOutputSchema).ToArray(),
             // honua-server#1185 dry-run is a synchronous estimation that creates no Operate job, so no job
             // links here; published runs (below) are what land in Operate.
             OperateJobUrl = string.Empty,
@@ -918,8 +927,9 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
 
     private static StudioWorkflowOutputSchema ToOutputSchema(WorkflowNodePortSchema port)
     {
-        var fields = port.Schema.Properties.Count > 0
-            ? port.Schema.Properties
+        var properties = port.Schema?.Properties ?? EmptySchemaMap;
+        var fields = properties.Count > 0
+            ? properties
                 .Select(property => new StudioWorkflowOutputField
                 {
                     Name = property.Key,
@@ -945,8 +955,13 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         };
     }
 
-    private static string MapFieldType(WorkflowSchemaDefinition schema)
+    private static string MapFieldType(WorkflowSchemaDefinition? schema)
     {
+        if (schema is null)
+        {
+            return "object";
+        }
+
         if (!string.IsNullOrWhiteSpace(schema.Format))
         {
             return schema.Format switch
@@ -969,9 +984,14 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         };
     }
 
-    private static List<StudioWorkflowValidationIssue> MapValidation(WorkflowPackageValidationResult validation)
+    private static List<StudioWorkflowValidationIssue> MapValidation(WorkflowPackageValidationResult? validation)
     {
-        var issues = validation.Failures
+        if (validation is null)
+        {
+            return [];
+        }
+
+        var issues = (validation.Failures ?? [])
             .Select(failure => new StudioWorkflowValidationIssue
             {
                 Severity = "error",
@@ -980,7 +1000,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
             })
             .ToList();
 
-        issues.AddRange(validation.Warnings.Select(warning => new StudioWorkflowValidationIssue
+        issues.AddRange((validation.Warnings ?? []).Select(warning => new StudioWorkflowValidationIssue
         {
             Severity = "warning",
             Scope = "package",
@@ -1066,10 +1086,11 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         return JsonSerializer.Serialize(state, EditorStateOptions);
     }
 
-    private WorkflowEditorState ReadEditorState(WorkflowGraph graph)
+    private WorkflowEditorState ReadEditorState(WorkflowGraph? graph)
     {
-        // EditorMetadata is null on a freshly generated graph (server omits the empty dict).
-        if (graph.EditorMetadata is null ||
+        // The graph itself can be null when the server emits an explicit JSON null for it, and EditorMetadata
+        // is null when the server emits an explicit null for that key (an omitted key keeps the initializer).
+        if (graph?.EditorMetadata is null ||
             !graph.EditorMetadata.TryGetValue(EditorStateKey, out var raw) ||
             string.IsNullOrWhiteSpace(raw))
         {

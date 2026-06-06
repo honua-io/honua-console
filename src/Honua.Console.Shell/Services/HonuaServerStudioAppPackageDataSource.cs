@@ -1,3 +1,4 @@
+using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 // The server wire enum, not the editor-catalog enum Honua.Console.Shell.Models.StudioPackageFamily.
@@ -365,10 +366,11 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         StudioAppEditorState currentState,
         AppGenerationResult result)
     {
-        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
-        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
-        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the
-        // page (mirrors the map/dashboard clients' defensive mapping).
+        // Each collection declares a non-null initializer, but System.Text.Json overrides it with null when
+        // the server emits an explicit JSON null for the key (an omitted key keeps the initializer), so every
+        // collection on the deserialized result may be null. Guard each before LINQ — otherwise a perfectly
+        // valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the page
+        // (mirrors the map/dashboard clients' defensive mapping).
         var warnings = new List<string>();
         if (result.Validation is not null)
         {
@@ -474,9 +476,9 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         state.ItemId = draft.ItemId == Guid.Empty ? null : draft.ItemId;
         state.Generation = draft.Generation;
 
-        StudioAppPackageMapper.ApplyEnvelopeBody(state, draft.Envelope.Body);
+        StudioAppPackageMapper.ApplyEnvelopeBody(state, draft.Envelope?.Body);
 
-        if (draft.Envelope.PublicationIntent is { } intent)
+        if (draft.Envelope?.PublicationIntent is { } intent)
         {
             if (!string.IsNullOrWhiteSpace(intent.Visibility))
             {
@@ -492,10 +494,11 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         return state;
     }
 
-    private static StudioAppValidationView ToValidationView(StudioValidationSummary summary)
+    private static StudioAppValidationView ToValidationView(StudioValidationSummary? summary)
     {
-        var isValid = summary.Status is StudioPackageValidationStatus.Valid or StudioPackageValidationStatus.Warning;
-        var issues = summary.Diagnostics
+        var isValid = (summary?.Status ?? StudioPackageValidationStatus.NotValidated)
+            is StudioPackageValidationStatus.Valid or StudioPackageValidationStatus.Warning;
+        var issues = (summary?.Diagnostics ?? [])
             .Select(diagnostic => new StudioAppValidationItem(
                 diagnostic.Severity.ToString(),
                 diagnostic.Code,
@@ -506,7 +509,13 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
     }
 
     private static StudioAppCapabilityState ToCapabilityState(string contract, StudioEndpointIssue issue) =>
-        new(Surface, issue.State, contract, issue.Detail);
+        new(
+            Surface,
+            issue.State,
+            issue.Contract ?? contract,
+            issue.StatusCode is null
+                ? issue.Detail
+                : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
 
     private static StudioAppCommandResult Failure(string message, StudioAppCapabilityState? issue = null) =>
         new(false, message, Issue: issue);

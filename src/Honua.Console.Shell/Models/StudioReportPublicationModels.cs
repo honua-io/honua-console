@@ -71,17 +71,20 @@ public static class StudioReportPublicationMapper
         ArgumentNullException.ThrowIfNull(detail);
 
         var route = detail.Route;
-        var activeTitle = detail.Versions
+        // The wire DTO declares Versions/Dependencies non-nullable with a [] initializer, but
+        // System.Text.Json overrides that initializer with null when the server emits an explicit JSON null
+        // for the key (an omitted key keeps the initializer), so coalesce before every deref.
+        var activeTitle = (detail.Versions ?? [])
             .FirstOrDefault(version => string.Equals(version.VersionId, route.ActiveVersionId, StringComparison.Ordinal))?
             .Title;
 
-        var versions = detail.Versions
+        var versions = (detail.Versions ?? [])
             .Select(version => new StudioReportPublicationVersionView(
                 VersionId: version.VersionId,
                 Revision: version.Revision,
                 Title: version.Title,
                 ContentHash: version.ContentHash,
-                DependencyCount: version.Dependencies.Length,
+                DependencyCount: version.Dependencies?.Length ?? 0,
                 IsActive: string.Equals(version.VersionId, route.ActiveVersionId, StringComparison.Ordinal),
                 CreatedBy: version.CreatedBy,
                 CreatedAt: version.CreatedAt))
@@ -94,8 +97,8 @@ public static class StudioReportPublicationMapper
             RoutePath: route.RoutePath,
             Kind: route.Kind,
             Lifecycle: route.Lifecycle,
-            Visibility: route.Policy.Visibility,
-            Embeddable: route.Policy.Embed.AllowEmbedding,
+            Visibility: route.Policy?.Visibility ?? HonuaContentPublicationVisibilities.Private,
+            Embeddable: route.Policy?.Embed?.AllowEmbedding ?? false,
             ActiveTitle: activeTitle,
             ActiveVersionId: route.ActiveVersionId,
             ActiveRevision: route.ActiveRevision,

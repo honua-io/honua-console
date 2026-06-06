@@ -31,7 +31,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             return BlockedSession(families.Issue);
         }
 
-        var workflows = families.Data.Families
+        var workflows = (families.Data.Families ?? [])
             .Select(StudioPackageFamilyCatalog.ToOption)
             .ToArray();
 
@@ -301,7 +301,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         return session with
         {
             Draft = ToDraftHandle(refreshedDraft.Data, session.Draft.CurrentVersionId),
-            PreviewPlan = new StudioPreviewPlanView(plan.Synchronous, plan.RequiresJob, plan.Steps),
+            PreviewPlan = new StudioPreviewPlanView(plan.Synchronous, plan.RequiresJob, plan.Steps ?? []),
             ActivePackage = session.ActivePackage with
             {
                 ValidationItems = MapValidation(plan.Validation),
@@ -422,7 +422,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                     : current;
             }
 
-            var updatedEnvelope = ApplyClarificationToEnvelope(current.Data.Envelope, question, choice);
+            var updatedEnvelope = ApplyClarificationToEnvelope(current.Data.Envelope ?? new StudioPackageEnvelope(), question, choice);
             var update = new UpdateStudioPackageDraftRequest
             {
                 PackageKey = current.Data.PackageKey,
@@ -484,7 +484,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         {
             "source-binding" => envelope with
             {
-                Bindings = UpsertSourceBinding(envelope.Bindings, choice)
+                Bindings = UpsertSourceBinding(envelope.Bindings ?? [], choice)
             },
             "publish-intent" => envelope with
             {
@@ -495,7 +495,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
 
         return clarified with
         {
-            Provenance = clarified.Provenance
+            Provenance = (clarified.Provenance ?? [])
                 .Append(new StudioProvenanceRef
                 {
                     Kind = "clarification",
@@ -647,29 +647,29 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
     {
         var assumptions = new List<string>
         {
-            $"Artifact family selected as {option.PackageType} (schema {draft.Envelope.SchemaVersion}).",
+            $"Artifact family selected as {option.PackageType} (schema {draft.Envelope?.SchemaVersion ?? string.Empty}).",
             "Server validation owns final permissions, lineage, and publication records."
         };
-        assumptions.AddRange(draft.Validation.UnsupportedCapabilities.Select(capability => $"Unsupported capability: {capability}"));
+        assumptions.AddRange((draft.Validation?.UnsupportedCapabilities ?? []).Select(capability => $"Unsupported capability: {capability}"));
 
         return new StudioPackageSnapshot(
             StudioAuthoringContract.Name,
             StudioAuthoringContract.Version,
             draft.PackageKey,
             option.PackageType,
-            draft.Envelope.SchemaVersion,
+            draft.Envelope?.SchemaVersion ?? string.Empty,
             BuildTitle(option, prompt),
-            DescribeStatus(draft.Validation.Status),
+            DescribeStatus(draft.Validation?.Status ?? StudioPackageValidationStatus.NotValidated),
             lifecycle,
             assumptions,
-            MapBindings(draft.Envelope.Bindings),
+            MapBindings(draft.Envelope?.Bindings),
             MergeWarnings(clarifications, draft.Validation),
             MapValidation(draft.Validation),
-            MapProvenance(draft.Envelope.Provenance));
+            MapProvenance(draft.Envelope?.Provenance));
     }
 
-    private static IReadOnlyList<StudioDataBindingSummary> MapBindings(IReadOnlyList<StudioPackageBinding> bindings) =>
-        bindings.Select(binding => new StudioDataBindingSummary(
+    private static IReadOnlyList<StudioDataBindingSummary> MapBindings(IReadOnlyList<StudioPackageBinding>? bindings) =>
+        (bindings ?? []).Select(binding => new StudioDataBindingSummary(
             binding.Key,
             string.IsNullOrWhiteSpace(binding.Kind) ? binding.Key : binding.Kind,
             binding.Ref,
@@ -677,16 +677,16 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                 ? "Bound"
                 : $"Bound ({binding.Crs ?? $"SRID {binding.Srid}"})")).ToArray();
 
-    private static IReadOnlyList<StudioProvenanceEvent> MapProvenance(IReadOnlyList<StudioProvenanceRef> provenance) =>
-        provenance.Select(item => new StudioProvenanceEvent(
+    private static IReadOnlyList<StudioProvenanceEvent> MapProvenance(IReadOnlyList<StudioProvenanceRef>? provenance) =>
+        (provenance ?? []).Select(item => new StudioProvenanceEvent(
             string.IsNullOrWhiteSpace(item.ActorId) ? item.Kind : item.ActorId!,
             item.Rel,
             item.Ref)).ToArray();
 
-    private static IReadOnlyList<StudioValidationItem> MapValidation(StudioValidationSummary summary)
+    private static IReadOnlyList<StudioValidationItem> MapValidation(StudioValidationSummary? summary)
     {
         var items = new List<StudioValidationItem>();
-        foreach (var diagnostic in summary.Diagnostics)
+        foreach (var diagnostic in summary?.Diagnostics ?? [])
         {
             items.Add(new StudioValidationItem(
                 MapSeverity(diagnostic.Severity),
@@ -696,7 +696,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                     : $"{diagnostic.Message} ({diagnostic.Path})"));
         }
 
-        switch (summary.Status)
+        switch (summary?.Status ?? StudioPackageValidationStatus.NotValidated)
         {
             case StudioPackageValidationStatus.Valid when items.Count == 0:
                 items.Add(new StudioValidationItem(StudioValidationSeverity.Passed, "Validation passed", "The server validated the package with no diagnostics."));
@@ -711,10 +711,10 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
 
     private static IReadOnlyList<StudioPackageWarning> MergeWarnings(
         IReadOnlyList<StudioClarificationQuestion> clarifications,
-        StudioValidationSummary summary)
+        StudioValidationSummary? summary)
     {
         var warnings = new List<StudioPackageWarning>(StudioClarificationPlanner.ToWarnings(clarifications));
-        warnings.AddRange(summary.UnsupportedCapabilities.Select(capability => new StudioPackageWarning(
+        warnings.AddRange((summary?.UnsupportedCapabilities ?? []).Select(capability => new StudioPackageWarning(
             $"unsupported-{capability}",
             $"The server reports an unsupported capability: {capability}.",
             "unsupported_capability")));

@@ -299,10 +299,11 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         StudioMapEditorState currentState,
         MapGenerationResult result)
     {
-        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
-        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
-        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the
-        // page (mirrors the workflow client's defensive mapping).
+        // Each collection declares a non-null initializer, but System.Text.Json overrides it with null when
+        // the server emits an explicit JSON null for the key (an omitted key keeps the initializer), so every
+        // collection on the deserialized result may be null. Guard each before LINQ — otherwise a perfectly
+        // valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the page
+        // (mirrors the workflow client's defensive mapping).
         var warnings = new List<string>();
         if (result.Validation is not null)
         {
@@ -389,7 +390,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         // from the draft's envelope body (the same round-trip surface a save froze), so loading/reopening a
         // map restores its layers/frame/behaviour rather than a blank scaffold.
         var state = StudioMapPackageMapper.CreateTemplate();
-        StudioMapPackageMapper.ApplyEnvelopeBody(state, draft.Envelope.Body);
+        StudioMapPackageMapper.ApplyEnvelopeBody(state, draft.Envelope?.Body);
         ApplyServerIdentity(state, draft);
         return state;
     }

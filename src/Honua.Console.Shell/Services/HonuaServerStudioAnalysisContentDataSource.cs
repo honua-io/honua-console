@@ -55,8 +55,9 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             return new StudioAnalysisWorkspace([], [ToCapabilityState(issue)]);
         }
 
-        // Server omits empty collections as JSON null (same invariant the generation paths guard) — coalesce
-        // before LINQ so a zero-item list response doesn't NRE the workspace.
+        // System.Text.Json overrides the [] initializer with null when the server emits an explicit JSON null
+        // for the key (same invariant the generation paths guard) — coalesce before LINQ so a null Items on
+        // the list response doesn't NRE the workspace.
         var plans = (result.Data!.Items ?? [])
             .Select(StudioAnalysisPackageMapper.ToListItem)
             .ToArray();
@@ -315,10 +316,11 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
         StudioAnalysisPlanEditor currentPlan,
         HonuaAnalysisGenerationResult result)
     {
-        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
-        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
-        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the
-        // page (mirrors the workflow client's defensive mapping).
+        // Each collection declares a non-null initializer, but System.Text.Json overrides it with null when
+        // the server emits an explicit JSON null for the key (an omitted key keeps the initializer), so every
+        // collection on the deserialized result may be null. Guard each before LINQ — otherwise a perfectly
+        // valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the page
+        // (mirrors the workflow client's defensive mapping).
         var warnings = new List<string>();
         if (result.Validation is not null)
         {

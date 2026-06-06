@@ -58,7 +58,8 @@ public sealed class HonuaServerStudioMapCollaborationDataSource : IStudioMapColl
             return StudioMapCollaborationSession.Unbound(ToCollaborationState(activityIssue));
         }
 
-        // Server omits empty collections as JSON null; coalesce before LINQ.
+        // System.Text.Json overrides the [] initializer with null when the server emits an explicit JSON null
+        // for the key; coalesce before LINQ.
         var commentPins = (threadsResult.Data!.Threads ?? []).Select(ToCommentPin).ToArray();
         var activity = (activityResult.Data!.Activity ?? []).Select(ToActivityEntry).ToArray();
 
