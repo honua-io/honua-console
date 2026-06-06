@@ -322,7 +322,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         var warnings = new List<string>();
         if (result.Validation is { } validation)
         {
-            warnings.AddRange((validation.Issues ?? []).Where(i => i is not null).Select(i => i.Message));
+            warnings.AddRange((validation.Issues ?? []).Select(i => i.Message));
         }
 
         warnings.AddRange((result.UnmappedRequests ?? [])

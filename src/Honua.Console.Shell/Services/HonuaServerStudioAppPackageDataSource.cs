@@ -235,9 +235,10 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
             return new StudioAppVersionHistory(itemId, [], ToCapabilityState(VersionsContract, issue));
         }
 
-        var response = result.Data!;
-        var maxVersion = response.Versions.Count == 0 ? 0 : response.Versions.Max(version => version.VersionNumber);
-        var items = response.Versions
+        // Server omits an empty version list as JSON null; coalesce before LINQ.
+        var versions = result.Data!.Versions ?? [];
+        var maxVersion = versions.Count == 0 ? 0 : versions.Max(version => version.VersionNumber);
+        var items = versions
             .OrderByDescending(version => version.VersionNumber)
             .Select(version => new StudioAppVersionItem(
                 version.VersionId,

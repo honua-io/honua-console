@@ -55,7 +55,9 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             return new StudioAnalysisWorkspace([], [ToCapabilityState(issue)]);
         }
 
-        var plans = result.Data!.Items
+        // Server omits empty collections as JSON null (same invariant the generation paths guard) — coalesce
+        // before LINQ so a zero-item list response doesn't NRE the workspace.
+        var plans = (result.Data!.Items ?? [])
             .Select(StudioAnalysisPackageMapper.ToListItem)
             .ToArray();
 

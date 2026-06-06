@@ -58,8 +58,9 @@ public sealed class HonuaServerStudioMapCollaborationDataSource : IStudioMapColl
             return StudioMapCollaborationSession.Unbound(ToCollaborationState(activityIssue));
         }
 
-        var commentPins = threadsResult.Data!.Threads.Select(ToCommentPin).ToArray();
-        var activity = activityResult.Data!.Activity.Select(ToActivityEntry).ToArray();
+        // Server omits empty collections as JSON null; coalesce before LINQ.
+        var commentPins = (threadsResult.Data!.Threads ?? []).Select(ToCommentPin).ToArray();
+        var activity = (activityResult.Data!.Activity ?? []).Select(ToActivityEntry).ToArray();
 
         // Durable comments + activity are bound (BindingState null => IsBound). Presence/cursors/follow stay
         // empty: those live slots remain deferred until honua-server#1290 ships the real-time transport.

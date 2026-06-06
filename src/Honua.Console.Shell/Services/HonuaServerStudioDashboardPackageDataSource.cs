@@ -281,9 +281,11 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
             return Failure(listIssue.Detail, ToCapabilityState("GET /api/v1/studio/content-items/{itemId}/versions", listIssue));
         }
 
-        var target = versions.Data!.Versions
+        // Server omits an empty version list as JSON null; coalesce before LINQ.
+        var versionList = versions.Data!.Versions ?? [];
+        var target = versionList
             .FirstOrDefault(candidate => candidate.VersionNumber == version)
-            ?? versions.Data!.Versions.OrderByDescending(candidate => candidate.VersionNumber).FirstOrDefault();
+            ?? versionList.OrderByDescending(candidate => candidate.VersionNumber).FirstOrDefault();
 
         if (target is null)
         {
