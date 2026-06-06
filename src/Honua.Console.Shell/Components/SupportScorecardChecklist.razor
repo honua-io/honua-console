@@ -4,16 +4,16 @@
 @* trust-visibility (#166): renders the diagnosis scorecard pass/fail plus a
    per-criterion checklist.
 
-   DATA TRANSPORT NOTE: honua-support carries the scorecard as a FREE-FORM JSON
-   element (TicketDiagnosis.Scorecard). The strongly-typed per-criterion
-   booleans / failure-modes / evidence refs live on the honua-devops
-   `DiagnosisScorecardBridge` projection (kind `support-ticket-view`), for which
-   no Console transport exists yet. So this component parses the free-form
-   element defensively: top-level pass/fail + score when present, and best-effort
-   per-criterion rows from common shapes (a `criteria` object of name→bool, a
-   `criteria` array of {name, passed}, and `failureModes`). Unknown shapes fall
-   back to a raw JSON dump so no signal is lost. *@
-@if (Scorecard is { } card)
+   DATA TRANSPORT NOTE (honua-support#23): when the ticket carries the
+   authoritative `trust.scorecard`, this component reads its
+   overallResult/criteria[]/failureModes[]/evidenceRefs[] directly. When that
+   sub-object is ABSENT it degrades to parsing the FREE-FORM JSON element
+   honua-support carries on TicketDiagnosis.Scorecard: top-level pass/fail +
+   score when present, and best-effort per-criterion rows from common shapes (a
+   `criteria` object of name→bool, a `criteria` array of {name, passed}, and
+   `failureModes`). Unknown shapes fall back to a raw JSON dump so no signal is
+   lost. *@
+@if (HasCard)
 {
     <article class="console-panel support-scorecard">
         <div class="console-panel-heading">
@@ -23,6 +23,10 @@
                 <span class="support-scorecard-result @(pass ? "support-scorecard-pass" : "support-scorecard-fail")">
                     @(pass ? "PASS" : "FAIL")@(_score is { } s ? $" · {s}" : null)
                 </span>
+            }
+            @if (_confidence is { Length: > 0 } confidence)
+            {
+                <span class="console-muted">@confidence confidence</span>
             }
         </div>
 
@@ -50,7 +54,18 @@
             </ul>
         }
 
-        @if (_criteria.Count == 0 && _failureModes.Count == 0)
+        @if (_evidenceRefs.Count > 0)
+        {
+            <p class="console-kicker">Evidence</p>
+            <ul class="support-validation-list">
+                @foreach (var reference in _evidenceRefs)
+                {
+                    <li>@reference</li>
+                }
+            </ul>
+        }
+
+        @if (_criteria.Count == 0 && _failureModes.Count == 0 && _raw.Length > 0)
         {
             <p class="console-kicker">Raw scorecard</p>
             <pre class="support-scorecard-raw">@_raw</pre>
@@ -59,35 +74,63 @@
 }
 
 @code {
+    /// <summary>
+    /// Free-form diagnosis scorecard JSON (honua-support best-effort). Used only
+    /// when <see cref="Trust"/> is absent.
+    /// </summary>
     [Parameter]
     public JsonElement? Scorecard { get; set; }
 
+    /// <summary>
+    /// trust-data relay (honua-support#23): authoritative structured scorecard.
+    /// Preferred over <see cref="Scorecard"/> when present.
+    /// </summary>
+    [Parameter]
+    public SupportTrustScorecard? Trust { get; set; }
+
+    private bool _hasCard;
     private bool? _overall;
     private string? _score;
+    private string? _confidence;
     private string _raw = string.Empty;
     private readonly List<Criterion> _criteria = [];
     private readonly List<string> _failureModes = [];
+    private readonly List<string> _evidenceRefs = [];
+
+    private bool HasCard => _hasCard;
 
     private sealed record Criterion(string Name, bool? Passed);
 
     protected override void OnParametersSet()
     {
+        _hasCard = false;
         _overall = null;
         _score = null;
+        _confidence = null;
         _raw = string.Empty;
         _criteria.Clear();
         _failureModes.Clear();
+        _evidenceRefs.Clear();
+
+        // trust-data relay (honua-support#23): prefer the authoritative scorecard.
+        if (Trust is { } trust)
+        {
+            BuildFromTrust(trust);
+            return;
+        }
 
         if (Scorecard is not { ValueKind: JsonValueKind.Object } card)
         {
             if (Scorecard is { } nonObject)
             {
+                _hasCard = true;
                 _raw = nonObject.ToString();
             }
 
             return;
         }
 
+        _hasCard = true;
         _raw = Prettify(card);
 
         // Overall pass/fail: accept pass | passed | result.
@@ -130,6 +173,45 @@
                         _failureModes.Add(text);
                     }
                 }
+            }
+        }
+    }
+
+    // trust-data relay (honua-support#23): map the authoritative structured
+    // scorecard straight onto the render state (no JSON parsing).
+    private void BuildFromTrust(SupportTrustScorecard trust)
+    {
+        _hasCard = true;
+
+        if (!string.IsNullOrWhiteSpace(trust.OverallResult))
+        {
+            _overall = string.Equals(trust.OverallResult, "pass", StringComparison.OrdinalIgnoreCase);
+        }
+
+        _score = trust.Score is { } score
+            ? score.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : null;
+
+        _confidence = string.IsNullOrWhiteSpace(trust.Confidence) ? null : trust.Confidence;
+
+        foreach (var criterion in trust.Criteria)
+        {
+            _criteria.Add(new Criterion(Humanize(criterion.Name), criterion.Passed));
+        }
+
+        foreach (var mode in trust.FailureModes)
+        {
+            if (!string.IsNullOrWhiteSpace(mode))
+            {
+                _failureModes.Add(mode);
+            }
+        }
+
+        foreach (var reference in trust.EvidenceRefs)
+        {
+            if (!string.IsNullOrWhiteSpace(reference))
+            {
+                _evidenceRefs.Add(reference);
             }
         }
     }

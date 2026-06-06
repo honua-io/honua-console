@@ -50,8 +50,9 @@
         </article>
 
         @* trust-visibility (#166): escalation rationale + live remote-session banner.
-           Both render from the honua-support ticket response and self-suppress when
-           the ticket is not escalated / no session is implied. *@
+           Both prefer the authoritative trust.* envelope (honua-support#23) and fall
+           back to the loose ticket fields; they self-suppress when the ticket is not
+           escalated / no session is implied. *@
         <SupportEscalationRationaleCard Ticket="_ticket" />
         <SupportRemoteSessionBanner Ticket="_ticket" />
 
@@ -98,11 +99,13 @@
                     </ul>
                 }
             </article>
-
-            @* trust-visibility (#166): pass/fail scorecard checklist. Self-suppresses
-               when the diagnosis carries no scorecard element. *@
-            <SupportScorecardChecklist Scorecard="diagnosis.Scorecard" />
         }
+
+        @* trust-visibility (#166): pass/fail scorecard checklist. Prefers the
+           authoritative trust.scorecard (honua-support#23) and falls back to the
+           free-form diagnosis scorecard. Self-suppresses when neither is present. *@
+        <SupportScorecardChecklist Trust="_ticket.Trust?.Scorecard"
+                                   Scorecard="_ticket.Diagnosis?.Scorecard" />
     }
 </section>
 

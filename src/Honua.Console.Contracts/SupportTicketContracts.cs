@@ -148,6 +148,119 @@ public sealed record SupportAccessBoundary
     public IReadOnlyList<string> Exclusions { get; init; } = [];
 }
 
+// ===== trust-data relay (honua-support#23) — AUTHORITATIVE trust object ======
+// SHARED CONTRACT: honua-support is adding an authoritative `trust` object to the
+// GET /tickets/{id} TicketResponse, relayed from the honua-devops ConsoleBridge
+// `support-ticket-view` projection via SupportGateway.PostDiagnosisAsync. When
+// present it SUPERSEDES the best-effort fields below (delegated-session expiry,
+// customer-visible flag, per-criterion scorecard, escalation rationale). The
+// trust surface PREFERS these fields and degrades to the existing best-effort
+// rendering when `trust` (or a sub-object) is absent, so the Console is safe to
+// ship before support#23 lands. Unmodelled wire fields are tolerated
+// (case-insensitive, ignore-missing).
+//
+// Wire shape (camelCase):
+//   "trust": {
+//     "delegatedSession": { mode, establishedAt?, expiresAt?, customerVisible, active },
+//     "scorecard": { overallResult, score?, confidence?, criteria[], failureModes[], evidenceRefs[] },
+//     "escalation": { escalated, trigger?, signal?, justification?, accessScope?,
+//                     ttlMinutes?, rollbackIntent?, approvedBy?, approvedAt? }
+//   }
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative trust envelope surfaced on
+/// the ticket response. Any sub-object may be null; consumers prefer it when
+/// present and fall back to the loose best-effort ticket fields otherwise.
+/// </summary>
+public sealed record SupportTicketTrust
+{
+    /// <summary>Authoritative delegated/remote-session state (mode, expiry, customer-visible, active).</summary>
+    public SupportTrustDelegatedSession? DelegatedSession { get; init; }
+
+    /// <summary>Authoritative structured diagnosis scorecard (overall result + per-criterion booleans).</summary>
+    public SupportTrustScorecard? Scorecard { get; init; }
+
+    /// <summary>Authoritative escalation rationale (escalated flag + trigger/signal/justification/...).</summary>
+    public SupportTrustEscalation? Escalation { get; init; }
+}
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative delegated-session state.
+/// <see cref="ExpiresAt"/> is the concrete server-side expiry (anchors the TTL
+/// countdown directly), <see cref="CustomerVisible"/> is the explicit flag (no
+/// policy inference), and <see cref="Active"/> is the live session state.
+/// </summary>
+public sealed record SupportTrustDelegatedSession
+{
+    /// <summary><c>disabled</c> | <c>read-only</c> | <c>operator-scoped</c>.</summary>
+    public string Mode { get; init; } = string.Empty;
+
+    public DateTimeOffset? EstablishedAt { get; init; }
+
+    public DateTimeOffset? ExpiresAt { get; init; }
+
+    public bool CustomerVisible { get; init; }
+
+    public bool Active { get; init; }
+}
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative structured diagnosis
+/// scorecard — the per-criterion booleans / failure modes / evidence refs that
+/// were previously only reachable as free-form JSON.
+/// </summary>
+public sealed record SupportTrustScorecard
+{
+    /// <summary><c>pass</c> | <c>fail</c>.</summary>
+    public string OverallResult { get; init; } = string.Empty;
+
+    public double? Score { get; init; }
+
+    /// <summary><c>low</c> | <c>medium</c> | <c>high</c>. Optional.</summary>
+    public string? Confidence { get; init; }
+
+    public IReadOnlyList<SupportTrustCriterion> Criteria { get; init; } = [];
+
+    public IReadOnlyList<string> FailureModes { get; init; } = [];
+
+    public IReadOnlyList<string> EvidenceRefs { get; init; } = [];
+}
+
+/// <summary>trust-data relay (honua-support#23): one scorecard criterion.</summary>
+public sealed record SupportTrustCriterion
+{
+    public string Name { get; init; } = string.Empty;
+
+    public bool Passed { get; init; }
+}
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative escalation rationale.
+/// Supersedes <see cref="SupportEscalationRationale"/> (the loose diagnosis-borne
+/// rationale) when present.
+/// </summary>
+public sealed record SupportTrustEscalation
+{
+    public bool Escalated { get; init; }
+
+    public string? Trigger { get; init; }
+
+    public string? Signal { get; init; }
+
+    public string? Justification { get; init; }
+
+    public string? AccessScope { get; init; }
+
+    public int? TtlMinutes { get; init; }
+
+    public string? RollbackIntent { get; init; }
+
+    public string? ApprovedBy { get; init; }
+
+    public DateTimeOffset? ApprovedAt { get; init; }
+}
+// ===== end trust-data relay (honua-support#23) ===============================
+
 /// <summary>
 /// Mirrors the honua-support <c>TicketResponse</c> shape (the fields the Console
 /// loop needs: phase, customer status, diagnosis with guided commands, and the
@@ -200,6 +313,15 @@ public sealed record SupportTicketResponse
     public SupportAccessBoundary? AccessBoundary { get; init; }
     // -------------------------------------------------------------------------
 
+    // ---- trust-data relay (honua-support#23) --------------------------------
+    /// <summary>
+    /// Authoritative trust envelope (delegated session, structured scorecard,
+    /// escalation rationale). Null until honua-support#23 ships; the trust
+    /// surface degrades to the best-effort fields above when absent.
+    /// </summary>
+    public SupportTicketTrust? Trust { get; init; }
+    // -------------------------------------------------------------------------
+
     public string? ResolutionSummary { get; init; }
 
     public SupportTicketApproval? Approval { get; init; }
@@ -228,4 +350,10 @@ public sealed record SupportTicketResponse
 // trust-visibility (#166): escalation rationale + access boundary nested shapes.
 [JsonSerializable(typeof(SupportEscalationRationale))]
 [JsonSerializable(typeof(SupportAccessBoundary))]
+// trust-data relay (honua-support#23): authoritative trust envelope shapes.
+[JsonSerializable(typeof(SupportTicketTrust))]
+[JsonSerializable(typeof(SupportTrustDelegatedSession))]
+[JsonSerializable(typeof(SupportTrustScorecard))]
+[JsonSerializable(typeof(SupportTrustCriterion))]
+[JsonSerializable(typeof(SupportTrustEscalation))]
 public sealed partial class SupportTicketJsonContext : JsonSerializerContext;
