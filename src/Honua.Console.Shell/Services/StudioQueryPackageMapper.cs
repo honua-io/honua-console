@@ -81,7 +81,8 @@ public static class StudioQueryPackageMapper
         var item = response.Item;
         var version = response.Version;
         var content = version.SavedQuery ?? new HonuaSavedQueryContent();
-        var metadata = content.Metadata;
+        // Metadata is null when the server omits an empty object (source-gen); coalesce before lookups.
+        var metadata = content.Metadata ?? EmptyMetadata;
 
         var query = new StudioQueryEditor
         {
@@ -105,7 +106,7 @@ public static class StudioQueryPackageMapper
             query.Combinator = string.Equals(plan.Combinator, HonuaFilterPlanCombinators.Or, StringComparison.OrdinalIgnoreCase)
                 ? StudioQueryCombinators.Or
                 : StudioQueryCombinators.And;
-            foreach (var clause in plan.Clauses)
+            foreach (var clause in plan.Clauses ?? [])
             {
                 var predicate = ToPredicate(clause);
                 if (predicate is not null)
@@ -115,7 +116,7 @@ public static class StudioQueryPackageMapper
             }
         }
 
-        foreach (var field in content.OutFields)
+        foreach (var field in content.OutFields ?? [])
         {
             if (!string.IsNullOrWhiteSpace(field))
             {
@@ -144,7 +145,10 @@ public static class StudioQueryPackageMapper
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(content);
 
-        var metadata = content.Metadata;
+        // The server omits an empty metadata object (System.Text.Json source-gen serializes it as null), so
+        // a generated query commonly arrives with Metadata == null. Coalesce to an empty map before any
+        // TryGetValue/GetValueOrDefault lookup — otherwise ResolveTitle NREs and the generate turn freezes.
+        var metadata = content.Metadata ?? EmptyMetadata;
 
         // Server-owned identity (QueryId/Version/ETag) stays put; only the authored content is replaced.
         current.Title = ResolveTitle(new HonuaAnalysisContentItem { Title = current.Title }, metadata);
@@ -165,7 +169,7 @@ public static class StudioQueryPackageMapper
             current.Combinator = string.Equals(plan.Combinator, HonuaFilterPlanCombinators.Or, StringComparison.OrdinalIgnoreCase)
                 ? StudioQueryCombinators.Or
                 : StudioQueryCombinators.And;
-            foreach (var clause in plan.Clauses)
+            foreach (var clause in plan.Clauses ?? [])
             {
                 var predicate = ToPredicate(clause);
                 if (predicate is not null)
@@ -176,7 +180,7 @@ public static class StudioQueryPackageMapper
         }
 
         current.OutFields.Clear();
-        foreach (var field in content.OutFields)
+        foreach (var field in content.OutFields ?? [])
         {
             if (!string.IsNullOrWhiteSpace(field))
             {
@@ -401,6 +405,8 @@ public static class StudioQueryPackageMapper
             element.EnumerateArray().Select(RenderAttribute)),
         _ => element.GetRawText()
     };
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyMetadata = new Dictionary<string, string>(0);
 
     private static string ResolveTitle(HonuaAnalysisContentItem item, IReadOnlyDictionary<string, string> metadata)
     {

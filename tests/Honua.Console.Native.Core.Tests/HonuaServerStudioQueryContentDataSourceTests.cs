@@ -276,6 +276,43 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
     }
 
     [Fact]
+    public async Task Generate_ServerOmitsEmptyCollections_MapsWithoutThrowing()
+    {
+        // The server serializes empty collections/maps as explicit JSON null (System.Text.Json overrides the
+        // DTO's non-null initializer on deserialize), so a generated query commonly arrives with
+        // Metadata/OutFields/Clauses == null. The mapper must coalesce before any lookup/enumeration rather
+        // than NRE and freeze the generate turn (regression: StudioQueryPackageMapper.ResolveTitle).
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromData(
+                new HonuaSavedQueryGenerationResult
+                {
+                    Status = "generated",
+                    Rationale = "Proposed a query.",
+                    Query = new HonuaSavedQueryContent
+                    {
+                        NaturalLanguageQuery = "every parcel",
+                        ServiceName = "parcels",
+                        LayerId = 3,
+                        OutFields = null!,
+                        Metadata = null!,
+                        FilterPlan = new HonuaFilterPlan { Combinator = HonuaFilterPlanCombinators.And, Clauses = null! }
+                    }
+                })
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioQueryEditor(), new StudioQueryGenerationRequest { Prompt = "all parcels" });
+
+        Assert.True(outcome.IsGenerated);
+        Assert.NotNull(outcome.Query);
+        Assert.Equal("parcels", outcome.Query!.ServiceName);
+        Assert.Equal(3, outcome.Query.LayerId);
+        Assert.Empty(outcome.Query.Predicates);
+        Assert.Empty(outcome.Query.OutFields);
+    }
+
+    [Fact]
     public async Task Generate_ServerLacksContract_SurfacesUnsupportedNotMissingBinding()
     {
         var client = new FakeQueryContentClient
