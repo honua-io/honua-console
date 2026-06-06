@@ -217,11 +217,15 @@ public sealed class HttpStudioMapGenerationClient : IStudioMapGenerationClient, 
                 return StudioEndpointResult<TResponse>.FromIssue(CreateIssue(contract, response.StatusCode, serverDetail));
             }
 
-            StudioApiResponse<TResponse>? envelope;
+            // The generation endpoints return the BARE result object ({status, package, rationale, ...}) via
+            // Results.Json — NOT wrapped in the StudioApiResponse {success, data} envelope the package
+            // lifecycle endpoints use. Deserialize the payload directly (mirrors the query/dashboard
+            // generation clients); treating it as an envelope yields a null Data and a false "no data" error.
+            TResponse? payload;
             try
             {
-                envelope = await response.Content
-                    .ReadFromJsonAsync<StudioApiResponse<TResponse>>(JsonOptions, cancellationToken)
+                payload = await response.Content
+                    .ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (JsonException ex)
@@ -233,15 +237,15 @@ public sealed class HttpStudioMapGenerationClient : IStudioMapGenerationClient, 
                     (int)response.StatusCode));
             }
 
-            if (envelope?.Success == true && envelope.Data is not null)
+            if (payload is not null)
             {
-                return StudioEndpointResult<TResponse>.FromData(envelope.Data);
+                return StudioEndpointResult<TResponse>.FromData(payload);
             }
 
             return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
                 "Unavailable",
                 contract,
-                envelope?.Message ?? "The Honua server map generation response did not include data.",
+                "The Honua server map generation response was empty.",
                 (int)response.StatusCode));
         }
     }
