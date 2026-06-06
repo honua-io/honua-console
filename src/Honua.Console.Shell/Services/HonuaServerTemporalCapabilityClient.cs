@@ -229,7 +229,9 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
             return new ReplicaConflictQueue([], ToBindingState(issue));
         }
 
-        var replicas = result.Data!.Replicas
+        // System.Text.Json overrides the [] initializer with null when the server emits an explicit JSON null
+        // for the key; coalesce before LINQ (matches the rest of this file's deserialized-DTO guards).
+        var replicas = (result.Data!.Replicas ?? [])
             .Select(summary => ToDisconnectedReplica(summary, sourceId))
             .ToArray();
 
