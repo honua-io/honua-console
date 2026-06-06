@@ -7779,3 +7779,327 @@ p {
     align-items: center;
     gap: 0.4rem;
 }
+
+/* In-product support loop (#164) */
+.support-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+@media (max-width: 960px) {
+    .support-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.support-symptoms-field {
+    display: block;
+    margin-top: 1rem;
+}
+
+.support-symptoms-field > span {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+}
+
+.support-symptoms-field textarea {
+    width: 100%;
+    resize: vertical;
+}
+
+.support-context-panel {
+    position: sticky;
+    top: 1rem;
+}
+
+.support-context-list {
+    margin: 0;
+}
+
+.support-context-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--honua-border, rgba(148, 163, 184, 0.25));
+}
+
+.support-context-row dt {
+    font-weight: 600;
+    margin: 0;
+}
+
+.support-context-row dd {
+    margin: 0;
+    text-align: right;
+    word-break: break-word;
+}
+
+.support-context-errors {
+    margin-top: 1rem;
+}
+
+.support-context-errors ul,
+.support-command-list,
+.support-validation-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.support-command-list li {
+    margin-bottom: 0.4rem;
+}
+
+.support-command-list code {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.3rem;
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
+}
+
+.support-phase-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
+}
+
+/* L0 self-service deflection (#165): assistant box + KB search above the form */
+.support-selfservice-panel {
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.support-assistant,
+.support-kb {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.support-assistant-log {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: 22rem;
+    overflow-y: auto;
+    padding: 0.75rem;
+    border: 1px solid var(--honua-border, rgba(148, 163, 184, 0.25));
+    border-radius: 0.5rem;
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.08));
+}
+
+.support-assistant-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.support-assistant-turn-user {
+    align-items: flex-end;
+    text-align: right;
+}
+
+.support-assistant-author {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--honua-text-muted, rgba(100, 116, 139, 0.9));
+}
+
+.support-assistant-body {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.support-assistant-turn-user .support-assistant-body {
+    padding: 0.45rem 0.7rem;
+    border-radius: 0.6rem;
+    background: var(--honua-surface, rgba(148, 163, 184, 0.18));
+    display: inline-block;
+}
+
+.support-assistant-ask,
+.support-kb-search {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.support-kb-search {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.support-kb-search .console-input {
+    flex: 1;
+}
+
+.support-kb-results {
+    list-style: none;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.support-kb-result {
+    border: 1px solid var(--honua-border, rgba(148, 163, 184, 0.25));
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.support-kb-result-toggle {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.6rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.support-kb-result-toggle:hover {
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.1));
+}
+
+.support-kb-result-title {
+    font-weight: 600;
+}
+
+.support-kb-result-symptom {
+    font-size: 0.85rem;
+}
+
+.support-kb-result-detail {
+    padding: 0 0.75rem 0.75rem;
+}
+
+.support-kb-result-detail ul,
+.support-kb-result-detail ol {
+    margin: 0.35rem 0 0.75rem;
+    padding-left: 1.25rem;
+}
+/* trust-visibility (#166): escalation rationale, remote-session banner, scorecard. */
+.support-escalation-card {
+    border-left: 4px solid #d97706;
+}
+
+.support-escalation-headline {
+    font-weight: 600;
+    margin: 0.25rem 0 0.5rem;
+}
+
+.support-session-banner {
+    border-left: 4px solid var(--honua-accent, #0f766e);
+}
+
+.support-session-banner.support-session-active {
+    border-left-color: #d97706;
+}
+
+.support-session-banner.support-session-expired {
+    border-left-color: #b91c1c;
+}
+
+.support-session-countdown {
+    font-size: 1.05rem;
+    margin: 0.25rem 0;
+}
+
+.support-session-countdown strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.support-session-expiry,
+.support-session-visibility {
+    margin: 0.25rem 0;
+}
+
+.support-session-actions {
+    margin-top: 0.75rem;
+}
+
+.support-session-link {
+    font-weight: 600;
+    color: var(--honua-accent-strong, #134e4a);
+    text-decoration: none;
+}
+
+.support-session-link:hover {
+    text-decoration: underline;
+}
+
+.support-scorecard-result {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.support-scorecard-pass {
+    color: #065f46;
+    background: rgba(16, 185, 129, 0.15);
+}
+
+.support-scorecard-fail {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.support-scorecard-list {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+}
+
+.support-scorecard-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.support-scorecard-mark {
+    font-weight: 700;
+    width: 1rem;
+    text-align: center;
+}
+
+.support-scorecard-ok .support-scorecard-mark {
+    color: #059669;
+}
+
+.support-scorecard-bad .support-scorecard-mark {
+    color: #dc2626;
+}
+
+.support-scorecard-unknown .support-scorecard-mark {
+    color: var(--honua-muted, #64748b);
+}
+
+.support-scorecard-raw {
+    margin: 0.5rem 0 0;
+    padding: 0.75rem;
+    border-radius: 0.4rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    background: var(--honua-surface-muted, rgba(148, 163, 184, 0.15));
+}
+
+.console-nav-help {
+    margin-top: auto;
+}

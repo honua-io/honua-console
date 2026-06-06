@@ -670,6 +670,9 @@ public sealed class ConsoleOperateObservabilityClientTests
                     ["Live investigation note"])
             ]));
 
+        public Task<OperateSectionResult<IReadOnlyList<OperateRecentError>>> GetRecentErrorsAsync(int limit = 10, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<IReadOnlyList<OperateRecentError>>.Allowed([]));
+
     }
 
     private static OperateJobRun BuildRenderingJob(

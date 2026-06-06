@@ -1,0 +1,282 @@
+@using System.Text.Json
+@using Honua.Console.Contracts
+
+@* trust-visibility (#166): renders the diagnosis scorecard pass/fail plus a
+   per-criterion checklist.
+
+   DATA TRANSPORT NOTE (honua-support#23): when the ticket carries the
+   authoritative `trust.scorecard`, this component reads its
+   overallResult/criteria[]/failureModes[]/evidenceRefs[] directly. When that
+   sub-object is ABSENT it degrades to parsing the FREE-FORM JSON element
+   honua-support carries on TicketDiagnosis.Scorecard: top-level pass/fail +
+   score when present, and best-effort per-criterion rows from common shapes (a
+   `criteria` object of name→bool, a `criteria` array of {name, passed}, and
+   `failureModes`). Unknown shapes fall back to a raw JSON dump so no signal is
+   lost. *@
+@if (HasCard)
+{
+    <article class="console-panel support-scorecard">
+        <div class="console-panel-heading">
+            <h2>Diagnosis scorecard</h2>
+            @if (_overall is { } pass)
+            {
+                <span class="support-scorecard-result @(pass ? "support-scorecard-pass" : "support-scorecard-fail")">
+                    @(pass ? "PASS" : "FAIL")@(_score is { } s ? $" · {s}" : null)
+                </span>
+            }
+            @if (_confidence is { Length: > 0 } confidence)
+            {
+                <span class="console-muted">@confidence confidence</span>
+            }
+        </div>
+
+        @if (_criteria.Count > 0)
+        {
+            <ul class="support-scorecard-list">
+                @foreach (var criterion in _criteria)
+                {
+                    <li class="@(criterion.Passed == true ? "support-scorecard-ok" : criterion.Passed == false ? "support-scorecard-bad" : "support-scorecard-unknown")">
+                        <span class="support-scorecard-mark">@Mark(criterion.Passed)</span>
+                        <span>@criterion.Name</span>
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (_failureModes.Count > 0)
+        {
+            <p class="console-kicker">Failure modes</p>
+            <ul class="support-validation-list">
+                @foreach (var mode in _failureModes)
+                {
+                    <li>@mode</li>
+                }
+            </ul>
+        }
+
+        @if (_evidenceRefs.Count > 0)
+        {
+            <p class="console-kicker">Evidence</p>
+            <ul class="support-validation-list">
+                @foreach (var reference in _evidenceRefs)
+                {
+                    <li>@reference</li>
+                }
+            </ul>
+        }
+
+        @if (_criteria.Count == 0 && _failureModes.Count == 0 && _raw.Length > 0)
+        {
+            <p class="console-kicker">Raw scorecard</p>
+            <pre class="support-scorecard-raw">@_raw</pre>
+        }
+    </article>
+}
+
+@code {
+    /// <summary>
+    /// Free-form diagnosis scorecard JSON (honua-support best-effort). Used only
+    /// when <see cref="Trust"/> is absent.
+    /// </summary>
+    [Parameter]
+    public JsonElement? Scorecard { get; set; }
+
+    /// <summary>
+    /// trust-data relay (honua-support#23): authoritative structured scorecard.
+    /// Preferred over <see cref="Scorecard"/> when present.
+    /// </summary>
+    [Parameter]
+    public SupportTrustScorecard? Trust { get; set; }
+
+    private bool _hasCard;
+    private bool? _overall;
+    private string? _score;
+    private string? _confidence;
+    private string _raw = string.Empty;
+    private readonly List<Criterion> _criteria = [];
+    private readonly List<string> _failureModes = [];
+    private readonly List<string> _evidenceRefs = [];
+
+    private bool HasCard => _hasCard;
+
+    private sealed record Criterion(string Name, bool? Passed);
+
+    protected override void OnParametersSet()
+    {
+        _hasCard = false;
+        _overall = null;
+        _score = null;
+        _confidence = null;
+        _raw = string.Empty;
+        _criteria.Clear();
+        _failureModes.Clear();
+        _evidenceRefs.Clear();
+
+        // trust-data relay (honua-support#23): prefer the authoritative scorecard.
+        if (Trust is { } trust)
+        {
+            BuildFromTrust(trust);
+            return;
+        }
+
+        if (Scorecard is not { ValueKind: JsonValueKind.Object } card)
+        {
+            if (Scorecard is { } nonObject)
+            {
+                _hasCard = true;
+                _raw = nonObject.ToString();
+            }
+
+            return;
+        }
+
+        _hasCard = true;
+        _raw = Prettify(card);
+
+        // Overall pass/fail: accept pass | passed | result.
+        if (TryGetBool(card, out var pass, "pass", "passed"))
+        {
+            _overall = pass;
+        }
+        else if (card.TryGetProperty("result", out var result) && result.ValueKind == JsonValueKind.String)
+        {
+            var text = result.GetString();
+            _overall = string.Equals(text, "pass", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Score: accept score (number or string).
+        if (card.TryGetProperty("score", out var score))
+        {
+            _score = score.ValueKind switch
+            {
+                JsonValueKind.Number => score.ToString(),
+                JsonValueKind.String => score.GetString(),
+                _ => null
+            };
+        }
+
+        // Per-criterion: a `criteria` object (name -> bool) or array of objects.
+        if (card.TryGetProperty("criteria", out var criteria))
+        {
+            ParseCriteria(criteria);
+        }
+
+        // Failure modes: an array of strings.
+        foreach (var key in new[] { "failureModes", "failures" })
+        {
+            if (card.TryGetProperty(key, out var modes) && modes.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var mode in modes.EnumerateArray())
+                {
+                    if (mode.ValueKind == JsonValueKind.String && mode.GetString() is { Length: > 0 } text)
+                    {
+                        _failureModes.Add(text);
+                    }
+                }
+            }
+        }
+    }
+
+    // trust-data relay (honua-support#23): map the authoritative structured
+    // scorecard straight onto the render state (no JSON parsing).
+    private void BuildFromTrust(SupportTrustScorecard trust)
+    {
+        _hasCard = true;
+
+        if (!string.IsNullOrWhiteSpace(trust.OverallResult))
+        {
+            _overall = string.Equals(trust.OverallResult, "pass", StringComparison.OrdinalIgnoreCase);
+        }
+
+        _score = trust.Score is { } score
+            ? score.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : null;
+
+        _confidence = string.IsNullOrWhiteSpace(trust.Confidence) ? null : trust.Confidence;
+
+        foreach (var criterion in trust.Criteria)
+        {
+            _criteria.Add(new Criterion(Humanize(criterion.Name), criterion.Passed));
+        }
+
+        foreach (var mode in trust.FailureModes)
+        {
+            if (!string.IsNullOrWhiteSpace(mode))
+            {
+                _failureModes.Add(mode);
+            }
+        }
+
+        foreach (var reference in trust.EvidenceRefs)
+        {
+            if (!string.IsNullOrWhiteSpace(reference))
+            {
+                _evidenceRefs.Add(reference);
+            }
+        }
+    }
+
+    private void ParseCriteria(JsonElement criteria)
+    {
+        if (criteria.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in criteria.EnumerateObject())
+            {
+                _criteria.Add(new Criterion(Humanize(property.Name), AsBool(property.Value)));
+            }
+        }
+        else if (criteria.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in criteria.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                    ? n.GetString() ?? "criterion"
+                    : "criterion";
+                bool? passed = TryGetBool(item, out var p, "passed", "pass") ? p : null;
+                _criteria.Add(new Criterion(Humanize(name), passed));
+            }
+        }
+    }
+
+    private static bool? AsBool(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        _ => null
+    };
+
+    private static bool TryGetBool(JsonElement parent, out bool value, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (parent.TryGetProperty(name, out var element) &&
+                element.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                value = element.ValueKind == JsonValueKind.True;
+                return true;
+            }
+        }
+
+        value = false;
+        return false;
+    }
+
+    private static string Mark(bool? passed) => passed switch
+    {
+        true => "✓",
+        false => "✗",
+        _ => "•"
+    };
+
+    private static string Humanize(string code) =>
+        string.IsNullOrWhiteSpace(code) ? code : code.Replace('-', ' ').Replace('_', ' ');
+
+    // GetRawText() is reflection-free and AOT-safe; the element is already
+    // materialised, so this just echoes its source JSON for the fallback dump.
+    private static string Prettify(JsonElement element) => element.GetRawText();
+}

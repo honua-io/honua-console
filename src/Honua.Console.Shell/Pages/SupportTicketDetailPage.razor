@@ -1,0 +1,233 @@
+@page "/support/tickets/{TicketId}"
+@implements IDisposable
+@inject IConsoleSupportTicketClient SupportClient
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Support</p>
+        <h1>Ticket @TicketId</h1>
+        <p>
+            This view polls honua-support for the live phase, the guided commands the diagnosis produced, and the
+            validation steps, so the support loop closes in-product without leaving the Console.
+        </p>
+    </div>
+
+    @if (_ticket is null && !_loaded)
+    {
+        <article class="console-panel">
+            <p class="console-muted">Loading ticket...</p>
+        </article>
+    }
+    else if (_ticket is null)
+    {
+        <ConsoleStateView Kind="@StateKind"
+                          Kicker="Support"
+                          Title="@OperateSectionPresentation.Title(_status)"
+                          Message="@(_message ?? OperateSectionPresentation.FallbackMessage(_status))"
+                          ActionHref="/support"
+                          ActionLabel="Back to support" />
+    }
+    else
+    {
+        <article class="console-panel">
+            <div class="console-panel-heading">
+                <h2>Status</h2>
+                <span class="support-phase-badge">@PhaseLabel</span>
+            </div>
+            <dl class="support-context-list">
+                <ContextRow Label="Customer status" Value="@_ticket.CustomerStatus" />
+                <ContextRow Label="Phase" Value="@_ticket.Phase" />
+                <ContextRow Label="Severity" Value="@_ticket.Severity" />
+                <ContextRow Label="Service" Value="@_ticket.Service" />
+                <ContextRow Label="Environment" Value="@_ticket.Environment" />
+                <ContextRow Label="Access mode" Value="@_ticket.AllowedAccessMode" />
+                <ContextRow Label="Assigned operator" Value="@_ticket.AssignedOperatorId" />
+                <ContextRow Label="Created" Value="@_ticket.CreatedAt.ToString("u")" />
+                <ContextRow Label="Updated" Value="@_ticket.UpdatedAt.ToString("u")" />
+                <ContextRow Label="Resolved" Value="@(_ticket.ResolvedAt?.ToString("u"))" />
+            </dl>
+            <p class="console-muted">@(_polling ? "Auto-refreshing every 5s..." : "Ticket reached a terminal phase; polling stopped.")</p>
+        </article>
+
+        @* trust-visibility (#166): escalation rationale + live remote-session banner.
+           Both prefer the authoritative trust.* envelope (honua-support#23) and fall
+           back to the loose ticket fields; they self-suppress when the ticket is not
+           escalated / no session is implied. *@
+        <SupportEscalationRationaleCard Ticket="_ticket" />
+        <SupportRemoteSessionBanner Ticket="_ticket" />
+
+        <article class="console-panel">
+            <div class="console-panel-heading">
+                <h2>Requested action</h2>
+            </div>
+            <p>@_ticket.RequestedAction</p>
+            @if (!string.IsNullOrWhiteSpace(_ticket.ResolutionSummary))
+            {
+                <p class="console-kicker">Resolution</p>
+                <p>@_ticket.ResolutionSummary</p>
+            }
+        </article>
+
+        @if (_ticket.Diagnosis is { } diagnosis)
+        {
+            <article class="console-panel">
+                <div class="console-panel-heading">
+                    <h2>Diagnosis</h2>
+                    <span class="console-muted">@diagnosis.Confidence confidence - @diagnosis.Mode</span>
+                </div>
+                <p>@diagnosis.Summary</p>
+
+                @if (diagnosis.GuidedCommands.Count > 0)
+                {
+                    <p class="console-kicker">Guided commands</p>
+                    <ol class="support-command-list">
+                        @foreach (var command in diagnosis.GuidedCommands)
+                        {
+                            <li><code>@command</code></li>
+                        }
+                    </ol>
+                }
+
+                @if (diagnosis.ValidationSteps.Count > 0)
+                {
+                    <p class="console-kicker" id="audit">Validation steps</p>
+                    <ul class="support-validation-list">
+                        @foreach (var step in diagnosis.ValidationSteps)
+                        {
+                            <li>@step</li>
+                        }
+                    </ul>
+                }
+            </article>
+        }
+
+        @* trust-visibility (#166): pass/fail scorecard checklist. Prefers the
+           authoritative trust.scorecard (honua-support#23) and falls back to the
+           free-form diagnosis scorecard. Self-suppresses when neither is present. *@
+        <SupportScorecardChecklist Trust="_ticket.Trust?.Scorecard"
+                                   Scorecard="_ticket.Diagnosis?.Scorecard" />
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string TicketId { get; set; } = string.Empty;
+
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+
+    private SupportTicketResponse? _ticket;
+    private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
+    private string? _message;
+    private bool _loaded;
+    private bool _polling;
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+    private string? _polledTicketId;
+
+    private string StateKind => _status switch
+    {
+        OperateSectionStatus.Missing => "empty",
+        OperateSectionStatus.Forbidden => "warning",
+        _ => "info"
+    };
+
+    private string PhaseLabel =>
+        string.IsNullOrWhiteSpace(_ticket?.CustomerStatus) ? _ticket?.Phase ?? "unknown" : _ticket!.CustomerStatus;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Restart the poll loop when navigating between ticket ids.
+        if (string.Equals(_polledTicketId, TicketId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        StopPolling();
+        _polledTicketId = TicketId;
+        _ticket = null;
+        _loaded = false;
+
+        if (string.IsNullOrWhiteSpace(TicketId))
+        {
+            _status = OperateSectionStatus.Missing;
+            _message = "No ticket id was supplied.";
+            _loaded = true;
+            return;
+        }
+
+        await RefreshAsync();
+        StartPolling();
+    }
+
+    private async Task RefreshAsync()
+    {
+        var result = await SupportClient.GetTicketAsync(TicketId);
+        _loaded = true;
+        if (result.IsAllowed)
+        {
+            _ticket = result.Value;
+            _status = OperateSectionStatus.Allowed;
+            _message = null;
+        }
+        else
+        {
+            _status = result.Status;
+            _message = result.Message;
+        }
+    }
+
+    private void StartPolling()
+    {
+        // No point polling a terminal ticket or an unreadable surface.
+        if (_ticket is null || IsTerminal(_ticket.Phase))
+        {
+            _polling = false;
+            return;
+        }
+
+        _polling = true;
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(PollInterval);
+        var token = _cts.Token;
+        _ = PollAsync(token);
+    }
+
+    private async Task PollAsync(CancellationToken token)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(token).ConfigureAwait(false))
+            {
+                await RefreshAsync().ConfigureAwait(false);
+                await InvokeAsync(StateHasChanged).ConfigureAwait(false);
+
+                if (_ticket is not null && IsTerminal(_ticket.Phase))
+                {
+                    _polling = false;
+                    await InvokeAsync(StateHasChanged).ConfigureAwait(false);
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposed or navigated away; stop quietly.
+        }
+    }
+
+    private void StopPolling()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+        _timer = null;
+        _cts = null;
+        _polling = false;
+    }
+
+    private static bool IsTerminal(string phase) =>
+        phase is "resolved" or "cancelled" or "closed";
+
+    public void Dispose() => StopPolling();
+}

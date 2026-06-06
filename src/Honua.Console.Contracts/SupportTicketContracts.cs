@@ -1,0 +1,451 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Honua.Console.Contracts;
+
+// SHIM(honua-support#20): These records mirror the honua-support ticket HTTP
+// surface (POST/GET /api/v1/tickets) defined in
+// Honua.Support.Api/Contracts/CreateTicketRequest.cs. honua-console takes NO
+// code dependency on honua-support; this is the single Console-side contract
+// boundary for the in-product support loop, exactly like the Operate
+// observability shim. The shared auto-bundle telemetry contract (instance URL +
+// scoped key the support service uses to pull live telemetry) is tracked
+// separately in honua-support#20; until it lands the Console attaches the
+// instance URL and an optional scoped key on the create request and ships the
+// captured context (session, env, build, route, recent errors) as structured
+// symptom context.
+//
+// Route map (concrete v1), all under /api/v1/tickets:
+//   POST /                 -> TicketWireResponse   (create)
+//   GET  /{id}             -> TicketWireResponse   (poll detail)
+//
+// JSON on the wire is camelCase.
+
+public static class SupportTicketRoutes
+{
+    public const string Tickets = "api/v1/tickets";
+
+    public static string Ticket(string id) => $"{Tickets}/{Uri.EscapeDataString(id)}";
+}
+
+/// <summary>
+/// Mirrors honua-support <c>CreateTicketRequest</c>. The Console fills the
+/// operational fields from a small form and auto-attaches captured telemetry as
+/// the structured <see cref="Context"/> block (<c>support-context-v1</c>) so
+/// customers ship context, not log dumps. <see cref="Symptoms"/> carries only the
+/// user's own description (plus L0 self-service activity).
+/// </summary>
+public sealed record CreateSupportTicketRequest
+{
+    public string Severity { get; init; } = "sev3";
+
+    public string Environment { get; init; } = string.Empty;
+
+    public string Service { get; init; } = "honua-server";
+
+    public string Symptoms { get; init; } = string.Empty;
+
+    public string RequestedAction { get; init; } = string.Empty;
+
+    public string AllowedAccessMode { get; init; } = "read-only";
+
+    public int TtlMinutes { get; init; } = 60;
+
+    public bool RollbackExpected { get; init; }
+
+    public string? InstanceUrl { get; init; }
+
+    public string? CustomerId { get; init; }
+
+    /// <summary>
+    /// Structured telemetry/context block (<c>support-context-v1</c>). Optional so
+    /// callers that omit it stay backward compatible. See <see cref="SupportContextRequest"/>.
+    /// </summary>
+    public SupportContextRequest? Context { get; init; }
+}
+
+// ===== support-context-v1 (honua-support#22) =================================
+// SHIM: mirrors honua-support's CreateTicketRequest.Context shape
+// (Honua.Support.Api/Contracts/CreateTicketRequest.cs → SupportContextRequest)
+// which is itself the C# projection of docs/contracts/support-context-v1.schema.json.
+// honua-console takes NO code dependency on honua-support; this is the Console-side
+// boundary. The Console collects these structured fields at ticket-create time and
+// honua-support persists them so honua-devops can auto-bundle telemetry / scope
+// diagnosis. Every field except SchemaVersion is optional. On the wire (camelCase):
+//   context.{ schemaVersion, user{id,email,displayName}, tenant{id,name}, envKind,
+//             appVersion, commit, route, recentErrors[], instanceUrl, scopedKey }
+// scopedKey is a SECRET (short-lived, least-privilege telemetry key): it is sent on
+// the request only and is never rendered back / echoed by the read side.
+
+/// <summary>
+/// Structured support context (<c>support-context-v1</c>, <c>schemaVersion</c> "1.0").
+/// Mirrors honua-support <c>SupportContextRequest</c>; all fields optional except
+/// <see cref="SchemaVersion"/>.
+/// </summary>
+public sealed record SupportContextRequest
+{
+    /// <summary>Contract version. Always "1.0" for v1; additive fields keep v1.</summary>
+    public string SchemaVersion { get; init; } = "1.0";
+
+    public SupportContextUser? User { get; init; }
+
+    public SupportContextTenant? Tenant { get; init; }
+
+    /// <summary>Deployment topology of the affected instance (e.g. development, staging, production).</summary>
+    public string? EnvKind { get; init; }
+
+    public string? AppVersion { get; init; }
+
+    public string? Commit { get; init; }
+
+    public string? Route { get; init; }
+
+    public IReadOnlyList<SupportContextError>? RecentErrors { get; init; }
+
+    public string? InstanceUrl { get; init; }
+
+    /// <summary>
+    /// Short-lived, least-privilege read-only telemetry key for the SaaS server-side
+    /// auto-bundle pull. SECRET — sent on the request only; never rendered/echoed back.
+    /// </summary>
+    public string? ScopedKey { get; init; }
+}
+
+/// <summary>Reporter identity for <see cref="SupportContextRequest.User"/>.</summary>
+public sealed record SupportContextUser
+{
+    public string? Id { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? DisplayName { get; init; }
+}
+
+/// <summary>Owning tenant for <see cref="SupportContextRequest.Tenant"/>.</summary>
+public sealed record SupportContextTenant
+{
+    public string? Id { get; init; }
+
+    public string? Name { get; init; }
+}
+
+/// <summary>One client-observed recent error in <see cref="SupportContextRequest.RecentErrors"/>.</summary>
+public sealed record SupportContextError
+{
+    public DateTimeOffset? Timestamp { get; init; }
+
+    public string? Message { get; init; }
+
+    public string? CorrelationId { get; init; }
+
+    public string? Path { get; init; }
+
+    public int? StatusCode { get; init; }
+}
+// ===== end support-context-v1 ================================================
+
+public sealed record SupportTicketApproval
+{
+    public string ApprovedBy { get; init; } = string.Empty;
+
+    public DateTimeOffset? ApprovedAt { get; init; }
+}
+
+public sealed record SupportTicketDiagnosis
+{
+    public string Summary { get; init; } = string.Empty;
+
+    public string Confidence { get; init; } = string.Empty;
+
+    public string Mode { get; init; } = string.Empty;
+
+    public IReadOnlyList<string> GuidedCommands { get; init; } = [];
+
+    public IReadOnlyList<string> ValidationSteps { get; init; } = [];
+
+    public DateTimeOffset DiagnosedAt { get; init; }
+
+    // ---- trust-visibility (#166) additions ----------------------------------
+    // The escalation rationale and the diagnosis scorecard travel with the
+    // honua-support ticket itself (TicketDiagnosis.Escalation / .Scorecard in
+    // Honua.Support.Api). These mirror those fields so the detail page can show
+    // *why* escalation happened and the pass/fail scorecard. honua-devops now
+    // also posts the escalation trigger/signal back onto this object; those
+    // codes are modelled on SupportEscalationRationale below and populate from
+    // the wire when present.
+    public SupportEscalationRationale? Escalation { get; init; }
+
+    /// <summary>
+    /// Free-form diagnosis scorecard exactly as honua-support emits it
+    /// (<c>TicketDiagnosis.Scorecard</c>, a raw JSON element). The richer
+    /// per-criterion booleans / failure-modes from the honua-devops
+    /// <c>support-ticket-view</c> ConsoleBridge projection are NOT reachable
+    /// today (no Console transport to that projection exists); the page renders
+    /// whatever pass/fail + criteria this object carries.
+    /// </summary>
+    public JsonElement? Scorecard { get; init; }
+    // -------------------------------------------------------------------------
+}
+
+/// <summary>
+/// trust-visibility (#166): mirrors honua-support <c>DiagnosisEscalation</c>
+/// (the escalation rationale that travels on the ticket diagnosis). The
+/// <see cref="Trigger"/>/<see cref="Signal"/> fields are populated by
+/// honua-devops posting back onto the diagnosis escalation object; they are
+/// optional and degrade to the human-readable <see cref="Justification"/> when
+/// absent. Unmodelled wire fields are tolerated (ignore-missing).
+/// </summary>
+public sealed record SupportEscalationRationale
+{
+    public string Justification { get; init; } = string.Empty;
+
+    public string AccessScope { get; init; } = string.Empty;
+
+    public int TtlMinutes { get; init; }
+
+    public string RollbackIntent { get; init; } = string.Empty;
+
+    public string? ApprovedBy { get; init; }
+
+    public DateTimeOffset? ApprovedAt { get; init; }
+
+    /// <summary>Machine trigger code honua-devops attaches (e.g. <c>error-rate-not-cleared</c>). Optional.</summary>
+    public string? Trigger { get; init; }
+
+    /// <summary>The signal that fired the trigger (e.g. <c>http_5xx_rate</c>). Optional.</summary>
+    public string? Signal { get; init; }
+}
+
+/// <summary>
+/// trust-visibility (#166): mirrors honua-support
+/// <c>SupportAccessBoundarySnapshot</c> — the access boundary that bounds any
+/// remote session for the ticket. Combined with the ticket's
+/// <c>AllowedAccessMode</c> / <c>TtlMinutes</c> this is the live remote-session
+/// state reachable today. The richer live-session fields (a concrete session
+/// expiry timestamp, customer-visible flag, audit/evidence refs) live only on
+/// the honua-devops <c>support-ticket-view</c> ConsoleBridge projection, for
+/// which no Console transport exists yet (follow-up).
+/// </summary>
+public sealed record SupportAccessBoundary
+{
+    public string FirstEscalationStep { get; init; } = string.Empty;
+
+    public string OperatorScopedRequirement { get; init; } = string.Empty;
+
+    public IReadOnlyList<string> Exclusions { get; init; } = [];
+}
+
+// ===== trust-data relay (honua-support#23) — AUTHORITATIVE trust object ======
+// SHARED CONTRACT: honua-support is adding an authoritative `trust` object to the
+// GET /tickets/{id} TicketResponse, relayed from the honua-devops ConsoleBridge
+// `support-ticket-view` projection via SupportGateway.PostDiagnosisAsync. When
+// present it SUPERSEDES the best-effort fields below (delegated-session expiry,
+// customer-visible flag, per-criterion scorecard, escalation rationale). The
+// trust surface PREFERS these fields and degrades to the existing best-effort
+// rendering when `trust` (or a sub-object) is absent, so the Console is safe to
+// ship before support#23 lands. Unmodelled wire fields are tolerated
+// (case-insensitive, ignore-missing).
+//
+// Wire shape (camelCase):
+//   "trust": {
+//     "delegatedSession": { mode, establishedAt?, expiresAt?, customerVisible, active },
+//     "scorecard": { overallResult, score?, confidence?, criteria[], failureModes[], evidenceRefs[] },
+//     "escalation": { escalated, trigger?, signal?, justification?, accessScope?,
+//                     ttlMinutes?, rollbackIntent?, approvedBy?, approvedAt? }
+//   }
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative trust envelope surfaced on
+/// the ticket response. Any sub-object may be null; consumers prefer it when
+/// present and fall back to the loose best-effort ticket fields otherwise.
+/// </summary>
+public sealed record SupportTicketTrust
+{
+    /// <summary>Authoritative delegated/remote-session state (mode, expiry, customer-visible, active).</summary>
+    public SupportTrustDelegatedSession? DelegatedSession { get; init; }
+
+    /// <summary>Authoritative structured diagnosis scorecard (overall result + per-criterion booleans).</summary>
+    public SupportTrustScorecard? Scorecard { get; init; }
+
+    /// <summary>Authoritative escalation rationale (escalated flag + trigger/signal/justification/...).</summary>
+    public SupportTrustEscalation? Escalation { get; init; }
+}
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative delegated-session state.
+/// <see cref="ExpiresAt"/> is the concrete server-side expiry (anchors the TTL
+/// countdown directly), <see cref="CustomerVisible"/> is the explicit flag (no
+/// policy inference), and <see cref="Active"/> is the live session state.
+/// </summary>
+public sealed record SupportTrustDelegatedSession
+{
+    /// <summary><c>disabled</c> | <c>read-only</c> | <c>operator-scoped</c>.</summary>
+    public string Mode { get; init; } = string.Empty;
+
+    public DateTimeOffset? EstablishedAt { get; init; }
+
+    public DateTimeOffset? ExpiresAt { get; init; }
+
+    public bool CustomerVisible { get; init; }
+
+    public bool Active { get; init; }
+}
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative structured diagnosis
+/// scorecard — the per-criterion booleans / failure modes / evidence refs that
+/// were previously only reachable as free-form JSON.
+/// </summary>
+public sealed record SupportTrustScorecard
+{
+    /// <summary><c>pass</c> | <c>fail</c>.</summary>
+    public string OverallResult { get; init; } = string.Empty;
+
+    public double? Score { get; init; }
+
+    /// <summary><c>low</c> | <c>medium</c> | <c>high</c>. Optional.</summary>
+    public string? Confidence { get; init; }
+
+    public IReadOnlyList<SupportTrustCriterion> Criteria { get; init; } = [];
+
+    public IReadOnlyList<string> FailureModes { get; init; } = [];
+
+    public IReadOnlyList<string> EvidenceRefs { get; init; } = [];
+}
+
+/// <summary>trust-data relay (honua-support#23): one scorecard criterion.</summary>
+public sealed record SupportTrustCriterion
+{
+    public string Name { get; init; } = string.Empty;
+
+    public bool Passed { get; init; }
+}
+
+/// <summary>
+/// trust-data relay (honua-support#23): authoritative escalation rationale.
+/// Supersedes <see cref="SupportEscalationRationale"/> (the loose diagnosis-borne
+/// rationale) when present.
+/// </summary>
+public sealed record SupportTrustEscalation
+{
+    public bool Escalated { get; init; }
+
+    public string? Trigger { get; init; }
+
+    public string? Signal { get; init; }
+
+    public string? Justification { get; init; }
+
+    public string? AccessScope { get; init; }
+
+    public int? TtlMinutes { get; init; }
+
+    public string? RollbackIntent { get; init; }
+
+    public string? ApprovedBy { get; init; }
+
+    public DateTimeOffset? ApprovedAt { get; init; }
+}
+// ===== end trust-data relay (honua-support#23) ===============================
+
+/// <summary>
+/// Mirrors the honua-support <c>TicketResponse</c> shape (the fields the Console
+/// loop needs: phase, customer status, diagnosis with guided commands, and the
+/// timestamps). Unmodelled server fields are tolerated (case-insensitive,
+/// ignore-missing) so the Console keeps reading as honua-support evolves.
+/// </summary>
+public sealed record SupportTicketResponse
+{
+    public string Id { get; init; } = string.Empty;
+
+    public string CustomerId { get; init; } = string.Empty;
+
+    public string Severity { get; init; } = string.Empty;
+
+    public string Environment { get; init; } = string.Empty;
+
+    public string Service { get; init; } = string.Empty;
+
+    public string Symptoms { get; init; } = string.Empty;
+
+    public string RequestedAction { get; init; } = string.Empty;
+
+    public string AllowedAccessMode { get; init; } = string.Empty;
+
+    public int TtlMinutes { get; init; }
+
+    public bool RollbackExpected { get; init; }
+
+    public string? InstanceUrl { get; init; }
+
+    public string Phase { get; init; } = string.Empty;
+
+    public string CustomerStatus { get; init; } = string.Empty;
+
+    public SupportTicketDiagnosis? Diagnosis { get; init; }
+
+    public int AttachmentCount { get; init; }
+
+    public string? AssignedOperatorId { get; init; }
+
+    public int? EscalationTier { get; init; }
+
+    // ---- trust-visibility (#166) additions ----------------------------------
+    // Escalation provenance + the access boundary, straight off the honua-support
+    // GET /tickets/{id} TicketResponse (EscalatedAt/EscalatedBy/AccessBoundary).
+    public DateTimeOffset? EscalatedAt { get; init; }
+
+    public string? EscalatedBy { get; init; }
+
+    public SupportAccessBoundary? AccessBoundary { get; init; }
+    // -------------------------------------------------------------------------
+
+    // ---- trust-data relay (honua-support#23) --------------------------------
+    /// <summary>
+    /// Authoritative trust envelope (delegated session, structured scorecard,
+    /// escalation rationale). Null until honua-support#23 ships; the trust
+    /// surface degrades to the best-effort fields above when absent.
+    /// </summary>
+    public SupportTicketTrust? Trust { get; init; }
+    // -------------------------------------------------------------------------
+
+    public string? ResolutionSummary { get; init; }
+
+    public SupportTicketApproval? Approval { get; init; }
+
+    public int PhaseHistoryCount { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public DateTimeOffset UpdatedAt { get; init; }
+
+    public DateTimeOffset? ResolvedAt { get; init; }
+}
+
+/// <summary>
+/// Source-generated serialization context for the support ticket contracts.
+/// Source generation keeps the surface trim/AOT-safe (no reflection-based
+/// serialization), per the Console runtime constraints, mirroring
+/// <see cref="OperateObservabilityJsonContext"/>.
+/// </summary>
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    PropertyNameCaseInsensitive = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(CreateSupportTicketRequest))]
+[JsonSerializable(typeof(SupportTicketResponse))]
+// support-context-v1 (honua-support#22): structured context block + nested shapes.
+[JsonSerializable(typeof(SupportContextRequest))]
+[JsonSerializable(typeof(SupportContextUser))]
+[JsonSerializable(typeof(SupportContextTenant))]
+[JsonSerializable(typeof(SupportContextError))]
+// trust-visibility (#166): escalation rationale + access boundary nested shapes.
+[JsonSerializable(typeof(SupportEscalationRationale))]
+[JsonSerializable(typeof(SupportAccessBoundary))]
+// trust-data relay (honua-support#23): authoritative trust envelope shapes.
+[JsonSerializable(typeof(SupportTicketTrust))]
+[JsonSerializable(typeof(SupportTrustDelegatedSession))]
+[JsonSerializable(typeof(SupportTrustScorecard))]
+[JsonSerializable(typeof(SupportTrustCriterion))]
+[JsonSerializable(typeof(SupportTrustEscalation))]
+public sealed partial class SupportTicketJsonContext : JsonSerializerContext;

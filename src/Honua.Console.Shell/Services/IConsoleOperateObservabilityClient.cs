@@ -42,7 +42,28 @@ public interface IConsoleOperateObservabilityClient
 
     Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the connected server's recent-error buffer
+    /// (<c>GET /api/v1/admin/observability/errors</c>) so callers can attach live
+    /// error context (e.g. the in-product support ticket loop) without forcing the
+    /// customer to copy log dumps. Returns the raw buffer rows on success.
+    /// </summary>
+    Task<OperateSectionResult<IReadOnlyList<OperateRecentError>>> GetRecentErrorsAsync(
+        int limit = 10,
+        CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// A single recent-error buffer row projected from the server admin
+/// observability errors endpoint, surfaced for context attachment.
+/// </summary>
+public sealed record OperateRecentError(
+    DateTimeOffset Timestamp,
+    string CorrelationId,
+    string Path,
+    int StatusCode,
+    string Message);
 
 public enum OperateSectionStatus
 {

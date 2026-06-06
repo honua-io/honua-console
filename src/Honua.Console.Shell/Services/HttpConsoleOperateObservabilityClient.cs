@@ -333,6 +333,32 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             : OperateSectionResult<IReadOnlyList<OperateInvestigation>>.Denied(fetch.Status, fetch.Message);
     }
 
+    public async Task<OperateSectionResult<IReadOnlyList<OperateRecentError>>> GetRecentErrorsAsync(
+        int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var safeLimit = limit < 1 ? 1 : limit;
+        var fetch = await FetchAsync(
+            $"{OperateAdminRoutes.RecentErrors}?limit={safeLimit.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+            OperateObservabilityJsonContext.Default.OperateRecentErrorsResponse,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!fetch.Ok)
+        {
+            return OperateSectionResult<IReadOnlyList<OperateRecentError>>.Denied(fetch.Status, fetch.Message);
+        }
+
+        var errors = fetch.Value!.Errors
+            .Select(error => new OperateRecentError(
+                error.Timestamp,
+                error.CorrelationId,
+                error.Path,
+                error.StatusCode,
+                error.Message))
+            .ToArray();
+        return OperateSectionResult<IReadOnlyList<OperateRecentError>>.Allowed(errors);
+    }
+
     private static T? EnvelopeData<T>(FetchResult<ConsoleApiEnvelope<T>> fetch)
         where T : class =>
         fetch.Ok && fetch.Value!.Success ? fetch.Value.Data : null;

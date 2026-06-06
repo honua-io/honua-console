@@ -14,7 +14,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl = null,
         string? honuaServerAdminApiKey = null,
         string? honuaServerPublicationIds = null,
-        string? honuaServerTemporalSources = null)
+        string? honuaServerTemporalSources = null,
+        string? honuaSupportBaseUrl = null,
+        string? honuaLlmBaseUrl = null,
+        string? honuaLlmModel = null,
+        string? honuaLlmApiKey = null,
+        string? honuaSupportKbPath = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -82,7 +87,80 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
+        // In-product support loop (#164). The ticket client binds to the
+        // honua-support API (POST/GET /api/v1/tickets) through the
+        // Honua.Console.Contracts shim, with the bearer token from the active
+        // profile's account session. When no support base URL is configured the
+        // surface renders the missing-binding state (Console Patterns Charter
+        // section 11) rather than mocking a ticket round-trip. The context
+        // builder auto-captures session/env/build/route/recent-errors so
+        // customers ship context, not log dumps.
+        AddSupportTicketClient(services, honuaSupportBaseUrl);
+        services.TryAddSingleton<ConsoleSupportContextBuilder>(serviceProvider =>
+            new ConsoleSupportContextBuilder(
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>()));
+
+        // L0 self-service deflection (honua-console#165), shown BEFORE the ticket
+        // form on /support. Three self-contained pieces:
+        //   - the qwen assistant client, bound to the SAME OpenAI-compatible
+        //     /v1/chat/completions endpoint honua-support's L1 triage uses
+        //     (Honua:Llm:BaseUrl + model/key); degrades to the unsupported
+        //     client (assistant hidden) when no endpoint is configured;
+        //   - the lexical KB retriever over the bundled honua-gis-llm support KB
+        //     (optional Honua:Support:KbPath override); empty when absent;
+        //   - the deflection log (structured ILogger events) so the deflection
+        //     rate is measurable.
+        AddSupportAssistantClient(services, honuaLlmBaseUrl, honuaLlmModel, honuaLlmApiKey);
+        services.TryAddSingleton<IConsoleSupportKnowledgeBase>(
+            _ => FileConsoleSupportKnowledgeBase.Load(honuaSupportKbPath));
+        services.TryAddSingleton<IConsoleSupportDeflectionLog, ConsoleSupportDeflectionLog>();
+
         return services;
+    }
+
+    private static void AddSupportAssistantClient(
+        IServiceCollection services,
+        string? honuaLlmBaseUrl,
+        string? honuaLlmModel,
+        string? honuaLlmApiKey)
+    {
+        // Require both an absolute endpoint and a model id; missing either means
+        // the assistant gracefully degrades (the /support page hides it and keeps
+        // KB + form).
+        if (!string.IsNullOrWhiteSpace(honuaLlmBaseUrl)
+            && !string.IsNullOrWhiteSpace(honuaLlmModel)
+            && Uri.TryCreate(honuaLlmBaseUrl.Trim(), UriKind.Absolute, out var llmBaseUri)
+            && (llmBaseUri.Scheme == Uri.UriSchemeHttp || llmBaseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IConsoleSupportAssistantClient>(_ =>
+                new HttpConsoleSupportAssistantClient(
+                    CreateOperateObservabilityHttpClient(),
+                    llmBaseUri,
+                    honuaLlmModel.Trim(),
+                    honuaLlmApiKey));
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleSupportAssistantClient, UnsupportedConsoleSupportAssistantClient>();
+    }
+
+    private static void AddSupportTicketClient(IServiceCollection services, string? honuaSupportBaseUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(honuaSupportBaseUrl)
+            && Uri.TryCreate(honuaSupportBaseUrl.Trim(), UriKind.Absolute, out var supportBaseUri))
+        {
+            services.TryAddSingleton<IConsoleSupportTicketClient>(serviceProvider =>
+                new HttpSupportTicketClient(
+                    CreateOperateObservabilityHttpClient(),
+                    supportBaseUri,
+                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleSupportTicketClient, UnsupportedSupportTicketClient>();
     }
 
     public static IServiceCollection AddHonuaConsoleDemoOperateTransitionData(this IServiceCollection services)
