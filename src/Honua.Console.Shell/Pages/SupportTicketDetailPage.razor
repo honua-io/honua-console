@@ -49,6 +49,12 @@
             <p class="console-muted">@(_polling ? "Auto-refreshing every 5s..." : "Ticket reached a terminal phase; polling stopped.")</p>
         </article>
 
+        @* trust-visibility (#166): escalation rationale + live remote-session banner.
+           Both render from the honua-support ticket response and self-suppress when
+           the ticket is not escalated / no session is implied. *@
+        <SupportEscalationRationaleCard Ticket="_ticket" />
+        <SupportRemoteSessionBanner Ticket="_ticket" />
+
         <article class="console-panel">
             <div class="console-panel-heading">
                 <h2>Requested action</h2>
@@ -83,7 +89,7 @@
 
                 @if (diagnosis.ValidationSteps.Count > 0)
                 {
-                    <p class="console-kicker">Validation steps</p>
+                    <p class="console-kicker" id="audit">Validation steps</p>
                     <ul class="support-validation-list">
                         @foreach (var step in diagnosis.ValidationSteps)
                         {
@@ -92,6 +98,10 @@
                     </ul>
                 }
             </article>
+
+            @* trust-visibility (#166): pass/fail scorecard checklist. Self-suppresses
+               when the diagnosis carries no scorecard element. *@
+            <SupportScorecardChecklist Scorecard="diagnosis.Scorecard" />
         }
     }
 </section>

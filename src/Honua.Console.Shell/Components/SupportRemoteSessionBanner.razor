@@ -1,0 +1,195 @@
+@using Honua.Console.Contracts
+@implements IDisposable
+
+@* trust-visibility (#166): live remote-session banner. Renders the access mode,
+   a TTL countdown to expiry, the customer-visible state, and a "view actions"
+   affordance into the audit/evidence trail.
+
+   DATA TRANSPORT NOTE: the rich live-session state (a concrete server-side
+   session expiry timestamp, an explicit customer-visible flag, and audit/
+   evidence refs) lives on the honua-devops `support-ticket-view` ConsoleBridge
+   projection, for which NO Console transport exists today. So this banner
+   degrades to what the honua-support ticket response carries: AllowedAccessMode,
+   TtlMinutes (counted down from UpdatedAt as a best-effort expiry), and the
+   access boundary. When access is read-only / no session is implied, it states
+   that plainly rather than inventing a session. *@
+@if (ShowBanner)
+{
+    <article class="console-panel support-session-banner @SeverityClass">
+        <div class="console-panel-heading">
+            <h2>Remote session</h2>
+            <span class="support-phase-badge">@AccessModeLabel</span>
+        </div>
+
+        @if (HasActiveWindow)
+        {
+            <p class="support-session-countdown">
+                @if (_remaining > TimeSpan.Zero)
+                {
+                    <span>Access window: <strong>@FormatRemaining(_remaining)</strong> remaining</span>
+                }
+                else
+                {
+                    <span><strong>Access window elapsed</strong> — session TTL expired</span>
+                }
+            </p>
+            <p class="console-muted support-session-expiry">
+                TTL @TtlMinutes min · best-effort expiry @ExpiresAt?.ToString("u")
+            </p>
+        }
+        else
+        {
+            <p>Read-only diagnostic access. No elevated remote session is open for this ticket.</p>
+        }
+
+        <p class="support-session-visibility">
+            Customer-visible: <strong>@(CustomerVisible ? "yes — this activity is shown to the customer" : "follow-up")</strong>
+        </p>
+
+        @if (Boundary is { } boundary)
+        {
+            <dl class="support-context-list">
+                <ContextRow Label="First escalation step" Value="@boundary.FirstEscalationStep" />
+                <ContextRow Label="Operator-scoped requirement" Value="@boundary.OperatorScopedRequirement" />
+            </dl>
+            @if (boundary.Exclusions.Count > 0)
+            {
+                <p class="console-kicker">Hard exclusions</p>
+                <ul class="support-validation-list">
+                    @foreach (var exclusion in boundary.Exclusions)
+                    {
+                        <li>@exclusion</li>
+                    }
+                </ul>
+            }
+        }
+
+        <p class="support-session-actions">
+            <a class="support-session-link" href="@AuditHref">View actions (audit / evidence) →</a>
+        </p>
+    </article>
+}
+
+@code {
+    [Parameter]
+    public SupportTicketResponse? Ticket { get; set; }
+
+    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1);
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+    private TimeSpan _remaining = TimeSpan.Zero;
+    private string? _trackedTicketId;
+
+    private bool ShowBanner => Ticket is not null;
+
+    private string AccessMode => Ticket?.AllowedAccessMode ?? string.Empty;
+
+    private int TtlMinutes => Ticket?.TtlMinutes ?? 0;
+
+    private SupportAccessBoundary? Boundary => Ticket?.AccessBoundary;
+
+    private string AccessModeLabel => string.IsNullOrWhiteSpace(AccessMode) ? "read-only" : AccessMode;
+
+    // An elevated session window exists only when the access mode is more than
+    // read-only AND a positive TTL is present.
+    private bool HasActiveWindow =>
+        TtlMinutes > 0 &&
+        !string.Equals(AccessMode, "read-only", StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrWhiteSpace(AccessMode);
+
+    // No live customer-visible flag is reachable on the ticket response; this is
+    // a devops-bridge field. Treat operator-scoped break-glass as customer-
+    // visible by policy (the access boundary requires ticket-scoped approval),
+    // everything else is left to the follow-up bridge.
+    private bool CustomerVisible =>
+        string.Equals(AccessMode, "operator-scoped", StringComparison.OrdinalIgnoreCase);
+
+    private string SeverityClass => HasActiveWindow
+        ? (_remaining > TimeSpan.Zero ? "support-session-active" : "support-session-expired")
+        : "support-session-idle";
+
+    // Best-effort expiry: the ticket carries TtlMinutes but no absolute expiry
+    // instant, so anchor the countdown to the last server update. Flagged as a
+    // follow-up where the devops bridge supplies a real expiry timestamp.
+    private DateTimeOffset? ExpiresAt =>
+        Ticket is null || !HasActiveWindow ? null : Ticket.UpdatedAt.AddMinutes(TtlMinutes);
+
+    // Deep-link into the audit/evidence trail. Until the devops bridge exposes
+    // concrete evidence refs, this points at the ticket's audit anchor.
+    private string AuditHref =>
+        Ticket is null ? "#" : $"/support/tickets/{Uri.EscapeDataString(Ticket.Id)}#audit";
+
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(_trackedTicketId, Ticket?.Id, StringComparison.Ordinal) && _timer is not null)
+        {
+            RecomputeRemaining();
+            return;
+        }
+
+        StopCountdown();
+        _trackedTicketId = Ticket?.Id;
+        RecomputeRemaining();
+
+        if (HasActiveWindow)
+        {
+            StartCountdown();
+        }
+    }
+
+    private void RecomputeRemaining()
+    {
+        _remaining = ExpiresAt is { } expiry
+            ? expiry - DateTimeOffset.UtcNow
+            : TimeSpan.Zero;
+        if (_remaining < TimeSpan.Zero)
+        {
+            _remaining = TimeSpan.Zero;
+        }
+    }
+
+    private void StartCountdown()
+    {
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(Tick);
+        var token = _cts.Token;
+        _ = RunAsync(token);
+    }
+
+    private async Task RunAsync(CancellationToken token)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(token).ConfigureAwait(false))
+            {
+                RecomputeRemaining();
+                await InvokeAsync(StateHasChanged).ConfigureAwait(false);
+                if (_remaining <= TimeSpan.Zero)
+                {
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposed or re-parameterised; stop quietly.
+        }
+    }
+
+    private void StopCountdown()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+        _timer = null;
+        _cts = null;
+    }
+
+    private static string FormatRemaining(TimeSpan remaining) =>
+        remaining.TotalHours >= 1
+            ? $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m {remaining.Seconds:D2}s"
+            : $"{remaining.Minutes:D2}m {remaining.Seconds:D2}s";
+
+    public void Dispose() => StopCountdown();
+}
