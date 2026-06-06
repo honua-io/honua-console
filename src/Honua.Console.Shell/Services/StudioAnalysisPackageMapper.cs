@@ -459,7 +459,7 @@ public static class StudioAnalysisPackageMapper
             return outputContentType;
         }
 
-        var hint = package.BindingHints.FirstOrDefault()?.TargetKind;
+        var hint = (package.BindingHints ?? []).FirstOrDefault()?.TargetKind;
         if (!string.IsNullOrWhiteSpace(hint)
             && StudioAnalysisOutputContentTypes.All.Contains(hint, StringComparer.OrdinalIgnoreCase))
         {

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -12,6 +13,78 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class StudioReportPublicationDataSourceTests
 {
+    [Fact]
+    public async Task Generate_ServerProposesReport_NullCollections_MapsWithoutThrowing()
+    {
+        // The server omits empty collections (System.Text.Json serializes them as JSON null), so a valid
+        // 'generated' result commonly arrives with null UnmappedRequests/Clarifications and a document whose
+        // bindings/panels are null. The mapper must coalesce/guard rather than NRE and freeze the page
+        // (regression: report MapGeneration had dropped the guards its siblings have).
+        var client = new FakePublicationClient
+        {
+            GenerateReportResult = HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromData(
+                new HonuaReportGenerationResult
+                {
+                    Status = StudioReportGenerationStatuses.Generated,
+                    RouteSlug = "quarterly-permits",
+                    Rationale = "Proposed a permits report.",
+                    Document = JsonSerializer.Deserialize<JsonElement>(
+                        "{\"title\":\"Quarterly Permits\",\"bindings\":null,\"panels\":null}"),
+                    Clarifications = null!,
+                    UnmappedRequests = null!
+                })
+        };
+        var source = new HonuaServerStudioReportPublicationDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioReportEditorState(), new StudioReportGenerationRequest { Prompt = "permits report" });
+
+        Assert.True(outcome.IsGenerated);
+        Assert.NotNull(outcome.State);
+        Assert.Equal("Quarterly Permits", outcome.State!.Title);
+        Assert.Empty(outcome.Clarifications);
+        Assert.Equal("Proposed a permits report.", outcome.Rationale);
+    }
+
+    [Fact]
+    public async Task Generate_NeedsClarification_NullCollections_MapsWithoutThrowing()
+    {
+        var client = new FakePublicationClient
+        {
+            GenerateReportResult = HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromData(
+                new HonuaReportGenerationResult
+                {
+                    Status = StudioReportGenerationStatuses.NeedsClarification,
+                    Rationale = "Which dataset should the chart bind to?",
+                    Clarifications = null!,
+                    UnmappedRequests = null!
+                })
+        };
+        var source = new HonuaServerStudioReportPublicationDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioReportEditorState(), new StudioReportGenerationRequest { Prompt = "a report" });
+
+        Assert.True(outcome.NeedsClarification);
+        Assert.Null(outcome.State);
+        Assert.Empty(outcome.Clarifications);
+    }
+
+    [Fact]
+    public async Task Generate_ServerLacksContract_404_SurfacesUnsupportedNotMissingBinding()
+    {
+        var client = new FakePublicationClient
+        {
+            GenerateReportResult = HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not found.", 404))
+        };
+        var source = new HonuaServerStudioReportPublicationDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioReportEditorState(), new StudioReportGenerationRequest { Prompt = "hi" });
+
+        Assert.Equal(StudioReportGenerationStatuses.Unsupported, outcome.Status);
+        Assert.Null(outcome.BindingState);
+        Assert.Equal(1, client.GenerateReportCalls);
+    }
+
     [Fact]
     public async Task ServerSource_OnReportDetail_MapsRouteAndVersionHistory()
     {
@@ -334,9 +407,19 @@ public sealed class StudioReportPublicationDataSourceTests
             Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationProviders>.FromIssue(
                 new HonuaAdminEndpointIssue("Unsupported", "GET providers", "Not exercised by this fake.")));
 
-        public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateReportAsync(GenerateReportContentRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
+        public HonuaAdminEndpointResult<HonuaReportGenerationResult>? GenerateReportResult { get; set; }
+
+        public int GenerateReportCalls { get; private set; }
+
+        public GenerateReportContentRequest? LastGenerateReportRequest { get; private set; }
+
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateReportAsync(GenerateReportContentRequest request, CancellationToken cancellationToken = default)
+        {
+            GenerateReportCalls++;
+            LastGenerateReportRequest = request;
+            return Task.FromResult(GenerateReportResult ?? HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
                 new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
+        }
 
         public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateDashboardAsync(GenerateDashboardContentRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(

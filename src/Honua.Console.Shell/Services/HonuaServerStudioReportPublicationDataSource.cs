@@ -249,17 +249,21 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
 
     private static StudioReportGenerationOutcome MapGeneration(HonuaReportGenerationResult result)
     {
-        var warnings = result.UnmappedRequests
+        // The server omits empty collections (System.Text.Json source-gen serializes them as null), so a
+        // perfectly valid 'generated' result commonly arrives with null UnmappedRequests/Clarifications/
+        // Choices. Coalesce before LINQ — otherwise a normal generated turn NREs and freezes the page
+        // (mirrors the dashboard mapper; this family had regressed by dropping the guards).
+        var warnings = (result.UnmappedRequests ?? [])
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .Select(item => $"No matching binding/panel for: {item}")
             .ToList();
 
-        var clarifications = result.Clarifications
+        var clarifications = (result.Clarifications ?? [])
             .Select(question => new StudioConversationClarification(
                 question.Id,
                 string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
                 question.Reason ?? string.Empty,
-                question.Choices
+                (question.Choices ?? [])
                     .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
                     .ToArray()))
             .ToArray();

@@ -500,7 +500,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                // 10-min timeout: report/dashboard generation share this client and a local model can take
+                // minutes. Set it here too rather than relying on TryAdd ordering with the dashboard registration.
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaContentPublicationHttpClient(
                     httpClient,
                     new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -769,7 +771,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // present; otherwise register it here (TryAdd keeps a single client across both surfaces).
             services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                // 10-min timeout to match the generation clients that share IHonuaContentPublicationClient
+                // (report/dashboard generation), independent of registration order.
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaContentPublicationHttpClient(
                     httpClient,
                     new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
