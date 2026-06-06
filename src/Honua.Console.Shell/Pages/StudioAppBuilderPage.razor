@@ -1,4 +1,7 @@
 @page "/studio/app"
+@using System.Text.Json
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
 @inject IStudioAppPackageDataSource AppData
 
@@ -37,7 +40,98 @@
         var readiness = StudioAppPackageMapper.EvaluatePublishReadiness(editor);
         var selectedPage = SelectedPage;
 
-        <div class="studio-app-editor" data-app-builder="app.package" data-app-published="@editor.IsPublished.ToString().ToLowerInvariant()">
+        @if (_view == EditorView.FromPrompt)
+        {
+            @* StudioAppAI — conversation + clarification on the left, a live app-package inspector on the
+               right driven by the real authoring state (never fabricated). A prompt/refine turn calls the
+               server's natural-language app generation contract (POST /api/v1/studio/app-packages/generate).
+               The server grounds the proposal in the catalog/saved-content and validates it before returning,
+               so the page only ever renders a server-produced app (status==generated, the editor hydrates from
+               the returned studio-app/v1 body), a structured clarification request, or an honest
+               unavailable/refused/blocked state — never a fabricated app (no-mock, Charter §11). *@
+            <div class="studio-app-ai" data-app-builder="app.package" data-app-view="ai" data-app-status="@(editor.IsPublished ? "published" : "draft")">
+                <StudioAiConversation ConversationTitle="App from prompt"
+                                      RefinePlaceholder="Describe the app — its pages, what each binds to, and the actions and permissions…"
+                                      Turns="_turns"
+                                      Clarifications="_clarifications"
+                                      Busy="_busy"
+                                      OnSend="OnPromptSend"
+                                      OnAnswer="OnClarificationAnswered">
+                    <PreviewHeader>
+                        <span class="studio-app-glyph" aria-hidden="true">❒</span>
+                        <input class="console-input studio-app-name" @bind="editor.Title" @bind:after="OnEdit" placeholder="field-operations-app" aria-label="App title" />
+                        <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@(editor.IsPublished ? $"published v{editor.PublishedVersion}" : (editor.IsExistingDraft ? "server draft" : "new draft"))</span>
+                        <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "ready to publish" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
+                        <div class="studio-ai-preview-head-spacer"></div>
+                        <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
+                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">Publish…</button>
+                    </PreviewHeader>
+                    <PreviewContent>
+                        <div class="studio-app-ai-inspect" data-app-preview="true">
+                            <aside class="studio-app-ai-package" aria-label="App package">
+                                <div class="studio-app-ai-package-head">
+                                    <p class="console-kicker">App package</p>
+                                    <p class="studio-app-ai-package-id">@(string.IsNullOrWhiteSpace(editor.Title) ? "new app" : editor.Title) · @editor.Pages.Count page@(editor.Pages.Count == 1 ? string.Empty : "s") · @editor.Visibility</p>
+                                </div>
+
+                                <p class="console-muted studio-app-ai-section">Pages · @editor.Pages.Count</p>
+                                @if (editor.Pages.Count == 0)
+                                {
+                                    <p class="console-muted">No pages yet. Describe the app you want on the left, or open the editor to author pages directly.</p>
+                                }
+                                else
+                                {
+                                    <ul class="studio-app-ai-page-list">
+                                        @foreach (var aiPage in editor.Pages)
+                                        {
+                                            <li class="studio-app-ai-page" data-preview-kind="@aiPage.ComponentKind" @key="aiPage">
+                                                <span class="studio-app-ai-page-icon" aria-hidden="true">@ComponentGlyph(aiPage.ComponentKind)</span>
+                                                <span class="studio-mono studio-app-ai-page-name">@(string.IsNullOrWhiteSpace(aiPage.Title) ? aiPage.Route : aiPage.Title)</span>
+                                                <span class="console-muted">@aiPage.ComponentKind@(string.IsNullOrWhiteSpace(aiPage.ContentBinding) ? " · unbound" : $" · {aiPage.ContentBinding}")</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-app-ai-section">Actions &amp; permissions · @editor.Actions.Count</p>
+                                @if (editor.Actions.Count > 0)
+                                {
+                                    <ul class="studio-app-ai-action-list">
+                                        @foreach (var aiAction in editor.Actions)
+                                        {
+                                            <li class="studio-mono" @key="aiAction">@(string.IsNullOrWhiteSpace(aiAction.Name) ? "action" : aiAction.Name) · @aiAction.PageRoute · @aiAction.RequiredPermission</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-app-ai-section">Pre-publish</p>
+                                @if (readiness.CanPublish)
+                                {
+                                    <div class="studio-app-ai-validation studio-app-ai-validation-ok">All pre-publish requirements met.</div>
+                                }
+                                else
+                                {
+                                    <ul class="studio-compact-list studio-app-ai-validation">
+                                        @foreach (var requirement in readiness.UnmetRequirements)
+                                        {
+                                            <li>@requirement</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <details class="studio-app-ai-raw">
+                                    <summary>View raw package JSON</summary>
+                                    <pre class="studio-code studio-package-json">@PackageJson(editor)</pre>
+                                </details>
+                            </aside>
+                        </div>
+                    </PreviewContent>
+                </StudioAiConversation>
+            </div>
+        }
+        else
+        {
+        <div class="studio-app-editor" data-app-builder="app.package" data-app-view="editor" data-app-published="@editor.IsPublished.ToString().ToLowerInvariant()">
             @* App-identity toolbar: glyph, name, lifecycle badge, summary stats, then preview/lifecycle actions. *@
             <div class="studio-app-toolbar" data-app-toolbar="true">
                 <span class="studio-app-glyph" aria-hidden="true">❒</span>
@@ -51,6 +145,14 @@
                     @editor.Pages.Count page@(editor.Pages.Count == 1 ? string.Empty : "s") · @editor.Actions.Count action@(editor.Actions.Count == 1 ? string.Empty : "s") · @editor.Visibility@(editor.EmbedEnabled ? " · embeddable" : string.Empty)
                 </span>
                 <div class="studio-app-toolbar-spacer"></div>
+                @if (_cameFromPrompt)
+                {
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToChat">← Back to chat</button>
+                }
+                else
+                {
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="NewFromPrompt">New from prompt</button>
+                }
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Preview">Live preview ↗</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Validate">Validate</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Save">Save draft</button>
@@ -343,10 +445,17 @@
                 </aside>
             </div>
         </div>
+        }
     }
 </section>
 
 @code {
+    private enum EditorView
+    {
+        FromPrompt,
+        Editor,
+    }
+
     private bool _loading = true;
     private bool _busy;
     private StudioAppEditorState? _editor;
@@ -359,6 +468,16 @@
     private bool _statusFailed;
     private readonly ValidationState _validation = new();
     private readonly FormDirtyState _dirty = new();
+
+    private EditorView _view = EditorView.Editor;
+    private bool _cameFromPrompt;
+    private readonly List<StudioConversationTurn> _turns = [];
+    private readonly List<StudioConversationClarification> _clarifications = [];
+
+    private static readonly JsonSerializerOptions PackageJsonOptions = new() { WriteIndented = true };
+
+    private static string PackageJson(StudioAppEditorState editor) =>
+        JsonSerializer.Serialize(StudioAppPackageMapper.BuildEnvelopeBody(editor), PackageJsonOptions);
 
     /// <summary>
     /// Re-runs the client cross-field/referential validator over the current editor and flags it dirty.
@@ -507,6 +626,180 @@
         _editor?.Actions.Remove(action);
         OnEdit();
     }
+
+    // ---- From-prompt (AI app generation) ------------------------------------------------------------
+
+    private void NewFromPrompt()
+    {
+        _view = EditorView.FromPrompt;
+        _cameFromPrompt = true;
+        ResetConversation();
+    }
+
+    private void OpenEditorFromPrompt()
+    {
+        _view = EditorView.Editor;
+        _cameFromPrompt = true;
+    }
+
+    private void BackToChat() => _view = EditorView.FromPrompt;
+
+    private void ResetConversation()
+    {
+        _turns.Clear();
+        _clarifications.Clear();
+
+        // The conversation log is Console-local authoring UX — it echoes the author's intent and Honua's
+        // guidance, never fabricated package state. The right-side inspector reflects the real
+        // StudioAppEditorState. Until the author describes the app there are no turns and no clarifications.
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Describe the app you want — the pages, what each binds to, and the actions and permissions it needs — and I'll propose an app you can review and refine. Every proposal is grounded in the real catalog and validated on the server before it appears; nothing is fabricated.",
+            "just now",
+            StudioConversationTone.Neutral));
+    }
+
+    // A prompt/refine turn calls the server's natural-language app generation contract
+    // (POST /api/v1/studio/app-packages/generate). The server grounds the proposal and validates it before
+    // returning, so the page only ever renders a server-produced app (status==generated, the editor hydrates
+    // from the returned studio-app/v1 body), a structured clarification request, or an honest
+    // unavailable/refused/blocked state — never a fabricated app (no-mock, Charter §11).
+    private Task OnPromptSend(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return Task.CompletedTask;
+        }
+
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt, "just now"));
+        return GenerateAsync(new StudioAppGenerationRequest
+        {
+            Prompt = prompt,
+            Conversation = SnapshotConversation()
+        });
+    }
+
+    private Task OnClarificationAnswered((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        _clarifications.RemoveAll(question => string.Equals(question.Id, answer.Question.Id, StringComparison.Ordinal));
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.You,
+            $"{answer.Question.Label}: {answer.Choice.Label}",
+            "just now"));
+
+        return GenerateAsync(new StudioAppGenerationRequest
+        {
+            Prompt = string.Empty,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioAppGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        });
+    }
+
+    // The conversation context sent to the server is the turn log mapped to the server's user/assistant roles.
+    private IReadOnlyList<StudioAppGenerationTurn> SnapshotConversation() =>
+        _turns
+            .Select(turn => new StudioAppGenerationTurn(
+                turn.Role == StudioConversationRole.You ? "user" : "assistant",
+                turn.Body))
+            .ToArray();
+
+    private async Task GenerateAsync(StudioAppGenerationRequest request)
+    {
+        if (_editor is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var outcome = await AppData.GenerateAsync(_editor, request);
+
+            if (outcome.BindingState is not null)
+            {
+                // A missing binding blocks the whole surface; other capability issues surface as a chat note.
+                if (string.Equals(outcome.BindingState.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+                {
+                    _bindingState = outcome.BindingState;
+                    return;
+                }
+
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    $"{outcome.BindingState.Detail} (contract: {outcome.BindingState.Contract})",
+                    "just now",
+                    StudioConversationTone.Neutral));
+                return;
+            }
+
+            var notes = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability
+                && !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                notes.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
+
+            if (outcome.IsGenerated)
+            {
+                if (outcome.State is not null)
+                {
+                    _editor = outcome.State;
+                    _selectedPage = _editor.Pages.FirstOrDefault();
+                }
+
+                _clarifications.Clear();
+                // A generated proposal is unsaved authoring intent — mark dirty so the unsaved-changes guard
+                // warns and Save persists it (the guard arms a beforeunload JS call; bUnit needs Loose mode).
+                _dirty.MarkDirty();
+                RecomputeClientErrors();
+                _validation.SetServerErrors(Array.Empty<ConsoleFieldError>());
+
+                var summary = string.IsNullOrWhiteSpace(outcome.Rationale)
+                    ? $"Proposed an app · {_editor.Pages.Count} page(s), {_editor.Actions.Count} action(s). Refine by chatting, or open the editor."
+                    : outcome.Rationale;
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(summary, notes),
+                    "just now",
+                    StudioConversationTone.Ready,
+                    "view evidence"));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications.Clear();
+                _clarifications.AddRange(outcome.Clarifications);
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I need a little more detail before I can propose the app."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Clarification));
+            }
+            else
+            {
+                // unsupported / refused / error
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I couldn't turn that into an app."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Neutral));
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string AppendNotes(string body, IReadOnlyList<string> notes) =>
+        notes.Count == 0 ? body : $"{body}\n\nNotes:\n- {string.Join("\n- ", notes)}";
 
     private async Task RunCommandAsync(Func<Task<StudioAppCommandResult>> command, bool reloadHistory = false, bool clearsDirty = false)
     {

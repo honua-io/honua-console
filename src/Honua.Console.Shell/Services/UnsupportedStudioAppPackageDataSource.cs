@@ -59,6 +59,12 @@ public sealed class UnsupportedStudioAppPackageDataSource : IStudioAppPackageDat
         CancellationToken cancellationToken = default) =>
         Task.FromResult(BindingFailure());
 
+    public Task<StudioAppGenerationOutcome> GenerateAsync(
+        StudioAppEditorState currentState,
+        StudioAppGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioAppGenerationOutcome.Blocked(MissingBinding));
+
     private static StudioAppCommandResult BindingFailure() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

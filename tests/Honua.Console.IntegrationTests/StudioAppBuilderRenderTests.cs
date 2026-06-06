@@ -234,6 +234,88 @@ public sealed class StudioAppBuilderRenderTests
         Assert.True(data.PreviewCalled);
     }
 
+    [Fact]
+    public void AppBuilder_NewFromPrompt_RendersConversationAndLivePreview()
+    {
+        var data = new FakeAppDataSource
+        {
+            Load = new StudioAppEditorLoad(ReadyApp(), [])
+        };
+        using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
+        FindButton(page, "New from prompt").Click();
+
+        // StudioAppAI: a conversation column + a live app-package preview driven by the real draft.
+        page.WaitForAssertion(
+            () => Assert.Equal("ai", page.Find("[data-app-builder]").GetAttribute("data-app-view")),
+            TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(page.Find("[data-studio-ai-pane]"));
+        Assert.Contains("App from prompt", page.Markup, StringComparison.Ordinal);
+
+        // The conversation seeds a neutral intro turn inviting the author to describe the app; the proposal is
+        // server-grounded and validated, never fabricated.
+        Assert.Contains("Describe the app you want", page.Markup, StringComparison.Ordinal);
+
+        // The live preview reflects the real draft's bound page (the seeded map page).
+        var preview = page.Find("[data-app-preview]");
+        Assert.Contains("content:permits@v3", preview.TextContent, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll("[data-preview-kind=\"map\"]"));
+
+        // The preview titlebar offers "Open editor" which returns to the editor view.
+        FindButton(page, "Open editor →").Click();
+        Assert.Equal("editor", page.Find("[data-app-builder]").GetAttribute("data-app-view"));
+    }
+
+    [Fact]
+    public void AppBuilder_RefinePrompt_ForwardsToServerGenerationAndRendersResult()
+    {
+        var data = new FakeAppDataSource
+        {
+            Load = new StudioAppEditorLoad(StudioAppPackageMapper.CreateTemplate(), []),
+            // A refine prompt drives the real server generation contract (not SaveDraftAsync). Return a
+            // generated outcome whose proposed app hydrates the editor and surfaces "view evidence".
+            OnGenerate = state =>
+            {
+                state.Title = "Field operations";
+                state.Pages[0].ContentBinding = "content:permits@v3";
+                return new StudioAppGenerationOutcome
+                {
+                    Status = StudioAppGenerationStatuses.Generated,
+                    State = state,
+                    Rationale = "Proposed a single-page operations app bound to permits."
+                };
+            }
+        };
+        using var ctx = new Bunit.TestContext();
+        // A generated outcome marks the editor dirty, so the UnsavedChangesGuard syncs its beforeunload
+        // handler over JS interop; loose mode lets that no-op in the renderer harness.
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
+
+        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
+        FindButton(page, "New from prompt").Click();
+        page.WaitForAssertion(() => page.Find(".studio-ai-refine-input"), TimeSpan.FromSeconds(5));
+
+        page.Find(".studio-ai-refine-input").Input("Build an app for permit inspections");
+        page.Find(".studio-ai-send").Click();
+
+        // The prompt is echoed and the server-produced result renders (rationale + a "view evidence" turn);
+        // nothing is saved to a draft on a generate turn (SaveDraftAsync is the explicit save action).
+        page.WaitForAssertion(
+            () => Assert.Contains("view evidence", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("Build an app for permit inspections", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Proposed a single-page operations app bound to permits.", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(1, data.GenerateCount);
+        Assert.Equal(0, data.SaveCount);
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioAppBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -267,11 +349,16 @@ public sealed class StudioAppBuilderRenderTests
 
         public bool PreviewCalled { get; private set; }
 
+        public int SaveCount { get; private set; }
+
         public Task<StudioAppEditorLoad> LoadAsync(Guid? draftId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Load);
 
-        public Task<StudioAppCommandResult> SaveDraftAsync(StudioAppEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioAppCommandResult(true, "Saved.", state));
+        public Task<StudioAppCommandResult> SaveDraftAsync(StudioAppEditorState state, CancellationToken cancellationToken = default)
+        {
+            SaveCount++;
+            return Task.FromResult(new StudioAppCommandResult(true, "Saved.", state));
+        }
 
         public Task<StudioAppCommandResult> ValidateAsync(StudioAppEditorState state, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioAppCommandResult(true, "Valid.", state, new StudioAppValidationView(true, [])));
@@ -299,5 +386,16 @@ public sealed class StudioAppBuilderRenderTests
 
         public Task<StudioAppCommandResult> RollbackAsync(Guid itemId, Guid targetVersionId, string? reason, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioAppCommandResult(true, "Rolled back."));
+
+        public Func<StudioAppEditorState, StudioAppGenerationOutcome>? OnGenerate { get; set; }
+
+        public int GenerateCount { get; private set; }
+
+        public Task<StudioAppGenerationOutcome> GenerateAsync(StudioAppEditorState currentState, StudioAppGenerationRequest request, CancellationToken cancellationToken = default)
+        {
+            GenerateCount++;
+            return Task.FromResult(OnGenerate?.Invoke(currentState)
+                ?? new StudioAppGenerationOutcome { Status = StudioAppGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
+        }
     }
 }
