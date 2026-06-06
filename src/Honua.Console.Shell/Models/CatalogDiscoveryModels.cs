@@ -152,7 +152,7 @@ public static class CatalogDiscoveryMapper
             Url: endpoint.Url,
             Entries: endpoint.Entries,
             FedBy: endpoint.FedBy,
-            Feeders: endpoint.Feeders
+            Feeders: (endpoint.Feeders ?? [])
                 .Select(feeder => new CatalogFeederView(feeder.Kind, feeder.Label))
                 .ToArray(),
             IssueCount: endpoint.IssueCount);
@@ -166,7 +166,7 @@ public static class CatalogDiscoveryMapper
             WorkspaceId: registry.WorkspaceId,
             WorkspaceName: registry.WorkspaceName,
             PublicHost: registry.PublicHost,
-            Endpoints: registry.Endpoints.Select(ToView).ToArray(),
+            Endpoints: (registry.Endpoints ?? []).Select(ToView).ToArray(),
             AutoDefaultCount: registry.AutoDefaultCount,
             OptInCount: registry.OptInCount);
     }
@@ -179,13 +179,13 @@ public static class CatalogDiscoveryMapper
             Endpoint: ToView(detail.Endpoint),
             LastRebuild: detail.LastRebuild,
             AutoMirror: detail.AutoMirror,
-            Items: detail.Items
+            Items: (detail.Items ?? [])
                 .Select(item => new CatalogEndpointItemView(
                     item.Id,
                     item.Title,
                     item.FromService,
                     item.Resource,
-                    item.Tags,
+                    item.Tags ?? [],
                     item.HasThumbnail,
                     item.License,
                     item.IssueCount,
@@ -205,12 +205,12 @@ public static class CatalogDiscoveryMapper
             BackingServiceCount: item.BackingServiceCount,
             TagCount: item.TagCount,
             IssueCount: item.IssueCount,
-            Groups: item.Groups
+            Groups: (item.Groups ?? [])
                 .Select(group => new CatalogItemFieldGroupView(
                     group.Title,
                     group.Subtitle,
                     group.Scope,
-                    group.Fields
+                    (group.Fields ?? [])
                         .Select(field => new CatalogItemFieldView(field.Label, field.State, field.Value, field.DerivedFrom))
                         .ToArray()))
                 .ToArray());

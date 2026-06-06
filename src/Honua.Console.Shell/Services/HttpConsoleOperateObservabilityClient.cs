@@ -263,7 +263,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Denied(fetch.Status, fetch.Message);
         }
 
-        var jobs = fetch.Value!.Items
+        var jobs = (fetch.Value!.Items ?? [])
             .Select(summary => OperateObservabilityMapper.MapJobSummary(summary, fetch.Profile!))
             .ToArray();
         return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(jobs);
@@ -348,7 +348,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             return OperateSectionResult<IReadOnlyList<OperateRecentError>>.Denied(fetch.Status, fetch.Message);
         }
 
-        var errors = fetch.Value!.Errors
+        var errors = (fetch.Value!.Errors ?? [])
             .Select(error => new OperateRecentError(
                 error.Timestamp,
                 error.CorrelationId,
@@ -423,7 +423,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 profile.Id,
                 profile.ServerBaseUri.Host,
                 "Admin realtime",
-                RealtimeStatus(telemetry.Realtime),
+                RealtimeStatus(telemetry.Realtime ?? new()),
                 FormatFreshness(NonDefault(telemetry.GeneratedAt)),
                 OperateObservabilityRoutes.Observability + "#telemetry"));
         }
@@ -457,7 +457,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 profile.ServerBaseUri.Host,
                 "Recent error buffer",
                 RecentErrorsStatus(recentErrors),
-                $"{recentErrors.Errors.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} of {recentErrors.Capacity.ToString(System.Globalization.CultureInfo.InvariantCulture)} retained",
+                $"{(recentErrors.Errors ?? []).Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} of {recentErrors.Capacity.ToString(System.Globalization.CultureInfo.InvariantCulture)} retained",
                 OperateObservabilityRoutes.Observability + "#logs"));
 
         return facts;
@@ -482,7 +482,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             : $"trace {NormalizeServerState(telemetry.TraceExportState)}, metrics {NormalizeServerState(telemetry.MetricsExportState)}, logs {NormalizeServerState(telemetry.LogExportState)}";
         var migrationCurrent = migrations is null
             ? "unavailable"
-            : $"{NormalizeServerState(migrations.Status)}; pending {migrations.PendingScripts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+            : $"{NormalizeServerState(migrations.Status)}; pending {(migrations.PendingScripts ?? []).Count.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
         return
         [
@@ -550,11 +550,11 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             return new OperateStatus("warning", "The server reports pending database migrations.");
         }
 
-        if (recentErrors is not null && recentErrors.Errors.Count > 0)
+        if (recentErrors is not null && (recentErrors.Errors ?? []).Count > 0)
         {
             return new OperateStatus(
                 "warning",
-                $"{recentErrors.Errors.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} recent server errors are retained in the admin buffer.");
+                $"{(recentErrors.Errors ?? []).Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} recent server errors are retained in the admin buffer.");
         }
 
         if (version is not null || capabilities is not null || telemetry is not null || migrations is not null || recentErrors is not null)
@@ -590,7 +590,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         AddIfPresent(timestamps, NonDefault(migrations?.GeneratedAt));
         AddIfPresent(
             timestamps,
-            NonDefault(recentErrors?.Errors
+            NonDefault((recentErrors?.Errors ?? [])
                 .Select(item => item.Timestamp)
                 .Where(item => item != default)
                 .DefaultIfEmpty()
@@ -614,7 +614,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
             if (migrations.UpgradeRequired)
             {
-                return $"{migrations.PendingScripts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} pending migration scripts reported by the server.";
+                return $"{(migrations.PendingScripts ?? []).Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} pending migration scripts reported by the server.";
             }
 
             if (!migrations.PlanAvailable)
@@ -712,7 +712,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             return new OperateStatus("unsupported", "Admin realtime status is not supported by this server.");
         }
 
-        var events = realtime.Events.Length == 0 ? "no events advertised" : string.Join(", ", realtime.Events);
+        var events = (realtime.Events ?? []).Length == 0 ? "no events advertised" : string.Join(", ", realtime.Events ?? []);
         return new OperateStatus(
             "healthy",
             $"Admin realtime uses {DisplayValue(realtime.Protocol)} at {DisplayValue(realtime.HubPath)} with {events}.");
@@ -729,7 +729,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         {
             return new OperateStatus(
                 "warning",
-                $"{migrations.PendingScripts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} pending migration scripts reported by the server.");
+                $"{(migrations.PendingScripts ?? []).Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} pending migration scripts reported by the server.");
         }
 
         if (!migrations.PlanAvailable)
@@ -742,12 +742,13 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
     private static OperateStatus RecentErrorsStatus(OperateRecentErrorsResponse recentErrors)
     {
-        if (recentErrors.Errors.Count == 0)
+        var bufferedErrors = recentErrors.Errors ?? [];
+        if (bufferedErrors.Count == 0)
         {
             return new OperateStatus("healthy", $"Recent error buffer {DisplayValue(recentErrors.InstanceId)} has no retained errors.");
         }
 
-        var newest = recentErrors.Errors.OrderByDescending(item => item.Timestamp).First();
+        var newest = bufferedErrors.OrderByDescending(item => item.Timestamp).First();
         return new OperateStatus(
             "warning",
             $"Newest retained error is HTTP {newest.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture)} at {newest.Path}.");
@@ -875,12 +876,13 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         InvestigationPageResponse page,
         CancellationToken cancellationToken)
     {
-        if (page.Items.Count == 0)
+        var pageItems = page.Items ?? [];
+        if (pageItems.Count == 0)
         {
             return [];
         }
 
-        var tasks = page.Items.Select(async summary =>
+        var tasks = pageItems.Select(async summary =>
         {
             var detail = await FetchAsync(
                 OperateAdminRoutes.InvestigationDetail(summary.InvestigationId),

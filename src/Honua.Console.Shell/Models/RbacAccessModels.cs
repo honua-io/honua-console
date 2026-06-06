@@ -156,19 +156,19 @@ public static class RbacAccessMapper
         return new RbacOverviewView(
             WorkspaceId: overview.WorkspaceId,
             WorkspaceName: overview.WorkspaceName,
-            Scopes: overview.Scopes
+            Scopes: (overview.Scopes ?? [])
                 .Select(scope => new RbacScopeView(scope.Level, scope.Label, scope.Description))
                 .ToArray(),
-            Permissions: overview.Permissions
+            Permissions: (overview.Permissions ?? [])
                 .Select(permission => new RbacPermissionView(permission.Key, permission.Label))
                 .ToArray(),
-            Roles: overview.Roles
+            Roles: (overview.Roles ?? [])
                 .Select(role => new RbacRoleView(
                     role.Id,
                     role.Name,
                     role.Description,
                     role.IsCustom,
-                    role.Grants
+                    (role.Grants ?? [])
                         .Select(grant => new RbacGrantView(grant.Permission, grant.Grant, grant.Qualifier))
                         .ToArray()))
                 .ToArray(),
@@ -185,7 +185,7 @@ public static class RbacAccessMapper
         return new TeamMembershipView(
             WorkspaceId: membership.WorkspaceId,
             WorkspaceName: membership.WorkspaceName,
-            Members: membership.Members
+            Members: (membership.Members ?? [])
                 .Select(member => new TeamMemberView(
                     member.Id,
                     member.DisplayName,
@@ -198,7 +198,7 @@ public static class RbacAccessMapper
                     member.Source,
                     member.PrincipalKind))
                 .ToArray(),
-            Invitations: membership.Invitations
+            Invitations: (membership.Invitations ?? [])
                 .Select(invitation => new TeamInvitationView(
                     invitation.Id,
                     invitation.Identity,

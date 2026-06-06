@@ -26,7 +26,7 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
             {
                 Bound = true,
                 LayerId = data.LayerId,
-                Fields = data.Fields
+                Fields = (data.Fields ?? [])
                     .Where(field => !string.IsNullOrWhiteSpace(field.Name))
                     .Select(field => new ConsoleLayerField
                     {

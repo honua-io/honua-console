@@ -92,7 +92,7 @@ public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigura
                 State = "Updated",
                 Detail = "The service's enabled protocols were updated on honua-server.",
                 ServiceName = settings.ServiceName ?? command.ServiceName,
-                EnabledProtocols = settings.EnabledProtocols
+                EnabledProtocols = settings.EnabledProtocols ?? []
             };
         }
 
@@ -125,7 +125,7 @@ public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigura
                 State = "Updated",
                 Detail = "The service's access policy was updated on honua-server.",
                 ServiceName = settings.ServiceName ?? command.ServiceName,
-                EnabledProtocols = settings.EnabledProtocols
+                EnabledProtocols = settings.EnabledProtocols ?? []
             };
         }
 

@@ -204,9 +204,10 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
     {
         // Prefer the per-service hierarchy; fall back to a single synthetic service from the flat candidate list
         // for older servers that don't return the Services array.
-        if (discovery.Services.Count > 0)
+        var discoveredServices = discovery.Services ?? [];
+        if (discoveredServices.Count > 0)
         {
-            return discovery.Services
+            return discoveredServices
                 .Select(service => new ConsoleServiceImportService
                 {
                     ServiceName = string.IsNullOrWhiteSpace(service.ServiceName)
@@ -216,7 +217,7 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
                     FolderPath = service.FolderPath,
                     ServiceUrl = service.ServiceUrl,
                     Srid = service.Srid,
-                    Layers = MapLayers(service.Candidates),
+                    Layers = MapLayers(service.Candidates ?? []),
                 })
                 .ToArray();
         }
@@ -229,7 +230,7 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
                 ServiceType = discovery.ServiceType,
                 ServiceUrl = discovery.NormalizedUrl,
                 Srid = discovery.Srid,
-                Layers = MapLayers(discovery.Candidates),
+                Layers = MapLayers(discovery.Candidates ?? []),
             }
         ];
     }

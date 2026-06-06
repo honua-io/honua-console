@@ -20,7 +20,7 @@ public static class OperateObservabilityMapper
     public static IReadOnlyList<OperateEventRow> MapEvents(
         OperateEventPageResponse page,
         ConsoleEnvironmentProfile profile) =>
-        page.Items.Select(item => MapEvent(item, profile)).ToArray();
+        (page.Items ?? []).Select(item => MapEvent(item, profile)).ToArray();
 
     public static OperateEventRow MapEvent(OperateEventResponse item, ConsoleEnvironmentProfile profile)
     {
@@ -96,7 +96,7 @@ public static class OperateObservabilityMapper
 
     public static OperateLogsView MapLogs(OperateLogPageResponse page)
     {
-        var logs = page.Items.Select(MapLog).ToArray();
+        var logs = (page.Items ?? []).Select(MapLog).ToArray();
         var severityBuckets = logs
             .GroupBy(item => item.Level, StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(group => group.Count())
@@ -156,7 +156,7 @@ public static class OperateObservabilityMapper
     // --- Alerts -------------------------------------------------------------
 
     public static IReadOnlyList<OperateAlertRecord> MapAlerts(ObservabilityAlertEventPageResponse page) =>
-        page.Items.Select(MapAlert).ToArray();
+        (page.Items ?? []).Select(MapAlert).ToArray();
 
     public static OperateAlertRecord MapAlert(ObservabilityAlertEventResponse item)
     {
@@ -236,7 +236,7 @@ public static class OperateObservabilityMapper
     {
         var validation = BuildRuleValidation(rule, health);
         var deliveryFailures = health?.DeliveryFailureCount ?? 0;
-        var channelFailing = health?.DeliveryChannels.Any(channel => OperateStatusIsFailure(channel.Status)) ?? false;
+        var channelFailing = (health?.DeliveryChannels ?? []).Any(channel => OperateStatusIsFailure(channel.Status));
         var status = ResolveRuleStatus(rule, deliveryFailures, channelFailing, validation.Count > 0);
 
         return new OperateAlertRule(
@@ -246,7 +246,7 @@ public static class OperateObservabilityMapper
             Enabled: rule.IsActive,
             Status: status,
             ConditionSummary: $"{Titleize(rule.TriggerType)} trigger, cooldown {rule.CooldownSeconds.ToString(CultureInfo.InvariantCulture)}s, severity {rule.Severity}.",
-            DeliverySummary: rule.Channels.Length == 0 ? "no channel configured" : string.Join(", ", rule.Channels),
+            DeliverySummary: (rule.Channels ?? []).Length == 0 ? "no channel configured" : string.Join(", ", rule.Channels ?? []),
             LastEvaluatedAt: FormatTimestamp(health?.LastEvaluatedAt),
             ActiveIncidentCount: health?.ActiveIncidentCount ?? 0,
             DeliveryFailureCount: deliveryFailures,
@@ -258,14 +258,14 @@ public static class OperateObservabilityMapper
     private static IReadOnlyList<string> BuildRuleValidation(AlertRuleResponse rule, AlertRuleHealthResponse? health)
     {
         var messages = new List<string>();
-        if (rule.Channels.Length == 0)
+        if ((rule.Channels ?? []).Length == 0)
         {
             messages.Add("Configure at least one delivery channel.");
         }
 
         if (health is not null)
         {
-            foreach (var channel in health.DeliveryChannels.Where(channel => OperateStatusIsFailure(channel.Status) || string.Equals(channel.Status, "unconfigured", StringComparison.OrdinalIgnoreCase)))
+            foreach (var channel in (health.DeliveryChannels ?? []).Where(channel => OperateStatusIsFailure(channel.Status) || string.Equals(channel.Status, "unconfigured", StringComparison.OrdinalIgnoreCase)))
             {
                 var detail = string.IsNullOrWhiteSpace(channel.LastError) ? channel.Status : channel.LastError;
                 messages.Add($"Channel {channel.Channel}: {detail}");
@@ -313,7 +313,7 @@ public static class OperateObservabilityMapper
             GeometrySummary: string.IsNullOrWhiteSpace(zone.Wkt)
                 ? "no geometry on file"
                 : $"WKT geometry ({zone.Wkt!.Length.ToString(CultureInfo.InvariantCulture)} chars)",
-            Metadata: zone.Metadata
+            Metadata: (zone.Metadata ?? new(StringComparer.Ordinal))
                 .Select(pair => $"{pair.Key}: {pair.Value}")
                 .ToArray());
 
@@ -332,7 +332,7 @@ public static class OperateObservabilityMapper
             ServerId: profile.ServerBaseUri.Host,
             ProgressPercent: ToPercent(summary.PercentComplete),
             FailureClassification: string.Equals(summary.Status, "Failed", StringComparison.OrdinalIgnoreCase) ? "see job detail" : "none",
-            ResourceRefs: summary.ResourceRefs,
+            ResourceRefs: summary.ResourceRefs ?? [],
             Stages: [],
             Logs: [],
             Artifacts: [],
@@ -361,12 +361,12 @@ public static class OperateObservabilityMapper
             ServerId: profile.ServerBaseUri.Host,
             ProgressPercent: ToPercent(detail.PercentComplete),
             FailureClassification: detail.Failure?.Classification ?? "none",
-            ResourceRefs: detail.ResourceRefs,
-            Stages: detail.Stages.Select(MapStage).ToArray(),
+            ResourceRefs: detail.ResourceRefs ?? [],
+            Stages: (detail.Stages ?? []).Select(MapStage).ToArray(),
             Logs: logs,
             Artifacts: artifacts,
             Metrics: BuildDetailMetrics(detail),
-            AllowedActions: detail.Actions.Select(MapJobAction).ToArray(),
+            AllowedActions: (detail.Actions ?? []).Select(MapJobAction).ToArray(),
             RelatedObjects: BuildJobRelated(detail),
             LogsStatus: logsStatus,
             LogsMessage: logsMessage,
@@ -388,13 +388,13 @@ public static class OperateObservabilityMapper
             return ["Job logs are not available from the provider for this job."];
         }
 
-        return page.Items
+        return (page.Items ?? [])
             .Select(entry => $"{FormatTimestamp(entry.Timestamp)} [{entry.Level}] {entry.Message}")
             .ToArray();
     }
 
     public static IReadOnlyList<OperateEvidenceLink> MapJobArtifacts(ConsoleJobArtifactPageResponse page) =>
-        page.Items.Select(artifact => new OperateEvidenceLink(
+        (page.Items ?? []).Select(artifact => new OperateEvidenceLink(
             Kind: artifact.Kind ?? "artifact",
             Label: artifact.Label ?? artifact.ArtifactId,
             Href: artifact.ProviderLink ?? string.Empty,
@@ -457,7 +457,7 @@ public static class OperateObservabilityMapper
     // --- Investigations -----------------------------------------------------
 
     public static IReadOnlyList<OperateInvestigation> MapInvestigations(InvestigationPageResponse page) =>
-        page.Items.Select(MapInvestigation).ToArray();
+        (page.Items ?? []).Select(MapInvestigation).ToArray();
 
     public static OperateInvestigation MapInvestigation(InvestigationSummaryResponse item) =>
         new(
@@ -473,15 +473,17 @@ public static class OperateObservabilityMapper
 
     public static OperateInvestigation MapInvestigation(InvestigationResponse item)
     {
-        var linkedAlerts = item.Links
+        var links = item.Links ?? [];
+        var pins = item.Pins ?? [];
+        var linkedAlerts = links
             .Where(link => string.Equals(link.ResourceKind, "alert", StringComparison.OrdinalIgnoreCase))
             .Select(link => link.ResourceId)
             .ToArray();
-        var linkedJobs = item.Links
+        var linkedJobs = links
             .Where(link => string.Equals(link.ResourceKind, "job", StringComparison.OrdinalIgnoreCase))
             .Select(link => link.ResourceId)
             .ToArray();
-        var extraLinks = item.Links
+        var extraLinks = links
             .Where(link => !string.Equals(link.ResourceKind, "alert", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(link.ResourceKind, "job", StringComparison.OrdinalIgnoreCase))
             .Select(link => $"{link.ResourceKind}: {link.ResourceId}")
@@ -493,8 +495,8 @@ public static class OperateObservabilityMapper
             notes.Add(item.Summary!);
         }
 
-        notes.AddRange(item.Pins.Where(pin => !string.IsNullOrWhiteSpace(pin.Note)).Select(pin => pin.Note!));
-        notes.AddRange(item.Links.Where(link => !string.IsNullOrWhiteSpace(link.Note)).Select(link => link.Note!));
+        notes.AddRange(pins.Where(pin => !string.IsNullOrWhiteSpace(pin.Note)).Select(pin => pin.Note!));
+        notes.AddRange(links.Where(link => !string.IsNullOrWhiteSpace(link.Note)).Select(link => link.Note!));
         notes.AddRange(extraLinks);
         if (notes.Count == 0)
         {
@@ -507,7 +509,7 @@ public static class OperateObservabilityMapper
             Status: new OperateStatus(item.Status, item.Summary ?? "Investigation"),
             Owner: item.CreatedBy,
             TimeRange: $"{FormatTimestamp(item.CreatedAt)} - {FormatTimestamp(item.UpdatedAt)}",
-            PinnedEventIds: item.Pins.Select(pin => pin.EventRef).ToArray(),
+            PinnedEventIds: pins.Select(pin => pin.EventRef).ToArray(),
             LinkedAlertIds: linkedAlerts,
             LinkedJobRunIds: linkedJobs,
             Notes: notes);
