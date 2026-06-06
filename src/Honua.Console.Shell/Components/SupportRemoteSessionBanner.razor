@@ -5,12 +5,12 @@
    a TTL countdown to expiry, the customer-visible state, and a "view actions"
    affordance into the audit/evidence trail.
 
-   DATA TRANSPORT NOTE: the rich live-session state (a concrete server-side
-   session expiry timestamp, an explicit customer-visible flag, and audit/
-   evidence refs) lives on the honua-devops `support-ticket-view` ConsoleBridge
-   projection, for which NO Console transport exists today. So this banner
-   degrades to what the honua-support ticket response carries: AllowedAccessMode,
-   TtlMinutes (counted down from UpdatedAt as a best-effort expiry), and the
+   DATA TRANSPORT NOTE (honua-support#23): when the ticket carries the
+   authoritative `trust.delegatedSession`, this banner uses its concrete
+   `expiresAt` for the countdown, its explicit `customerVisible` flag, and its
+   `active` state directly. When that sub-object is ABSENT it degrades to the
+   loose ticket fields: AllowedAccessMode + TtlMinutes counted down from
+   UpdatedAt (best-effort expiry), customer-visible inferred by policy, and the
    access boundary. When access is read-only / no session is implied, it states
    that plainly rather than inventing a session. *@
 @if (ShowBanner)
@@ -34,7 +34,14 @@
                 }
             </p>
             <p class="console-muted support-session-expiry">
-                TTL @TtlMinutes min · best-effort expiry @ExpiresAt?.ToString("u")
+                @if (HasAuthoritativeSession)
+                {
+                    <span>Expires @ExpiresAt?.ToString("u")</span>
+                }
+                else
+                {
+                    <span>TTL @TtlMinutes min · best-effort expiry @ExpiresAt?.ToString("u")</span>
+                }
             </p>
         }
         else
@@ -83,7 +90,21 @@
 
     private bool ShowBanner => Ticket is not null;
 
-    private string AccessMode => Ticket?.AllowedAccessMode ?? string.Empty;
+    // trust-data relay (honua-support#23): the authoritative delegated-session
+    // sub-object. When present it FULLY governs the banner (mode, active, expiry,
+    // customer-visible) — including a `disabled` mode, which authoritatively means
+    // no session is open. Only when it is ABSENT do we fall back to the loose
+    // access-mode/TTL inference below.
+    private SupportTrustDelegatedSession? Session => Ticket?.Trust?.DelegatedSession;
+
+    private bool HasTrustSession => Session is not null;
+
+    // Whether the authoritative expiry / countdown caption applies (a present
+    // trust session always uses its concrete expiry, never the best-effort one).
+    private bool HasAuthoritativeSession => HasTrustSession;
+
+    private string AccessMode =>
+        HasTrustSession ? Session!.Mode : Ticket?.AllowedAccessMode ?? string.Empty;
 
     private int TtlMinutes => Ticket?.TtlMinutes ?? 0;
 
@@ -91,29 +112,45 @@
 
     private string AccessModeLabel => string.IsNullOrWhiteSpace(AccessMode) ? "read-only" : AccessMode;
 
-    // An elevated session window exists only when the access mode is more than
-    // read-only AND a positive TTL is present.
+    // An elevated session window exists when the authoritative session is active
+    // and not read-only/disabled, or — best-effort, absent trust — when the
+    // access mode is more than read-only AND a positive TTL is present.
     private bool HasActiveWindow =>
-        TtlMinutes > 0 &&
-        !string.Equals(AccessMode, "read-only", StringComparison.OrdinalIgnoreCase) &&
-        !string.IsNullOrWhiteSpace(AccessMode);
+        HasTrustSession
+            ? Session!.Active &&
+              !string.Equals(Session.Mode, "read-only", StringComparison.OrdinalIgnoreCase) &&
+              !string.Equals(Session.Mode, "disabled", StringComparison.OrdinalIgnoreCase)
+            : TtlMinutes > 0 &&
+              !string.Equals(AccessMode, "read-only", StringComparison.OrdinalIgnoreCase) &&
+              !string.IsNullOrWhiteSpace(AccessMode);
 
-    // No live customer-visible flag is reachable on the ticket response; this is
-    // a devops-bridge field. Treat operator-scoped break-glass as customer-
-    // visible by policy (the access boundary requires ticket-scoped approval),
-    // everything else is left to the follow-up bridge.
+    // Prefer the authoritative customer-visible flag. Absent it, no live flag is
+    // reachable, so treat operator-scoped break-glass as customer-visible by
+    // policy (the access boundary requires ticket-scoped approval).
     private bool CustomerVisible =>
-        string.Equals(AccessMode, "operator-scoped", StringComparison.OrdinalIgnoreCase);
+        HasTrustSession
+            ? Session!.CustomerVisible
+            : string.Equals(AccessMode, "operator-scoped", StringComparison.OrdinalIgnoreCase);
 
     private string SeverityClass => HasActiveWindow
         ? (_remaining > TimeSpan.Zero ? "support-session-active" : "support-session-expired")
         : "support-session-idle";
 
-    // Best-effort expiry: the ticket carries TtlMinutes but no absolute expiry
-    // instant, so anchor the countdown to the last server update. Flagged as a
-    // follow-up where the devops bridge supplies a real expiry timestamp.
-    private DateTimeOffset? ExpiresAt =>
-        Ticket is null || !HasActiveWindow ? null : Ticket.UpdatedAt.AddMinutes(TtlMinutes);
+    // Prefer the authoritative concrete expiry instant. Absent it, the ticket
+    // carries TtlMinutes but no absolute expiry instant, so anchor the countdown
+    // to the last server update (best-effort).
+    private DateTimeOffset? ExpiresAt
+    {
+        get
+        {
+            if (HasTrustSession)
+            {
+                return Session!.ExpiresAt;
+            }
+
+            return Ticket is null || !HasActiveWindow ? null : Ticket.UpdatedAt.AddMinutes(TtlMinutes);
+        }
+    }
 
     // Deep-link into the audit/evidence trail. Until the devops bridge exposes
     // concrete evidence refs, this points at the ticket's audit anchor.

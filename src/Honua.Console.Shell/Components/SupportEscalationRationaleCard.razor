@@ -1,9 +1,13 @@
 @using Honua.Console.Contracts
 
-@* trust-visibility (#166): explains *why* a ticket escalated, from the rationale
-   that travels on the honua-support ticket (Diagnosis.Escalation + the
-   EscalatedAt/By/Tier provenance on the ticket response). Renders nothing unless
-   the ticket is actually escalated. *@
+@* trust-visibility (#166): explains *why* a ticket escalated.
+
+   DATA TRANSPORT NOTE (honua-support#23): when the ticket carries the
+   authoritative `trust.escalation`, this card reads its
+   trigger/signal/justification/accessScope/... directly. When that sub-object is
+   ABSENT it degrades to the loose diagnosis-borne rationale
+   (Diagnosis.Escalation) plus the EscalatedAt/By/Tier provenance on the ticket
+   response. Renders nothing unless the ticket is actually escalated. *@
 @if (IsEscalated)
 {
     <article class="console-panel support-escalation-card">
@@ -20,22 +24,19 @@
             <p class="support-escalation-headline">@HeadlineReason</p>
         }
 
-        @if (Rationale is { } rationale)
+        @if (!string.IsNullOrWhiteSpace(Justification))
         {
-            @if (!string.IsNullOrWhiteSpace(rationale.Justification))
-            {
-                <p>@rationale.Justification</p>
-            }
-
-            <dl class="support-context-list">
-                <ContextRow Label="Trigger" Value="@rationale.Trigger" />
-                <ContextRow Label="Signal" Value="@rationale.Signal" />
-                <ContextRow Label="Access scope" Value="@rationale.AccessScope" />
-                <ContextRow Label="Rollback intent" Value="@rationale.RollbackIntent" />
-                <ContextRow Label="Approved by" Value="@rationale.ApprovedBy" />
-                <ContextRow Label="Approved at" Value="@(rationale.ApprovedAt?.ToString("u"))" />
-            </dl>
+            <p>@Justification</p>
         }
+
+        <dl class="support-context-list">
+            <ContextRow Label="Trigger" Value="@Trigger" />
+            <ContextRow Label="Signal" Value="@Signal" />
+            <ContextRow Label="Access scope" Value="@AccessScope" />
+            <ContextRow Label="Rollback intent" Value="@RollbackIntent" />
+            <ContextRow Label="Approved by" Value="@ApprovedBy" />
+            <ContextRow Label="Approved at" Value="@(ApprovedAt?.ToString("u"))" />
+        </dl>
 
         <dl class="support-context-list">
             <ContextRow Label="Escalated by" Value="@EscalatedBy" />
@@ -48,6 +49,10 @@
     [Parameter]
     public SupportTicketResponse? Ticket { get; set; }
 
+    // trust-data relay (honua-support#23): authoritative escalation when present.
+    private SupportTrustEscalation? Trust => Ticket?.Trust?.Escalation;
+
+    // Loose best-effort rationale (diagnosis-borne) used when trust is absent.
     private SupportEscalationRationale? Rationale => Ticket?.Diagnosis?.Escalation;
 
     private int? Tier => Ticket?.EscalationTier;
@@ -56,32 +61,44 @@
 
     private string? EscalatedBy => Ticket?.EscalatedBy;
 
-    // Escalated if the ticket carries any escalation provenance: a tier, a
-    // timestamp, or a diagnosis-borne rationale.
+    // Prefer the authoritative trust fields; fall back to the loose rationale.
+    private string? Trigger => Trust?.Trigger ?? Rationale?.Trigger;
+
+    private string? Signal => Trust?.Signal ?? Rationale?.Signal;
+
+    private string? Justification => Trust?.Justification is { Length: > 0 } j
+        ? j
+        : Rationale?.Justification;
+
+    private string? AccessScope => Trust?.AccessScope ?? Rationale?.AccessScope;
+
+    private string? RollbackIntent => Trust?.RollbackIntent ?? Rationale?.RollbackIntent;
+
+    private string? ApprovedBy => Trust?.ApprovedBy ?? Rationale?.ApprovedBy;
+
+    private DateTimeOffset? ApprovedAt => Trust?.ApprovedAt ?? Rationale?.ApprovedAt;
+
+    // Escalated if the authoritative trust says so, or — best-effort — the ticket
+    // carries any escalation provenance: a tier, a timestamp, or a rationale.
     private bool IsEscalated =>
         Ticket is not null &&
-        (Tier is > 0 || EscalatedAt is not null || Rationale is not null);
+        (Trust?.Escalated == true ||
+         Tier is > 0 || EscalatedAt is not null || Rationale is not null);
 
-    // Prefer the devops trigger/signal codes for a crisp one-liner; otherwise
-    // fall back to the human justification.
+    // Prefer the trigger/signal codes for a crisp one-liner; otherwise none.
     private string? HeadlineReason
     {
         get
         {
-            if (Rationale is not { } rationale)
+            if (string.IsNullOrWhiteSpace(Trigger))
             {
                 return null;
             }
 
-            if (!string.IsNullOrWhiteSpace(rationale.Trigger))
-            {
-                var trigger = Humanize(rationale.Trigger);
-                return string.IsNullOrWhiteSpace(rationale.Signal)
-                    ? $"{trigger} → escalating"
-                    : $"{trigger} ({rationale.Signal}) → escalating";
-            }
-
-            return null;
+            var trigger = Humanize(Trigger);
+            return string.IsNullOrWhiteSpace(Signal)
+                ? $"{trigger} → escalating"
+                : $"{trigger} ({Signal}) → escalating";
         }
     }
 
