@@ -360,7 +360,7 @@ public sealed class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageCl
         {
             Enabled = providers.Data.Enabled,
             DefaultProvider = providers.Data.DefaultProvider,
-            Providers = providers.Data.Providers
+            Providers = (providers.Data.Providers ?? [])
                 .Select(provider => new StudioWorkflowAiProvider(
                     provider.Id,
                     string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,

@@ -393,18 +393,18 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
                 return new StudioAnalysisJobView(
                     job.JobId,
                     job.Status,
-                    job.Version.Version,
+                    (job.Version ?? new()).Version,
                     Failure: new StudioAnalysisJobFailureView(failure.Classification, failure.Message));
             }
 
             return new StudioAnalysisJobView(
                 job.JobId,
                 job.Status,
-                job.Version.Version,
+                (job.Version ?? new()).Version,
                 Failure: new StudioAnalysisJobFailureView("unknown", "The analysis job failed."));
         }
 
-        return new StudioAnalysisJobView(job.JobId, job.Status, job.Version.Version);
+        return new StudioAnalysisJobView(job.JobId, job.Status, (job.Version ?? new()).Version);
     }
 
     /// <summary>

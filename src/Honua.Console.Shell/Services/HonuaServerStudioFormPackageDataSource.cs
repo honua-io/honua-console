@@ -260,7 +260,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         {
             Enabled = data.Enabled,
             DefaultProvider = data.DefaultProvider,
-            Providers = data.Providers
+            Providers = (data.Providers ?? [])
                 .Select(provider => new StudioFormAiProvider(
                     provider.Id,
                     string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,

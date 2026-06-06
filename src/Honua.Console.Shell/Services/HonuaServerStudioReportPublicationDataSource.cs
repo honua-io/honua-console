@@ -191,7 +191,7 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         {
             Enabled = data.Enabled,
             DefaultProvider = data.DefaultProvider,
-            Providers = data.Providers
+            Providers = (data.Providers ?? [])
                 .Select(provider => new StudioReportAiProvider(
                     provider.Id,
                     string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,

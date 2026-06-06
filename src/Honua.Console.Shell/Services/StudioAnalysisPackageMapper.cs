@@ -312,7 +312,7 @@ public static class StudioAnalysisPackageMapper
                 step.StepId,
                 ResolveStepLabel(step, title),
                 step.ProcessId ?? step.Kind,
-                step.DependsOn))
+                step.DependsOn ?? []))
             .ToArray();
     }
 
