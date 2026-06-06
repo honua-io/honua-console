@@ -32,4 +32,10 @@ public sealed class UnsupportedStudioQueryPackageDataSource : IStudioQueryPackag
         StudioQueryEditor query,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new StudioQueryCommandResult(false, MissingBinding.Detail, Issue: MissingBinding));
+
+    public Task<StudioQueryGenerationOutcome> GenerateAsync(
+        StudioQueryEditor currentQuery,
+        StudioQueryGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioQueryGenerationOutcome.Blocked(MissingBinding));
 }

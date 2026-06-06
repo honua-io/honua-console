@@ -1,44 +1,356 @@
 @page "/operate/connections/new"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Validation
+@inject IConsoleConnectionCreateOperation ConnectionCreate
+@inject IOperateTransitionDataSource OperateData
+@inject NavigationManager Nav
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved connection. Leave this page and discard it?" />
 
 <section class="console-page">
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Connections</p>
         <h1>Add Connection</h1>
-        <p>New connections capture provider, endpoint, account binding, and secret reference separately so credentials never need to be displayed in Console.</p>
+        <p>New connections capture provider, endpoint, account binding, and secret reference separately so credentials never need to be displayed in Console. The password is sent to the configured server secret store and is never echoed back.</p>
     </div>
+
+    <article class="console-panel">
+        <div class="studio-field-grid">
+            <label>
+                <span>Connection name</span>
+                <input class="console-input" @bind="_name" @bind:event="oninput" @bind:after="OnEdit" placeholder="prod-postgis" />
+                <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Name" State="_validation" />
+            </label>
+            <label>
+                <span>Database type</span>
+                <select class="console-input" @bind="_provider" @bind:after="OnProviderChanged">
+                    @foreach (var provider in Providers)
+                    {
+                        <option value="@provider.Value">@provider.Label</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Credential source</span>
+                <select class="console-input" aria-label="Credential source" @bind="_credentialSource" @bind:after="OnEdit" data-credential-source>
+                    <option value="password">Password (enter host &amp; credentials)</option>
+                    <option value="secret">Secret reference (full connection string)</option>
+                </select>
+                <small class="console-muted">A secret reference resolves the entire connection string from an external store at connection time; Honua stores only the reference, never the secret.</small>
+            </label>
+
+            @if (!UsesSecret)
+            {
+                <label>
+                    <span>Host</span>
+                    <input class="console-input" @bind="_host" @bind:event="oninput" @bind:after="OnEdit" placeholder="db-prod.honua.internal" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Host" State="_validation" />
+                </label>
+                <label>
+                    <span>Port</span>
+                    <input class="console-input" type="number" min="1" max="65535" @bind="_port" @bind:after="OnEdit" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Port" State="_validation" />
+                </label>
+                <label>
+                    <span>@CurrentProvider.DatabaseLabel</span>
+                    <input class="console-input" @bind="_database" @bind:event="oninput" @bind:after="OnEdit" placeholder="honua_geo" />
+                    @if (CurrentProvider.DatabaseHint is { } hint)
+                    {
+                        <small class="console-muted">@hint</small>
+                    }
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Database" State="_validation" />
+                </label>
+                <label>
+                    <span>Username</span>
+                    <input class="console-input" @bind="_username" @bind:event="oninput" @bind:after="OnEdit" placeholder="honua_reader" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Username" State="_validation" />
+                </label>
+                <label>
+                    <span>Password</span>
+                    <input class="console-input" type="password" @bind="_password" @bind:event="oninput" @bind:after="OnEdit" placeholder="••••••••••••" />
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.Password" State="_validation" />
+                </label>
+            }
+            else
+            {
+                <label>
+                    <span>Secret reference</span>
+                    <input class="console-input" @bind="_secretReference" @bind:event="oninput" @bind:after="OnEdit"
+                           placeholder="env:PROD_DB_DSN" data-secret-reference />
+                    <small class="console-muted">
+                        Form provider:path — e.g. <code>env:PROD_DB_DSN</code>, <code>aws:secretsmanager:prod-db-creds</code>, <code>azure:keyvault:vault:secret</code>.
+                        @if (SecretTypeFromReference is { } secretType)
+                        {
+                            <text> Resolved store: <strong data-secret-type>@secretType</strong>.</text>
+                        }
+                    </small>
+                    <ValidationMessageInline FieldKey="@ConnectionFieldKeys.SecretReference" State="_validation" />
+                </label>
+            }
+            <label>
+                <span>SSL mode</span>
+                <select class="console-input" @bind="_sslMode" @bind:after="OnEdit">
+                    <option value="Disable">Disable</option>
+                    <option value="Allow">Allow</option>
+                    <option value="Prefer">Prefer</option>
+                    <option value="Require">Require</option>
+                    <option value="VerifyCa">Verify CA</option>
+                    <option value="VerifyFull">Verify full</option>
+                </select>
+            </label>
+            <label>
+                <span>Description (optional)</span>
+                <input class="console-input" @bind="_description" @bind:event="oninput" @bind:after="OnEdit" placeholder="Production PostGIS for parcels and hazards" />
+            </label>
+        </div>
+
+        @if (_testOutcome is { } test)
+        {
+            <article class="console-panel @(test.Tested && test.IsHealthy ? "console-state-success" : "console-state-warning")" role="status">
+                <p class="console-kicker">@test.State</p>
+                <h2>@(test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")</h2>
+                <p>@test.Detail</p>
+            </article>
+        }
+
+        @if (_result is { Succeeded: false })
+        {
+            <article class="console-panel console-state-danger" role="alert">
+                <p class="console-kicker">@_result.State</p>
+                <h2>Connection not created</h2>
+                <p>@_result.Detail</p>
+            </article>
+        }
+
+        <div class="console-action-row">
+            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _testing)" @onclick="TestAsync">
+                @(_testing ? "Testing…" : "Test connection")
+            </button>
+            <button class="console-button" type="button" disabled="@(_busy || _testing)" @onclick="CreateAsync">
+                @(_busy ? "Creating…" : "Create connection")
+            </button>
+            <a href="/operate/connections">Cancel</a>
+        </div>
+    </article>
 
     <div class="console-panel-grid">
         <article class="console-panel">
-            <p class="console-kicker">Step 1</p>
-            <h2>Provider And Target</h2>
-            <dl class="console-definition-list">
-                <dt>Provider</dt>
-                <dd>PostgreSQL/PostGIS, ArcGIS REST, HTTP API, file upload</dd>
-                <dt>Target</dt>
-                <dd>Host, database, service URL, or upload source</dd>
-            </dl>
-        </article>
-
-        <article class="console-panel">
-            <p class="console-kicker">Step 2</p>
-            <h2>Credential Reference</h2>
-            <dl class="console-definition-list">
-                <dt>Secret ID</dt>
-                <dd>Non-secret identifier such as secret://connections/prod-postgres/[redacted]</dd>
-                <dt>Secret value</dt>
-                <dd>Stored only by the configured server secret store</dd>
-            </dl>
-        </article>
-
-        <article class="console-panel">
-            <p class="console-kicker">Step 3</p>
-            <h2>Test And Publish</h2>
+            <p class="console-kicker">What happens next</p>
+            <h2>Test And Resources</h2>
             <dl class="console-definition-list">
                 <dt>Diagnostics</dt>
-                <dd>Structured checks with redacted evidence</dd>
+                <dd>Structured checks with redacted evidence on the connection detail page.</dd>
                 <dt>Next route</dt>
-                <dd>Create a data resource or migrate a one-time remote service</dd>
+                <dd>Create a data resource or publish a layer from a table in this connection.</dd>
             </dl>
         </article>
     </div>
 </section>
+
+@code {
+    private sealed record ProviderOption(string Value, string Label, int DefaultPort, string DatabaseLabel, string? DatabaseHint);
+
+    // Provider engines honua-server's DataProviderNames.Normalize accepts, with their default ports and the
+    // per-engine label for the "database" field (Oracle addresses a service name / SID, not a database).
+    private static readonly ProviderOption[] Providers =
+    {
+        new("postgis", "PostgreSQL / PostGIS", 5432, "Database", null),
+        new("mysql", "MySQL / MariaDB", 3306, "Database", null),
+        new("sqlserver", "SQL Server", 1433, "Database", null),
+        new("oracle", "Oracle", 1521, "Service name", "Oracle service name or SID."),
+    };
+
+    private string _name = string.Empty;
+    private string _provider = "postgis";
+    private string _credentialSource = "password";
+    private string _host = string.Empty;
+    private int _port = 5432;
+    private string _database = string.Empty;
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+    private string _secretReference = string.Empty;
+    private string _sslMode = "Disable";
+    private string _description = string.Empty;
+
+    private bool UsesSecret => string.Equals(_credentialSource, "secret", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The secret store kind derived from the reference prefix (env, aws, azure), or null if unparseable.</summary>
+    private string? SecretTypeFromReference
+    {
+        get
+        {
+            var reference = _secretReference.Trim();
+            var colon = reference.IndexOf(':');
+            return colon > 0 ? reference[..colon].ToLowerInvariant() : null;
+        }
+    }
+
+    private bool _busy;
+    private bool _testing;
+    private ConsoleConnectionCreateResult? _result;
+    private ConsoleConnectionTestOutcome? _testOutcome;
+
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
+
+    // Existing connection names, loaded once, so the validator can block a duplicate before POSTing. honua-server
+    // enforces a unique-name constraint (data_connections_name_key) but surfaces a violation as a generic 400.
+    private HashSet<string> _existingNames = new(StringComparer.OrdinalIgnoreCase);
+
+    private ProviderOption CurrentProvider =>
+        Providers.FirstOrDefault(provider => string.Equals(provider.Value, _provider, StringComparison.OrdinalIgnoreCase))
+            ?? Providers[0];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var view = await OperateData.GetConnectionsViewAsync();
+        _existingNames = view.Connections
+            .Select(connection => connection.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void OnProviderChanged()
+    {
+        // Reset the port to the chosen engine's default so the operator does not carry over a port that does
+        // not match the new database type.
+        _port = CurrentProvider.DefaultPort;
+        OnEdit();
+    }
+
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        // A field edit invalidates a prior test/create result — the target may have changed.
+        _testOutcome = null;
+        _result = null;
+        Revalidate();
+    }
+
+    private IReadOnlyList<ConsoleFieldError> Revalidate()
+    {
+        var errors = ConnectionDraftValidator.Instance.Evaluate(BuildState());
+        _validation.SetClientErrors(errors);
+        // Clear stale server findings once the operator starts editing; create re-populates on the next attempt.
+        _validation.SetServerErrors(null);
+        return errors;
+    }
+
+    private ConnectionDraftState BuildState() =>
+        new(_name, _host, _port, _database, _username, _password, _provider, _existingNames,
+            UsesSecret, _secretReference);
+
+    private ConsoleConnectionCreateCommand BuildCommand() => new()
+    {
+        Name = _name.Trim(),
+        Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+        CredentialSource = _credentialSource,
+        Host = _host.Trim(),
+        Port = _port,
+        DatabaseName = _database.Trim(),
+        Username = _username.Trim(),
+        Password = _password,
+        SecretReference = string.IsNullOrWhiteSpace(_secretReference) ? null : _secretReference.Trim(),
+        SecretType = UsesSecret ? SecretTypeFromReference : null,
+        Provider = _provider,
+        SslRequired = !string.Equals(_sslMode, "Disable", StringComparison.OrdinalIgnoreCase),
+        SslMode = _sslMode
+    };
+
+    private async Task TestAsync()
+    {
+        // Reachability doesn't need a unique (or even present) name, so ignore Name findings when gating Test.
+        var errors = Revalidate();
+        if (errors.Any(error => error.IsBlocking && error.FieldKey != ConnectionFieldKeys.Name))
+        {
+            return;
+        }
+
+        _testing = true;
+        _testOutcome = null;
+        _result = null;
+        try
+        {
+            _testOutcome = await ConnectionCreate.TestAsync(BuildCommand());
+        }
+        finally
+        {
+            _testing = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        var errors = Revalidate();
+        if (errors.Any(error => error.IsBlocking))
+        {
+            return;
+        }
+
+        _busy = true;
+        _result = null;
+        try
+        {
+            _result = await ConnectionCreate.CreateAsync(BuildCommand());
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (_result.Succeeded)
+        {
+            // Clear the dirty flag and let one render flow so the UnsavedChangesGuard observes the cleared
+            // state (its IsDirty parameter only updates on render) before we navigate — otherwise a successful
+            // save trips the "leave this page?" prompt.
+            _dirty.MarkClean();
+            StateHasChanged();
+            await Task.Yield();
+            Nav.NavigateTo(string.IsNullOrWhiteSpace(_result.ConnectionId)
+                ? "/operate/connections"
+                : $"/operate/connections/{_result.ConnectionId}");
+            return;
+        }
+
+        // Bind any field-addressable server rejection onto the offending inputs; the form-level detail still
+        // renders in the failure panel above.
+        _validation.SetServerErrors(MapServerErrors(_result.FieldErrors));
+    }
+
+    private static IReadOnlyList<ConsoleFieldError> MapServerErrors(IReadOnlyList<ConsoleConnectionCreateFieldError> errors)
+    {
+        if (errors.Count == 0)
+        {
+            return Array.Empty<ConsoleFieldError>();
+        }
+
+        return errors
+            .Select(error => new ConsoleFieldError(
+                ResolveFieldKey(error.Path ?? error.FieldId),
+                error.Code,
+                ServerFieldErrorMapper.ParseSeverity(error.Severity),
+                error.Message,
+                error.Path))
+            .ToArray();
+    }
+
+    private static string ResolveFieldKey(string? locator)
+    {
+        if (string.IsNullOrWhiteSpace(locator))
+        {
+            return ServerFieldErrorMapper.FormLevelFieldKey;
+        }
+
+        var token = locator.Trim().ToLowerInvariant();
+        if (token.Contains("name", StringComparison.Ordinal)) return ConnectionFieldKeys.Name;
+        if (token.Contains("host", StringComparison.Ordinal)) return ConnectionFieldKeys.Host;
+        if (token.Contains("port", StringComparison.Ordinal)) return ConnectionFieldKeys.Port;
+        if (token.Contains("database", StringComparison.Ordinal)) return ConnectionFieldKeys.Database;
+        if (token.Contains("user", StringComparison.Ordinal)) return ConnectionFieldKeys.Username;
+        if (token.Contains("password", StringComparison.Ordinal)) return ConnectionFieldKeys.Password;
+        if (token.Contains("secret", StringComparison.Ordinal)) return ConnectionFieldKeys.SecretReference;
+        if (token.Contains("provider", StringComparison.Ordinal)) return ConnectionFieldKeys.Provider;
+        return ServerFieldErrorMapper.FormLevelFieldKey;
+    }
+}

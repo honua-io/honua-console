@@ -199,6 +199,157 @@ public sealed class StudioDashboardPackageDataSourceTests
         Assert.Equal("Unsupported", state.State);
     }
 
+    [Fact]
+    public void DocumentMapper_LiftsPanelsBindingsAndNarrative_AndMapsMetricToTable()
+    {
+        var document = JsonSerializer.Deserialize<JsonElement>(
+            """
+            {
+              "format": "honua.dashboard-document.v1",
+              "title": "Service requests",
+              "description": "Open requests by district.",
+              "narrative": "Operational context.",
+              "breakpoint": "tablet",
+              "bindings": [ { "alias": "requests", "contentRef": "content:service-requests", "versionPin": "v5" } ],
+              "panels": [
+                { "id": "p1", "kind": "chart", "title": "By district", "bindingAlias": "requests",
+                  "chartSpec": { "$schema": "https://vega.github.io/schema/vega-lite/v5.json", "mark": "bar" } },
+                { "id": "p2", "kind": "map", "title": "Map", "bindingAlias": "requests" },
+                { "id": "p3", "kind": "metric", "title": "Total open", "field": "open_count", "bindingAlias": "requests" }
+              ]
+            }
+            """);
+
+        var state = StudioDashboardPackageMapper.CreateTemplate();
+        var notes = StudioDashboardDocument.ApplyGeneratedDocument(state, document);
+
+        Assert.Equal("Service requests", state.Title);
+        Assert.Equal("Operational context.", state.Narrative);
+        Assert.Equal("tablet", state.PreviewBreakpoint);
+
+        var binding = Assert.Single(state.Bindings);
+        Assert.Equal("requests", binding.Alias);
+        Assert.Equal("content:service-requests", binding.ContentRef);
+        Assert.Equal("v5", binding.VersionPin);
+
+        Assert.Equal(3, state.Panels.Count);
+        Assert.Equal(StudioDashboardPanelKinds.Chart, state.Panels[0].Kind);
+        Assert.Contains("vega-lite", state.Panels[0].VegaLiteSpec, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(StudioDashboardPanelKinds.Map, state.Panels[1].Kind);
+        // metric has no editor kind: it is downgraded to the nearest existing slot (table) and reported.
+        Assert.Equal(StudioDashboardDocument.MetricMappedToKind, state.Panels[2].Kind);
+        Assert.Equal("requests", state.Panels[2].BindingAlias);
+        Assert.Contains(notes, note => note.Contains("metric", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Generate_GeneratedDocument_HydratesFreshDraftFromDocument()
+    {
+        var document = JsonSerializer.Deserialize<JsonElement>(
+            """
+            { "title": "Ops", "panels": [ { "kind": "table", "title": "Rows", "bindingAlias": "requests" } ],
+              "bindings": [ { "alias": "requests", "contentRef": "content:requests" } ] }
+            """);
+        var client = new RecordingPublicationClient
+        {
+            Result = HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromData(new HonuaReportGenerationResult
+            {
+                Status = "generated",
+                Document = document,
+                Rationale = "Proposed a single-table dashboard."
+            })
+        };
+        var dataSource = new HonuaServerStudioDashboardPackageDataSource(new RecordingLifecycleClient(), client);
+
+        var outcome = await dataSource.GenerateAsync(
+            new StudioDashboardEditorState(),
+            new StudioDashboardGenerationRequest { Prompt = "show open requests" });
+
+        Assert.True(outcome.IsGenerated);
+        Assert.NotNull(outcome.State);
+        Assert.Equal("Ops", outcome.State!.Title);
+        Assert.Single(outcome.State.Panels);
+        // A first turn (blank editor) ships no document; the server is asked to generate fresh.
+        Assert.Null(client.LastRequest!.Document);
+        Assert.Equal("dashboard", client.LastRequest.Kind);
+    }
+
+    [Fact]
+    public async Task Generate_NeedsClarification_SurfacesQuestions()
+    {
+        var client = new RecordingPublicationClient
+        {
+            Result = HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromData(new HonuaReportGenerationResult
+            {
+                Status = "needs-clarification",
+                Clarifications =
+                [
+                    new HonuaReportGenerationClarification
+                    {
+                        Id = "binding",
+                        Prompt = "Which dataset?",
+                        Choices = [ new HonuaReportGenerationClarificationChoice { Id = "a", Label = "Requests" } ]
+                    }
+                ]
+            })
+        };
+        var dataSource = new HonuaServerStudioDashboardPackageDataSource(new RecordingLifecycleClient(), client);
+
+        var outcome = await dataSource.GenerateAsync(
+            new StudioDashboardEditorState(),
+            new StudioDashboardGenerationRequest { Prompt = "build a dashboard" });
+
+        Assert.True(outcome.NeedsClarification);
+        var question = Assert.Single(outcome.Clarifications);
+        Assert.Equal("Which dataset?", question.Label);
+    }
+
+    [Fact]
+    public async Task Generate_404_SurfacesUnsupportedNotMissingBinding()
+    {
+        var client = new RecordingPublicationClient
+        {
+            Result = HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "not found", 404))
+        };
+        var dataSource = new HonuaServerStudioDashboardPackageDataSource(new RecordingLifecycleClient(), client);
+
+        var outcome = await dataSource.GenerateAsync(
+            new StudioDashboardEditorState(),
+            new StudioDashboardGenerationRequest { Prompt = "x" });
+
+        Assert.Null(outcome.BindingState);
+        Assert.Equal(StudioDashboardGenerationStatuses.Unsupported, outcome.Status);
+    }
+
+    [Fact]
+    public async Task Generate_RefineTurn_ShipsCurrentDocument()
+    {
+        var client = new RecordingPublicationClient
+        {
+            Result = HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromData(new HonuaReportGenerationResult { Status = "generated" })
+        };
+        var dataSource = new HonuaServerStudioDashboardPackageDataSource(new RecordingLifecycleClient(), client);
+
+        // A populated editor (panels present) is a refine turn -> the current document is shipped.
+        await dataSource.GenerateAsync(ReadyDashboard(), new StudioDashboardGenerationRequest { Prompt = "add a map" });
+
+        Assert.NotNull(client.LastRequest!.Document);
+    }
+
+    [Fact]
+    public async Task Generate_WithoutPublicationClient_SurfacesMissingBinding()
+    {
+        var dataSource = new HonuaServerStudioDashboardPackageDataSource(new RecordingLifecycleClient());
+
+        var outcome = await dataSource.GenerateAsync(
+            new StudioDashboardEditorState(),
+            new StudioDashboardGenerationRequest { Prompt = "x" });
+
+        Assert.NotNull(outcome.BindingState);
+        Assert.Equal("Missing binding", outcome.BindingState!.State);
+    }
+
     private static StudioDashboardEditorState ReadyDashboard()
     {
         var state = new StudioDashboardEditorState { DashboardId = "dashboard-1", Title = "Operations dashboard" };
@@ -426,5 +577,61 @@ public sealed class StudioDashboardPackageDataSourceTests
 
         private static StudioEndpointResult<T> Conflict<T>(string contract) =>
             StudioEndpointResult<T>.FromIssue(new StudioEndpointIssue("Conflict", contract, "stale generation", 409));
+    }
+
+    /// <summary>
+    /// In-memory recording content-publication client. Only the dashboard generation verb is exercised; the
+    /// publication lifecycle verbs throw because the dashboard data source routes those through the Studio
+    /// package lifecycle client, never this one.
+    /// </summary>
+    private sealed class RecordingPublicationClient : IHonuaContentPublicationClient
+    {
+        public Uri BaseUri { get; } = new("https://honua.test");
+
+        public HonuaAdminEndpointResult<HonuaReportGenerationResult> Result { get; init; } =
+            HonuaAdminEndpointResult<HonuaReportGenerationResult>.FromData(new HonuaReportGenerationResult());
+
+        public GenerateDashboardContentRequest? LastRequest { get; private set; }
+
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateDashboardAsync(
+            GenerateDashboardContentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+            return Task.FromResult(Result);
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationResult>> GenerateReportAsync(
+            GenerateReportContentRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaReportGenerationProviders>> ListReportGenerationProvidersAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> GetAsync(
+            string publicationId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationVersion>> GetVersionAsync(
+            string publicationId, string versionSelector, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> PublishAsync(
+            HonuaPublishContentRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RepublishAsync(
+            string publicationId, HonuaRepublishContentRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationDetail>> RollbackAsync(
+            string publicationId, HonuaRollbackContentRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<HonuaAdminEndpointResult<HonuaContentPublicationPolicyUpdateResponse>> UpdatePolicyAsync(
+            string publicationId, HonuaUpdatePublicationPolicyRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

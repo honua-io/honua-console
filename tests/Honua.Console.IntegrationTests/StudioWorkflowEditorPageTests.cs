@@ -246,5 +246,17 @@ public sealed class StudioWorkflowEditorPageTests
 
         public Task<StudioWorkflowRunHistory> ListRunHistoryAsync(string contentItemId, CancellationToken cancellationToken = default) =>
             Task.FromResult(StudioWorkflowRunHistory.Empty);
+
+        public Task<StudioWorkflowAiCapability> GetGenerationCapabilityAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioWorkflowAiCapability.Off);
+
+        public Task<StudioWorkflowGenerationOutcome> GenerateAsync(
+            StudioWorkflowPackageDraft currentDraft,
+            StudioWorkflowGenerationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioWorkflowGenerationOutcome { Status = StudioWorkflowGenerationStatuses.Unsupported });
+
+        public Task RecordGenerationFeedbackAsync(string feedbackId, string action, StudioWorkflowPackageDraft? finalDraft, string? note = null, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

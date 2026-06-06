@@ -29,7 +29,7 @@ public sealed class StudioMapBuilderIntegrationTests
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
-        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient());
+        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient());
 
         // The workspace must surface the no-list-verb capability state from live data rather than fabricate
         // a package list (Console Patterns Charter section 11).

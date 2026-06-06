@@ -1,6 +1,8 @@
 @page "/operate/connections/{ConnectionId}"
 @page "/operate/connections/{ConnectionId}/diagnostics"
+@using Honua.Console.Shell.Models
 @inject IOperateTransitionDataSource OperateData
+@inject IConsoleConnectionCreateOperation ConnectionOps
 
 <section class="console-page">
     @if (_connection is null)
@@ -14,6 +16,21 @@
             <h1>@_connection.Name</h1>
             <p>@_connection.Provider connection for @_connection.Target.</p>
         </div>
+
+        <div class="console-action-row">
+            <button class="console-button console-button-secondary" type="button" disabled="@_testing" @onclick="TestConnectionAsync">
+                @(_testing ? "Testing…" : "Test connection")
+            </button>
+        </div>
+
+        @if (_testOutcome is { } test)
+        {
+            <article class="console-panel @(test.Tested && test.IsHealthy ? "console-state-success" : "console-state-warning")" role="status">
+                <p class="console-kicker">@test.State</p>
+                <h2>@(test.Tested && test.IsHealthy ? "Connection test passed" : "Connection test")</h2>
+                <p>@test.Detail</p>
+            </article>
+        }
 
         <div class="console-panel-grid">
             <article class="console-panel">
@@ -115,14 +132,34 @@
     private OperateConnectionSummary? _connection;
     private OperateConnectionDiagnostic? _safeDiagnostic;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
+    private ConsoleConnectionTestOutcome? _testOutcome;
+    private bool _testing;
 
-    protected override async Task OnParametersSetAsync()
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
         var view = await OperateData.GetConnectionsViewAsync();
         _connection = view.Connections.FirstOrDefault(
             connection => string.Equals(connection.Id, ConnectionId, StringComparison.OrdinalIgnoreCase));
         _safeDiagnostic = _connection?.LastDiagnostic;
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        _testing = true;
+        try
+        {
+            // The server-side test persists the connection's health, so reload afterwards to refresh the
+            // status badge, last-tested time, and diagnostic from the canonical server read.
+            _testOutcome = await ConnectionOps.TestExistingAsync(ConnectionId);
+            await LoadAsync();
+        }
+        finally
+        {
+            _testing = false;
+        }
     }
 
     private static string StatusClass(string status) =>

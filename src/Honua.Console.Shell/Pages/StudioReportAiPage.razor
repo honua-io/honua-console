@@ -1,0 +1,253 @@
+@page "/studio/report/ai"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@inject IStudioReportPublicationDataSource ReportData
+@inject NavigationManager Navigation
+
+@*
+    Studio · Report · New from prompt. Conversational authoring for a report.document, mirroring the
+    "Workflow from prompt" surface: a shared StudioAiConversation on the left and a live readiness
+    preview of the server-proposed report on the right. The server grounds the proposal in the available
+    content bindings and validates it before returning, so the page only renders a server-produced
+    report, a structured clarification request, or an honest "AI generation unavailable" state.
+*@
+
+<section class="console-page studio-ai-page studio-report-ai-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio · Report · New from prompt</p>
+        <h1>Report from prompt</h1>
+        <p>Describe the report in plain language — the data it should bind, the charts and panels, and the narrative. Honua grounds a proposal in the available content bindings, validates it, and shows a readiness preview you can refine before opening it in the builder.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Report" Title="Loading report authoring"
+                          Message="Reading the report generation surface from honua-server." />
+    }
+    else if (_binding is { } binding)
+    {
+        <ConsoleStateView Kind="error" Kicker="@binding.State" Title="Report authoring is not bound"
+                          Message="@($"{binding.Detail} (contract: {binding.Contract})")" />
+    }
+    else
+    {
+        <StudioAiConversation ConversationTitle="Report from prompt"
+                              RefinePlaceholder="@RefinePlaceholder"
+                              Turns="_turns"
+                              Clarifications="_clarifications"
+                              Busy="@(_busy || !AiEnabled)"
+                              OnSend="HandleSendAsync"
+                              OnAnswer="HandleAnswerAsync">
+            <SecondaryRefineActions>
+                @if (AiEnabled && _availableProviders.Count > 1)
+                {
+                    <label class="studio-ai-provider-select">
+                        <span class="console-visually-hidden">Generation model</span>
+                        <select class="console-input" aria-label="Generation model" @bind="_selectedProvider" data-report-ai-provider>
+                            @foreach (var provider in _availableProviders)
+                            {
+                                <option value="@provider.Id">@provider.Label</option>
+                            }
+                        </select>
+                    </label>
+                }
+                else if (AiEnabled && _availableProviders.Count == 1)
+                {
+                    <span class="console-muted studio-ai-provider-label" data-report-ai-provider>via @_availableProviders[0].Label</span>
+                }
+            </SecondaryRefineActions>
+            <PreviewHeader>
+                <span class="workflow-editor-glyph" aria-hidden="true">▤</span>
+                <input class="console-input workflow-title-input" aria-label="Report name" @bind="_state.Title" @bind:event="oninput" />
+                <span class="console-status workflow-badge-draft">draft</span>
+                <div class="workflow-editor-header-spacer"></div>
+                <button class="console-button" type="button" disabled="@_busy" @onclick="OpenInBuilder">Open in builder →</button>
+            </PreviewHeader>
+            <PreviewContent>
+                <div class="workflow-ai-preview">
+                    @if (!AiEnabled)
+                    {
+                        <section class="console-panel console-state-warning workflow-ai-unavailable" role="status" data-report-ai-unavailable>
+                            <p class="console-kicker">AI generation unavailable</p>
+                            <p>@AiUnavailableDetail</p>
+                            <p class="console-muted">You can still build this report by hand — open the builder and add panels.</p>
+                        </section>
+                    }
+
+                    <section class="console-panel workflow-ai-readiness" aria-label="Report readiness summary">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Readiness</p>
+                            <h2>Proposed Report</h2>
+                        </div>
+                        <dl class="console-definition-list">
+                            <dt>Panels</dt>
+                            <dd>@_state.Panels.Count panels</dd>
+                            <dt>Data bindings</dt>
+                            <dd>@_state.Bindings.Count</dd>
+                        </dl>
+                        @if (_state.Panels.Count > 0)
+                        {
+                            <ul class="workflow-ai-durations" aria-label="Panels">
+                                @foreach (var panel in _state.Panels)
+                                {
+                                    <li class="console-status workflow-ai-duration-chip">@panel.Title (@panel.Kind)</li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <p class="console-muted workflow-ai-empty">No panels yet — @(AiEnabled ? "describe the report on the left to generate one." : "open the builder to add panels.")</p>
+                        }
+                    </section>
+
+                    @if (_warnings.Count > 0)
+                    {
+                        <section class="console-panel console-state-warning workflow-ai-warnings" role="status" data-report-ai-warnings>
+                            <div class="workflow-section-heading"><p class="console-kicker">Notes</p><h2>Surfaced, not dropped</h2></div>
+                            <ul class="workflow-compact-list">
+                                @foreach (var warning in _warnings)
+                                {
+                                    <li>@warning</li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                </div>
+            </PreviewContent>
+        </StudioAiConversation>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private StudioReportEditorState _state = new();
+    private StudioReportCapabilityState? _binding;
+    private StudioReportAiCapability _capability = StudioReportAiCapability.Off;
+    private IReadOnlyList<StudioReportAiProvider> _availableProviders = [];
+    private string? _selectedProvider;
+    private readonly List<StudioConversationTurn> _turns = [];
+    private List<StudioConversationClarification> _clarifications = [];
+    private List<string> _warnings = [];
+
+    private bool AiEnabled => _capability.Enabled && _availableProviders.Count > 0;
+
+    private string RefinePlaceholder => AiEnabled
+        ? "Describe the report — the data to bind, the charts and panels, the narrative…"
+        : "AI generation is unavailable on this server.";
+
+    private string AiUnavailableDetail => _capability.BindingState?.Detail
+        ?? "This server has the report API but natural-language generation is turned off or no model provider is configured. See ai-workflow-generation.md to enable a local GIS model, Claude, or GPT.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _capability = await ReportData.GetGenerationCapabilityAsync();
+        if (_capability.BindingState is { } bound)
+        {
+            _binding = bound;
+        }
+        else
+        {
+            _availableProviders = _capability.Providers.Where(p => p.Available).ToArray();
+            _selectedProvider = _availableProviders.Any(p => p.Id == _capability.DefaultProvider)
+                ? _capability.DefaultProvider
+                : _availableProviders.FirstOrDefault()?.Id;
+            SeedConversation();
+        }
+
+        _loading = false;
+    }
+
+    private void SeedConversation() => _turns.Add(new StudioConversationTurn(
+        StudioConversationRole.Honua,
+        AiEnabled
+            ? "Describe the report in plain language — the data to bind, the charts and panels you want, and the narrative — and I'll propose a report you can review and refine."
+            : AiUnavailableDetail + " You can still open the builder to author a report by hand.",
+        Tone: StudioConversationTone.Neutral));
+
+    private Task HandleSendAsync(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return Task.CompletedTask;
+        }
+
+        var request = new StudioReportGenerationRequest
+        {
+            Prompt = prompt,
+            Provider = _selectedProvider,
+            Conversation = SnapshotConversation()
+        };
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt));
+        return GenerateAsync(request);
+    }
+
+    private Task HandleAnswerAsync((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        var request = new StudioReportGenerationRequest
+        {
+            Prompt = string.Empty,
+            Provider = _selectedProvider,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioReportGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        };
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, $"{answer.Question.Label} → {answer.Choice.Label}"));
+        _clarifications = _clarifications.Where(c => c.Id != answer.Question.Id).ToList();
+        return GenerateAsync(request);
+    }
+
+    private async Task GenerateAsync(StudioReportGenerationRequest request)
+    {
+        _busy = true;
+        try
+        {
+            var outcome = await ReportData.GenerateAsync(_state, request);
+            if (outcome.BindingState is { } bound)
+            {
+                _binding = bound;
+                return;
+            }
+
+            _warnings = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability &&
+                !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                _warnings.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
+
+            if (outcome.IsGenerated)
+            {
+                _state = outcome.State ?? _state;
+                _clarifications = [];
+                _turns.Add(new StudioConversationTurn(StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale)
+                        ? $"Proposed · {_state.Panels.Count} panel(s). Refine by chatting, or open the builder."
+                        : outcome.Rationale,
+                    Tone: StudioConversationTone.Ready));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications = outcome.Clarifications.ToList();
+                _turns.Add(new StudioConversationTurn(StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale) ? "I need a little more detail first." : outcome.Rationale,
+                    Tone: StudioConversationTone.Clarification));
+            }
+            else
+            {
+                _turns.Add(new StudioConversationTurn(StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale) ? "I couldn't turn that into a report." : outcome.Rationale,
+                    Tone: StudioConversationTone.Neutral));
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private IReadOnlyList<StudioReportGenerationTurn> SnapshotConversation() =>
+        _turns.Select(turn => new StudioReportGenerationTurn(
+            turn.Role == StudioConversationRole.You ? "user" : "assistant", turn.Body)).ToArray();
+
+    private void OpenInBuilder() => Navigation.NavigateTo("/studio/report");
+}

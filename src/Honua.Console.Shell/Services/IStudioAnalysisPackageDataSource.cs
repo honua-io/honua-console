@@ -52,4 +52,17 @@ public interface IStudioAnalysisPackageDataSource
         string artifactId,
         StudioAnalysisPlanEditor plan,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (or refines) an analysis package from a natural-language prompt against the server's
+    /// analysis/content/generate contract. The server grounds the proposal and validates it before
+    /// returning, so the outcome only ever carries a server-produced analysis (status=="generated", the plan
+    /// card hydrates from the returned AnalysisPackageContent), a structured clarification request, or an
+    /// honest unavailable/refused/blocked state — never a fabricated analysis (Console Patterns Charter
+    /// section 11).
+    /// </summary>
+    Task<StudioAnalysisGenerationOutcome> GenerateAsync(
+        StudioAnalysisPlanEditor currentPlan,
+        StudioAnalysisGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }

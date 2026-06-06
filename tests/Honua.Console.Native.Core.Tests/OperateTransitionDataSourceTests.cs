@@ -570,6 +570,18 @@ public sealed class OperateTransitionDataSourceTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(dataSource);
+        // The connection detail page depends on the connection operation (for its Test button); the
+        // missing-binding impl is the right no-network stand-in for these render tests.
+        services.AddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
+        // The service detail page depends on the service-configuration operation (protocol/access editor);
+        // the missing-binding impl is the right no-network stand-in for these render tests.
+        services.AddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
+        // The layer detail page depends on the layer-fields operation; the missing-binding impl is the right
+        // no-network stand-in for these render tests.
+        services.AddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
+        // The layer detail page renders MapPreview, which [Inject]s IJSRuntime (never invoked under static
+        // HtmlRenderer); a no-op satisfies DI.
+        services.AddSingleton<Microsoft.JSInterop.IJSRuntime>(new NoOpJsRuntime());
         await using var serviceProvider = services.BuildServiceProvider();
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         await using var renderer = new HtmlRenderer(serviceProvider, loggerFactory);
@@ -702,5 +714,17 @@ public sealed class OperateTransitionDataSourceTests
                     "application/json")
             });
         }
+    }
+
+    // MapPreview (rendered on the layer detail page) [Inject]s IJSRuntime. Static HtmlRenderer never runs
+    // OnAfterRender, so JS is never actually invoked during these render tests — this no-op only satisfies DI.
+    private sealed class NoOpJsRuntime : Microsoft.JSInterop.IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => default;
+
+        public ValueTask<TValue> InvokeAsync<TValue>(
+            string identifier,
+            CancellationToken cancellationToken,
+            object?[]? args) => default;
     }
 }

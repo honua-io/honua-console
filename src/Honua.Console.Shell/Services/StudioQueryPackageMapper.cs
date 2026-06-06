@@ -81,7 +81,8 @@ public static class StudioQueryPackageMapper
         var item = response.Item;
         var version = response.Version;
         var content = version.SavedQuery ?? new HonuaSavedQueryContent();
-        var metadata = content.Metadata;
+        // Metadata is null when the server omits an empty object (source-gen); coalesce before lookups.
+        var metadata = content.Metadata ?? EmptyMetadata;
 
         var query = new StudioQueryEditor
         {
@@ -105,7 +106,7 @@ public static class StudioQueryPackageMapper
             query.Combinator = string.Equals(plan.Combinator, HonuaFilterPlanCombinators.Or, StringComparison.OrdinalIgnoreCase)
                 ? StudioQueryCombinators.Or
                 : StudioQueryCombinators.And;
-            foreach (var clause in plan.Clauses)
+            foreach (var clause in plan.Clauses ?? [])
             {
                 var predicate = ToPredicate(clause);
                 if (predicate is not null)
@@ -115,7 +116,7 @@ public static class StudioQueryPackageMapper
             }
         }
 
-        foreach (var field in content.OutFields)
+        foreach (var field in content.OutFields ?? [])
         {
             if (!string.IsNullOrWhiteSpace(field))
             {
@@ -129,6 +130,73 @@ public static class StudioQueryPackageMapper
         }
 
         return query;
+    }
+
+    /// <summary>
+    /// Applies a server-proposed saved query (from the natural-language generation contract) onto the
+    /// current query editor, preserving the server-owned identity (query id / version / etag) so a refine on
+    /// an already-saved draft does not lose it. Source binding, predicates, projection, parameters, output
+    /// format/SRID/preview-limit, title/description, and the natural-language text are replaced from the
+    /// proposal, mirroring how a reopened version rehydrates. The proposal changed the query, so it must be
+    /// re-saved (a new immutable version) before preview; any prior preview is cleared.
+    /// </summary>
+    public static StudioQueryEditor ApplyGeneratedQuery(StudioQueryEditor current, HonuaSavedQueryContent content)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(content);
+
+        // The server omits an empty metadata object (System.Text.Json source-gen serializes it as null), so
+        // a generated query commonly arrives with Metadata == null. Coalesce to an empty map before any
+        // TryGetValue/GetValueOrDefault lookup — otherwise ResolveTitle NREs and the generate turn freezes.
+        var metadata = content.Metadata ?? EmptyMetadata;
+
+        // Server-owned identity (QueryId/Version/ETag) stays put; only the authored content is replaced.
+        current.Title = ResolveTitle(new HonuaAnalysisContentItem { Title = current.Title }, metadata);
+        current.Description = metadata.GetValueOrDefault("console.description", current.Description);
+        current.NaturalLanguageQuery = content.NaturalLanguageQuery ?? current.NaturalLanguageQuery;
+        current.ServiceName = content.ServiceName ?? string.Empty;
+        current.LayerId = content.LayerId;
+        current.OutputSrid = content.OutputSrid;
+        current.PreviewLimit = content.PreviewLimit is > 0 ? content.PreviewLimit.Value : 25;
+        current.OutputFormat = StudioQueryOutputFormats.All.Contains(content.OutputFormat ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            ? content.OutputFormat!
+            : StudioQueryOutputFormats.All[0];
+
+        current.Predicates.Clear();
+        current.Combinator = StudioQueryCombinators.And;
+        if (content.FilterPlan is { } plan)
+        {
+            current.Combinator = string.Equals(plan.Combinator, HonuaFilterPlanCombinators.Or, StringComparison.OrdinalIgnoreCase)
+                ? StudioQueryCombinators.Or
+                : StudioQueryCombinators.And;
+            foreach (var clause in plan.Clauses ?? [])
+            {
+                var predicate = ToPredicate(clause);
+                if (predicate is not null)
+                {
+                    current.Predicates.Add(predicate);
+                }
+            }
+        }
+
+        current.OutFields.Clear();
+        foreach (var field in content.OutFields ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(field))
+            {
+                current.OutFields.Add(field);
+            }
+        }
+
+        current.Parameters.Clear();
+        foreach (var parameter in DecodeParameters(metadata.GetValueOrDefault("console.parameters", string.Empty)))
+        {
+            current.Parameters.Add(parameter);
+        }
+
+        // A changed query must be re-saved + re-previewed.
+        current.Preview = null;
+        return current;
     }
 
     /// <summary>Lifts a server saved-query preview result into the builder's map/table preview projection.</summary>
@@ -337,6 +405,8 @@ public static class StudioQueryPackageMapper
             element.EnumerateArray().Select(RenderAttribute)),
         _ => element.GetRawText()
     };
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyMetadata = new Dictionary<string, string>(0);
 
     private static string ResolveTitle(HonuaAnalysisContentItem item, IReadOnlyDictionary<string, string> metadata)
     {

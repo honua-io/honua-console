@@ -1,0 +1,267 @@
+@page "/studio/form/ai"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@inject IStudioFormPackageDataSource FormData
+@inject NavigationManager Navigation
+
+@*
+    Studio · Form · New from prompt. Conversational authoring for a form.package, mirroring the
+    "Workflow from prompt" surface: a shared StudioAiConversation on the left and a live readiness
+    preview of the server-proposed form on the right. The draft and every proposal are server-owned —
+    the server grounds the proposal in the target service/layer schema and validates it before
+    returning, so the page only renders a server-produced form, a structured clarification request, or
+    an honest "AI generation unavailable" state. Nothing is fabricated.
+*@
+
+<section class="console-page studio-ai-page studio-form-ai-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio · Form · New from prompt</p>
+        <h1>Form from prompt</h1>
+        <p>Describe the form in plain language — the layer it edits, the fields, domains, and offline behavior. Honua grounds a proposal in the target schema, validates it, and shows a readiness preview you can refine before opening it in the builder.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Form" Title="Loading form authoring"
+                          Message="Reading the form package surface from honua-server." />
+    }
+    else if (_binding is { } binding)
+    {
+        <ConsoleStateView Kind="error" Kicker="@binding.State" Title="Form authoring is not bound"
+                          Message="@($"{binding.Detail} (contract: {binding.Contract})")" />
+    }
+    else
+    {
+        <StudioAiConversation ConversationTitle="Form from prompt"
+                              RefinePlaceholder="@RefinePlaceholder"
+                              Turns="_turns"
+                              Clarifications="_clarifications"
+                              Busy="@(_busy || !AiEnabled)"
+                              OnSend="HandleSendAsync"
+                              OnAnswer="HandleAnswerAsync">
+            <SecondaryRefineActions>
+                @if (AiEnabled && _availableProviders.Count > 1)
+                {
+                    <label class="studio-ai-provider-select">
+                        <span class="console-visually-hidden">Generation model</span>
+                        <select class="console-input" aria-label="Generation model" @bind="_selectedProvider" data-form-ai-provider>
+                            @foreach (var provider in _availableProviders)
+                            {
+                                <option value="@provider.Id">@provider.Label</option>
+                            }
+                        </select>
+                    </label>
+                }
+                else if (AiEnabled && _availableProviders.Count == 1)
+                {
+                    <span class="console-muted studio-ai-provider-label" data-form-ai-provider>via @_availableProviders[0].Label</span>
+                }
+            </SecondaryRefineActions>
+            <PreviewHeader>
+                <span class="workflow-editor-glyph" aria-hidden="true">▤</span>
+                <input class="console-input workflow-title-input" aria-label="Form name" @bind="_state.Title" @bind:event="oninput" />
+                <span class="console-status workflow-badge-draft">draft</span>
+                <div class="workflow-editor-header-spacer"></div>
+                <button class="console-button" type="button" disabled="@_busy" @onclick="OpenInBuilder">Open in builder →</button>
+            </PreviewHeader>
+            <PreviewContent>
+                <div class="workflow-ai-preview">
+                    @if (!AiEnabled)
+                    {
+                        <section class="console-panel console-state-warning workflow-ai-unavailable" role="status" data-form-ai-unavailable>
+                            <p class="console-kicker">AI generation unavailable</p>
+                            <p>@AiUnavailableDetail</p>
+                            <p class="console-muted">You can still build this form by hand — open the builder and add fields from the palette.</p>
+                        </section>
+                    }
+
+                    <section class="console-panel workflow-ai-readiness" aria-label="Form readiness summary">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Readiness</p>
+                            <h2>Proposed Form</h2>
+                        </div>
+                        <dl class="console-definition-list">
+                            <dt>Fields</dt>
+                            <dd>@_state.Fields.Count fields</dd>
+                            <dt>Target</dt>
+                            <dd>@TargetSummary</dd>
+                        </dl>
+                        @if (_state.Fields.Count > 0)
+                        {
+                            <ul class="workflow-ai-durations" aria-label="Fields">
+                                @foreach (var field in _state.Fields)
+                                {
+                                    <li class="console-status workflow-ai-duration-chip">@field.Label</li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <p class="console-muted workflow-ai-empty">No fields yet — @(AiEnabled ? "describe the form on the left to generate one." : "open the builder to add fields.")</p>
+                        }
+                    </section>
+
+                    @if (_warnings.Count > 0)
+                    {
+                        <section class="console-panel console-state-warning workflow-ai-warnings" role="status" data-form-ai-warnings>
+                            <div class="workflow-section-heading"><p class="console-kicker">Notes</p><h2>Surfaced, not dropped</h2></div>
+                            <ul class="workflow-compact-list">
+                                @foreach (var warning in _warnings)
+                                {
+                                    <li>@warning</li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                </div>
+            </PreviewContent>
+        </StudioAiConversation>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private StudioFormEditorState _state = new();
+    private StudioFormCapabilityState? _binding;
+    private StudioFormAiCapability _capability = StudioFormAiCapability.Off;
+    private IReadOnlyList<StudioFormAiProvider> _availableProviders = [];
+    private string? _selectedProvider;
+    private readonly List<StudioConversationTurn> _turns = [];
+    private List<StudioConversationClarification> _clarifications = [];
+    private List<string> _warnings = [];
+
+    private bool AiEnabled => _capability.Enabled && _availableProviders.Count > 0;
+
+    private string RefinePlaceholder => AiEnabled
+        ? "Describe the form — the layer it edits, fields, domains, offline behavior…"
+        : "AI generation is unavailable on this server.";
+
+    private string AiUnavailableDetail => _capability.BindingState?.Detail
+        ?? "This server has the form API but natural-language generation is turned off or no model provider is configured. See ai-workflow-generation.md to enable a local GIS model, Claude, or GPT.";
+
+    private string TargetSummary => string.IsNullOrWhiteSpace(_state.ServiceId)
+        ? "not set"
+        : $"{_state.ServiceId} · layer {_state.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var load = await FormData.LoadAsync(null);
+        if (load.CapabilityStates.Count > 0)
+        {
+            _binding = load.CapabilityStates[0];
+            _loading = false;
+            return;
+        }
+
+        _state = load.State ?? new StudioFormEditorState();
+        _capability = await FormData.GetGenerationCapabilityAsync();
+        if (_capability.BindingState is { } bound)
+        {
+            _binding = bound;
+        }
+        else
+        {
+            _availableProviders = _capability.Providers.Where(p => p.Available).ToArray();
+            _selectedProvider = _availableProviders.Any(p => p.Id == _capability.DefaultProvider)
+                ? _capability.DefaultProvider
+                : _availableProviders.FirstOrDefault()?.Id;
+            SeedConversation();
+        }
+
+        _loading = false;
+    }
+
+    private void SeedConversation() => _turns.Add(new StudioConversationTurn(
+        StudioConversationRole.Honua,
+        AiEnabled
+            ? "Describe the form in plain language — the layer it edits, the fields and their domains, and how it should behave offline — and I'll propose a form you can review and refine."
+            : AiUnavailableDetail + " You can still open the builder to author a form by hand.",
+        Tone: StudioConversationTone.Neutral));
+
+    private Task HandleSendAsync(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return Task.CompletedTask;
+        }
+
+        var request = new StudioFormGenerationRequest
+        {
+            Prompt = prompt,
+            Provider = _selectedProvider,
+            Conversation = SnapshotConversation()
+        };
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt));
+        return GenerateAsync(request);
+    }
+
+    private Task HandleAnswerAsync((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        var request = new StudioFormGenerationRequest
+        {
+            Prompt = string.Empty,
+            Provider = _selectedProvider,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioFormGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        };
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, $"{answer.Question.Label} → {answer.Choice.Label}"));
+        _clarifications = _clarifications.Where(c => c.Id != answer.Question.Id).ToList();
+        return GenerateAsync(request);
+    }
+
+    private async Task GenerateAsync(StudioFormGenerationRequest request)
+    {
+        _busy = true;
+        try
+        {
+            var outcome = await FormData.GenerateAsync(_state, request);
+            if (outcome.BindingState is { } bound)
+            {
+                _binding = bound;
+                return;
+            }
+
+            _warnings = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability &&
+                !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                _warnings.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
+
+            if (outcome.IsGenerated)
+            {
+                _state = outcome.State ?? _state;
+                _clarifications = [];
+                _turns.Add(new StudioConversationTurn(StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale)
+                        ? $"Proposed · {_state.Fields.Count} field(s) on {TargetSummary}. Refine by chatting, or open the builder."
+                        : outcome.Rationale,
+                    Tone: StudioConversationTone.Ready));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications = outcome.Clarifications.ToList();
+                _turns.Add(new StudioConversationTurn(StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale) ? "I need a little more detail first." : outcome.Rationale,
+                    Tone: StudioConversationTone.Clarification));
+            }
+            else
+            {
+                _turns.Add(new StudioConversationTurn(StudioConversationRole.Honua,
+                    string.IsNullOrWhiteSpace(outcome.Rationale) ? "I couldn't turn that into a form." : outcome.Rationale,
+                    Tone: StudioConversationTone.Neutral));
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private IReadOnlyList<StudioFormGenerationTurn> SnapshotConversation() =>
+        _turns.Select(turn => new StudioFormGenerationTurn(
+            turn.Role == StudioConversationRole.You ? "user" : "assistant", turn.Body)).ToArray();
+
+    private void OpenInBuilder() => Navigation.NavigateTo("/studio/form");
+}

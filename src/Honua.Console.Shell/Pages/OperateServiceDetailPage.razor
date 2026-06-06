@@ -1,5 +1,7 @@
 @page "/operate/services/{ServiceName}/settings"
+@using Honua.Console.Shell.Models
 @inject IOperateTransitionDataSource OperateData
+@inject IServiceConfigurationOperation ServiceConfig
 
 <section class="console-page">
     @if (_service is null)
@@ -64,6 +66,75 @@
             </article>
         </div>
 
+        <section class="console-section" data-service-config>
+            <div class="console-page-heading">
+                <p class="console-kicker">Protocols &amp; access</p>
+                <h2>How this service is served</h2>
+                <p>Enable the protocols this service exposes (FeatureServer, MapServer, WMS, WFS, WMTS, OGC API, OData, vector tiles, STAC) and set whether it is reachable anonymously.</p>
+            </div>
+
+            @if (!_settings.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status">
+                    <p class="console-kicker">Missing binding</p>
+                    <p>@_settings.Detail</p>
+                </article>
+            }
+            else
+            {
+                @if (_configResult is { } result)
+                {
+                    <article class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-config-result>
+                        <p class="console-kicker">@result.State</p>
+                        <p>@result.Detail</p>
+                    </article>
+                }
+
+                <div class="console-panel-grid">
+                    <article class="console-panel">
+                        <p class="console-kicker">Protocols</p>
+                        <h3>Enabled protocols</h3>
+                        <div class="console-check-grid">
+                            @foreach (var protocol in _availableProtocols)
+                            {
+                                <label class="console-inline-check">
+                                    <input type="checkbox" checked="@_selectedProtocols.Contains(protocol)"
+                                           @onchange="e => ToggleProtocol(protocol, (bool)e.Value!)"
+                                           data-protocol="@protocol" />
+                                    <span>@protocol</span>
+                                </label>
+                            }
+                        </div>
+                        <div class="console-action-row">
+                            <button class="console-button" type="button" disabled="@(_savingProtocols || _selectedProtocols.Count == 0)"
+                                    @onclick="SaveProtocolsAsync" data-save-protocols>
+                                @(_savingProtocols ? "Saving…" : "Save protocols")
+                            </button>
+                        </div>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Access</p>
+                        <h3>Access policy</h3>
+                        <label class="console-inline-check">
+                            <input type="checkbox" @bind="_allowAnonymous" data-allow-anonymous />
+                            <span>Allow anonymous read</span>
+                        </label>
+                        <label class="console-inline-check">
+                            <input type="checkbox" @bind="_allowAnonymousWrite" data-allow-anonymous-write />
+                            <span>Allow anonymous write</span>
+                        </label>
+                        <div class="console-action-row">
+                            <button class="console-button" type="button" disabled="@_savingAccess"
+                                    @onclick="SaveAccessAsync" data-save-access>
+                                @(_savingAccess ? "Saving…" : "Save access policy")
+                            </button>
+                        </div>
+                    </article>
+                </div>
+            }
+        </section>
+
         <section class="console-section">
             <div class="console-page-heading">
                 <p class="console-kicker">Layers</p>
@@ -108,11 +179,105 @@
     private OperateServiceDetail? _service;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
+    // Curated fallback protocol set used when the server doesn't enumerate AvailableProtocols. Mirrors
+    // honua-server's ServiceProtocols constants (the operator-facing serving protocols).
+    private static readonly string[] FallbackProtocols =
+    {
+        "FeatureServer", "MapServer", "OgcFeatures", "Wms", "Wfs20", "Wmts",
+        "OData", "OGC-API-Tiles", "Stac"
+    };
+
+    private ServiceSettingsView _settings = ServiceSettingsView.Unbound(string.Empty, "Loading…");
+    private IReadOnlyList<string> _availableProtocols = Array.Empty<string>();
+    private readonly HashSet<string> _selectedProtocols = new(StringComparer.OrdinalIgnoreCase);
+    private bool _allowAnonymous;
+    private bool _allowAnonymousWrite;
+    private bool _savingProtocols;
+    private bool _savingAccess;
+    private ServiceConfigurationResult? _configResult;
+
     protected override async Task OnParametersSetAsync()
     {
         var view = await OperateData.GetServicesViewAsync();
         _service = view.Services.FirstOrDefault(
             service => string.Equals(service.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
+
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _settings = await ServiceConfig.GetSettingsAsync(ServiceName);
+        _availableProtocols = _settings.AvailableProtocols.Count > 0
+            ? _settings.AvailableProtocols
+            : FallbackProtocols;
+        _selectedProtocols.Clear();
+        foreach (var protocol in _settings.EnabledProtocols)
+        {
+            _selectedProtocols.Add(protocol);
+        }
+
+        _allowAnonymous = _settings.AllowAnonymous;
+        _allowAnonymousWrite = _settings.AllowAnonymousWrite;
+    }
+
+    private void ToggleProtocol(string protocol, bool enabled)
+    {
+        if (enabled)
+        {
+            _selectedProtocols.Add(protocol);
+        }
+        else
+        {
+            _selectedProtocols.Remove(protocol);
+        }
+
+        _configResult = null;
+    }
+
+    private async Task SaveProtocolsAsync()
+    {
+        _savingProtocols = true;
+        _configResult = null;
+        try
+        {
+            _configResult = await ServiceConfig.UpdateProtocolsAsync(new ServiceProtocolsCommand
+            {
+                ServiceName = ServiceName,
+                EnabledProtocols = _selectedProtocols.ToArray()
+            });
+            if (_configResult.Succeeded)
+            {
+                await LoadSettingsAsync();
+            }
+        }
+        finally
+        {
+            _savingProtocols = false;
+        }
+    }
+
+    private async Task SaveAccessAsync()
+    {
+        _savingAccess = true;
+        _configResult = null;
+        try
+        {
+            _configResult = await ServiceConfig.UpdateAccessPolicyAsync(new ServiceAccessPolicyCommand
+            {
+                ServiceName = ServiceName,
+                AllowAnonymous = _allowAnonymous,
+                AllowAnonymousWrite = _allowAnonymousWrite
+            });
+            if (_configResult.Succeeded)
+            {
+                await LoadSettingsAsync();
+            }
+        }
+        finally
+        {
+            _savingAccess = false;
+        }
     }
 }

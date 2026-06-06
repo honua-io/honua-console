@@ -1,0 +1,265 @@
+@page "/operate/resources/import"
+@using Microsoft.AspNetCore.Components.Forms
+@using Honua.Console.Shell.Models
+@inject IConsoleFileImportOperation FileImport
+@inject NavigationManager Nav
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Resources</p>
+        <h1>Import a file</h1>
+        <p>Upload a geospatial file to import it into a new PostGIS table. Supported formats are read live from honua-server; the table can then be published as a service layer.</p>
+    </div>
+
+    <article class="console-panel">
+        <div class="studio-field-grid">
+            <label>
+                <span>File</span>
+                <InputFile OnChange="OnFileSelected" accept="@_acceptAttribute" />
+                @if (_supportedExtensions.Count > 0)
+                {
+                    <small class="console-muted">Supported: @string.Join(", ", _supportedExtensions)</small>
+                }
+            </label>
+            <label>
+                <span>Table name</span>
+                <input class="console-input" @bind="_tableName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels" />
+            </label>
+            <label>
+                <span>Target schema (optional)</span>
+                <input class="console-input" @bind="_targetSchema" @bind:event="oninput" @bind:after="ClearResult" placeholder="public" />
+            </label>
+        </div>
+
+        @if (_selectedFile is not null)
+        {
+            <dl class="console-definition-list">
+                <dt>Selected</dt>
+                <dd data-selected-file>@_selectedFile.Name (@FormatSize(_selectedFile.Size))</dd>
+            </dl>
+        }
+
+        @if (_formatError is not null)
+        {
+            <div class="console-validation-summary" data-import-format-error role="alert">
+                <p class="console-kicker">Unsupported file format</p>
+                <ul><li>@_formatError</li></ul>
+            </div>
+        }
+
+        @if (_clientError is not null)
+        {
+            <div class="console-validation-summary" role="alert">
+                <p class="console-kicker">Resolve before importing</p>
+                <ul><li>@_clientError</li></ul>
+            </div>
+        }
+
+        @if (_busy)
+        {
+            <div class="console-panel console-state-info" role="status" data-import-progress>
+                <p class="console-kicker">@(_phase == ImportPhase.Uploading ? "Uploading" : "Importing")</p>
+                @if (_phase == ImportPhase.Uploading)
+                {
+                    <h2>Uploading @_uploadPercent%</h2>
+                    <progress value="@_uploadPercent" max="100" data-upload-progress>@_uploadPercent%</progress>
+                }
+                else
+                {
+                    <h2>Importing into PostgreSQL…</h2>
+                    <progress data-upload-progress></progress>
+                }
+            </div>
+        }
+
+        @if (_result is { } r)
+        {
+            <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
+                <p class="console-kicker">@r.State</p>
+                <h2>@(r.Succeeded ? "File imported" : "Import failed")</h2>
+                <p>@r.Detail</p>
+                @if (r.Succeeded)
+                {
+                    <dl class="console-definition-list">
+                        <dt>Table</dt>
+                        <dd data-imported-table>@r.TableName</dd>
+                        <dt>Features</dt>
+                        <dd>@r.FeatureCount</dd>
+                    </dl>
+                    <a class="console-button" href="/operate/publishing/quick">Publish this table</a>
+                }
+                @if (r.ValidationErrors.Count > 0)
+                {
+                    <ul>
+                        @foreach (var error in r.ValidationErrors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                }
+            </article>
+        }
+
+        <div class="console-action-row">
+            <button class="console-button" type="button" disabled="@(_busy || _selectedFile is null || _formatError is not null)" @onclick="ImportAsync">
+                @(_busy ? "Working…" : "Import file")
+            </button>
+            <a href="/operate/connections">Cancel</a>
+        </div>
+    </article>
+</section>
+
+@code {
+    private enum ImportPhase { Uploading, Importing }
+
+    // Cap the browser file read at 100 MB so a runaway upload can't exhaust the circuit.
+    private const long MaxFileBytes = 100L * 1024 * 1024;
+
+    private IReadOnlyList<string> _supportedExtensions = Array.Empty<string>();
+    private string _acceptAttribute = string.Empty;
+
+    private IBrowserFile? _selectedFile;
+    private string _tableName = string.Empty;
+    private string _targetSchema = string.Empty;
+
+    private bool _busy;
+    private ImportPhase _phase;
+    private int _uploadPercent;
+    private string? _formatError;
+    private string? _clientError;
+    private ConsoleFileImportResult? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
+        _acceptAttribute = string.Join(",", _supportedExtensions);
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        ClearResult();
+        _formatError = null;
+        _selectedFile = args.File;
+
+        // Validate the extension against the server's supported formats before allowing an upload.
+        var extension = Path.GetExtension(_selectedFile.Name);
+        if (_supportedExtensions.Count > 0
+            && !_supportedExtensions.Any(ext => string.Equals(ext, extension, StringComparison.OrdinalIgnoreCase)))
+        {
+            _formatError = $"'{extension}' files are not supported. Choose one of: {string.Join(", ", _supportedExtensions)}.";
+        }
+
+        if (string.IsNullOrWhiteSpace(_tableName))
+        {
+            _tableName = SanitizeTableName(Path.GetFileNameWithoutExtension(_selectedFile.Name));
+        }
+    }
+
+    private void ClearResult()
+    {
+        _clientError = null;
+        _result = null;
+    }
+
+    private async Task ImportAsync()
+    {
+        ClearResult();
+        if (_selectedFile is null)
+        {
+            _clientError = "Choose a file to import.";
+            return;
+        }
+        if (_formatError is not null)
+        {
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_tableName))
+        {
+            _clientError = "Enter a table name.";
+            return;
+        }
+
+        _busy = true;
+        _phase = ImportPhase.Uploading;
+        _uploadPercent = 0;
+        try
+        {
+            // Phase 1: stream the browser file to the console (over the Blazor circuit) with progress —
+            // this is the user-perceived upload. Buffer it, then POST to honua-server.
+            byte[] bytes;
+            try
+            {
+                bytes = await ReadWithProgressAsync(_selectedFile);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException)
+            {
+                _clientError = $"The file could not be read: {ex.Message}";
+                return;
+            }
+
+            // Phase 2: server-side streamed import.
+            _phase = ImportPhase.Importing;
+            await InvokeAsync(StateHasChanged);
+
+            _result = await FileImport.ImportAsync(new ConsoleFileImportCommand
+            {
+                FileContent = bytes,
+                FileName = _selectedFile.Name,
+                TableName = _tableName.Trim(),
+                TargetSchema = string.IsNullOrWhiteSpace(_targetSchema) ? null : _targetSchema.Trim(),
+            });
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task<byte[]> ReadWithProgressAsync(IBrowserFile file)
+    {
+        var total = file.Size;
+        await using var source = file.OpenReadStream(MaxFileBytes);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        long readSoFar = 0;
+        int read;
+        while ((read = await source.ReadAsync(chunk)) > 0)
+        {
+            await buffer.WriteAsync(chunk.AsMemory(0, read));
+            readSoFar += read;
+            var percent = total > 0 ? (int)Math.Min(100, readSoFar * 100 / total) : 100;
+            if (percent != _uploadPercent)
+            {
+                _uploadPercent = percent;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+
+        _uploadPercent = 100;
+        await InvokeAsync(StateHasChanged);
+        return buffer.ToArray();
+    }
+
+    private static string SanitizeTableName(string value)
+    {
+        var sanitized = new string(value.Trim().ToLowerInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')
+            .ToArray());
+        return string.IsNullOrWhiteSpace(sanitized) ? "imported_table" : sanitized;
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+}

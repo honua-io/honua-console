@@ -1,0 +1,744 @@
+@page "/operate/import/service"
+@using System.Text
+@using System.Threading
+@using Honua.Console.Shell.Models
+@implements IDisposable
+@inject IConsoleServiceImportOperation ServiceImport
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Import</p>
+        <h1>Import from a service</h1>
+        <p>Discover the importable layers of a remote Esri REST or OGC service — or point at an ArcGIS catalog root to browse every service. Pick the services and layers you want, then import them into Honua.</p>
+    </div>
+
+    <article class="console-panel">
+        <div class="studio-field-grid">
+            <label>
+                <span>Service or catalog URL</span>
+                <input class="console-input" @bind="_serviceUrl" @bind:event="oninput" @bind:after="ClearResult"
+                       placeholder="https://example.com/arcgis/rest/services" />
+                <small class="console-muted">Must be an absolute https URL. A single service (FeatureServer/MapServer/WFS/OGC) or an ArcGIS catalog root (…/rest/services) or folder.</small>
+            </label>
+
+            <label>
+                <span>Authentication</span>
+                <select class="console-input" aria-label="Authentication mode" @bind="_authMode" @bind:after="ClearResult" data-auth-mode>
+                    <option value="anonymous">Anonymous (public)</option>
+                    <option value="arcgis-token">ArcGIS token (username &amp; password)</option>
+                    <option value="token">Token / API key</option>
+                    <option value="basic">HTTP Basic</option>
+                    <option value="oauth">OAuth (client credentials)</option>
+                </select>
+                <small class="console-muted">Credentials are used only for this discovery request and are never stored.</small>
+            </label>
+        </div>
+
+        @if (_authMode is "arcgis-token" or "basic")
+        {
+            <div class="studio-field-grid" data-auth-fields>
+                <label>
+                    <span>Username</span>
+                    <input class="console-input" aria-label="Username" @bind="_username" @bind:event="oninput" @bind:after="ClearResult" />
+                </label>
+                <label>
+                    <span>Password</span>
+                    <input class="console-input" type="password" aria-label="Password" @bind="_password" @bind:event="oninput" @bind:after="ClearResult" />
+                </label>
+                @if (_authMode == "arcgis-token")
+                {
+                    <label>
+                        <span>Token URL (optional)</span>
+                        <input class="console-input" aria-label="Token URL" @bind="_tokenUrl" @bind:event="oninput" @bind:after="ClearResult"
+                               placeholder="https://host/portal/sharing/rest/generateToken" />
+                        <small class="console-muted">Leave blank to derive the ArcGIS Server token endpoint from the service host.</small>
+                    </label>
+                    <label>
+                        <span>Referer (optional)</span>
+                        <input class="console-input" aria-label="Referer" @bind="_referer" @bind:event="oninput" @bind:after="ClearResult" />
+                    </label>
+                }
+            </div>
+        }
+        else if (_authMode == "token")
+        {
+            <div class="studio-field-grid" data-auth-fields>
+                <label>
+                    <span>Token / API key</span>
+                    <input class="console-input" type="password" aria-label="Token" @bind="_token" @bind:event="oninput" @bind:after="ClearResult" />
+                </label>
+            </div>
+        }
+        else if (_authMode == "oauth")
+        {
+            <div class="studio-field-grid" data-auth-fields>
+                <label>
+                    <span>Token endpoint URL</span>
+                    <input class="console-input" aria-label="Token URL" @bind="_tokenUrl" @bind:event="oninput" @bind:after="ClearResult"
+                           placeholder="https://host/oauth2/token" />
+                </label>
+                <label>
+                    <span>Client id</span>
+                    <input class="console-input" aria-label="Client id" @bind="_clientId" @bind:event="oninput" @bind:after="ClearResult" />
+                </label>
+                <label>
+                    <span>Client secret</span>
+                    <input class="console-input" type="password" aria-label="Client secret" @bind="_clientSecret" @bind:event="oninput" @bind:after="ClearResult" />
+                </label>
+            </div>
+        }
+
+        @if (_clientError is not null)
+        {
+            <div class="console-validation-summary" data-discover-validation role="alert">
+                <p class="console-kicker">Resolve before discovering</p>
+                <ul><li>@_clientError</li></ul>
+            </div>
+        }
+
+        <div class="console-action-row">
+            <button class="console-button" type="button" disabled="@_busy" @onclick="DiscoverAsync">
+                @(_busy ? "Discovering…" : "Discover service")
+            </button>
+            <a href="/operate/connections">Cancel</a>
+        </div>
+
+        @if (_busy)
+        {
+            <div class="console-panel console-state-info" role="status" data-discover-progress>
+                <p class="console-kicker">Discovering</p>
+                <h2>Scanning the remote service…</h2>
+                <progress></progress>
+            </div>
+        }
+
+        @if (_result is { } r)
+        {
+            <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
+                <p class="console-kicker">@r.State</p>
+                <h2>@(r.Succeeded ? "Service discovered" : "Discovery failed")</h2>
+                <p>@r.Detail</p>
+                @if (r.Succeeded)
+                {
+                    <dl class="console-definition-list">
+                        <dt>Type</dt>
+                        <dd data-discovered-type>@(r.IsCatalog ? "Catalog" : r.ServiceType)</dd>
+                        <dt>@(r.IsCatalog ? "Catalog" : "Service")</dt>
+                        <dd>@r.ServiceName</dd>
+                    </dl>
+                }
+            </article>
+
+            @if (r.Succeeded && _tree.Count > 0)
+            {
+                <div class="console-toolbar" data-selection-toolbar>
+                    <button class="console-button-link" type="button" @onclick="SelectAll" data-select-all>Select all</button>
+                    <button class="console-button-link" type="button" @onclick="DeselectAll" data-deselect-all>Deselect all</button>
+                    <span class="console-muted" data-selection-count>@_selected.Count of @_totalLayers layers selected</span>
+                    <label class="console-inline-check">
+                        <input type="checkbox" @bind="_autoPublish" aria-label="Auto-publish imported layers" />
+                        <span>Auto-publish</span>
+                    </label>
+                    <button class="console-button" type="button" disabled="@(_selected.Count == 0 || _importing)" @onclick="StartImportsAsync" data-import-selected>
+                        @(_importing ? "Importing…" : "Import selected layers")
+                    </button>
+                </div>
+
+                @if (_importError is not null)
+                {
+                    <div class="console-validation-summary" role="alert" data-import-error>
+                        <ul><li>@_importError</li></ul>
+                    </div>
+                }
+
+                @if (_jobs.Count > 0)
+                {
+                    <div class="console-table-wrap">
+                        <table class="console-table" data-import-jobs>
+                            <thead>
+                                <tr><th>Layer</th><th>Target table</th><th>Status</th><th>Features</th><th>Published</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var job in _jobs)
+                                {
+                                    <tr data-import-job data-import-status="@job.Status">
+                                        <td>@job.LayerName</td>
+                                        <td class="console-mono">@job.TableName</td>
+                                        <td>
+                                            <span class="@JobStatusClass(job)">@job.Status</span>
+                                            @if (!string.IsNullOrWhiteSpace(job.Detail))
+                                            {
+                                                <small class="console-muted"> · @job.Detail</small>
+                                            }
+                                        </td>
+                                        <td class="console-mono">@(job.Features > 0 ? job.Features.ToString("N0") : "—")</td>
+                                        <td class="console-mono">@(job.PublishedLayerId?.ToString() ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <div class="console-tree" data-discovered-tree>
+                    @foreach (var folder in _tree)
+                    {
+                        @if (folder.HasFolderHeader)
+                        {
+                            <div class="console-tree-folder" data-tree-folder>
+                                <span class="console-tree-icon">🗀</span>
+                                <span class="console-tree-name">@folder.Name</span>
+                                <span class="console-muted">@folder.Services.Count service(s)</span>
+                            </div>
+                        }
+
+                        @foreach (var service in folder.Services)
+                        {
+                            <div class="console-tree-service" data-service-row>
+                                <button class="console-tree-toggle" type="button" aria-label="Toggle service"
+                                        @onclick="() => ToggleService(service.Key)">
+                                    @(IsExpanded(service.Key) ? "▾" : "▸")
+                                </button>
+                                <input type="checkbox" aria-label="@($"Select service {service.Name}")"
+                                       checked="@IsServiceFullySelected(service)"
+                                       @onchange="e => ToggleServiceSelection(service, (bool)e.Value!)" />
+                                <span class="console-tree-icon">◈</span>
+                                <span class="console-tree-name">@service.Name</span>
+                                <span class="console-muted">@service.Type · @service.Layers.Count layer(s)</span>
+                            </div>
+
+                            @if (IsExpanded(service.Key))
+                            {
+                                @foreach (var layer in service.Layers)
+                                {
+                                    <div class="console-tree-layer" data-layer-row>
+                                        <input type="checkbox" aria-label="@($"Select layer {layer.Display}")"
+                                               checked="@_selected.Contains(layer.Key)"
+                                               @onchange="e => ToggleLayer(layer.Key, (bool)e.Value!)" data-layer-checkbox />
+                                        <span class="console-tree-icon">◇</span>
+                                        <span class="console-tree-name">@layer.Display</span>
+                                        <span class="console-muted">@(layer.GeometryType ?? "—")@(layer.FeatureCount is { } fc ? $" · {fc:N0}" : string.Empty)</span>
+                                    </div>
+                                }
+                            }
+                        }
+                    }
+                </div>
+            }
+        }
+    </article>
+</section>
+
+@code {
+    private string _serviceUrl = string.Empty;
+    private string _authMode = "anonymous";
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+    private string _token = string.Empty;
+    private string _tokenUrl = string.Empty;
+    private string _clientId = string.Empty;
+    private string _clientSecret = string.Empty;
+    private string _referer = string.Empty;
+
+    private bool _busy;
+    private string? _clientError;
+    private ConsoleServiceImportResult? _result;
+
+    private readonly List<FolderNode> _tree = new();
+    private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+    private int _totalLayers;
+
+    private bool _autoPublish = true;
+    private bool _importing;
+    private string? _importError;
+    private readonly List<ImportJobRow> _jobs = new();
+    private Timer? _pollTimer;
+    private bool _polling;
+
+    private void ClearResult()
+    {
+        _clientError = null;
+        _importError = null;
+        _result = null;
+        _tree.Clear();
+        _selected.Clear();
+        _expanded.Clear();
+        _totalLayers = 0;
+        StopPolling();
+        _jobs.Clear();
+    }
+
+    private async Task DiscoverAsync()
+    {
+        ClearResult();
+        var url = _serviceUrl.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            _clientError = "Enter a service or catalog URL.";
+            return;
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            _clientError = "The service URL must be an absolute https:// URL.";
+            return;
+        }
+
+        if (!TryBuildAuth(out var auth, out var authError))
+        {
+            _clientError = authError;
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _result = await ServiceImport.DiscoverAsync(url, auth);
+            if (_result.Succeeded)
+            {
+                BuildTree(_result);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private bool TryBuildAuth(out ConsoleServiceImportAuth? auth, out string? error)
+    {
+        auth = null;
+        error = null;
+
+        switch (_authMode)
+        {
+            case "anonymous":
+                return true;
+
+            case "arcgis-token":
+                if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
+                {
+                    error = "Enter a username and password for ArcGIS token authentication.";
+                    return false;
+                }
+
+                auth = new ConsoleServiceImportAuth
+                {
+                    Mode = _authMode,
+                    Username = _username.Trim(),
+                    Password = _password,
+                    TokenUrl = NullIfBlank(_tokenUrl),
+                    Referer = NullIfBlank(_referer),
+                };
+                return true;
+
+            case "token":
+                if (string.IsNullOrWhiteSpace(_token))
+                {
+                    error = "Enter a token or API key.";
+                    return false;
+                }
+
+                auth = new ConsoleServiceImportAuth { Mode = _authMode, Token = _token.Trim() };
+                return true;
+
+            case "basic":
+                if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
+                {
+                    error = "Enter a username and password for basic authentication.";
+                    return false;
+                }
+
+                auth = new ConsoleServiceImportAuth { Mode = _authMode, Username = _username.Trim(), Password = _password };
+                return true;
+
+            case "oauth":
+                if (string.IsNullOrWhiteSpace(_tokenUrl) || string.IsNullOrWhiteSpace(_clientId) || string.IsNullOrWhiteSpace(_clientSecret))
+                {
+                    error = "Enter the token endpoint URL, client id, and client secret for OAuth.";
+                    return false;
+                }
+
+                auth = new ConsoleServiceImportAuth
+                {
+                    Mode = _authMode,
+                    TokenUrl = _tokenUrl.Trim(),
+                    ClientId = _clientId.Trim(),
+                    ClientSecret = _clientSecret,
+                };
+                return true;
+
+            default:
+                error = "Select an authentication mode.";
+                return false;
+        }
+    }
+
+    private void BuildTree(ConsoleServiceImportResult result)
+    {
+        _tree.Clear();
+        _totalLayers = 0;
+
+        var hasNamedFolder = result.Services.Any(s => !string.IsNullOrWhiteSpace(s.FolderPath));
+        var grouped = result.Services
+            .GroupBy(s => string.IsNullOrWhiteSpace(s.FolderPath) ? string.Empty : s.FolderPath!)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in grouped)
+        {
+            var folder = new FolderNode
+            {
+                Name = group.Key.Length == 0 ? "(root)" : group.Key,
+                HasFolderHeader = hasNamedFolder,
+            };
+
+            foreach (var service in group)
+            {
+                var serviceKey = service.ServiceUrl ?? $"{group.Key}/{service.ServiceName}";
+                var node = new ServiceNode
+                {
+                    Key = serviceKey,
+                    Name = service.ServiceName,
+                    Type = service.ServiceType ?? "service",
+                    ServiceUrl = service.ServiceUrl,
+                };
+
+                foreach (var layer in service.Layers)
+                {
+                    var layerKey = $"{serviceKey}#{layer.LayerId?.ToString() ?? layer.Name}";
+                    node.Layers.Add(new LayerNode
+                    {
+                        Key = layerKey,
+                        Display = layer.LayerId is { } id ? $"{id} · {layer.Name}" : layer.Name,
+                        RawName = layer.Name,
+                        LayerId = layer.LayerId,
+                        GeometryType = layer.GeometryType,
+                        FeatureCount = layer.FeatureCount,
+                    });
+                    _totalLayers++;
+                }
+
+                folder.Services.Add(node);
+            }
+
+            _tree.Add(folder);
+        }
+
+        // Expand by default only when the result is small enough to browse without overwhelming the page.
+        if (_tree.Sum(f => f.Services.Count) <= 12)
+        {
+            foreach (var service in _tree.SelectMany(f => f.Services))
+            {
+                _expanded.Add(service.Key);
+            }
+        }
+    }
+
+    private bool IsExpanded(string key) => _expanded.Contains(key);
+
+    private void ToggleService(string key)
+    {
+        if (!_expanded.Add(key))
+        {
+            _expanded.Remove(key);
+        }
+    }
+
+    private bool IsServiceFullySelected(ServiceNode service)
+        => service.Layers.Count > 0 && service.Layers.All(l => _selected.Contains(l.Key));
+
+    private void ToggleServiceSelection(ServiceNode service, bool selected)
+    {
+        foreach (var layer in service.Layers)
+        {
+            if (selected)
+            {
+                _selected.Add(layer.Key);
+            }
+            else
+            {
+                _selected.Remove(layer.Key);
+            }
+        }
+
+        _importError = null;
+    }
+
+    private void ToggleLayer(string key, bool selected)
+    {
+        if (selected)
+        {
+            _selected.Add(key);
+        }
+        else
+        {
+            _selected.Remove(key);
+        }
+
+        _importError = null;
+    }
+
+    private void SelectAll()
+    {
+        foreach (var layer in _tree.SelectMany(f => f.Services).SelectMany(s => s.Layers))
+        {
+            _selected.Add(layer.Key);
+        }
+
+        _importError = null;
+    }
+
+    private void DeselectAll()
+    {
+        _selected.Clear();
+        _importError = null;
+    }
+
+    private async Task StartImportsAsync()
+    {
+        _importError = null;
+        StopPolling();
+        _jobs.Clear();
+
+        var selections = new List<(ServiceNode Service, LayerNode Layer)>();
+        foreach (var service in _tree.SelectMany(f => f.Services))
+        {
+            foreach (var layer in service.Layers)
+            {
+                if (_selected.Contains(layer.Key))
+                {
+                    selections.Add((service, layer));
+                }
+            }
+        }
+
+        if (selections.Count == 0)
+        {
+            return;
+        }
+
+        var importable = selections
+            .Where(s => s.Service.IsArcGis && s.Layer.LayerId is not null && !string.IsNullOrWhiteSpace(s.Service.ServiceUrl))
+            .ToList();
+        var skipped = selections.Count - importable.Count;
+
+        if (importable.Count == 0)
+        {
+            _importError = "The selected layers can't be imported from here yet — this action supports ArcGIS FeatureServer/MapServer layers.";
+            return;
+        }
+
+        _importing = true;
+        var auth = TryBuildAuth(out var built, out _) ? built : null;
+        try
+        {
+            foreach (var (service, layer) in importable)
+            {
+                var table = BuildTableName(service.Name, layer.LayerId!.Value, layer.RawName);
+                var row = new ImportJobRow { LayerName = $"{service.Name} · {layer.Display}", TableName = table };
+                _jobs.Add(row);
+
+                var run = await ServiceImport.StartLayerImportAsync(new ConsoleServiceImportRunRequest
+                {
+                    ServiceUrl = service.ServiceUrl!,
+                    LayerId = layer.LayerId!.Value,
+                    TableName = table,
+                    AutoPublish = _autoPublish,
+                    ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
+                    Auth = auth,
+                });
+
+                if (run.Succeeded && !string.IsNullOrWhiteSpace(run.JobId))
+                {
+                    row.JobId = run.JobId;
+                    row.Status = run.State;
+                }
+                else
+                {
+                    row.Terminal = true;
+                    row.Succeeded = false;
+                    row.Status = "Failed to queue";
+                    row.Detail = run.Detail;
+                }
+            }
+
+            if (skipped > 0)
+            {
+                _importError = $"{skipped} non-ArcGIS layer(s) were skipped — import those from their own source page.";
+            }
+
+            StartPolling();
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    private void StartPolling()
+    {
+        if (_jobs.All(j => j.Terminal))
+        {
+            return;
+        }
+
+        _pollTimer = new Timer(_ => _ = PollAsync(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+    }
+
+    private async Task PollAsync()
+    {
+        if (_polling)
+        {
+            return;
+        }
+
+        _polling = true;
+        try
+        {
+            var active = _jobs.Where(j => !j.Terminal && !string.IsNullOrWhiteSpace(j.JobId)).ToList();
+            if (active.Count == 0)
+            {
+                StopPolling();
+                return;
+            }
+
+            foreach (var row in active)
+            {
+                var job = await ServiceImport.GetImportJobAsync(row.JobId!);
+                row.Status = job.Status;
+                row.Terminal = job.Terminal;
+                row.Succeeded = job.Succeeded;
+                row.Features = job.FeaturesProcessed;
+                row.PublishedLayerId = job.PublishedLayerId;
+                row.Detail = job.Detail;
+            }
+
+            await InvokeAsync(StateHasChanged);
+
+            if (_jobs.All(j => j.Terminal))
+            {
+                StopPolling();
+            }
+        }
+        finally
+        {
+            _polling = false;
+        }
+    }
+
+    private void StopPolling()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+    }
+
+    public void Dispose() => StopPolling();
+
+    private static string JobStatusClass(ImportJobRow job) =>
+        job.Terminal && !job.Succeeded ? "console-status console-status-danger" : "console-status";
+
+    private static string BuildTableName(string serviceName, int layerId, string layerName)
+    {
+        var sb = new StringBuilder("imp_");
+        AppendSanitized(sb, serviceName);
+        sb.Append('_');
+        AppendSanitized(sb, layerName);
+        var s = sb.ToString();
+        while (s.Contains("__", StringComparison.Ordinal))
+        {
+            s = s.Replace("__", "_");
+        }
+
+        s = s.Trim('_');
+        if (s.Length == 0)
+        {
+            s = "imp";
+        }
+
+        if (s.Length > 48)
+        {
+            s = s[..48].Trim('_');
+        }
+
+        return $"{s}_{layerId}";
+    }
+
+    private static string BuildServiceName(string serviceName)
+    {
+        var sb = new StringBuilder("imp_");
+        AppendSanitized(sb, serviceName);
+        var s = sb.ToString().Trim('_');
+        if (s.Length == 0)
+        {
+            s = "imp";
+        }
+
+        return s.Length > 56 ? s[..56].Trim('_') : s;
+    }
+
+    private static void AppendSanitized(StringBuilder sb, string value)
+    {
+        foreach (var ch in value)
+        {
+            if (ch is >= 'a' and <= 'z' or >= '0' and <= '9')
+            {
+                sb.Append(ch);
+            }
+            else if (ch is >= 'A' and <= 'Z')
+            {
+                sb.Append((char)(ch + 32));
+            }
+            else
+            {
+                sb.Append('_');
+            }
+        }
+    }
+
+    private static string? NullIfBlank(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed class FolderNode
+    {
+        public required string Name { get; init; }
+        public bool HasFolderHeader { get; init; }
+        public List<ServiceNode> Services { get; } = new();
+    }
+
+    private sealed class ServiceNode
+    {
+        public required string Key { get; init; }
+        public required string Name { get; init; }
+        public required string Type { get; init; }
+        public string? ServiceUrl { get; init; }
+        public List<LayerNode> Layers { get; } = new();
+
+        public bool IsArcGis =>
+            Type.Equals("FeatureServer", StringComparison.OrdinalIgnoreCase) ||
+            Type.Equals("MapServer", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class LayerNode
+    {
+        public required string Key { get; init; }
+        public required string Display { get; init; }
+        public required string RawName { get; init; }
+        public int? LayerId { get; init; }
+        public string? GeometryType { get; init; }
+        public int? FeatureCount { get; init; }
+    }
+
+    private sealed class ImportJobRow
+    {
+        public required string LayerName { get; init; }
+        public required string TableName { get; init; }
+        public string? JobId { get; set; }
+        public string Status { get; set; } = "Queued";
+        public bool Terminal { get; set; }
+        public bool Succeeded { get; set; }
+        public int Features { get; set; }
+        public int? PublishedLayerId { get; set; }
+        public string? Detail { get; set; }
+    }
+}

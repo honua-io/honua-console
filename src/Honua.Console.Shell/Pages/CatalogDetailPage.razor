@@ -150,7 +150,18 @@
                     break;
                 case "usage":
                     <h2>Usage And Risk</h2>
-                    @if (item.Usage.Length == 0)
+                    @* Pre-retirement blast-radius / impact view (UI-011): what depends on this item before you
+                       edit or retire it. The honua-server Console metadata v2 content API (honua-server#1162)
+                       exposes no dependency/usage endpoint, so the server-bound read leaves UsageBound false and
+                       this renders an explicit missing-binding state rather than a falsely-reassuring "no
+                       consumers" empty state (Console Patterns Charter section 11). When a real usage endpoint
+                       lands, the catalog client sets UsageBound and the live closure renders below. *@
+                    @if (!item.UsageBound)
+                    {
+                        <ConsoleStateView Kind="missing" Kicker="Missing binding" Title="Dependency usage is not bound"
+                                          Message="The connected honua-server does not expose a dependency/usage (blast-radius) endpoint for content items (honua-server#1162 metadata v2 has no usage projection). Console will not infer downstream consumers; review impact from Lineage until the usage contract lands." />
+                    }
+                    else if (item.Usage.Length == 0)
                     {
                         <ConsoleStateView Kind="empty" Kicker="No usage" Title="No downstream consumers" Message="No saved maps, apps, dashboards, reports, or workflows currently depend on this item." />
                     }

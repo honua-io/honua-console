@@ -1,0 +1,222 @@
+@page "/operate/publishing/quick"
+@using Honua.Console.Shell.Models
+@inject IOperateTransitionDataSource OperateData
+@inject IServiceLayerPublishOperation PublishOperation
+@inject NavigationManager Nav
+
+<section class="console-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Publishing</p>
+        <h1>Publish a layer</h1>
+        <p>Publish an existing table from a data connection as a queryable service layer. Pick the connection and table, name the service (use <code>folder/service</code> to nest under a folder), and publish — the layer becomes live on honua-server and queryable through its FeatureServer slot.</p>
+    </div>
+
+    @if (_connections.Count == 0)
+    {
+        <article class="console-panel console-state-warning" role="note">
+            <p class="console-kicker">No connections</p>
+            <h2>No data connections are available</h2>
+            <p>Create and test a data connection first, then return here to publish a table from it.</p>
+            <a class="console-button" href="/operate/connections/new">Add Connection</a>
+        </article>
+    }
+    else
+    {
+        <article class="console-panel">
+            <div class="studio-field-grid">
+                <label>
+                    <span>Connection</span>
+                    <select class="console-input" aria-label="Connection" @bind="_connectionId" @bind:after="OnConnectionChanged">
+                        <option value="">Select a connection…</option>
+                        @foreach (var connection in _connections)
+                        {
+                            <option value="@connection.Id">@connection.Name (@connection.Provider)</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    <span>Table</span>
+                    <select class="console-input" aria-label="Table" @bind="_tableKey" @bind:after="OnTableChanged" disabled="@(_tables.Count == 0)">
+                        <option value="">@(_loadingTables ? "Loading tables…" : _tables.Count == 0 ? "No publishable tables" : "Select a table…")</option>
+                        @foreach (var table in _tables)
+                        {
+                            <option value="@table.QualifiedName">@table.QualifiedName @(table.GeometryType is { } gt ? $"· {gt}" : "")</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    <span>Service name</span>
+                    <input class="console-input" @bind="_serviceName" @bind:event="oninput" @bind:after="ClearResult" placeholder="parcels-fs" />
+                    <small class="console-muted">Use <code>folder/service</code> to nest under a folder.</small>
+                </label>
+                <label>
+                    <span>Layer name</span>
+                    <input class="console-input" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
+                </label>
+            </div>
+
+            @if (_selectedTable is { } t)
+            {
+                <dl class="console-definition-list">
+                    <dt>Geometry</dt>
+                    <dd>@(t.GeometryType ?? "—") @(t.GeometryColumn is { } gc ? $"({gc})" : "")</dd>
+                    <dt>SRID</dt>
+                    <dd>@(t.Srid?.ToString() ?? "—")</dd>
+                    <dt>Columns</dt>
+                    <dd>@(t.Columns.Count > 0 ? string.Join(", ", t.Columns) : "—")</dd>
+                    <dt>Rows (estimated)</dt>
+                    <dd>@(t.EstimatedRows?.ToString() ?? "—")</dd>
+                </dl>
+            }
+
+            @if (_clientError is not null)
+            {
+                <div class="console-validation-summary" data-publish-validation="blocking" role="alert">
+                    <p class="console-kicker">Resolve before publishing</p>
+                    <ul><li>@_clientError</li></ul>
+                </div>
+            }
+
+            @if (_result is { } r)
+            {
+                <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
+                    <p class="console-kicker">@r.State</p>
+                    <h2>@(r.Succeeded ? "Layer published" : "Layer not published")</h2>
+                    <p>@r.Detail</p>
+                    @if (r.Succeeded)
+                    {
+                        <dl class="console-definition-list">
+                            <dt>Layer id</dt>
+                            <dd data-published-layer-id>@r.LayerId</dd>
+                            <dt>Service</dt>
+                            <dd data-published-service>@r.ServiceName</dd>
+                            <dt>Geometry / SRID</dt>
+                            <dd>@r.GeometryType / @r.Srid</dd>
+                        </dl>
+                    }
+                    @if (r.FieldErrors.Count > 0)
+                    {
+                        <ul>
+                            @foreach (var error in r.FieldErrors)
+                            {
+                                <li>@(string.IsNullOrWhiteSpace(error.Path) ? error.Message : $"{error.Path}: {error.Message}")</li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
+
+            <div class="console-action-row">
+                <button class="console-button" type="button" disabled="@_busy" @onclick="PublishAsync">
+                    @(_busy ? "Publishing…" : "Publish layer")
+                </button>
+                <a href="/operate/services">View services</a>
+            </div>
+        </article>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
+    private IReadOnlyList<ServiceLayerPublishTable> _tables = Array.Empty<ServiceLayerPublishTable>();
+    private ServiceLayerPublishTable? _selectedTable;
+
+    private string _connectionId = string.Empty;
+    private string _tableKey = string.Empty;
+    private string _serviceName = string.Empty;
+    private string _layerName = string.Empty;
+
+    private bool _loadingTables;
+    private bool _busy;
+    private string? _clientError;
+    private ServiceLayerPublishResult? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var view = await OperateData.GetConnectionsViewAsync();
+        _connections = view.Connections;
+    }
+
+    private async Task OnConnectionChanged()
+    {
+        ClearResult();
+        _tables = Array.Empty<ServiceLayerPublishTable>();
+        _tableKey = string.Empty;
+        _selectedTable = null;
+        if (string.IsNullOrWhiteSpace(_connectionId))
+        {
+            return;
+        }
+
+        _loadingTables = true;
+        try
+        {
+            _tables = await PublishOperation.ListTablesAsync(_connectionId);
+        }
+        finally
+        {
+            _loadingTables = false;
+        }
+    }
+
+    private void OnTableChanged()
+    {
+        ClearResult();
+        _selectedTable = _tables.FirstOrDefault(table =>
+            string.Equals(table.QualifiedName, _tableKey, StringComparison.Ordinal));
+        if (_selectedTable is { } t && string.IsNullOrWhiteSpace(_layerName))
+        {
+            _layerName = t.Table;
+        }
+    }
+
+    private void ClearResult()
+    {
+        _clientError = null;
+        _result = null;
+    }
+
+    private async Task PublishAsync()
+    {
+        _clientError = Validate();
+        if (_clientError is not null)
+        {
+            return;
+        }
+
+        var table = _selectedTable!;
+        var command = new ServiceLayerPublishCommand
+        {
+            ConnectionId = _connectionId,
+            Schema = table.Schema,
+            Table = table.Table,
+            LayerName = _layerName.Trim(),
+            ServiceName = _serviceName.Trim(),
+            GeometryColumn = table.GeometryColumn,
+            GeometryType = table.GeometryType,
+            Srid = table.Srid,
+            Fields = table.Columns,
+            Enabled = true
+        };
+
+        _busy = true;
+        _result = null;
+        try
+        {
+            _result = await PublishOperation.PublishAsync(command);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string? Validate()
+    {
+        if (string.IsNullOrWhiteSpace(_connectionId)) return "Select a connection.";
+        if (_selectedTable is null) return "Select a table.";
+        if (string.IsNullOrWhiteSpace(_serviceName)) return "Enter a service name.";
+        if (string.IsNullOrWhiteSpace(_layerName)) return "Enter a layer name.";
+        return null;
+    }
+}

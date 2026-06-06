@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -24,6 +26,40 @@ namespace Honua.Console.Contracts;
 
 public sealed record HonuaOgcStylesClientOptions(Uri BaseUri, string? ApiKey = null);
 
+/// <summary>
+/// Stylesheet encoding the dual-mode style editor reads/writes over <c>/ogc/styles/{styleId}</c>. The canonical
+/// store is MapLibre; Esri (<c>drawingInfo</c>) is a server-side projection (ADR-0002, ADR-0048).
+/// </summary>
+public enum HonuaOgcStyleEncoding
+{
+    /// <summary>Canonical MapLibre / Mapbox style JSON (<c>application/vnd.mapbox.style+json</c>).</summary>
+    MapLibre,
+
+    /// <summary>Esri GeoServices drawingInfo renderer (<c>application/vnd.esri.drawinginfo+json</c>).</summary>
+    Esri
+}
+
+/// <summary>A stylesheet body fetched in a given encoding.</summary>
+public sealed record HonuaOgcStylesheet(string StyleId, HonuaOgcStyleEncoding Encoding, string Content);
+
+/// <summary>
+/// Outcome of a stylesheet write. On success the canonical MapLibre was stored; <see cref="UnsupportedSymbolizers"/>
+/// carries non-blocking lossy-conversion warnings. On failure <see cref="Detail"/> explains the rejection
+/// (e.g. a strict validation error).
+/// </summary>
+public sealed record HonuaOgcStyleSaveResult(
+    bool Succeeded,
+    string? State,
+    string? Detail,
+    IReadOnlyList<string> UnsupportedSymbolizers)
+{
+    public static HonuaOgcStyleSaveResult Ok(IReadOnlyList<string> warnings) =>
+        new(true, "Saved", null, warnings);
+
+    public static HonuaOgcStyleSaveResult Fail(string state, string? detail) =>
+        new(false, state, detail, Array.Empty<string>());
+}
+
 /// <summary>One styleId the server advertises on <c>GET /ogc/styles</c> (ADR-0048).</summary>
 public sealed record HonuaOgcStyleSummary(string Id, string? Title);
 
@@ -41,6 +77,24 @@ public interface IHonuaOgcStylesClient
 
     /// <summary>Reads the server-advertised styleIds (the styles list), or a capability issue on failure.</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesList>> ListStylesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Reads a style's stylesheet in the requested encoding (<c>GET /ogc/styles/{styleId}</c>).</summary>
+    Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes a style's stylesheet in the given encoding (<c>PUT /ogc/styles/{styleId}</c>). The server keeps
+    /// MapLibre canonical and converts the Esri encoding. <paramref name="strict"/> sends
+    /// <c>Prefer: handling=strict</c> so a lossy/invalid style is rejected rather than stored.
+    /// </summary>
+    Task<HonuaOgcStyleSaveResult> UpdateStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        string content,
+        bool strict,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposable
@@ -154,6 +208,160 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
             return HonuaAdminEndpointResult<HonuaOgcStylesList>.FromData(
                 new HonuaOgcStylesList(styles, document.Default));
         }
+    }
+
+    private const string MapboxMediaType = "application/vnd.mapbox.style+json";
+    private const string EsriMediaType = "application/vnd.esri.drawinginfo+json";
+
+    public async Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(styleId);
+
+        const string contract = "GET /ogc/styles/{styleId}";
+        var path = $"{StylesPath}/{Uri.EscapeDataString(styleId)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.TryAddWithoutValidation("Accept", MediaTypeFor(encoding));
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server OGC API - Styles endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                var state = response.StatusCode switch
+                {
+                    HttpStatusCode.NotFound or HttpStatusCode.NotAcceptable => "Unsupported",
+                    HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
+                    _ => "Unavailable"
+                };
+                return HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new HonuaAdminEndpointIssue(
+                    state, contract,
+                    $"The Honua server returned HTTP {(int)response.StatusCode} reading the stylesheet.",
+                    (int)response.StatusCode));
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromData(
+                new HonuaOgcStylesheet(styleId, encoding, content));
+        }
+    }
+
+    public async Task<HonuaOgcStyleSaveResult> UpdateStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        string content,
+        bool strict,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(styleId);
+        ArgumentNullException.ThrowIfNull(content);
+
+        var path = $"{StylesPath}/{Uri.EscapeDataString(styleId)}";
+        using var request = new HttpRequestMessage(HttpMethod.Put, path)
+        {
+            Content = new StringContent(content, Encoding.UTF8)
+        };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeFor(encoding));
+        if (strict)
+        {
+            request.Headers.TryAddWithoutValidation("Prefer", "handling=strict");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaOgcStyleSaveResult.Fail("Unavailable", $"The Honua server could not be reached: {ex.Message}");
+        }
+
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.NoContent || response.IsSuccessStatusCode)
+            {
+                return HonuaOgcStyleSaveResult.Ok(ReadUnsupportedSymbolizers(response));
+            }
+
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var state = response.StatusCode switch
+            {
+                HttpStatusCode.BadRequest => "Rejected",
+                HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
+                HttpStatusCode.NotFound or HttpStatusCode.UnsupportedMediaType => "Unsupported",
+                _ => "Unavailable"
+            };
+            return HonuaOgcStyleSaveResult.Fail(state, ParseProblemDetail(body) ?? $"HTTP {(int)response.StatusCode}");
+        }
+    }
+
+    private static string MediaTypeFor(HonuaOgcStyleEncoding encoding) =>
+        encoding == HonuaOgcStyleEncoding.Esri ? EsriMediaType : MapboxMediaType;
+
+    private static IReadOnlyList<string> ReadUnsupportedSymbolizers(HttpResponseMessage response)
+    {
+        if (response.Headers.TryGetValues("X-Style-Unsupported-Symbolizers", out var values))
+        {
+            return values
+                .SelectMany(v => v.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                .ToArray();
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private static string? ParseProblemDetail(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
+                {
+                    return detail.GetString();
+                }
+
+                if (root.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
+                {
+                    return title.GetString();
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall through to the raw body.
+        }
+
+        return body.Length > 400 ? body[..400] : body;
     }
 
     public void Dispose() => _httpClient.Dispose();

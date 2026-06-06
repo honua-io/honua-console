@@ -219,6 +219,149 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
         Assert.Equal("Unavailable", result.Issue!.State);
     }
 
+    [Fact]
+    public async Task Generate_ServerProposesQuery_AppliesProposalOntoEditorAndClearsPreview()
+    {
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromData(
+                new HonuaSavedQueryGenerationResult
+                {
+                    Status = "generated",
+                    Rationale = "Proposed a flood-zone permit query.",
+                    Query = new HonuaSavedQueryContent
+                    {
+                        NaturalLanguageQuery = "Approved permits in flood zones",
+                        ServiceName = "permits",
+                        LayerId = 9,
+                        OutFields = ["permit_id", "status"],
+                        FilterPlan = new HonuaFilterPlan
+                        {
+                            Combinator = HonuaFilterPlanCombinators.And,
+                            Clauses =
+                            [
+                                new HonuaFilterPlanClause
+                                {
+                                    Type = HonuaFilterClauseTypes.Comparison,
+                                    Comparison = new HonuaComparisonClause
+                                    {
+                                        Property = "status",
+                                        Operator = "=",
+                                        Value = JsonSerializer.SerializeToElement("approved")
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                })
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client);
+        var current = ReadyQuery(queryId: "query-7");
+        current.Preview = null;
+
+        var outcome = await source.GenerateAsync(current, new StudioQueryGenerationRequest { Prompt = "permits in flood zones" });
+
+        Assert.Equal(1, client.GenerateQueryCalls);
+        Assert.True(outcome.IsGenerated);
+        Assert.NotNull(outcome.Query);
+        // Server-owned identity is preserved; the authored content is replaced from the proposal.
+        Assert.Equal("query-7", outcome.Query!.QueryId);
+        Assert.Equal("permits", outcome.Query.ServiceName);
+        Assert.Equal(9, outcome.Query.LayerId);
+        Assert.Contains(outcome.Query.Predicates, p => p.Field == "status" && p.Value == "approved");
+        Assert.Contains(outcome.Query.OutFields, f => f == "permit_id");
+        Assert.Equal("Proposed a flood-zone permit query.", outcome.Rationale);
+        // A refine on a saved draft ships the current query so the server edits it.
+        Assert.NotNull(client.LastGenerateQueryRequest!.Query);
+    }
+
+    [Fact]
+    public async Task Generate_ServerOmitsEmptyCollections_MapsWithoutThrowing()
+    {
+        // The server serializes empty collections/maps as explicit JSON null (System.Text.Json overrides the
+        // DTO's non-null initializer on deserialize), so a generated query commonly arrives with
+        // Metadata/OutFields/Clauses == null. The mapper must coalesce before any lookup/enumeration rather
+        // than NRE and freeze the generate turn (regression: StudioQueryPackageMapper.ResolveTitle).
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromData(
+                new HonuaSavedQueryGenerationResult
+                {
+                    Status = "generated",
+                    Rationale = "Proposed a query.",
+                    Query = new HonuaSavedQueryContent
+                    {
+                        NaturalLanguageQuery = "every parcel",
+                        ServiceName = "parcels",
+                        LayerId = 3,
+                        OutFields = null!,
+                        Metadata = null!,
+                        FilterPlan = new HonuaFilterPlan { Combinator = HonuaFilterPlanCombinators.And, Clauses = null! }
+                    }
+                })
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioQueryEditor(), new StudioQueryGenerationRequest { Prompt = "all parcels" });
+
+        Assert.True(outcome.IsGenerated);
+        Assert.NotNull(outcome.Query);
+        Assert.Equal("parcels", outcome.Query!.ServiceName);
+        Assert.Equal(3, outcome.Query.LayerId);
+        Assert.Empty(outcome.Query.Predicates);
+        Assert.Empty(outcome.Query.OutFields);
+    }
+
+    [Fact]
+    public async Task Generate_ServerLacksContract_SurfacesUnsupportedNotMissingBinding()
+    {
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST queries/generate", "Not found.", 404))
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioQueryEditor(), new StudioQueryGenerationRequest { Prompt = "hi" });
+
+        Assert.Equal(StudioQueryGenerationStatuses.Unsupported, outcome.Status);
+        Assert.Null(outcome.BindingState);
+        Assert.False(outcome.IsGenerated);
+    }
+
+    [Fact]
+    public async Task Generate_ServerError_BlocksSurfaceWithBindingState()
+    {
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unavailable", "POST queries/generate", "Server unreachable."))
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioQueryEditor(), new StudioQueryGenerationRequest { Prompt = "hi" });
+
+        Assert.NotNull(outcome.BindingState);
+        Assert.Equal("Unavailable", outcome.BindingState!.State);
+    }
+
+    [Fact]
+    public async Task Generate_FirstTurnFromBlankScaffold_RequestsFreshGenerationWithNullQuery()
+    {
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromData(
+                new HonuaSavedQueryGenerationResult { Status = "needs-clarification" })
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioQueryEditor(), new StudioQueryGenerationRequest { Prompt = "permits" });
+
+        Assert.True(outcome.NeedsClarification);
+        // A blank scaffold has no authored intent, so the first turn requests fresh generation (null query).
+        Assert.Null(client.LastGenerateQueryRequest!.Query);
+    }
+
     private static StudioQueryEditor ReadyQuery(string? queryId)
     {
         var query = new StudioQueryEditor
@@ -405,5 +548,27 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
             string jobId,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("The query builder does not resolve job failures.");
+
+        public Task<HonuaAdminEndpointResult<HonuaAnalysisGenerationResult>> GenerateAsync(
+            HonuaGenerateAnalysisRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The query builder does not generate analysis packages.");
+
+        public int GenerateQueryCalls { get; private set; }
+
+        public HonuaGenerateSavedQueryRequest? LastGenerateQueryRequest { get; private set; }
+
+        public HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult> GenerateQueryResult { get; set; } =
+            HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST queries/generate", "not configured", 404));
+
+        public Task<HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>> GenerateQueryAsync(
+            HonuaGenerateSavedQueryRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            GenerateQueryCalls++;
+            LastGenerateQueryRequest = request;
+            return Task.FromResult(GenerateQueryResult);
+        }
     }
 }

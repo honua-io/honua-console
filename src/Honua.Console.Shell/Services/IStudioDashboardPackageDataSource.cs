@@ -40,4 +40,15 @@ public interface IStudioDashboardPackageDataSource
         string dashboardId,
         int version,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (or refines) a dashboard from a natural-language prompt against the server's shared content
+    /// publications/generate endpoint (kind=dashboard). The returned honua.dashboard-document.v1 is mapped
+    /// onto a fresh editor state for review; the surface only ever renders a server-produced dashboard, a
+    /// structured clarification request, or an honest unsupported/refused/missing-binding state.
+    /// </summary>
+    Task<StudioDashboardGenerationOutcome> GenerateAsync(
+        StudioDashboardEditorState currentState,
+        StudioDashboardGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }

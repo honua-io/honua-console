@@ -658,5 +658,27 @@ public sealed class HonuaServerStudioAnalysisContentDataSourceTests
             string jobId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(JobFailureResult);
+
+        public int GenerateCalls { get; private set; }
+
+        public HonuaGenerateAnalysisRequest? LastGenerateRequest { get; private set; }
+
+        public HonuaAdminEndpointResult<HonuaAnalysisGenerationResult> GenerateResult { get; set; } =
+            HonuaAdminEndpointResult<HonuaAnalysisGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "not configured", 404));
+
+        public Task<HonuaAdminEndpointResult<HonuaAnalysisGenerationResult>> GenerateAsync(
+            HonuaGenerateAnalysisRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            GenerateCalls++;
+            LastGenerateRequest = request;
+            return Task.FromResult(GenerateResult);
+        }
+
+        public Task<HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>> GenerateQueryAsync(
+            HonuaGenerateSavedQueryRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The analysis builder does not generate saved queries.");
     }
 }

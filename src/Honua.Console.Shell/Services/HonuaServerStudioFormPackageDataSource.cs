@@ -23,6 +23,8 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
     private const string PublishContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish";
     private const string ReopenContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/reopen";
     private const string OfflineContract = "GET /api/v1/forms/packages/{formId}/offline-policy";
+    private const string GenProvidersContract = "GET /api/v1/admin/forms/packages/generation/providers";
+    private const string GenerateContract = "POST /api/v1/admin/forms/packages/generate";
 
     private readonly IHonuaFormPackageClient _client;
 
@@ -237,6 +239,140 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         var policy = result.Data!;
         return new StudioFormOfflinePolicyView(policy.Enabled, policy.AvailableTransports);
     }
+
+    public async Task<StudioFormAiCapability> GetGenerationCapabilityAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _client.ListGenerationProvidersAsync(cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            // 404/501 = the server has the form API but not the generation contract yet: AI is off here
+            // (honest "unavailable"), not a missing binding. Other issues block the surface.
+            if (issue.StatusCode is 404 or 501)
+            {
+                return StudioFormAiCapability.Off;
+            }
+
+            return StudioFormAiCapability.Blocked(ToCapabilityState(GenProvidersContract, issue));
+        }
+
+        var data = result.Data!;
+        return new StudioFormAiCapability
+        {
+            Enabled = data.Enabled,
+            DefaultProvider = data.DefaultProvider,
+            Providers = data.Providers
+                .Select(provider => new StudioFormAiProvider(
+                    provider.Id,
+                    string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,
+                    provider.Kind,
+                    provider.Available,
+                    provider.Detail))
+                .ToArray()
+        };
+    }
+
+    public async Task<StudioFormGenerationOutcome> GenerateAsync(
+        StudioFormEditorState currentState,
+        StudioFormGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentState);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // A refine turn ships the current document so the server edits it; a first turn ships null (fresh).
+        var refine = currentState.Fields.Count > 0;
+        var wire = new GenerateFormPackageRequest
+        {
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Package = refine ? StudioFormPackageMapper.ToDocument(currentState) : null,
+            Conversation = request.Conversation
+                .Select(turn => new HonuaFormGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new HonuaFormGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _client.GenerateFormAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            if (issue.StatusCode is 404 or 501)
+            {
+                return new StudioFormGenerationOutcome
+                {
+                    Status = StudioFormGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI form generation yet."
+                };
+            }
+
+            return StudioFormGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
+        }
+
+        return MapGeneration(result.Data!);
+    }
+
+    private static StudioFormGenerationOutcome MapGeneration(HonuaFormGenerationResult result)
+    {
+        var warnings = new List<string>();
+        if (result.Validation is { } validation)
+        {
+            warnings.AddRange(validation.Issues.Where(i => i is not null).Select(i => i.Message));
+        }
+
+        warnings.AddRange(result.UnmappedRequests
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No matching field for: {item}"));
+
+        var clarifications = result.Clarifications
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                question.Choices
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioFormEditorState? state = null;
+        if (string.Equals(result.Status, StudioFormGenerationStatuses.Generated, StringComparison.Ordinal) &&
+            result.Package is not null)
+        {
+            // A generated document becomes a fresh, unsaved draft the operator reviews and saves; reuse the
+            // same projection a loaded version uses by wrapping the document in a new-draft version.
+            state = StudioFormPackageMapper.ToEditorState(new HonuaFormPackageVersion
+            {
+                FormId = string.Empty,
+                Version = 0,
+                Status = HonuaFormPackageStatus.Draft,
+                Package = result.Package
+            });
+        }
+
+        return new StudioFormGenerationOutcome
+        {
+            Status = NormalizeStatus(result.Status),
+            State = state,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioFormGenerationCapability(result.CapabilityState.Name, result.CapabilityState.State, result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    private static string NormalizeStatus(string? status) => status switch
+    {
+        StudioFormGenerationStatuses.Generated => StudioFormGenerationStatuses.Generated,
+        StudioFormGenerationStatuses.NeedsClarification => StudioFormGenerationStatuses.NeedsClarification,
+        StudioFormGenerationStatuses.Unsupported => StudioFormGenerationStatuses.Unsupported,
+        StudioFormGenerationStatuses.Refused => StudioFormGenerationStatuses.Refused,
+        _ => StudioFormGenerationStatuses.Error
+    };
 
     private static StudioFormCommandResult Failure(string message, StudioFormCapabilityState? issue = null) =>
         new(false, message, Issue: issue);

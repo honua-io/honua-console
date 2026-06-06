@@ -227,6 +227,9 @@ public sealed class StudioMapCollaborationRenderTests
 
         public Task<StudioMapCommandResult> ReopenAsync(StudioMapEditorState state, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioMapCommandResult(true, "Reopened.", state));
+
+        public Task<StudioMapGenerationOutcome> GenerateAsync(StudioMapEditorState currentState, StudioMapGenerationRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioMapGenerationOutcome { Status = StudioMapGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 
     private sealed class StubCollaborationDataSource : IStudioMapCollaborationDataSource

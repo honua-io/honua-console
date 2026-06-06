@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
@@ -13,4 +14,18 @@ public interface IStudioMapStyleCatalogDataSource
 {
     /// <summary>Loads the server-advertised style catalog, or a catalog carrying a capability issue.</summary>
     Task<StudioMapStyleCatalog> GetStyleCatalogAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Reads a style's stylesheet in the requested encoding for the dual-mode editor.</summary>
+    Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Saves a style's stylesheet in the given encoding (server keeps MapLibre canonical).</summary>
+    Task<HonuaOgcStyleSaveResult> SaveStylesheetAsync(
+        string styleId,
+        HonuaOgcStyleEncoding encoding,
+        string content,
+        bool strict,
+        CancellationToken cancellationToken = default);
 }

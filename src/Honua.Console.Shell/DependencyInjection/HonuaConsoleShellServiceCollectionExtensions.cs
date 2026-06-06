@@ -24,8 +24,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+        // Environment profiles are host-owned local state (Console Patterns Charter §11 local-state
+        // carve-out), but they must not ship fabricated demo profiles. The default store starts EMPTY so
+        // the first-run experience is "create your first environment", never seeded dev.honua.local /
+        // staging.honua.example fakes. The native host replaces this with the persistent
+        // JsonConsoleEnvironmentProfileStore (also empty until the operator adds one). The seeded factory
+        // (InMemoryConsoleEnvironmentProfileStore.CreateSeeded) stays test/demo-only — never the DI default.
         services.TryAddSingleton<IConsoleEnvironmentProfileStore>(
-            _ => InMemoryConsoleEnvironmentProfileStore.CreateSeeded());
+            _ => new InMemoryConsoleEnvironmentProfileStore([]));
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
 
         // Unsaved-changes dirty tracking (FormDirtyState) is intentionally NOT registered in DI: a
@@ -51,6 +57,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddEsriMigrationRunDataSource(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddOperateAlertRulesDataSource(services, honuaServerBaseUrl);
+        AddOperateLayerStyleOverrideDataSource(services);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
         // Operate observability binds to a real honua-server through a thin
@@ -289,9 +297,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            // The query + analysis builders share this client, and it now carries the NL-generation routes
+            // (POST .../queries/generate and .../generate). NL generation grounds + validates + runs a
+            // bounded repair loop on the server, and against a local CPU model a single turn can take
+            // minutes. The default HttpClient.Timeout of 100s cancels these legitimately-slow generations
+            // client-side (surfacing as a false "endpoint could not be reached"). Match the server's own
+            // request timeout (10 min) so the real path works — mirrors the workflow/map generation clients.
             services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaAnalysisContentHttpClient(
                     httpClient,
                     new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
@@ -317,6 +331,18 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            // NL->map generation grounds + validates + runs a bounded repair loop on the server, and against
+            // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
+            // these legitimately-slow generations client-side (surfacing as a false "endpoint could not be
+            // reached"). Match the server's own request timeout (10 min) so the real path works — mirrors the
+            // workflow generation client.
+            services.TryAddSingleton<IStudioMapGenerationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                return new HttpStudioMapGenerationClient(
+                    httpClient,
+                    new StudioMapGenerationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
             services.TryAddSingleton<IStudioMapPackageDataSource, HonuaServerStudioMapPackageDataSource>();
 
             // The per-layer style picker (#161, ADR-0048) binds the layer's styleId to the styles the server
@@ -381,9 +407,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            // Shared with the query builder; the 10-minute timeout covers the NL-generation routes on this
+            // client (see AddStudioQueryPackageDataSource for the rationale). TryAdd keeps whichever
+            // registration ran first, so both register the identical client.
             services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaAnalysisContentHttpClient(
                     httpClient,
                     new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
@@ -417,7 +446,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                     httpClient,
                     new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
             });
-            services.TryAddSingleton<IStudioDashboardPackageDataSource, HonuaServerStudioDashboardPackageDataSource>();
+            // Dashboard generation (NL -> dashboard.document) shares the content publications/generate
+            // endpoint with reports (dispatched on kind=dashboard), so it speaks the content-publication
+            // client rather than the Studio package lifecycle. TryAdd keeps a single client across the
+            // report/dashboard/publishing surfaces. Generation grounds + validates + runs a bounded repair
+            // loop on the server and against a local CPU model a single turn can take minutes, so match the
+            // server's own 10-min request timeout — mirrors the map/analysis/workflow generation clients.
+            services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                return new HonuaContentPublicationHttpClient(
+                    httpClient,
+                    new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioDashboardPackageDataSource>(serviceProvider =>
+                new HonuaServerStudioDashboardPackageDataSource(
+                    serviceProvider.GetRequiredService<IStudioPackageLifecycleClient>(),
+                    serviceProvider.GetRequiredService<IHonuaContentPublicationClient>()));
             return;
         }
 
@@ -462,7 +507,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IWorkflowPackageApiClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                // NL->workflow generation grounds + validates + runs a bounded repair loop on the
+                // server, and against a local CPU model a single turn can take minutes. The default
+                // HttpClient.Timeout of 100s cancels these legitimately-slow generations client-side
+                // (surfacing as a false "endpoint could not be reached"). Match the server's own
+                // request timeout (Limits:Connections:RequestTimeout = 10 min) so the real path works.
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HttpWorkflowPackageApiClient(
                     httpClient,
                     new WorkflowPackageClientOptions(baseUri, honuaServerAdminApiKey));
@@ -606,12 +656,27 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // access-policy changes) reuse the same admin client + base-URL gate so the Operate layers/
             // service-detail surfaces perform REAL mutations against honua-server.
             services.TryAddSingleton<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation>();
+            // The connection-create OPERATION reuses the same admin client + base-URL gate so the Add
+            // Connection form performs a REAL create against honua-server (POST /api/v1/admin/connections).
+            services.TryAddSingleton<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation>();
+            // The file-import OPERATION reuses the same admin client so the Import UI uploads a real file to
+            // honua-server's streamed import endpoint (POST /api/v1/admin/import/upload).
+            services.TryAddSingleton<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation>();
+            // The service-import OPERATION discovers remote Esri/OGC services via honua-server
+            // (POST /api/v1/admin/external-services/discover).
+            services.TryAddSingleton<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation>();
+            // Layer field-domain authoring (GET/PUT /api/v1/admin/metadata/layers/{id}/fields).
+            services.TryAddSingleton<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation>();
             return;
         }
 
         services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
         services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
         services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
+        services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
+        services.TryAddSingleton<IConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>();
+        services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
+        services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
@@ -702,6 +767,38 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IPublishingWorkspaceDataSource, UnsupportedPublishingWorkspaceDataSource>();
     }
+
+    // Binds the alert RULE definition surface (/operate/alerts/rules and /operate/alerts/rules/{ruleId},
+    // honua-console UI-042) to honua-server. The rule LIST reuses the live observability rules projection
+    // (/api/v1/admin/observability, already registered) through ServerOperateAlertRulesDataSource when a
+    // server base address is configured; the rule detail/condition editor and rule save await the alert rule
+    // DEFINITION contract (honua-server#1169) and render an explicit missing-binding state until it ships
+    // (Console Patterns Charter section 11). With no server configured the unsupported source surfaces the
+    // missing-binding state across the list and editor. TryAdd keeps a test/demo provider overridable.
+    private static void AddOperateAlertRulesDataSource(IServiceCollection services, string? honuaServerBaseUrl)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IOperateAlertRulesDataSource>(serviceProvider =>
+                new ServerOperateAlertRulesDataSource(
+                    serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>()));
+            return;
+        }
+
+        services.TryAddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
+    }
+
+    // Binds the Operate resource-presentation per-slot style/popup OVERRIDE surface
+    // (/operate/layers/{id}/style, honua-console UI-032). honua-server does not yet expose a per-slot
+    // presentation-override contract, so the merged build registers the unsupported source: the override
+    // read/write render an explicit missing-binding state and never fabricate per-slot overrides (Console
+    // Patterns Charter section 11). The page still reads the REAL /ogc/styles list through the already
+    // registered IStudioMapStyleCatalogDataSource. When the override contract lands, wire a Server*
+    // implementation here gated on a configured server base URL exactly like the other bindings. TryAdd keeps
+    // a test/demo provider overridable.
+    private static void AddOperateLayerStyleOverrideDataSource(IServiceCollection services) =>
+        services.TryAddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
 
     private static HttpClient CreateOperateObservabilityHttpClient() =>
         new(new SocketsHttpHandler

@@ -332,5 +332,11 @@ public sealed class StudioAnalysisBuilderRenderTests
 
             return Task.FromResult(new StudioAnalysisCommandResult(true, $"Resolved {artifactId}.", plan));
         }
+
+        public Task<StudioAnalysisGenerationOutcome> GenerateAsync(
+            StudioAnalysisPlanEditor currentPlan,
+            StudioAnalysisGenerationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioAnalysisGenerationOutcome { Status = StudioAnalysisGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 }

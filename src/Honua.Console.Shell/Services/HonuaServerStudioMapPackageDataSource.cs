@@ -30,12 +30,17 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/publish-requests";
     private const string ReopenContract =
         "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen";
+    private const string GenerateContract = "POST /api/v1/studio/map-packages/generate";
 
     private readonly IStudioPackageLifecycleClient _client;
+    private readonly IStudioMapGenerationClient _generation;
 
-    public HonuaServerStudioMapPackageDataSource(IStudioPackageLifecycleClient client)
+    public HonuaServerStudioMapPackageDataSource(
+        IStudioPackageLifecycleClient client,
+        IStudioMapGenerationClient generation)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _generation = generation ?? throw new ArgumentNullException(nameof(generation));
     }
 
     public Task<StudioMapWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -239,6 +244,130 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             $"Reopened v{state.Version.ToString(CultureInfo.InvariantCulture)} as a new draft.",
             draft);
     }
+
+    public async Task<StudioMapGenerationOutcome> GenerateAsync(
+        StudioMapEditorState currentState,
+        StudioMapGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentState);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // A refine turn ships the current map.package body so the server edits it; a first turn ships null
+        // (fresh). The body is the same round-trip surface BuildEnvelopeBody/ApplyEnvelopeBody use.
+        var hasMap = currentState.Layers.Count > 0
+            || !string.IsNullOrWhiteSpace(currentState.Title)
+            || !string.IsNullOrWhiteSpace(currentState.Basemap)
+            || !string.IsNullOrWhiteSpace(currentState.InitialExtent);
+
+        var wire = new GenerateMapPackageRequest
+        {
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Package = hasMap ? StudioMapPackageMapper.BuildEnvelopeBody(currentState) : null,
+            Conversation = request.Conversation
+                .Select(turn => new MapGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new MapGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _generation.GenerateMapAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            // A 404/501 means this server lacks the map generation contract: AI is simply off here (honest
+            // "unsupported"), not a missing server binding. Other issues block the surface so the page shows
+            // the shared blocked state.
+            if (issue.StatusCode is 404 or 501)
+            {
+                return new StudioMapGenerationOutcome
+                {
+                    Status = StudioMapGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI map generation yet."
+                };
+            }
+
+            return StudioMapGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
+        }
+
+        return MapGeneration(currentState, result.Data!);
+    }
+
+    private static StudioMapGenerationOutcome MapGeneration(
+        StudioMapEditorState currentState,
+        MapGenerationResult result)
+    {
+        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
+        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
+        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the
+        // page (mirrors the workflow client's defensive mapping).
+        var warnings = new List<string>();
+        if (result.Validation is not null)
+        {
+            warnings.AddRange(result.Validation.Warnings ?? []);
+        }
+
+        warnings.AddRange((result.UnmappedRequests ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No mapping for: {item}"));
+
+        var clarifications = (result.Clarifications ?? [])
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                (question.Choices ?? [])
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioMapEditorState? state = null;
+        var generated = string.Equals(result.Status, StudioMapGenerationStatuses.Generated, StringComparison.Ordinal);
+        if (generated && result.Package is { } package)
+        {
+            // Hydrate the editor from the returned honua_map_package.v1 body (sourceBindings/styleRefs/
+            // initialView/popupBindings/legend) — a DIFFERENT shape from the console's round-trip envelope,
+            // so use the generation-specific mapper, NOT ApplyEnvelopeBody (which reads the `layers` shape and
+            // would bind zero layers). Server-owned identity/generation on currentState is preserved.
+            warnings.AddRange(StudioMapPackageMapper.ApplyGeneratedPackage(currentState, package));
+            // The proposed map changed; it must be re-saved + re-validated before any publish.
+            currentState.Status = StudioMapStatuses.Draft;
+            state = currentState;
+
+            if (result.Validation is { IsValid: false })
+            {
+                warnings.AddRange((result.Validation.Failures ?? []).Select(failure => failure.Message));
+            }
+        }
+
+        return new StudioMapGenerationOutcome
+        {
+            Status = NormalizeStatus(result.Status),
+            State = state,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioMapGenerationCapability(
+                    result.CapabilityState.Name,
+                    result.CapabilityState.State,
+                    result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    private static string NormalizeStatus(string? status) => status switch
+    {
+        StudioMapGenerationStatuses.Generated => StudioMapGenerationStatuses.Generated,
+        StudioMapGenerationStatuses.NeedsClarification => StudioMapGenerationStatuses.NeedsClarification,
+        StudioMapGenerationStatuses.Unsupported => StudioMapGenerationStatuses.Unsupported,
+        StudioMapGenerationStatuses.Refused => StudioMapGenerationStatuses.Refused,
+        _ => StudioMapGenerationStatuses.Error
+    };
 
     private static StudioPackageEnvelope BuildEnvelope(StudioMapEditorState state) =>
         new()

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
@@ -168,6 +169,138 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
             $"Updated visibility to {result.Data!.Route.Policy.Visibility} (embed {(result.Data.Route.Policy.Embed.AllowEmbedding ? "on" : "off")}).",
             refreshed.Publication);
     }
+
+    private const string GenProvidersContract = "GET /api/v1/console/publications/generation/providers";
+    private const string GenerateContract = "POST /api/v1/console/publications/generate";
+
+    public async Task<StudioReportAiCapability> GetGenerationCapabilityAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _client.ListReportGenerationProvidersAsync(cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            if (issue.StatusCode is 404 or 501)
+            {
+                return StudioReportAiCapability.Off;
+            }
+
+            return StudioReportAiCapability.Blocked(ToCapabilityState(GenProvidersContract, issue));
+        }
+
+        var data = result.Data!;
+        return new StudioReportAiCapability
+        {
+            Enabled = data.Enabled,
+            DefaultProvider = data.DefaultProvider,
+            Providers = data.Providers
+                .Select(provider => new StudioReportAiProvider(
+                    provider.Id,
+                    string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,
+                    provider.Kind,
+                    provider.Available,
+                    provider.Detail))
+                .ToArray()
+        };
+    }
+
+    public async Task<StudioReportGenerationOutcome> GenerateAsync(
+        StudioReportEditorState currentState,
+        StudioReportGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentState);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // A refine turn ships the current report document so the server edits it; a first turn ships null.
+        var refine = currentState.Panels.Count > 0;
+        var wire = new GenerateReportContentRequest
+        {
+            Kind = HonuaContentPublicationKinds.Report,
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Document = refine
+                ? JsonSerializer.Deserialize<JsonElement>(StudioReportDocument.Serialize(currentState))
+                : null,
+            Conversation = request.Conversation
+                .Select(turn => new HonuaReportGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new HonuaReportGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _client.GenerateReportAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            if (issue.StatusCode is 404 or 501)
+            {
+                return new StudioReportGenerationOutcome
+                {
+                    Status = StudioReportGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI report generation yet."
+                };
+            }
+
+            return StudioReportGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
+        }
+
+        return MapGeneration(result.Data!);
+    }
+
+    private static StudioReportGenerationOutcome MapGeneration(HonuaReportGenerationResult result)
+    {
+        var warnings = result.UnmappedRequests
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No matching binding/panel for: {item}")
+            .ToList();
+
+        var clarifications = result.Clarifications
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                question.Choices
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioReportEditorState? state = null;
+        if (string.Equals(result.Status, StudioReportGenerationStatuses.Generated, StringComparison.Ordinal) &&
+            result.Document is { } document)
+        {
+            // A generated document becomes a fresh, unsaved draft the operator reviews and publishes.
+            state = new StudioReportEditorState();
+            if (!string.IsNullOrWhiteSpace(result.RouteSlug))
+            {
+                state.RouteSlug = result.RouteSlug!;
+            }
+
+            StudioReportDocument.ApplyTo(state, document);
+        }
+
+        return new StudioReportGenerationOutcome
+        {
+            Status = NormalizeStatus(result.Status),
+            State = state,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioReportGenerationCapability(result.CapabilityState.Name, result.CapabilityState.State, result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    private static string NormalizeStatus(string? status) => status switch
+    {
+        StudioReportGenerationStatuses.Generated => StudioReportGenerationStatuses.Generated,
+        StudioReportGenerationStatuses.NeedsClarification => StudioReportGenerationStatuses.NeedsClarification,
+        StudioReportGenerationStatuses.Unsupported => StudioReportGenerationStatuses.Unsupported,
+        StudioReportGenerationStatuses.Refused => StudioReportGenerationStatuses.Refused,
+        _ => StudioReportGenerationStatuses.Error
+    };
 
     private static HonuaContentPublicationPolicy BuildPolicy(string visibility, bool embeddable) =>
         new()

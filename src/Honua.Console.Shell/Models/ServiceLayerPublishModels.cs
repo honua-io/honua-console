@@ -77,3 +77,27 @@ public sealed record ServiceLayerPublishFieldError(
     string? Path = null,
     string? FieldId = null,
     string? Severity = null);
+
+/// <summary>
+/// A publishable (PostGIS spatial) table discovered on a connection, used to populate the publish-layer
+/// table picker and prefill geometry/SRID/fields for the publish command.
+/// </summary>
+public sealed record ServiceLayerPublishTable
+{
+    public required string Schema { get; init; }
+
+    public required string Table { get; init; }
+
+    public string? GeometryColumn { get; init; }
+
+    public string? GeometryType { get; init; }
+
+    public int? Srid { get; init; }
+
+    public long? EstimatedRows { get; init; }
+
+    public IReadOnlyList<string> Columns { get; init; } = [];
+
+    /// <summary>Schema-qualified name (e.g. <c>public.parcels</c>) for display and selection keys.</summary>
+    public string QualifiedName => string.IsNullOrWhiteSpace(Schema) ? Table : $"{Schema}.{Table}";
+}

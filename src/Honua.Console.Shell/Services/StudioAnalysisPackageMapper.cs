@@ -129,7 +129,7 @@ public static class StudioAnalysisPackageMapper
         var item = response.Item;
         var version = response.Version;
         var package = version.AnalysisPackage ?? new HonuaAnalysisPackageContent();
-        var metadata = package.Metadata;
+        var metadata = package.Metadata ?? EmptyMetadata;
 
         var plan = new StudioAnalysisPlanEditor
         {
@@ -145,15 +145,15 @@ public static class StudioAnalysisPackageMapper
             OutputContentType = ResolveOutputContentType(package, metadata)
         };
 
-        foreach (var step in package.Plan.Steps.Where(s =>
+        foreach (var step in (package.Plan?.Steps ?? []).Where(s =>
                      string.Equals(s.Kind, HonuaAnalysisPlanStepKinds.QueryFeatures, StringComparison.OrdinalIgnoreCase)))
         {
             plan.Inputs.Add(new StudioAnalysisInputEditor
             {
-                Role = step.Inputs.GetValueOrDefault("role", "input"),
-                ServiceId = step.Inputs.GetValueOrDefault("serviceId", string.Empty),
+                Role = (step.Inputs ?? EmptyMetadata).GetValueOrDefault("role", "input"),
+                ServiceId = (step.Inputs ?? EmptyMetadata).GetValueOrDefault("serviceId", string.Empty),
                 LayerId = int.TryParse(
-                    step.Inputs.GetValueOrDefault("layerId"),
+                    (step.Inputs ?? EmptyMetadata).GetValueOrDefault("layerId"),
                     NumberStyles.Integer,
                     CultureInfo.InvariantCulture,
                     out var layerId)
@@ -162,7 +162,7 @@ public static class StudioAnalysisPackageMapper
             });
         }
 
-        foreach (var (name, value) in package.Parameters)
+        foreach (var (name, value) in package.Parameters ?? EmptyMetadata)
         {
             plan.Parameters.Add(new StudioAnalysisParameterEditor { Name = name, Value = value });
         }
@@ -174,6 +174,67 @@ public static class StudioAnalysisPackageMapper
 
         plan.ServerPipeline = ToPipeline(package.Plan, plan.Title);
         return plan;
+    }
+
+    /// <summary>
+    /// Applies a server-proposed analysis package (from the natural-language generation contract) onto the
+    /// current plan card, preserving the server-owned identity (analysis id / version / etag) so a refine on
+    /// an already-saved draft does not lose it. Inputs/parameters/output schema/method/profile are replaced
+    /// from the proposal, mirroring how a reopened version rehydrates. The proposal changed the plan, so it
+    /// must be re-saved (a new immutable version) before estimate/submit; any prior estimate is cleared.
+    /// </summary>
+    public static StudioAnalysisPlanEditor ApplyGeneratedPackage(
+        StudioAnalysisPlanEditor current,
+        HonuaAnalysisPackageContent package)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(package);
+
+        var metadata = package.Metadata ?? EmptyMetadata;
+
+        // Server-owned identity stays put; only the authored content is replaced.
+        current.Title = ResolveTitle(
+            new HonuaAnalysisContentItem { Title = current.Title }, metadata);
+        current.Description = metadata.GetValueOrDefault("console.description", current.Description);
+        current.Goal = package.Intent?.Goal ?? current.Goal;
+        current.Method = ResolveMethod(package, metadata);
+        current.ComputeProfile = ResolveComputeProfile(metadata);
+        current.OutputContentType = ResolveOutputContentType(package, metadata);
+
+        current.Inputs.Clear();
+        foreach (var step in (package.Plan?.Steps ?? []).Where(s =>
+                     string.Equals(s.Kind, HonuaAnalysisPlanStepKinds.QueryFeatures, StringComparison.OrdinalIgnoreCase)))
+        {
+            current.Inputs.Add(new StudioAnalysisInputEditor
+            {
+                Role = (step.Inputs ?? EmptyMetadata).GetValueOrDefault("role", "input"),
+                ServiceId = (step.Inputs ?? EmptyMetadata).GetValueOrDefault("serviceId", string.Empty),
+                LayerId = int.TryParse(
+                    (step.Inputs ?? EmptyMetadata).GetValueOrDefault("layerId"),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var layerId)
+                    ? layerId
+                    : 0
+            });
+        }
+
+        current.Parameters.Clear();
+        foreach (var (name, value) in package.Parameters ?? EmptyMetadata)
+        {
+            current.Parameters.Add(new StudioAnalysisParameterEditor { Name = name, Value = value });
+        }
+
+        current.OutputSchema.Clear();
+        foreach (var field in ParseOutputSchema(metadata))
+        {
+            current.OutputSchema.Add(field);
+        }
+
+        current.ServerPipeline = ToPipeline(package.Plan, current.Title);
+        // A changed plan must be re-saved + re-estimated before submit.
+        current.Estimate = null;
+        return current;
     }
 
     /// <summary>
@@ -243,11 +304,10 @@ public static class StudioAnalysisPackageMapper
         => StudioAnalysisComputeProfiles.All[0];
 
     /// <summary>Projects the server-compiled plan into the Console DAG/pipeline view (AC#2).</summary>
-    public static IReadOnlyList<StudioAnalysisPipelineNode> ToPipeline(HonuaAnalysisPlan plan, string title)
+    public static IReadOnlyList<StudioAnalysisPipelineNode> ToPipeline(HonuaAnalysisPlan? plan, string title)
     {
-        ArgumentNullException.ThrowIfNull(plan);
-
-        return plan.Steps
+        // Plan/Steps are non-null-typed but deserialize to null on an explicit server JSON null.
+        return (plan?.Steps ?? [])
             .Select(step => new StudioAnalysisPipelineNode(
                 step.StepId,
                 ResolveStepLabel(step, title),
@@ -344,6 +404,11 @@ public static class StudioAnalysisPackageMapper
         _ => HonuaArtifactKinds.FeatureLayer
     };
 
+    // Deserialized DTO collections/maps are declared non-null but arrive null when the server emits an
+    // explicit JSON null for an empty value (System.Text.Json overrides the property initializer), so the
+    // mappers coalesce through this before any lookup.
+    private static readonly IReadOnlyDictionary<string, string> EmptyMetadata = new Dictionary<string, string>(0);
+
     private static string ResolveTitle(HonuaAnalysisContentItem item, IReadOnlyDictionary<string, string> metadata)
     {
         if (metadata.TryGetValue("console.title", out var title) && !string.IsNullOrWhiteSpace(title))
@@ -368,7 +433,7 @@ public static class StudioAnalysisPackageMapper
             return method;
         }
 
-        var methodStep = package.Plan.Steps.FirstOrDefault(s =>
+        var methodStep = (package.Plan?.Steps ?? []).FirstOrDefault(s =>
             string.Equals(s.Kind, HonuaAnalysisPlanStepKinds.Geoprocess, StringComparison.OrdinalIgnoreCase));
         if (methodStep?.ProcessId is { Length: > 0 } processId)
         {
@@ -436,9 +501,10 @@ public static class StudioAnalysisPackageMapper
     {
         if (string.Equals(step.Kind, HonuaAnalysisPlanStepKinds.QueryFeatures, StringComparison.OrdinalIgnoreCase))
         {
-            var service = step.Inputs.GetValueOrDefault("serviceId", "input");
-            var layer = step.Inputs.GetValueOrDefault("layerId", "0");
-            var role = step.Inputs.GetValueOrDefault("role", "input");
+            var inputs = step.Inputs ?? EmptyMetadata;
+            var service = inputs.GetValueOrDefault("serviceId", "input");
+            var layer = inputs.GetValueOrDefault("layerId", "0");
+            var role = inputs.GetValueOrDefault("role", "input");
             return $"{role}: {service}/layer {layer}";
         }
 

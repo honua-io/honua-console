@@ -116,10 +116,12 @@
                     }
 
                     <StudioAiConversation ConversationTitle="Dashboard from prompt"
-                                          RefinePlaceholder="Refine… (e.g. Add a filter for county · Group residential codes)"
+                                          RefinePlaceholder="Describe the dashboard — the data to bind, the charts, maps, tables, filters, and narrative…"
                                           Turns="_turns"
+                                          Clarifications="_clarifications"
                                           Busy="_busy"
-                                          OnSend="HandlePrompt">
+                                          OnSend="HandlePrompt"
+                                          OnAnswer="HandleClarificationAnswered">
                         <PreviewHeader>
                             <div class="studio-ai-preview-titlebar">
                                 <span class="studio-dashboard-glyph" aria-hidden="true">▤</span>
@@ -430,6 +432,7 @@
     private DashboardView _view = DashboardView.Editor;
     private int _publishStep;
     private readonly List<StudioConversationTurn> _turns = [];
+    private readonly List<StudioConversationClarification> _clarifications = [];
     private readonly ValidationState _validation = new();
     private readonly FormDirtyState _dirty = new();
 
@@ -484,6 +487,7 @@
             _selectedPanel = result.State?.Panels.FirstOrDefault();
             _publishStep = 0;
             _turns.Clear();
+            _clarifications.Clear();
 
             // A fresh load is the clean baseline: drop local edits/findings and recompute against the load.
             _validation.Clear();
@@ -516,6 +520,7 @@
         _statusFailed = false;
         _view = DashboardView.Editor;
         _turns.Clear();
+        _clarifications.Clear();
         _validation.Clear();
         _dirty.MarkClean();
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
@@ -553,23 +558,22 @@
 
     private void SetPublishStep(int step) => _publishStep = step;
 
-    // The conversation is presentational + event-forwarding only: it never fabricates package state.
-    // The seeded turns describe the REAL draft the server returned (its actual panel/binding counts),
-    // and refinement prompts are forwarded to the server-bound draft via SaveDraftAsync. No mock map or
-    // dashboard data is introduced (Console Patterns Charter section 11).
+    // The conversation is presentational + event-forwarding only: it never fabricates package state. A
+    // prompt/refine turn calls the server's natural-language dashboard generation contract (POST
+    // /api/v1/console/publications/generate, kind=dashboard); the server grounds the proposal in the
+    // available content bindings and validates it before returning, so the page only ever renders a
+    // server-produced dashboard (the editor preview hydrates from the returned honua.dashboard-document.v1),
+    // a structured clarification request, or an honest unsupported/refused/missing-binding state — never a
+    // fabricated dashboard (Console Patterns Charter section 11).
     private void SeedConversation(StudioDashboardEditorState editor)
     {
         _turns.Clear();
-        _turns.Add(new StudioConversationTurn(
-            StudioConversationRole.You,
-            "Started a dashboard draft. Describe the panels, charts, and filters to refine it.",
-            "just now"));
+        _clarifications.Clear();
         _turns.Add(new StudioConversationTurn(
             StudioConversationRole.Honua,
-            DescribeDraft(editor),
+            "Describe the dashboard you want — the data it should bind, the charts, maps, tables, and filters, and any narrative — and I'll propose a dashboard you can review and refine. Every proposal is grounded in the real content bindings and validated on the server before it appears; nothing is fabricated.",
             "just now",
-            StudioConversationTone.Neutral,
-            "view evidence"));
+            StudioConversationTone.Neutral));
     }
 
     private static string DescribeDraft(StudioDashboardEditorState editor)
@@ -586,47 +590,150 @@
         return $"This draft has {panelText} and {bindingText}{chartText}. Charts use Vega-Lite. Refine below or open the editor to adjust bindings and specs.";
     }
 
-    // Refinement is forwarded to the server-bound draft. The conversation echoes the real server result;
-    // it does not invent panels. Authors compose panels/bindings/specs in the editor view.
-    private async Task HandlePrompt(string prompt)
+    // A prompt turn forwards to the server's natural-language dashboard generation contract. The page only
+    // ever renders a server-produced dashboard, a structured clarification request, or an honest
+    // unsupported/refused/missing-binding state — never fabricated panels.
+    private Task HandlePrompt(string prompt)
     {
         if (_busy || _editor is null || string.IsNullOrWhiteSpace(prompt))
         {
-            return;
+            return Task.CompletedTask;
         }
 
         _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt, "just now"));
-
-        if (string.IsNullOrWhiteSpace(_editor.Title))
+        return GenerateAsync(new StudioDashboardGenerationRequest
         {
-            _editor.Title = prompt.Length > 60 ? prompt[..60] : prompt;
+            Prompt = prompt,
+            Conversation = SnapshotConversation()
+        });
+    }
+
+    // Answering a clarification removes the card and forwards the choice back to the server as a refine turn.
+    private Task HandleClarificationAnswered((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        if (_busy || _editor is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        _clarifications.RemoveAll(question => string.Equals(question.Id, answer.Question.Id, StringComparison.Ordinal));
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.You,
+            $"{answer.Question.Label}: {answer.Choice.Label}",
+            "just now"));
+
+        return GenerateAsync(new StudioDashboardGenerationRequest
+        {
+            Prompt = string.Empty,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioDashboardGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        });
+    }
+
+    private IReadOnlyList<StudioDashboardGenerationTurn> SnapshotConversation() =>
+        _turns
+            .Select(turn => new StudioDashboardGenerationTurn(
+                turn.Role == StudioConversationRole.You ? "user" : "assistant",
+                turn.Body))
+            .ToArray();
+
+    private async Task GenerateAsync(StudioDashboardGenerationRequest request)
+    {
+        if (_editor is null || _busy)
+        {
+            return;
         }
 
         _busy = true;
         try
         {
-            var result = await DashboardData.SaveDraftAsync(_editor);
-            _status = result.Message;
-            _statusFailed = !result.Succeeded;
-            if (result.State is not null)
+            var outcome = await DashboardData.GenerateAsync(_editor, request);
+
+            if (outcome.BindingState is not null)
             {
-                _editor = result.State;
-                _selectedPanel = _editor.Panels.FirstOrDefault();
+                // A true missing-binding kicks the whole surface to the blocked state; any other capability
+                // issue is reported as a conversation note (the editor stays open for hand-authoring).
+                if (string.Equals(outcome.BindingState.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+                {
+                    _bindingState = outcome.BindingState;
+                    return;
+                }
+
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    $"{outcome.BindingState.Detail} (contract: {outcome.BindingState.Contract})",
+                    "just now",
+                    StudioConversationTone.Neutral));
+                return;
             }
 
-            ApplyStates(result.Issue is null ? [] : [result.Issue]);
+            var notes = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability
+                && !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                notes.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
 
-            var tone = result.Succeeded ? StudioConversationTone.Neutral : StudioConversationTone.Clarification;
-            var body = result.Succeeded
-                ? $"Saved the draft. {DescribeDraft(_editor!)}"
-                : $"Could not save the draft: {result.Message} Open the editor to resolve it.";
-            _turns.Add(new StudioConversationTurn(StudioConversationRole.Honua, body, "just now", tone, result.Succeeded ? "view evidence" : null));
+            if (outcome.IsGenerated)
+            {
+                // The generated honua.dashboard-document.v1 becomes a fresh, unsaved draft the operator
+                // reviews and publishes from the editor/publish views.
+                if (outcome.State is not null)
+                {
+                    _editor = outcome.State;
+                    _selectedPanel = _editor.Panels.FirstOrDefault();
+                }
+
+                _clarifications.Clear();
+                _dirty.MarkDirty();
+                RecomputeClientErrors();
+
+                var summary = string.IsNullOrWhiteSpace(outcome.Rationale)
+                    ? $"Proposed a dashboard. {DescribeDraft(_editor!)}"
+                    : outcome.Rationale;
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(summary, notes),
+                    "just now",
+                    StudioConversationTone.Ready,
+                    "view evidence"));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications.Clear();
+                _clarifications.AddRange(outcome.Clarifications);
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I need a little more detail before I can propose the dashboard."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Clarification));
+            }
+            else
+            {
+                // unsupported / refused / error
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I couldn't turn that into a dashboard."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Neutral));
+            }
         }
         finally
         {
             _busy = false;
         }
     }
+
+    private static string AppendNotes(string body, IReadOnlyList<string> notes) =>
+        notes.Count == 0 ? body : $"{body}\n\nNotes:\n- {string.Join("\n- ", notes)}";
 
     private RenderFragment DashboardPreview(StudioDashboardEditorState editor) => builder =>
     {

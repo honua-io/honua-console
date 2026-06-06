@@ -29,6 +29,7 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
 {
     private const string Surface = "Analysis builder";
     private const string PreviewContract = "POST /api/v1/analysis/content/items/{itemId}/versions/{contentVersion}/preview";
+    private const string GenerateContract = "POST /api/v1/analysis/content/generate";
 
     private readonly IHonuaAnalysisContentClient _client;
 
@@ -256,6 +257,124 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
 
         return new StudioAnalysisCommandResult(true, message, plan);
     }
+
+    public async Task<StudioAnalysisGenerationOutcome> GenerateAsync(
+        StudioAnalysisPlanEditor currentPlan,
+        StudioAnalysisGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentPlan);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // A refine turn ships the current analysis package so the server edits it; a first turn ships null
+        // (fresh). The "has content" probe keys off any authored intent so a blank scaffold requests fresh
+        // generation.
+        var hasContent = currentPlan.Inputs.Count > 0
+            || currentPlan.Parameters.Count > 0
+            || currentPlan.OutputSchema.Count > 0
+            || !string.IsNullOrWhiteSpace(currentPlan.Goal)
+            || !string.IsNullOrWhiteSpace(currentPlan.Title);
+
+        var wire = new HonuaGenerateAnalysisRequest
+        {
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Analysis = hasContent ? StudioAnalysisPackageMapper.ToPackageContent(currentPlan) : null,
+            Conversation = request.Conversation
+                .Select(turn => new HonuaAnalysisGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new HonuaAnalysisGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _client.GenerateAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            // A 404/501 means this server lacks the analysis generation contract: AI is simply off here
+            // (honest "unsupported"), not a missing server binding. Other issues block the surface.
+            if (issue.StatusCode is 404 or 501)
+            {
+                return new StudioAnalysisGenerationOutcome
+                {
+                    Status = StudioAnalysisGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI analysis generation yet."
+                };
+            }
+
+            return StudioAnalysisGenerationOutcome.Blocked(ToCapabilityState(issue));
+        }
+
+        return MapGeneration(currentPlan, result.Data!);
+    }
+
+    private static StudioAnalysisGenerationOutcome MapGeneration(
+        StudioAnalysisPlanEditor currentPlan,
+        HonuaAnalysisGenerationResult result)
+    {
+        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
+        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
+        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the
+        // page (mirrors the workflow client's defensive mapping).
+        var warnings = new List<string>();
+        if (result.Validation is not null)
+        {
+            warnings.AddRange(result.Validation.Warnings ?? []);
+        }
+
+        warnings.AddRange((result.UnmappedRequests ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No mapping for: {item}"));
+
+        var clarifications = (result.Clarifications ?? [])
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                (question.Choices ?? [])
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioAnalysisPlanEditor? plan = null;
+        var generated = string.Equals(result.Status, StudioAnalysisGenerationStatuses.Generated, StringComparison.Ordinal);
+        if (generated && result.Analysis is { } analysis)
+        {
+            plan = StudioAnalysisPackageMapper.ApplyGeneratedPackage(currentPlan, analysis);
+
+            if (result.Validation is { IsValid: false })
+            {
+                warnings.AddRange((result.Validation.Failures ?? []).Select(failure => failure.Message));
+            }
+        }
+
+        return new StudioAnalysisGenerationOutcome
+        {
+            Status = NormalizeStatus(result.Status),
+            Plan = plan,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioAnalysisGenerationCapability(
+                    result.CapabilityState.Name,
+                    result.CapabilityState.State,
+                    result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    private static string NormalizeStatus(string? status) => status switch
+    {
+        StudioAnalysisGenerationStatuses.Generated => StudioAnalysisGenerationStatuses.Generated,
+        StudioAnalysisGenerationStatuses.NeedsClarification => StudioAnalysisGenerationStatuses.NeedsClarification,
+        StudioAnalysisGenerationStatuses.Unsupported => StudioAnalysisGenerationStatuses.Unsupported,
+        StudioAnalysisGenerationStatuses.Refused => StudioAnalysisGenerationStatuses.Refused,
+        _ => StudioAnalysisGenerationStatuses.Error
+    };
 
     private async Task<StudioAnalysisJobView> ResolveJobResultAsync(
         StudioAnalysisPlanEditor plan,

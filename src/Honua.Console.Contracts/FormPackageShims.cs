@@ -75,6 +75,15 @@ public interface IHonuaFormPackageClient
     Task<HonuaAdminEndpointResult<HonuaFormOfflinePolicyResponse>> GetOfflinePolicyAsync(
         string formId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Lists the AI generation providers the server has enabled+configured (UI selector / enablement).</summary>
+    Task<HonuaAdminEndpointResult<HonuaFormGenerationProviders>> ListGenerationProvidersAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Generates (or refines) a form package document from a natural-language prompt.</summary>
+    Task<HonuaAdminEndpointResult<HonuaFormGenerationResult>> GenerateFormAsync(
+        GenerateFormPackageRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDisposable
@@ -239,6 +248,28 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
             HttpMethod.Get,
             $"{RuntimeBase}/{Uri.EscapeDataString(formId)}/offline-policy",
             "GET /api/v1/forms/packages/{formId}/offline-policy",
+            cancellationToken: cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaFormGenerationProviders>> ListGenerationProvidersAsync(
+        CancellationToken cancellationToken = default) =>
+        SendAsync<HonuaFormGenerationProviders>(
+            HttpMethod.Get,
+            $"{AdminBase}/generation/providers",
+            "GET /api/v1/admin/forms/packages/generation/providers",
+            cancellationToken: cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaFormGenerationResult>> GenerateFormAsync(
+        GenerateFormPackageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaFormGenerationResult>(
+            HttpMethod.Post,
+            $"{AdminBase}/generate",
+            "POST /api/v1/admin/forms/packages/generate",
+            body: request,
             cancellationToken: cancellationToken);
     }
 
@@ -829,3 +860,117 @@ public sealed record HonuaFormLink
     [JsonPropertyName("method")]
     public string Method { get; init; } = "GET";
 }
+
+#region AI generation DTOs (form-generation)
+
+// Wire contract for natural-language -> form.package generation. The honua-server side is the FROZEN spec
+// the server implements (mirrors honua-server/docs/design/ai-workflow-generation.md): a provider-pluggable
+// planner (local GIS model default, Claude + GPT options) that proposes a honua.form-package.v1 document
+// grounded in the target service/layer schema and validated by the form package validator before returning,
+// exposed as the two admin endpoints below. Until the server ships these endpoints they return 404 -> the
+// console renders the honest "AI generation unavailable" state (no fabricated form). camelCase props.
+//
+//   GET  /api/v1/admin/forms/packages/generation/providers  -> HonuaFormGenerationProviders
+//   POST /api/v1/admin/forms/packages/generate              -> HonuaFormGenerationResult
+//
+// The generate endpoint reuses the shared HonuaAdminEndpointResult envelope like the rest of this client.
+
+/// <summary>A selectable generation provider advertised by the server (only configured+enabled ones appear).</summary>
+public sealed record HonuaFormGenerationProviderInfo
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("label")] public string Label { get; init; } = string.Empty;
+    /// <summary>"local" | "anthropic" | "openai" | "deterministic".</summary>
+    [JsonPropertyName("kind")] public string Kind { get; init; } = string.Empty;
+    [JsonPropertyName("available")] public bool Available { get; init; }
+    [JsonPropertyName("detail")] public string? Detail { get; init; }
+}
+
+/// <summary>Result of GET .../generation/providers: whether AI generation is on, and which providers.</summary>
+public sealed record HonuaFormGenerationProviders
+{
+    [JsonPropertyName("enabled")] public bool Enabled { get; init; }
+    [JsonPropertyName("defaultProvider")] public string? DefaultProvider { get; init; }
+    [JsonPropertyName("providers")] public HonuaFormGenerationProviderInfo[] Providers { get; init; } = [];
+}
+
+public sealed record HonuaFormGenerationClarificationChoice
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("label")] public string Label { get; init; } = string.Empty;
+    [JsonPropertyName("effect")] public string? Effect { get; init; }
+}
+
+/// <summary>A structured question the planner needs answered before it can propose a form. Rendered as cards.</summary>
+public sealed record HonuaFormGenerationClarification
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    /// <summary>"target" | "field" | "domain" | "privacy" | "offline" | ...</summary>
+    [JsonPropertyName("kind")] public string Kind { get; init; } = string.Empty;
+    [JsonPropertyName("prompt")] public string Prompt { get; init; } = string.Empty;
+    [JsonPropertyName("reason")] public string? Reason { get; init; }
+    [JsonPropertyName("choices")] public HonuaFormGenerationClarificationChoice[] Choices { get; init; } = [];
+}
+
+/// <summary>AI-builder capability state (supported/degraded/unsupported/auth_denied/oversized).</summary>
+public sealed record HonuaFormGenerationCapabilityState
+{
+    [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("state")] public string State { get; init; } = string.Empty;
+    [JsonPropertyName("reason")] public string? Reason { get; init; }
+}
+
+public sealed record HonuaFormGenerationUsage
+{
+    [JsonPropertyName("promptTokens")] public int? PromptTokens { get; init; }
+    [JsonPropertyName("completionTokens")] public int? CompletionTokens { get; init; }
+    [JsonPropertyName("latencyMs")] public int? LatencyMs { get; init; }
+}
+
+/// <summary>Result of POST .../generate. <c>status</c> mirrors the plan-analysis statuses:
+/// "generated" | "needs-clarification" | "unsupported" | "refused" | "error".</summary>
+public sealed record HonuaFormGenerationResult
+{
+    [JsonPropertyName("status")] public string Status { get; init; } = string.Empty;
+    /// <summary>The proposed package document (same shape POST .../packages accepts). Present iff status=="generated".</summary>
+    [JsonPropertyName("package")] public HonuaFormPackageDocument? Package { get; init; }
+    [JsonPropertyName("rationale")] public string? Rationale { get; init; }
+    [JsonPropertyName("clarifications")] public HonuaFormGenerationClarification[] Clarifications { get; init; } = [];
+    /// <summary>The server's own validator result on the proposed document (never trust raw model output).</summary>
+    [JsonPropertyName("validation")] public HonuaFormPackageValidationResult? Validation { get; init; }
+    /// <summary>Things the prompt asked for with no matching field/layer attribute (grounding gaps), surfaced not dropped.</summary>
+    [JsonPropertyName("unmappedRequests")] public string[] UnmappedRequests { get; init; } = [];
+    [JsonPropertyName("capabilityState")] public HonuaFormGenerationCapabilityState? CapabilityState { get; init; }
+    [JsonPropertyName("provider")] public string? Provider { get; init; }
+    [JsonPropertyName("model")] public string? Model { get; init; }
+    [JsonPropertyName("usage")] public HonuaFormGenerationUsage? Usage { get; init; }
+}
+
+public sealed record HonuaFormGenerationAnswer
+{
+    [JsonPropertyName("questionId")] public string QuestionId { get; init; } = string.Empty;
+    [JsonPropertyName("optionId")] public string OptionId { get; init; } = string.Empty;
+}
+
+public sealed record HonuaFormGenerationTurn
+{
+    /// <summary>"user" | "assistant".</summary>
+    [JsonPropertyName("role")] public string Role { get; init; } = string.Empty;
+    [JsonPropertyName("content")] public string Content { get; init; } = string.Empty;
+}
+
+public sealed record GenerateFormPackageRequest
+{
+    [JsonPropertyName("prompt")] public string Prompt { get; init; } = string.Empty;
+    /// <summary>Provider id to use; null selects the server default.</summary>
+    [JsonPropertyName("provider")] public string? Provider { get; init; }
+    /// <summary>Optional per-call model override.</summary>
+    [JsonPropertyName("model")] public string? Model { get; init; }
+    /// <summary>Current document for a REFINE turn; null requests fresh generation.</summary>
+    [JsonPropertyName("package")] public HonuaFormPackageDocument? Package { get; init; }
+    [JsonPropertyName("conversation")] public HonuaFormGenerationTurn[] Conversation { get; init; } = [];
+    /// <summary>Answers to a prior needs-clarification turn.</summary>
+    [JsonPropertyName("answers")] public HonuaFormGenerationAnswer[] Answers { get; init; } = [];
+}
+
+#endregion

@@ -331,6 +331,9 @@ public sealed class StudioMapQueryValidationRenderTests
 
         public Task<StudioMapCommandResult> ReopenAsync(StudioMapEditorState state, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioMapCommandResult(true, "Reopened.", state));
+
+        public Task<StudioMapGenerationOutcome> GenerateAsync(StudioMapEditorState currentState, StudioMapGenerationRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioMapGenerationOutcome { Status = StudioMapGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 
     private sealed class FakeQueryDataSource : IStudioQueryPackageDataSource
@@ -359,5 +362,11 @@ public sealed class StudioMapQueryValidationRenderTests
 
         public Task<StudioQueryCommandResult> PreviewAsync(StudioQueryEditor query, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioQueryCommandResult(true, "Previewed.", query));
+
+        public Task<StudioQueryGenerationOutcome> GenerateAsync(
+            StudioQueryEditor currentQuery,
+            StudioQueryGenerationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new StudioQueryGenerationOutcome { Status = StudioQueryGenerationStatuses.Unsupported, Rationale = "Generation not configured for this test." });
     }
 }

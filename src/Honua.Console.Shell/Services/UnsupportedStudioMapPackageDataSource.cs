@@ -38,6 +38,12 @@ public sealed class UnsupportedStudioMapPackageDataSource : IStudioMapPackageDat
         CancellationToken cancellationToken = default) =>
         Task.FromResult(BindingFailure());
 
+    public Task<StudioMapGenerationOutcome> GenerateAsync(
+        StudioMapEditorState currentState,
+        StudioMapGenerationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioMapGenerationOutcome.Blocked(MissingBinding));
+
     private static StudioMapCommandResult BindingFailure() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }

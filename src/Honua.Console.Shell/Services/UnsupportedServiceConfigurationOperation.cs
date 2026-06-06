@@ -13,6 +13,11 @@ public sealed class UnsupportedServiceConfigurationOperation : IServiceConfigura
     private const string MissingBindingDetail =
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the console can configure services on honua-server.";
 
+    public Task<ServiceSettingsView> GetSettingsAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(ServiceSettingsView.Unbound(serviceName, MissingBindingDetail));
+
     public Task<ServiceConfigurationResult> SetLayerEnabledAsync(
         ServiceLayerEnableCommand command,
         CancellationToken cancellationToken = default) =>

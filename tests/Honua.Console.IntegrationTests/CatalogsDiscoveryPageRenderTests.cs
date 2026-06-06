@@ -208,6 +208,50 @@ public sealed class CatalogsDiscoveryPageRenderTests
     }
 
     [Fact]
+    public void Item_CopyItemUrlButton_IsWiredToClipboardInterop()
+    {
+        // The "Copy item URL" control is a real action (no longer a dead button): clicking it imports the
+        // catalog-item-editor.js module and calls copyText with the page URL, then flips the label to
+        // "Copied". The former "Preview ↗" / "Open Data Resource" dead buttons were removed (no honest
+        // target until honua-server#1279 exposes a public-link slug / data-resource URL), so they must not
+        // render.
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            ItemLoad = new CatalogItemLoad(SampleItem(), [])
+        };
+
+        var ctx = new Bunit.TestContext();
+        // Set up the catalog-item-editor.js module so copyText reports a successful copy; the component
+        // should then flip the label to "Copied". This also lets us assert the page URL is the copied text.
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
+        module.Setup<bool>("copyText", _ => true).SetResult(true);
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        NavigateToWorkspace(ctx, "operate/catalogs/esri/items/a3bf-0214", workspace: null);
+        var page = ctx.RenderComponent<CatalogItemEditorPage>(parameters => parameters
+            .Add(p => p.Key, "esri")
+            .Add(p => p.ItemId, "a3bf-0214"));
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-catalog-copy-url]")),
+            TimeSpan.FromSeconds(5));
+
+        // The dead controls are gone.
+        Assert.DoesNotContain("Open Data Resource", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Preview ↗", page.Markup, StringComparison.Ordinal);
+
+        page.Find("[data-catalog-copy-url]").Click();
+
+        var invocation = Assert.Single(module.Invocations["copyText"]);
+        var copiedUrl = Assert.IsType<string>(invocation.Arguments[0]);
+        Assert.EndsWith("operate/catalogs/esri/items/a3bf-0214", copiedUrl, StringComparison.Ordinal);
+
+        // Successful copy flips the button label.
+        page.WaitForAssertion(
+            () => Assert.Contains("Copied", page.Find("[data-catalog-copy-url]").TextContent, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void List_WithWorkspaceQuery_PreservesWorkspaceOnDrillDownLinks()
     {
         // Regression: a non-default workspace (e.g. /operate/catalogs?workspace=tenant-a) must carry the

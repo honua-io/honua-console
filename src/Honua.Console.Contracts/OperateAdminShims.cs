@@ -27,6 +27,111 @@ public interface IHonuaAdminOperateClient
     Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary[]>> ListConnectionsAsync(
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates a data connection through the real honua-server admin endpoint
+    /// (<c>POST /api/v1/admin/connections/</c>, mirrors <c>CreateConnectionRequest</c>). This is the console's
+    /// connection-create OPERATION: it actually persists the connection on the server rather than recording
+    /// local intent, and returns the created connection summary or a field-addressable
+    /// <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary>> CreateConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tests a draft connection's health WITHOUT persisting it through the real honua-server admin endpoint
+    /// (<c>POST /api/v1/admin/connections/test</c>). This is the console's pre-save connection-test OPERATION:
+    /// the server opens the target with the supplied credentials and reports health, so the Add Connection
+    /// form can prove connectivity before creating the connection. Returns the test result or a
+    /// field-addressable <see cref="HonuaAdminEndpointIssue"/> when the server rejects the request.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestDraftConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tests an EXISTING connection's health through the real honua-server admin endpoint
+    /// (<c>POST /api/v1/admin/connections/{id}/test</c>). Unlike the draft test, the server persists the
+    /// resulting health status on the connection, so a subsequent read reflects it. Returns the test result or
+    /// an <see cref="HonuaAdminEndpointIssue"/> when the connection is missing or the server rejects the request.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Discovers the publishable (PostGIS spatial) tables on a connection through the real honua-server admin
+    /// endpoint (<c>GET /api/v1/admin/connections/{id}/tables</c>, Issue #57). Powers the publish-layer table
+    /// picker. Note: this endpoint returns a bare <c>{ "tables": [...] }</c> body (not the ApiResponse envelope).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the geospatial file formats the server can import (<c>GET /api/v1/admin/import/formats</c>),
+    /// so the console can validate a chosen file's extension before uploading. Bare
+    /// <c>{ supportedExtensions, formatDescriptions }</c> body (not the ApiResponse envelope).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uploads a geospatial file to be imported into PostgreSQL via streamed multipart ingest
+    /// (<c>POST /api/v1/admin/import/upload</c>; multipart <c>file</c> + <c>TableName</c> + optional
+    /// <c>TargetSchema</c>). Returns the import result (bare body, HTTP 200 even on a failed import — check
+    /// <see cref="HonuaAdminImportResult.Success"/>).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(
+        byte[] fileContent,
+        string fileName,
+        string tableName,
+        string? targetSchema,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Discovers the importable layers of a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>,
+    /// JSON <c>{ "url": "https://…" }</c>; the server requires an HTTPS URL). Returns the service type/name and
+    /// candidate layers, or a field-addressable <see cref="HonuaAdminEndpointIssue"/> on rejection. Bare body.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(
+        string url,
+        HonuaAdminExternalServiceCredentials? credentials = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queues an ArcGIS GeoServices layer import (<c>POST /api/v1/admin/import/geoservices/start</c>). Returns a
+    /// job descriptor (HTTP 202) whose id is polled via <see cref="GetGeoservicesImportJobAsync"/>.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(
+        HonuaAdminGeoservicesImportRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the progress of a queued GeoServices import job
+    /// (<c>GET /api/v1/admin/import/geoservices/jobs/{jobId}</c>).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>> GetGeoservicesImportJobAsync(
+        string jobId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a layer's persisted field configuration — aliases, coded-value domains, visibility
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/fields</c>). <paramref name="layerId"/> is the global id.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a layer's field configuration — set/clear coded-value domains and aliases
+    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/fields</c>).
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
+        int layerId,
+        HonuaAdminLayerFieldsUpdate request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -132,6 +237,389 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             "/api/v1/admin/connections/",
             "GET /api/v1/admin/connections",
             cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary>> CreateConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostApiResponseAsync<HonuaAdminCreateConnectionRequest, HonuaAdminConnectionSummary>(
+            "/api/v1/admin/connections/",
+            request,
+            "POST /api/v1/admin/connections",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestDraftConnectionAsync(
+        HonuaAdminCreateConnectionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostApiResponseAsync<HonuaAdminCreateConnectionRequest, HonuaAdminConnectionTestResult>(
+            "/api/v1/admin/connections/test",
+            request,
+            "POST /api/v1/admin/connections/test",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminConnectionTestResult>> TestConnectionAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+
+        return PostApiResponseAsync<HonuaAdminConnectionTestResult>(
+            $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/test",
+            "POST /api/v1/admin/connections/{id}/test",
+            cancellationToken);
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminTableInfo[]>> ListConnectionTablesAsync(
+        string connectionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+
+        const string contract = "GET /api/v1/admin/connections/{id}/tables";
+        var path = $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/tables";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(CreateIssue(contract, response.StatusCode));
+            }
+
+            // This endpoint returns a bare { "tables": [...] } body, NOT the ApiResponse<T> envelope.
+            HonuaAdminTableDiscoveryBody? body;
+            try
+            {
+                body = await response.Content
+                    .ReadFromJsonAsync<HonuaAdminTableDiscoveryBody>(JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected table-discovery shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+
+            return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromData(body?.Tables ?? []);
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminImportFormats>> GetImportFormatsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        const string contract = "GET /api/v1/admin/import/formats";
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/import/formats");
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(CreateIssue(contract, response.StatusCode));
+            }
+
+            try
+            {
+                var formats = await response.Content
+                    .ReadFromJsonAsync<HonuaAdminImportFormats>(JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromData(formats ?? new HonuaAdminImportFormats());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected formats shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminImportResult>> ImportFileAsync(
+        byte[] fileContent,
+        string fileName,
+        string tableName,
+        string? targetSchema,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(fileContent);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        const string contract = "POST /api/v1/admin/import/upload";
+        using var form = new MultipartFormDataContent();
+        var fileEntry = new ByteArrayContent(fileContent);
+        fileEntry.Headers.TryAddWithoutValidation("Content-Type", "application/octet-stream");
+        form.Add(fileEntry, "file", fileName);
+        form.Add(new StringContent(tableName), "TableName");
+        if (!string.IsNullOrWhiteSpace(targetSchema))
+        {
+            form.Add(new StringContent(targetSchema), "TargetSchema");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/import/upload") { Content = form };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(issue with
+                {
+                    Detail = ParseFailureMessage(payload) is { Length: > 0 } m ? m : issue.Detail,
+                });
+            }
+
+            try
+            {
+                var result = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminImportResult>(payload, JsonOptions);
+                return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromData(result ?? new HonuaAdminImportResult());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected import-result shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>> DiscoverExternalServiceAsync(
+        string url,
+        HonuaAdminExternalServiceCredentials? credentials = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+
+        const string contract = "POST /api/v1/admin/external-services/discover";
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/external-services/discover")
+        {
+            Content = JsonContent.Create(new ExternalServiceDiscoverBody(url, credentials), options: JsonOptions),
+        };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                var message = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(message) ? issue.Detail : message,
+                });
+            }
+
+            try
+            {
+                var discovery = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminExternalServiceDiscovery>(payload, JsonOptions);
+                return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromData(discovery ?? new HonuaAdminExternalServiceDiscovery());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected discovery shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>> StartGeoservicesImportAsync(
+        HonuaAdminGeoservicesImportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        const string contract = "POST /api/v1/admin/import/geoservices/start";
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/import/geoservices/start")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            httpRequest.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                var message = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(message) ? issue.Detail : message,
+                });
+            }
+
+            try
+            {
+                var job = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminGeoservicesImportJob>(payload, JsonOptions);
+                return job is null || string.IsNullOrWhiteSpace(job.JobId)
+                    ? HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(new HonuaAdminEndpointIssue(
+                        "Unsupported", contract, "The Honua server did not return an import job id.",
+                        (int)response.StatusCode))
+                    : HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromData(job);
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected import-job shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
+
+    public async Task<HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>> GetGeoservicesImportJobAsync(
+        string jobId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+
+        const string contract = "GET /api/v1/admin/import/geoservices/jobs/{jobId}";
+        var path = $"/api/v1/admin/import/geoservices/jobs/{Uri.EscapeDataString(jobId)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+
+        using (response)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var issue = CreateIssue(contract, response.StatusCode);
+                var message = ParseFailureMessage(payload);
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromIssue(issue with
+                {
+                    Detail = string.IsNullOrWhiteSpace(message) ? issue.Detail : message,
+                });
+            }
+
+            try
+            {
+                var progress = string.IsNullOrWhiteSpace(payload)
+                    ? null
+                    : JsonSerializer.Deserialize<HonuaAdminGeoservicesImportProgress>(payload, JsonOptions);
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromData(
+                    progress ?? new HonuaAdminGeoservicesImportProgress());
+            }
+            catch (JsonException ex)
+            {
+                return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromIssue(new HonuaAdminEndpointIssue(
+                    "Unsupported", contract,
+                    $"The Honua server response did not match the expected import-progress shape: {ex.Message}",
+                    (int)response.StatusCode));
+            }
+        }
+    }
 
     public Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
@@ -240,6 +728,28 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerFields>(
+            $"/api/v1/admin/metadata/layers/{layerId}/fields",
+            "GET /api/v1/admin/metadata/layers/{layerId}/fields",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
+        int layerId,
+        HonuaAdminLayerFieldsUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerFieldsUpdate, HonuaAdminLayerFields>(
+            $"/api/v1/admin/metadata/layers/{layerId}/fields",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/fields",
+            cancellationToken);
+    }
+
     public Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
         CancellationToken cancellationToken = default) =>
         GetApiResponseAsync<HonuaAdminVersionResponse>(
@@ -341,16 +851,33 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
         }
     }
 
-    private async Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TRequest, TResponse>(
+    // No-body POST for action endpoints whose input is entirely in the route (e.g. test-by-id). Reuses the
+    // same envelope/field-error handling as the bodied overload via a shared core.
+    private Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TResponse>(
+        string path,
+        string contract,
+        CancellationToken cancellationToken) =>
+        SendApiResponseAsync<TResponse>(() => new HttpRequestMessage(HttpMethod.Post, path), contract, cancellationToken);
+
+    private Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TRequest, TResponse>(
         string path,
         TRequest body,
         string contract,
+        CancellationToken cancellationToken) =>
+        SendApiResponseAsync<TResponse>(
+            () => new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = JsonContent.Create(body, options: JsonOptions)
+            },
+            contract,
+            cancellationToken);
+
+    private async Task<HonuaAdminEndpointResult<TResponse>> SendApiResponseAsync<TResponse>(
+        Func<HttpRequestMessage> requestFactory,
+        string contract,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, path)
-        {
-            Content = JsonContent.Create(body, options: JsonOptions)
-        };
+        using var request = requestFactory();
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -650,6 +1177,345 @@ public sealed record HonuaAdminApiResponse<T>(
     T? Data,
     string? Message,
     DateTimeOffset? Timestamp);
+
+/// <summary>
+/// Wire shape of the honua-server connection-create request body
+/// (<c>POST /api/v1/admin/connections/</c>, mirrors <c>CreateConnectionRequest</c>). Carries the connection
+/// identity, PostGIS target (host/port/database), credentials, provider, and SSL posture. The secret
+/// (<see cref="Password"/>) is sent to the server secret store and never echoed back in the summary.
+/// </summary>
+public sealed record HonuaAdminCreateConnectionRequest
+{
+    public required string Name { get; init; }
+
+    public string? Description { get; init; }
+
+    /// <summary>Optional with a secret reference (display metadata only); required with an inline password.</summary>
+    public string? Host { get; init; }
+
+    public int Port { get; init; } = 5432;
+
+    public string? DatabaseName { get; init; }
+
+    public string? Username { get; init; }
+
+    /// <summary>Inline password. Mutually exclusive with <see cref="SecretReference"/>.</summary>
+    public string? Password { get; init; }
+
+    /// <summary>
+    /// External secret reference holding the full connection string (e.g. <c>env:PROD_DB_DSN</c>,
+    /// <c>aws:secretsmanager:prod-db-creds</c>). Mutually exclusive with <see cref="Password"/>.
+    /// </summary>
+    public string? SecretReference { get; init; }
+
+    /// <summary>Secret store kind (env, aws, azure) — required when <see cref="SecretReference"/> is set.</summary>
+    public string? SecretType { get; init; }
+
+    public string Provider { get; init; } = "postgis";
+
+    public bool SslRequired { get; init; }
+
+    public string SslMode { get; init; } = "Disable";
+}
+
+/// <summary>
+/// Wire shape of the honua-server connection-test response (<c>ConnectionTestResult</c>), returned by both the
+/// draft test (<c>POST /api/v1/admin/connections/test</c>) and the existing-connection test
+/// (<c>POST /api/v1/admin/connections/{id}/test</c>). <see cref="ConnectionId"/> is <c>Guid.Empty</c> for a draft test.
+/// </summary>
+public sealed record HonuaAdminConnectionTestResult
+{
+    public Guid ConnectionId { get; init; }
+
+    public string? ConnectionName { get; init; }
+
+    public bool IsHealthy { get; init; }
+
+    public DateTimeOffset? TestedAt { get; init; }
+
+    public string? Message { get; init; }
+}
+
+/// <summary>Wire shape of the honua-server table-discovery response (<c>GET /connections/{id}/tables</c>, Issue #57).</summary>
+internal sealed record HonuaAdminTableDiscoveryBody
+{
+    public HonuaAdminTableInfo[]? Tables { get; init; }
+}
+
+/// <summary>A publishable (PostGIS spatial) table discovered on a connection.</summary>
+public sealed record HonuaAdminTableInfo
+{
+    public string? Schema { get; init; }
+
+    public string? Table { get; init; }
+
+    public string? GeometryColumn { get; init; }
+
+    public string? GeometryType { get; init; }
+
+    public int? Srid { get; init; }
+
+    public long? EstimatedRows { get; init; }
+
+    public IReadOnlyList<HonuaAdminColumnInfo> Columns { get; init; } = [];
+}
+
+/// <summary>A column within a discovered table.</summary>
+public sealed record HonuaAdminColumnInfo
+{
+    public string? Name { get; init; }
+
+    public string? DataType { get; init; }
+}
+
+/// <summary>Supported geospatial import formats (<c>GET /api/v1/admin/import/formats</c>).</summary>
+public sealed record HonuaAdminImportFormats
+{
+    public IReadOnlyList<string> SupportedExtensions { get; init; } = [];
+
+    public IReadOnlyDictionary<string, string> FormatDescriptions { get; init; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Wire shape of the external-service discovery request body.</summary>
+internal sealed record ExternalServiceDiscoverBody(
+    [property: JsonPropertyName("url")] string Url,
+    [property: JsonPropertyName("credentials")] HonuaAdminExternalServiceCredentials? Credentials = null);
+
+/// <summary>
+/// Credentials supplied to authenticate against a protected external service or catalog. Secrets are used
+/// only for the discovery request and are never stored by the console.
+/// </summary>
+public sealed record HonuaAdminExternalServiceCredentials
+{
+    /// <summary>arcgis-token, token, basic, or oauth.</summary>
+    public string? Mode { get; init; }
+
+    public string? Username { get; init; }
+
+    public string? Password { get; init; }
+
+    public string? Token { get; init; }
+
+    public string? TokenUrl { get; init; }
+
+    public string? ClientId { get; init; }
+
+    public string? ClientSecret { get; init; }
+
+    public string? Referer { get; init; }
+}
+
+/// <summary>Result of discovering a remote Esri/OGC service (<c>POST /api/v1/admin/external-services/discover</c>).</summary>
+public sealed record HonuaAdminExternalServiceDiscovery
+{
+    public string? SourceUrl { get; init; }
+
+    public string? NormalizedUrl { get; init; }
+
+    public string? SourceKind { get; init; }
+
+    public string? ServiceType { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public string? Description { get; init; }
+
+    public int? Srid { get; init; }
+
+    /// <summary>True when the URL was an ArcGIS catalog root/folder enumerated into multiple services.</summary>
+    public bool IsCatalog { get; init; }
+
+    public IReadOnlyList<HonuaAdminExternalLayerCandidate> Candidates { get; init; } = [];
+
+    /// <summary>Discovered services (one for a single service URL; many for a catalog), grouped by folder.</summary>
+    public IReadOnlyList<HonuaAdminExternalServiceSummary> Services { get; init; } = [];
+}
+
+/// <summary>A layer's persisted field configuration (<c>GET /api/v1/admin/metadata/layers/{id}/fields</c>).</summary>
+public sealed record HonuaAdminLayerFields
+{
+    public int LayerId { get; init; }
+
+    public IReadOnlyList<HonuaAdminLayerField> Fields { get; init; } = [];
+}
+
+/// <summary>One field's persisted configuration: type, alias, coded-value domain, visibility.</summary>
+public sealed record HonuaAdminLayerField
+{
+    public string? Name { get; init; }
+
+    public string? Type { get; init; }
+
+    public string? Alias { get; init; }
+
+    public HonuaAdminFieldDomain? Domain { get; init; }
+
+    public bool Hidden { get; init; }
+}
+
+/// <summary>A coded-value domain on a field.</summary>
+public sealed record HonuaAdminFieldDomain
+{
+    public string? Name { get; init; }
+
+    /// <summary>"codedValue" (the only kind the console authors).</summary>
+    public string? Type { get; init; }
+
+    public IReadOnlyList<HonuaAdminCodedValue> CodedValues { get; init; } = [];
+}
+
+/// <summary>A single code/label pair in a coded-value domain.</summary>
+public sealed record HonuaAdminCodedValue
+{
+    public string? Code { get; init; }
+
+    public string? Name { get; init; }
+}
+
+/// <summary>Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/fields</c>.</summary>
+public sealed record HonuaAdminLayerFieldsUpdate
+{
+    public IReadOnlyList<HonuaAdminLayerFieldUpdate> Fields { get; init; } = [];
+}
+
+/// <summary>A single field update: set/clear the coded-value domain (and optionally alias/hidden).</summary>
+public sealed record HonuaAdminLayerFieldUpdate
+{
+    public required string Name { get; init; }
+
+    public string? Alias { get; init; }
+
+    /// <summary>Set the coded-value domain; null clears it.</summary>
+    public HonuaAdminFieldDomain? Domain { get; init; }
+
+    public bool? Hidden { get; init; }
+}
+
+/// <summary>Request body for <c>POST /api/v1/admin/import/geoservices/start</c>.</summary>
+public sealed record HonuaAdminGeoservicesImportRequest
+{
+    public required string ServiceUrl { get; init; }
+
+    public int LayerId { get; init; }
+
+    public required string TableName { get; init; }
+
+    public string? TargetSchema { get; init; }
+
+    public int? TargetSrid { get; init; }
+
+    public bool? OverwriteExisting { get; init; }
+
+    public bool? AutoPublish { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public HonuaAdminGeoservicesImportCredentials? Credentials { get; init; }
+}
+
+/// <summary>ArcGIS import credentials (server-side queued imports may require secret references).</summary>
+public sealed record HonuaAdminGeoservicesImportCredentials
+{
+    public string? Mode { get; init; }
+
+    public string? AccessToken { get; init; }
+
+    public string? Username { get; init; }
+
+    public string? Password { get; init; }
+}
+
+/// <summary>Response (HTTP 202) when a GeoServices import job is queued.</summary>
+public sealed record HonuaAdminGeoservicesImportJob
+{
+    public string? JobId { get; init; }
+
+    public string? Message { get; init; }
+
+    public string? StatusUrl { get; init; }
+
+    public string? CancelUrl { get; init; }
+}
+
+/// <summary>Progress of a queued GeoServices import job (<c>GET .../jobs/{jobId}</c>).</summary>
+public sealed record HonuaAdminGeoservicesImportProgress
+{
+    public string? JobId { get; init; }
+
+    /// <summary>Numeric GeoservicesImportStatus enum: 0 Queued, 1 Discovering, 2 RetrievingFeatures,
+    /// 3 CreatingTable, 4 InsertingFeatures, 5 Publishing, 6 Completed, 7 Failed, 8 Cancelled.</summary>
+    [JsonPropertyName("status")]
+    public int? StatusCode { get; init; }
+
+    public int FeaturesProcessed { get; init; }
+
+    public int? EstimatedTotalFeatures { get; init; }
+
+    public double? PercentComplete { get; init; }
+
+    public string? TableName { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public int? PublishedLayerId { get; init; }
+
+    public string? ErrorMessage { get; init; }
+
+    public string? CurrentPhase { get; init; }
+}
+
+/// <summary>A single service discovered within a catalog (or the sole service for a single-service URL).</summary>
+public sealed record HonuaAdminExternalServiceSummary
+{
+    public string? SourceKind { get; init; }
+
+    public string? ServiceName { get; init; }
+
+    public string? ServiceType { get; init; }
+
+    public string? ServiceUrl { get; init; }
+
+    public string? FolderPath { get; init; }
+
+    public int? Srid { get; init; }
+
+    public IReadOnlyList<HonuaAdminExternalLayerCandidate> Candidates { get; init; } = [];
+}
+
+/// <summary>A candidate layer discovered on a remote service.</summary>
+public sealed record HonuaAdminExternalLayerCandidate
+{
+    public int? LayerId { get; init; }
+
+    public string? Name { get; init; }
+
+    public string? GeometryType { get; init; }
+
+    public int? FeatureCount { get; init; }
+
+    public string? Description { get; init; }
+
+    public string? ServiceUrl { get; init; }
+}
+
+/// <summary>Result of a geospatial file import (<c>POST /api/v1/admin/import/upload</c>).</summary>
+public sealed record HonuaAdminImportResult
+{
+    public bool Success { get; init; }
+
+    public long FeatureCount { get; init; }
+
+    public string? TableName { get; init; }
+
+    public string? Format { get; init; }
+
+    public string? ErrorMessage { get; init; }
+
+    public IReadOnlyList<string> ValidationErrors { get; init; } = [];
+
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
 
 public sealed record HonuaAdminConnectionSummary
 {

@@ -31,4 +31,16 @@ public interface IStudioQueryPackageDataSource
 
     /// <summary>Runs the saved query through the live server preview route for the map/table preview.</summary>
     Task<StudioQueryCommandResult> PreviewAsync(StudioQueryEditor query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (or refines) the saved query from a natural-language prompt via the server's
+    /// NL-generation contract (POST /api/v1/analysis/content/queries/generate). The proposal is grounded
+    /// and validated server-side before it is returned, so the outcome is either a server-produced query
+    /// (status == generated, the editor hydrates from the returned SavedQueryContent), a structured
+    /// clarification request, or an honest unsupported/refused/blocked state — never a fabricated query.
+    /// </summary>
+    Task<StudioQueryGenerationOutcome> GenerateAsync(
+        StudioQueryEditor currentQuery,
+        StudioQueryGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }

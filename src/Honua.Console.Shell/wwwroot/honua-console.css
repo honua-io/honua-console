@@ -5833,6 +5833,25 @@ p {
     flex: 1;
 }
 
+.studio-ai-provider-select select {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    height: auto;
+}
+
+.studio-ai-provider-label {
+    font-size: 0.66rem;
+}
+
+.workflow-ai-unavailable {
+    margin-bottom: 12px;
+}
+
+.workflow-ai-empty {
+    margin: 8px 0 0;
+    font-size: 0.72rem;
+}
+
 .studio-ai-preview {
     display: flex;
     flex-direction: column;
@@ -7685,6 +7704,80 @@ p {
 .console-field-state__error--blocker {
     color: var(--honua-error);
     font-weight: 600;
+}
+
+/* Import-from-service catalog tree picker */
+.console-tree {
+    margin-top: 0.75rem;
+    border: 1px solid var(--honua-border, #e0e0e0);
+    border-radius: 4px;
+    max-height: 28rem;
+    overflow: auto;
+    background: var(--honua-surface, #fafafa);
+    font-size: 0.85rem;
+}
+
+.console-tree-folder,
+.console-tree-service,
+.console-tree-layer {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem 0.6rem;
+    border-bottom: 1px solid var(--honua-border-subtle, #f0f0f0);
+}
+
+.console-tree-folder {
+    background: var(--honua-surface-muted, #f1f1f1);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+}
+
+.console-tree-service {
+    padding-left: 1.1rem;
+    font-weight: 600;
+}
+
+.console-tree-layer {
+    padding-left: 2.4rem;
+}
+
+.console-tree-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.console-tree-icon {
+    width: 1.1rem;
+    text-align: center;
+    color: var(--honua-muted, #666);
+}
+
+.console-tree-toggle {
+    border: none;
+    background: none;
+    cursor: pointer;
+    width: 1rem;
+    color: var(--honua-muted, #999);
+    padding: 0;
+}
+
+/* Service-config protocol checkbox grid */
+.console-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.35rem 1rem;
+    margin: 0.5rem 0 0.75rem;
+}
+
+.console-inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 
 /* In-product support loop (#164) */

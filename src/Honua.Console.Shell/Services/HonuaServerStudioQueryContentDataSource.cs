@@ -23,6 +23,7 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
     private const string Surface = "Query builder";
     private const string ListContract = "GET /api/v1/analysis/content/items (saved-query list)";
     private const string PreviewContract = "POST /api/v1/analysis/content/items/{itemId}/versions/{contentVersion}/preview";
+    private const string GenerateContract = "POST /api/v1/analysis/content/queries/generate";
 
     private readonly IHonuaAnalysisContentClient _client;
 
@@ -153,6 +154,125 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
             $"Previewed {query.Preview.FeatureCount.ToString("N0", CultureInfo.InvariantCulture)} of {count} feature(s) from the live server.",
             query);
     }
+
+    public async Task<StudioQueryGenerationOutcome> GenerateAsync(
+        StudioQueryEditor currentQuery,
+        StudioQueryGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentQuery);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // A refine turn ships the current saved query so the server edits it; a first turn ships null
+        // (fresh). The "has content" probe keys off any authored intent so a blank scaffold requests fresh
+        // generation.
+        var hasContent = currentQuery.Predicates.Count > 0
+            || currentQuery.OutFields.Count > 0
+            || currentQuery.Parameters.Count > 0
+            || !string.IsNullOrWhiteSpace(currentQuery.ServiceName)
+            || !string.IsNullOrWhiteSpace(currentQuery.NaturalLanguageQuery)
+            || !string.IsNullOrWhiteSpace(currentQuery.Title);
+
+        var wire = new HonuaGenerateSavedQueryRequest
+        {
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Query = hasContent ? StudioQueryPackageMapper.ToSavedQueryContent(currentQuery) : null,
+            Conversation = request.Conversation
+                .Select(turn => new HonuaAnalysisGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new HonuaAnalysisGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _client.GenerateQueryAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            // A 404/501 means this server lacks the query generation contract: AI is simply off here
+            // (honest "unsupported"), not a missing server binding. Other issues block the surface.
+            if (issue.StatusCode is 404 or 501)
+            {
+                return new StudioQueryGenerationOutcome
+                {
+                    Status = StudioQueryGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI query generation yet."
+                };
+            }
+
+            return StudioQueryGenerationOutcome.Blocked(ToCapabilityState(issue));
+        }
+
+        return MapGeneration(currentQuery, result.Data!);
+    }
+
+    private static StudioQueryGenerationOutcome MapGeneration(
+        StudioQueryEditor currentQuery,
+        HonuaSavedQueryGenerationResult result)
+    {
+        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
+        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
+        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the
+        // page (mirrors the analysis client's defensive mapping).
+        var warnings = new List<string>();
+        if (result.Validation is not null)
+        {
+            warnings.AddRange(result.Validation.Warnings ?? []);
+        }
+
+        warnings.AddRange((result.UnmappedRequests ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No mapping for: {item}"));
+
+        var clarifications = (result.Clarifications ?? [])
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                (question.Choices ?? [])
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioQueryEditor? query = null;
+        var generated = string.Equals(result.Status, StudioQueryGenerationStatuses.Generated, StringComparison.Ordinal);
+        if (generated && result.Query is { } proposed)
+        {
+            query = StudioQueryPackageMapper.ApplyGeneratedQuery(currentQuery, proposed);
+
+            if (result.Validation is { IsValid: false })
+            {
+                warnings.AddRange((result.Validation.Failures ?? []).Select(failure => failure.Message));
+            }
+        }
+
+        return new StudioQueryGenerationOutcome
+        {
+            Status = NormalizeStatus(result.Status),
+            Query = query,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioQueryGenerationCapability(
+                    result.CapabilityState.Name,
+                    result.CapabilityState.State,
+                    result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    private static string NormalizeStatus(string? status) => status switch
+    {
+        StudioQueryGenerationStatuses.Generated => StudioQueryGenerationStatuses.Generated,
+        StudioQueryGenerationStatuses.NeedsClarification => StudioQueryGenerationStatuses.NeedsClarification,
+        StudioQueryGenerationStatuses.Unsupported => StudioQueryGenerationStatuses.Unsupported,
+        StudioQueryGenerationStatuses.Refused => StudioQueryGenerationStatuses.Refused,
+        _ => StudioQueryGenerationStatuses.Error
+    };
 
     private static string BuildName(StudioQueryEditor query)
     {

@@ -58,7 +58,7 @@
         @if (_plan is null)
         {
             <div class="console-toolbar">
-                <button class="console-button" type="button" disabled="@_busy" @onclick="NewPlan">New analysis</button>
+                <button class="console-button" type="button" disabled="@_busy" @onclick="NewPlan">New from prompt</button>
             </div>
 
             @if (_workspace.Plans.Count == 0)
@@ -99,6 +99,103 @@
                 </div>
             }
         }
+        else if (_view == EditorView.FromPrompt)
+        {
+            @* StudioAnalysisAI — conversation + clarification on the left, a live plan-card inspector on the
+               right driven by the real authoring state (never fabricated). A prompt/refine turn calls the
+               server's natural-language analysis generation contract; the page only ever renders a
+               server-produced analysis, a structured clarification request, or an honest
+               unavailable/refused/blocked state. *@
+            <div class="studio-analysis-ai" data-analysis-ai="analysis.package" data-analysis-status="@_plan.Status">
+                <StudioAiConversation ConversationTitle="Analysis from prompt"
+                                      RefinePlaceholder="Describe the analysis — method, inputs, parameters, what to output…"
+                                      Turns="_turns"
+                                      Clarifications="_clarifications"
+                                      Busy="_busy"
+                                      OnSend="OnPromptSend"
+                                      OnAnswer="OnClarificationAnswered">
+                    <PreviewHeader>
+                        <span class="studio-analysis-editor-glyph" aria-hidden="true">∑</span>
+                        <input class="console-input studio-analysis-title-input" @bind="_plan.Title" @bind:after="OnEdit" placeholder="hydrant-proximity-buffer" aria-label="Analysis title" />
+                        <span class="console-status @(_plan.IsPublished ? string.Empty : "console-status-warning")">@_plan.Status</span>
+                        <div class="studio-ai-preview-head-spacer"></div>
+                        <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
+                    </PreviewHeader>
+                    <PreviewContent>
+                        <div class="studio-analysis-ai-inspect">
+                            <aside class="studio-analysis-ai-package" aria-label="Analysis package">
+                                <div class="studio-analysis-ai-package-head">
+                                    <p class="console-kicker">Analysis package</p>
+                                    <p class="studio-analysis-ai-package-id">@(string.IsNullOrWhiteSpace(_plan.Title) ? "new analysis" : _plan.Title) · @_plan.Method · @_plan.Status</p>
+                                </div>
+
+                                <p class="console-muted studio-analysis-ai-section">Method</p>
+                                <div class="studio-mono">@_plan.Method · @_plan.ComputeProfile · output: @_plan.OutputContentType</div>
+
+                                <p class="console-muted studio-analysis-ai-section">Inputs · @_plan.Inputs.Count</p>
+                                @if (_plan.Inputs.Count == 0)
+                                {
+                                    <p class="console-muted">No inputs bound yet. Describe the data this analysis should run over on the left.</p>
+                                }
+                                else
+                                {
+                                    <ul class="studio-analysis-ai-input-list">
+                                        @foreach (var input in _plan.Inputs)
+                                        {
+                                            <li class="studio-mono">@(string.IsNullOrWhiteSpace(input.Role) ? "input" : input.Role): @(string.IsNullOrWhiteSpace(input.ServiceId) ? "unbound" : input.ServiceId)/layer @input.LayerId</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-analysis-ai-section">Parameters · @_plan.Parameters.Count</p>
+                                @if (_plan.Parameters.Count > 0)
+                                {
+                                    <ul class="studio-analysis-ai-param-list">
+                                        @foreach (var parameter in _plan.Parameters)
+                                        {
+                                            <li class="studio-mono">@parameter.Name = @parameter.Value</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-analysis-ai-section">Output schema · @_plan.OutputSchema.Count</p>
+                                @if (_plan.OutputSchema.Count > 0)
+                                {
+                                    <ul class="studio-analysis-ai-field-list">
+                                        @foreach (var field in _plan.OutputSchema)
+                                        {
+                                            <li class="studio-mono">@field.Name : @field.Type</li>
+                                        }
+                                    </ul>
+                                }
+
+                                <p class="console-muted studio-analysis-ai-section">Pipeline</p>
+                                @{
+                                    var aiPipeline = StudioAnalysisPlanEvaluator.BuildPipeline(_plan);
+                                }
+                                <div class="studio-analysis-pipeline-flow" data-analysis-ai-pipeline="true" role="list">
+                                    @{
+                                        var aiFlowFirst = true;
+                                    }
+                                    @foreach (var node in aiPipeline)
+                                    {
+                                        @if (!aiFlowFirst)
+                                        {
+                                            <span class="studio-analysis-pipeline-edge" aria-hidden="true">→</span>
+                                        }
+                                        aiFlowFirst = false;
+                                        <div class="studio-analysis-pipeline-node" role="listitem" @key="node">
+                                            <strong>@node.Label</strong>
+                                            <span class="console-muted">@node.Method</span>
+                                        </div>
+                                    }
+                                </div>
+                            </aside>
+                        </div>
+                    </PreviewContent>
+                </StudioAiConversation>
+            </div>
+        }
         else
         {
             var plan = _plan;
@@ -116,6 +213,10 @@
                     <span class="console-muted studio-analysis-editor-meta" data-analysis-step-count="@pipeline.Count">@pipeline.Count @(pipeline.Count == 1 ? "step" : "steps")</span>
                     <div class="studio-analysis-editor-bar-spacer"></div>
                     <div class="console-action-row studio-analysis-editor-actions">
+                        @if (_cameFromPrompt)
+                        {
+                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToChat">← Back to chat</button>
+                        }
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to analyses</button>
                         <button class="console-button" type="button" disabled="@(_busy || plan.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
                         <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !plan.IsExistingPackage || plan.IsPublished)" @onclick="Estimate">Estimate</button>
@@ -467,6 +568,12 @@
 </section>
 
 @code {
+    private enum EditorView
+    {
+        FromPrompt,
+        Editor,
+    }
+
     private bool _loading = true;
     private bool _busy;
     private StudioAnalysisWorkspace _workspace = new([], []);
@@ -478,6 +585,11 @@
     private string _artifactId = string.Empty;
     private readonly ValidationState _validation = new();
     private readonly FormDirtyState _dirty = new();
+
+    private EditorView _view = EditorView.Editor;
+    private bool _cameFromPrompt;
+    private readonly List<StudioConversationTurn> _turns = [];
+    private readonly List<StudioConversationClarification> _clarifications = [];
 
     /// <summary>
     /// Re-runs the client validator over the current plan and flags it dirty. Wired to every bound edit via
@@ -506,11 +618,11 @@
         _loading = false;
     }
 
-    private Task NewPlan() => RunLoadAsync(() => AnalysisData.LoadAsync(null));
+    private Task NewPlan() => RunLoadAsync(() => AnalysisData.LoadAsync(null), EditorView.FromPrompt);
 
-    private Task OpenPlan(string analysisId) => RunLoadAsync(() => AnalysisData.LoadAsync(analysisId));
+    private Task OpenPlan(string analysisId) => RunLoadAsync(() => AnalysisData.LoadAsync(analysisId), EditorView.Editor);
 
-    private async Task RunLoadAsync(Func<Task<StudioAnalysisEditorLoad>> load)
+    private async Task RunLoadAsync(Func<Task<StudioAnalysisEditorLoad>> load, EditorView view)
     {
         if (_busy)
         {
@@ -525,6 +637,9 @@
             var result = await load();
             ApplyStates(result.CapabilityStates);
             _plan = result.Plan;
+            _view = view;
+            _cameFromPrompt = view == EditorView.FromPrompt;
+            ResetConversation();
             // A fresh load is the clean baseline.
             _validation.Clear();
             _dirty.MarkClean();
@@ -536,11 +651,180 @@
         }
     }
 
+    private void ResetConversation()
+    {
+        _turns.Clear();
+        _clarifications.Clear();
+
+        // The conversation log is Console-local authoring UX — it echoes the author's intent and Honua's
+        // proposal rationale, never fabricated package state. The right-side inspector reflects the real
+        // StudioAnalysisPlanEditor. Until the author describes the analysis there are no turns.
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Describe the analysis you want — the method, the inputs, any parameters, and what it should output — and I'll propose a plan you can review and refine. Every proposal is grounded in the real method catalog and validated on the server before it appears; nothing is fabricated.",
+            "just now",
+            StudioConversationTone.Neutral));
+    }
+
+    private void OpenEditorFromPrompt()
+    {
+        _view = EditorView.Editor;
+        _cameFromPrompt = true;
+    }
+
+    private void BackToChat()
+    {
+        if (_plan is null)
+        {
+            return;
+        }
+
+        _view = EditorView.FromPrompt;
+    }
+
+    // A prompt/refine turn calls the server's natural-language analysis generation contract
+    // (POST /api/v1/analysis/content/generate). The server grounds the proposal in the method catalog and
+    // validates it before returning, so the page only ever renders a server-produced analysis (status==
+    // generated, the plan card hydrates from the returned AnalysisPackageContent), a structured clarification
+    // request, or an honest unavailable/refused/blocked state — never a fabricated analysis (Charter §11).
+    private Task OnPromptSend(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return Task.CompletedTask;
+        }
+
+        _turns.Add(new StudioConversationTurn(StudioConversationRole.You, prompt, "just now"));
+        return GenerateAsync(new StudioAnalysisGenerationRequest
+        {
+            Prompt = prompt,
+            Conversation = SnapshotConversation()
+        });
+    }
+
+    private Task OnClarificationAnswered((StudioConversationClarification Question, StudioConversationChoice Choice) answer)
+    {
+        _clarifications.RemoveAll(question => string.Equals(question.Id, answer.Question.Id, StringComparison.Ordinal));
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.You,
+            $"{answer.Question.Label}: {answer.Choice.Label}",
+            "just now"));
+
+        return GenerateAsync(new StudioAnalysisGenerationRequest
+        {
+            Prompt = string.Empty,
+            Conversation = SnapshotConversation(),
+            Answers = [new StudioAnalysisGenerationAnswer(answer.Question.Id, answer.Choice.Id)]
+        });
+    }
+
+    private IReadOnlyList<StudioAnalysisGenerationTurn> SnapshotConversation() =>
+        _turns
+            .Select(turn => new StudioAnalysisGenerationTurn(
+                turn.Role == StudioConversationRole.You ? "user" : "assistant",
+                turn.Body))
+            .ToArray();
+
+    private async Task GenerateAsync(StudioAnalysisGenerationRequest request)
+    {
+        if (_plan is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var outcome = await AnalysisData.GenerateAsync(_plan, request);
+
+            if (outcome.BindingState is not null)
+            {
+                if (string.Equals(outcome.BindingState.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+                {
+                    _bindingState = outcome.BindingState;
+                    return;
+                }
+
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    $"{outcome.BindingState.Detail} (contract: {outcome.BindingState.Contract})",
+                    "just now",
+                    StudioConversationTone.Neutral));
+                return;
+            }
+
+            var notes = outcome.Warnings.ToList();
+            if (outcome.CapabilityState is { } capability
+                && !string.Equals(capability.State, "supported", StringComparison.OrdinalIgnoreCase))
+            {
+                notes.Insert(0, $"{capability.Name}: {capability.State}{(string.IsNullOrWhiteSpace(capability.Reason) ? string.Empty : $" — {capability.Reason}")}");
+            }
+
+            if (outcome.IsGenerated)
+            {
+                if (outcome.Plan is not null)
+                {
+                    _plan = outcome.Plan;
+                }
+
+                _clarifications.Clear();
+                _dirty.MarkDirty();
+                RecomputeClientErrors();
+
+                var summary = string.IsNullOrWhiteSpace(outcome.Rationale)
+                    ? $"Proposed an analysis · {_plan.Method} · {_plan.Inputs.Count} input(s). Refine by chatting, or open the editor."
+                    : outcome.Rationale;
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(summary, notes),
+                    "just now",
+                    StudioConversationTone.Ready,
+                    "view evidence"));
+            }
+            else if (outcome.NeedsClarification)
+            {
+                _clarifications.Clear();
+                _clarifications.AddRange(outcome.Clarifications);
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I need a little more detail before I can propose the analysis."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Clarification));
+            }
+            else
+            {
+                // unsupported / refused / error
+                _turns.Add(new StudioConversationTurn(
+                    StudioConversationRole.Honua,
+                    AppendNotes(
+                        string.IsNullOrWhiteSpace(outcome.Rationale)
+                            ? "I couldn't turn that into an analysis."
+                            : outcome.Rationale,
+                        notes),
+                    "just now",
+                    StudioConversationTone.Neutral));
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string AppendNotes(string body, IReadOnlyList<string> notes) =>
+        notes.Count == 0 ? body : $"{body}\n\nNotes:\n- {string.Join("\n- ", notes)}";
+
     private async Task BackToList()
     {
         _plan = null;
         _status = null;
         _statusFailed = false;
+        _view = EditorView.Editor;
+        _cameFromPrompt = false;
         _validation.Clear();
         _dirty.MarkClean();
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders

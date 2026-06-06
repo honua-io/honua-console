@@ -347,6 +347,145 @@ public static class StudioMapPackageMapper
         }
     }
 
+    /// <summary>
+    /// Hydrates the editor from a SERVER-GENERATED <c>honua_map_package.v1</c> body. This is a DIFFERENT
+    /// shape from the console's round-trip envelope (<see cref="BuildEnvelopeBody"/>/<see cref="ApplyEnvelopeBody"/>
+    /// use <c>layers</c>): the generated package uses <c>sourceBindings</c> / <c>styleRefs</c> /
+    /// <c>initialView</c> / <c>popupBindings</c> / <c>legend</c>. Mirrors the dashboard generation mapper —
+    /// read what the generator produced, degrade missing/null parts to scaffold defaults, never throw on a
+    /// partial field. Returns best-effort notes (e.g. proposed styles that can't be auto-bound).
+    /// </summary>
+    public static IReadOnlyList<string> ApplyGeneratedPackage(StudioMapEditorState state, JsonElement? package)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        var notes = new List<string>();
+        if (package is not { ValueKind: JsonValueKind.Object } root)
+        {
+            return notes;
+        }
+
+        // The generated package carries no authoring title; derive a readable one from the package id so the
+        // "give the map a title" pre-publish item clears, while leaving the user free to rename.
+        var derivedTitle = Humanize(ReadString(root, "mapPackageId", string.Empty));
+        if (!string.IsNullOrWhiteSpace(derivedTitle))
+        {
+            state.Title = derivedTitle;
+        }
+
+        // initialView.bbox [minLon,minLat,maxLon,maxLat] -> the editor's "x,y,x,y" extent string. GetRawText
+        // gives the invariant numeric source text (no culture handling needed).
+        if (root.TryGetProperty("initialView", out var view) && view.ValueKind == JsonValueKind.Object
+            && view.TryGetProperty("bbox", out var bbox) && bbox.ValueKind == JsonValueKind.Array)
+        {
+            var coords = bbox.EnumerateArray()
+                .Where(coord => coord.ValueKind == JsonValueKind.Number)
+                .Select(coord => coord.GetRawText())
+                .ToArray();
+            if (coords.Length == 4)
+            {
+                state.InitialExtent = string.Join(",", coords);
+            }
+        }
+
+        // A generated legend implies the legend should show.
+        if (root.TryGetProperty("legend", out var legend) && legend.ValueKind == JsonValueKind.Array
+            && legend.EnumerateArray().Any(entry => entry.ValueKind == JsonValueKind.Object))
+        {
+            state.ShowLegend = true;
+        }
+
+        // popupBindings bind a field to a source (sourceId + fieldName); group them by source so each layer
+        // pulls its own popup fields.
+        var popupFieldsBySource = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        if (root.TryGetProperty("popupBindings", out var popups) && popups.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var binding in popups.EnumerateArray())
+            {
+                if (binding.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var bindingSource = ReadString(binding, "sourceId", string.Empty);
+                var field = ReadString(binding, "fieldName", string.Empty);
+                if (string.IsNullOrWhiteSpace(bindingSource) || string.IsNullOrWhiteSpace(field))
+                {
+                    continue;
+                }
+
+                if (!popupFieldsBySource.TryGetValue(bindingSource, out var list))
+                {
+                    list = [];
+                    popupFieldsBySource[bindingSource] = list;
+                }
+
+                list.Add(field);
+            }
+        }
+
+        state.Layers.Clear();
+        if (root.TryGetProperty("sourceBindings", out var sources) && sources.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var source in sources.EnumerateArray())
+            {
+                if (source.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var sourceId = ReadString(source, "sourceId", string.Empty);
+                state.Layers.Add(new StudioMapLayerEditor
+                {
+                    SourceRef = sourceId,
+                    Title = Humanize(sourceId),
+                    Visible = true,
+                    Filter = ReadString(source, "filter", string.Empty),
+                    // styleRefs in honua_map_package.v1 are unanchored style definitions (styleId/label/
+                    // presetId) not linked to a source, so a style can't be auto-assigned per layer here.
+                    Style = string.Empty,
+                    PopupFields = popupFieldsBySource.TryGetValue(sourceId, out var fields)
+                        ? string.Join(", ", fields)
+                        : string.Empty
+                });
+            }
+        }
+
+        if (root.TryGetProperty("styleRefs", out var styleRefs) && styleRefs.ValueKind == JsonValueKind.Array
+            && styleRefs.EnumerateArray().Any(style => style.ValueKind == JsonValueKind.Object))
+        {
+            notes.Add("Proposed styles aren't bound to specific layers yet — choose a style per layer in the editor.");
+        }
+
+        return notes;
+    }
+
+    private static string Humanize(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = id;
+        foreach (var prefix in new[] { "src_", "source_", "map_" })
+        {
+            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = trimmed[prefix.Length..];
+                break;
+            }
+        }
+
+        var words = trimmed
+            .Split(['_', '-', ' '], StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => word.Length == 1
+                ? word.ToUpperInvariant()
+                : char.ToUpperInvariant(word[0]) + word[1..]);
+        var result = string.Join(" ", words);
+        return string.IsNullOrWhiteSpace(result) ? id : result;
+    }
+
     private static string[] SplitFields(string popupFields) =>
         string.IsNullOrWhiteSpace(popupFields)
             ? []

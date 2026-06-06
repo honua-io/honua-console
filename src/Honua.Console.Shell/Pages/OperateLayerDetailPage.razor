@@ -1,5 +1,9 @@
 @page "/operate/layers/{ResourceId}"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
+@inject IConsoleLayerFieldsOperation LayerFields
 
 <section class="console-page">
     @if (_exposures.Count == 0)
@@ -12,6 +16,9 @@
             <p class="console-kicker">Operate / Layers</p>
             <h1>@_exposures[0].Layer.Name</h1>
             <p>Layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
+            </div>
         </div>
 
         <div class="console-panel-grid">
@@ -44,6 +51,103 @@
                 </dl>
             </article>
         </div>
+
+        <article class="console-panel" data-layer-preview>
+            <p class="console-kicker">Preview</p>
+            <h2>Rendered map</h2>
+            <p class="console-muted">Live render of this layer using honua-server's own MapLibre style and vector tiles, proxied through the console so the server credentials stay server-side.</p>
+            <MapPreview Mode="MapPreviewMode.Layer"
+                        StyleUrl="@($"/map-proxy/styles/{_exposures[0].Layer.LayerId}.json")"
+                        Center="_previewCenter"
+                        Zoom="1"
+                        ShowLabels="false"
+                        ShowHighlight="false"
+                        ShowPopup="false"
+                        Crs="EPSG:3857"
+                        AriaLabel="@($"Map preview of layer {_exposures[0].Layer.Name}")" />
+        </article>
+
+        <section class="console-section" data-fields-panel>
+            <div class="console-page-heading">
+                <p class="console-kicker">Fields &amp; domains</p>
+                <h2>Attribute fields</h2>
+                <p>Author a coded-value domain on a field (code → label). honua-server emits it in the layer's field metadata across FeatureServer, OGC API, and OData.</p>
+            </div>
+
+            @if (!_fields.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status">
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_fields.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-table-wrap">
+                    <table class="console-table">
+                        <thead>
+                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Domain</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var field in _fields.Fields)
+                            {
+                                <tr data-field-row data-field-name="@field.Name">
+                                    <td class="console-mono">@field.Name</td>
+                                    <td>@(field.Type ?? "—")</td>
+                                    <td>@(field.Alias ?? "—")</td>
+                                    <td data-field-domain>
+                                        @if (field.DomainName is { } dn)
+                                        {
+                                            <span>@dn <small class="console-muted">(@field.CodedValues.Count value(s))</small></span>
+                                        }
+                                        else
+                                        {
+                                            <span class="console-muted">—</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <article class="console-panel">
+                    <p class="console-kicker">Coded-value domain</p>
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Field</span>
+                            <select class="console-input" aria-label="Domain field" @bind="_domainField" data-domain-field>
+                                @foreach (var field in _fields.Fields)
+                                {
+                                    <option value="@field.Name">@field.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            <span>Domain name</span>
+                            <input class="console-input" @bind="_domainName" data-domain-name placeholder="status_codes" />
+                        </label>
+                    </div>
+                    <label>
+                        <span>Coded values (one <code>code=label</code> per line)</span>
+                        <textarea class="console-input" rows="4" @bind="_domainCodes" data-domain-codes
+                                  placeholder="1=Active&#10;2=Inactive"></textarea>
+                    </label>
+                    <div class="console-action-row">
+                        <button class="console-button" type="button" disabled="@_savingDomain" @onclick="SaveDomainAsync" data-domain-save>
+                            @(_savingDomain ? "Saving…" : "Save domain")
+                        </button>
+                    </div>
+                    @if (_domainResult is { } dr)
+                    {
+                        <div class="console-panel @(dr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-domain-result>
+                            <p class="console-kicker">@dr.State</p>
+                            <p>@dr.Detail</p>
+                        </div>
+                    }
+                </article>
+            }
+        </section>
     }
 
     <OperateCapabilityStateList States="@_states" />
@@ -62,6 +166,15 @@
         Array.Empty<(OperateServiceDetail, OperateServiceLayerProjection)>();
     private string _serviceSummary = string.Empty;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
+    // Web-Mercator origin; a low zoom shows the whole world so the layer's features render wherever they sit.
+    private readonly double[] _previewCenter = { 0, 0 };
+
+    private ConsoleLayerFields _fields = ConsoleLayerFields.Unbound("Loading…");
+    private string _domainField = string.Empty;
+    private string _domainName = string.Empty;
+    private string _domainCodes = string.Empty;
+    private bool _savingDomain;
+    private ConsoleSetDomainResult? _domainResult;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -73,5 +186,73 @@
             .ToArray();
         _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
+
+        if (_exposures.Count > 0)
+        {
+            await LoadFieldsAsync();
+        }
+    }
+
+    private async Task LoadFieldsAsync()
+    {
+        _fields = await LayerFields.GetFieldsAsync(_exposures[0].Layer.LayerId);
+        if (_fields.Bound && _fields.Fields.Count > 0 && string.IsNullOrEmpty(_domainField))
+        {
+            _domainField = _fields.Fields[0].Name;
+        }
+    }
+
+    private async Task SaveDomainAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_domainField))
+        {
+            return;
+        }
+
+        var codedValues = ParseCodedValues(_domainCodes);
+        _savingDomain = true;
+        _domainResult = null;
+        try
+        {
+            _domainResult = await LayerFields.SetCodedValueDomainAsync(
+                _exposures[0].Layer.LayerId,
+                _domainField,
+                _domainName,
+                codedValues);
+            if (_domainResult.Succeeded)
+            {
+                await LoadFieldsAsync();
+            }
+        }
+        finally
+        {
+            _savingDomain = false;
+        }
+    }
+
+    // Parses "code=label" lines into coded values; lines without "=" use the whole line as both code and label.
+    private static IReadOnlyList<ConsoleCodedValue> ParseCodedValues(string text)
+    {
+        var values = new List<ConsoleCodedValue>();
+        foreach (var rawLine in (text ?? string.Empty).Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            var idx = line.IndexOf('=');
+            if (idx > 0)
+            {
+                values.Add(new ConsoleCodedValue(line[..idx].Trim(), line[(idx + 1)..].Trim()));
+            }
+            else
+            {
+                values.Add(new ConsoleCodedValue(line, line));
+            }
+        }
+
+        return values;
     }
 }

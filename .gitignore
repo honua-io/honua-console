@@ -9,3 +9,4 @@ obj/
 
 # Smoke evidence output (committed samples live under smoke/parity/sample-evidence/).
 smoke-evidence/
+.claude/
