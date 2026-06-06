@@ -78,8 +78,10 @@ public static class StudioQueryPackageMapper
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        var item = response.Item;
-        var version = response.Version;
+        // Item/Version are non-null-typed with new() initializers but deserialize to null on an explicit
+        // server JSON null, so coalesce before every deref.
+        var item = response.Item ?? new();
+        var version = response.Version ?? new();
         var content = version.SavedQuery ?? new HonuaSavedQueryContent();
         // Metadata is null when the server emits an explicit JSON null for the key (an omitted key keeps the
         // [] initializer; an explicit null overrides it); coalesce before lookups.

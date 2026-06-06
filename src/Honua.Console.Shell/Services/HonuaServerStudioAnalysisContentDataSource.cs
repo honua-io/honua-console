@@ -167,10 +167,13 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             return Failure(issue.Detail, ToCapabilityState(issue), issue.FieldErrors);
         }
 
-        var estimate = StudioAnalysisPackageMapper.ToComputeEstimate(result.Data!.Estimate, plan.ComputeProfile);
+        // Estimate is non-null-typed with a new() initializer but deserializes to null on an explicit server
+        // JSON null, so coalesce before the deref.
+        var serverEstimate = result.Data!.Estimate ?? new();
+        var estimate = StudioAnalysisPackageMapper.ToComputeEstimate(serverEstimate, plan.ComputeProfile);
         plan.Estimate = estimate;
 
-        var lowerBound = result.Data.Estimate.IsLowerBound ? " (lower bound; some input statistics unresolved)" : string.Empty;
+        var lowerBound = serverEstimate.IsLowerBound ? " (lower bound; some input statistics unresolved)" : string.Empty;
         return new StudioAnalysisCommandResult(
             true,
             $"Server estimate ready: ~{estimate.EstimatedRuntimeSeconds.ToString("0.#", CultureInfo.InvariantCulture)}s "
@@ -427,8 +430,12 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             return Failure(issue.Detail, ToCapabilityState(issue), issue.FieldErrors);
         }
 
-        var view = StudioAnalysisPackageMapper.ToArtifactView(result.Data!.Artifact, result.Data.Binding);
-        plan.SubmittedJob = (plan.SubmittedJob ?? new StudioAnalysisJobView(result.Data.Artifact.JobId, "Succeeded", plan.Version))
+        // Artifact/Binding are non-null-typed with new() initializers but deserialize to null on an explicit
+        // server JSON null, so coalesce before the derefs.
+        var artifact = result.Data!.Artifact ?? new();
+        var binding = result.Data.Binding ?? new();
+        var view = StudioAnalysisPackageMapper.ToArtifactView(artifact, binding);
+        plan.SubmittedJob = (plan.SubmittedJob ?? new StudioAnalysisJobView(artifact.JobId, "Succeeded", plan.Version))
             with
         { Artifact = view };
 

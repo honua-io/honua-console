@@ -43,7 +43,10 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         }
 
         var detail = result.Data!;
-        if (!string.Equals(detail.Route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
+        // Route is non-null-typed with a new() initializer but deserializes to null on an explicit server
+        // JSON null, so coalesce before reading Kind.
+        var route = detail.Route ?? new();
+        if (!string.Equals(route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
         {
             return new StudioReportPublicationLoad(
                 null,
@@ -52,7 +55,7 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
                         Surface,
                         "Unsupported",
                         GetContract,
-                        $"Publication '{publicationId}' is a '{detail.Route.Kind}' artifact, not a report. Open it in the matching Studio editor.")
+                        $"Publication '{publicationId}' is a '{route.Kind}' artifact, not a report. Open it in the matching Studio editor.")
                 ]);
         }
 
@@ -164,7 +167,7 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         // The policy update returns the route only; re-read the detail so the version history panel stays
         // consistent after a visibility/embed change.
         var refreshed = await LoadAsync(publicationId, cancellationToken).ConfigureAwait(false);
-        var policy = result.Data!.Route.Policy;
+        var policy = (result.Data!.Route ?? new()).Policy;
         return new StudioReportCommandResult(
             true,
             $"Updated visibility to {policy?.Visibility ?? HonuaContentPublicationVisibilities.Private} (embed {(policy?.Embed?.AllowEmbedding == true ? "on" : "off")}).",
@@ -335,11 +338,12 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         }
 
         var detail = result.Data!;
-        if (!string.Equals(detail.Route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
+        var route = detail.Route ?? new();
+        if (!string.Equals(route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
         {
             return new StudioReportCommandResult(
                 false,
-                $"Publication '{detail.Route.PublicationId}' is a '{detail.Route.Kind}' artifact, not a report.",
+                $"Publication '{route.PublicationId}' is a '{route.Kind}' artifact, not a report.",
                 Issue: new StudioReportCapabilityState(Surface, "Unsupported", contract, "Not a report artifact."));
         }
 

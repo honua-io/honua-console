@@ -268,12 +268,14 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
     {
         // Slice 1 supports capability discovery + as-of. Diff/timeline/rollback are reported by the server's
         // deferred-capabilities block; map the highest live mode honestly so the page never promises a mode
-        // the server did not declare.
+        // the server did not declare. Deferred is non-null-typed with a new() initializer but deserializes to
+        // null on an explicit server JSON null, so coalesce before the deref.
+        var deferred = capability.Deferred ?? new();
         var mode = !capability.SupportsHistory && !capability.SupportsAsOf
             ? TemporalMode.None
-            : capability.Deferred.SupportsRollback
+            : deferred.SupportsRollback
                 ? TemporalMode.Rollback
-                : capability.Deferred.SupportsDiff
+                : deferred.SupportsDiff
                     ? TemporalMode.Diff
                     : capability.SupportsHistory
                         ? TemporalMode.History
@@ -287,7 +289,7 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
             // The replica management API (#1167) is bidirectional disconnected sync; the conflict-review
             // slice (#1287) is deferred, so conflict review is not yet supported even though replicas list.
             SyncCapability: TemporalSyncCapability.Bidirectional,
-            RollbackSupported: capability.Deferred.SupportsRollback,
+            RollbackSupported: deferred.SupportsRollback,
             SyncConflictReviewSupported: false,
             RetentionPolicyId: null)
         {

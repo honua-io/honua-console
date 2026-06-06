@@ -155,6 +155,41 @@ public sealed class StudioReportPublicationDataSourceTests
     }
 
     [Fact]
+    public async Task ServerSource_OnReportDetail_WithNullRoute_LoadsAsUnsupportedWithoutThrowing()
+    {
+        // The wire detail declares Route non-nullable with a new() initializer, but System.Text.Json overrides
+        // that initializer with null when the server emits an explicit JSON null for the "route" key. The load
+        // path must coalesce before reading Route.Kind rather than NRE and freeze the page. A null route has no
+        // "report" kind, so it lands in the unsupported state (an empty route kind is not a report).
+        var detail = new HonuaContentPublicationDetail { Route = null!, Versions = null! };
+        var source = new HonuaServerStudioReportPublicationDataSource(
+            new FakePublicationClient(HonuaAdminEndpointResult<HonuaContentPublicationDetail>.FromData(detail)));
+
+        var load = await source.LoadAsync("pub-null-route");
+
+        Assert.False(load.HasPublication);
+        var state = Assert.Single(load.CapabilityStates);
+        Assert.Equal("Unsupported", state.State);
+        Assert.Contains("not a report", state.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Mapper_OnReportDetail_WithNullRoute_ProjectsEmptyViewWithoutThrowing()
+    {
+        // The ToView mapper coalesces a null Route to a fresh route, so a malformed detail projects a benign
+        // empty view (empty ids, no versions) rather than throwing — the read surface degrades, not crashes.
+        var detail = new HonuaContentPublicationDetail { Route = null!, Versions = null! };
+
+        var view = StudioReportPublicationMapper.ToView(detail);
+
+        Assert.Equal(string.Empty, view.PublicationId);
+        Assert.Equal(string.Empty, view.Kind);
+        Assert.Empty(view.Versions);
+        Assert.Equal(HonuaContentPublicationVisibilities.Private, view.Visibility);
+        Assert.False(view.Embeddable);
+    }
+
+    [Fact]
     public async Task ServerSource_WhenPublicationIsNotAReport_RejectsAsUnsupported()
     {
         var detail = new HonuaContentPublicationDetail

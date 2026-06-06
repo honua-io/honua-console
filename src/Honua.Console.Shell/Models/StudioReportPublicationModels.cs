@@ -70,10 +70,10 @@ public static class StudioReportPublicationMapper
     {
         ArgumentNullException.ThrowIfNull(detail);
 
-        var route = detail.Route;
-        // The wire DTO declares Versions/Dependencies non-nullable with a [] initializer, but
+        // The wire DTO declares Route/Versions/Dependencies non-nullable with a new()/[] initializer, but
         // System.Text.Json overrides that initializer with null when the server emits an explicit JSON null
         // for the key (an omitted key keeps the initializer), so coalesce before every deref.
+        var route = detail.Route ?? new();
         var activeTitle = (detail.Versions ?? [])
             .FirstOrDefault(version => string.Equals(version.VersionId, route.ActiveVersionId, StringComparison.Ordinal))?
             .Title;
