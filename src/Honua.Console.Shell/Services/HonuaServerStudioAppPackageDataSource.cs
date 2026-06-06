@@ -30,12 +30,21 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
     private const string ReopenContract =
         "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen";
     private const string RollbackContract = "POST /api/v1/studio/content-items/{itemId}/rollback-requests";
+    private const string GenerateContract = "POST /api/v1/studio/app-packages/generate";
 
     private readonly IStudioPackageLifecycleClient _client;
+    private readonly IStudioAppGenerationClient? _generation;
 
-    public HonuaServerStudioAppPackageDataSource(IStudioPackageLifecycleClient client)
+    // The generation client is optional: a lifecycle-only construction (e.g. a unit test exercising the
+    // save/validate/publish lifecycle) leaves the from-prompt surface unbound rather than fabricated; the DI
+    // path injects both and the from-prompt page only calls GenerateAsync, which surfaces an honest
+    // missing-binding when no generation client was composed.
+    public HonuaServerStudioAppPackageDataSource(
+        IStudioPackageLifecycleClient client,
+        IStudioAppGenerationClient? generation = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _generation = generation;
     }
 
     public async Task<StudioAppEditorLoad> LoadAsync(Guid? draftId, CancellationToken cancellationToken = default)
@@ -284,6 +293,143 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
 
         return new StudioAppCommandResult(true, "Rolled the published app pointer back to the selected version.");
     }
+
+    public async Task<StudioAppGenerationOutcome> GenerateAsync(
+        StudioAppEditorState currentState,
+        StudioAppGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(currentState);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // No generation client was composed (e.g. lifecycle-only construction in a unit test): the
+        // generation surface is unbound, not fabricated.
+        if (_generation is null)
+        {
+            return StudioAppGenerationOutcome.Blocked(new StudioAppCapabilityState(
+                Surface,
+                "Missing binding",
+                GenerateContract,
+                "The app generation endpoint is not bound. Configure Honua:Server:BaseUrl so the app-packages/generate endpoint is reachable."));
+        }
+
+        // A refine turn ships the current studio-app/v1 body so the server edits it; a first turn ships null
+        // (fresh). The body is the same round-trip surface BuildEnvelopeBody/ApplyEnvelopeBody use. The probe
+        // keys off real authored intent — a bound page, an extra/renamed page, any action, a summary, or a
+        // non-default title — so the default Console scaffold (one blank "Home" page, "Untitled app") still
+        // requests fresh generation rather than asking the server to refine an empty template.
+        var hasApp = currentState.Pages.Any(page => !string.IsNullOrWhiteSpace(page.ContentBinding))
+            || currentState.Pages.Count > 1
+            || currentState.Actions.Count > 0
+            || !string.IsNullOrWhiteSpace(currentState.Summary)
+            || (!string.IsNullOrWhiteSpace(currentState.Title)
+                && !string.Equals(currentState.Title, "Untitled app", StringComparison.Ordinal));
+
+        var wire = new GenerateAppPackageRequest
+        {
+            Prompt = request.Prompt,
+            Provider = request.Provider,
+            Model = request.Model,
+            Package = hasApp ? StudioAppPackageMapper.BuildEnvelopeBody(currentState) : null,
+            Conversation = request.Conversation
+                .Select(turn => new AppGenerationTurn { Role = turn.Role, Content = turn.Content })
+                .ToArray(),
+            Answers = request.Answers
+                .Select(answer => new AppGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
+                .ToArray()
+        };
+
+        var result = await _generation.GenerateAppAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            // A 404/501 means this server lacks the app generation contract: AI is simply off here (honest
+            // "unsupported"), not a missing server binding. Other issues block the surface so the page shows
+            // the shared blocked state.
+            if (issue.StatusCode is 404 or 501)
+            {
+                return new StudioAppGenerationOutcome
+                {
+                    Status = StudioAppGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI app generation yet."
+                };
+            }
+
+            return StudioAppGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
+        }
+
+        return MapGeneration(currentState, result.Data!);
+    }
+
+    private static StudioAppGenerationOutcome MapGeneration(
+        StudioAppEditorState currentState,
+        AppGenerationResult result)
+    {
+        // The server serializes empty collections as null (System.Text.Json source-gen omits empty arrays),
+        // so every collection on the deserialized result may be null. Guard each before LINQ — otherwise a
+        // perfectly valid 'generated' result (which carries no clarifications/unmapped) throws and freezes the
+        // page (mirrors the map/dashboard clients' defensive mapping).
+        var warnings = new List<string>();
+        if (result.Validation is not null)
+        {
+            warnings.AddRange(result.Validation.Warnings ?? []);
+        }
+
+        warnings.AddRange((result.UnmappedRequests ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => $"No mapping for: {item}"));
+
+        var clarifications = (result.Clarifications ?? [])
+            .Select(question => new StudioConversationClarification(
+                question.Id,
+                string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
+                question.Reason ?? string.Empty,
+                (question.Choices ?? [])
+                    .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
+                    .ToArray()))
+            .ToArray();
+
+        StudioAppEditorState? state = null;
+        var generated = string.Equals(result.Status, StudioAppGenerationStatuses.Generated, StringComparison.Ordinal);
+        if (generated && result.Package is { } package)
+        {
+            // The server returns the SAME studio-app/v1 body the console authors/round-trips, so hydrate the
+            // editor with the EXISTING ApplyEnvelopeBody — no generation-specific mapper (this is the clean
+            // case the map family didn't have). Server-owned identity/generation on currentState is preserved.
+            StudioAppPackageMapper.ApplyEnvelopeBody(currentState, package);
+            state = currentState;
+
+            if (result.Validation is { IsValid: false })
+            {
+                warnings.AddRange((result.Validation.Failures ?? []).Select(failure => failure.Message));
+            }
+        }
+
+        return new StudioAppGenerationOutcome
+        {
+            Status = NormalizeGenerationStatus(result.Status),
+            State = state,
+            Rationale = result.Rationale ?? string.Empty,
+            Clarifications = clarifications,
+            Warnings = warnings,
+            CapabilityState = result.CapabilityState is null
+                ? null
+                : new StudioAppGenerationCapability(
+                    result.CapabilityState.Name,
+                    result.CapabilityState.State,
+                    result.CapabilityState.Reason),
+            Provider = result.Provider,
+            Model = result.Model
+        };
+    }
+
+    private static string NormalizeGenerationStatus(string? status) => status switch
+    {
+        StudioAppGenerationStatuses.Generated => StudioAppGenerationStatuses.Generated,
+        StudioAppGenerationStatuses.NeedsClarification => StudioAppGenerationStatuses.NeedsClarification,
+        StudioAppGenerationStatuses.Unsupported => StudioAppGenerationStatuses.Unsupported,
+        StudioAppGenerationStatuses.Refused => StudioAppGenerationStatuses.Refused,
+        _ => StudioAppGenerationStatuses.Error
+    };
 
     private static StudioPackageEnvelope BuildEnvelope(StudioAppEditorState state) =>
         new()

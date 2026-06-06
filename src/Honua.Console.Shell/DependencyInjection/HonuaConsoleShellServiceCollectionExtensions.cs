@@ -40,7 +40,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // the <UnsavedChangesGuard/>. Editors are wired in the per-surface waves.
 
         AddStudioAuthoringShell(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddStudioAppPackageDataSource(services, honuaServerBaseUrl);
+        AddStudioAppPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioFormPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioQueryPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioMapPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
@@ -245,13 +245,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // lifecycle + app publication registry (#1180/#1181/#1183) when a server base address is
     // configured, reusing the IStudioPackageLifecycleClient already registered by
     // AddStudioAuthoringShell; otherwise the builder renders a missing-binding state (never mock app
-    // data).
-    private static void AddStudioAppPackageDataSource(IServiceCollection services, string? honuaServerBaseUrl)
+    // data). The from-prompt surface additionally binds the app generation client.
+    private static void AddStudioAppPackageDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
     {
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IStudioAppPackageDataSource, HonuaServerStudioAppPackageDataSource>();
+            // NL->app generation grounds + validates + runs a bounded repair loop on the server, and against
+            // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
+            // these legitimately-slow generations client-side (surfacing as a false "endpoint could not be
+            // reached"). Match the server's own request timeout (10 min) so the real path works — mirrors the
+            // map/dashboard generation clients.
+            services.TryAddSingleton<IStudioAppGenerationClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                return new HttpStudioAppGenerationClient(
+                    httpClient,
+                    new StudioAppGenerationClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IStudioAppPackageDataSource>(serviceProvider =>
+                new HonuaServerStudioAppPackageDataSource(
+                    serviceProvider.GetRequiredService<IStudioPackageLifecycleClient>(),
+                    serviceProvider.GetRequiredService<IStudioAppGenerationClient>()));
             return;
         }
 

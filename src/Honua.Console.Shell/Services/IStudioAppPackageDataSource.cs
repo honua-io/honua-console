@@ -66,4 +66,17 @@ public interface IStudioAppPackageDataSource
         Guid targetVersionId,
         string? reason,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates (or refines) an app package from a natural-language prompt against the server's
+    /// app-packages/generate contract. The server grounds the proposal and validates it before returning, so
+    /// the outcome only ever carries a server-produced app (status=="generated", the editor hydrates from the
+    /// returned studio-app/v1 body via <see cref="StudioAppPackageMapper.ApplyEnvelopeBody"/>), a structured
+    /// clarification request, or an honest unavailable/refused/blocked state — never a fabricated app
+    /// (Console Patterns Charter section 11).
+    /// </summary>
+    Task<StudioAppGenerationOutcome> GenerateAsync(
+        StudioAppEditorState currentState,
+        StudioAppGenerationRequest request,
+        CancellationToken cancellationToken = default);
 }
