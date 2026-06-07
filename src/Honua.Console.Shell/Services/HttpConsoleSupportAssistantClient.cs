@@ -100,7 +100,7 @@ public sealed class HttpConsoleSupportAssistantClient : IConsoleSupportAssistant
                 .DeserializeAsync(stream, SupportAssistantJsonContext.Default.ChatCompletionResponse, cancellationToken)
                 .ConfigureAwait(false);
 
-            var reply = value?.Choices.FirstOrDefault()?.Message?.Content;
+            var reply = (value?.Choices ?? []).FirstOrDefault()?.Message?.Content;
             return string.IsNullOrWhiteSpace(reply)
                 ? SupportAssistantResult.Denied(OperateSectionStatus.Unavailable, "The assistant endpoint returned an empty reply.")
                 : SupportAssistantResult.Allowed(reply.Trim());

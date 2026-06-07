@@ -138,15 +138,22 @@ public static class StudioFormPackageMapper
     {
         ArgumentNullException.ThrowIfNull(version);
 
-        var document = version.Package;
+        // The wire document and its nested policies/collections declare non-null initializers, but
+        // System.Text.Json overrides those with null when the server emits an explicit JSON null for the key
+        // (an omitted key keeps the initializer), so coalesce every nested object/collection before deref.
+        var document = version.Package ?? new HonuaFormPackageDocument();
+        var privacyPolicy = document.PrivacyPolicy ?? new HonuaFormPrivacyPolicy();
+        var attachmentPolicy = document.AttachmentPolicy ?? new HonuaFormAttachmentPolicy();
+        var submitPolicy = document.SubmitPolicy ?? new HonuaFormSubmitPolicy();
+        var offlinePolicy = document.OfflinePolicy ?? new HonuaFormOfflinePolicy();
         var privateIds = new HashSet<string>(
-            document.PrivacyPolicy.PrivateFieldIds.Where(id => !string.IsNullOrWhiteSpace(id)),
+            (privacyPolicy.PrivateFieldIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)),
             StringComparer.Ordinal);
-        var attachmentByField = document.AttachmentPolicy.Fields
+        var attachmentByField = (attachmentPolicy.Fields ?? [])
             .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
             .GroupBy(field => field.FieldId!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-        var sectionLabels = document.Sections
+        var sectionLabels = (document.Sections ?? [])
             .Where(section => !string.IsNullOrWhiteSpace(section.SectionId))
             .ToDictionary(
                 section => section.SectionId!,
@@ -164,29 +171,29 @@ public static class StudioFormPackageMapper
             Description = document.Description ?? string.Empty,
             ServiceId = document.Target?.ServiceId ?? string.Empty,
             LayerId = document.Target?.LayerId ?? 0,
-            AllowCreate = HasOperation(document.SubmitPolicy, HonuaFormSubmissionOperations.Create),
-            AllowUpdate = HasOperation(document.SubmitPolicy, HonuaFormSubmissionOperations.Update),
-            AllowDelete = HasOperation(document.SubmitPolicy, HonuaFormSubmissionOperations.Delete),
-            RequiresGeometry = document.SubmitPolicy.RequiresGeometry,
-            AllowAttachments = document.SubmitPolicy.AllowAttachments,
-            AttachmentsEnabled = document.AttachmentPolicy.Enabled,
-            MaxAttachmentsPerSubmission = document.AttachmentPolicy.MaxAttachmentsPerSubmission,
-            AllowedContentTypes = JoinList(document.AttachmentPolicy.AllowedContentTypes),
-            RequireExifStripping = document.AttachmentPolicy.RequireExifStripping,
-            RequireFaceBlur = document.AttachmentPolicy.RequireFaceBlur,
-            RequireRedaction = document.AttachmentPolicy.RequireRedaction,
-            PrivacyRetentionDays = document.PrivacyPolicy.RetentionDays,
-            CaptureActor = document.PrivacyPolicy.CaptureActor,
-            CaptureDeviceId = document.PrivacyPolicy.CaptureDeviceId,
-            RequiredTransformations = JoinList(document.PrivacyPolicy.RequiredTransformations),
-            OfflineEnabled = document.OfflinePolicy.Enabled,
-            ReplicaTransportEnabled = document.OfflinePolicy.ReplicaTransportEnabled,
-            FieldCollectionTransportEnabled = document.OfflinePolicy.FieldCollectionTransportEnabled,
-            ConflictReviewMode = document.OfflinePolicy.ConflictReviewMode ?? "defer",
+            AllowCreate = HasOperation(submitPolicy, HonuaFormSubmissionOperations.Create),
+            AllowUpdate = HasOperation(submitPolicy, HonuaFormSubmissionOperations.Update),
+            AllowDelete = HasOperation(submitPolicy, HonuaFormSubmissionOperations.Delete),
+            RequiresGeometry = submitPolicy.RequiresGeometry,
+            AllowAttachments = submitPolicy.AllowAttachments,
+            AttachmentsEnabled = attachmentPolicy.Enabled,
+            MaxAttachmentsPerSubmission = attachmentPolicy.MaxAttachmentsPerSubmission,
+            AllowedContentTypes = JoinList(attachmentPolicy.AllowedContentTypes),
+            RequireExifStripping = attachmentPolicy.RequireExifStripping,
+            RequireFaceBlur = attachmentPolicy.RequireFaceBlur,
+            RequireRedaction = attachmentPolicy.RequireRedaction,
+            PrivacyRetentionDays = privacyPolicy.RetentionDays,
+            CaptureActor = privacyPolicy.CaptureActor,
+            CaptureDeviceId = privacyPolicy.CaptureDeviceId,
+            RequiredTransformations = JoinList(privacyPolicy.RequiredTransformations),
+            OfflineEnabled = offlinePolicy.Enabled,
+            ReplicaTransportEnabled = offlinePolicy.ReplicaTransportEnabled,
+            FieldCollectionTransportEnabled = offlinePolicy.FieldCollectionTransportEnabled,
+            ConflictReviewMode = offlinePolicy.ConflictReviewMode ?? "defer",
             LastValidation = ToValidationView(version.Validation)
         };
 
-        foreach (var field in document.Fields)
+        foreach (var field in document.Fields ?? [])
         {
             state.Fields.Add(ToFieldEditor(field, privateIds, attachmentByField, sectionLabels));
         }
@@ -232,7 +239,7 @@ public static class StudioFormPackageMapper
             return null;
         }
 
-        var issues = result.Issues
+        var issues = (result.Issues ?? [])
             .Select(issue => new StudioFormValidationItem(
                 string.IsNullOrWhiteSpace(issue.Severity) ? "error" : issue.Severity,
                 issue.Code,
@@ -255,10 +262,10 @@ public static class StudioFormPackageMapper
 
     private static HonuaFormFieldDefinition[] BuildFields(
         IReadOnlyList<StudioFormFieldEditor> fields,
-        IReadOnlyList<HonuaFormFieldDefinition> originalFields,
+        IReadOnlyList<HonuaFormFieldDefinition>? originalFields,
         SectionLookup sections)
     {
-        var originalById = originalFields
+        var originalById = (originalFields ?? [])
             .Where(field => !string.IsNullOrWhiteSpace(field.FieldId))
             .GroupBy(field => field.FieldId!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
@@ -312,12 +319,13 @@ public static class StudioFormPackageMapper
 
         if (field.Domain is { } domain)
         {
-            if (domain.Choices.Length > 0)
+            var choices = domain.Choices ?? [];
+            if (choices.Length > 0)
             {
                 editor.DomainKind = "coded";
                 editor.Choices = string.Join(
                     '\n',
-                    domain.Choices.Select(ToChoiceEditorLine));
+                    choices.Select(ToChoiceEditorLine));
             }
             else if (domain.Min is not null || domain.Max is not null)
             {
@@ -327,7 +335,7 @@ public static class StudioFormPackageMapper
             }
         }
 
-        if (field.Validation.FirstOrDefault() is { } rule && !string.IsNullOrWhiteSpace(rule.Type))
+        if ((field.Validation ?? []).FirstOrDefault() is { } rule && !string.IsNullOrWhiteSpace(rule.Type))
         {
             editor.ValidationType = rule.Type!;
             editor.ValidationMessage = rule.Message ?? string.Empty;
@@ -761,7 +769,7 @@ public static class StudioFormPackageMapper
     }
 
     private static bool HasOperation(HonuaFormSubmitPolicy policy, string operation) =>
-        policy.AllowedOperations.Any(value => string.Equals(value, operation, StringComparison.OrdinalIgnoreCase));
+        (policy.AllowedOperations ?? []).Any(value => string.Equals(value, operation, StringComparison.OrdinalIgnoreCase));
 
     private static string ResolveGroup(string? sectionId, IReadOnlyDictionary<string, string> sectionLabels)
     {
@@ -900,8 +908,8 @@ public static class StudioFormPackageMapper
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-    private static string JoinList(IReadOnlyList<string> values) =>
-        values.Count == 0 ? string.Empty : string.Join(", ", values);
+    private static string JoinList(IReadOnlyList<string>? values) =>
+        values is null || values.Count == 0 ? string.Empty : string.Join(", ", values);
 
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

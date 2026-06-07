@@ -24,18 +24,14 @@ namespace Honua.Console.Shell.Services;
 ///
 /// Charter section 11 (no standing mock for server-owned data) is preserved: this
 /// client never returns seeded release data. When no environment profile is bound,
-/// every read returns a missing-binding result. The server exposes NO release-package
-/// list endpoint (packages are addressed by id), so <see cref="GetReleaseProposalsAsync"/>
-/// honestly reports the list surface as unsupported by the connected server rather
-/// than fabricating a list; the by-id detail read is fully bound to live data.
+/// every read returns a missing-binding result. <see cref="GetReleaseProposalsAsync"/>
+/// binds the live release-package list endpoint (<c>GET /api/v1/admin/metadata/
+/// release-packages</c>) and maps the lightweight summaries to list-view proposals;
+/// the by-id detail read hydrates the full proposal, environment matrix, CI/GitOps
+/// timeline, and rollback readiness.
 /// </summary>
 public sealed class HttpConsoleGitOpsReleaseClient : IConsoleGitOpsReleaseClient
 {
-    private const string NoListEndpointMessage =
-        "The connected honua-server addresses GitOps metadata release packages by id and does " +
-        "not expose a release-package list endpoint. Open a release by its package id to view " +
-        "its proposal, environment matrix, CI/GitOps timeline, and rollback readiness.";
-
     private const string NoProfileMessage =
         "No active environment profile is selected. Connect an environment to load GitOps releases.";
 
@@ -64,11 +60,25 @@ public sealed class HttpConsoleGitOpsReleaseClient : IConsoleGitOpsReleaseClient
                 NoProfileMessage);
         }
 
-        // The shipped server contract has no release-package list endpoint; surface
-        // that honestly rather than returning a standing mock list (charter §11).
-        return OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Denied(
-            OperateSectionStatus.Unsupported,
-            NoListEndpointMessage);
+        var listFetch = await FetchAsync(
+            profile.ServerBaseUri,
+            MetadataReleaseAdminRoutes.ReleasePackages(),
+            MetadataReleaseJsonContext.Default.MetadataReleasePackageListResponse,
+            cancellationToken).ConfigureAwait(false);
+        if (!listFetch.Ok)
+        {
+            return OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Denied(
+                listFetch.Status,
+                listFetch.Message);
+        }
+
+        // Lightweight list-view proposals; the full proposal/diff/matrix/rollback for a
+        // given release hydrates on drill-down via GetReleaseDetailAsync.
+        var proposals = (listFetch.Value!.Items ?? [])
+            .Select(GitOpsReleaseMapper.MapProposal)
+            .ToArray();
+
+        return OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Allowed(proposals);
     }
 
     public async Task<OperateSectionResult<GitOpsReleaseProposal>> GetReleaseProposalAsync(

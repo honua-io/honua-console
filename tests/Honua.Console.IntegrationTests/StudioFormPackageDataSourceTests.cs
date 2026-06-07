@@ -13,6 +13,54 @@ namespace Honua.Console.IntegrationTests;
 public sealed class StudioFormPackageDataSourceTests
 {
     [Fact]
+    public async Task Generate_NeedsClarification_NullCollections_MapsWithoutThrowing()
+    {
+        // The server omits empty collections as JSON null, so a valid needs-clarification turn commonly
+        // arrives with null Validation.Issues / UnmappedRequests, and a clarification with null Choices.
+        // MapGeneration must coalesce/guard rather than NRE (regression: this family had dropped the guards).
+        var client = new FakeFormPackageClient
+        {
+            GenerateFormResult = HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromData(
+                new HonuaFormGenerationResult
+                {
+                    Status = StudioFormGenerationStatuses.NeedsClarification,
+                    Rationale = "Which field captures the address?",
+                    Validation = new HonuaFormPackageValidationResult { IsValid = false, Issues = null! },
+                    UnmappedRequests = null!,
+                    Clarifications =
+                    [
+                        new HonuaFormGenerationClarification { Id = "q1", Kind = "choice", Prompt = "Pick a field", Choices = null! }
+                    ]
+                })
+        };
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioFormEditorState(), new StudioFormGenerationRequest { Prompt = "a form" });
+
+        Assert.True(outcome.NeedsClarification);
+        Assert.Null(outcome.State);
+        Assert.Single(outcome.Clarifications);
+        Assert.Empty(outcome.Clarifications[0].Choices);
+    }
+
+    [Fact]
+    public async Task Generate_ServerLacksContract_404_SurfacesUnsupportedNotMissingBinding()
+    {
+        var client = new FakeFormPackageClient
+        {
+            GenerateFormResult = HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not found.", 404))
+        };
+        var source = new HonuaServerStudioFormPackageDataSource(client);
+
+        var outcome = await source.GenerateAsync(new StudioFormEditorState(), new StudioFormGenerationRequest { Prompt = "hi" });
+
+        Assert.Equal(StudioFormGenerationStatuses.Unsupported, outcome.Status);
+        Assert.Null(outcome.BindingState);
+        Assert.Equal(1, client.GenerateFormCalls);
+    }
+
+    [Fact]
     public async Task GetWorkspace_MapsSummaries_NewestFirst()
     {
         var client = new FakeFormPackageClient
@@ -247,9 +295,16 @@ public sealed class StudioFormPackageDataSourceTests
             Task.FromResult(HonuaAdminEndpointResult<HonuaFormGenerationProviders>.FromIssue(
                 new HonuaAdminEndpointIssue("Unsupported", "GET providers", "Not exercised by this fake.")));
 
-        public Task<HonuaAdminEndpointResult<HonuaFormGenerationResult>> GenerateFormAsync(GenerateFormPackageRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromIssue(
+        public HonuaAdminEndpointResult<HonuaFormGenerationResult>? GenerateFormResult { get; set; }
+
+        public int GenerateFormCalls { get; private set; }
+
+        public Task<HonuaAdminEndpointResult<HonuaFormGenerationResult>> GenerateFormAsync(GenerateFormPackageRequest request, CancellationToken cancellationToken = default)
+        {
+            GenerateFormCalls++;
+            return Task.FromResult(GenerateFormResult ?? HonuaAdminEndpointResult<HonuaFormGenerationResult>.FromIssue(
                 new HonuaAdminEndpointIssue("Unsupported", "POST generate", "Not exercised by this fake.")));
+        }
 
         public Uri BaseUri { get; } = new("https://honua.test");
 

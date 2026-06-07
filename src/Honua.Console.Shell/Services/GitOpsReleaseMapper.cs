@@ -22,11 +22,12 @@ internal static class GitOpsReleaseMapper
             package.Metadata?.Title,
             package.Metadata?.Name,
             $"Release {id}");
+        var entries = package.Entries ?? [];
         var summary = FirstNonBlank(
             package.Metadata?.Description,
-            $"Promote {package.Entries.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} semantic resources from {package.SourceEnvironment}.");
+            $"Promote {entries.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} semantic resources from {package.SourceEnvironment}.");
 
-        var changed = package.Entries
+        var changed = entries
             .Select(MapChangedResource)
             .ToArray();
 
@@ -35,11 +36,41 @@ internal static class GitOpsReleaseMapper
             Title: title,
             Summary: summary,
             SourceEnvironmentId: package.SourceEnvironment,
-            TargetEnvironmentIds: package.TargetEnvironments,
+            TargetEnvironmentIds: package.TargetEnvironments ?? [],
             DesiredRevision: ResolveDesiredRevision(package, manifest),
             ChangedResources: changed,
             RollbackClassification: GitOpsRollbackClassification.Unknown,
             HasBlockingFindings: HasBlockingDrift(package));
+    }
+
+    /// <summary>
+    /// Maps a lightweight release-package summary (list endpoint) into a proposal for
+    /// the GitOps Releases list. The summary carries no per-package entry graph, so the
+    /// changed-resource set is empty and rollback classification is unknown here; the
+    /// full proposal/diff/matrix/rollback hydrates on drill-down via the by-id detail
+    /// read. <c>HasBlockingFindings</c> stays false (blockers are an operation-level
+    /// determination not available from the summary).
+    /// </summary>
+    public static GitOpsReleaseProposal MapProposal(MetadataReleasePackageSummaryResponse summary)
+    {
+        ArgumentNullException.ThrowIfNull(summary);
+
+        var id = summary.PackageId.ToString("D");
+        var title = FirstNonBlank(summary.Title, summary.PackageKey, $"Release {id}");
+        var description = FirstNonBlank(
+            summary.Summary,
+            $"Promote {summary.EntryCount.ToString(System.Globalization.CultureInfo.InvariantCulture)} semantic resources from {summary.SourceEnvironment}.");
+
+        return new GitOpsReleaseProposal(
+            ReleasePackageId: id,
+            Title: title,
+            Summary: description,
+            SourceEnvironmentId: summary.SourceEnvironment,
+            TargetEnvironmentIds: summary.TargetEnvironments ?? [],
+            DesiredRevision: $"rev-{summary.SourceRevision.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+            ChangedResources: [],
+            RollbackClassification: GitOpsRollbackClassification.Unknown,
+            HasBlockingFindings: false);
     }
 
     /// <summary>
@@ -53,11 +84,11 @@ internal static class GitOpsReleaseMapper
         ArgumentNullException.ThrowIfNull(package);
 
         var cells = new List<GitOpsEnvironmentMatrixCell>();
-        foreach (var environment in package.TargetEnvironments)
+        foreach (var environment in package.TargetEnvironments ?? [])
         {
-            foreach (var entry in package.Entries)
+            foreach (var entry in package.Entries ?? [])
             {
-                var state = entry.TargetStates
+                var state = (entry.TargetStates ?? [])
                     .FirstOrDefault(target => string.Equals(target.Environment, environment, StringComparison.OrdinalIgnoreCase));
                 cells.Add(new GitOpsEnvironmentMatrixCell(
                     Environment: environment,
@@ -79,7 +110,7 @@ internal static class GitOpsReleaseMapper
     {
         ArgumentNullException.ThrowIfNull(package);
 
-        return package.DataScripts
+        return (package.DataScripts ?? [])
             .Select(script => new GitOpsDataScript(
                 ScriptId: FirstNonBlank(script.ScriptId, script.FileName),
                 FileName: FirstNonBlank(script.FileName, script.ScriptId),
@@ -101,12 +132,12 @@ internal static class GitOpsReleaseMapper
 
         var context = operation.MetadataRelease;
         var blockers = (context?.Blockers ?? [])
-            .Concat(operation.BlockingReasons)
+            .Concat(operation.BlockingReasons ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var warnings = (context?.Warnings ?? [])
-            .Concat(operation.Warnings)
+            .Concat(operation.Warnings ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -138,8 +169,8 @@ internal static class GitOpsReleaseMapper
             Classification: MapRollbackClassification(plan.Class),
             IsDataAffecting: plan.IsDataAffecting,
             RequiresExplicitApproval: plan.RequiresExplicitApproval,
-            Steps: plan.Steps,
-            EvidenceRequired: plan.EvidenceRequired,
+            Steps: plan.Steps ?? [],
+            EvidenceRequired: plan.EvidenceRequired ?? [],
             ApprovalPolicyRef: NullIfBlank(plan.ApprovalPolicyRef));
     }
 
@@ -191,7 +222,7 @@ internal static class GitOpsReleaseMapper
     /// be disabled (acceptance criterion).
     /// </summary>
     private static bool HasBlockingDrift(MetadataReleasePackageResponse package) =>
-        package.Entries.Any(entry => entry.TargetStates.Any(target =>
+        (package.Entries ?? []).Any(entry => (entry.TargetStates ?? []).Any(target =>
             target.BindingState == MetadataEnvironmentBindingStateWire.EnvironmentUnavailable));
 
     private static IReadOnlyList<GitOpsTimelineStep> BuildTimeline(
@@ -243,7 +274,7 @@ internal static class GitOpsReleaseMapper
             return $"rev-{source.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
         }
 
-        var maxEntryRevision = package.Entries
+        var maxEntryRevision = (package.Entries ?? [])
             .Select(entry => entry.DesiredMetadataRevision)
             .DefaultIfEmpty(package.SourceRevision)
             .Max();

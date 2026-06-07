@@ -44,7 +44,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
             return new CatalogSearchResult([], new Dictionary<string, int>(StringComparer.Ordinal), request);
         }
 
-        var summaries = result.Data.Items
+        var summaries = (result.Data.Items ?? [])
             .Where(item => ConsoleContentMapper.IsVisibleToContext(item, context))
             .Select(ConsoleContentMapper.ToSummary)
             .ToArray();

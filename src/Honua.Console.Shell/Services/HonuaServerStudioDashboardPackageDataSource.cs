@@ -170,6 +170,7 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         }
 
         var summary = result.Data!;
+        var diagnostics = summary.Diagnostics ?? [];
         var isValid = summary.Status is StudioPackageValidationStatus.Valid or StudioPackageValidationStatus.Warning;
         string message;
         if (isValid)
@@ -180,13 +181,13 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         {
             var details = string.Join(
                 " ",
-                summary.Diagnostics
+                diagnostics
                     .Where(diagnostic => diagnostic.Severity is StudioPackageDiagnosticSeverity.Error or StudioPackageDiagnosticSeverity.Blocker)
                     .Select(diagnostic => $"{diagnostic.Path}: {diagnostic.Message}"));
-            message = $"Server reported {summary.Diagnostics.Count} validation issue(s). {details}".Trim();
+            message = $"Server reported {diagnostics.Count} validation issue(s). {details}".Trim();
         }
 
-        return new StudioDashboardCommandResult(isValid, message, state, Diagnostics: summary.Diagnostics);
+        return new StudioDashboardCommandResult(isValid, message, state, Diagnostics: diagnostics);
     }
 
     public async Task<StudioDashboardCommandResult> PublishAsync(
@@ -281,9 +282,11 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
             return Failure(listIssue.Detail, ToCapabilityState("GET /api/v1/studio/content-items/{itemId}/versions", listIssue));
         }
 
-        var target = versions.Data!.Versions
+        // Server omits an empty version list as JSON null; coalesce before LINQ.
+        var versionList = versions.Data!.Versions ?? [];
+        var target = versionList
             .FirstOrDefault(candidate => candidate.VersionNumber == version)
-            ?? versions.Data!.Versions.OrderByDescending(candidate => candidate.VersionNumber).FirstOrDefault();
+            ?? versionList.OrderByDescending(candidate => candidate.VersionNumber).FirstOrDefault();
 
         if (target is null)
         {
@@ -367,8 +370,9 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
 
     private static StudioDashboardGenerationOutcome MapGeneration(HonuaReportGenerationResult result)
     {
-        // The server serializes empty collections as null (source-gen omits empty arrays), so guard each
-        // collection before LINQ — a valid 'generated' result carries no clarifications/unmapped.
+        // System.Text.Json overrides each non-null [] initializer with null when the server emits an explicit
+        // JSON null for the key (an omitted key keeps the initializer), so guard each collection before LINQ —
+        // a valid 'generated' result carries no clarifications/unmapped.
         var warnings = (result.UnmappedRequests ?? [])
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .Select(item => $"No matching binding/panel for: {item}")
@@ -494,7 +498,13 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
     }
 
     private static StudioDashboardCapabilityState ToCapabilityState(string contract, StudioEndpointIssue issue) =>
-        new(Surface, issue.State, contract, issue.Detail);
+        new(
+            Surface,
+            issue.State,
+            issue.Contract ?? contract,
+            issue.StatusCode is null
+                ? issue.Detail
+                : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
 
     private static StudioDashboardCommandResult Failure(string message, StudioDashboardCapabilityState? issue = null) =>
         new(false, message, Issue: issue);

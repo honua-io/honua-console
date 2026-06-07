@@ -69,13 +69,14 @@ internal static class ConsoleContentMapper
         || string.Equals(item.ItemType, HonuaConsoleContentItemTypes.Layer, StringComparison.Ordinal);
 
     public static bool HasEmbedAction(HonuaConsoleContentItem item) =>
-        item.Actions.Contains(HonuaConsoleContentActions.Embed, StringComparer.Ordinal);
+        (item.Actions ?? []).Contains(HonuaConsoleContentActions.Embed, StringComparer.Ordinal);
 
     public static ConsoleContentSummary ToSummary(HonuaConsoleContentItem item)
     {
         var consoleType = ToConsoleType(item.ItemType);
-        var canEdit = item.Actions.Contains(HonuaConsoleContentActions.Edit, StringComparer.Ordinal);
-        var canView = item.Actions.Contains(HonuaConsoleContentActions.View, StringComparer.Ordinal);
+        var actions = item.Actions ?? [];
+        var canEdit = actions.Contains(HonuaConsoleContentActions.Edit, StringComparer.Ordinal);
+        var canView = actions.Contains(HonuaConsoleContentActions.View, StringComparer.Ordinal);
 
         return new ConsoleContentSummary
         {
@@ -85,11 +86,11 @@ internal static class ConsoleContentMapper
             Title = NullIfBlank(item.Title) ?? item.Name,
             Summary = item.Description ?? string.Empty,
             Owner = item.OwnerId ?? string.Empty,
-            Tags = item.Tags,
+            Tags = item.Tags ?? [],
             Formats = ItemTypeFormats(item.ItemType),
             Modified = item.UpdatedAt ?? item.CreatedAt ?? DateTimeOffset.UtcNow,
             Access = ToAccess(item),
-            ResolvedRole = ResolveRole(item.Actions),
+            ResolvedRole = ResolveRole(actions),
             ViewerSupport = new ConsoleViewerSupport
             {
                 CanOpenInViewer = canView && CanOpenInViewer(consoleType),
@@ -124,7 +125,7 @@ internal static class ConsoleContentMapper
                     summary.Modified,
                     item.UpdatedById ?? item.OwnerId ?? string.Empty)]
                 : [],
-            Lineage = item.Provenance
+            Lineage = (item.Provenance ?? [])
                 .Select(reference => new ConsoleContentLineageLink(
                     LineageDirection(reference.Rel),
                     reference.ItemId,
@@ -186,7 +187,7 @@ internal static class ConsoleContentMapper
         var permissions = new List<ConsoleContentPermission>();
         if (!string.IsNullOrWhiteSpace(item.OwnerId))
         {
-            permissions.Add(new ConsoleContentPermission(item.OwnerId, ResolveRole(item.Actions), "workspace policy"));
+            permissions.Add(new ConsoleContentPermission(item.OwnerId, ResolveRole(item.Actions ?? []), "workspace policy"));
         }
 
         if (!string.IsNullOrWhiteSpace(item.TeamScopeId))

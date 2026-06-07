@@ -43,7 +43,10 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         }
 
         var detail = result.Data!;
-        if (!string.Equals(detail.Route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
+        // Route is non-null-typed with a new() initializer but deserializes to null on an explicit server
+        // JSON null, so coalesce before reading Kind.
+        var route = detail.Route ?? new();
+        if (!string.Equals(route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
         {
             return new StudioReportPublicationLoad(
                 null,
@@ -52,7 +55,7 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
                         Surface,
                         "Unsupported",
                         GetContract,
-                        $"Publication '{publicationId}' is a '{detail.Route.Kind}' artifact, not a report. Open it in the matching Studio editor.")
+                        $"Publication '{publicationId}' is a '{route.Kind}' artifact, not a report. Open it in the matching Studio editor.")
                 ]);
         }
 
@@ -164,9 +167,10 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         // The policy update returns the route only; re-read the detail so the version history panel stays
         // consistent after a visibility/embed change.
         var refreshed = await LoadAsync(publicationId, cancellationToken).ConfigureAwait(false);
+        var policy = (result.Data!.Route ?? new()).Policy;
         return new StudioReportCommandResult(
             true,
-            $"Updated visibility to {result.Data!.Route.Policy.Visibility} (embed {(result.Data.Route.Policy.Embed.AllowEmbedding ? "on" : "off")}).",
+            $"Updated visibility to {policy?.Visibility ?? HonuaContentPublicationVisibilities.Private} (embed {(policy?.Embed?.AllowEmbedding == true ? "on" : "off")}).",
             refreshed.Publication);
     }
 
@@ -191,7 +195,7 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         {
             Enabled = data.Enabled,
             DefaultProvider = data.DefaultProvider,
-            Providers = data.Providers
+            Providers = (data.Providers ?? [])
                 .Select(provider => new StudioReportAiProvider(
                     provider.Id,
                     string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,
@@ -249,17 +253,22 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
 
     private static StudioReportGenerationOutcome MapGeneration(HonuaReportGenerationResult result)
     {
-        var warnings = result.UnmappedRequests
+        // Each collection declares a non-null initializer, but System.Text.Json overrides it with null when
+        // the server emits an explicit JSON null for the key (an omitted key keeps the initializer), so a
+        // perfectly valid 'generated' result commonly arrives with null UnmappedRequests/Clarifications/
+        // Choices. Coalesce before LINQ — otherwise a normal generated turn NREs and freezes the page
+        // (mirrors the dashboard mapper; this family had regressed by dropping the guards).
+        var warnings = (result.UnmappedRequests ?? [])
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .Select(item => $"No matching binding/panel for: {item}")
             .ToList();
 
-        var clarifications = result.Clarifications
+        var clarifications = (result.Clarifications ?? [])
             .Select(question => new StudioConversationClarification(
                 question.Id,
                 string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
                 question.Reason ?? string.Empty,
-                question.Choices
+                (question.Choices ?? [])
                     .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
                     .ToArray()))
             .ToArray();
@@ -329,11 +338,12 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         }
 
         var detail = result.Data!;
-        if (!string.Equals(detail.Route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
+        var route = detail.Route ?? new();
+        if (!string.Equals(route.Kind, HonuaContentPublicationKinds.Report, StringComparison.Ordinal))
         {
             return new StudioReportCommandResult(
                 false,
-                $"Publication '{detail.Route.PublicationId}' is a '{detail.Route.Kind}' artifact, not a report.",
+                $"Publication '{route.PublicationId}' is a '{route.Kind}' artifact, not a report.",
                 Issue: new StudioReportCapabilityState(Surface, "Unsupported", contract, "Not a report artifact."));
         }
 

@@ -123,6 +123,86 @@ public sealed class HonuaTemporalHttpClientTests
     }
 
     [Fact]
+    public async Task ListReplicaConflicts_GetsConflictsRoute_WithStatusFilter_AndUnwrapsEnvelope()
+    {
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, ConflictListJson));
+        var client = CreateClient(handler, apiKey: "admin-secret");
+
+        var result = await client.ListReplicaConflictsAsync("parcels", "replica-1", status: "pending");
+
+        Assert.Null(result.Issue);
+        Assert.Equal("replica-1", result.Data!.ReplicaId);
+        var conflict = Assert.Single(result.Data.Conflicts);
+        Assert.Equal("conflict-1", conflict.ConflictId);
+        Assert.Equal("geometry", conflict.ConflictType);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, recorded.Method);
+        Assert.Equal("/api/v1/admin/services/parcels/replicas/replica-1/conflicts", recorded.Uri!.AbsolutePath);
+        Assert.Contains("status=pending", recorded.Uri.Query, StringComparison.Ordinal);
+        Assert.Equal("admin-secret", Assert.Single(recorded.ApiKeyValues));
+    }
+
+    [Fact]
+    public async Task GetReplicaConflict_GetsConflictDetailRoute_AndUnwrapsBaseClientServer()
+    {
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, ConflictDetailJson));
+        var client = CreateClient(handler);
+
+        var result = await client.GetReplicaConflictAsync("parcels", "replica-1", "conflict-1");
+
+        Assert.Null(result.Issue);
+        Assert.Equal("conflict-1", result.Data!.ConflictId);
+        Assert.Equal(42, result.Data.ServerGeneration);
+        Assert.NotNull(result.Data.BaseState);
+        Assert.NotNull(result.Data.ClientState);
+        Assert.NotNull(result.Data.ServerState);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal("/api/v1/admin/services/parcels/replicas/replica-1/conflicts/conflict-1", recorded.Uri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ResolveReplicaConflict_PostsResolveRoute_WithActionBody_AndUnwrapsResponse()
+    {
+        string? body = null;
+        var handler = new RecordingHandler(request =>
+        {
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Json(HttpStatusCode.OK, ResolveResponseJson);
+        });
+        var client = CreateClient(handler, apiKey: "admin-secret");
+
+        var result = await client.ResolveReplicaConflictAsync(
+            "parcels", "replica-1", "conflict-1",
+            new HonuaReplicaConflictResolutionRequest { Action = "acceptClient" });
+
+        Assert.Null(result.Issue);
+        Assert.True(result.Data!.CommittedNewServerState);
+        Assert.Equal(43, result.Data.Conflict!.ResolvedServerGeneration);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, recorded.Method);
+        Assert.Equal("/api/v1/admin/services/parcels/replicas/replica-1/conflicts/conflict-1/resolve", recorded.Uri!.AbsolutePath);
+        Assert.Equal("admin-secret", Assert.Single(recorded.ApiKeyValues));
+        Assert.Contains("acceptClient", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResolveReplicaConflict_AlreadyResolved_MapsConflictToUnsupported()
+    {
+        var handler = new RecordingHandler(_ => ProblemDetails(HttpStatusCode.Conflict));
+        var client = CreateClient(handler);
+
+        var result = await client.ResolveReplicaConflictAsync(
+            "parcels", "replica-1", "conflict-1",
+            new HonuaReplicaConflictResolutionRequest { Action = "acceptClient" });
+
+        Assert.Null(result.Data);
+        Assert.Equal("Unsupported", result.Issue!.State);
+    }
+
+    [Fact]
     public async Task ListReplicas_TransportFailure_MapsToUnavailable()
     {
         var handler = new RecordingHandler(_ => throw new HttpRequestException("connection refused"));
@@ -190,6 +270,52 @@ public sealed class HonuaTemporalHttpClientTests
           "success":true,
           "data":{"replicaId":"replica-1","replicaName":"Field Crew 7","serviceId":"parcels","syncModel":"perReplica",
                   "layerIds":[0],"createdAt":"2026-05-20T08:00:00Z","lastSyncTime":"2026-05-28T09:00:00Z","lastSyncGeneration":42},
+          "message":null
+        }
+        """;
+
+    private const string ConflictListJson =
+        """
+        {
+          "success":true,
+          "data":{
+            "serviceId":"parcels","replicaId":"replica-1","statusFilter":"pending",
+            "conflicts":[
+              {"conflictId":"conflict-1","replicaId":"replica-1","serviceId":"parcels","layerId":0,
+               "objectId":101,"conflictType":"geometry","status":"pending","serverGeneration":42,
+               "detectedAt":"2026-05-28T09:00:00Z"}
+            ]
+          },
+          "message":null
+        }
+        """;
+
+    private const string ConflictDetailJson =
+        """
+        {
+          "success":true,
+          "data":{
+            "conflictId":"conflict-1","replicaId":"replica-1","serviceId":"parcels","layerId":0,
+            "objectId":101,"conflictType":"attribute","status":"pending","serverGeneration":42,
+            "baseState":{"attributes":{"owner":"Acme"}},
+            "clientState":{"attributes":{"owner":"Acme LLC"}},
+            "serverState":{"attributes":{"owner":"Acme Inc"}},
+            "detectedAt":"2026-05-28T09:00:00Z"
+          },
+          "message":null
+        }
+        """;
+
+    private const string ResolveResponseJson =
+        """
+        {
+          "success":true,
+          "data":{
+            "conflict":{"conflictId":"conflict-1","replicaId":"replica-1","serviceId":"parcels","layerId":0,
+              "objectId":101,"conflictType":"attribute","status":"resolved","serverGeneration":42,
+              "detectedAt":"2026-05-28T09:00:00Z","resolutionAction":"acceptClient","resolvedServerGeneration":43},
+            "committedNewServerState":true
+          },
           "message":null
         }
         """;

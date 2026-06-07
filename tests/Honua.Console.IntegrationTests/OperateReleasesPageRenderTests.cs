@@ -17,14 +17,23 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperateReleasesPageRenderTests
 {
     [Fact]
-    public void ReleaseList_ReportsNoServerListEndpoint()
+    public void ReleaseList_WhenServerReturnsProposals_RendersList()
     {
         var stub = new StubReleaseClient
         {
-            Proposals = OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Denied(
-                OperateSectionStatus.Unsupported,
-                "The connected honua-server addresses GitOps metadata release packages by id and does " +
-                "not expose a release-package list endpoint."),
+            Proposals = OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Allowed(
+            [
+                new GitOpsReleaseProposal(
+                    ReleasePackageId: "11111111-2222-3333-4444-555555555555",
+                    Title: "Promote parcels",
+                    Summary: "Promote the parcels field contract change to prod.",
+                    SourceEnvironmentId: "staging",
+                    TargetEnvironmentIds: ["prod"],
+                    DesiredRevision: "rev-77",
+                    ChangedResources: [],
+                    RollbackClassification: GitOpsRollbackClassification.Unknown,
+                    HasBlockingFindings: false),
+            ]),
         };
 
         using var ctx = new Bunit.TestContext();
@@ -35,9 +44,29 @@ public sealed class OperateReleasesPageRenderTests
         page.WaitForAssertion(
             () =>
             {
-                Assert.Contains("Unsupported by this server", page.Markup, StringComparison.Ordinal);
-                Assert.Contains("does not expose a release-package list endpoint", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("Promote parcels", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("staging", page.Markup, StringComparison.Ordinal);
             },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void ReleaseList_WhenServerListUnavailable_RendersHonestUnavailableSurface()
+    {
+        var stub = new StubReleaseClient
+        {
+            Proposals = OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Denied(
+                OperateSectionStatus.Unavailable,
+                "The honua-server admin API is unreachable or returned an unreadable response."),
+        };
+
+        using var ctx = new Bunit.TestContext();
+        ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+
+        var page = ctx.RenderComponent<OperateReleasesPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("unreachable", page.Markup, StringComparison.OrdinalIgnoreCase),
             TimeSpan.FromSeconds(5));
     }
 

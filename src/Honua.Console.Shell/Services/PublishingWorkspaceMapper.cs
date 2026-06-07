@@ -19,8 +19,10 @@ public static class PublishingWorkspaceMapper
     {
         ArgumentNullException.ThrowIfNull(detail);
 
-        var route = detail.Route;
-        var activeVersion = detail.Versions
+        // Route/Versions are non-null-typed with new()/[] initializers but deserialize to null on an explicit
+        // server JSON null, so coalesce before every deref.
+        var route = detail.Route ?? new();
+        var activeVersion = (detail.Versions ?? [])
             .FirstOrDefault(v => string.Equals(v.VersionId, route.ActiveVersionId, StringComparison.Ordinal));
 
         var kind = MapKind(route.Kind);
@@ -33,7 +35,7 @@ public static class PublishingWorkspaceMapper
             Slot: BuildSlot(route),
             GeneratedEndpoints: BuildEndpoints(route),
             CatalogRegistration: BuildCatalogRegistration(route),
-            Policy: BuildPolicy(route.Policy),
+            Policy: BuildPolicy(route.Policy ?? new()),
             Warnings: BuildWarnings(route),
             RollbackClass: BuildRollbackClass(route),
             Provenance: BuildProvenance(route, activeVersion),
@@ -45,9 +47,9 @@ public static class PublishingWorkspaceMapper
     {
         ArgumentNullException.ThrowIfNull(detail);
 
-        var route = detail.Route;
+        var route = detail.Route ?? new();
         var kind = MapKind(route.Kind);
-        var activeVersion = detail.Versions
+        var activeVersion = (detail.Versions ?? [])
             .FirstOrDefault(v => string.Equals(v.VersionId, route.ActiveVersionId, StringComparison.Ordinal));
         var resourceName = activeVersion?.Title is { Length: > 0 } title ? title : route.RouteSlug;
 
@@ -63,8 +65,8 @@ public static class PublishingWorkspaceMapper
     {
         ArgumentNullException.ThrowIfNull(detail);
 
-        var activeVersionId = detail.Route.ActiveVersionId;
-        return detail.Versions
+        var activeVersionId = (detail.Route ?? new()).ActiveVersionId;
+        return (detail.Versions ?? [])
             .Select(v => new PublishingVersion(
                 VersionId: v.VersionId,
                 Revision: v.Revision,
@@ -117,7 +119,7 @@ public static class PublishingWorkspaceMapper
     // A publication is "catalog registered" once its route resolves a public/org/team-visible path.
     private static PublishingCatalogRegistration BuildCatalogRegistration(HonuaContentPublicationRouteState route)
     {
-        var visibility = route.Policy.Visibility;
+        var visibility = (route.Policy ?? new()).Visibility;
         var registered = !string.Equals(visibility, HonuaContentPublicationVisibilities.Private, StringComparison.Ordinal)
             && string.Equals(route.Lifecycle, HonuaContentPublicationLifecycles.Active, StringComparison.Ordinal);
 
@@ -130,18 +132,24 @@ public static class PublishingWorkspaceMapper
 
     private static string BuildPolicy(HonuaContentPublicationPolicy policy)
     {
+        // Share/Embed/Service are non-null-typed with new() initializers but deserialize to null on an
+        // explicit server JSON null, so coalesce before each deref.
+        var share = policy.Share ?? new();
+        var embed = policy.Embed ?? new();
+        var service = policy.Service ?? new();
+
         var parts = new List<string> { $"visibility: {policy.Visibility}" };
-        if (policy.Share.AllowSharing)
+        if (share.AllowSharing)
         {
-            parts.Add(policy.Share.AllowAnonymous ? "sharing: anonymous" : "sharing: authenticated");
+            parts.Add(share.AllowAnonymous ? "sharing: anonymous" : "sharing: authenticated");
         }
 
-        if (policy.Embed.AllowEmbedding)
+        if (embed.AllowEmbedding)
         {
             parts.Add("embedding: allowed");
         }
 
-        if (policy.Service.RequireAuthenticatedServices)
+        if (service.RequireAuthenticatedServices)
         {
             parts.Add("services: authenticated");
         }
@@ -152,20 +160,24 @@ public static class PublishingWorkspaceMapper
     private static IReadOnlyList<string> BuildWarnings(HonuaContentPublicationRouteState route)
     {
         var warnings = new List<string>();
-        var policy = route.Policy;
+        // Policy and its nested Share/Embed are non-null-typed with new() initializers but deserialize to null
+        // on an explicit server JSON null, so coalesce before each deref.
+        var policy = route.Policy ?? new();
+        var share = policy.Share ?? new();
+        var embed = policy.Embed ?? new();
 
         if (string.Equals(policy.Visibility, HonuaContentPublicationVisibilities.Public, StringComparison.Ordinal))
         {
             warnings.Add("Public visibility exposes this route to anonymous callers.");
         }
 
-        if (policy.Share.AllowAnonymous)
+        if (share.AllowAnonymous)
         {
             warnings.Add("Anonymous sharing is enabled; review the share policy before publishing.");
         }
 
-        if (policy.Embed.AllowEmbedding
-            && (policy.Embed.AllowedOrigins is null || policy.Embed.AllowedOrigins.Length == 0))
+        if (embed.AllowEmbedding
+            && (embed.AllowedOrigins is null || embed.AllowedOrigins.Length == 0))
         {
             warnings.Add("Embedding is allowed without an allowed-origins list.");
         }

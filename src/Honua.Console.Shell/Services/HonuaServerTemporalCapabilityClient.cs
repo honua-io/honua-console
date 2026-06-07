@@ -58,13 +58,14 @@ public sealed record HonuaServerTemporalOptions(IReadOnlyList<TemporalSourceCand
 /// shim. There is no in-memory temporal data in the merged result (Console Patterns Charter section 11).
 ///
 /// LIVE (bound here): capability discovery per configured source, an as-of read surfaced as the current
-/// generation checkpoint, and the disconnected replica list/detail.
+/// generation checkpoint, the disconnected replica list/detail, and the replica conflict-review/resolution
+/// slice (honua-server#1167 slice 2: list conflicts, per-conflict base/client/server detail, and an
+/// operator-selected resolution write).
 ///
 /// NOT-YET-AVAILABLE (deferred server slices, rendered honestly, never fabricated): the diff/timeline/
-/// rollback execution slice (honua-server#1285) and the replica conflict-review/resolution slice
-/// (honua-server#1287). The server capability descriptor reports these deferred capabilities as false, so
-/// the viewer surfaces an explicit not-yet-available state from each — it never synthesizes diffs,
-/// revision histories, rollback plans, or sync conflicts.
+/// rollback execution slice (honua-server#1285). The server capability descriptor reports these deferred
+/// capabilities as false, so the viewer surfaces an explicit not-yet-available state from each — it never
+/// synthesizes diffs, revision histories, or rollback plans.
 /// </summary>
 public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityClient
 {
@@ -72,10 +73,11 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
     internal const string CapabilityContract = "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/capabilities";
     internal const string AsOfContract = "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/as-of";
     internal const string ReplicaContract = "GET /api/v1/admin/services/{serviceId}/replicas";
+    internal const string ConflictReviewContract = "GET /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts";
+    internal const string ConflictResolveContract = "POST /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts/{conflictId}/resolve";
 
-    // Deferred server slices — bound to the established not-yet-available state, never fabricated.
+    // Deferred server slice — bound to the established not-yet-available state, never fabricated.
     internal const string DiffContract = "honua-server#1285 (temporal diff/timeline/rollback execution)";
-    internal const string ConflictContract = "honua-server#1287 (replica conflict-review/resolution)";
 
     private static readonly TemporalBindingState DiffDeferred = new(
         Surface, TemporalBindingState.Unsupported, DiffContract,
@@ -91,12 +93,6 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
         Surface, TemporalBindingState.Unsupported, DiffContract,
         "Governed rollback execution is not yet available: the server reports this slice is deferred "
         + "(honua-server#1285). It binds automatically once #1285 lands.");
-
-    private static readonly TemporalBindingState ConflictDeferred = new(
-        Surface, TemporalBindingState.Unsupported, ConflictContract,
-        "Disconnected replica conflict review/resolution is not yet available: the server exposes replica "
-        + "metadata (list/detail) but the conflict-review slice is deferred (honua-server#1287). It binds "
-        + "automatically once #1287 lands.");
 
     private readonly IHonuaTemporalClient _client;
     private readonly HonuaServerTemporalOptions _options;
@@ -229,28 +225,375 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
             return new ReplicaConflictQueue([], ToBindingState(issue));
         }
 
-        var replicas = result.Data!.Replicas
+        // System.Text.Json overrides the [] initializer with null when the server emits an explicit JSON null
+        // for the key; coalesce before LINQ (matches the rest of this file's deserialized-DTO guards).
+        var replicas = (result.Data!.Replicas ?? [])
             .Select(summary => ToDisconnectedReplica(summary, sourceId))
             .ToArray();
 
         return new ReplicaConflictQueue(replicas);
     }
 
-    public Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(
+    public async Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(
         string replicaId,
-        CancellationToken cancellationToken = default) =>
-        // Deferred server slice (#1287): the conflict-record review/resolution API is not merged. Surface the
-        // not-yet-available state rather than fabricating conflicts.
-        Task.FromResult(new ReplicaConflictReview(Replica: null, [], ConflictDeferred));
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(replicaId);
 
-    public Task<SyncConflictResolutionResult> ResolveConflictsAsync(
+        // The page hands us only a replicaId, but the server conflict routes are keyed by {serviceId} too.
+        // Resolve the owning configured source by scanning each candidate service's live replica registry —
+        // never guess a serviceId. If the replica is not owned by any configured source, return the honest
+        // not-configured state rather than probing an arbitrary service.
+        var (owner, issue) = await ResolveReplicaOwnerAsync(replicaId, cancellationToken).ConfigureAwait(false);
+        if (issue is { } resolveIssue)
+        {
+            return new ReplicaConflictReview(Replica: null, [], resolveIssue);
+        }
+
+        if (owner is null)
+        {
+            return new ReplicaConflictReview(Replica: null, [], NotConfiguredReplicaBinding(replicaId));
+        }
+
+        var (candidate, sourceId, summary) = owner.Value;
+
+        // List the replica's pending conflicts, then fetch per-conflict base/client/server detail so the
+        // page renders the real three-way comparison. Pending is the operator-review default.
+        var listResult = await _client
+            .ListReplicaConflictsAsync(candidate.ServiceId, replicaId, status: "pending", cancellationToken)
+            .ConfigureAwait(false);
+
+        if (listResult.Issue is { } listIssue)
+        {
+            return new ReplicaConflictReview(ToDisconnectedReplica(summary, sourceId), [], ToBindingState(listIssue));
+        }
+
+        var summaries = listResult.Data!.Conflicts ?? [];
+        var conflicts = new List<SyncConflict>(summaries.Length);
+        foreach (var conflictSummary in summaries)
+        {
+            var detailResult = await _client
+                .GetReplicaConflictAsync(candidate.ServiceId, replicaId, conflictSummary.ConflictId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (detailResult.Issue is { } detailIssue)
+            {
+                // A per-conflict read failed (e.g. the conflict was resolved concurrently and 404s). Surface
+                // the binding state honestly rather than rendering a partial list with a silently dropped row.
+                return new ReplicaConflictReview(
+                    ToDisconnectedReplica(summary, sourceId), [], ToBindingState(detailIssue));
+            }
+
+            conflicts.Add(ToSyncConflict(detailResult.Data!, sourceId));
+        }
+
+        return new ReplicaConflictReview(
+            ToDisconnectedReplica(summary, sourceId, conflicts.Count), conflicts);
+    }
+
+    public async Task<SyncConflictResolutionResult> ResolveConflictsAsync(
         SyncConflictResolutionRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return Task.FromResult(
-            SyncConflictResolutionResult.Blocked(request.ConflictIds, request.Action, ConflictDeferred));
+
+        if (request.ConflictIds.Count == 0)
+        {
+            return SyncConflictResolutionResult.Blocked(
+                request.ConflictIds,
+                request.Action,
+                new TemporalBindingState(
+                    Surface, "Rejected", ConflictResolveContract,
+                    "No conflict was selected to resolve."));
+        }
+
+        // Map the operator-selected console resolution action to the server's resolution enum. RestoreBase
+        // has no server-side equivalent (the server resolves to client/server/merge/geometry/reject/defer),
+        // so it is rejected honestly rather than silently mismapped.
+        if (!TryMapAction(request.Action, out var serverAction))
+        {
+            return SyncConflictResolutionResult.Blocked(
+                request.ConflictIds,
+                request.Action,
+                new TemporalBindingState(
+                    Surface, "Unsupported", ConflictResolveContract,
+                    $"The resolution action '{request.Action}' is not supported by the server conflict-resolution "
+                    + "API. Supported actions: accept client, keep server, merge fields, reject client edit, defer."));
+        }
+
+        // The resolution request carries only conflict ids; the server resolve route needs {serviceId} and
+        // {replicaId} too. Resolve the owning service+replica by scanning each configured source's conflict
+        // list for the first selected conflict id — never guess. A batch must belong to a single replica.
+        var firstConflictId = request.ConflictIds[0];
+        var (owner, issue) = await ResolveConflictOwnerAsync(firstConflictId, cancellationToken).ConfigureAwait(false);
+        if (issue is { } resolveIssue)
+        {
+            return SyncConflictResolutionResult.Blocked(request.ConflictIds, request.Action, resolveIssue);
+        }
+
+        if (owner is null)
+        {
+            return SyncConflictResolutionResult.Blocked(
+                request.ConflictIds,
+                request.Action,
+                new TemporalBindingState(
+                    Surface, "Not configured", ConflictResolveContract,
+                    $"Conflict '{firstConflictId}' is not owned by any configured temporal source, so its "
+                    + "resolution cannot be routed to a server. Configure the owning source in "
+                    + "Honua:Server:TemporalSources."));
+        }
+
+        var (candidate, replicaId) = owner.Value;
+        var body = new HonuaReplicaConflictResolutionRequest { Action = serverAction };
+
+        var resolvedRevisionId = (string?)null;
+        var resolvedChangeSetId = (string?)null;
+        var auditEventIds = new List<string>(request.ConflictIds.Count);
+        var committedAny = false;
+
+        // The server resolve route is per-conflict; apply the same operator-selected action to each selected
+        // conflict and aggregate the committed evidence. Any per-conflict failure aborts with an honest
+        // binding state rather than claiming partial success.
+        foreach (var conflictId in request.ConflictIds)
+        {
+            var result = await _client
+                .ResolveReplicaConflictAsync(candidate.ServiceId, replicaId, conflictId, body, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (result.Issue is { } applyIssue)
+            {
+                return SyncConflictResolutionResult.Blocked(
+                    request.ConflictIds, request.Action, ToBindingState(applyIssue));
+            }
+
+            var response = result.Data!;
+            // The server records an audit event for every applied resolution; reconstruct its real key
+            // (action + conflict id) so the result reflects audited evidence without fabricating an opaque id.
+            auditEventIds.Add($"replica.conflict.resolve.{serverAction}:{conflictId}");
+
+            if (response.CommittedNewServerState && response.Conflict?.ResolvedServerGeneration is { } gen)
+            {
+                committedAny = true;
+                var generationMarker = $"gen-{gen.ToString(CultureInfo.InvariantCulture)}";
+                resolvedChangeSetId = generationMarker;
+                resolvedRevisionId = generationMarker;
+            }
+        }
+
+        return new SyncConflictResolutionResult(
+            ResolutionId: firstConflictId,
+            ConflictIds: request.ConflictIds,
+            Action: request.Action,
+            ResultRevisionId: committedAny ? resolvedRevisionId : null,
+            ResultChangeSetId: committedAny ? resolvedChangeSetId : null,
+            AuditEventIds: auditEventIds,
+            JobRunId: null);
     }
+
+    // Resolves a replicaId to its owning configured candidate source by scanning each configured service's
+    // live replica registry (the same list the queue binds). Returns the owning candidate, its console
+    // source id, and the matching replica summary; null when no configured source owns the replica. A
+    // transport/auth issue while scanning short-circuits to that issue so the page renders it honestly.
+    private async Task<((TemporalSourceCandidate Candidate, string SourceId, HonuaReplicaManagementSummary Summary)? Owner, TemporalBindingState? Issue)>
+        ResolveReplicaOwnerAsync(string replicaId, CancellationToken cancellationToken)
+    {
+        // Distinct services: multiple candidate sources (serviceId/layerId) can share a serviceId; the
+        // replica registry is per service, so list each service once.
+        foreach (var serviceId in _options.Sources.Select(s => s.ServiceId).Distinct(StringComparer.Ordinal))
+        {
+            var result = await _client.ListReplicasAsync(serviceId, cancellationToken).ConfigureAwait(false);
+            if (result.Issue is { } issue)
+            {
+                return (null, ToBindingState(issue));
+            }
+
+            var summary = (result.Data!.Replicas ?? [])
+                .FirstOrDefault(r => string.Equals(r.ReplicaId, replicaId, StringComparison.Ordinal));
+            if (summary is null)
+            {
+                continue;
+            }
+
+            // Bind the owning candidate to a configured source so the console source id round-trips.
+            var candidate = _options.Sources.First(s => string.Equals(s.ServiceId, serviceId, StringComparison.Ordinal));
+            return ((candidate, SourceId(candidate), summary), null);
+        }
+
+        return (null, null);
+    }
+
+    // Resolves a conflictId to its owning service+replica by scanning each configured service's replicas and
+    // their conflict lists. Returns the owning candidate + replica id; null when no configured source owns it.
+    private async Task<((TemporalSourceCandidate Candidate, string ReplicaId)? Owner, TemporalBindingState? Issue)>
+        ResolveConflictOwnerAsync(string conflictId, CancellationToken cancellationToken)
+    {
+        foreach (var serviceId in _options.Sources.Select(s => s.ServiceId).Distinct(StringComparer.Ordinal))
+        {
+            var replicasResult = await _client.ListReplicasAsync(serviceId, cancellationToken).ConfigureAwait(false);
+            if (replicasResult.Issue is { } replicasIssue)
+            {
+                return (null, ToBindingState(replicasIssue));
+            }
+
+            var candidate = _options.Sources.First(s => string.Equals(s.ServiceId, serviceId, StringComparison.Ordinal));
+            foreach (var replica in replicasResult.Data!.Replicas ?? [])
+            {
+                var conflictsResult = await _client
+                    .ListReplicaConflictsAsync(serviceId, replica.ReplicaId, status: null, cancellationToken)
+                    .ConfigureAwait(false);
+                if (conflictsResult.Issue is { } conflictsIssue)
+                {
+                    return (null, ToBindingState(conflictsIssue));
+                }
+
+                if ((conflictsResult.Data!.Conflicts ?? [])
+                    .Any(c => string.Equals(c.ConflictId, conflictId, StringComparison.Ordinal)))
+                {
+                    return ((candidate, replica.ReplicaId), null);
+                }
+            }
+        }
+
+        return (null, null);
+    }
+
+    private static SyncConflict ToSyncConflict(HonuaReplicaConflictDetail detail, string sourceId) =>
+        new(
+            ConflictId: detail.ConflictId,
+            ReplicaId: detail.ReplicaId,
+            SourceId: sourceId,
+            LayerId: detail.LayerId.ToString(CultureInfo.InvariantCulture),
+            FeatureId: detail.ObjectId.ToString(CultureInfo.InvariantCulture),
+            ConflictType: MapConflictType(detail.ConflictType),
+            BaseRevisionId: null,
+            ServerRevisionId: $"gen-{detail.ServerGeneration.ToString(CultureInfo.InvariantCulture)}",
+            FieldConflicts: BuildFieldConflicts(detail),
+            GeometryConflict: string.Equals(detail.ConflictType, "geometry", StringComparison.OrdinalIgnoreCase),
+            DetectedAt: detail.DetectedAt,
+            Status: MapConflictStatus(detail.Status));
+
+    // The server stores base/client/server feature states as opaque JSON objects. Project them into the
+    // page's field-level three-way comparison by unioning the attribute keys across the three states and
+    // emitting a row per field with each side's value (only fields that actually differ between client and
+    // server, so the operator sees the conflicting fields rather than every unchanged attribute).
+    private static IReadOnlyList<SyncFieldConflict> BuildFieldConflicts(HonuaReplicaConflictDetail detail)
+    {
+        var baseAttrs = ReadAttributes(detail.BaseState);
+        var clientAttrs = ReadAttributes(detail.ClientState);
+        var serverAttrs = ReadAttributes(detail.ServerState);
+
+        var fields = baseAttrs.Keys
+            .Concat(clientAttrs.Keys)
+            .Concat(serverAttrs.Keys)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(k => k, StringComparer.Ordinal);
+
+        var rows = new List<SyncFieldConflict>();
+        foreach (var field in fields)
+        {
+            baseAttrs.TryGetValue(field, out var baseValue);
+            clientAttrs.TryGetValue(field, out var clientValue);
+            serverAttrs.TryGetValue(field, out var serverValue);
+
+            // Only surface fields where the client and server diverge — the conflicting fields.
+            if (!string.Equals(clientValue, serverValue, StringComparison.Ordinal))
+            {
+                rows.Add(new SyncFieldConflict(field, baseValue, clientValue, serverValue));
+            }
+        }
+
+        return rows;
+    }
+
+    // Reads a feature state's attribute bag. Honua/GeoServices feature objects carry attributes under an
+    // "attributes" object; fall back to the root object's scalar properties when no such envelope is present.
+    private static Dictionary<string, string?> ReadAttributes(System.Text.Json.JsonElement? state)
+    {
+        var result = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (state is not { } element || element.ValueKind != System.Text.Json.JsonValueKind.Object)
+        {
+            return result;
+        }
+
+        var attributes = element.TryGetProperty("attributes", out var attrs)
+            && attrs.ValueKind == System.Text.Json.JsonValueKind.Object
+            ? attrs
+            : element;
+
+        foreach (var property in attributes.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "attributes", StringComparison.Ordinal)
+                || string.Equals(property.Name, "geometry", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            result[property.Name] = property.Value.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.String => property.Value.GetString(),
+                System.Text.Json.JsonValueKind.Null => null,
+                _ => property.Value.GetRawText(),
+            };
+        }
+
+        return result;
+    }
+
+    private static SyncConflictType MapConflictType(string conflictType) => conflictType.ToLowerInvariant() switch
+    {
+        "attribute" => SyncConflictType.Attribute,
+        "geometry" => SyncConflictType.Geometry,
+        "deleteupdate" => SyncConflictType.DeleteUpdate,
+        "updatedelete" => SyncConflictType.UpdateDelete,
+        "duplicateinsert" => SyncConflictType.InsertDuplicate,
+        "attachment" => SyncConflictType.Attachment,
+        "relationship" => SyncConflictType.Relationship,
+        _ => SyncConflictType.Attribute,
+    };
+
+    private static SyncConflictStatus MapConflictStatus(string status) => status.ToLowerInvariant() switch
+    {
+        "pending" => SyncConflictStatus.Pending,
+        "resolved" => SyncConflictStatus.Resolved,
+        "deferred" => SyncConflictStatus.Superseded,
+        _ => SyncConflictStatus.Pending,
+    };
+
+    // Maps the console resolution action to the server's resolution action token. RestoreBase has no
+    // server-side equivalent (the server resolves to accept-client/keep-server/merge/geometry/reject/defer),
+    // so it is reported as unmappable rather than silently coerced to another action.
+    private static bool TryMapAction(SyncResolutionAction action, out string serverAction)
+    {
+        switch (action)
+        {
+            case SyncResolutionAction.AcceptClient:
+                serverAction = "acceptClient";
+                return true;
+            case SyncResolutionAction.KeepServer:
+                serverAction = "keepServer";
+                return true;
+            case SyncResolutionAction.MergeFields:
+                serverAction = "mergeFields";
+                return true;
+            case SyncResolutionAction.RejectClientEdit:
+                serverAction = "rejectClient";
+                return true;
+            case SyncResolutionAction.Defer:
+                serverAction = "defer";
+                return true;
+            default:
+                serverAction = string.Empty;
+                return false;
+        }
+    }
+
+    private static TemporalBindingState NotConfiguredReplicaBinding(string replicaId) =>
+        new(
+            Surface,
+            "Not configured",
+            ConflictReviewContract,
+            $"Replica '{replicaId}' is not owned by any configured temporal source. Configure its owning "
+            + "service in Honua:Server:TemporalSources to review its disconnected-sync conflicts.");
 
     // The Console source id encodes the configured candidate as "serviceId/layerId" (see ToSourceCapability).
     private bool TryResolve(string sourceId, out TemporalSourceCandidate candidate)
@@ -268,12 +611,14 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
     {
         // Slice 1 supports capability discovery + as-of. Diff/timeline/rollback are reported by the server's
         // deferred-capabilities block; map the highest live mode honestly so the page never promises a mode
-        // the server did not declare.
+        // the server did not declare. Deferred is non-null-typed with a new() initializer but deserializes to
+        // null on an explicit server JSON null, so coalesce before the deref.
+        var deferred = capability.Deferred ?? new();
         var mode = !capability.SupportsHistory && !capability.SupportsAsOf
             ? TemporalMode.None
-            : capability.Deferred.SupportsRollback
+            : deferred.SupportsRollback
                 ? TemporalMode.Rollback
-                : capability.Deferred.SupportsDiff
+                : deferred.SupportsDiff
                     ? TemporalMode.Diff
                     : capability.SupportsHistory
                         ? TemporalMode.History
@@ -284,11 +629,15 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
             ResourceId: capability.LayerName ?? candidate.ServiceId,
             LayerId: candidate.LayerId.ToString(CultureInfo.InvariantCulture),
             Mode: mode,
-            // The replica management API (#1167) is bidirectional disconnected sync; the conflict-review
-            // slice (#1287) is deferred, so conflict review is not yet supported even though replicas list.
+            // The replica management API (#1167) is bidirectional disconnected sync; conflict review +
+            // resolution shipped in slice 2 (#1167) and is bound live. There is no per-layer conflict-review
+            // capability flag in the temporal capability descriptor, so eligibility is keyed off the source
+            // exposing the replica registry (replica tracking). A provider that cannot support manual review
+            // returns 501 from the conflict routes, which the review/resolve paths surface as an honest
+            // Unsupported binding rather than fabricated conflicts.
             SyncCapability: TemporalSyncCapability.Bidirectional,
-            RollbackSupported: capability.Deferred.SupportsRollback,
-            SyncConflictReviewSupported: false,
+            RollbackSupported: deferred.SupportsRollback,
+            SyncConflictReviewSupported: true,
             RetentionPolicyId: null)
         {
             HistoryModel = capability.CursorKind,
@@ -299,7 +648,10 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
         };
     }
 
-    private static DisconnectedReplica ToDisconnectedReplica(HonuaReplicaManagementSummary summary, string sourceId) =>
+    private static DisconnectedReplica ToDisconnectedReplica(
+        HonuaReplicaManagementSummary summary,
+        string sourceId,
+        int pendingConflictCount = 0) =>
         new(
             ReplicaId: summary.ReplicaId,
             ReplicaName: summary.ReplicaName,
@@ -311,8 +663,9 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
             ReplicaServerGen: 0,
             LastSyncAt: summary.LastSyncTime,
             Status: ReplicaStatus.Active,
-            // Pending-conflict counts come from the deferred conflict-review slice (#1287); 0 until it lands.
-            PendingConflictCount: 0);
+            // The list path leaves the count at 0 to avoid an N+1 conflict fetch per replica; the review path
+            // (which already fetched the live conflict list) supplies the real pending count.
+            PendingConflictCount: pendingConflictCount);
 
     private static TemporalCapabilityState ToCapabilityState(HonuaAdminEndpointIssue issue, string sourceLabel) =>
         new(

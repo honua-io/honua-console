@@ -78,10 +78,13 @@ public static class StudioQueryPackageMapper
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        var item = response.Item;
-        var version = response.Version;
+        // Item/Version are non-null-typed with new() initializers but deserialize to null on an explicit
+        // server JSON null, so coalesce before every deref.
+        var item = response.Item ?? new();
+        var version = response.Version ?? new();
         var content = version.SavedQuery ?? new HonuaSavedQueryContent();
-        // Metadata is null when the server omits an empty object (source-gen); coalesce before lookups.
+        // Metadata is null when the server emits an explicit JSON null for the key (an omitted key keeps the
+        // [] initializer; an explicit null overrides it); coalesce before lookups.
         var metadata = content.Metadata ?? EmptyMetadata;
 
         var query = new StudioQueryEditor
@@ -145,9 +148,10 @@ public static class StudioQueryPackageMapper
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(content);
 
-        // The server omits an empty metadata object (System.Text.Json source-gen serializes it as null), so
-        // a generated query commonly arrives with Metadata == null. Coalesce to an empty map before any
-        // TryGetValue/GetValueOrDefault lookup — otherwise ResolveTitle NREs and the generate turn freezes.
+        // System.Text.Json overrides the metadata initializer with null when the server emits an explicit
+        // JSON null for the key (an omitted key keeps the initializer), so a generated query commonly arrives
+        // with Metadata == null. Coalesce to an empty map before any TryGetValue/GetValueOrDefault lookup —
+        // otherwise ResolveTitle NREs and the generate turn freezes.
         var metadata = content.Metadata ?? EmptyMetadata;
 
         // Server-owned identity (QueryId/Version/ETag) stays put; only the authored content is replaced.
@@ -204,17 +208,21 @@ public static class StudioQueryPackageMapper
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        var columns = result.Features
-            .SelectMany(feature => feature.Attributes.Keys)
+        // System.Text.Json overrides the [] initializer with null when the server emits an explicit JSON null
+        // for the key; coalesce Features + each feature's Attributes (the same null hazard the rest of this
+        // mapper already guards) before enumerating.
+        var features0 = result.Features ?? [];
+        var columns = features0
+            .SelectMany(feature => (feature.Attributes ?? EmptyAttributes).Keys)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        var features = result.Features
+        var features = features0
             .Select(feature => new StudioQueryPreviewFeatureView(
                 feature.Id,
                 feature.HasGeometry,
-                feature.Attributes.ToDictionary(
+                (feature.Attributes ?? EmptyAttributes).ToDictionary(
                     pair => pair.Key,
                     pair => RenderAttribute(pair.Value),
                     StringComparer.Ordinal)))
@@ -407,6 +415,8 @@ public static class StudioQueryPackageMapper
     };
 
     private static readonly IReadOnlyDictionary<string, string> EmptyMetadata = new Dictionary<string, string>(0);
+
+    private static readonly Dictionary<string, JsonElement> EmptyAttributes = new(0);
 
     private static string ResolveTitle(HonuaAnalysisContentItem item, IReadOnlyDictionary<string, string> metadata)
     {

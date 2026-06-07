@@ -116,8 +116,10 @@ public static class ShareAccessMapper
     {
         ArgumentNullException.ThrowIfNull(projection);
 
-        var permissions = projection.CallerPermissions;
-        var tokens = projection.PublicLinkTokens
+        // System.Text.Json overrides the [] initializer with null when the server emits an explicit JSON null
+        // for the key; coalesce before LINQ (matches every other deserialized-DTO mapper on this surface).
+        var permissions = projection.CallerPermissions ?? [];
+        var tokens = (projection.PublicLinkTokens ?? [])
             .Select(token => new SharePublicLinkView(
                 TokenId: token.TokenId,
                 CreatedAt: token.CreatedAt,
@@ -155,7 +157,7 @@ public static class ShareAccessMapper
             ItemId: closure.ItemId,
             TargetTier: closure.TargetTier,
             IsCompatible: closure.IsCompatible,
-            Conflicts: closure.Conflicts
+            Conflicts: (closure.Conflicts ?? [])
                 .Select(conflict => new ShareDependencyConflictView(
                     ItemId: conflict.ItemId,
                     ItemType: conflict.ItemType,

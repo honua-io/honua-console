@@ -482,6 +482,11 @@ public static class StudioDashboardDocument
         {
             foreach (var binding in bindings.EnumerateArray())
             {
+                if (binding.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
                 state.Bindings.Add(new StudioDashboardBindingEditor
                 {
                     Alias = FirstString(binding, "alias", "key"),
@@ -497,6 +502,11 @@ public static class StudioDashboardDocument
             var metricCount = 0;
             foreach (var panel in panels.EnumerateArray())
             {
+                if (panel.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
                 var rawKind = GetString(panel, "kind");
                 var kind = NormalizeKind(rawKind, ref metricCount);
 

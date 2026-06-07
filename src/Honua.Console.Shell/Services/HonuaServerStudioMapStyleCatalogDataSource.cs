@@ -32,7 +32,7 @@ public sealed class HonuaServerStudioMapStyleCatalogDataSource : IStudioMapStyle
         }
 
         var list = result.Data!;
-        var options = list.Styles
+        var options = (list.Styles ?? [])
             .Select(style => new StudioMapStyleOption(style.Id, style.Title))
             .ToArray();
 

@@ -301,6 +301,11 @@ public static class StudioReportDocument
         {
             foreach (var binding in bindings.EnumerateArray())
             {
+                if (binding.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
                 state.Bindings.Add(new StudioReportBindingEditor
                 {
                     Alias = GetString(binding, "alias"),
@@ -315,6 +320,11 @@ public static class StudioReportDocument
         {
             foreach (var panel in panels.EnumerateArray())
             {
+                if (panel.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
                 var kind = GetString(panel, "kind");
                 var editor = new StudioReportPanelEditor
                 {

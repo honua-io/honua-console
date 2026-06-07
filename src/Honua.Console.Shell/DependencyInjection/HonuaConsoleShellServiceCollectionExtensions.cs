@@ -57,7 +57,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddEsriMigrationRunDataSource(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddOperateAlertRulesDataSource(services, honuaServerBaseUrl);
+        AddOperateAlertRulesDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateLayerStyleOverrideDataSource(services);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
@@ -500,7 +500,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                // 10-min timeout: report/dashboard generation share this client and a local model can take
+                // minutes. Set it here too rather than relying on TryAdd ordering with the dashboard registration.
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaContentPublicationHttpClient(
                     httpClient,
                     new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -699,15 +701,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
     // honua-server's temporal data history API (#1166 slice 1: capability discovery + as-of read) and the
-    // disconnected replica management API (#1167 slice 1: replica list + detail) through the
-    // IHonuaTemporalClient shim when a server base address is configured. The temporal API is per
-    // service/layer with no enumeration verb, so — like the publishing workspace keying off configured
-    // publication ids — the viewer is keyed by a configured list of candidate sources
+    // disconnected replica management API (#1167 slice 1: replica list + detail; slice 2: conflict review +
+    // resolution) through the IHonuaTemporalClient shim when a server base address is configured. The
+    // temporal API is per service/layer with no enumeration verb, so — like the publishing workspace keying
+    // off configured publication ids — the viewer is keyed by a configured list of candidate sources
     // (Honua:Server:TemporalSources / HONUA_SERVER_TEMPORAL_SOURCES, "serviceId:layerId"). The deferred
-    // server slices (diff/timeline/rollback execution #1285, replica conflict-review #1287) are NOT merged;
-    // the live client binds what exists and renders the rest as the established not-yet-available state,
-    // never fabricated (Console Patterns Charter section 11). When no base URL is configured the
-    // missing-binding client is registered and the viewer renders an explicit capability explanation.
+    // server slice (diff/timeline/rollback execution #1285) is NOT merged; the live client binds what
+    // exists and renders the rest as the established not-yet-available state, never fabricated (Console
+    // Patterns Charter section 11). When no base URL is configured the missing-binding client is registered
+    // and the viewer renders an explicit capability explanation.
     private static void AddTemporalCapabilityClient(
         IServiceCollection services,
         string? honuaServerBaseUrl,
@@ -769,7 +771,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // present; otherwise register it here (TryAdd keeps a single client across both surfaces).
             services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                // 10-min timeout to match the generation clients that share IHonuaContentPublicationClient
+                // (report/dashboard generation), independent of registration order.
+                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
                 return new HonuaContentPublicationHttpClient(
                     httpClient,
                     new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -788,19 +792,30 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
     // Binds the alert RULE definition surface (/operate/alerts/rules and /operate/alerts/rules/{ruleId},
     // honua-console UI-042) to honua-server. The rule LIST reuses the live observability rules projection
-    // (/api/v1/admin/observability, already registered) through ServerOperateAlertRulesDataSource when a
-    // server base address is configured; the rule detail/condition editor and rule save await the alert rule
-    // DEFINITION contract (honua-server#1169) and render an explicit missing-binding state until it ships
-    // (Console Patterns Charter section 11). With no server configured the unsupported source surfaces the
-    // missing-binding state across the list and editor. TryAdd keeps a test/demo provider overridable.
-    private static void AddOperateAlertRulesDataSource(IServiceCollection services, string? honuaServerBaseUrl)
+    // (/api/v1/admin/observability, already registered); the rule detail/condition editor and rule save bind
+    // the SHIPPED alert-rule DEFINITION admin contract (honua-server#1169, /api/v{version}/admin/alerts/rules…)
+    // through HttpConsoleAlertRulesClient (X-API-Key admin auth, ApiResponse<T> envelope), all behind
+    // ServerOperateAlertRulesDataSource when a server base address is configured. With no server configured the
+    // unsupported source surfaces the missing-binding state across the list and editor (Console Patterns
+    // Charter section 11). TryAdd keeps a test/demo provider overridable.
+    private static void AddOperateAlertRulesDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
     {
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            services.TryAddSingleton<IConsoleAlertRulesClient>(serviceProvider =>
+                new HttpConsoleAlertRulesClient(
+                    CreateOperateObservabilityHttpClient(),
+                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    honuaServerAdminApiKey));
+
             services.TryAddSingleton<IOperateAlertRulesDataSource>(serviceProvider =>
                 new ServerOperateAlertRulesDataSource(
-                    serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>()));
+                    serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>(),
+                    serviceProvider.GetRequiredService<IConsoleAlertRulesClient>()));
             return;
         }
 

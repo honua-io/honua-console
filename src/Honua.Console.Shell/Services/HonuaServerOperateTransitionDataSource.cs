@@ -448,7 +448,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
     {
         var serviceName = service.ServiceName!;
         serviceSettings.TryGetValue(serviceName, out var settings);
-        var protocols = (settings?.EnabledProtocols.Count > 0 ? settings.EnabledProtocols : service.EnabledProtocols)
+        var protocols = ((settings?.EnabledProtocols ?? []).Count > 0 ? settings!.EnabledProtocols : service.EnabledProtocols ?? [])
             .Where(protocol => !string.IsNullOrWhiteSpace(protocol))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -577,7 +577,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
 
         if (licenseResult.Data is { } license)
         {
-            var entitlementCount = license.Entitlements.Count(entitlement => entitlement.IsActive == true);
+            var entitlementCount = (license.Entitlements ?? []).Count(entitlement => entitlement.IsActive == true);
             yield return new OperateSettingsChange(
                 "license",
                 "License",

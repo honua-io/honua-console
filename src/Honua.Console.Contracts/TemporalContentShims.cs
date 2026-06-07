@@ -9,22 +9,24 @@ namespace Honua.Console.Contracts;
 // SHIM(honua-server#1166 / honua-server#1167 / honua-sdk-dotnet): honua-server owns the temporal data
 // history API (Honua.Server.Features.Temporal: capability discovery + as-of read, slice 1 of #1166) and
 // the disconnected replica management API (Honua.Server.Features.Admin.ReplicaManagementEndpoints:
-// replica list + detail, slice 1 of #1167). honua-sdk-dotnet does not yet project these as a consumable
-// stable package, and honua-console wires no SDK NuGet feed (see SDK_SHIM_POLICY.md). Per the Console
-// Patterns Charter section 11 and SDK_SHIM_POLICY, the temporal viewer binds through a thin HttpClient
-// behind this single Honua.Console.Contracts boundary: the wire records below mirror the server
-// responses, and the client speaks the real routes. Swap these for SDK types when honua-sdk-dotnet ships
-// a consumable temporal projection and honua-console#7 wires the feed.
+// replica list + detail in slice 1 of #1167, and conflict review + resolution in slice 2 of #1167).
+// honua-sdk-dotnet does not yet project these as a consumable stable package, and honua-console wires no
+// SDK NuGet feed (see SDK_SHIM_POLICY.md). Per the Console Patterns Charter section 11 and
+// SDK_SHIM_POLICY, the temporal viewer binds through a thin HttpClient behind this single
+// Honua.Console.Contracts boundary: the wire records below mirror the server responses, and the client
+// speaks the real routes. Swap these for SDK types when honua-sdk-dotnet ships a consumable temporal
+// projection and honua-console#7 wires the feed.
 //
 // The temporal capability + as-of endpoints return their DTO body directly (Results.Json of the
-// response). The replica management endpoints wrap their payload in the shared ApiResponse<T> envelope
-// ({success,data,message}); this client deserializes each accordingly and maps status semantics
-// (400 validation, 404 not found, 409 conflict/not-supported, 401/403 auth) to issues.
+// response). The replica management endpoints (list/detail and conflict list/detail/resolve) wrap their
+// payload in the shared ApiResponse<T> envelope ({success,data,message}); this client deserializes each
+// accordingly and maps status semantics (400 validation, 404 not found, 409 conflict/already-resolved,
+// 501 not-supported, 401/403 auth) to issues.
 //
-// MERGED SCOPE: #1166 slice 1 (capabilities + as-of) and #1167 slice 1 (replica list + detail). The
-// deferred temporal slices — diff/timeline/rollback execution (#1285) and replica conflict-review
-// (#1287) — are NOT merged; the Console binds what exists and renders the rest as the established
-// not-yet-available state rather than fabricating it.
+// MERGED SCOPE: #1166 slice 1 (capabilities + as-of) and #1167 slices 1+2 (replica list/detail +
+// conflict review/resolution). The deferred temporal slice — diff/timeline/rollback execution (#1285) —
+// is NOT merged; the Console binds what exists and renders the rest as the established not-yet-available
+// state rather than fabricating it.
 public sealed record HonuaTemporalClientOptions(Uri BaseUri, string? ApiKey = null);
 
 public interface IHonuaTemporalClient
@@ -51,6 +53,25 @@ public interface IHonuaTemporalClient
     Task<HonuaAdminEndpointResult<HonuaReplicaManagementDetail>> GetReplicaAsync(
         string serviceId,
         string replicaId,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaReplicaConflictListResponse>> ListReplicaConflictsAsync(
+        string serviceId,
+        string replicaId,
+        string? status,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaReplicaConflictDetail>> GetReplicaConflictAsync(
+        string serviceId,
+        string replicaId,
+        string conflictId,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaReplicaConflictResolutionResponse>> ResolveReplicaConflictAsync(
+        string serviceId,
+        string replicaId,
+        string conflictId,
+        HonuaReplicaConflictResolutionRequest request,
         CancellationToken cancellationToken = default);
 }
 
@@ -151,6 +172,60 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaReplicaConflictListResponse>> ListReplicaConflictsAsync(
+        string serviceId,
+        string replicaId,
+        string? status,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(replicaId);
+
+        var queryString = string.IsNullOrWhiteSpace(status)
+            ? string.Empty
+            : $"?status={Uri.EscapeDataString(status)}";
+
+        return GetEnvelopeAsync<HonuaReplicaConflictListResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/{Uri.EscapeDataString(replicaId)}/conflicts{queryString}",
+            "GET /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaReplicaConflictDetail>> GetReplicaConflictAsync(
+        string serviceId,
+        string replicaId,
+        string conflictId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(replicaId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(conflictId);
+
+        return GetEnvelopeAsync<HonuaReplicaConflictDetail>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/{Uri.EscapeDataString(replicaId)}/conflicts/{Uri.EscapeDataString(conflictId)}",
+            "GET /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts/{conflictId}",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaReplicaConflictResolutionResponse>> ResolveReplicaConflictAsync(
+        string serviceId,
+        string replicaId,
+        string conflictId,
+        HonuaReplicaConflictResolutionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(replicaId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(conflictId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostEnvelopeAsync<HonuaReplicaConflictResolutionRequest, HonuaReplicaConflictResolutionResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceId)}/replicas/{Uri.EscapeDataString(replicaId)}/conflicts/{Uri.EscapeDataString(conflictId)}/resolve",
+            "POST /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts/{conflictId}/resolve",
+            request,
+            cancellationToken);
+    }
+
     public void Dispose() => _httpClient.Dispose();
 
     private static string Layer(int layerId) => layerId.ToString(CultureInfo.InvariantCulture);
@@ -244,12 +319,80 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
             (int)http.StatusCode));
     }
 
-    private async Task<(HttpResponseMessage? Response, HonuaAdminEndpointIssue? Issue)> SendAsync(
+    // The conflict-resolution endpoint is a POST that wraps its payload in the shared ApiResponse<T>
+    // envelope. The request body is the operator-selected resolution; the response is the resolved
+    // conflict detail plus whether a new committed server state was produced.
+    private async Task<HonuaAdminEndpointResult<TResponse>> PostEnvelopeAsync<TRequest, TResponse>(
         string path,
         string contract,
+        TRequest body,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        var (response, transportIssue) = await SendAsync(
+                HttpMethod.Post,
+                path,
+                contract,
+                () => JsonContent.Create(body, options: JsonOptions),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (transportIssue is not null)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(transportIssue);
+        }
+
+        using var http = response!;
+        if (!http.IsSuccessStatusCode)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(CreateIssue(contract, http.StatusCode));
+        }
+
+        HonuaTemporalApiResponse<TResponse>? envelope;
+        try
+        {
+            envelope = await http.Content
+                .ReadFromJsonAsync<HonuaTemporalApiResponse<TResponse>>(JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException ex)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported",
+                contract,
+                $"The Honua server response did not match the expected admin API shape: {ex.Message}",
+                (int)http.StatusCode));
+        }
+
+        if (envelope?.Success == true && envelope.Data is not null)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromData(envelope.Data);
+        }
+
+        return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+            "Unavailable",
+            contract,
+            envelope?.Message ?? "The Honua server response did not include data.",
+            (int)http.StatusCode));
+    }
+
+    private Task<(HttpResponseMessage? Response, HonuaAdminEndpointIssue? Issue)> SendAsync(
+        string path,
+        string contract,
+        CancellationToken cancellationToken) =>
+        SendAsync(HttpMethod.Get, path, contract, content: null, cancellationToken);
+
+    private async Task<(HttpResponseMessage? Response, HonuaAdminEndpointIssue? Issue)> SendAsync(
+        HttpMethod method,
+        string path,
+        string contract,
+        Func<HttpContent>? content,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(method, path);
+        if (content is not null)
+        {
+            request.Content = content();
+        }
+
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -467,4 +610,126 @@ public sealed record HonuaReplicaManagementDetail
 
     [JsonPropertyName("lastSyncGeneration")]
     public long LastSyncGeneration { get; init; }
+}
+
+// --- Wire records mirroring honua-server replica conflict review (ReplicaConflictModels, #1167 slice 2). ---
+
+public sealed record HonuaReplicaConflictListResponse
+{
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("replicaId")]
+    public string ReplicaId { get; init; } = string.Empty;
+
+    [JsonPropertyName("statusFilter")]
+    public string? StatusFilter { get; init; }
+
+    [JsonPropertyName("conflicts")]
+    public HonuaReplicaConflictSummary[] Conflicts { get; init; } = [];
+}
+
+public sealed record HonuaReplicaConflictSummary
+{
+    [JsonPropertyName("conflictId")]
+    public string ConflictId { get; init; } = string.Empty;
+
+    [JsonPropertyName("replicaId")]
+    public string ReplicaId { get; init; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("objectId")]
+    public long ObjectId { get; init; }
+
+    [JsonPropertyName("conflictType")]
+    public string ConflictType { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = string.Empty;
+
+    [JsonPropertyName("serverGeneration")]
+    public long ServerGeneration { get; init; }
+
+    [JsonPropertyName("detectedAt")]
+    public DateTimeOffset DetectedAt { get; init; }
+}
+
+public sealed record HonuaReplicaConflictDetail
+{
+    [JsonPropertyName("conflictId")]
+    public string ConflictId { get; init; } = string.Empty;
+
+    [JsonPropertyName("replicaId")]
+    public string ReplicaId { get; init; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("objectId")]
+    public long ObjectId { get; init; }
+
+    [JsonPropertyName("conflictType")]
+    public string ConflictType { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = string.Empty;
+
+    [JsonPropertyName("syncOperationId")]
+    public string? SyncOperationId { get; init; }
+
+    [JsonPropertyName("deviceId")]
+    public string? DeviceId { get; init; }
+
+    [JsonPropertyName("userId")]
+    public string? UserId { get; init; }
+
+    [JsonPropertyName("serverGeneration")]
+    public long ServerGeneration { get; init; }
+
+    [JsonPropertyName("baseState")]
+    public JsonElement? BaseState { get; init; }
+
+    [JsonPropertyName("clientState")]
+    public JsonElement? ClientState { get; init; }
+
+    [JsonPropertyName("serverState")]
+    public JsonElement? ServerState { get; init; }
+
+    [JsonPropertyName("detectedAt")]
+    public DateTimeOffset DetectedAt { get; init; }
+
+    [JsonPropertyName("resolutionAction")]
+    public string? ResolutionAction { get; init; }
+
+    [JsonPropertyName("resolvedBy")]
+    public string? ResolvedBy { get; init; }
+
+    [JsonPropertyName("resolvedAt")]
+    public DateTimeOffset? ResolvedAt { get; init; }
+
+    [JsonPropertyName("resolvedServerGeneration")]
+    public long? ResolvedServerGeneration { get; init; }
+}
+
+public sealed record HonuaReplicaConflictResolutionRequest
+{
+    [JsonPropertyName("action")]
+    public string? Action { get; init; }
+}
+
+public sealed record HonuaReplicaConflictResolutionResponse
+{
+    [JsonPropertyName("conflict")]
+    public HonuaReplicaConflictDetail? Conflict { get; init; }
+
+    [JsonPropertyName("committedNewServerState")]
+    public bool CommittedNewServerState { get; init; }
 }

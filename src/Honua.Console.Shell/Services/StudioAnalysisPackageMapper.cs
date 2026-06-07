@@ -126,8 +126,10 @@ public static class StudioAnalysisPackageMapper
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        var item = response.Item;
-        var version = response.Version;
+        // Item/Version are non-null-typed with new() initializers but deserialize to null on an explicit
+        // server JSON null, so coalesce before every deref.
+        var item = response.Item ?? new();
+        var version = response.Version ?? new();
         var package = version.AnalysisPackage ?? new HonuaAnalysisPackageContent();
         var metadata = package.Metadata ?? EmptyMetadata;
 
@@ -312,7 +314,7 @@ public static class StudioAnalysisPackageMapper
                 step.StepId,
                 ResolveStepLabel(step, title),
                 step.ProcessId ?? step.Kind,
-                step.DependsOn))
+                step.DependsOn ?? []))
             .ToArray();
     }
 
@@ -459,7 +461,7 @@ public static class StudioAnalysisPackageMapper
             return outputContentType;
         }
 
-        var hint = package.BindingHints.FirstOrDefault()?.TargetKind;
+        var hint = (package.BindingHints ?? []).FirstOrDefault()?.TargetKind;
         if (!string.IsNullOrWhiteSpace(hint)
             && StudioAnalysisOutputContentTypes.All.Contains(hint, StringComparer.OrdinalIgnoreCase))
         {

@@ -237,7 +237,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         }
 
         var policy = result.Data!;
-        return new StudioFormOfflinePolicyView(policy.Enabled, policy.AvailableTransports);
+        return new StudioFormOfflinePolicyView(policy.Enabled, policy.AvailableTransports ?? []);
     }
 
     public async Task<StudioFormAiCapability> GetGenerationCapabilityAsync(CancellationToken cancellationToken = default)
@@ -260,7 +260,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         {
             Enabled = data.Enabled,
             DefaultProvider = data.DefaultProvider,
-            Providers = data.Providers
+            Providers = (data.Providers ?? [])
                 .Select(provider => new StudioFormAiProvider(
                     provider.Id,
                     string.IsNullOrWhiteSpace(provider.Label) ? provider.Id : provider.Label,
@@ -315,22 +315,27 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
 
     private static StudioFormGenerationOutcome MapGeneration(HonuaFormGenerationResult result)
     {
+        // System.Text.Json overrides each non-null initializer with null when the server emits an explicit
+        // JSON null for the key (an omitted key keeps the initializer), so a valid generated/needs-
+        // clarification result commonly arrives with null Issues/UnmappedRequests/Clarifications/Choices.
+        // Coalesce before LINQ — otherwise a normal turn NREs and freezes the page (the same regression
+        // class caught in the report family).
         var warnings = new List<string>();
         if (result.Validation is { } validation)
         {
-            warnings.AddRange(validation.Issues.Where(i => i is not null).Select(i => i.Message));
+            warnings.AddRange((validation.Issues ?? []).Select(i => i.Message));
         }
 
-        warnings.AddRange(result.UnmappedRequests
+        warnings.AddRange((result.UnmappedRequests ?? [])
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .Select(item => $"No matching field for: {item}"));
 
-        var clarifications = result.Clarifications
+        var clarifications = (result.Clarifications ?? [])
             .Select(question => new StudioConversationClarification(
                 question.Id,
                 string.IsNullOrWhiteSpace(question.Prompt) ? question.Kind : question.Prompt,
                 question.Reason ?? string.Empty,
-                question.Choices
+                (question.Choices ?? [])
                     .Select(choice => new StudioConversationChoice(choice.Id, choice.Label, choice.Effect))
                     .ToArray()))
             .ToArray();
