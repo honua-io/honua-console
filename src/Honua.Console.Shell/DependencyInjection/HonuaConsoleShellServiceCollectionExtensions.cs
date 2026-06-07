@@ -57,7 +57,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddEsriMigrationRunDataSource(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddOperateAlertRulesDataSource(services, honuaServerBaseUrl);
+        AddOperateAlertRulesDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateLayerStyleOverrideDataSource(services);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
@@ -792,19 +792,30 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
     // Binds the alert RULE definition surface (/operate/alerts/rules and /operate/alerts/rules/{ruleId},
     // honua-console UI-042) to honua-server. The rule LIST reuses the live observability rules projection
-    // (/api/v1/admin/observability, already registered) through ServerOperateAlertRulesDataSource when a
-    // server base address is configured; the rule detail/condition editor and rule save await the alert rule
-    // DEFINITION contract (honua-server#1169) and render an explicit missing-binding state until it ships
-    // (Console Patterns Charter section 11). With no server configured the unsupported source surfaces the
-    // missing-binding state across the list and editor. TryAdd keeps a test/demo provider overridable.
-    private static void AddOperateAlertRulesDataSource(IServiceCollection services, string? honuaServerBaseUrl)
+    // (/api/v1/admin/observability, already registered); the rule detail/condition editor and rule save bind
+    // the SHIPPED alert-rule DEFINITION admin contract (honua-server#1169, /api/v{version}/admin/alerts/rules…)
+    // through HttpConsoleAlertRulesClient (X-API-Key admin auth, ApiResponse<T> envelope), all behind
+    // ServerOperateAlertRulesDataSource when a server base address is configured. With no server configured the
+    // unsupported source surfaces the missing-binding state across the list and editor (Console Patterns
+    // Charter section 11). TryAdd keeps a test/demo provider overridable.
+    private static void AddOperateAlertRulesDataSource(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
     {
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
+            services.TryAddSingleton<IConsoleAlertRulesClient>(serviceProvider =>
+                new HttpConsoleAlertRulesClient(
+                    CreateOperateObservabilityHttpClient(),
+                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    honuaServerAdminApiKey));
+
             services.TryAddSingleton<IOperateAlertRulesDataSource>(serviceProvider =>
                 new ServerOperateAlertRulesDataSource(
-                    serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>()));
+                    serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>(),
+                    serviceProvider.GetRequiredService<IConsoleAlertRulesClient>()));
             return;
         }
 

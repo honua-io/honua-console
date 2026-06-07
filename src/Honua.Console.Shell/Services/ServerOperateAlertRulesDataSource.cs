@@ -1,38 +1,36 @@
+using System.Globalization;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
 /// Server-bound implementation of <see cref="IOperateAlertRulesDataSource"/>. The rule LIST reads the live
-/// realtime/alert rules the connected honua-server already advertises through
+/// realtime/alert rules the connected honua-server advertises through
 /// <see cref="IConsoleOperateObservabilityClient.GetRulesAsync"/> (the shipped
-/// <c>/api/v1/admin/observability</c> rules projection), so the list surface binds real data when an
-/// environment is connected. The rule DETAIL/condition editor and the rule SAVE write require the alert rule
-/// DEFINITION contract (honua-server#1169), which has not shipped; until it does, those operations return an
-/// explicit missing-binding state rather than fabricating an editable condition (Console Patterns Charter
-/// section 11). When honua-server#1169 lands, wire its read/write here behind the same observability HTTP
-/// boundary and drop the missing-binding fallbacks.
+/// <c>/api/v1/admin/observability</c> rules projection). The rule DETAIL/condition editor and the rule SAVE
+/// write bind the SHIPPED alert-rule DEFINITION admin contract (honua-server#1169,
+/// <c>/api/v{version}/admin/alerts/rules…</c>) through <see cref="IConsoleAlertRulesClient"/>: a rule read
+/// hydrates the editor from <c>GET /rules/{ruleId}</c> (+ <c>/health</c>); a save validates the draft via
+/// <c>POST /rules/test</c> and persists with <c>PUT /rules/{ruleId}</c>. On any failure (404/forbidden/
+/// unreachable/unsupported) or a draft that fails validation, the operation returns the appropriate
+/// <see cref="OperateAlertRulesBindingState"/> (or a blocked save) and never fabricates a rule or condition
+/// (Console Patterns Charter section 11).
 /// </summary>
 public sealed class ServerOperateAlertRulesDataSource : IOperateAlertRulesDataSource
 {
     private const string Surface = "Alert rules";
-
-    // The list binds live; the editor + save await the alert rule definition/condition contract.
-    private const string DefinitionContract = "honua-server#1169";
-
-    private static readonly OperateAlertRulesBindingState DefinitionMissing = new(
-        Surface,
-        OperateAlertRulesBindingState.MissingBinding,
-        DefinitionContract,
-        "The connected honua-server lists alert rules but does not yet expose the rule definition / condition "
-        + "editor contract (honua-server#1169). The rule list is live; the condition editor and rule save "
-        + "activate once that contract ships. Console will not fabricate an editable condition.");
+    private const string DefinitionContract = "honua-server#1169 / /api/v1/admin/alerts/rules";
 
     private readonly IConsoleOperateObservabilityClient _observability;
+    private readonly IConsoleAlertRulesClient _rules;
 
-    public ServerOperateAlertRulesDataSource(IConsoleOperateObservabilityClient observability)
+    public ServerOperateAlertRulesDataSource(
+        IConsoleOperateObservabilityClient observability,
+        IConsoleAlertRulesClient rules)
     {
         _observability = observability ?? throw new ArgumentNullException(nameof(observability));
+        _rules = rules ?? throw new ArgumentNullException(nameof(rules));
     }
 
     public async Task<OperateAlertRulesView> GetRulesAsync(CancellationToken cancellationToken = default)
@@ -41,30 +39,154 @@ public sealed class ServerOperateAlertRulesDataSource : IOperateAlertRulesDataSo
         if (!result.IsAllowed || result.Value is null)
         {
             // Map the section status to the rules binding vocabulary so the list renders the explanation.
-            return new OperateAlertRulesView([], new OperateAlertRulesBindingState(
-                Surface,
-                MapStatus(result.Status),
-                "honua-server#1169 / /api/v1/admin/observability",
-                string.IsNullOrWhiteSpace(result.Message)
-                    ? OperateSectionPresentation.FallbackMessage(result.Status)
-                    : result.Message));
+            return new OperateAlertRulesView([], BindingState(result.Status, result.Message));
         }
 
         return new OperateAlertRulesView(result.Value.Rules);
     }
 
-    public Task<OperateAlertRuleDetailView> GetRuleAsync(
+    public async Task<OperateAlertRuleDetailView> GetRuleAsync(
         string ruleId,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(new OperateAlertRuleDetailView(Rule: null, DefinitionMissing));
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryParseRuleId(ruleId, out var id))
+        {
+            return new OperateAlertRuleDetailView(
+                Rule: null,
+                new OperateAlertRulesBindingState(
+                    Surface,
+                    OperateAlertRulesBindingState.MissingBinding,
+                    DefinitionContract,
+                    $"Alert rule '{ruleId}' is not a valid rule identifier."));
+        }
 
-    public Task<OperateAlertRuleSaveResult> SaveRuleAsync(
+        var ruleResult = await _rules.GetRuleAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!ruleResult.IsAllowed || ruleResult.Value is null)
+        {
+            return new OperateAlertRuleDetailView(Rule: null, BindingState(ruleResult.Status, ruleResult.Message));
+        }
+
+        var rule = ruleResult.Value;
+
+        // Health (delivery-state, last-evaluated, incident/failure counts) and the
+        // draft validation (errors/warnings/per-channel delivery state) are
+        // independent sub-reads; degrade gracefully if either is absent so the
+        // editor still renders the persisted rule + condition.
+        var healthTask = _rules.GetRuleHealthAsync(id, cancellationToken);
+        var validationTask = _rules.TestRuleAsync(ToRequest(rule), cancellationToken);
+        await Task.WhenAll(healthTask, validationTask).ConfigureAwait(false);
+
+        var healthResult = await healthTask.ConfigureAwait(false);
+        var validationResult = await validationTask.ConfigureAwait(false);
+
+        var definition = OperateAlertRuleMapper.MapDefinition(
+            rule,
+            healthResult.IsAllowed ? healthResult.Value : null,
+            validationResult.IsAllowed ? validationResult.Value : null);
+
+        return new OperateAlertRuleDetailView(definition);
+    }
+
+    public async Task<OperateAlertRuleSaveResult> SaveRuleAsync(
         OperateAlertRuleEdit edit,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(edit);
-        return Task.FromResult(OperateAlertRuleSaveResult.Blocked(DefinitionMissing));
+
+        if (!TryParseRuleId(edit.RuleId, out var id))
+        {
+            return OperateAlertRuleSaveResult.Blocked(new OperateAlertRulesBindingState(
+                Surface,
+                OperateAlertRulesBindingState.MissingBinding,
+                DefinitionContract,
+                $"Alert rule '{edit.RuleId}' is not a valid rule identifier."));
+        }
+
+        // The editor authors only name/enablement/condition/channels; the immutable
+        // fields (service/layer/cooldown/severity/edition) come from the persisted
+        // rule, so a save reads the current rule first and overlays the edit.
+        var currentResult = await _rules.GetRuleAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!currentResult.IsAllowed || currentResult.Value is null)
+        {
+            return OperateAlertRuleSaveResult.Blocked(BindingState(currentResult.Status, currentResult.Message));
+        }
+
+        if (!OperateAlertRuleMapper.TryBuildRequest(edit, currentResult.Value, out var request, out var buildError))
+        {
+            // The edited condition cannot be represented on the wire faithfully;
+            // report the honest validation reason rather than guessing a payload.
+            return OperateAlertRuleSaveResult.Blocked(new OperateAlertRulesBindingState(
+                Surface,
+                OperateAlertRulesBindingState.MissingBinding,
+                DefinitionContract,
+                buildError));
+        }
+
+        // Pre-validate the draft via /rules/test: a draft that fails validation must
+        // not be persisted, and the editor surfaces the full error/warning list.
+        var validationResult = await _rules.TestRuleAsync(request, cancellationToken).ConfigureAwait(false);
+        if (validationResult.IsAllowed && validationResult.Value is { IsValid: false } invalid)
+        {
+            return OperateAlertRuleSaveResult.Blocked(new OperateAlertRulesBindingState(
+                Surface,
+                OperateAlertRulesBindingState.MissingBinding,
+                DefinitionContract,
+                BuildValidationDetail(invalid)));
+        }
+
+        var saveResult = await _rules.SaveRuleAsync(id, request, cancellationToken).ConfigureAwait(false);
+        if (!saveResult.IsAllowed || saveResult.Value is null)
+        {
+            return OperateAlertRuleSaveResult.Blocked(BindingState(saveResult.Status, saveResult.Message));
+        }
+
+        // Hydrate the persisted rule's editor view (health is best-effort).
+        var healthResult = await _rules.GetRuleHealthAsync(id, cancellationToken).ConfigureAwait(false);
+        var definition = OperateAlertRuleMapper.MapDefinition(
+            saveResult.Value,
+            healthResult.IsAllowed ? healthResult.Value : null,
+            validationResult.IsAllowed ? validationResult.Value : null);
+
+        return new OperateAlertRuleSaveResult(definition);
     }
+
+    private static AlertRuleRequest ToRequest(AlertRuleResponse rule) => new()
+    {
+        ServiceId = rule.ServiceId,
+        LayerId = rule.LayerId,
+        ZoneId = rule.ZoneId,
+        RuleName = rule.RuleName,
+        TriggerType = rule.TriggerType,
+        ConditionsJson = string.IsNullOrWhiteSpace(rule.ConditionsJson) ? "{}" : rule.ConditionsJson,
+        CooldownSeconds = rule.CooldownSeconds,
+        Severity = string.IsNullOrWhiteSpace(rule.Severity) ? "warning" : rule.Severity,
+        EditionRequired = string.IsNullOrWhiteSpace(rule.EditionRequired) ? "pro" : rule.EditionRequired,
+        Channels = (rule.Channels ?? []).ToArray(),
+        IsActive = rule.IsActive
+    };
+
+    private static string BuildValidationDetail(AlertRuleTestResponse validation)
+    {
+        var errors = (validation.Errors ?? []).Where(message => !string.IsNullOrWhiteSpace(message)).ToArray();
+        if (errors.Length > 0)
+        {
+            return "The alert rule could not be saved: " + string.Join(" ", errors);
+        }
+
+        return "The alert rule draft failed server validation and was not saved.";
+    }
+
+    private static OperateAlertRulesBindingState BindingState(OperateSectionStatus status, string message) =>
+        new(
+            Surface,
+            MapStatus(status),
+            DefinitionContract,
+            string.IsNullOrWhiteSpace(message)
+                ? OperateSectionPresentation.FallbackMessage(status)
+                : message);
+
+    private static bool TryParseRuleId(string? ruleId, out long id) =>
+        long.TryParse((ruleId ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out id);
 
     private static string MapStatus(OperateSectionStatus status) => status switch
     {
