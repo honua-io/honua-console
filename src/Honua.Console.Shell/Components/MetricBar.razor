@@ -1,0 +1,27 @@
+@using Honua.Console.Shell.Models
+
+@* A scannable utilization/ratio bar with no charting library: a div whose width is
+   the clamped percentage, color-coded by the metric's OperateStatus, plus the raw
+   display value. Renders a neutral "no data" bar when the server omitted telemetry. *@
+<div class="operate-metric-bar-row">
+    <div class="operate-metric-bar-header">
+        <span class="operate-metric-bar-label">@Label</span>
+        <span class="operate-metric-bar-value">@Bar.DisplayValue</span>
+    </div>
+    <div class="operate-progress operate-progress-large operate-metric-bar @Bar.Status.CssClass"
+         role="img"
+         aria-label="@($"{Label}: {Bar.DisplayValue}")">
+        @if (Bar.HasData)
+        {
+            <span style="@($"width: {Bar.ClampedWidth}%")"></span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required OperateMetricBar Bar { get; set; }
+
+    [Parameter, EditorRequired]
+    public required string Label { get; set; }
+}

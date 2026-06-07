@@ -87,6 +87,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
+        // Operate metrics binds to the connected honua-server's production-monitoring
+        // endpoints (group /monitoring, admin-authorized, bare JSON — NO ApiResponse
+        // envelope) via a thin typed HttpClient behind Honua.Console.Contracts. No
+        // standing in-memory metrics source is registered (Console Patterns Charter
+        // section 11); each metric activates against live data when an environment is
+        // connected, else the surface renders an honest per-section missing-binding
+        // state. The admin API key is sent as X-API-Key. The aggregator loads every
+        // metric in parallel into one snapshot, each carrying its own section status.
+        services.TryAddSingleton<IConsoleMonitoringMetricsClient>(serviceProvider =>
+            new HttpConsoleMonitoringMetricsClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                honuaServerAdminApiKey));
+        services.TryAddSingleton<IOperateMetricsDataSource>(serviceProvider =>
+            new OperateMetricsDataSource(
+                serviceProvider.GetRequiredService<IConsoleMonitoringMetricsClient>()));
+
         // In-product support loop (#164). The ticket client binds to the
         // honua-support API (POST/GET /api/v1/tickets) through the
         // Honua.Console.Contracts shim, with the bearer token from the active
