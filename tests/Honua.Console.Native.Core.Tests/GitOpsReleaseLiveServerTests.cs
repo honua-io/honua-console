@@ -93,9 +93,12 @@ public sealed class GitOpsReleaseLiveServerTests
             profiles,
             adminApiKey: null);
 
-        // The list surface honestly reports the server has no list endpoint.
+        // The list surface binds the live release-package list endpoint. On a fresh
+        // database it returns an allowed-but-empty list (endpoint present, no packages),
+        // never the Unsupported state a server lacking the endpoint would yield.
         var list = await client.GetReleaseProposalsAsync();
-        Assert.Equal(OperateSectionStatus.Unsupported, list.Status);
+        Assert.Equal(OperateSectionStatus.Allowed, list.Status);
+        Assert.NotNull(list.Value);
 
         // An unknown release package id hits the live GET endpoint, which exists and
         // returns 404 -> mapped to Missing. A server WITHOUT the contract would 404 the

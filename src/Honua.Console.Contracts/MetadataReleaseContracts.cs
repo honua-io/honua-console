@@ -12,13 +12,14 @@ namespace Honua.Console.Contracts;
 //
 // Route map (concrete v1), all under /api/v1/admin/metadata, admin-authorized
 // (X-API-Key):
+//   GET /release-packages                                   -> MetadataReleasePackageListResponse (list)
 //   GET /release-packages/{packageId:guid}                  -> MetadataReleasePackageResponse   (#1163)
 //   GET /release-packages/{packageId:guid}/gitops-manifest  -> GitOpsMetadataReleaseManifestResponse (#1163)
 //   GET /releases/{packageId}/operation                     -> DeployOperationResponse          (#1165)
 //
 // JSON on the wire is camelCase; enums serialize as kebab/lower string members.
-// There is intentionally NO list endpoint: release packages are addressed by id,
-// so the Console release surface drives a single release package by its id.
+// The release-package list endpoint returns lightweight summaries (no per-package
+// entry graph); the by-id detail read hydrates the full proposal/diff/matrix.
 
 /// <summary>
 /// Concrete v1 routes for the GitOps metadata release contracts, kept in one place
@@ -27,6 +28,9 @@ namespace Honua.Console.Contracts;
 public static class MetadataReleaseAdminRoutes
 {
     public const string Prefix = "api/v1/admin/metadata";
+
+    public static string ReleasePackages() =>
+        $"{Prefix}/release-packages";
 
     public static string ReleasePackage(Guid packageId) =>
         $"{Prefix}/release-packages/{packageId:D}";
@@ -139,6 +143,73 @@ public sealed record MetadataObjectMetadataResponse
 
     [JsonPropertyName("description")]
     public string? Description { get; init; }
+}
+
+/// <summary>
+/// Lightweight release-package summary returned by the list endpoint. Secret-safe:
+/// carries only package identity, lifecycle, source/target environments, and coarse
+/// counts (no per-package entry graph). The full proposal/diff/matrix is hydrated by
+/// the by-id detail read.
+/// </summary>
+public sealed record MetadataReleasePackageSummaryResponse
+{
+    [JsonPropertyName("packageId")]
+    public Guid PackageId { get; init; }
+
+    [JsonPropertyName("packageKey")]
+    public string PackageKey { get; init; } = string.Empty;
+
+    [JsonPropertyName("namespace")]
+    public string? Namespace { get; init; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; init; }
+
+    [JsonPropertyName("summary")]
+    public string? Summary { get; init; }
+
+    [JsonPropertyName("sourceEnvironment")]
+    public string SourceEnvironment { get; init; } = string.Empty;
+
+    [JsonPropertyName("sourceRevision")]
+    public long SourceRevision { get; init; }
+
+    [JsonPropertyName("targetEnvironments")]
+    public IReadOnlyList<string> TargetEnvironments { get; init; } = [];
+
+    [JsonPropertyName("entryCount")]
+    public int EntryCount { get; init; }
+
+    [JsonPropertyName("status")]
+    public MetadataReleasePackageStatusWire Status { get; init; } = MetadataReleasePackageStatusWire.Draft;
+
+    [JsonPropertyName("createdBy")]
+    public string CreatedBy { get; init; } = string.Empty;
+
+    [JsonPropertyName("createdAt")]
+    public DateTimeOffset CreatedAt { get; init; }
+
+    [JsonPropertyName("updatedAt")]
+    public DateTimeOffset UpdatedAt { get; init; }
+}
+
+/// <summary>Paged list of metadata release-package summaries.</summary>
+public sealed record MetadataReleasePackageListResponse
+{
+    [JsonPropertyName("generatedAt")]
+    public DateTimeOffset GeneratedAt { get; init; }
+
+    [JsonPropertyName("items")]
+    public IReadOnlyList<MetadataReleasePackageSummaryResponse> Items { get; init; } = [];
+
+    [JsonPropertyName("count")]
+    public int Count { get; init; }
+
+    [JsonPropertyName("limit")]
+    public int Limit { get; init; }
+
+    [JsonPropertyName("offset")]
+    public int Offset { get; init; }
 }
 
 /// <summary>Persisted metadata release package (#1163).</summary>
@@ -434,6 +505,7 @@ public sealed record MetadataEvidenceRefResponse
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(MetadataReleasePackageListResponse))]
 [JsonSerializable(typeof(MetadataReleasePackageResponse))]
 [JsonSerializable(typeof(GitOpsMetadataReleaseManifestResponse))]
 [JsonSerializable(typeof(DeployOperationResponse))]

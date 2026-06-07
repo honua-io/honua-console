@@ -44,6 +44,36 @@ internal static class GitOpsReleaseMapper
     }
 
     /// <summary>
+    /// Maps a lightweight release-package summary (list endpoint) into a proposal for
+    /// the GitOps Releases list. The summary carries no per-package entry graph, so the
+    /// changed-resource set is empty and rollback classification is unknown here; the
+    /// full proposal/diff/matrix/rollback hydrates on drill-down via the by-id detail
+    /// read. <c>HasBlockingFindings</c> stays false (blockers are an operation-level
+    /// determination not available from the summary).
+    /// </summary>
+    public static GitOpsReleaseProposal MapProposal(MetadataReleasePackageSummaryResponse summary)
+    {
+        ArgumentNullException.ThrowIfNull(summary);
+
+        var id = summary.PackageId.ToString("D");
+        var title = FirstNonBlank(summary.Title, summary.PackageKey, $"Release {id}");
+        var description = FirstNonBlank(
+            summary.Summary,
+            $"Promote {summary.EntryCount.ToString(System.Globalization.CultureInfo.InvariantCulture)} semantic resources from {summary.SourceEnvironment}.");
+
+        return new GitOpsReleaseProposal(
+            ReleasePackageId: id,
+            Title: title,
+            Summary: description,
+            SourceEnvironmentId: summary.SourceEnvironment,
+            TargetEnvironmentIds: summary.TargetEnvironments ?? [],
+            DesiredRevision: $"rev-{summary.SourceRevision.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+            ChangedResources: [],
+            RollbackClassification: GitOpsRollbackClassification.Unknown,
+            HasBlockingFindings: false);
+    }
+
+    /// <summary>
     /// Builds the environment matrix from the per-entry target states. One cell per
     /// (target environment, entry) combination; the worst drift per environment drives
     /// the matrix presentation.

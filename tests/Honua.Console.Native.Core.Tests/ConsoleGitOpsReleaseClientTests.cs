@@ -17,18 +17,46 @@ public sealed class ConsoleGitOpsReleaseClientTests
     private static readonly Guid PackageId = Guid.Parse("11111111-2222-3333-4444-555555555555");
 
     [Fact]
-    public async Task ProposalListReportsNoServerListEndpointInsteadOfFabricatingData()
+    public async Task ProposalListBindsLiveReleasePackageListEndpoint()
     {
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath.EndsWith("/release-packages", StringComparison.Ordinal)
+            ? JsonResponse(BuildList(), MetadataReleaseJsonContext.Default.MetadataReleasePackageListResponse)
+            : new HttpResponseMessage(HttpStatusCode.NotFound));
+        var client = CreateClient(handler, adminApiKey: "admin-key");
+
+        var result = await client.GetReleaseProposalsAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var proposals = result.Value!;
+        Assert.Equal(2, proposals.Count);
+
+        // Lightweight list-view proposal mapped from the summary (title, environments,
+        // desired revision). The full diff/matrix is only loaded on drill-down.
+        var ready = Assert.Single(proposals, p => p.ReleasePackageId == PackageId.ToString("D"));
+        Assert.Equal("Promote parcels", ready.Title);
+        Assert.Equal("staging", ready.SourceEnvironmentId);
+        Assert.Contains("prod", ready.TargetEnvironmentIds);
+        Assert.Equal("rev-77", ready.DesiredRevision);
+        Assert.Empty(ready.ChangedResources);
+
+        // The list call carries admin auth and hits the collection route (not by-id).
+        var listRequest = Assert.Single(handler.Requests);
+        Assert.EndsWith("/release-packages", listRequest.RequestUri!.AbsolutePath, StringComparison.Ordinal);
+        Assert.True(listRequest.Headers.TryGetValues("X-API-Key", out var keys) && keys.Single() == "admin-key");
+    }
+
+    [Fact]
+    public async Task ProposalListSurfacesServerFailureHonestly()
+    {
+        // A server that does not expose the list route (or denies it) is reported as
+        // the mapped failure status rather than a fabricated list (charter §11).
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotImplemented));
         var client = CreateClient(handler);
 
         var result = await client.GetReleaseProposalsAsync();
 
-        // Charter §11: the server has no list endpoint, so the surface honestly
-        // reports it as unsupported rather than returning a standing mock list.
         Assert.Equal(OperateSectionStatus.Unsupported, result.Status);
-        Assert.Empty(handler.Requests);
-        Assert.Contains("does not expose a release-package list endpoint", result.Message, StringComparison.Ordinal);
+        Assert.Null(result.Value);
     }
 
     [Fact]
@@ -201,6 +229,46 @@ public sealed class ConsoleGitOpsReleaseClientTests
         var profiles = new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id);
         return new HttpConsoleGitOpsReleaseClient(new HttpClient(handler), profiles, adminApiKey);
     }
+
+    private static MetadataReleasePackageListResponse BuildList() => new()
+    {
+        GeneratedAt = DateTimeOffset.Parse("2026-05-24T20:00:00Z"),
+        Count = 2,
+        Limit = 50,
+        Offset = 0,
+        Items =
+        [
+            new MetadataReleasePackageSummaryResponse
+            {
+                PackageId = PackageId,
+                PackageKey = "promote-parcels",
+                Title = "Promote parcels",
+                Summary = "Promote the parcels field contract change to prod.",
+                SourceEnvironment = "staging",
+                SourceRevision = 77,
+                TargetEnvironments = ["prod"],
+                EntryCount = 1,
+                Status = MetadataReleasePackageStatusWire.Ready,
+                CreatedBy = "operator.live",
+                CreatedAt = DateTimeOffset.Parse("2026-05-24T19:00:00Z"),
+                UpdatedAt = DateTimeOffset.Parse("2026-05-24T19:30:00Z")
+            },
+            new MetadataReleasePackageSummaryResponse
+            {
+                PackageId = Guid.Parse("99999999-8888-7777-6666-555555555555"),
+                PackageKey = "promote-roads",
+                // No title -> falls back to the package key.
+                SourceEnvironment = "dev",
+                SourceRevision = 12,
+                TargetEnvironments = ["staging", "prod"],
+                EntryCount = 3,
+                Status = MetadataReleasePackageStatusWire.Draft,
+                CreatedBy = "operator.live",
+                CreatedAt = DateTimeOffset.Parse("2026-05-23T10:00:00Z"),
+                UpdatedAt = DateTimeOffset.Parse("2026-05-23T10:30:00Z")
+            }
+        ]
+    };
 
     private static MetadataReleasePackageResponse BuildPackage() => new()
     {
