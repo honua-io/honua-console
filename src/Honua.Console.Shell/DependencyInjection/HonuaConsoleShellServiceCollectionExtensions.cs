@@ -701,15 +701,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
     // honua-server's temporal data history API (#1166 slice 1: capability discovery + as-of read) and the
-    // disconnected replica management API (#1167 slice 1: replica list + detail) through the
-    // IHonuaTemporalClient shim when a server base address is configured. The temporal API is per
-    // service/layer with no enumeration verb, so — like the publishing workspace keying off configured
-    // publication ids — the viewer is keyed by a configured list of candidate sources
+    // disconnected replica management API (#1167 slice 1: replica list + detail; slice 2: conflict review +
+    // resolution) through the IHonuaTemporalClient shim when a server base address is configured. The
+    // temporal API is per service/layer with no enumeration verb, so — like the publishing workspace keying
+    // off configured publication ids — the viewer is keyed by a configured list of candidate sources
     // (Honua:Server:TemporalSources / HONUA_SERVER_TEMPORAL_SOURCES, "serviceId:layerId"). The deferred
-    // server slices (diff/timeline/rollback execution #1285, replica conflict-review #1287) are NOT merged;
-    // the live client binds what exists and renders the rest as the established not-yet-available state,
-    // never fabricated (Console Patterns Charter section 11). When no base URL is configured the
-    // missing-binding client is registered and the viewer renders an explicit capability explanation.
+    // server slice (diff/timeline/rollback execution #1285) is NOT merged; the live client binds what
+    // exists and renders the rest as the established not-yet-available state, never fabricated (Console
+    // Patterns Charter section 11). When no base URL is configured the missing-binding client is registered
+    // and the viewer renders an explicit capability explanation.
     private static void AddTemporalCapabilityClient(
         IServiceCollection services,
         string? honuaServerBaseUrl,
