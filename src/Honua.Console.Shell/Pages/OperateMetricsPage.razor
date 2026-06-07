@@ -1,0 +1,378 @@
+@page "/operate/metrics"
+@using Honua.Console.Shell.Components
+@inject IOperateMetricsDataSource MetricsData
+
+<section class="console-page console-operate-page">
+    <div class="console-page-heading operate-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Operate Metrics</h1>
+        <p>
+            Quantitative server performance and health at a glance: connection-pool and query-admission saturation,
+            cache hit ratio, memory and GC pressure, the upload queue, database resilience, and the comprehensive
+            health report. Bound to the connected honua-server production-monitoring API; each metric degrades on its
+            own and renders an honest missing-binding state when unavailable.
+        </p>
+    </div>
+
+    <nav class="operate-section-nav" aria-label="Operate metrics sections">
+        <a href="#connection-pool">Connection pool</a>
+        <a href="#cache">Cache</a>
+        <a href="#resources">Memory and GC</a>
+        <a href="#upload-queue">Upload queue</a>
+        <a href="#database-resilience">Database resilience</a>
+        <a href="#health">Health checks</a>
+    </nav>
+
+    @if (!_loaded || _snapshot is null)
+    {
+        <OperateSectionStatusPanel Heading="Server metrics" Loading="true" />
+    }
+    else
+    {
+        @if (_snapshot.IsEntirelyUnbound)
+        {
+            <OperateSectionStatusPanel Heading="Server metrics"
+                Status="_snapshot.ConnectionPool.Status"
+                Message="@_snapshot.ConnectionPool.Message" />
+        }
+
+        <section id="connection-pool" class="operate-section" aria-labelledby="connection-pool-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Database connection pool</p>
+                    <h2 id="connection-pool-heading">Connection Pool And Query Admission</h2>
+                </div>
+            </div>
+
+            @if (!_snapshot.ConnectionPool.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Connection pool"
+                    Status="_snapshot.ConnectionPool.Status"
+                    Message="@_snapshot.ConnectionPool.Message" />
+            }
+            else
+            {
+                var pool = _snapshot.ConnectionPool.Value!;
+                <div class="console-panel-grid">
+                    <article class="console-panel operate-metric-card">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>Pool utilization</h3>
+                                <p class="console-muted">@pool.Timestamp</p>
+                            </div>
+                            <span class="console-status @pool.Health.CssClass">@pool.HealthLabel</span>
+                        </div>
+                        <MetricBar Bar="pool.Utilization" Label="Utilization" />
+                        <dl class="console-definition-list">
+                            <dt>Total failures</dt>
+                            <dd>@pool.TotalFailures</dd>
+                            <dt>Total timeouts</dt>
+                            <dd>@pool.TotalTimeouts</dd>
+                        </dl>
+                    </article>
+
+                    @if (pool.QueryAdmission is { } admission)
+                    {
+                        <article class="console-panel operate-metric-card">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <h3>Query admission</h3>
+                                    <p class="console-muted">@(admission.AdaptiveEnabled ? "adaptive" : "fixed") concurrency control</p>
+                                </div>
+                                <span class="console-status @admission.SlotUtilization.Status.CssClass">@admission.SlotUtilization.Status.Label</span>
+                            </div>
+                            <MetricBar Bar="admission.SlotUtilization" Label="In-flight vs limit" />
+                            <dl class="console-definition-list">
+                                <dt>Current limit</dt>
+                                <dd>@admission.CurrentLimit (min @admission.MinLimit, max @admission.MaxLimit)</dd>
+                                <dt>In flight</dt>
+                                <dd>@admission.InFlight</dd>
+                                <dt>Available slots</dt>
+                                <dd>@admission.AvailableSlots</dd>
+                                <dt>Queued waiters</dt>
+                                <dd>@admission.QueuedWaiters</dd>
+                                <dt>Lease duration EWMA</dt>
+                                <dd>@FormatMs(admission.DurationEwmaMs) (target @FormatMs(admission.TargetDurationMs))</dd>
+                                <dt>Queue wait EWMA</dt>
+                                <dd>@FormatMs(admission.QueueWaitEwmaMs)</dd>
+                                <dt>Adjustments</dt>
+                                <dd>@admission.AdjustmentCount (last: @admission.LastAdjustmentDirection)</dd>
+                            </dl>
+                        </article>
+                    }
+                    else
+                    {
+                        <article class="console-panel operate-metric-card">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <h3>Query admission</h3>
+                                </div>
+                                <span class="console-status console-state-neutral">not reported</span>
+                            </div>
+                            <p class="console-muted">The active provider does not expose query admission-control telemetry.</p>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section id="cache" class="operate-section" aria-labelledby="cache-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Cache performance</p>
+                    <h2 id="cache-heading">Cache Hit Ratio</h2>
+                </div>
+            </div>
+
+            @if (!_snapshot.Cache.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Cache" Status="_snapshot.Cache.Status" Message="@_snapshot.Cache.Message" />
+            }
+            else
+            {
+                var cache = _snapshot.Cache.Value!;
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Hit ratio</h3>
+                            <p class="console-muted">@cache.Timestamp</p>
+                        </div>
+                        <span class="console-status @cache.Health.CssClass">@cache.Health.Label</span>
+                    </div>
+                    <MetricBar Bar="cache.HitRatio" Label="Hit ratio" />
+
+                    @if (cache.Recommendations.Count > 0)
+                    {
+                        <section class="operate-metric-recommendations">
+                            <strong>Tuning recommendations</strong>
+                            <ul>
+                                @foreach (var recommendation in cache.Recommendations)
+                                {
+                                    <li>@recommendation</li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                    else
+                    {
+                        <p class="console-muted">The server reported no cache tuning recommendations.</p>
+                    }
+                </article>
+            }
+        </section>
+
+        <section id="resources" class="operate-section" aria-labelledby="resources-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">System resources</p>
+                    <h2 id="resources-heading">Memory And Garbage Collection</h2>
+                </div>
+            </div>
+
+            @if (!_snapshot.Resources.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Resources" Status="_snapshot.Resources.Status" Message="@_snapshot.Resources.Message" />
+            }
+            else
+            {
+                var resources = _snapshot.Resources.Value!;
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Memory usage</h3>
+                            <p class="console-muted">@resources.Timestamp</p>
+                        </div>
+                        <span class="console-status @resources.PressureStatus.CssClass">@resources.MemoryPressureLevel</span>
+                    </div>
+                    <dl class="console-definition-list">
+                        <dt>Working set</dt>
+                        <dd>@resources.MemoryUsageMB MB</dd>
+                        <dt>Memory pressure</dt>
+                        <dd><span class="console-status @resources.PressureStatus.CssClass">@resources.MemoryPressureLevel</span></dd>
+                        <dt>GC managed heap</dt>
+                        <dd>@FormatBytes(resources.GcTotalMemoryBytes)</dd>
+                        <dt>GC collections</dt>
+                        <dd>gen0 @resources.Gen0Collections, gen1 @resources.Gen1Collections, gen2 @resources.Gen2Collections</dd>
+                    </dl>
+                </article>
+            }
+        </section>
+
+        <section id="upload-queue" class="operate-section" aria-labelledby="upload-queue-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">File upload queue</p>
+                    <h2 id="upload-queue-heading">Upload Queue Depth</h2>
+                </div>
+            </div>
+
+            @if (!_snapshot.UploadQueue.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Upload queue" Status="_snapshot.UploadQueue.Status" Message="@_snapshot.UploadQueue.Message" />
+            }
+            else
+            {
+                var queue = _snapshot.UploadQueue.Value!;
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Queue depth</h3>
+                            <p class="console-muted">@queue.Timestamp</p>
+                        </div>
+                        <span class="console-status @queue.Health.CssClass">@queue.Health.Label</span>
+                    </div>
+                    <MetricBar Bar="queue.QueueDepth" Label="Depth vs max" />
+                    <dl class="console-definition-list">
+                        <dt>Queue depth</dt>
+                        <dd>@queue.QueueDepthValue of @queue.MaxQueueDepth</dd>
+                        <dt>Active uploads</dt>
+                        <dd>@queue.ActiveUploads of @queue.MaxConcurrentUploads</dd>
+                    </dl>
+                </article>
+            }
+        </section>
+
+        <section id="database-resilience" class="operate-section" aria-labelledby="database-resilience-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Database resilience</p>
+                    <h2 id="database-resilience-heading">Circuit Breaker And Error Rate</h2>
+                </div>
+            </div>
+
+            @if (!_snapshot.DatabaseResilience.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Database resilience" Status="_snapshot.DatabaseResilience.Status" Message="@_snapshot.DatabaseResilience.Message" />
+            }
+            else
+            {
+                var db = _snapshot.DatabaseResilience.Value!;
+                <div class="console-panel-grid">
+                    <article class="console-panel operate-metric-card">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>Query error rate</h3>
+                                <p class="console-muted">@db.Timestamp</p>
+                            </div>
+                            <span class="console-status @db.ErrorRate.Status.CssClass">@db.ErrorRate.Status.Label</span>
+                        </div>
+                        <MetricBar Bar="db.ErrorRate" Label="Error rate" />
+                        <dl class="console-definition-list">
+                            <dt>Circuit breaker</dt>
+                            <dd>@(db.CircuitBreakerEnabled ? "enabled" : "disabled")</dd>
+                            <dt>Connection failures</dt>
+                            <dd>@db.ConnectionFailures</dd>
+                            <dt>Query failures</dt>
+                            <dd>@db.QueryFailures</dd>
+                        </dl>
+                    </article>
+
+                    <article class="console-panel operate-metric-card">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>Pool utilization</h3>
+                            </div>
+                            <span class="console-status @db.PoolHealth.CssClass">@db.PoolHealthLabel</span>
+                        </div>
+                        <MetricBar Bar="db.PoolUtilization" Label="Utilization" />
+                    </article>
+                </div>
+
+                @if (db.Alerts.Count > 0)
+                {
+                    <article class="console-panel operate-metric-card operate-metric-alerts">
+                        <h3>Database alerts</h3>
+                        <ul>
+                            @foreach (var alert in db.Alerts)
+                            {
+                                <li>@alert</li>
+                            }
+                        </ul>
+                    </article>
+                }
+            }
+        </section>
+
+        <section id="health" class="operate-section" aria-labelledby="health-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Comprehensive health</p>
+                    <h2 id="health-heading">Dependency Health Checks</h2>
+                </div>
+            </div>
+
+            @if (!_snapshot.Health.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Health checks" Status="_snapshot.Health.Status" Message="@_snapshot.Health.Message" />
+            }
+            else
+            {
+                var health = _snapshot.Health.Value!;
+                <div class="console-panel operate-table-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Overall: <span class="console-status @health.Status.CssClass">@health.StatusLabel</span></h3>
+                            <p class="console-muted">Total duration @health.TotalDurationLabel · @health.Timestamp</p>
+                        </div>
+                    </div>
+
+                    @if (health.Entries.Count == 0)
+                    {
+                        <p class="console-muted">The server reported no individual health-check entries.</p>
+                    }
+                    else
+                    {
+                        <div class="operate-table-scroll">
+                            <table class="operate-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Check</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Duration</th>
+                                        <th scope="col">Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var entry in health.Entries)
+                                    {
+                                        <tr>
+                                            <td>@entry.Name</td>
+                                            <td><span class="console-status @entry.Status.CssClass">@entry.StatusLabel</span></td>
+                                            <td>@entry.DurationLabel</td>
+                                            <td>@(string.IsNullOrWhiteSpace(entry.Description) ? "—" : entry.Description)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private bool _loaded;
+    private OperateMetricsSnapshot? _snapshot;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _snapshot = await MetricsData.GetSnapshotAsync();
+        _loaded = true;
+    }
+
+    private static string FormatMs(double milliseconds) =>
+        milliseconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " ms";
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 MB";
+        }
+
+        var megabytes = bytes / (1024.0 * 1024.0);
+        return megabytes.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " MB";
+    }
+}

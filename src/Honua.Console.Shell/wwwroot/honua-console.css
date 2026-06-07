@@ -2574,6 +2574,53 @@ p {
     height: 13px;
 }
 
+/* Operate metrics surface: CSS utilization/ratio bars (no charting library). The
+   bar fill is color-coded by the metric's OperateStatus so the page is scannable. */
+.operate-metric-bar-row {
+    margin: 12px 0;
+}
+
+.operate-metric-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+}
+
+.operate-metric-bar-value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.operate-metric-bar.console-state-success span { background: #17603a; }
+.operate-metric-bar.console-state-warning span { background: #b5841f; }
+.operate-metric-bar.console-state-danger span { background: #9e2b25; }
+.operate-metric-bar.console-state-info span { background: #1d4ed8; }
+.operate-metric-bar.console-state-neutral span { background: #6b7280; }
+
+.operate-metric-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.operate-metric-recommendations,
+.operate-metric-alerts {
+    margin-top: 8px;
+}
+
+.operate-metric-recommendations ul,
+.operate-metric-alerts ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.operate-metric-recommendations li,
+.operate-metric-alerts li {
+    margin: 4px 0;
+}
+
 .operate-log-lines {
     overflow-x: auto;
     margin: 0;
