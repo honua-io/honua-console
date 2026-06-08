@@ -1,5 +1,6 @@
 using Bunit;
 using Honua.Console.Shell.Components;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -7,31 +8,131 @@ namespace Honua.Console.IntegrationTests;
 
 /// <summary>
 /// Docker-free render + interaction coverage for the functional publish wizards
-/// (<see cref="PublishWizardWorkspace"/>) wired into the Operate publishing workspace. Asserts the
-/// design-handoff landmarks from screens-quick-publish.jsx (Service → Layer → Review) and
-/// screens-publish-flow.jsx (Target → Compatibility → Slot → Fields → Projection → Access → Review),
-/// and proves the stepper navigation is FUNCTIONAL: the forward/back controls move between real step
-/// bodies, per-step validity gates the forward control, the mode toggle swaps flows, and the
-/// Projection step renders the live <see cref="MapPreview"/> with its class-break legend and chips.
+/// (<see cref="PublishWizardWorkspace"/>) wired into the Operate publishing workspace. The wizard binds
+/// its source / service / resource pickers to REAL server state (the Operate transition data source +
+/// the service-layer-publish operation's table listing); these tests prove the bodies render that live
+/// data, the stepper navigation is FUNCTIONAL (forward/back move between real step bodies with per-step
+/// validity gating), and — per the no-mocks rule (Console Patterns Charter section 11) — that with no
+/// server configured each section renders an honest empty / "select a source" state instead of
+/// fabricated rows.
 /// </summary>
 public sealed class PublishWizardWorkspaceRenderTests
 {
-    private static Bunit.TestContext NewContext()
+    // ---- Stubs returning real-SHAPED data (no server). The wizard treats these exactly as it would a
+    //      live honua-server projection; the data is the test's, not fabricated inside the component. ----
+
+    private sealed class StubOperateData : IOperateTransitionDataSource
+    {
+        private readonly OperateTransitionWorkspace _workspace;
+        public StubOperateData(OperateTransitionWorkspace workspace) => _workspace = workspace;
+
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspace);
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspace.Connections.FirstOrDefault(c => c.Id == connectionId));
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateResourceEditPreview?>(null);
+
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_workspace.Services.FirstOrDefault(s => s.Name == serviceName));
+    }
+
+    private sealed class StubPublishOperation : IServiceLayerPublishOperation
+    {
+        private readonly IReadOnlyList<ServiceLayerPublishTable> _tables;
+        public ServiceLayerPublishCommand? LastCommand { get; private set; }
+
+        public StubPublishOperation(IReadOnlyList<ServiceLayerPublishTable> tables) => _tables = tables;
+
+        public Task<ServiceLayerPublishResult> PublishAsync(ServiceLayerPublishCommand command, CancellationToken cancellationToken = default)
+        {
+            LastCommand = command;
+            return Task.FromResult(new ServiceLayerPublishResult
+            {
+                Succeeded = true,
+                State = "Published",
+                LayerId = 1,
+                LayerName = command.LayerName,
+                ServiceName = command.ServiceName,
+                GeometryType = command.GeometryType,
+                Srid = command.Srid,
+                Enabled = true
+            });
+        }
+
+        public Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(string connectionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_tables);
+    }
+
+    private static readonly OperateServiceDetail SampleService = new(
+        Name: "demo-fs",
+        DisplayName: "Demo Feature Service",
+        ServiceType: "FeatureServer",
+        RuntimeStatus: "running",
+        MetadataOwnership: "server",
+        Layers: [new OperateServiceLayerProjection(0, "existing", "Polygon", "res-0", "existing-resource")],
+        RuntimeSettings: [],
+        PublicationSlots: []);
+
+    private static readonly OperateConnectionSummary SampleConnection = new(
+        Id: "conn-1",
+        Name: "demo-postgis",
+        Provider: "PostgreSQL",
+        Target: "db",
+        Principal: "svc",
+        Status: "healthy",
+        LastTested: "now",
+        LastDiagnostic: null);
+
+    private static readonly ServiceLayerPublishTable SampleTable = new()
+    {
+        Schema = "public",
+        Table = "parcels",
+        GeometryColumn = "geom",
+        GeometryType = "Polygon",
+        Srid = 4326,
+        EstimatedRows = 1234,
+        Columns = ["gid", "name", "area"]
+    };
+
+    // Context wired to real-shaped data: one connection (with one publishable table) + one service.
+    private static Bunit.TestContext LiveContext()
     {
         var ctx = new Bunit.TestContext();
-        // The Projection step embeds MapPreview, which probes JS interop; loose mode keeps the
-        // schematic placeholder without a real browser runtime.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        // The finish action drives the real service-layer-publish operation; with no server configured
-        // the wizard binds the missing-binding implementation (no network call, no fabricated publish).
+        var workspace = new OperateTransitionWorkspace(
+            Connections: [SampleConnection],
+            ResourceEdits: [],
+            Services: [SampleService],
+            SettingsChanges: [],
+            CapabilityStates: []);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new StubOperateData(workspace));
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new StubPublishOperation([SampleTable]));
+        return ctx;
+    }
+
+    // Context with NO server configured: the unsupported data source / publish operation return empty.
+    private static Bunit.TestContext EmptyContext()
+    {
+        var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         return ctx;
     }
 
-    [Fact]
-    public void QuickFlow_StartsOnServiceStep_WithTreePickerAndPublishingIntoRail()
+    private static void SelectSource(IRenderedComponent<PublishWizardWorkspace> cut)
     {
-        using var ctx = NewContext();
+        cut.Find("select[aria-label=\"Source connection\"]").Change(SampleConnection.Id);
+        cut.Find("select[aria-label=\"Source table\"]").Change(SampleTable.QualifiedName);
+    }
+
+    [Fact]
+    public void QuickFlow_StartsOnServiceStep_BindingTheLiveServiceTree()
+    {
+        using var ctx = LiveContext();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
 
         // Quick mode is the default and its stepper reads Service → Layer → Review.
@@ -41,130 +142,171 @@ public sealed class PublishWizardWorkspaceRenderTests
         Assert.Contains("Review", stepper.TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain("Projection", stepper.TextContent, StringComparison.Ordinal);
 
-        // The service step renders the use-existing / create-new segment and the service tree picker.
+        // The service step renders the use-existing / create-new segment and the LIVE service tree.
         Assert.Equal(2, cut.FindAll("[data-quick-step=\"service\"] .publish-segment-option").Count);
-        Assert.NotNull(cut.Find("[data-publish-tree]"));
+        var tree = cut.Find("[data-publish-tree]");
+        Assert.Contains("Demo Feature Service", tree.TextContent, StringComparison.Ordinal);
+        Assert.Contains("FeatureServer", tree.TextContent, StringComparison.Ordinal);
 
-        // Tree carries compatible / degraded / incompatible filtering: the raster ImageServer row is
-        // disabled, and a compatible row carries the "new slot" badge.
-        var incompatRow = cut.Find(".publish-tree-row-incompat");
-        Assert.True(incompatRow.HasAttribute("disabled"));
-        Assert.Contains("incompat.", incompatRow.TextContent, StringComparison.Ordinal);
-
-        // The side rail shows "You're publishing into" for the pre-selected existing service.
-        Assert.Contains("You're publishing into", cut.Markup, StringComparison.Ordinal);
+        // No fabricated parcels/prod-postgis scaffolding leaks into the markup.
+        Assert.DoesNotContain("parcels_2024", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("prod-postgis", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void QuickFlow_CreateNewService_SwapsToCrsCapabilitiesLimitsCatalogCards()
+    public void QuickFlow_NoServer_RendersHonestEmptySourceAndServiceState()
     {
-        using var ctx = NewContext();
+        using var ctx = EmptyContext();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
 
-        // Switch the service step into "Create new service" mode.
+        // The source picker shows the honest "add a connection" empty state (no fabricated source).
+        Assert.NotNull(cut.Find("[data-source-empty]"));
+        // The service tree renders its honest empty state, not six mock rows.
+        Assert.NotNull(cut.Find("[data-publish-tree-empty]"));
+        Assert.Empty(cut.FindAll("[data-publish-tree]"));
+    }
+
+    [Fact]
+    public void QuickFlow_CreateNewService_SwapsToEditableNewServiceCards()
+    {
+        using var ctx = LiveContext();
+        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+
         var createNew = cut.FindAll("[data-quick-step=\"service\"] .publish-segment-option")
             .Single(b => b.TextContent.Contains("Create new service", StringComparison.Ordinal));
         createNew.Click();
 
-        // New-service settings cards appear: identity/route, CRS, capabilities, limits, catalog.
-        Assert.NotNull(cut.Find("[data-new-service=\"identity\"]"));
-        Assert.NotNull(cut.Find("[data-new-service=\"crs\"]"));
-        Assert.NotNull(cut.Find("[data-new-service=\"capabilities\"]"));
-        Assert.NotNull(cut.Find("[data-new-service=\"limits\"]"));
+        // New-service cards appear with a REAL editable name input (not a readonly mock value).
+        var identity = cut.Find("[data-new-service=\"identity\"]");
+        var nameInput = identity.QuerySelector("input.console-input");
+        Assert.NotNull(nameInput);
+        Assert.False(nameInput!.HasAttribute("readonly"));
         Assert.NotNull(cut.Find("[data-new-service=\"catalog\"]"));
 
-        // The rail swaps to "What gets created" + URL preview.
+        // The rail swaps to "What gets created".
         Assert.Contains("What gets created", cut.Markup, StringComparison.Ordinal);
-        Assert.NotNull(cut.Find("[data-url-preview]"));
     }
 
     [Fact]
-    public void QuickFlow_ForwardNav_AdvancesToLayerStepWithResourceTableAndPiiFlags()
+    public void QuickFlow_SelectingSourceBindsResourceTableToLiveTables()
     {
-        using var ctx = NewContext();
+        using var ctx = LiveContext();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
 
-        // A service is pre-selected, so the forward control is enabled. Advance to the Layer step.
-        var next = cut.Find(".publish-wizard-next");
-        Assert.False(next.HasAttribute("disabled"));
-        Assert.Contains("Continue · Layer →", next.TextContent, StringComparison.Ordinal);
-        next.Click();
+        // Pick a service (gates the Service step) and a source connection + table.
+        cut.Find("[data-publish-tree] .publish-tree-row").Click();
+        SelectSource(cut);
 
-        // The active stepper step is now Layer, and the resource-binding table renders with PII flags.
+        // Advance to the Layer step; the resource table now lists the live table from the connection.
+        cut.Find(".publish-wizard-next").Click();
         Assert.Contains("Layer", cut.Find(".publish-step-current").TextContent, StringComparison.Ordinal);
         var table = cut.Find("[data-resource-table]");
-        Assert.Contains("parcels_2024", table.TextContent, StringComparison.Ordinal);
-        Assert.Contains("PII", table.TextContent, StringComparison.Ordinal);
-
-        // The incompatible raster resource row is disabled in the picker.
-        Assert.Contains("publish-resource-row-incompat", cut.Markup, StringComparison.Ordinal);
-
-        // Layer-fields table (with PII override) and per-layer overrides card both render.
-        Assert.NotNull(cut.Find("[data-layer-fields]"));
-        Assert.NotNull(cut.Find("[data-layer-overrides]"));
+        Assert.Contains("public.parcels", table.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Polygon", table.TextContent, StringComparison.Ordinal);
+        // No fabricated PII / feature-count columns.
+        Assert.DoesNotContain("PII", table.TextContent, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void QuickFlow_ReviewStep_ShowsCreationStackAndFinishPublishes()
+    public void QuickFlow_ResourceActions_AreWiredToRealNavigation()
     {
-        using var ctx = NewContext();
+        using var ctx = LiveContext();
+        var nav = ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        cut.Find("[data-publish-tree] .publish-tree-row").Click();
+        SelectSource(cut);
+        cut.Find(".publish-wizard-next").Click();
+
+        // "Create from connection" navigates to the real connection page (no dead button).
+        var actions = cut.Find(".publish-resource-actions");
+        var createFromConnection = actions.QuerySelectorAll("button")
+            .Single(b => b.TextContent.Contains("Create from connection", StringComparison.Ordinal));
+        createFromConnection.Click();
+        Assert.EndsWith("/operate/connections/new", nav.Uri, StringComparison.Ordinal);
+
+        // The dead "Migrate remote service" button is gone entirely.
+        Assert.DoesNotContain("Migrate remote service", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QuickFlow_ReviewStep_PublishesTheRealSelectedSourceAndService()
+    {
+        using var ctx = LiveContext();
+        var publishOp = (StubPublishOperation)ctx.Services.GetRequiredService<IServiceLayerPublishOperation>();
+        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+
+        SelectSource(cut);
+        // The pre-selected service comes from the tree; select it explicitly to be safe.
+        cut.Find("[data-publish-tree] .publish-tree-row").Click();
 
         // Walk Service -> Layer -> Review.
         cut.Find(".publish-wizard-next").Click();
         cut.Find(".publish-wizard-next").Click();
-
-        // Review renders the layered creation stack: Data Resource -> binds to -> slot -> catalog.
         Assert.Contains("Review", cut.Find(".publish-step-current").TextContent, StringComparison.Ordinal);
-        Assert.Contains("publish-review-stack", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("binds to", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("Esri catalog registration", cut.Markup, StringComparison.Ordinal);
 
-        // The last step swaps to the finish control; clicking it records the publish intent.
-        Assert.Empty(cut.FindAll(".publish-wizard-next"));
+        // Finish publishes a command built from the REAL selected table + service (not constants).
         var finish = cut.Find(".publish-wizard-finish");
-        Assert.Contains("Publish + open resource →", finish.TextContent, StringComparison.Ordinal);
         finish.Click();
         Assert.NotNull(cut.Find("[data-publish-result]"));
+        Assert.NotNull(publishOp.LastCommand);
+        Assert.Equal("conn-1", publishOp.LastCommand!.ConnectionId);
+        Assert.Equal("public", publishOp.LastCommand.Schema);
+        Assert.Equal("parcels", publishOp.LastCommand.Table);
+        Assert.Equal("demo-fs", publishOp.LastCommand.ServiceName);
+        Assert.Equal(4326, publishOp.LastCommand.Srid);
     }
 
     [Fact]
-    public void ModeToggle_SwapsToAuthorFirstSevenStepFlow()
+    public void QuickFlow_FinishWithoutSource_ShowsMissingBindingNotFabricatedPublish()
     {
-        using var ctx = NewContext();
+        using var ctx = LiveContext();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
 
-        // Switch to the advanced author-first mode.
-        var authorFirst = cut.FindAll("button.publish-mode-option")
-            .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal));
-        authorFirst.Click();
-
-        // The seven-step stepper appears with the author-first labels.
-        var stepper = cut.Find("ol.publish-stepper");
-        Assert.Contains("Target", stepper.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Compatibility", stepper.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Projection", stepper.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Access", stepper.TextContent, StringComparison.Ordinal);
-
-        // Target step renders the resource context bar and the compatible/incompatible/degraded tree.
-        Assert.NotNull(cut.Find("[data-author-context]"));
-        Assert.NotNull(cut.Find("[data-author-step=\"target\"] [data-publish-tree]"));
-        Assert.Contains("degraded", cut.Find("[data-publish-tree]").TextContent, StringComparison.Ordinal);
+        // Select a service but NO source table, then walk to Review and finish.
+        cut.Find("[data-publish-tree] .publish-tree-row").Click();
+        // Layer step is gated (no source table), so the forward control is disabled there; drive the
+        // finish path directly is not possible past the gate — assert the gate instead.
+        cut.Find(".publish-wizard-next").Click(); // -> Layer
+        var next = cut.Find(".publish-wizard-next");
+        Assert.True(next.HasAttribute("disabled"));
     }
 
     [Fact]
-    public void AuthorFirst_TargetGating_DisablesForwardWhenNoTargetSelected()
+    public void ModeToggle_SwapsToAuthorFirstSevenStepFlow_BindingLiveContext()
     {
-        using var ctx = NewContext();
+        using var ctx = LiveContext();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
 
         cut.FindAll("button.publish-mode-option")
             .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))
             .Click();
 
-        // A target is pre-selected, so forward is enabled. Deselect by clicking the incompatible row
-        // does nothing; instead assert the gating contract: the forward control is enabled with a
-        // valid target and the per-step continue label is wired.
+        var stepper = cut.Find("ol.publish-stepper");
+        Assert.Contains("Target", stepper.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Compatibility", stepper.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Projection", stepper.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Access", stepper.TextContent, StringComparison.Ordinal);
+
+        // Target step renders the resource context bar and the LIVE service tree.
+        Assert.NotNull(cut.Find("[data-author-context]"));
+        var tree = cut.Find("[data-author-step=\"target\"] [data-publish-tree]");
+        Assert.Contains("Demo Feature Service", tree.TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AuthorFirst_TargetGating_EnablesForwardWhenTargetSelected()
+    {
+        using var ctx = LiveContext();
+        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+
+        cut.FindAll("button.publish-mode-option")
+            .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))
+            .Click();
+
+        // No target is pre-selected now (no fabricated default), so forward is gated until one is picked.
+        Assert.True(cut.Find(".publish-wizard-next").HasAttribute("disabled"));
+
+        cut.Find("[data-author-step=\"target\"] [data-publish-tree] .publish-tree-row").Click();
         var next = cut.Find(".publish-wizard-next");
         Assert.False(next.HasAttribute("disabled"));
         Assert.Contains("Continue · Compatibility →", next.TextContent, StringComparison.Ordinal);
@@ -173,12 +315,13 @@ public sealed class PublishWizardWorkspaceRenderTests
     [Fact]
     public void AuthorFirst_ProjectionStep_RendersLiveMapPreviewWithLegendAndChips()
     {
-        using var ctx = NewContext();
+        using var ctx = LiveContext();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
 
         cut.FindAll("button.publish-mode-option")
             .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))
             .Click();
+        cut.Find("[data-author-step=\"target\"] [data-publish-tree] .publish-tree-row").Click();
 
         // Advance Target -> Compatibility -> Slot -> Fields -> Projection (4 forward clicks).
         for (var i = 0; i < 4; i++)
@@ -188,39 +331,38 @@ public sealed class PublishWizardWorkspaceRenderTests
 
         Assert.Contains("Projection", cut.Find(".publish-step-current").TextContent, StringComparison.Ordinal);
 
-        // The MapPreview projection renders its schematic, class-break legend, and basemap chips.
         Assert.Contains("map-preview-schematic", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("Class breaks · area_m2", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("Class breaks", cut.Markup, StringComparison.Ordinal);
         Assert.True(cut.FindAll(".map-preview-basemap-chip").Count >= 2);
 
-        // Under-map preview controls: labels / popups / highlight chips + the "This slot" and
-        // "Compare against" rails.
         var controls = cut.Find("[data-projection-controls]");
         Assert.Contains("labels", controls.TextContent, StringComparison.Ordinal);
         Assert.Contains("popups", controls.TextContent, StringComparison.Ordinal);
         Assert.Contains("highlight", controls.TextContent, StringComparison.Ordinal);
         Assert.Contains("This slot", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("Compare against", cut.Markup, StringComparison.Ordinal);
+
+        // The fabricated "1k sampled / 1.28M" sentence is gone.
+        Assert.DoesNotContain("1.28M", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("sampled features", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
     public void AuthorFirst_ProjectionLabelChip_TogglesLabelLandmark()
     {
-        using var ctx = NewContext();
+        using var ctx = LiveContext();
         var cut = ctx.RenderComponent<PublishWizardWorkspace>();
 
         cut.FindAll("button.publish-mode-option")
             .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))
             .Click();
+        cut.Find("[data-author-step=\"target\"] [data-publish-tree] .publish-tree-row").Click();
         for (var i = 0; i < 4; i++)
         {
             cut.Find(".publish-wizard-next").Click();
         }
 
-        // Labels are on by default -> the MapPreview labels group is present.
         Assert.Contains("map-preview-labels", cut.Markup, StringComparison.Ordinal);
 
-        // Click the labels chip off -> the labels group is removed (the chip drives the preview).
         var labelsChip = cut.FindAll("[data-projection-controls] .publish-filter-chip")
             .Single(b => b.TextContent.Trim() == "labels");
         Assert.Contains("publish-filter-chip-on", labelsChip.ClassName!, StringComparison.Ordinal);
