@@ -26,10 +26,41 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
     private const string GenerateContract = "POST /api/v1/analysis/content/queries/generate";
 
     private readonly IHonuaAnalysisContentClient _client;
+    private readonly IOperateTransitionDataSource? _operate;
 
-    public HonuaServerStudioQueryContentDataSource(IHonuaAnalysisContentClient client)
+    public HonuaServerStudioQueryContentDataSource(
+        IHonuaAnalysisContentClient client,
+        IOperateTransitionDataSource? operate = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _operate = operate;
+    }
+
+    // Catalog grounding: the real published layers, so query generation binds a real serviceId/layerId
+    // instead of layerId 0. Best-effort; without the catalog the model falls back to the placeholder.
+    private async Task<HonuaQueryGenerationSource[]> LoadAvailableSourcesAsync(CancellationToken cancellationToken)
+    {
+        if (_operate is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
+            return view.Services
+                .SelectMany(service => service.Layers.Select(layer => new HonuaQueryGenerationSource
+                {
+                    ServiceId = service.Name,
+                    LayerId = layer.LayerId.ToString(CultureInfo.InvariantCulture),
+                    Name = layer.Name,
+                }))
+                .ToArray();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
     }
 
     public Task<StudioQueryWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -184,7 +215,8 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
                 .ToArray(),
             Answers = request.Answers
                 .Select(answer => new HonuaAnalysisGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
-                .ToArray()
+                .ToArray(),
+            AvailableSources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false)
         };
 
         var result = await _client.GenerateQueryAsync(wire, cancellationToken).ConfigureAwait(false);

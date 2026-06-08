@@ -1294,4 +1294,17 @@ public sealed record HonuaGenerateSavedQueryRequest
     /// <summary>Answers to a prior needs-clarification turn.</summary>
     [JsonPropertyName("answers")]
     public HonuaAnalysisGenerationAnswer[] Answers { get; init; } = [];
+
+    /// <summary>Real published layers in the workspace (catalog grounding) so the query binds real data.</summary>
+    [JsonPropertyName("availableSources")]
+    public HonuaQueryGenerationSource[] AvailableSources { get; init; } = [];
+}
+
+/// <summary>One real, published layer the query model may bind directly (catalog grounding).</summary>
+public sealed record HonuaQueryGenerationSource
+{
+    [JsonPropertyName("serviceId")] public string ServiceId { get; init; } = string.Empty;
+    [JsonPropertyName("layerId")] public string LayerId { get; init; } = string.Empty;
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("fields")] public string[]? Fields { get; init; }
 }
