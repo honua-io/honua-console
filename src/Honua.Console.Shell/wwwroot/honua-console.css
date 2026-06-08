@@ -726,6 +726,11 @@ p {
     border-color: var(--honua-border);
     background: var(--honua-surface-strong);
     color: var(--honua-muted);
+    /* Make a server-gated / not-yet-bound control read as non-interactive instead of looking
+       clickable: a muted colour alone left a pointer cursor, so users clicked dead buttons. The
+       not-allowed cursor + reduced opacity signal "disabled" while the title tooltip still explains why. */
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 .console-button-secondary {
