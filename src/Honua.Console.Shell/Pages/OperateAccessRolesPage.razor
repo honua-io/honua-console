@@ -16,16 +16,89 @@
             <p class="console-muted rbac-lede">Hierarchical RBAC. Workspace roles inherit down; per-content and per-publication overrides allowed. Roles and grants are authored on honua-server's Console metadata/RBAC API and are never resolved client-side.</p>
         </div>
         <div class="console-detail-actions">
-            @* This page is a READ-ONLY projection of honua-server's Console metadata/RBAC contract
-               (honua-server#1162): it exposes role/overview reads only, with no role-authoring or
-               audit-mutation surface. Both controls are honestly disabled rather than shipping a
-               clickable no-op (Charter §11). Re-enable when a server-side authoring contract lands. *@
-            <button class="console-button console-button-secondary" type="button" disabled
-                    title="Role audit is managed on honua-server; not available from this read-only projection.">Roles audit</button>
-            <button class="console-button" type="button" data-rbac-custom-role disabled
-                    title="Role authoring is managed on honua-server; not available from this read-only projection.">+ Custom role</button>
+            @* Bound to honua-server's Console Access (RBAC) authoring + audit contract (honua-server#1162):
+               role create/delete and the role-change audit trail. Enabled once the overview loads and the
+               caller may manage roles; otherwise honestly disabled with the reason. *@
+            <button class="console-button console-button-secondary" type="button" data-rbac-audit
+                    disabled="@(_overview is null)"
+                    title="@(_overview is null ? "Available once the RBAC overview loads." : "View the role-change audit trail.")"
+                    @onclick="ToggleAuditAsync">Roles audit</button>
+            <button class="console-button" type="button" data-rbac-custom-role
+                    disabled="@(_overview is null || !_overview.CanManageRoles)"
+                    title="@(_overview is null ? "Available once the RBAC overview loads." : (_overview.CanManageRoles ? "Author a custom role." : "You lack the manage-roles permission for this workspace."))"
+                    @onclick="ToggleCreate">+ Custom role</button>
         </div>
     </div>
+
+    @if (_showCreate && _overview is { } createOverview)
+    {
+        <form class="console-panel rbac-create-form" data-rbac-create-form @onsubmit="SubmitCreateAsync" @onsubmit:preventDefault>
+            <h2 class="rbac-section-title">New custom role</h2>
+            <div class="studio-field-grid">
+                <label>
+                    <span>Name</span>
+                    <input class="console-input" @bind="_newRoleName" @bind:event="oninput" placeholder="Content editor" data-rbac-new-role-name />
+                </label>
+                <label>
+                    <span>Description (optional)</span>
+                    <input class="console-input" @bind="_newRoleDescription" @bind:event="oninput" placeholder="Can edit and publish content" />
+                </label>
+            </div>
+            <fieldset class="rbac-create-grants">
+                <legend>Permissions</legend>
+                @foreach (var permission in createOverview.Permissions)
+                {
+                    <label class="rbac-create-grant">
+                        <input type="checkbox"
+                               checked="@_newRoleGrants.Contains(permission.Key)"
+                               @onchange="e => ToggleGrant(permission.Key, (bool)(e.Value ?? false))" />
+                        <span>@permission.Label</span>
+                    </label>
+                }
+            </fieldset>
+            @if (!string.IsNullOrEmpty(_mutationError))
+            {
+                <div class="console-validation-summary" role="alert"><ul><li>@_mutationError</li></ul></div>
+            }
+            <div class="console-detail-actions">
+                <button class="console-button console-button-secondary" type="button" @onclick="ToggleCreate" disabled="@_saving">Cancel</button>
+                <button class="console-button" type="submit" disabled="@(_saving || string.IsNullOrWhiteSpace(_newRoleName))">@(_saving ? "Creating…" : "Create role")</button>
+            </div>
+        </form>
+    }
+
+    @if (_showAudit)
+    {
+        <div class="console-panel rbac-audit-panel" data-rbac-audit-panel>
+            <h2 class="rbac-section-title">Role change audit</h2>
+            @if (_auditIssue is not null)
+            {
+                <p class="console-muted">@_auditIssue.State: @_auditIssue.Detail</p>
+            }
+            else if (_audit.Count == 0)
+            {
+                <p class="console-muted">No role changes have been recorded yet.</p>
+            }
+            else
+            {
+                <table class="console-table" data-rbac-audit-table>
+                    <thead><tr><th scope="col">When</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Role</th><th scope="col">Outcome</th></tr></thead>
+                    <tbody>
+                        @foreach (var entry in _audit)
+                        {
+                            <tr>
+                                <td>@entry.Timestamp</td>
+                                <td>@entry.Actor</td>
+                                <td>@entry.Action</td>
+                                <td>@entry.RoleId</td>
+                                <td>@entry.Outcome</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
 
     @if (_loading)
     {
@@ -95,6 +168,11 @@
                                 @if (role.IsCustom)
                                 {
                                     <span class="console-status console-state-info rbac-role-tag" data-rbac-role-kind="custom">custom</span>
+                                    <button class="console-button console-button-secondary console-button-small rbac-role-delete"
+                                            type="button" data-rbac-delete-role="@role.Id"
+                                            disabled="@(_saving || !overview.CanManageRoles)"
+                                            title="Delete this custom role"
+                                            @onclick="() => DeleteRoleAsync(role.Id, role.Name)">Delete</button>
                                 }
                                 @if (!string.IsNullOrWhiteSpace(role.Description))
                                 {
@@ -137,6 +215,16 @@
     private RbacCapabilityState? _bindingState;
     private bool _loading = true;
 
+    private bool _showCreate;
+    private bool _showAudit;
+    private bool _saving;
+    private string _newRoleName = string.Empty;
+    private string _newRoleDescription = string.Empty;
+    private readonly HashSet<string> _newRoleGrants = new(StringComparer.Ordinal);
+    private string? _mutationError;
+    private IReadOnlyList<RbacAuditEntryView> _audit = [];
+    private RbacCapabilityState? _auditIssue;
+
     [SupplyParameterFromQuery(Name = "workspace")]
     private string? Workspace { get; set; }
 
@@ -159,6 +247,123 @@
         }
 
         _loading = false;
+    }
+
+    private async Task ReloadOverviewAsync()
+    {
+        var load = await RbacData.LoadOverviewAsync(WorkspaceId);
+        _overview = load.HasOverview ? load.Overview : _overview;
+        _bindingState = load.HasOverview ? null : load.CapabilityStates.FirstOrDefault();
+    }
+
+    private void ToggleCreate()
+    {
+        _showCreate = !_showCreate;
+        _mutationError = null;
+        if (_showCreate)
+        {
+            _newRoleName = string.Empty;
+            _newRoleDescription = string.Empty;
+            _newRoleGrants.Clear();
+            // Default a sensible baseline grant so a new role is never empty.
+            _newRoleGrants.Add("view");
+        }
+    }
+
+    private void ToggleGrant(string permissionKey, bool granted)
+    {
+        if (granted)
+        {
+            _newRoleGrants.Add(permissionKey);
+        }
+        else
+        {
+            _newRoleGrants.Remove(permissionKey);
+        }
+    }
+
+    private async Task SubmitCreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newRoleName) || _saving)
+        {
+            return;
+        }
+
+        _saving = true;
+        _mutationError = null;
+        try
+        {
+            var result = await RbacData.CreateRoleAsync(
+                WorkspaceId,
+                _newRoleName.Trim(),
+                string.IsNullOrWhiteSpace(_newRoleDescription) ? null : _newRoleDescription.Trim(),
+                _newRoleGrants.ToArray());
+
+            if (result.Succeeded)
+            {
+                _showCreate = false;
+                await ReloadOverviewAsync();
+                if (_showAudit)
+                {
+                    await LoadAuditAsync();
+                }
+            }
+            else
+            {
+                _mutationError = result.Error ?? "The role could not be created.";
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteRoleAsync(string roleId, string roleName)
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        _saving = true;
+        _mutationError = null;
+        try
+        {
+            var result = await RbacData.DeleteRoleAsync(WorkspaceId, roleId);
+            if (result.Succeeded)
+            {
+                await ReloadOverviewAsync();
+                if (_showAudit)
+                {
+                    await LoadAuditAsync();
+                }
+            }
+            else
+            {
+                _mutationError = result.Error ?? $"Role '{roleName}' could not be deleted.";
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ToggleAuditAsync()
+    {
+        _showAudit = !_showAudit;
+        if (_showAudit)
+        {
+            await LoadAuditAsync();
+        }
+    }
+
+    private async Task LoadAuditAsync()
+    {
+        var load = await RbacData.LoadAuditAsync(WorkspaceId);
+        _audit = load.Entries;
+        _auditIssue = load.FirstIssue;
     }
 
     private static RenderFragment RenderGrant(RbacGrantView grant) => builder =>

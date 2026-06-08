@@ -49,6 +49,58 @@ public sealed class HonuaServerRbacAccessDataSource : IRbacAccessDataSource
         return new TeamMembershipLoad(RbacAccessMapper.ToView(result.Data!), []);
     }
 
+    public async Task<RbacRoleMutationResult> CreateRoleAsync(
+        string workspaceId,
+        string name,
+        string? description,
+        IReadOnlyList<string> grantedPermissionKeys,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+
+        var grants = (grantedPermissionKeys ?? [])
+            .Select(key => new HonuaConsoleRbacGrant { Permission = key, Grant = HonuaConsolePermissionGrants.Granted })
+            .ToArray();
+        var request = new HonuaConsoleRoleWriteRequest { Name = name, Description = description, Grants = grants };
+
+        var result = await _client.CreateRoleAsync(workspaceId, request, cancellationToken).ConfigureAwait(false);
+        return result.Issue is { } issue
+            ? new RbacRoleMutationResult(false, IssueMessage(issue))
+            : new RbacRoleMutationResult(true, null);
+    }
+
+    public async Task<RbacRoleMutationResult> DeleteRoleAsync(
+        string workspaceId,
+        string roleId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(roleId);
+
+        var result = await _client.DeleteRoleAsync(workspaceId, roleId, cancellationToken).ConfigureAwait(false);
+        return result.Issue is { } issue
+            ? new RbacRoleMutationResult(false, IssueMessage(issue))
+            : new RbacRoleMutationResult(true, null);
+    }
+
+    public async Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+
+        var result = await _client.GetRoleAuditAsync(workspaceId, 50, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return new RbacAuditLoad([], [ToCapabilityState(issue)]);
+        }
+
+        var entries = (result.Data!.Entries ?? [])
+            .Select(entry => new RbacAuditEntryView(entry.Id, entry.Timestamp, entry.Actor, entry.Action, entry.RoleId, entry.Outcome))
+            .ToArray();
+        return new RbacAuditLoad(entries, []);
+    }
+
+    private static string IssueMessage(HonuaAdminEndpointIssue issue) => $"{issue.State}: {issue.Detail}";
+
     private static RbacCapabilityState ToCapabilityState(HonuaAdminEndpointIssue issue) =>
         new(
             Surface,
