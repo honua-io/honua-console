@@ -160,6 +160,38 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/vnd.mapbox-vector-tile";
         return Results.Bytes(bytes, contentType);
     });
+
+    // Real tabular feature rows for the Studio query-result table and the live chart (graphs) preview.
+    // Proxies the server's Esri FeatureServer query (the only feature-row contract; it needs both the
+    // serviceId and the layerId, both captured into the editor binding at generation time) with the admin
+    // key injected here, never in the page. Returns the server's Esri feature JSON verbatim so the browser
+    // chart/table interop maps attributes → rows. No binding → the caller never calls this (no mock rows).
+    app.MapGet("/map-proxy/features/{serviceId}/{layerId:int}", async (
+        string serviceId,
+        int layerId,
+        int? limit,
+        IHttpClientFactory httpClientFactory,
+        CancellationToken cancellationToken) =>
+    {
+        var count = limit is > 0 and <= 2000 ? limit.Value : 200;
+        var client = httpClientFactory.CreateClient("honua-map-proxy");
+        var url = $"{mapProxyServerUrl}/rest/services/{Uri.EscapeDataString(serviceId)}/FeatureServer/{layerId}/query"
+            + $"?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount={count}&f=json";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (!string.IsNullOrWhiteSpace(mapProxyAdminKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", mapProxyAdminKey);
+        }
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return Results.StatusCode((int)response.StatusCode);
+        }
+
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        return Results.Content(json, "application/json");
+    });
 }
 
 app.Run();

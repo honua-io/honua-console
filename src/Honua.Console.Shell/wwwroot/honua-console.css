@@ -5604,6 +5604,53 @@ p {
     z-index: 2;
 }
 
+/* Live chart (graphs) preview — the dashboard/report/analysis analog of the map preview. */
+.chart-preview {
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.chart-preview-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--honua-text);
+}
+
+.chart-preview-stage {
+    position: relative;
+    height: var(--chart-preview-height, 240px);
+    border: 1px solid var(--honua-text);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f4f7f3;
+    padding: 8px;
+}
+
+.chart-preview-canvas {
+    position: absolute;
+    inset: 8px;
+    z-index: 1;
+}
+
+.chart-preview-canvas svg,
+.chart-preview-canvas canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.chart-preview-schematic {
+    position: absolute;
+    inset: 8px;
+    width: calc(100% - 16px);
+    height: calc(100% - 16px);
+    display: block;
+}
+
+.chart-preview[data-chart-bound="true"] .chart-preview-schematic {
+    display: none;
+}
+
 .map-preview-scale {
     position: absolute;
     bottom: 10px;
