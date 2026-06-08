@@ -190,6 +190,8 @@
                                     <MapPreview Mode="MapPreviewMode.Layer"
                                                 Height="@(_previewDevice == PreviewDevice.Mobile ? 460 : 420)"
                                                 ScaleText="1:1,000,000"
+                                                StyleUrl="@PreviewStyleUrl(editor)"
+                                                Bounds="@PreviewBounds(editor)"
                                                 ShowPopup="editor.PopupsEnabled"
                                                 ShowLabels="true"
                                                 Popup="BuildPreviewPopup(editor)"
@@ -827,6 +829,42 @@
     }
 
     private void OnPublishStepChanged(int step) => _publishStep = step;
+
+    // When a generated/edited layer is bound to a real published layer, point the preview at that layer's
+    // live MapLibre style through the console map-proxy so the builder shows the ACTUAL rendered map
+    // (basemap + features), not the schematic placeholder. Returns null (schematic) when no real binding.
+    private static string? PreviewStyleUrl(StudioMapEditorState editor)
+    {
+        var bound = editor.Layers.FirstOrDefault(layer => !string.IsNullOrWhiteSpace(layer.BoundLayerId));
+        return bound is null ? null : $"/map-proxy/styles/{bound.BoundLayerId}.json";
+    }
+
+    // Parses the map's initial extent ("minLon,minLat,maxLon,maxLat") into MapPreview bounds so the live
+    // preview frames the data. Returns null when the extent is unset or malformed (the map then auto-fits).
+    private static double[]? PreviewBounds(StudioMapEditorState editor)
+    {
+        if (string.IsNullOrWhiteSpace(editor.InitialExtent))
+        {
+            return null;
+        }
+
+        var parts = editor.InitialExtent.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length != 4)
+        {
+            return null;
+        }
+
+        var bounds = new double[4];
+        for (var i = 0; i < 4; i++)
+        {
+            if (!double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out bounds[i]))
+            {
+                return null;
+            }
+        }
+
+        return bounds;
+    }
 
     // Builds the MapPreview popup from the selected/first layer's authored popup fields. Returns null when
     // popups are disabled or no fields are bound, so the preview shows no fabricated popup.

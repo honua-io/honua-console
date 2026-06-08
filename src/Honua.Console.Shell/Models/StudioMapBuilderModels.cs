@@ -94,6 +94,13 @@ public sealed class StudioMapLayerEditor
 
     /// <summary>Comma-separated popup field names exposed by identify; empty disables the popup.</summary>
     public string PopupFields { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The real, published layer id this layer is bound to (from the package source locator), when the map
+    /// generation bound a concrete catalog layer. Lets the builder preview render the live map via the
+    /// console map-proxy (/map-proxy/styles/{boundLayerId}.json). Empty when the source is an unbound placeholder.
+    /// </summary>
+    public string BoundLayerId { get; set; } = string.Empty;
 }
 
 /// <summary>One server-advertised styleId option for the per-layer style picker (ADR-0048).</summary>
@@ -435,11 +442,25 @@ public static class StudioMapPackageMapper
                 }
 
                 var sourceId = ReadString(source, "sourceId", string.Empty);
+                var boundLayerId = string.Empty;
+                if (source.TryGetProperty("locator", out var locator) && locator.ValueKind == JsonValueKind.Object
+                    && locator.TryGetProperty("layerId", out var layerIdElement))
+                {
+                    // The model may emit layerId as a JSON string ("1") or number (1); accept both.
+                    boundLayerId = layerIdElement.ValueKind switch
+                    {
+                        JsonValueKind.String => layerIdElement.GetString() ?? string.Empty,
+                        JsonValueKind.Number => layerIdElement.GetRawText(),
+                        _ => string.Empty
+                    };
+                }
+
                 state.Layers.Add(new StudioMapLayerEditor
                 {
                     SourceRef = sourceId,
                     Title = Humanize(sourceId),
                     Visible = true,
+                    BoundLayerId = boundLayerId,
                     Filter = ReadString(source, "filter", string.Empty),
                     // styleRefs in honua_map_package.v1 are unanchored style definitions (styleId/label/
                     // presetId) not linked to a source, so a style can't be auto-assigned per layer here.

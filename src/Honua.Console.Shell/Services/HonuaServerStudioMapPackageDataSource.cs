@@ -34,13 +34,49 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
     private readonly IStudioPackageLifecycleClient _client;
     private readonly IStudioMapGenerationClient _generation;
+    private readonly IOperateTransitionDataSource _operate;
 
     public HonuaServerStudioMapPackageDataSource(
         IStudioPackageLifecycleClient client,
-        IStudioMapGenerationClient generation)
+        IStudioMapGenerationClient generation,
+        IOperateTransitionDataSource operate)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _generation = generation ?? throw new ArgumentNullException(nameof(generation));
+        _operate = operate ?? throw new ArgumentNullException(nameof(operate));
+    }
+
+    // Catalog grounding: the real published layers in the workspace, so map generation binds real
+    // serviceId/layerId/extent instead of inventing placeholders (and the preview can render them).
+    private async Task<IReadOnlyList<MapGenerationSource>> LoadAvailableSourcesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
+            var sources = new List<MapGenerationSource>();
+            foreach (var service in view.Services)
+            {
+                foreach (var layer in service.Layers)
+                {
+                    sources.Add(new MapGenerationSource
+                    {
+                        ServiceId = service.Name,
+                        LayerId = layer.LayerId.ToString(CultureInfo.InvariantCulture),
+                        Name = layer.Name,
+                        GeometryType = layer.Geometry,
+                        Protocol = "geoservices_feature_service",
+                        Bbox = layer.Extent,
+                    });
+                }
+            }
+
+            return sources;
+        }
+        catch (Exception)
+        {
+            // Grounding is best-effort; without it the model falls back to placeholder bindings.
+            return [];
+        }
     }
 
     public async Task<StudioMapWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -283,7 +319,8 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
                 .ToArray(),
             Answers = request.Answers
                 .Select(answer => new MapGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
-                .ToArray()
+                .ToArray(),
+            AvailableSources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false)
         };
 
         var result = await _generation.GenerateMapAsync(wire, cancellationToken).ConfigureAwait(false);
