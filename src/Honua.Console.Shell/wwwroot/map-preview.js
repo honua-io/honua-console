@@ -45,6 +45,65 @@ function loadMapLibre() {
     return maplibrePromise;
 }
 
+// Walks a GeoJSON geometry's coordinates, expanding [minLng, minLat, maxLng, maxLat] in place.
+function expandBounds(b, coords) {
+    if (typeof coords[0] === 'number') {
+        const [lng, lat] = coords;
+        if (Number.isFinite(lng) && Number.isFinite(lat)) {
+            if (lng < b[0]) b[0] = lng;
+            if (lat < b[1]) b[1] = lat;
+            if (lng > b[2]) b[2] = lng;
+            if (lat > b[3]) b[3] = lat;
+        }
+        return;
+    }
+    for (const c of coords) {
+        expandBounds(b, c);
+    }
+}
+
+// Once the map first goes idle, frame the camera on the layer's actual rendered features.
+// Uses real geometry queried from the live map (never a synthetic extent); if no features are
+// present (empty layer, or tiles unreachable) the initial world view is left untouched. Runs once.
+function fitToFeaturesOnce(map) {
+    let done = false;
+    const onIdle = () => {
+        if (done) {
+            return;
+        }
+        done = true;
+        map.off('idle', onIdle);
+        try {
+            // Only the style's own feature layers — exclude the injected OSM raster basemap.
+            const featureLayerIds = ((map.getStyle().layers) || [])
+                .filter(l => l.id !== 'osm-basemap' && l.type !== 'raster' && l.type !== 'background')
+                .map(l => l.id);
+            if (featureLayerIds.length === 0) {
+                return;
+            }
+            const features = map.queryRenderedFeatures({ layers: featureLayerIds });
+            if (!features || features.length === 0) {
+                return;
+            }
+            const b = [Infinity, Infinity, -Infinity, -Infinity];
+            for (const f of features) {
+                if (f.geometry && f.geometry.coordinates) {
+                    expandBounds(b, f.geometry.coordinates);
+                }
+            }
+            if (b[0] <= b[2] && b[1] <= b[3] && Number.isFinite(b[0])) {
+                map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 });
+                // Make this fitted view the home position for the Recenter control.
+                map._homeCenter = map.getCenter().toArray();
+                map._homeZoom = map.getZoom();
+            }
+        } catch {
+            /* auto-fit is best-effort; never break the render */
+        }
+    };
+    map.on('idle', onIdle);
+}
+
 // Attempts to mount a live MapLibre map into the given container.
 // Returns true when a real map was bound; false when the component should keep its placeholder.
 export async function init(container, options) {
@@ -90,6 +149,12 @@ export async function init(container, options) {
             } catch {
                 /* basemap is best-effort; never break the feature render */
             }
+            // The page mounts at a whole-world view (center [0,0], zoom 1) because the layer's
+            // geographic extent is not known until its vector tiles load. Once the map first goes
+            // idle (tiles painted), fit the camera to the ACTUAL rendered features so the data is
+            // centered and framed instead of lost in mid-ocean. Computed from real geometry only —
+            // no synthetic extent. Runs once; if the layer has no features the world view stays.
+            fitToFeaturesOnce(map);
         });
         // Remember the initial view so the custom Recenter control can restore it.
         map._homeCenter = options.center ?? [0, 0];
