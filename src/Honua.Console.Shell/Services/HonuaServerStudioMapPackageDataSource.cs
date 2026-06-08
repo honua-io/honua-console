@@ -323,6 +323,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             AvailableSources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false)
         };
 
+        var availableSources = wire.AvailableSources;
         var result = await _generation.GenerateMapAsync(wire, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
@@ -341,7 +342,41 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             return StudioMapGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
         }
 
-        return MapGeneration(currentState, result.Data!);
+        var outcome = MapGeneration(currentState, result.Data!);
+        ResolveBoundLayerIds(outcome.State, availableSources);
+        return outcome;
+    }
+
+    // When generation named a service but not the numeric layer id (small local models are inconsistent),
+    // resolve each layer's BoundLayerId from the real catalog by matching its BoundServiceId — so the
+    // builder preview can render the real layer via /map-proxy/styles/{layerId}.json every time.
+    private static void ResolveBoundLayerIds(StudioMapEditorState? state, IReadOnlyList<MapGenerationSource> available)
+    {
+        if (state is null || available.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var layer in state.Layers)
+        {
+            if (!string.IsNullOrWhiteSpace(layer.BoundLayerId))
+            {
+                continue;
+            }
+
+            var match = available.FirstOrDefault(source =>
+                !string.IsNullOrWhiteSpace(layer.BoundServiceId)
+                && string.Equals(source.ServiceId, layer.BoundServiceId, StringComparison.OrdinalIgnoreCase));
+
+            // Single-source workspace: if the model bound nothing resolvable but there's exactly one real
+            // layer, bind it so the map still renders the available data.
+            match ??= available.Count == 1 ? available[0] : null;
+
+            if (match is not null && !string.IsNullOrWhiteSpace(match.LayerId))
+            {
+                layer.BoundLayerId = match.LayerId;
+            }
+        }
     }
 
     private static StudioMapGenerationOutcome MapGeneration(

@@ -101,6 +101,10 @@ public sealed class StudioMapLayerEditor
     /// console map-proxy (/map-proxy/styles/{boundLayerId}.json). Empty when the source is an unbound placeholder.
     /// </summary>
     public string BoundLayerId { get; set; } = string.Empty;
+
+    /// <summary>The service id from the package source locator, used to resolve <see cref="BoundLayerId"/>
+    /// from the real catalog when the model named the service but not the numeric layer id.</summary>
+    public string BoundServiceId { get; set; } = string.Empty;
 }
 
 /// <summary>One server-advertised styleId option for the per-layer style picker (ADR-0048).</summary>
@@ -443,16 +447,21 @@ public static class StudioMapPackageMapper
 
                 var sourceId = ReadString(source, "sourceId", string.Empty);
                 var boundLayerId = string.Empty;
-                if (source.TryGetProperty("locator", out var locator) && locator.ValueKind == JsonValueKind.Object
-                    && locator.TryGetProperty("layerId", out var layerIdElement))
+                var boundServiceId = string.Empty;
+                if (source.TryGetProperty("locator", out var locator) && locator.ValueKind == JsonValueKind.Object)
                 {
-                    // The model may emit layerId as a JSON string ("1") or number (1); accept both.
-                    boundLayerId = layerIdElement.ValueKind switch
+                    if (locator.TryGetProperty("layerId", out var layerIdElement))
                     {
-                        JsonValueKind.String => layerIdElement.GetString() ?? string.Empty,
-                        JsonValueKind.Number => layerIdElement.GetRawText(),
-                        _ => string.Empty
-                    };
+                        // The model may emit layerId as a JSON string ("1") or number (1); accept both.
+                        boundLayerId = layerIdElement.ValueKind switch
+                        {
+                            JsonValueKind.String => layerIdElement.GetString() ?? string.Empty,
+                            JsonValueKind.Number => layerIdElement.GetRawText(),
+                            _ => string.Empty
+                        };
+                    }
+
+                    boundServiceId = ReadString(locator, "serviceId", string.Empty);
                 }
 
                 state.Layers.Add(new StudioMapLayerEditor
@@ -461,6 +470,7 @@ public static class StudioMapPackageMapper
                     Title = Humanize(sourceId),
                     Visible = true,
                     BoundLayerId = boundLayerId,
+                    BoundServiceId = boundServiceId,
                     Filter = ReadString(source, "filter", string.Empty),
                     // styleRefs in honua_map_package.v1 are unanchored style definitions (styleId/label/
                     // presetId) not linked to a source, so a style can't be auto-assigned per layer here.
