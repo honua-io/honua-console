@@ -60,6 +60,7 @@
                         StyleUrl="@($"/map-proxy/styles/{_exposures[0].Layer.LayerId}.json")"
                         Center="_previewCenter"
                         Zoom="1"
+                        Bounds="_exposures[0].Layer.Extent"
                         ShowLabels="false"
                         ShowHighlight="false"
                         ShowPopup="false"

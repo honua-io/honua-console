@@ -281,7 +281,10 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
                         Coalesce(normalizedLayer.LayerName, $"Layer {normalizedLayer.LayerId}"),
                         Coalesce(normalizedLayer.GeometryType, "Unknown"),
                         resource.ResourceId,
-                        resource.Name)));
+                        resource.Name,
+                        normalizedLayer.Extent is { } ext
+                            ? new[] { ext.MinX, ext.MinY, ext.MaxX, ext.MaxY }
+                            : null)));
             }
         }
 

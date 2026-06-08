@@ -1672,6 +1672,24 @@ public sealed record HonuaAdminPublishedLayerSummary
     public bool? Enabled { get; init; }
 
     public string? ServiceName { get; init; }
+
+    /// <summary>
+    /// Layer's cached spatial extent in EPSG:4326 (lng/lat), recomputed when the layer is published or
+    /// refreshed server-side. Null when the layer has no stored extent. Used to frame the map preview.
+    /// </summary>
+    public HonuaAdminLayerExtent? Extent { get; init; }
+}
+
+/// <summary>Axis-aligned bounding box of a layer in EPSG:4326 (longitude/latitude degrees).</summary>
+public sealed record HonuaAdminLayerExtent
+{
+    public double MinX { get; init; }
+
+    public double MinY { get; init; }
+
+    public double MaxX { get; init; }
+
+    public double MaxY { get; init; }
 }
 
 public sealed record HonuaAdminServiceSummary

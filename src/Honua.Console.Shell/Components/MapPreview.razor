@@ -288,6 +288,13 @@
     [Parameter]
     public double[]? Center { get; set; }
 
+    /// <summary>
+    /// Optional data extent [minLng, minLat, maxLng, maxLat] in EPSG:4326. When set, the live map
+    /// fits to it on load so the layer's data is framed instead of opening at a whole-world view.
+    /// </summary>
+    [Parameter]
+    public double[]? Bounds { get; set; }
+
     /// <summary>Raised when a basemap chip is selected.</summary>
     [Parameter]
     public EventCallback<MapPreviewBasemap> OnBasemapChanged { get; set; }
@@ -330,6 +337,7 @@
                     styleUrl = StyleUrl,
                     center = Center,
                     zoom = (double)Zoom,
+                    bounds = Bounds,
                     showScale = true,
                 });
 

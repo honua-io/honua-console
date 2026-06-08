@@ -149,12 +149,23 @@ export async function init(container, options) {
             } catch {
                 /* basemap is best-effort; never break the feature render */
             }
-            // The page mounts at a whole-world view (center [0,0], zoom 1) because the layer's
-            // geographic extent is not known until its vector tiles load. Once the map first goes
-            // idle (tiles painted), fit the camera to the ACTUAL rendered features so the data is
-            // centered and framed instead of lost in mid-ocean. Computed from real geometry only —
-            // no synthetic extent. Runs once; if the layer has no features the world view stays.
-            fitToFeaturesOnce(map);
+            // Frame the camera on the layer's data. Preferred source is the server-provided extent
+            // ([minLng, minLat, maxLng, maxLat] in EPSG:4326, from the layer's cached metadata extent),
+            // which is reliable even at a whole-world start where the vector tiles are empty. When no
+            // extent is supplied, fall back to fitting the actual rendered features once the map idles.
+            // Both use real geometry only — never a synthetic extent.
+            const b = options.bounds;
+            if (Array.isArray(b) && b.length === 4 && b.every(n => Number.isFinite(n))) {
+                try {
+                    map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 });
+                    map._homeCenter = map.getCenter().toArray();
+                    map._homeZoom = map.getZoom();
+                } catch {
+                    fitToFeaturesOnce(map);
+                }
+            } else {
+                fitToFeaturesOnce(map);
+            }
         });
         // Remember the initial view so the custom Recenter control can restore it.
         map._homeCenter = options.center ?? [0, 0];
