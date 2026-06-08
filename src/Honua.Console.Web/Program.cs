@@ -100,6 +100,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
 {
     app.MapGet("/map-proxy/styles/{layerId:int}.json", async (
         int layerId,
+        HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
         CancellationToken cancellationToken) =>
     {
@@ -118,8 +119,12 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
 
         var styleJson = await response.Content.ReadAsStringAsync(cancellationToken);
         // The server returns tile URLs as /tiles/{id}/... — route them back through this proxy so the browser
-        // fetches tiles with the admin key injected here, not in the page.
-        styleJson = styleJson.Replace("\"/tiles/", "\"/map-proxy/tiles/", StringComparison.Ordinal);
+        // fetches tiles with the admin key injected here, not in the page. The URL MUST be ABSOLUTE:
+        // MapLibre loads vector tiles in a web worker that calls new Request(url) with no document base, so a
+        // root-relative "/map-proxy/tiles/..." throws "Failed to parse URL" and no feature tile ever loads.
+        // Build the absolute origin from the incoming request so it works behind any host/scheme.
+        var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/map-proxy/tiles/";
+        styleJson = styleJson.Replace("\"/tiles/", $"\"{absoluteTileBase}", StringComparison.Ordinal);
         return Results.Content(styleJson, "application/json");
     });
 
