@@ -72,28 +72,45 @@ public sealed class OperateAccessPageRenderTests
         Assert.Contains("2 custom", page.Markup, StringComparison.Ordinal);
         Assert.Contains("14 members affected", page.Markup, StringComparison.Ordinal);
 
-        // This page is a READ-ONLY projection of the server RBAC contract: there is no role-authoring or
-        // role-audit mutation surface, so both actions are honestly disabled (never a clickable no-op) with
-        // a title explaining why — even when the caller could manage roles. (Charter §11.)
+        // Role authoring + audit are now bound to the server contract (#1162): '+ Custom role' is enabled
+        // when the caller may manage roles (SampleOverview sets CanManageRoles true), and 'Roles audit' is
+        // enabled once the overview loads.
         var customRole = page.Find("[data-rbac-custom-role]");
-        Assert.True(customRole.HasAttribute("disabled"));
-        Assert.Contains("read-only projection", customRole.GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
+        Assert.False(customRole.HasAttribute("disabled"));
+        Assert.NotNull(page.Find("[data-rbac-audit]"));
     }
 
     [Fact]
-    public void RolesOverview_CustomRoleAndAudit_AreHonestlyDisabled()
+    public void RolesOverview_CustomRoleAndAudit_EnabledWhenCallerCanManageRoles()
     {
-        // Even with CanManageRoles true, the actions stay disabled: the projection exposes no authoring
-        // contract, so enabling them would ship a clickable no-op.
-        var overview = SampleOverview() with { CanManageRoles = true };
-        var data = new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(overview, []) };
+        // With the manage-roles permission, both actions are enabled and wired to the server authoring/audit
+        // contract — no longer a read-only projection.
+        var canManage = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(SampleOverview() with { CanManageRoles = true }, [])
+        };
 
-        var page = RenderRoles(data);
+        var page = RenderRoles(canManage);
 
         page.WaitForAssertion(
             () => Assert.NotNull(page.Find("[data-rbac-custom-role]")),
             TimeSpan.FromSeconds(5));
-        Assert.True(page.Find("[data-rbac-custom-role]").HasAttribute("disabled"));
+        Assert.False(page.Find("[data-rbac-custom-role]").HasAttribute("disabled"));
+        Assert.False(page.Find("[data-rbac-audit]").HasAttribute("disabled"));
+
+        // Without the manage-roles permission, '+ Custom role' is honestly disabled with the reason.
+        var cannotManage = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(SampleOverview() with { CanManageRoles = false }, [])
+        };
+
+        var page2 = RenderRoles(cannotManage);
+
+        page2.WaitForAssertion(
+            () => Assert.NotNull(page2.Find("[data-rbac-custom-role]")),
+            TimeSpan.FromSeconds(5));
+        Assert.True(page2.Find("[data-rbac-custom-role]").HasAttribute("disabled"));
+        Assert.Contains("manage-roles", page2.Find("[data-rbac-custom-role]").GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -381,5 +398,18 @@ public sealed class OperateAccessPageRenderTests
 
         public Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default) =>
             Task.FromResult(MembershipLoad);
+
+        public RbacRoleMutationResult CreateResult { get; set; } = new(true, null);
+        public RbacRoleMutationResult DeleteResult { get; set; } = new(true, null);
+        public RbacAuditLoad AuditLoad { get; set; } = new(Array.Empty<RbacAuditEntryView>(), Array.Empty<RbacCapabilityState>());
+
+        public Task<RbacRoleMutationResult> CreateRoleAsync(string workspaceId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CreateResult);
+
+        public Task<RbacRoleMutationResult> DeleteRoleAsync(string workspaceId, string roleId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(DeleteResult);
+
+        public Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AuditLoad);
     }
 }

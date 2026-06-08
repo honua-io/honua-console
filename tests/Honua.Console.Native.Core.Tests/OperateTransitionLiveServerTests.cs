@@ -103,7 +103,7 @@ public sealed class OperateTransitionLiveServerTests
         // same live honua-server fixture.
         Assert.Contains("Services And Layers", servicesHtml, StringComparison.Ordinal);
         Assert.Contains("Operate / Layers", layersHtml, StringComparison.Ordinal);
-        Assert.Contains("Operator Settings", settingsHtml, StringComparison.Ordinal);
+        Assert.Contains("Server Runtime &amp; Policy", settingsHtml, StringComparison.Ordinal);
 
         // The settings slice always reflects live server metadata read from GET /api/v1/admin/version.
         Assert.Contains("Admin API version", settingsHtml, StringComparison.Ordinal);
