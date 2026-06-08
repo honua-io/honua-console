@@ -95,9 +95,9 @@
 
         @* Zoom chrome. *@
         <div class="map-preview-zoom" role="group" aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom in">+</button>
-            <button type="button" aria-label="Zoom out">&#8722;</button>
-            <button type="button" aria-label="Recenter">&#9094;</button>
+            <button type="button" aria-label="Zoom in" disabled="@(!_liveMapBound)" @onclick="ZoomInAsync">+</button>
+            <button type="button" aria-label="Zoom out" disabled="@(!_liveMapBound)" @onclick="ZoomOutAsync">&#8722;</button>
+            <button type="button" aria-label="Recenter" disabled="@(!_liveMapBound)" @onclick="RecenterAsync">&#9094;</button>
         </div>
 
         @* Service-mode layer list overlay. *@
@@ -369,6 +369,35 @@
 
     private Task ToggleLayer(MapPreviewLayer layer) =>
         OnLayerToggled.HasDelegate ? OnLayerToggled.InvokeAsync(layer) : Task.CompletedTask;
+
+    private Task ZoomInAsync() => InvokeMapControlAsync("zoomIn");
+
+    private Task ZoomOutAsync() => InvokeMapControlAsync("zoomOut");
+
+    private Task RecenterAsync() => InvokeMapControlAsync("recenter");
+
+    // The zoom/recenter chrome drives the live MapLibre map via interop. The buttons are disabled
+    // until a live map is bound, so these are no-ops only if interop races a teardown.
+    private async Task InvokeMapControlAsync(string function)
+    {
+        if (!_liveMapBound || _module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync(function, _canvas);
+        }
+        catch (JSException)
+        {
+            // Map control failed (style mid-swap or teardown); ignore.
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop unavailable; ignore.
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {

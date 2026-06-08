@@ -206,6 +206,16 @@ public interface IHonuaAdminOperateClient
 
     Task<HonuaAdminEndpointResult<HonuaAdminOidcProviderResponse[]>> ListOidcProvidersAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET-probes an admin endpoint and reports reachability: <c>Data=true</c> on a 2xx, otherwise the
+    /// status-mapped issue (Unsupported on 404/501, Missing permission on 401/403, Unavailable otherwise).
+    /// Used to drive capability states from the live server instead of hardcoded assumptions.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<bool>> ProbeEndpointAsync(
+        string contract,
+        string relativePath,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDisposable
@@ -784,6 +794,33 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             "/api/v1/admin/oidc/providers/",
             "GET /api/v1/admin/oidc/providers",
             cancellationToken);
+
+    public async Task<HonuaAdminEndpointResult<bool>> ProbeEndpointAsync(
+        string contract,
+        string relativePath,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        try
+        {
+            using var response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            return response.IsSuccessStatusCode
+                ? HonuaAdminEndpointResult<bool>.FromData(true)
+                : HonuaAdminEndpointResult<bool>.FromIssue(CreateIssue(contract, response.StatusCode));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<bool>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+    }
 
     public void Dispose() => _httpClient.Dispose();
 

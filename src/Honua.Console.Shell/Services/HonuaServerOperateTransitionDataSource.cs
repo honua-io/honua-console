@@ -44,7 +44,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, connectionStates);
         MergeStates(states, summaryStates);
         MergeStates(states, layerStates);
-        AddStateOnce(states, ResourcesUnsupportedState());
+        await AddResourcesCapabilityStateAsync(states, cancellationToken).ConfigureAwait(false);
         MergeStates(states, serviceSettingsStates);
         MergeStates(states, settingsChangeStates);
 
@@ -80,7 +80,7 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, connectionStates);
         MergeStates(states, summaryStates);
         MergeStates(states, layerStates);
-        AddStateOnce(states, ResourcesUnsupportedState());
+        await AddResourcesCapabilityStateAsync(states, cancellationToken).ConfigureAwait(false);
 
         return new OperateResourcesView(BuildResourceEdits(layerRows), states);
     }
@@ -228,12 +228,28 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         }
     }
 
-    private static OperateCapabilityState ResourcesUnsupportedState() =>
-        new(
-            "Resources",
-            "Unsupported",
-            $"{MetadataResourcesContract} plus resource edit validation/blast-radius projection",
-            "honua-server does not currently expose a Metadata v2 resource-edit preview contract for validation issues, saved maps, share links, or generated-app blast radius.");
+    // Real probe (no hardcoded assumption): surface the Resources capability state only from the
+    // live server response. If GET /api/v1/admin/metadata/resources is reachable (2xx) nothing is
+    // added; a 404/501 yields "Unsupported", a 401/403 "Missing permission", a transport failure
+    // "Unavailable" — all carrying the server-mapped detail. Auto-clears if the server adds the contract.
+    private async Task AddResourcesCapabilityStateAsync(
+        List<OperateCapabilityState> states,
+        CancellationToken cancellationToken)
+    {
+        var probe = await _client
+            .ProbeEndpointAsync(MetadataResourcesContract, "/api/v1/admin/metadata/resources", cancellationToken)
+            .ConfigureAwait(false);
+        if (probe.Issue is { } issue)
+        {
+            AddStateOnce(
+                states,
+                new OperateCapabilityState(
+                    "Resources",
+                    issue.State,
+                    $"{MetadataResourcesContract} plus resource edit validation/blast-radius projection",
+                    issue.Detail));
+        }
+    }
 
     private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
@@ -616,22 +632,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
                 "No restart reported by the OIDC provider list endpoint.",
                 "GET /api/v1/admin/oidc/providers.");
         }
-
-        AddStateOnce(
-            states,
-            new OperateCapabilityState(
-                "Settings",
-                "Unsupported",
-                "CORS admin read/write contract",
-                "honua-server configures CORS from process configuration and does not expose an operator settings API for allowed origins."));
-
-        AddStateOnce(
-            states,
-            new OperateCapabilityState(
-                "Settings",
-                "Unsupported",
-                "Catalog endpoint visibility admin contract",
-                "honua-server does not currently expose a Console admin contract for catalog endpoint visibility changes."));
     }
 
     private static OperateConnectionSummary MapConnection(HonuaAdminConnectionSummary connection)

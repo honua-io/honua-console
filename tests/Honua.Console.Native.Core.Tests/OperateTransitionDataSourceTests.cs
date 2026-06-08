@@ -116,15 +116,18 @@ public sealed class OperateTransitionDataSourceTests
         Assert.Contains(workspace.Services, service => service.Name == "planning" && service.Layers.Any(layer => layer.Name == "Console Parcels"));
         Assert.Contains(workspace.Services, service => service.Name == "public" && service.Layers.Any(layer => layer.CanonicalResourceId == resource.ResourceId));
         Assert.Contains(workspace.SettingsChanges, change => change.Id == "license" && change.ProposedChange.Contains("Community", StringComparison.Ordinal));
+        // Resources is a live probe now: the recording handler 404s the metadata-resources
+        // contract, so the Unsupported state is surfaced from the real probe (not hardcoded).
         Assert.Contains(
             workspace.CapabilityStates,
             state => state.Surface == "Resources"
                 && state.State == "Unsupported"
                 && state.Contract.Contains("/metadata/resources", StringComparison.Ordinal));
-        Assert.Contains(
+        // The CORS / catalog-visibility capability states were hardcoded mockups (no server
+        // contract to probe) and have been removed — assert they are no longer fabricated.
+        Assert.DoesNotContain(
             workspace.CapabilityStates,
-            state => state.Surface == "Settings"
-                && state.Contract.Contains("CORS", StringComparison.OrdinalIgnoreCase));
+            state => state.Contract.Contains("CORS", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

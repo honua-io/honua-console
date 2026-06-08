@@ -32,6 +32,40 @@ builder.Services.AddHonuaConsoleShell(
 
 var app = builder.Build();
 
+// Development testbed convenience: the browser host cannot create environment profiles
+// (profile creation runs on the native MAUI host), so seed + activate one from
+// HONUA_SERVER_BASE_URL when the in-memory profile store is empty. This lets a browser-only
+// testbed bind to a running honua-server without the native host. Never runs outside Development.
+if (app.Environment.IsDevelopment())
+{
+    var seedUrl = app.Configuration["Honua:Server:BaseUrl"]
+        ?? Environment.GetEnvironmentVariable("HONUA_SERVER_BASE_URL");
+    if (!string.IsNullOrWhiteSpace(seedUrl) && Uri.TryCreate(seedUrl, UriKind.Absolute, out var seedUri))
+    {
+        using var seedScope = app.Services.CreateScope();
+        var profileStore = seedScope.ServiceProvider
+            .GetRequiredService<Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore>();
+        if ((await profileStore.ListProfilesAsync()).Count == 0)
+        {
+            var devProfile = new Honua.Console.Shell.Models.ConsoleEnvironmentProfile
+            {
+                Id = "local-dev",
+                DisplayName = "Local honua-server",
+                ServerBaseUri = seedUri,
+                EnvironmentKind = "development",
+                Account = new Honua.Console.Shell.Models.ConsoleAccountBinding
+                {
+                    AuthMode = Honua.Console.Shell.Models.ConsoleAccountAuthMode.AccountRbac,
+                    AccountId = "console-user",
+                    DisplayName = "Console User",
+                },
+            };
+            await profileStore.UpsertProfileAsync(devProfile);
+            await profileStore.ActivateProfileAsync(devProfile.Id);
+        }
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

@@ -67,6 +67,9 @@ export async function init(container, options) {
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
         }
         map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-left');
+        // Remember the initial view so the custom Recenter control can restore it.
+        map._homeCenter = options.center ?? [0, 0];
+        map._homeZoom = options.zoom ?? 1;
         instances.set(container, map);
         return true;
     } catch {
@@ -85,6 +88,27 @@ export function setBasemap(container, styleUrl) {
         }
     }
     return false;
+}
+
+export function zoomIn(container) {
+    const map = instances.get(container);
+    if (map) {
+        try { map.zoomIn(); } catch { /* ignore */ }
+    }
+}
+
+export function zoomOut(container) {
+    const map = instances.get(container);
+    if (map) {
+        try { map.zoomOut(); } catch { /* ignore */ }
+    }
+}
+
+export function recenter(container) {
+    const map = instances.get(container);
+    if (map) {
+        try { map.easeTo({ center: map._homeCenter ?? [0, 0], zoom: map._homeZoom ?? 1 }); } catch { /* ignore */ }
+    }
 }
 
 export function dispose(container) {
