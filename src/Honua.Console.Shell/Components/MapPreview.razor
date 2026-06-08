@@ -93,11 +93,15 @@
             <span>z @Zoom</span>
         </div>
 
-        @* Zoom chrome. *@
+        @* Zoom chrome. Drives the live MapLibre camera when one is bound; disabled over the static
+           schematic placeholder (no camera to move) so it is never a clickable no-op. *@
         <div class="map-preview-zoom" role="group" aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom in">+</button>
-            <button type="button" aria-label="Zoom out">&#8722;</button>
-            <button type="button" aria-label="Recenter">&#9094;</button>
+            <button type="button" aria-label="Zoom in" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="ZoomInAsync">+</button>
+            <button type="button" aria-label="Zoom out" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="ZoomOutAsync">&#8722;</button>
+            <button type="button" aria-label="Recenter" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="RecenterAsync">&#9094;</button>
         </div>
 
         @* Service-mode layer list overlay. *@
@@ -369,6 +373,48 @@
 
     private Task ToggleLayer(MapPreviewLayer layer) =>
         OnLayerToggled.HasDelegate ? OnLayerToggled.InvokeAsync(layer) : Task.CompletedTask;
+
+    private string ZoomControlTitle => _liveMapBound
+        ? "Zoom / recenter the live map"
+        : "Zoom is available once a live map style is bound; the schematic placeholder has no camera.";
+
+    private async Task ZoomInAsync() => await InvokeMapAsync("zoomIn");
+
+    private async Task ZoomOutAsync() => await InvokeMapAsync("zoomOut");
+
+    private async Task RecenterAsync()
+    {
+        if (!_liveMapBound || _module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeAsync<bool>("recenter", _canvas, Center, (double)Zoom);
+        }
+        catch (JSException)
+        {
+            // Live camera move failed; keep the current view.
+        }
+    }
+
+    private async Task InvokeMapAsync(string fn)
+    {
+        if (!_liveMapBound || _module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeAsync<bool>(fn, _canvas);
+        }
+        catch (JSException)
+        {
+            // Live camera move failed; keep the current view.
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {

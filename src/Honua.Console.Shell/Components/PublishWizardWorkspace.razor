@@ -1,7 +1,11 @@
 @namespace Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 @inject IServiceLayerPublishOperation PublishOperation
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 @*
     Functional publish wizards for the Operate publishing workspace, implementing the design-handoff
@@ -844,10 +848,15 @@ else
                 </tbody>
             </table>
         </div>
+        @* Each "create a new resource" affordance navigates to the real Operate authoring flow for that
+           source (those pages own the create contract); the wizard does not author resources itself. *@
         <div class="console-chip-row publish-resource-actions">
-            <button type="button" class="console-button console-button-secondary">+ Create from connection</button>
-            <button type="button" class="console-button console-button-secondary">+ Create from file</button>
-            <button type="button" class="console-button console-button-secondary">+ Migrate remote service</button>
+            <button type="button" class="console-button console-button-secondary"
+                    @onclick='() => Navigation.NavigateTo("/operate/connections/new")'>+ Create from connection</button>
+            <button type="button" class="console-button console-button-secondary"
+                    @onclick='() => Navigation.NavigateTo("/operate/resources/import")'>+ Create from file</button>
+            <button type="button" class="console-button console-button-secondary"
+                    @onclick='() => Navigation.NavigateTo("/operate/import/service")'>+ Migrate remote service</button>
         </div>
     };
 
@@ -981,7 +990,53 @@ else
         <article class="console-panel publish-url-preview" data-url-preview>
             <h3>URL preview</h3>
             <code class="publish-url-value">@url</code>
-            <button type="button" class="console-button console-button-secondary">⧉ Copy URL</button>
+            <button type="button" class="console-button console-button-secondary"
+                    data-url-copy disabled="@string.IsNullOrWhiteSpace(url)"
+                    @onclick="() => CopyUrlAsync(url)">@(_urlCopied ? "✓ Copied" : "⧉ Copy URL")</button>
         </article>
     };
+
+    private bool _urlCopied;
+    private IJSObjectReference? _clipboardModule;
+
+    // Copy the previewed service/layer URL to the clipboard via the shared wwwroot clipboard module (same
+    // pattern as CatalogItemEditorPage). Interop failures (prerender / bUnit / torn-down circuit) are
+    // swallowed so the action never throws; the button simply does not flip to "Copied".
+    private async Task CopyUrlAsync(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        try
+        {
+            _clipboardModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/Honua.Console.Shell/catalog-item-editor.js");
+            _urlCopied = await _clipboardModule.InvokeAsync<bool>("copyText", url);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            _urlCopied = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_clipboardModule is not null)
+        {
+            try
+            {
+                await _clipboardModule.DisposeAsync();
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            {
+                // Circuit already gone; nothing to clean up browser-side.
+            }
+            finally
+            {
+                _clipboardModule = null;
+            }
+        }
+    }
 }

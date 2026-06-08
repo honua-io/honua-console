@@ -29,9 +29,12 @@
             </div>
             @if (_options.Zoom)
             {
+                @* The embed surface is a static schematic preview — there is no live map runtime mounted
+                   here to drive, so the zoom controls are honestly disabled rather than clickable no-ops
+                   (Charter §11). They light up once an interactive embed map runtime is bound. *@
                 <div class="console-embed-zoom" aria-label="Zoom controls">
-                    <button type="button">+</button>
-                    <button type="button">-</button>
+                    <button type="button" disabled title="Zoom is available once an interactive embed map is bound.">+</button>
+                    <button type="button" disabled title="Zoom is available once an interactive embed map is bound.">-</button>
                 </div>
             }
             @if (_options.Legend)

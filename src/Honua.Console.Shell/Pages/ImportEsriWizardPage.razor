@@ -197,9 +197,14 @@
                     <span class="esri-parity-bar__seg esri-parity-bar__seg--failed" style="width:@(card.FailedPercent)%"></span>
                 </div>
             </div>
+            @* The parity scorecard export (PDF / CSV) has no honua-server export contract yet, so these are
+               honestly disabled rather than clickable no-ops (Charter §11). Re-enable when the import
+               scorecard export endpoint lands. *@
             <div class="console-button-row">
-                <button type="button" class="console-button-ghost console-button-sm" data-export="pdf">Export report (PDF)</button>
-                <button type="button" class="console-button-ghost console-button-sm" data-export="csv">Export findings (CSV)</button>
+                <button type="button" class="console-button-ghost console-button-sm" data-export="pdf" disabled
+                        title="Scorecard export is not available yet; no honua-server export contract is bound.">Export report (PDF)</button>
+                <button type="button" class="console-button-ghost console-button-sm" data-export="csv" disabled
+                        title="Scorecard export is not available yet; no honua-server export contract is bound.">Export findings (CSV)</button>
             </div>
             <div class="console-table-wrap">
                 <table class="console-table" data-scorecard-table>

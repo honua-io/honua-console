@@ -16,8 +16,14 @@
             <p class="console-muted rbac-lede">Hierarchical RBAC. Workspace roles inherit down; per-content and per-publication overrides allowed. Roles and grants are authored on honua-server's Console metadata/RBAC API and are never resolved client-side.</p>
         </div>
         <div class="console-detail-actions">
-            <button class="console-button console-button-secondary" type="button" disabled="@(_overview is null)">Roles audit</button>
-            <button class="console-button" type="button" data-rbac-custom-role disabled="@(!(_overview?.CanManageRoles ?? false))">+ Custom role</button>
+            @* This page is a READ-ONLY projection of honua-server's Console metadata/RBAC contract
+               (honua-server#1162): it exposes role/overview reads only, with no role-authoring or
+               audit-mutation surface. Both controls are honestly disabled rather than shipping a
+               clickable no-op (Charter §11). Re-enable when a server-side authoring contract lands. *@
+            <button class="console-button console-button-secondary" type="button" disabled
+                    title="Role audit is managed on honua-server; not available from this read-only projection.">Roles audit</button>
+            <button class="console-button" type="button" data-rbac-custom-role disabled
+                    title="Role authoring is managed on honua-server; not available from this read-only projection.">+ Custom role</button>
         </div>
     </div>
 
