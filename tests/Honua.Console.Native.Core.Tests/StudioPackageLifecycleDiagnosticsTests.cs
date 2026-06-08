@@ -69,7 +69,7 @@ public sealed class StudioPackageLifecycleDiagnosticsTests
         var client = new HttpStudioPackageLifecycleClient(
             httpClient,
             new StudioPackageLifecycleClientOptions(BaseUri));
-        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient());
+        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
 
         var state = new StudioMapEditorState { Title = "Public works", Basemap = "basemap:streets", InitialExtent = "0,0,1,1" };
         state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:hydrants@v12" });

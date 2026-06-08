@@ -61,7 +61,7 @@ public sealed class StudioGenerationNullCollectionTests
                     UnmappedRequests = null!
                 })
         };
-        var source = new HonuaServerStudioMapPackageDataSource(new ThrowingPackageLifecycleClient(), generation);
+        var source = new HonuaServerStudioMapPackageDataSource(new ThrowingPackageLifecycleClient(), generation, new UnsupportedOperateTransitionDataSource());
 
         var outcome = await source.GenerateAsync(
             new StudioMapEditorState(),

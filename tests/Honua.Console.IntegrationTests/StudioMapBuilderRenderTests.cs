@@ -177,7 +177,7 @@ public sealed class StudioMapBuilderRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient()));
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource()));
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
