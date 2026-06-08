@@ -43,21 +43,33 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         _generation = generation ?? throw new ArgumentNullException(nameof(generation));
     }
 
-    public Task<StudioMapWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+    public async Task<StudioMapWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
-        // honua-server#1180/#1183 address packages by id and expose no map-package list verb, so the
-        // workspace cannot enumerate existing maps from live data without fabricating them. Surface that
-        // explicitly (Console Patterns Charter section 11) — operators reach an existing map by id (deep
-        // link / known id) or author a new map. This list binds automatically once a list route lands.
-        var listUnsupported = new StudioMapCapabilityState(
-            Surface,
-            "Unsupported",
-            ListContract,
-            "honua-server does not yet expose a map-package list endpoint, so existing map packages cannot "
-            + "be enumerated from live data. Create a new map, or open a known map by id. The package list "
-            + "binds automatically once honua-server adds a Studio package list route.");
+        // honua-server now exposes a Studio package-draft list route, so the workspace enumerates existing
+        // map drafts from live data (filtered to the map family). The summaries are secret-safe — they carry
+        // identity/title-key/timestamps but not the package body — so layer counts are not available without
+        // opening a draft; the list still lets operators reach an existing map by id, or author a new one.
+        var result = await _client
+            .ListPackageDraftsAsync(StudioPackageFamily.Map, status: null, cancellationToken)
+            .ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return new StudioMapWorkspace([], [ToCapabilityState(ListContract, issue)]);
+        }
 
-        return Task.FromResult(new StudioMapWorkspace([], [listUnsupported]));
+        var packages = (result.Data!.Drafts ?? [])
+            .Select(summary => new StudioMapPackageListItem(
+                summary.DraftId.ToString(),
+                string.IsNullOrWhiteSpace(summary.PackageKey) ? summary.DraftId.ToString() : summary.PackageKey,
+                LayerCount: 0,
+                DraftVersion: null,
+                PublishedVersion: null,
+                summary.UpdatedAt))
+            .OrderByDescending(item => item.UpdatedAt)
+            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new StudioMapWorkspace(packages, []);
     }
 
     public async Task<StudioMapEditorLoad> LoadAsync(string? mapId, CancellationToken cancellationToken = default)

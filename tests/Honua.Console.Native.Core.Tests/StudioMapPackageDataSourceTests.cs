@@ -128,15 +128,55 @@ public sealed class StudioMapPackageDataSourceTests
     }
 
     [Fact]
-    public async Task GetWorkspace_SurfacesUnsupportedListInsteadOfFabricatingPackages()
+    public async Task GetWorkspace_WithNoDrafts_ReturnsEmptyListWithoutCapabilityState()
     {
-        var source = CreateSource(new RecordingHandler());
+        var handler = new RecordingHandler();
+        handler.Map(
+            HttpMethod.Get,
+            "/api/v1/studio/package-drafts",
+            """{"success":true,"data":{"drafts":[]}}""");
+        var source = CreateSource(handler);
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.Packages);
+        Assert.Empty(workspace.CapabilityStates);
+        Assert.Equal("/api/v1/studio/package-drafts", Assert.Single(handler.RequestedPaths).Path);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_EnumeratesLiveMapDrafts()
+    {
+        var draftId = Guid.NewGuid();
+        var listJson = "{\"success\":true,\"data\":{\"drafts\":[{"
+            + "\"draftId\":\"" + draftId + "\","
+            + "\"itemId\":\"" + Guid.NewGuid() + "\","
+            + "\"packageKey\":\"studio-map-public-works\","
+            + "\"family\":\"map\",\"validationStatus\":\"valid\",\"generation\":1,"
+            + "\"createdAt\":\"2026-01-01T00:00:00Z\",\"updatedAt\":\"2026-01-02T00:00:00Z\"}]}}";
+        var handler = new RecordingHandler();
+        handler.Map(HttpMethod.Get, "/api/v1/studio/package-drafts", listJson);
+        var source = CreateSource(handler);
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.CapabilityStates);
+        var item = Assert.Single(workspace.Packages);
+        Assert.Equal(draftId.ToString(), item.MapId);
+        Assert.Equal("studio-map-public-works", item.Title);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenListEndpointFails_SurfacesCapabilityState()
+    {
+        var handler = new RecordingHandler();
+        handler.MapStatus(HttpMethod.Get, "/api/v1/studio/package-drafts", HttpStatusCode.Forbidden);
+        var source = CreateSource(handler);
 
         var workspace = await source.GetWorkspaceAsync();
 
         Assert.Empty(workspace.Packages);
         var state = Assert.Single(workspace.CapabilityStates);
-        Assert.Equal("Unsupported", state.State);
         Assert.Contains("list", state.Contract, StringComparison.OrdinalIgnoreCase);
     }
 
