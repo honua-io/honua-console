@@ -12,34 +12,53 @@
 // them as the spec's inline data. The chart never fabricates sample data; with no rows and
 // no inline data in the spec the embed is skipped and the placeholder stays.
 
+// vega-embed's standalone build does NOT bundle vega + vega-lite; they are peer deps that must be
+// present first. Load all three from the CDN in order (vega → vega-lite → vega-embed).
+const VEGA_JS = 'https://cdn.jsdelivr.net/npm/vega@5.30.0/build/vega.min.js';
+const VEGA_LITE_JS = 'https://cdn.jsdelivr.net/npm/vega-lite@5.21.0/build/vega-lite.min.js';
 const VEGA_EMBED_JS = 'https://cdn.jsdelivr.net/npm/vega-embed@6.26.0/build/vega-embed.min.js';
 
 const instances = new Map();
 let vegaEmbedPromise = null;
 
+function loadScript(src) {
+    return new Promise((resolve) => {
+        try {
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false; // preserve execution order across the three peer scripts
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.head.appendChild(script);
+        } catch {
+            resolve(false);
+        }
+    });
+}
+
 function loadVegaEmbed() {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
         return Promise.resolve(null);
     }
-    if (window.vegaEmbed) {
+    if (window.vegaEmbed && window.vega && window.vegaLite) {
         return Promise.resolve(window.vegaEmbed);
     }
     if (vegaEmbedPromise) {
         return vegaEmbedPromise;
     }
-    // vega-embed's UMD bundle pulls vega + vega-lite in itself, so a single script tag suffices.
-    vegaEmbedPromise = new Promise((resolve) => {
-        try {
-            const script = document.createElement('script');
-            script.src = VEGA_EMBED_JS;
-            script.async = true;
-            script.onload = () => resolve(window.vegaEmbed ?? null);
-            script.onerror = () => resolve(null);
-            document.head.appendChild(script);
-        } catch {
-            resolve(null);
+    vegaEmbedPromise = (async () => {
+        // Sequential: vega-lite needs vega; vega-embed needs both.
+        if (!window.vega && !(await loadScript(VEGA_JS))) {
+            return null;
         }
-    });
+        if (!window.vegaLite && !(await loadScript(VEGA_LITE_JS))) {
+            return null;
+        }
+        if (!window.vegaEmbed && !(await loadScript(VEGA_EMBED_JS))) {
+            return null;
+        }
+        return window.vegaEmbed ?? null;
+    })();
     return vegaEmbedPromise;
 }
 
