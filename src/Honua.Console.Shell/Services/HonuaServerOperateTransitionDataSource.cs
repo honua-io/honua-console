@@ -8,7 +8,6 @@ namespace Honua.Console.Shell.Services;
 
 public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionDataSource
 {
-    private const string MetadataResourcesContract = "GET /api/v1/admin/metadata/resources";
 
     private static readonly IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> EmptyServiceSettings =
         new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(
@@ -44,7 +43,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, connectionStates);
         MergeStates(states, summaryStates);
         MergeStates(states, layerStates);
-        await AddResourcesCapabilityStateAsync(states, cancellationToken).ConfigureAwait(false);
         MergeStates(states, serviceSettingsStates);
         MergeStates(states, settingsChangeStates);
 
@@ -80,7 +78,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, connectionStates);
         MergeStates(states, summaryStates);
         MergeStates(states, layerStates);
-        await AddResourcesCapabilityStateAsync(states, cancellationToken).ConfigureAwait(false);
 
         return new OperateResourcesView(BuildResourceEdits(layerRows), states);
     }
@@ -228,29 +225,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         }
     }
 
-    // Real probe (no hardcoded assumption): surface the Resources capability state only from the
-    // live server response. If GET /api/v1/admin/metadata/resources is reachable (2xx) nothing is
-    // added; a 404/501 yields "Unsupported", a 401/403 "Missing permission", a transport failure
-    // "Unavailable" — all carrying the server-mapped detail. Auto-clears if the server adds the contract.
-    private async Task AddResourcesCapabilityStateAsync(
-        List<OperateCapabilityState> states,
-        CancellationToken cancellationToken)
-    {
-        var probe = await _client
-            .ProbeEndpointAsync(MetadataResourcesContract, "/api/v1/admin/metadata/resources", cancellationToken)
-            .ConfigureAwait(false);
-        if (probe.Issue is { } issue)
-        {
-            AddStateOnce(
-                states,
-                new OperateCapabilityState(
-                    "Resources",
-                    issue.State,
-                    $"{MetadataResourcesContract} plus resource edit validation/blast-radius projection",
-                    issue.Detail));
-        }
-    }
-
     private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
         IReadOnlyList<HonuaAdminServiceSummary> services,
@@ -362,16 +336,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             }
 
             settings[serviceName] = result.Data;
-            if (result.Data.TimeInfo is null)
-            {
-                AddStateOnce(
-                    states,
-                    new OperateCapabilityState(
-                        "Services",
-                        "Unsupported",
-                        "GET /api/v1/admin/services/{serviceName}/settings timeInfo",
-                        "honua-server reports service-scope TimeInfo as unavailable in the Metadata v2 graph; use the per-layer metadata contract when it lands in the Console SDK projection."));
-            }
+            // A null service-scope TimeInfo is normal for non-temporal services — it is not an
+            // unsupported capability, so it is not surfaced as a capability-gap notice.
         }
 
         return (new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(settings), states);
