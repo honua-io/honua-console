@@ -114,25 +114,47 @@ export function setBasemap(container, styleUrl) {
     return false;
 }
 
+// Zoom / recenter controls for the schematic-overlay chrome. These only do something when a live
+// MapLibre map is bound for the container; otherwise they no-op (the static schematic has no camera).
+// Returns true when the live map handled the gesture, false when there was no live map to drive.
 export function zoomIn(container) {
     const map = instances.get(container);
     if (map) {
-        try { map.zoomIn(); } catch { /* ignore */ }
+        try {
+            map.zoomIn();
+            return true;
+        } catch {
+            return false;
+        }
     }
+    return false;
 }
 
 export function zoomOut(container) {
     const map = instances.get(container);
     if (map) {
-        try { map.zoomOut(); } catch { /* ignore */ }
+        try {
+            map.zoomOut();
+            return true;
+        } catch {
+            return false;
+        }
     }
+    return false;
 }
 
-export function recenter(container) {
+// Recenter returns the live map to the initial center/zoom it was mounted with.
+export function recenter(container, center, zoom) {
     const map = instances.get(container);
     if (map) {
-        try { map.easeTo({ center: map._homeCenter ?? [0, 0], zoom: map._homeZoom ?? 1 }); } catch { /* ignore */ }
+        try {
+            map.easeTo({ center: center ?? [0, 0], zoom: zoom ?? 1 });
+            return true;
+        } catch {
+            return false;
+        }
     }
+    return false;
 }
 
 export function dispose(container) {

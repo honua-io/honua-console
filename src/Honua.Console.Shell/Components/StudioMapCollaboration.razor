@@ -49,7 +49,7 @@
                 <span class="console-muted studio-map-collab-avatars-empty" data-collab-presence-empty>no live presence</span>
             }
         </div>
-        <button type="button" class="console-button console-button-secondary studio-map-collab-invite" disabled="@(!IsRealtimeBound)">+ Invite</button>
+        <button type="button" class="console-button console-button-secondary studio-map-collab-invite" disabled="@(!IsRealtimeBound)" title="@RealtimeActionTitle">+ Invite</button>
     </div>
 
     @* The canvas the collaboration chrome overlays — cursors, markup, comment pins, and the follow pill. *@
@@ -97,7 +97,7 @@
             <div class="console-chip-row studio-map-collab-markup-tools" role="group" aria-label="Markup tools">
                 @foreach (var tool in StudioMapMarkupTools.All)
                 {
-                    <button type="button" class="studio-map-collab-markup-tool" disabled="@(!IsRealtimeBound)" data-collab-markup-tool="@tool.Id">@tool.Label</button>
+                    <button type="button" class="studio-map-collab-markup-tool" disabled="@(!IsRealtimeBound)" data-collab-markup-tool="@tool.Id" title="@RealtimeActionTitle">@tool.Label</button>
                 }
             </div>
             <p class="console-muted studio-map-collab-markup-note">Markup is per-draft and never touches the canonical style.</p>
@@ -177,7 +177,7 @@
 
             <div class="studio-map-collab-rail-compose">
                 <input class="console-input" placeholder="@("@")mention or quick comment…" disabled="@(!IsRealtimeBound)" aria-label="Quick comment" />
-                <button type="button" class="console-button" disabled="@(!IsRealtimeBound)">Send</button>
+                <button type="button" class="console-button" disabled="@(!IsRealtimeBound)" title="@RealtimeActionTitle">Send</button>
             </div>
         }
     </aside>
@@ -225,8 +225,8 @@
             <div class="studio-map-collab-drawer-compose">
                 <textarea class="console-input" rows="2" placeholder="Reply · type @("@") to mention" disabled="@(!IsRealtimeBound)" aria-label="Reply"></textarea>
                 <div class="console-action-row">
-                    <button type="button" class="console-button console-button-secondary" disabled="@(!IsRealtimeBound)">Mark resolved</button>
-                    <button type="button" class="console-button" disabled="@(!IsRealtimeBound)">Send</button>
+                    <button type="button" class="console-button console-button-secondary" disabled="@(!IsRealtimeBound)" title="@RealtimeActionTitle">Mark resolved</button>
+                    <button type="button" class="console-button" disabled="@(!IsRealtimeBound)" title="@RealtimeActionTitle">Send</button>
                 </div>
             </div>
         </div>
@@ -259,6 +259,12 @@
     // bound. Gating these on IsRealtimeBound (rather than IsBound) keeps the live-server scenario from
     // enabling no-op controls — the durable read surface lights up, the deferred chrome stays disabled.
     private bool IsRealtimeBound => _session?.IsRealtimeBound == true;
+
+    // Hover explanation for the deferred real-time write controls so a disabled control is never an
+    // unexplained dead button (Charter §11).
+    private string RealtimeActionTitle => IsRealtimeBound
+        ? string.Empty
+        : "Live collaboration writes are not bound yet (honua-server#1290); this control is read-only for now.";
 
     protected override async Task OnParametersSetAsync()
     {

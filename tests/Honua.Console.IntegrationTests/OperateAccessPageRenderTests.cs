@@ -67,18 +67,25 @@ public sealed class OperateAccessPageRenderTests
         Assert.Contains("data-rbac-grant=\"not-granted\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-rbac-legend", page.Markup, StringComparison.Ordinal);
 
-        // Counts strip and a custom-role action gated on the caller facet.
+        // Counts strip.
         Assert.Contains("8 built-in roles", page.Markup, StringComparison.Ordinal);
         Assert.Contains("2 custom", page.Markup, StringComparison.Ordinal);
         Assert.Contains("14 members affected", page.Markup, StringComparison.Ordinal);
+
+        // This page is a READ-ONLY projection of the server RBAC contract: there is no role-authoring or
+        // role-audit mutation surface, so both actions are honestly disabled (never a clickable no-op) with
+        // a title explaining why — even when the caller could manage roles. (Charter §11.)
         var customRole = page.Find("[data-rbac-custom-role]");
-        Assert.False(customRole.HasAttribute("disabled"));
+        Assert.True(customRole.HasAttribute("disabled"));
+        Assert.Contains("read-only projection", customRole.GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void RolesOverview_WhenCannotManage_DisablesCustomRoleAction()
+    public void RolesOverview_CustomRoleAndAudit_AreHonestlyDisabled()
     {
-        var overview = SampleOverview() with { CanManageRoles = false };
+        // Even with CanManageRoles true, the actions stay disabled: the projection exposes no authoring
+        // contract, so enabling them would ship a clickable no-op.
+        var overview = SampleOverview() with { CanManageRoles = true };
         var data = new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(overview, []) };
 
         var page = RenderRoles(data);
@@ -161,7 +168,7 @@ public sealed class OperateAccessPageRenderTests
     }
 
     [Fact]
-    public void Members_OpenInvite_GatesSendOnValidation_AndBindsLimitsInputs()
+    public void Members_OpenInvite_SendIsHonestlyDisabled_ButClientValidationStillSurfaces()
     {
         var data = new FakeRbacDataSource
         {
@@ -177,16 +184,17 @@ public sealed class OperateAccessPageRenderTests
             () => Assert.NotNull(page.Find("[data-rbac-invite-send]")),
             TimeSpan.FromSeconds(5));
 
-        // Drawer opens with no email and only dev selected by default -> email blocker gates Send.
+        // Membership/invitations are a READ-ONLY projection of the server RBAC contract — there is no
+        // invite-send mutation surface — so Send is honestly disabled (never a clickable no-op) regardless
+        // of client-side validity. (Charter §11.)
         Assert.True(page.Find("[data-rbac-invite-send]").HasAttribute("disabled"));
 
-        // Provide a valid email -> drawer becomes submittable (dev scope is on by default).
+        // Provide a valid email + the default dev scope: Send stays disabled (no server contract) but the
+        // drawer remains a live scoped-invite preview, so its client-side CIDR validation still surfaces.
         page.Find("input[placeholder='name@example.gov']").Change("r.kim@example.gov");
-        page.WaitForAssertion(
-            () => Assert.False(page.Find("[data-rbac-invite-send]").HasAttribute("disabled")),
-            TimeSpan.FromSeconds(5));
+        Assert.True(page.Find("[data-rbac-invite-send]").HasAttribute("disabled"));
 
-        // The newly @bind-wired IP allowlist input round-trips and validates as CIDR.
+        // The @bind-wired IP allowlist input round-trips and validates as CIDR.
         page.Find("input[placeholder='(none · global)']").Change("not-a-cidr");
         page.WaitForAssertion(
             () => Assert.Contains("valid CIDR block", page.Markup, StringComparison.Ordinal),

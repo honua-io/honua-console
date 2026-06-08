@@ -406,13 +406,15 @@
             {
                 _draft = outcome.Draft ?? _draft;
                 _clarifications = [];
+                // No EvidenceLabel here: the readiness summary + DAG preview this would point at is already
+                // rendered live in the right rail of this same view, so an evidence link would be a clickable
+                // no-op (there is no separate evidence target / OnEvidence handler). Charter §11.
                 _turns.Add(new StudioConversationTurn(
                     StudioConversationRole.Honua,
                     string.IsNullOrWhiteSpace(outcome.Rationale)
                         ? $"Proposed · {StepCount} steps · ~{EstimatedDuration} · {TriggerSummary}. Refine by chatting, or open the editor."
                         : outcome.Rationale,
-                    Tone: StudioConversationTone.Ready,
-                    EvidenceLabel: "View readiness summary"));
+                    Tone: StudioConversationTone.Ready));
             }
             else if (outcome.NeedsClarification)
             {

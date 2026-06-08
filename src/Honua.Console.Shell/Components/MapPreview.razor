@@ -93,11 +93,15 @@
             <span>z @Zoom</span>
         </div>
 
-        @* Zoom chrome. *@
+        @* Zoom chrome. Drives the live MapLibre camera when one is bound; disabled over the static
+           schematic placeholder (no camera to move) so it is never a clickable no-op. *@
         <div class="map-preview-zoom" role="group" aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom in" disabled="@(!_liveMapBound)" @onclick="ZoomInAsync">+</button>
-            <button type="button" aria-label="Zoom out" disabled="@(!_liveMapBound)" @onclick="ZoomOutAsync">&#8722;</button>
-            <button type="button" aria-label="Recenter" disabled="@(!_liveMapBound)" @onclick="RecenterAsync">&#9094;</button>
+            <button type="button" aria-label="Zoom in" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="ZoomInAsync">+</button>
+            <button type="button" aria-label="Zoom out" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="ZoomOutAsync">&#8722;</button>
+            <button type="button" aria-label="Recenter" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="RecenterAsync">&#9094;</button>
         </div>
 
         @* Service-mode layer list overlay. *@
@@ -370,15 +374,15 @@
     private Task ToggleLayer(MapPreviewLayer layer) =>
         OnLayerToggled.HasDelegate ? OnLayerToggled.InvokeAsync(layer) : Task.CompletedTask;
 
-    private Task ZoomInAsync() => InvokeMapControlAsync("zoomIn");
+    private string ZoomControlTitle => _liveMapBound
+        ? "Zoom / recenter the live map"
+        : "Zoom is available once a live map style is bound; the schematic placeholder has no camera.";
 
-    private Task ZoomOutAsync() => InvokeMapControlAsync("zoomOut");
+    private async Task ZoomInAsync() => await InvokeMapAsync("zoomIn");
 
-    private Task RecenterAsync() => InvokeMapControlAsync("recenter");
+    private async Task ZoomOutAsync() => await InvokeMapAsync("zoomOut");
 
-    // The zoom/recenter chrome drives the live MapLibre map via interop. The buttons are disabled
-    // until a live map is bound, so these are no-ops only if interop races a teardown.
-    private async Task InvokeMapControlAsync(string function)
+    private async Task RecenterAsync()
     {
         if (!_liveMapBound || _module is null)
         {
@@ -387,15 +391,28 @@
 
         try
         {
-            await _module.InvokeVoidAsync(function, _canvas);
+            await _module.InvokeAsync<bool>("recenter", _canvas, Center, (double)Zoom);
         }
         catch (JSException)
         {
-            // Map control failed (style mid-swap or teardown); ignore.
+            // Live camera move failed; keep the current view.
         }
-        catch (InvalidOperationException)
+    }
+
+    private async Task InvokeMapAsync(string fn)
+    {
+        if (!_liveMapBound || _module is null)
         {
-            // JS interop unavailable; ignore.
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeAsync<bool>(fn, _canvas);
+        }
+        catch (JSException)
+        {
+            // Live camera move failed; keep the current view.
         }
     }
 

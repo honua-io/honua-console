@@ -157,6 +157,47 @@ public sealed class CatalogsDiscoveryPageRenderTests
     }
 
     [Fact]
+    public void Detail_HeaderActions_CopyAndOpenAreWired_RebuildIsHonestlyDisabled()
+    {
+        // The endpoint detail header actions were previously dead buttons (no @onclick). Copy now copies the
+        // real endpoint URL via the shared clipboard interop; Open links out to that URL; Rebuild index has
+        // no honua-server mutation contract so it is honestly disabled (never a clickable no-op). Charter §11.
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
+        };
+
+        var ctx = new Bunit.TestContext();
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
+        module.Setup<bool>("copyText", _ => true).SetResult(true);
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        NavigateToWorkspace(ctx, "operate/catalogs/esri", workspace: null);
+        var page = ctx.RenderComponent<CatalogsEndpointDetailPage>(parameters => parameters
+            .Add(p => p.Key, "esri"));
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-catalog-copy-url]")),
+            TimeSpan.FromSeconds(5));
+
+        // Open ↗ is a real anchor to the endpoint URL.
+        var open = page.Find("[data-catalog-open-url]");
+        Assert.Equal("/catalog", open.GetAttribute("href"));
+
+        // Rebuild index is honestly disabled with an explanatory title.
+        var rebuild = page.FindAll("button").Single(b => b.TextContent.Contains("Rebuild index", StringComparison.Ordinal));
+        Assert.True(rebuild.HasAttribute("disabled"));
+        Assert.False(string.IsNullOrWhiteSpace(rebuild.GetAttribute("title")));
+
+        // Copy copies the real endpoint URL and flips the label.
+        page.Find("[data-catalog-copy-url]").Click();
+        var invocation = Assert.Single(module.Invocations["copyText"]);
+        Assert.Equal("/catalog", Assert.IsType<string>(invocation.Arguments[0]));
+        page.WaitForAssertion(
+            () => Assert.Contains("Copied", page.Find("[data-catalog-copy-url]").TextContent, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void Item_WhenBindingMissing_RendersMissingBindingSurface()
     {
         var data = new FakeCatalogDiscoveryDataSource

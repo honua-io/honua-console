@@ -102,7 +102,11 @@
                                       OnAnswer="OnClarificationAnswered"
                                       OnEvidence="OnEvidenceRequested">
                     <SecondaryRefineActions>
-                        <button type="button" class="console-button console-button-secondary studio-ai-attach" disabled="@_busy" @onclick="AttachData">Attach data</button>
+                        @* "Attach data" has no honua-server attach contract in the map-from-prompt flow yet
+                           (data is grounded server-side from the prompt). It is honestly disabled rather than
+                           a clickable no-op (Charter §11); re-enable when an attach-data contract lands. *@
+                        <button type="button" class="console-button console-button-secondary studio-ai-attach" disabled
+                                title="Attaching data sources to a map-from-prompt is not available yet.">Attach data</button>
                     </SecondaryRefineActions>
                     <PreviewHeader>
                         <span class="studio-map-glyph" aria-hidden="true">◐</span>
@@ -795,8 +799,6 @@
         notes.Count == 0 ? body : $"{body}\n\nNotes:\n- {string.Join("\n- ", notes)}";
 
     private Task OnEvidenceRequested(StudioConversationTurn turn) => Task.CompletedTask;
-
-    private Task AttachData() => Task.CompletedTask;
 
     private void SetPreviewDevice(PreviewDevice device) => _previewDevice = device;
 
