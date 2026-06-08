@@ -71,7 +71,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new HttpConsoleOperateObservabilityClient(
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                honuaServerAdminApiKey));
 
         // GitOps metadata release visualization binds to a real honua-server through
         // the SHIPPED GitOps metadata release contracts (honua-server#1163 release

@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
 
 <div class="console-shell">
     @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has(). *@
@@ -49,10 +50,16 @@
                 <span class="console-nav-icon">@Icon("environments")</span>
                 <span class="console-nav-label"><span>Environments</span></span>
             </NavLink>
-            <NavLink href="/operate/native-stream" Match="NavLinkMatch.Prefix" title="Native Stream">
-                <span class="console-nav-icon">@Icon("native-stream")</span>
-                <span class="console-nav-label"><span>Native Stream</span></span>
-            </NavLink>
+            @* Native Stream is the gRPC streaming proof — only meaningful on a host that registers native
+               transports. Hide it on the browser host (where it can only ever show "native unavailable")
+               rather than leaving a nav item that dead-ends on an explainer. *@
+            @if (Host.SupportsNativeTransports)
+            {
+                <NavLink href="/operate/native-stream" Match="NavLinkMatch.Prefix" title="Native Stream">
+                    <span class="console-nav-icon">@Icon("native-stream")</span>
+                    <span class="console-nav-label"><span>Native Stream</span></span>
+                </NavLink>
+            }
         </nav>
 
         <nav class="console-nav console-nav-secondary console-nav-help" aria-label="Help">
