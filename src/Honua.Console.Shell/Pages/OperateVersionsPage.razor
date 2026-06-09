@@ -1,0 +1,360 @@
+@page "/operate/versions"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@inject IVersionManagementOperation VersionOps
+@inject NavigationManager Navigation
+
+<section class="console-page operate-versions" data-version-manager>
+    <div class="console-page-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Branch versions</h1>
+        <p>Manage branch versions for a service, reconcile a version against DEFAULT with an auto-resolution policy, and open the conflict-resolution view to merge edits before posting. Branch versioning is server-owned (PostGIS feature provider, Enterprise-gated); an unbound or unsupported server shows a capability explanation rather than an empty list.</p>
+    </div>
+
+    <section class="console-section" aria-label="Service selector">
+        <div class="console-action-row">
+            <label class="console-field">
+                <span class="console-field-label">Service id</span>
+                <input class="console-input" type="text" @bind="_serviceIdInput" placeholder="e.g. parcels"
+                       data-service-id-input />
+            </label>
+            <button class="console-button" type="button" @onclick="LoadVersionsAsync"
+                    disabled="@(_loading || string.IsNullOrWhiteSpace(_serviceIdInput))" data-load-versions>
+                @(_loading ? "Loading…" : "Load versions")
+            </button>
+        </div>
+    </section>
+
+    @if (_versions is { } versions)
+    {
+        @if (!versions.Bound)
+        {
+            <ConsoleStateView Kind="missing"
+                              Kicker="@(versions.State ?? "Missing binding")"
+                              Title="Branch versions are not bound"
+                              Message="@DescribeBinding(versions.Detail, versions.Contract)" />
+        }
+        else
+        {
+            @if (_lastResult is { } result)
+            {
+                <article class="console-panel @(result.Succeeded ? "console-state-success" : "console-state-danger")"
+                         role="status" data-version-result>
+                    <p class="console-kicker">@result.State</p>
+                    <p>@result.Detail</p>
+                </article>
+            }
+
+            @if (_lastReconcile is { } reconcile)
+            {
+                <article class="console-panel @(reconcile.CanPost ? "console-state-success" : "console-state-warning")"
+                         role="status" data-reconcile-result>
+                    <p class="console-kicker">Reconcile outcome</p>
+                    <p>@reconcile.Operation.Detail</p>
+                    <dl class="console-definition-list">
+                        <dt>Auto-resolved</dt>
+                        <dd data-auto-resolved>@reconcile.AutoResolvedCount</dd>
+                        <dt>Remaining conflicts</dt>
+                        <dd data-remaining-conflicts>@reconcile.RemainingConflictCount</dd>
+                        <dt>Can post</dt>
+                        <dd>@(reconcile.CanPost ? "Yes" : "No")</dd>
+                    </dl>
+                    @if (reconcile.HasConflicts && _reconciledVersionGuid is { } guid)
+                    {
+                        <a class="console-button-link" href="@ConflictsHref(guid)" data-open-conflicts>
+                            Open conflict resolution
+                        </a>
+                    }
+                </article>
+            }
+
+            <section class="console-section" aria-label="Versions">
+                @if (versions.Versions.Count == 0)
+                {
+                    <EmptyState Area="operate" Subject="branch versions" />
+                }
+                else
+                {
+                    <div class="console-table-wrap">
+                        <table class="console-table" aria-label="Branch versions">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Owner</th>
+                                    <th>Access</th>
+                                    <th>State</th>
+                                    <th>Created</th>
+                                    <th>Edits</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var version in versions.Versions)
+                                {
+                                    <tr data-version-row="@version.VersionGuid">
+                                        <td>
+                                            <strong>@version.VersionName</strong>
+                                            <small>@version.VersionGuid</small>
+                                        </td>
+                                        <td>@version.Owner</td>
+                                        <td>@version.Access</td>
+                                        <td><span class="console-status">@version.Status</span></td>
+                                        <td>@(version.Created?.ToString("u") ?? "—")</td>
+                                        <td>@version.EditCountLabel</td>
+                                        <td>
+                                            <div class="console-action-row">
+                                                <button class="console-button console-button-secondary" type="button"
+                                                        @onclick="() => ReconcileAsync(version)" disabled="@_busy"
+                                                        data-reconcile="@version.VersionGuid">Reconcile</button>
+                                                <a class="console-button-link" href="@ConflictsHref(version.VersionGuid)"
+                                                   data-conflicts="@version.VersionGuid">Conflicts</a>
+                                                <button class="console-button console-button-secondary" type="button"
+                                                        @onclick="() => BeginAlter(version)" disabled="@_busy"
+                                                        data-alter="@version.VersionGuid">Alter</button>
+                                                <button class="console-button console-button-danger" type="button"
+                                                        @onclick="() => DeleteAsync(version)" disabled="@_busy"
+                                                        data-delete="@version.VersionGuid">Delete</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <section class="console-section" aria-label="Reconcile policy">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Reconcile</p>
+                    <h2>Auto-resolution policy</h2>
+                    <p>Choose how a reconcile auto-resolves conflicting edits before falling back to manual review. <strong>None</strong> leaves every conflict for manual resolution; the win policies auto-resolve in favor of the most recent edit, the branch version, or DEFAULT.</p>
+                </div>
+                <div class="console-action-row">
+                    <label class="console-field">
+                        <span class="console-field-label">Policy</span>
+                        <select class="console-input" @bind="_policy" data-reconcile-policy>
+                            <option value="none">None (manual review)</option>
+                            <option value="last-write-wins">Last write wins</option>
+                            <option value="version-wins">Version wins</option>
+                            <option value="default-wins">Default wins</option>
+                        </select>
+                    </label>
+                    <label class="console-inline-check">
+                        <input type="checkbox" @bind="_abortIfConflicts" data-abort-if-conflicts />
+                        <span>Abort if conflicts (force manual review)</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="console-section" aria-label="Create or alter version">
+                <div class="console-page-heading">
+                    <p class="console-kicker">@(_alterGuid is null ? "Create" : "Alter")</p>
+                    <h2>@(_alterGuid is null ? "Create a branch version" : $"Alter version {_alterName}")</h2>
+                </div>
+                <div class="console-panel-grid">
+                    <label class="console-field">
+                        <span class="console-field-label">Version name</span>
+                        <input class="console-input" type="text" @bind="_formName" data-version-name />
+                    </label>
+                    <label class="console-field">
+                        <span class="console-field-label">Owner</span>
+                        <input class="console-input" type="text" @bind="_formOwner" data-version-owner />
+                    </label>
+                    <label class="console-field">
+                        <span class="console-field-label">Access</span>
+                        <select class="console-input" @bind="_formAccess" data-version-access>
+                            <option value="private">Private</option>
+                            <option value="protected">Protected</option>
+                            <option value="public">Public</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span class="console-field-label">Description</span>
+                        <input class="console-input" type="text" @bind="_formDescription" data-version-description />
+                    </label>
+                </div>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" @onclick="SubmitFormAsync"
+                            disabled="@(_busy || string.IsNullOrWhiteSpace(_formName))" data-submit-version>
+                        @(_alterGuid is null ? "Create version" : "Save changes")
+                    </button>
+                    @if (_alterGuid is not null)
+                    {
+                        <button class="console-button console-button-secondary" type="button" @onclick="CancelAlter"
+                                data-cancel-alter>Cancel</button>
+                    }
+                </div>
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private string _serviceIdInput = string.Empty;
+    private string? _serviceId;
+    private OperateVersionListView? _versions;
+    private bool _loading;
+    private bool _busy;
+
+    private string _policy = "none";
+    private bool _abortIfConflicts;
+
+    private VersionOperationResult? _lastResult;
+    private ReconcileResultView? _lastReconcile;
+    private string? _reconciledVersionGuid;
+
+    // Create/alter form state. _alterGuid is null in create mode and the version guid in alter mode.
+    private string? _alterGuid;
+    private string? _alterName;
+    private string _formName = string.Empty;
+    private string _formOwner = string.Empty;
+    private string _formAccess = "private";
+    private string _formDescription = string.Empty;
+
+    private async Task LoadVersionsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_serviceIdInput))
+        {
+            return;
+        }
+
+        _loading = true;
+        _lastResult = null;
+        _lastReconcile = null;
+        try
+        {
+            _serviceId = _serviceIdInput.Trim();
+            _versions = await VersionOps.ListVersionsAsync(_serviceId);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ReconcileAsync(OperateVersionView version)
+    {
+        if (_serviceId is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _lastResult = null;
+        _reconciledVersionGuid = version.VersionGuid;
+        try
+        {
+            _lastReconcile = await VersionOps.ReconcileAsync(new ReconcileVersionCommand
+            {
+                ServiceId = _serviceId,
+                VersionGuid = version.VersionGuid,
+                Policy = _policy,
+                AbortIfConflicts = _abortIfConflicts
+            });
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync(OperateVersionView version)
+    {
+        if (_serviceId is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _lastReconcile = null;
+        try
+        {
+            _lastResult = await VersionOps.DeleteVersionAsync(_serviceId, version.VersionGuid);
+            if (_lastResult.Succeeded)
+            {
+                _versions = await VersionOps.ListVersionsAsync(_serviceId);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void BeginAlter(OperateVersionView version)
+    {
+        _alterGuid = version.VersionGuid;
+        _alterName = version.VersionName;
+        _formName = version.VersionName;
+        _formOwner = version.Owner;
+        _formAccess = string.IsNullOrWhiteSpace(version.Access) ? "private" : version.Access.ToLowerInvariant();
+        _formDescription = version.Description ?? string.Empty;
+        _lastResult = null;
+        _lastReconcile = null;
+    }
+
+    private void CancelAlter()
+    {
+        _alterGuid = null;
+        _alterName = null;
+        _formName = string.Empty;
+        _formOwner = string.Empty;
+        _formAccess = "private";
+        _formDescription = string.Empty;
+    }
+
+    private async Task SubmitFormAsync()
+    {
+        if (_serviceId is null || string.IsNullOrWhiteSpace(_formName))
+        {
+            return;
+        }
+
+        _busy = true;
+        _lastReconcile = null;
+        try
+        {
+            if (_alterGuid is { } guid)
+            {
+                _lastResult = await VersionOps.AlterVersionAsync(new AlterVersionCommand
+                {
+                    ServiceId = _serviceId,
+                    VersionGuid = guid,
+                    VersionName = _formName.Trim(),
+                    Access = _formAccess,
+                    Description = _formDescription
+                });
+            }
+            else
+            {
+                _lastResult = await VersionOps.CreateVersionAsync(new CreateVersionCommand
+                {
+                    ServiceId = _serviceId,
+                    VersionName = _formName.Trim(),
+                    Owner = string.IsNullOrWhiteSpace(_formOwner) ? null : _formOwner.Trim(),
+                    Access = _formAccess,
+                    Description = string.IsNullOrWhiteSpace(_formDescription) ? null : _formDescription.Trim()
+                });
+            }
+
+            if (_lastResult.Succeeded)
+            {
+                CancelAlter();
+                _versions = await VersionOps.ListVersionsAsync(_serviceId);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string ConflictsHref(string versionGuid) =>
+        $"/operate/versions/{Uri.EscapeDataString(_serviceId ?? string.Empty)}/{Uri.EscapeDataString(versionGuid)}/conflicts";
+
+    private static string DescribeBinding(string? detail, string? contract) =>
+        string.IsNullOrWhiteSpace(contract)
+            ? detail ?? "No server binding is configured."
+            : $"{detail} (contract: {contract})";
+}
