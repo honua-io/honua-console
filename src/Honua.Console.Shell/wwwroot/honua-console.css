@@ -2985,6 +2985,103 @@ p {
     font-weight: 700;
 }
 
+/* Workflow result graph — the generated workflow.package rendered as a layered node/edge DAG.
+   Mirrors the analysis pipeline flow: labelled boxes (type + label) joined left-to-right by → edges. */
+.studio-workflow-graph {
+    display: grid;
+    gap: 12px;
+}
+
+.studio-workflow-graph-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.studio-workflow-graph-layer {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+}
+
+.studio-workflow-graph-edge {
+    align-self: center;
+    color: var(--honua-text);
+    font-weight: 700;
+}
+
+.studio-workflow-graph-node {
+    display: grid;
+    gap: 2px;
+    min-width: 130px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--honua-text);
+    border-radius: 6px;
+    background: #ffffff;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.studio-workflow-graph-node-type {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--honua-muted, #6b6b6b);
+}
+
+.studio-workflow-graph-node-label {
+    font-weight: 700;
+}
+
+.studio-workflow-graph-node-deps {
+    font-size: 0.78rem;
+}
+
+.studio-workflow-graph-node-source {
+    border-style: solid;
+}
+
+.studio-workflow-graph-node-sink {
+    background: #f4faf4;
+}
+
+.studio-workflow-graph-node-failure {
+    border-color: #c03b2b;
+    background: #fdf3f1;
+}
+
+.studio-workflow-graph-edge-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.82rem;
+}
+
+.studio-workflow-graph-edge-row {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.studio-workflow-graph-edge-kind {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.7rem;
+    color: var(--honua-muted, #6b6b6b);
+}
+
+.studio-workflow-graph-edge-failure .studio-workflow-graph-edge-kind {
+    color: #c03b2b;
+}
+
+.studio-workflow-graph-empty {
+    margin: 14px 0 0;
+}
+
 .studio-analysis-gate {
     margin-top: 14px;
     padding: 12px 14px;
