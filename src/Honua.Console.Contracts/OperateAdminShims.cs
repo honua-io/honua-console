@@ -20,7 +20,7 @@ namespace Honua.Console.Contracts;
 // to SDK types. Do not add a sibling-repo ProjectReference. See SDK_SHIM_POLICY "Active Shims".
 public sealed record HonuaAdminOperateClientOptions(Uri BaseUri, string? ApiKey = null);
 
-public interface IHonuaAdminOperateClient
+public partial interface IHonuaAdminOperateClient
 {
     Uri BaseUri { get; }
 
@@ -218,7 +218,7 @@ public interface IHonuaAdminOperateClient
         CancellationToken cancellationToken = default);
 }
 
-public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDisposable
+public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
