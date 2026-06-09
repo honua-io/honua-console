@@ -531,6 +531,39 @@ public sealed class OperateTransitionDataSourceTests
     }
 
     [Fact]
+    public void ProtocolSlotUrlsUseEachProtocolsRealRoute()
+    {
+        // Regression: the publication-slot URL must point to where honua-server actually serves each
+        // protocol. Only the Esri GeoServices server types live under /rest/services/{service}/...; the OGC,
+        // OData, and STAC protocols have their own roots (previously every non-FeatureServer/MapServer slot
+        // wrongly fell back to /rest/services/{service}/{protocol}).
+        var dataSource = CreateServerDataSource(new RecordingJsonFixtureHandler(new Dictionary<string, string>()));
+        const string svc = "e2e_src_fs";
+
+        // Esri GeoServices REST.
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/FeatureServer", dataSource.BuildProtocolUrl(svc, "FeatureServer"));
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/MapServer", dataSource.BuildProtocolUrl(svc, "MapServer"));
+        Assert.Equal("https://server.example/rest/services/e2e_src_fs/ImageServer", dataSource.BuildProtocolUrl(svc, "ImageServer"));
+
+        // OGC classic, per-service.
+        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wms", dataSource.BuildProtocolUrl(svc, "Wms"));
+        Assert.Equal("https://server.example/ogc/services/e2e_src_fs/wmts", dataSource.BuildProtocolUrl(svc, "Wmts"));
+
+        // WFS is a single server endpoint; OGC API + OData + STAC have their own roots.
+        Assert.Equal("https://server.example/wfs", dataSource.BuildProtocolUrl(svc, "Wfs20"));
+        Assert.Equal("https://server.example/ogc/features", dataSource.BuildProtocolUrl(svc, "OgcFeatures"));
+        Assert.Equal("https://server.example/ogc/tiles", dataSource.BuildProtocolUrl(svc, "OgcApiTiles"));
+        Assert.Equal("https://server.example/odata", dataSource.BuildProtocolUrl(svc, "OData"));
+        Assert.Equal("https://server.example/stac", dataSource.BuildProtocolUrl(svc, "Stac"));
+
+        // None of the non-Esri protocols may live under /rest/services.
+        foreach (var protocol in new[] { "Wms", "Wmts", "Wfs20", "OData", "OgcFeatures", "OgcApiTiles", "OgcApiMaps", "Stac" })
+        {
+            Assert.DoesNotContain("/rest/services/", dataSource.BuildProtocolUrl(svc, protocol), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task SettingsChangesAlwaysShowApplyScopeAndRestartRequirement()
     {
         var dataSource = InMemoryOperateTransitionDataSource.CreateSeeded();
