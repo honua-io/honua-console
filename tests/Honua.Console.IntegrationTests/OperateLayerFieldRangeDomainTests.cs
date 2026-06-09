@@ -289,6 +289,16 @@ public sealed class OperateLayerFieldRangeDomainTests
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerPopupInfoAsync(int layerId, System.Text.Json.JsonElement? document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerDrawingInfoAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerDrawingInfoAsync(int layerId, System.Text.Json.JsonElement? document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> GetLayerDisplayAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> UpdateLayerDisplayAsync(int layerId, HonuaAdminLayerDisplayUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> GetLayerEditingAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> UpdateLayerEditingAsync(int layerId, HonuaAdminLayerEditingUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> GetLayerSpatialAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> UpdateLayerSpatialAsync(int layerId, HonuaAdminLayerSpatialUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(int layerId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(int layerId, HonuaAdminDiscoveryMetadataUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(string serviceName, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(string serviceName, HonuaAdminDiscoveryMetadataUpdate request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
     /// <summary>Serves a single layer exposure so the page renders its fields panel; no fabricated content
