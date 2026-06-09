@@ -206,6 +206,35 @@ public partial interface IHonuaAdminOperateClient
         HonuaAdminUpdateMapServerSettingsRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates a service's temporal time-info (start/end time fields + track id field) through the real
+    /// honua-server admin endpoint (<c>PUT /api/v1/admin/services/{serviceName}/timeinfo</c>, mirrors
+    /// <c>UpdateTimeInfoRequest</c>). Null fields clear the corresponding time field server-side; the server
+    /// re-reads and returns the updated settings projection so the result reflects the post-change state.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceTimeInfoAsync(
+        string serviceName,
+        HonuaAdminUpdateTimeInfoRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a layer's persisted relationships (origin/destination, cardinality, esriRelationshipId)
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/relationships</c>). <paramref name="layerId"/> is the
+    /// global id. FeatureServer layer metadata emits these as <c>relationships[]</c>.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces a layer's relationships (<c>PUT /api/v1/admin/metadata/layers/{layerId}/relationships</c>).
+    /// The PUT body carries the full relationship set; the server re-reads and returns the persisted set.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> UpdateLayerRelationshipsAsync(
+        int layerId,
+        HonuaAdminLayerRelationshipsUpdate request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
         CancellationToken cancellationToken = default);
 
@@ -764,6 +793,43 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/mapserver",
             request,
             "PUT /api/v1/admin/services/{serviceName}/mapserver",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceTimeInfoAsync(
+        string serviceName,
+        HonuaAdminUpdateTimeInfoRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminUpdateTimeInfoRequest, HonuaAdminServiceSettingsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/timeinfo",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/timeinfo",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerRelationships>(
+            $"/api/v1/admin/metadata/layers/{layerId}/relationships",
+            "GET /api/v1/admin/metadata/layers/{layerId}/relationships",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> UpdateLayerRelationshipsAsync(
+        int layerId,
+        HonuaAdminLayerRelationshipsUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerRelationshipsUpdate, HonuaAdminLayerRelationships>(
+            $"/api/v1/admin/metadata/layers/{layerId}/relationships",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/relationships",
             cancellationToken);
     }
 
@@ -1456,6 +1522,62 @@ public sealed record HonuaAdminLayerFieldUpdate
     public HonuaAdminFieldDomain? Domain { get; init; }
 
     public bool? Hidden { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted relationships (<c>GET /api/v1/admin/metadata/layers/{id}/relationships</c>). The
+/// server emits these as <c>relationships[]</c> on FeatureServer layer metadata.
+/// </summary>
+public sealed record HonuaAdminLayerRelationships
+{
+    public int LayerId { get; init; }
+
+    public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
+}
+
+/// <summary>
+/// One layer relationship: identity, the related layer, origin/destination role + cardinality, the join
+/// fields, and the Esri relationship id. Mirrors <c>MetadataV2Relationship</c>.
+/// </summary>
+public sealed record HonuaAdminLayerRelationship
+{
+    public string? Id { get; init; }
+
+    public string? Name { get; init; }
+
+    public int? RelatedLayerId { get; init; }
+
+    /// <summary>"origin" or "destination".</summary>
+    public string? Role { get; init; }
+
+    /// <summary>e.g. "one-to-many".</summary>
+    public string? Cardinality { get; init; }
+
+    public string? OriginField { get; init; }
+
+    public string? DestinationField { get; init; }
+
+    public int? EsriRelationshipId { get; init; }
+}
+
+/// <summary>Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/relationships</c> (replaces the set).</summary>
+public sealed record HonuaAdminLayerRelationshipsUpdate
+{
+    public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
+}
+
+/// <summary>
+/// Wire shape of the honua-server time-info update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/timeinfo</c>, mirrors <c>UpdateTimeInfoRequest</c>). A null
+/// field clears the corresponding time field server-side.
+/// </summary>
+public sealed record HonuaAdminUpdateTimeInfoRequest
+{
+    public string? StartTimeField { get; init; }
+
+    public string? EndTimeField { get; init; }
+
+    public string? TrackIdField { get; init; }
 }
 
 /// <summary>Request body for <c>POST /api/v1/admin/import/geoservices/start</c>.</summary>
