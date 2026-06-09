@@ -496,6 +496,40 @@ public partial interface IHonuaAdminOperateClient
             "This IHonuaAdminOperateClient implementation does not provide UpdateLayerAttributeRulesAsync.");
 
     /// <summary>
+    /// Reads a layer's persisted permanent filter — the server-enforced query filter applied to every read of
+    /// the layer (<c>GET /api/v1/admin/metadata/layers/{layerId}/filter</c>). <paramref name="layerId"/> is the
+    /// global id. The projection's <c>PermanentFilter</c> is null when no filter is saved.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes that hand-roll the full interface) compile
+    /// without change; the real <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> GetLayerFilterAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerFilterAsync.");
+
+    /// <summary>
+    /// Authors a layer's permanent filter (<c>PUT /api/v1/admin/metadata/layers/{layerId}/filter</c>). The PUT
+    /// body carries <c>{ permanentFilter: { expression, language } }</c>; send a request whose
+    /// <see cref="HonuaAdminLayerFilterUpdate.PermanentFilter"/> is null to CLEAR the saved filter. The server
+    /// validates the expression against the layer schema and answers <c>400</c> with a reason on a bad
+    /// expression; the resulting issue carries that reason so the console surfaces it honestly. The server
+    /// re-reads and returns the persisted filter projection.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes that hand-roll the full interface) compile
+    /// without change; the real <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> UpdateLayerFilterAsync(
+        int layerId,
+        HonuaAdminLayerFilterUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerFilterAsync.");
+
+    /// <summary>
     /// Reads a layer's discovery / catalog metadata — title, description, keywords, themes, language, license,
     /// attribution, publisher, contact point, links (<c>GET /api/v1/admin/metadata/layers/{layerId}/discovery</c>).
     /// <paramref name="layerId"/> is the global id. This metadata drives the layer's OGC API Records / STAC /
@@ -1273,6 +1307,28 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/metadata/layers/{layerId}/attribute-rules",
             request,
             "PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> GetLayerFilterAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerFilter>(
+            $"/api/v1/admin/metadata/layers/{layerId}/filter",
+            "GET /api/v1/admin/metadata/layers/{layerId}/filter",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> UpdateLayerFilterAsync(
+        int layerId,
+        HonuaAdminLayerFilterUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerFilterUpdate, HonuaAdminLayerFilter>(
+            $"/api/v1/admin/metadata/layers/{layerId}/filter",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/filter",
             cancellationToken);
     }
 
@@ -2255,6 +2311,41 @@ public sealed record HonuaAdminAttributeRule
 public sealed record HonuaAdminLayerAttributeRulesUpdate
 {
     public IReadOnlyList<HonuaAdminAttributeRule> Rules { get; init; } = [];
+}
+
+/// <summary>
+/// A layer's persisted permanent filter projection (<c>GET/PUT /api/v1/admin/metadata/layers/{id}/filter</c>):
+/// the global layer id and the server-enforced query filter. <see cref="PermanentFilter"/> is null when no
+/// filter is saved on the layer.
+/// </summary>
+public sealed record HonuaAdminLayerFilter
+{
+    public int LayerId { get; init; }
+
+    public HonuaAdminPermanentFilter? PermanentFilter { get; init; }
+}
+
+/// <summary>
+/// A server-enforced query filter expression and the language it is written in (<c>arcgis-sql</c> /
+/// <c>cql2-text</c> / <c>cql2-json</c>). The expression is validated server-side against the layer schema
+/// (max 4096 chars).
+/// </summary>
+public sealed record HonuaAdminPermanentFilter
+{
+    public string Expression { get; init; } = string.Empty;
+
+    /// <summary>"arcgis-sql" (default), "cql2-text", or "cql2-json".</summary>
+    public string? Language { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/filter</c>. Carries the permanent filter to
+/// author; set <see cref="PermanentFilter"/> to null to CLEAR the saved filter (the property is always
+/// serialized so the server receives <c>{ "permanentFilter": null }</c>).
+/// </summary>
+public sealed record HonuaAdminLayerFilterUpdate
+{
+    public HonuaAdminPermanentFilter? PermanentFilter { get; init; }
 }
 
 /// <summary>
