@@ -34,4 +34,14 @@ public interface IServiceConfigurationOperation
     Task<ServiceConfigurationResult> UpdateAccessPolicyAsync(
         ServiceAccessPolicyCommand command,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a service's MapServer render settings (<c>PUT /api/v1/admin/services/{serviceName}/mapserver</c>).
+    /// The server PUT may answer 501 Not Implemented on a build that has not landed the write path (a known V2
+    /// gap); the result then carries the "Unsupported" state and an honest detail rather than a fabricated
+    /// success (Console Patterns Charter section 11).
+    /// </summary>
+    Task<ServiceConfigurationResult> UpdateMapServerSettingsAsync(
+        ServiceMapServerSettingsCommand command,
+        CancellationToken cancellationToken = default);
 }

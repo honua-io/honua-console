@@ -192,6 +192,20 @@ public interface IHonuaAdminOperateClient
         HonuaAdminUpdateAccessPolicyRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates a service's MapServer render settings (max/default image size, DPI, default format,
+    /// transparency, max features per layer) through the real honua-server admin endpoint
+    /// (<c>PUT /api/v1/admin/services/{serviceName}/mapserver</c>, mirrors <c>UpdateMapServerSettingsRequest</c>).
+    /// Null request fields are left unchanged server-side; the server re-reads and returns the updated settings
+    /// projection. Note (gap analysis): this PUT may answer <c>501 Not Implemented</c> on a server build that
+    /// has not landed the MapServer-settings write path yet — the resulting issue carries an "Unsupported"
+    /// state and the 501 status so the caller can surface it honestly rather than fabricating a success.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceMapServerSettingsAsync(
+        string serviceName,
+        HonuaAdminUpdateMapServerSettingsRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
         CancellationToken cancellationToken = default);
 
@@ -735,6 +749,21 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/access-policy",
             request,
             "PUT /api/v1/admin/services/{serviceName}/access-policy",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceMapServerSettingsAsync(
+        string serviceName,
+        HonuaAdminUpdateMapServerSettingsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminUpdateMapServerSettingsRequest, HonuaAdminServiceSettingsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/mapserver",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/mapserver",
             cancellationToken);
     }
 
@@ -1647,6 +1676,31 @@ public sealed record HonuaAdminUpdateAccessPolicyRequest
     public IReadOnlyList<string>? AllowedRoles { get; init; }
 
     public IReadOnlyList<string>? AllowedWriteRoles { get; init; }
+}
+
+/// <summary>
+/// Wire shape of the honua-server MapServer render-settings update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/mapserver</c>, mirrors <c>UpdateMapServerSettingsRequest</c>).
+/// Null fields are left unchanged server-side. Caps the MapServer export surface: max/default image size,
+/// DPI, default image format, default transparency, and the per-layer feature cap.
+/// </summary>
+public sealed record HonuaAdminUpdateMapServerSettingsRequest
+{
+    public int? MaxImageWidth { get; init; }
+
+    public int? MaxImageHeight { get; init; }
+
+    public int? DefaultImageWidth { get; init; }
+
+    public int? DefaultImageHeight { get; init; }
+
+    public int? DefaultDpi { get; init; }
+
+    public string? DefaultFormat { get; init; }
+
+    public bool? DefaultTransparent { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
 }
 
 public sealed record HonuaAdminPublishedLayerSummary
