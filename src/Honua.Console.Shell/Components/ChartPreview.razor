@@ -134,14 +134,12 @@
                 StateHasChanged();
             }
         }
-        catch (JSException)
+        catch (Exception)
         {
-            // No browser Vega runtime (offline, blocked CDN, or non-interactive render): keep the
-            // schematic placeholder. Never throw.
-        }
-        catch (InvalidOperationException)
-        {
-            // JS interop unavailable (prerender / bUnit without a JS runtime): keep the placeholder.
+            // The live chart is strictly best-effort: no browser Vega runtime (offline, blocked CDN, or
+            // a non-interactive/prerender host), or a render harness with no/strict JS interop set up for
+            // this module. Any failure keeps the schematic placeholder — binding a live chart must NEVER
+            // break the host page's render. (Charter §11: honest placeholder over a thrown error.)
         }
     }
 
