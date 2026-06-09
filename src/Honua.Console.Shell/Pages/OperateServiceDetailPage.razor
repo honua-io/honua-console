@@ -189,6 +189,66 @@
                             </button>
                         </div>
                     </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Settings caps</p>
+                        <h3>Service limits</h3>
+                        <p>Result-size and request-size caps the server enforces for this service.</p>
+                        <div class="console-field-grid">
+                            <label class="console-field">
+                                <span>Max record count</span>
+                                <input type="number" min="0" @bind="_maxRecordCount" data-max-record-count />
+                            </label>
+                            <label class="console-field">
+                                <span>Default record count</span>
+                                <input type="number" min="0" @bind="_defaultRecordCount" data-default-record-count />
+                            </label>
+                            <label class="console-field">
+                                <span>Max features per layer</span>
+                                <input type="number" min="0" @bind="_capsMaxFeaturesPerLayer" data-caps-max-features-per-layer />
+                            </label>
+                            <label class="console-field">
+                                <span>Query timeout (ms)</span>
+                                <input type="number" min="0" @bind="_queryTimeoutMs" data-query-timeout-ms />
+                            </label>
+                            <label class="console-field">
+                                <span>Max edits per transaction</span>
+                                <input type="number" min="0" @bind="_maxEditsPerTransaction" data-max-edits-per-transaction />
+                            </label>
+                            <label class="console-field">
+                                <span>Max payload (bytes)</span>
+                                <input type="number" min="0" @bind="_maxPayloadBytes" data-max-payload-bytes />
+                            </label>
+                            <label class="console-field">
+                                <span>Default format</span>
+                                <input type="text" @bind="_capsDefaultFormat" data-caps-default-format placeholder="json" />
+                            </label>
+                            <label class="console-field">
+                                <span>Default tile matrix set</span>
+                                <input type="text" @bind="_defaultTileMatrixSet" data-default-tile-matrix-set placeholder="WebMercatorQuad" />
+                            </label>
+                            <label class="console-field">
+                                <span>Max attachment size (bytes)</span>
+                                <input type="number" min="0" @bind="_maxAttachmentSizeBytes" data-max-attachment-size-bytes />
+                            </label>
+                        </div>
+                        <label class="console-field">
+                            <span>Supported formats</span>
+                            <input type="text" @bind="_supportedFormats" data-supported-formats
+                                   placeholder="json, geojson, pbf" />
+                            <small>Comma- or newline-separated output formats. Leave blank to leave unchanged.</small>
+                        </label>
+                        <label class="console-inline-check">
+                            <input type="checkbox" @bind="_supportsAttachments" data-supports-attachments />
+                            <span>Supports attachments</span>
+                        </label>
+                        <div class="console-action-row">
+                            <button class="console-button" type="button" disabled="@_savingCaps"
+                                    @onclick="SaveSettingsCapsAsync" data-save-settings-caps>
+                                @(_savingCaps ? "Saving…" : "Save settings caps")
+                            </button>
+                        </div>
+                    </article>
                 </div>
             }
         </section>
@@ -267,6 +327,20 @@
     private int? _maxFeaturesPerLayer;
     private bool _savingMapServer;
 
+    // Settings-caps editor state.
+    private int? _maxRecordCount;
+    private int? _defaultRecordCount;
+    private int? _capsMaxFeaturesPerLayer;
+    private int? _queryTimeoutMs;
+    private int? _maxEditsPerTransaction;
+    private long? _maxPayloadBytes;
+    private string _supportedFormats = string.Empty;
+    private string? _capsDefaultFormat;
+    private string? _defaultTileMatrixSet;
+    private bool _supportsAttachments;
+    private long? _maxAttachmentSizeBytes;
+    private bool _savingCaps;
+
     protected override async Task OnParametersSetAsync()
     {
         var view = await OperateData.GetServicesViewAsync();
@@ -303,6 +377,30 @@
         _defaultFormat = map?.DefaultFormat;
         _defaultTransparent = map?.DefaultTransparent ?? false;
         _maxFeaturesPerLayer = map?.MaxFeaturesPerLayer;
+
+        var caps = _settings.SettingsCaps;
+        _maxRecordCount = caps?.MaxRecordCount;
+        _defaultRecordCount = caps?.DefaultRecordCount;
+        _capsMaxFeaturesPerLayer = caps?.MaxFeaturesPerLayer;
+        _queryTimeoutMs = caps?.QueryTimeoutMs;
+        _maxEditsPerTransaction = caps?.MaxEditsPerTransaction;
+        _maxPayloadBytes = caps?.MaxPayloadBytes;
+        _supportedFormats = string.Join(", ", caps?.SupportedFormats ?? []);
+        _capsDefaultFormat = caps?.DefaultFormat;
+        _defaultTileMatrixSet = caps?.DefaultTileMatrixSet;
+        _supportsAttachments = caps?.SupportsAttachments ?? false;
+        _maxAttachmentSizeBytes = caps?.MaxAttachmentSizeBytes;
+    }
+
+    // Splits a comma-/newline-separated formats textbox into a trimmed, de-duplicated, non-empty array.
+    // Returns null (not an empty array) when the textbox is blank so the caps PUT leaves the formats unchanged.
+    private static IReadOnlyList<string>? ParseFormats(string? raw)
+    {
+        var parsed = (raw ?? string.Empty)
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return parsed.Length == 0 ? null : parsed;
     }
 
     // Splits a comma-/newline-separated role textbox into a trimmed, de-duplicated, non-empty role array.
@@ -400,6 +498,38 @@
         finally
         {
             _savingMapServer = false;
+        }
+    }
+
+    private async Task SaveSettingsCapsAsync()
+    {
+        _savingCaps = true;
+        _configResult = null;
+        try
+        {
+            _configResult = await ServiceConfig.UpdateServiceSettingsCapsAsync(new ServiceSettingsCapsCommand
+            {
+                ServiceName = ServiceName,
+                MaxRecordCount = _maxRecordCount,
+                DefaultRecordCount = _defaultRecordCount,
+                MaxFeaturesPerLayer = _capsMaxFeaturesPerLayer,
+                QueryTimeoutMs = _queryTimeoutMs,
+                MaxEditsPerTransaction = _maxEditsPerTransaction,
+                MaxPayloadBytes = _maxPayloadBytes,
+                SupportedFormats = ParseFormats(_supportedFormats),
+                DefaultFormat = string.IsNullOrWhiteSpace(_capsDefaultFormat) ? null : _capsDefaultFormat.Trim(),
+                DefaultTileMatrixSet = string.IsNullOrWhiteSpace(_defaultTileMatrixSet) ? null : _defaultTileMatrixSet.Trim(),
+                SupportsAttachments = _supportsAttachments,
+                MaxAttachmentSizeBytes = _maxAttachmentSizeBytes
+            });
+            if (_configResult.Succeeded)
+            {
+                await LoadSettingsAsync();
+            }
+        }
+        finally
+        {
+            _savingCaps = false;
         }
     }
 }

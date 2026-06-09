@@ -218,6 +218,45 @@ public partial interface IHonuaAdminOperateClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads a service's current settings caps (maxRecordCount, query timeout, attachment caps, supported
+    /// formats, …) through the real honua-server admin endpoint
+    /// (<c>GET /api/v1/admin/services/{serviceName}/settings-caps</c>). Returns the caps projection or a
+    /// status-mapped <see cref="HonuaAdminEndpointIssue"/> (Unsupported on 404/501, etc.).
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> GetServiceSettingsCapsAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetServiceSettingsCapsAsync.");
+
+    /// <summary>
+    /// Updates a service's settings caps — request-size and result-size limits the server enforces on this
+    /// service (maxRecordCount, defaultRecordCount, maxFeaturesPerLayer, queryTimeoutMs, maxEditsPerTransaction,
+    /// maxPayloadBytes, supportedFormats, defaultFormat, defaultTileMatrixSet, supportsAttachments,
+    /// maxAttachmentSizeBytes) through the real honua-server admin endpoint
+    /// (<c>PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, mirrors
+    /// <c>UpdateServiceSettingsCapsRequest</c>). Null/omitted fields are left unchanged server-side; the server
+    /// rejects negative caps. The server re-reads and returns the updated caps projection so the result
+    /// reflects the canonical post-change state. May answer <c>501 Not Implemented</c> on a server build that
+    /// has not landed the write path — the resulting issue carries an "Unsupported" state and the 501 status so
+    /// the caller can surface it honestly rather than fabricating a success.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> UpdateServiceSettingsCapsAsync(
+        string serviceName,
+        HonuaAdminUpdateServiceSettingsCapsRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateServiceSettingsCapsAsync.");
+
+    /// <summary>
     /// Reads a layer's persisted relationships (origin/destination, cardinality, esriRelationshipId)
     /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/relationships</c>). <paramref name="layerId"/> is the
     /// global id. FeatureServer layer metadata emits these as <c>relationships[]</c>.
@@ -808,6 +847,33 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/timeinfo",
             request,
             "PUT /api/v1/admin/services/{serviceName}/timeinfo",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> GetServiceSettingsCapsAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        return GetApiResponseAsync<HonuaAdminServiceSettingsCapsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings-caps",
+            "GET /api/v1/admin/services/{serviceName}/settings-caps",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> UpdateServiceSettingsCapsAsync(
+        string serviceName,
+        HonuaAdminUpdateServiceSettingsCapsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminUpdateServiceSettingsCapsRequest, HonuaAdminServiceSettingsCapsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings-caps",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/settings-caps",
             cancellationToken);
     }
 
@@ -1825,6 +1891,70 @@ public sealed record HonuaAdminUpdateMapServerSettingsRequest
     public int? MaxFeaturesPerLayer { get; init; }
 }
 
+/// <summary>
+/// Wire shape of the honua-server service settings-caps update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, mirrors
+/// <c>UpdateServiceSettingsCapsRequest</c>). Null fields are left unchanged server-side; the server rejects
+/// negative caps. Caps the service's result/request surface: max/default record counts, per-layer feature
+/// cap, query timeout, edit-transaction cap, payload size, supported output formats + default, default
+/// tile-matrix set, and attachment support + size cap.
+/// </summary>
+public sealed record HonuaAdminUpdateServiceSettingsCapsRequest
+{
+    public int? MaxRecordCount { get; init; }
+
+    public int? DefaultRecordCount { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
+
+    public int? QueryTimeoutMs { get; init; }
+
+    public int? MaxEditsPerTransaction { get; init; }
+
+    public long? MaxPayloadBytes { get; init; }
+
+    public IReadOnlyList<string>? SupportedFormats { get; init; }
+
+    public string? DefaultFormat { get; init; }
+
+    public string? DefaultTileMatrixSet { get; init; }
+
+    public bool? SupportsAttachments { get; init; }
+
+    public long? MaxAttachmentSizeBytes { get; init; }
+}
+
+/// <summary>
+/// Wire shape of the honua-server service settings-caps projection
+/// (<c>GET/PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, the <c>data</c> of
+/// <c>ApiResponse&lt;ServiceSettingsCapsResponse&gt;</c>). All fields nullable — the server only reports the
+/// caps it actually has configured. Pre-populates the settings-caps editor and is read back after a save.
+/// </summary>
+public sealed record HonuaAdminServiceSettingsCapsResponse
+{
+    public int? MaxRecordCount { get; init; }
+
+    public int? DefaultRecordCount { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
+
+    public int? QueryTimeoutMs { get; init; }
+
+    public int? MaxEditsPerTransaction { get; init; }
+
+    public long? MaxPayloadBytes { get; init; }
+
+    public IReadOnlyList<string> SupportedFormats { get; init; } = [];
+
+    public string? DefaultFormat { get; init; }
+
+    public string? DefaultTileMatrixSet { get; init; }
+
+    public bool? SupportsAttachments { get; init; }
+
+    public long? MaxAttachmentSizeBytes { get; init; }
+}
+
 public sealed record HonuaAdminPublishedLayerSummary
 {
     public int LayerId { get; init; }
@@ -1892,6 +2022,13 @@ public sealed record HonuaAdminServiceSettingsResponse
     public HonuaAdminTimeInfoResponse? TimeInfo { get; init; }
 
     public HonuaAdminMapServerSettingsResponse? MapServer { get; init; }
+
+    /// <summary>
+    /// The service's current settings caps as read back from the server settings projection, or <c>null</c>
+    /// when the server build does not include a caps block in the settings GET. Pre-populates the
+    /// settings-caps editor when the dedicated caps GET is not separately queried.
+    /// </summary>
+    public HonuaAdminServiceSettingsCapsResponse? SettingsCaps { get; init; }
 }
 
 public sealed record HonuaAdminAccessPolicyResponse

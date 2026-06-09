@@ -44,4 +44,27 @@ public interface IServiceConfigurationOperation
     Task<ServiceConfigurationResult> UpdateMapServerSettingsAsync(
         ServiceMapServerSettingsCommand command,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a service's settings caps (<c>PUT /api/v1/admin/services/{serviceName}/settings-caps</c>) —
+    /// max/default record counts, query timeout, attachment caps, supported formats, etc. Null fields are
+    /// left unchanged server-side; the server rejects negative caps. The server PUT may answer 501 Not
+    /// Implemented on a build that has not landed the write path; the result then carries the "Unsupported"
+    /// state and an honest detail rather than a fabricated success (Console Patterns Charter section 11).
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the live and
+    /// missing-binding implementations both override it. The default surfaces an honest missing-capability
+    /// result rather than fabricating a success.
+    /// </remarks>
+    Task<ServiceConfigurationResult> UpdateServiceSettingsCapsAsync(
+        ServiceSettingsCapsCommand command,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ServiceConfigurationResult
+        {
+            Succeeded = false,
+            State = "Unsupported",
+            Detail = "This service-configuration surface does not implement settings caps.",
+            ServiceName = command.ServiceName
+        });
 }
