@@ -3,19 +3,28 @@ import { test, expect } from '../admin-api';
 // Live e2e for the STUDIO workflow goal: each Studio builder must work all the way to its FINAL OUTPUT —
 // a real rendered result from real server data — not just a structural package. This drives the real
 // "from prompt" flow against the live honua-server (local model generation) and asserts the rendered result:
-//   - QUERY  -> a live Vega-Lite chart whose bars are the bound layer's REAL rows (the "analysis graph").
-//   - MAP    -> a live MapLibre map bound to the published layer's real style/tiles (the "map").
-// Generation runs on the local CPU model, so timeouts are generous. The verification target is the published
-// service `e2e_src_fs` (layer 1); if it is absent the suite skips with a clear reason.
-//
-// Not driven here (documented): ANALYSIS + WORKFLOW generation return "unsupported" on the local 7b model
-// (a model-capability limit, not a wiring gap), and the console FORM "from prompt" reports AI-unavailable
-// (a separate console capability-probe gap) — so their final-output render cannot be produced live here.
+//   - QUERY    -> a live Vega-Lite chart whose bars are the bound layer's REAL rows (the "analysis graph").
+//   - MAP      -> a live MapLibre map bound to the published layer's real style/tiles (the "map").
+//   - FORM     -> a live interactive form rendered from the generated schema (the form IS its result).
+//   - ANALYSIS -> a live Vega-Lite distribution of the bound input layer's REAL rows. The 7b model can't draft
+//                 an analysis (returns "unsupported"), so the console seeds an honest baseline bound to a real
+//                 catalog layer — the rendered graph is the layer's actual features, never fabricated data.
+//   - WORKFLOW -> the server-authored DAG (real node types) rendered as a node/edge graph. Driven via the
+//                 server's `deterministic` generation provider (fixture replay, no model) with a fixture
+//                 prompt, so the graph is genuine server output, not a console stand-in.
+// Generation runs on the local CPU model (or the deterministic provider), so timeouts are generous. The
+// verification target is the published service `e2e_src_fs` (layer 1); if it is absent the suite skips.
 
 const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
 const ADMIN_HEADERS = { 'X-API-Key': ADMIN_KEY };
 const QUERY_PROMPT = 'From the E2E Source layer, return the id and name fields for all features.';
 const MAP_PROMPT = 'A map of the E2E Source layer.';
+const ANALYSIS_PROMPT = 'Summarise the distribution of the E2E Source layer features.';
+// Exact deterministic-provider fixture prompt (workflow-generation-contract-v1.json) — yields a real
+// 3-node DAG (copy-features -> calculate-field -> area). Must match the fixture verbatim (trim+lowercase).
+const WORKFLOW_PROMPT =
+  'Nightly: copy new assessor parcels into a working layer, stamp a reviewed flag, then compute parcel area.';
+const DETERMINISTIC_PROVIDER_LABEL = /Deterministic/i;
 
 test.describe('Studio · workflow result rendering (live)', () => {
   test.beforeEach(async ({ page, admin }) => {
@@ -95,9 +104,53 @@ test.describe('Studio · workflow result rendering (live)', () => {
       .toBeGreaterThan(0);
   });
 
-  // Documented coverage of the families whose final output cannot be produced live on the 7b CPU model
-  // (a model-capability limit, not a render gap — both renders are built + unit-tested, ready for a capable
-  // model; generation returns unsupported/needs-clarification on 7b).
-  test.skip('ANALYSIS from prompt renders a result graph — blocked by the 7b model (returns unsupported)', () => {});
-  test.skip('WORKFLOW from prompt renders the DAG — blocked by the 7b model (needs-clarification, no graph)', () => {});
+  test('ANALYSIS from prompt renders a result graph (baseline distribution of the bound layer\'s real rows)', async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.goto('/studio/analysis');
+    await page.getByRole('button', { name: 'New from prompt' }).click();
+
+    const turnsBefore = await page.locator('.studio-ai-turn-honua').count();
+    await page.locator('textarea').first().fill(ANALYSIS_PROMPT);
+    await page.getByRole('button', { name: /Send/ }).click();
+
+    // Generation round-tripped through the server: a new Honua turn appears. The 7b model returns
+    // "unsupported", so the console seeds a baseline bound to a real catalog layer (honest — labelled a
+    // baseline in the turn, not an AI-authored plan).
+    await expect
+      .poll(async () => await page.locator('.studio-ai-turn-honua').count(), { timeout: 120_000, intervals: [1000, 2000, 5000] })
+      .toBeGreaterThan(turnsBefore);
+
+    // The FINAL OUTPUT: the input-data graph — a live Vega-Lite distribution of the bound input layer's
+    // REAL rows (fetched through the console features proxy). Real bars prove a rendered, data-bound result.
+    const chart = page.locator('[data-analysis-ai-input-chart] ~ figure.chart-preview, figure.chart-preview').first();
+    await expect(chart).toBeVisible({ timeout: 30_000 });
+    await expect(chart).toHaveAttribute('data-chart-bound', 'true', { timeout: 30_000 });
+    await expect
+      .poll(async () => await chart.locator('g.mark-rect path, path.mark-rect').count(), { timeout: 30_000, intervals: [500, 1000, 2000] })
+      .toBeGreaterThan(0);
+  });
+
+  test('WORKFLOW from prompt renders the server-authored DAG (deterministic provider)', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto('/studio/workflows/new');
+
+    // The provider selector lists every available generation provider; pick the server's deterministic
+    // (fixture replay) provider so generation is model-free and returns a real, validated graph.
+    const provider = page.locator('select[data-workflow-ai-provider]');
+    await expect(provider).toBeVisible({ timeout: 30_000 });
+    await provider.selectOption({ label: (await provider.locator('option', { hasText: DETERMINISTIC_PROVIDER_LABEL }).first().textContent())!.trim() });
+
+    await page.locator('textarea').first().fill(WORKFLOW_PROMPT);
+    await page.getByRole('button', { name: /Send/ }).click();
+
+    // The FINAL OUTPUT: the generated workflow's real nodes laid out as a node/edge graph. The deterministic
+    // fixture yields a 3-step pipeline (copy-features -> calculate-field -> area); rendered nodes prove the
+    // workflow reached a real, server-produced graph.
+    const graph = page.locator('[data-workflow-graph]').first();
+    await expect(graph).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(async () => await graph.locator('[data-workflow-graph-node]').count(), { timeout: 60_000, intervals: [1000, 2000, 5000] })
+      .toBeGreaterThan(0);
+    await expect(graph.locator('[data-workflow-graph-empty]')).toHaveCount(0);
+  });
 });

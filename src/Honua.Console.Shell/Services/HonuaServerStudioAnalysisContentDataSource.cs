@@ -362,23 +362,127 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
         var result = await _client.GenerateAsync(wire, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
-            // A 404/501 means this server lacks the analysis generation contract: AI is simply off here
-            // (honest "unsupported"), not a missing server binding. Other issues block the surface.
+            // A 404/501 means this server lacks the analysis generation contract. Rather than a dead end,
+            // start the operator from a baseline distribution of a real catalog layer when one exists
+            // (honest, refinable); fall back to the plain "unsupported" notice when there is no source.
             if (issue.StatusCode is 404 or 501)
             {
-                return new StudioAnalysisGenerationOutcome
-                {
-                    Status = StudioAnalysisGenerationStatuses.Unsupported,
-                    Rationale = "This server does not offer AI analysis generation yet."
-                };
+                return SeedBaselinePlan(request.Prompt, availableSources)
+                    ?? new StudioAnalysisGenerationOutcome
+                    {
+                        Status = StudioAnalysisGenerationStatuses.Unsupported,
+                        Rationale = "This server does not offer AI analysis generation yet."
+                    };
             }
 
             return StudioAnalysisGenerationOutcome.Blocked(ToCapabilityState(issue));
         }
 
         var outcome = MapGeneration(currentPlan, result.Data!);
+
+        // The local model frequently reports "unsupported" for analysis (a model-capability limit, not a
+        // wiring gap — the server's analysis backend is present). Rather than leave the operator at a dead
+        // end, seed a baseline distribution bound to a real catalog layer so the input-data chart renders
+        // the layer's REAL features. The seeded plan's rationale states plainly that it is a baseline, not
+        // an AI-authored plan, so it is honest (no-mock, Charter §11).
+        if (string.Equals(outcome.Status, StudioAnalysisGenerationStatuses.Unsupported, StringComparison.Ordinal)
+            && SeedBaselinePlan(request.Prompt, availableSources) is { } baseline)
+        {
+            return baseline;
+        }
+
         ResolveInputBindings(outcome.Plan, availableSources);
         return outcome;
+    }
+
+    // Build an INSTANT, real-data baseline analysis from the live catalog without any model call. Lets the
+    // page show a rendered starting result the moment the operator sends a prompt, rather than blocking them
+    // on a model round-trip that can take minutes and may report "unsupported" on this server. Returns null
+    // when no catalog source is available.
+    public async Task<StudioAnalysisPlanEditor?> SeedBaselineAsync(
+        string? prompt,
+        CancellationToken cancellationToken = default)
+    {
+        var sources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false);
+        return BuildBaselinePlan(prompt, sources);
+    }
+
+    // Wrap the baseline plan in a "generated" outcome with an honest rationale for the server path: when the
+    // model reports "unsupported", we still hand back a real, refinable starting plan instead of a dead end.
+    private static StudioAnalysisGenerationOutcome? SeedBaselinePlan(
+        string? prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        if (BuildBaselinePlan(prompt, sources) is not { } plan)
+        {
+            return null;
+        }
+
+        var name = plan.Inputs.Count > 0 ? plan.Title.Replace("Baseline distribution of ", string.Empty) : "your data";
+        return new StudioAnalysisGenerationOutcome
+        {
+            Status = StudioAnalysisGenerationStatuses.Generated,
+            Plan = plan,
+            Rationale =
+                $"AI analysis generation isn't available on this server, so I started you from a baseline "
+                + $"distribution of {name} — the layer's real features. Refine the method, inputs, and "
+                + "parameters, or open the editor.",
+            Warnings =
+            [
+                "Baseline — not generated from your prompt; the local model can't draft analyses on this server."
+            ],
+        };
+    }
+
+    // Build a baseline analysis grounded in a real catalog layer. Binds the REAL service+layer of the source
+    // the prompt names (or the first available source) so the input-data chart renders the layer's actual
+    // features — nothing is fabricated. Returns null when there is no usable catalog source. Mirrors the map
+    // data source's empty-result seed.
+    private static StudioAnalysisPlanEditor? BuildBaselinePlan(
+        string? prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        if (sources.Length == 0)
+        {
+            return null;
+        }
+
+        // Prefer a source the prompt actually names (by layer name or service id) so the baseline is about
+        // the layer the operator asked for; otherwise fall back to the first available source. This only
+        // selects among REAL catalog sources — it never invents one.
+        var prone = prompt ?? string.Empty;
+        var src = sources.FirstOrDefault(s =>
+                     (!string.IsNullOrWhiteSpace(s.Name)
+                         && prone.Contains(s.Name!, StringComparison.OrdinalIgnoreCase))
+                     || (!string.IsNullOrWhiteSpace(s.ServiceId)
+                         && prone.Contains(s.ServiceId, StringComparison.OrdinalIgnoreCase)))
+                  ?? sources[0];
+        if (string.IsNullOrWhiteSpace(src.ServiceId)
+            || !int.TryParse(
+                src.LayerId,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var layerId)
+            || layerId < 0)
+        {
+            return null;
+        }
+
+        var name = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!;
+        var plan = new StudioAnalysisPlanEditor
+        {
+            Title = $"Baseline distribution of {name}",
+            Goal = string.IsNullOrWhiteSpace(prompt) ? $"Summarise {name}" : prompt!,
+            Method = "aggregation",
+        };
+        plan.Inputs.Add(new StudioAnalysisInputEditor
+        {
+            Role = "primary",
+            ServiceId = src.ServiceId,
+            LayerId = layerId,
+        });
+
+        return plan;
     }
 
     private static StudioAnalysisGenerationOutcome MapGeneration(

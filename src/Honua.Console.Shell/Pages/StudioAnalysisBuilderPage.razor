@@ -749,7 +749,32 @@
         _busy = true;
         try
         {
-            var outcome = await AnalysisData.GenerateAsync(_plan, request);
+            // Show a real result immediately: seed a baseline from the live catalog (no model call) so the
+            // operator isn't left on a spinner while the model runs — it can take minutes and reports
+            // "unsupported" on this server. The real generation below still runs and replaces this if it
+            // returns a richer plan; we keep generating from the original (blank) scaffold so it stays a
+            // fresh generation rather than a refine of the baseline.
+            var generationPlan = _plan;
+            if (_plan.Inputs.Count == 0)
+            {
+                var baseline = await AnalysisData.SeedBaselineAsync(request.Prompt);
+                if (baseline is not null)
+                {
+                    _plan = baseline;
+                    _dirty.MarkDirty();
+                    RecomputeClientErrors();
+                    var layer = _plan.Title.Replace("Baseline distribution of ", string.Empty);
+                    _turns.Add(new StudioConversationTurn(
+                        StudioConversationRole.Honua,
+                        $"Started you with a baseline distribution of {layer} — the layer's real features. Refining with AI…",
+                        "just now",
+                        StudioConversationTone.Ready,
+                        "view evidence"));
+                    StateHasChanged();
+                }
+            }
+
+            var outcome = await AnalysisData.GenerateAsync(generationPlan, request);
 
             if (outcome.BindingState is not null)
             {
