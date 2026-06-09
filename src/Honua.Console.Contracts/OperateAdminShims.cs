@@ -316,6 +316,42 @@ public partial interface IHonuaAdminOperateClient
             "This IHonuaAdminOperateClient implementation does not provide UpdateServiceSettingsCapsAsync.");
 
     /// <summary>
+    /// Reads a publication's persisted overrides — the title override, per-publication field aliases,
+    /// capabilities, supported formats, and whether this is the primary publication of its layer
+    /// (<c>GET /api/v1/admin/metadata/publications/{publicationId}/overrides</c>). <paramref name="publicationId"/>
+    /// is the publication's metadata id (a layer's exposure within a service). Returns the overrides projection
+    /// or a status-mapped <see cref="HonuaAdminEndpointIssue"/> (Unsupported on 404/501, etc.).
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> GetPublicationOverridesAsync(
+        string publicationId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetPublicationOverridesAsync.");
+
+    /// <summary>
+    /// Updates a publication's overrides — titleOverride, per-publication field aliases, capabilities,
+    /// supported formats, and isPrimary
+    /// (<c>PUT /api/v1/admin/metadata/publications/{publicationId}/overrides</c>). A null scalar leaves the
+    /// corresponding value unchanged; an empty string clears the title; an empty array/map clears that list/map.
+    /// The server re-reads and returns the persisted overrides projection so the result reflects the canonical
+    /// post-change state. 404 when the publication id is unknown.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> UpdatePublicationOverridesAsync(
+        string publicationId,
+        HonuaAdminPublicationOverridesUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdatePublicationOverridesAsync.");
+
+    /// <summary>
     /// Reads a layer's persisted relationships (origin/destination, cardinality, esriRelationshipId)
     /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/relationships</c>). <paramref name="layerId"/> is the
     /// global id. FeatureServer layer metadata emits these as <c>relationships[]</c>.
@@ -974,6 +1010,33 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings-caps",
             request,
             "PUT /api/v1/admin/services/{serviceName}/settings-caps",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> GetPublicationOverridesAsync(
+        string publicationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
+
+        return GetApiResponseAsync<HonuaAdminPublicationOverrides>(
+            $"/api/v1/admin/metadata/publications/{Uri.EscapeDataString(publicationId)}/overrides",
+            "GET /api/v1/admin/metadata/publications/{publicationId}/overrides",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> UpdatePublicationOverridesAsync(
+        string publicationId,
+        HonuaAdminPublicationOverridesUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminPublicationOverridesUpdate, HonuaAdminPublicationOverrides>(
+            $"/api/v1/admin/metadata/publications/{Uri.EscapeDataString(publicationId)}/overrides",
+            request,
+            "PUT /api/v1/admin/metadata/publications/{publicationId}/overrides",
             cancellationToken);
     }
 
@@ -2639,4 +2702,52 @@ public sealed record HonuaAdminOidcProviderResponse
     public DateTimeOffset? UpdatedAt { get; init; }
 
     public DateTimeOffset? LastHealthCheck { get; init; }
+}
+
+/// <summary>
+/// A publication's persisted overrides as read from honua-server
+/// (<c>GET /api/v1/admin/metadata/publications/{publicationId}/overrides</c>). A "publication" is a layer's
+/// exposure within a service; these overrides let an operator re-title it, alias its fields per-publication,
+/// constrain its capabilities and supported formats, and mark it primary — without disturbing the underlying
+/// layer metadata.
+/// </summary>
+public sealed record HonuaAdminPublicationOverrides
+{
+    /// <summary>The publication's metadata id (echoed by the server).</summary>
+    public string? PublicationId { get; init; }
+
+    /// <summary>Display title that overrides the layer's title for this publication; null/empty when unset.</summary>
+    public string? TitleOverride { get; init; }
+
+    /// <summary>Per-publication field aliases as a <c>{ "&lt;field&gt;": "&lt;alias&gt;" }</c> map.</summary>
+    public IReadOnlyDictionary<string, string> FieldAliases { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>The capabilities this publication exposes (e.g. <c>Query</c>, <c>Create</c>, <c>Update</c>).</summary>
+    public IReadOnlyList<string> Capabilities { get; init; } = [];
+
+    /// <summary>The output formats this publication supports (e.g. <c>json</c>, <c>geojson</c>, <c>pbf</c>).</summary>
+    public IReadOnlyList<string> SupportedFormats { get; init; } = [];
+
+    /// <summary>Whether this is the primary publication of its layer.</summary>
+    public bool IsPrimary { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/publications/{publicationId}/overrides</c>. A null scalar
+/// leaves that value unchanged server-side; an empty <see cref="TitleOverride"/> string clears the title; an
+/// empty array/map (<c>[]</c>/<c>{}</c>) clears that list/map. Lists/map are nullable so an omitted list is
+/// "unchanged" rather than "clear".
+/// </summary>
+public sealed record HonuaAdminPublicationOverridesUpdate
+{
+    public string? TitleOverride { get; init; }
+
+    public IReadOnlyDictionary<string, string>? FieldAliases { get; init; }
+
+    public IReadOnlyList<string>? Capabilities { get; init; }
+
+    public IReadOnlyList<string>? SupportedFormats { get; init; }
+
+    public bool? IsPrimary { get; init; }
 }
