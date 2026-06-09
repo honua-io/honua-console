@@ -710,6 +710,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // Layer display / editing / CRS metadata authoring
             // (GET/PUT /api/v1/admin/metadata/layers/{id}/display|editing|spatial).
             services.TryAddSingleton<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation>();
+            // Layer 3D extrusion / symbology + lifecycle status authoring
+            // (GET/PUT /api/v1/admin/metadata/layers/{id}/extrusion|status).
+            services.TryAddSingleton<IConsoleLayer3DOperation, HonuaServerConsoleLayer3DOperation>();
             // Service time-info authoring (GET settings + PUT /api/v1/admin/services/{svc}/timeinfo).
             services.TryAddSingleton<IConsoleTimeInfoOperation, HonuaServerConsoleTimeInfoOperation>();
             // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives
@@ -727,6 +730,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
         services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
         services.TryAddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
+        services.TryAddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
         services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
         services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
     }
