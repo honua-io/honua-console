@@ -32,10 +32,71 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
     private const string GenerateContract = "POST /api/v1/analysis/content/generate";
 
     private readonly IHonuaAnalysisContentClient _client;
+    private readonly IOperateTransitionDataSource? _operate;
 
-    public HonuaServerStudioAnalysisContentDataSource(IHonuaAnalysisContentClient client)
+    public HonuaServerStudioAnalysisContentDataSource(
+        IHonuaAnalysisContentClient client,
+        IOperateTransitionDataSource? operate = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _operate = operate;
+    }
+
+    // Catalog grounding: the real published layers so analysis generation binds a real input
+    // serviceId/layerId (instead of layerId 0). Best-effort; without the catalog the model is ungrounded
+    // and the input-data chart simply stays unbound. Mirrors the query/map data sources.
+    private async Task<HonuaQueryGenerationSource[]> LoadAvailableSourcesAsync(CancellationToken cancellationToken)
+    {
+        if (_operate is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
+            return view.Services
+                .SelectMany(service => service.Layers.Select(layer => new HonuaQueryGenerationSource
+                {
+                    ServiceId = service.Name,
+                    LayerId = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    Name = layer.Name,
+                }))
+                .ToArray();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    // The local model binds the real numeric layerId but is inconsistent about echoing the serviceId; the
+    // serviceId is deterministic given the layerId, so recover it from the catalog (match the bound layerId,
+    // else the single available source) for each input the model left unbound. This is what lets the
+    // input-data chart fetch the input layer's real rows. Never invents a binding.
+    private static void ResolveInputBindings(StudioAnalysisPlanEditor? plan, HonuaQueryGenerationSource[] sources)
+    {
+        if (plan is null || sources.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var input in plan.Inputs)
+        {
+            if (!string.IsNullOrWhiteSpace(input.ServiceId))
+            {
+                continue;
+            }
+
+            var layerId = input.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var match = sources.FirstOrDefault(source =>
+                string.Equals(source.LayerId, layerId, StringComparison.Ordinal));
+            match ??= sources.Length == 1 ? sources[0] : null;
+            if (match is not null && !string.IsNullOrWhiteSpace(match.ServiceId))
+            {
+                input.ServiceId = match.ServiceId;
+            }
+        }
     }
 
     public async Task<StudioAnalysisWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -281,6 +342,8 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             || !string.IsNullOrWhiteSpace(currentPlan.Goal)
             || !string.IsNullOrWhiteSpace(currentPlan.Title);
 
+        var availableSources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false);
+
         var wire = new HonuaGenerateAnalysisRequest
         {
             Prompt = request.Prompt,
@@ -292,7 +355,8 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
                 .ToArray(),
             Answers = request.Answers
                 .Select(answer => new HonuaAnalysisGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
-                .ToArray()
+                .ToArray(),
+            AvailableSources = availableSources
         };
 
         var result = await _client.GenerateAsync(wire, cancellationToken).ConfigureAwait(false);
@@ -312,7 +376,9 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             return StudioAnalysisGenerationOutcome.Blocked(ToCapabilityState(issue));
         }
 
-        return MapGeneration(currentPlan, result.Data!);
+        var outcome = MapGeneration(currentPlan, result.Data!);
+        ResolveInputBindings(outcome.Plan, availableSources);
+        return outcome;
     }
 
     private static StudioAnalysisGenerationOutcome MapGeneration(

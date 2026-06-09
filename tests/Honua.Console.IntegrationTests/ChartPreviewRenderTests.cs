@@ -69,4 +69,36 @@ public sealed class ChartPreviewRenderTests
         Assert.Null(StudioQueryResultChart.FeaturesUrl(query));
         Assert.Null(StudioQueryResultChart.BuildSpec(query));
     }
+
+    [Fact]
+    public void StudioAnalysisInputChart_BoundInput_ProducesFeaturesUrlAndAutoDimensionSpec()
+    {
+        var plan = new StudioAnalysisPlanEditor();
+        plan.Inputs.Add(new StudioAnalysisInputEditor { Role = "source", ServiceId = "e2e_src_fs", LayerId = 1 });
+
+        Assert.True(StudioAnalysisInputChart.IsBound(plan));
+        Assert.Equal("/map-proxy/features/e2e_src_fs/1", StudioAnalysisInputChart.FeaturesUrl(plan));
+
+        // The analysis input carries no field list, so the spec's x-encoding uses the "__auto__" sentinel —
+        // chart-preview.js resolves the real dimension from the fetched rows.
+        var spec = StudioAnalysisInputChart.BuildSpec(plan);
+        Assert.NotNull(spec);
+        using var doc = System.Text.Json.JsonDocument.Parse(spec!);
+        var root = doc.RootElement;
+        Assert.Equal("bar", root.GetProperty("mark").GetProperty("type").GetString());
+        Assert.Equal("__auto__", root.GetProperty("encoding").GetProperty("x").GetProperty("field").GetString());
+        Assert.Equal("count", root.GetProperty("encoding").GetProperty("y").GetProperty("aggregate").GetString());
+    }
+
+    [Fact]
+    public void StudioAnalysisInputChart_UnboundPlan_HasNoChart()
+    {
+        var plan = new StudioAnalysisPlanEditor();
+        // An input with no serviceId is not a real binding.
+        plan.Inputs.Add(new StudioAnalysisInputEditor { Role = "source", ServiceId = string.Empty, LayerId = 0 });
+
+        Assert.False(StudioAnalysisInputChart.IsBound(plan));
+        Assert.Null(StudioAnalysisInputChart.FeaturesUrl(plan));
+        Assert.Null(StudioAnalysisInputChart.BuildSpec(plan));
+    }
 }

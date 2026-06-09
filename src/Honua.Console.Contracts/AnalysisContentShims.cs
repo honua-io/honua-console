@@ -1228,6 +1228,11 @@ public sealed record HonuaGenerateAnalysisRequest
     /// <summary>Answers to a prior needs-clarification turn.</summary>
     [JsonPropertyName("answers")]
     public HonuaAnalysisGenerationAnswer[] Answers { get; init; } = [];
+
+    /// <summary>Real published layers the model may bind as an input directly (catalog grounding); reuses
+    /// the query-generation source shape (serviceId/layerId/name/fields).</summary>
+    [JsonPropertyName("availableSources")]
+    public HonuaQueryGenerationSource[] AvailableSources { get; init; } = [];
 }
 
 // --- Natural-language -> savedQuery generation (POST /api/v1/analysis/content/queries/generate). ---

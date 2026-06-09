@@ -190,6 +190,20 @@
                                         </div>
                                     }
                                 </div>
+
+                                @* Input-data graph — the live distribution of the bound input layer's REAL rows
+                                   (the data this analysis runs over). Renders only when an input is bound to a
+                                   real service+layer; an unbound plan shows no chart (no fabricated data). *@
+                                @if (StudioAnalysisInputChart.IsBound(_plan))
+                                {
+                                    var boundInput = StudioAnalysisInputChart.BoundInput(_plan)!;
+                                    <p class="console-muted studio-analysis-ai-section" data-analysis-ai-input-chart="true">Input data · live (@boundInput.ServiceId/layer @boundInput.LayerId)</p>
+                                    <ChartPreview Title="Input feature distribution"
+                                                  Spec="@StudioAnalysisInputChart.BuildSpec(_plan)"
+                                                  FeaturesUrl="@StudioAnalysisInputChart.FeaturesUrl(_plan)"
+                                                  Height="200"
+                                                  AriaLabel="Analysis input data chart" />
+                                }
                             </aside>
                         </div>
                     </PreviewContent>

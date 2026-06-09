@@ -119,6 +119,22 @@ export async function init(container, options) {
         return false;
     }
 
+    // Auto-dimension: callers that don't know the layer's field names (e.g. the analysis input chart)
+    // mark the x-encoding field as "__auto__"; resolve it from the real rows — the first string-valued
+    // attribute, else the first attribute. Keeps the spec grounded in the actual data, never invented.
+    if (rows.length > 0 && spec.encoding?.x?.field === '__auto__') {
+        const keys = Object.keys(rows[0]);
+        const dimension = keys.find(k => typeof rows[0][k] === 'string') ?? keys[0];
+        if (dimension) {
+            spec.encoding.x.field = dimension;
+            if (spec.encoding.x.title === '__auto__') {
+                spec.encoding.x.title = dimension;
+            }
+        } else {
+            return false;
+        }
+    }
+
     // Let the chart fill the stage; the schematic uses a fixed aspect so width/height autosizing here
     // keeps the live chart visually consistent with the placeholder it replaces.
     spec.width = spec.width ?? 'container';
