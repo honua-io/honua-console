@@ -1,0 +1,113 @@
+@using Honua.Console.Shell.Models
+
+@* Renders one conflicting feature as a 3-way diff (base vs DEFAULT vs version) for attributes and geometry,
+   with per-field highlighting for the differing rows, plus a per-feature take-version / take-default /
+   take-base chooser. The parent owns the selected choice and is notified through ChoiceChanged. *@
+
+<article class="console-panel version-conflict" data-conflict="@Conflict.Key">
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">Layer @Conflict.LayerId · Object @Conflict.ObjectId</p>
+            <h3>@Conflict.ConflictType conflict</h3>
+        </div>
+        <fieldset class="version-conflict-choice" data-conflict-choice="@Conflict.Key">
+            <legend class="console-field-label">Resolution</legend>
+            <label class="console-inline-check">
+                <input type="radio" name="@($"choice-{Conflict.Key}")" value="version"
+                       checked="@(Choice == "version")"
+                       @onchange="@(_ => OnChoiceAsync("version"))" data-choice-version />
+                <span>Take version</span>
+            </label>
+            <label class="console-inline-check">
+                <input type="radio" name="@($"choice-{Conflict.Key}")" value="default"
+                       checked="@(Choice == "default")"
+                       @onchange="@(_ => OnChoiceAsync("default"))" data-choice-default />
+                <span>Take default</span>
+            </label>
+            <label class="console-inline-check">
+                <input type="radio" name="@($"choice-{Conflict.Key}")" value="base"
+                       checked="@(Choice == "base")"
+                       @onchange="@(_ => OnChoiceAsync("base"))" data-choice-base />
+                <span>Take base</span>
+            </label>
+        </fieldset>
+    </div>
+
+    <div class="console-table-wrap">
+        <table class="console-table version-conflict-table" aria-label="Three-way diff for feature @Conflict.ObjectId">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Base</th>
+                    <th>DEFAULT</th>
+                    <th>Version</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var field in Conflict.FieldDiffs)
+                {
+                    <tr class="@(field.Changed ? "version-conflict-changed" : string.Empty)"
+                        data-field="@field.Name" data-changed="@field.Changed.ToString().ToLowerInvariant()">
+                        <td><strong>@field.Name</strong></td>
+                        <td><code>@Display(field.Base)</code></td>
+                        <td class="@(CellClass(field.Base, field.Default))"><code>@Display(field.Default)</code></td>
+                        <td class="@(CellClass(field.Base, field.Version))"><code>@Display(field.Version)</code></td>
+                    </tr>
+                }
+                @if (HasGeometry)
+                {
+                    <tr class="@(Conflict.GeometryChanged ? "version-conflict-changed" : string.Empty)"
+                        data-field="geometry" data-changed="@Conflict.GeometryChanged.ToString().ToLowerInvariant()">
+                        <td><strong>geometry (WKT)</strong></td>
+                        <td><code class="version-conflict-wkt">@Display(Conflict.BaseGeometry)</code></td>
+                        <td class="@(CellClass(Conflict.BaseGeometry, Conflict.DefaultGeometry))">
+                            <code class="version-conflict-wkt">@Display(Conflict.DefaultGeometry)</code>
+                        </td>
+                        <td class="@(CellClass(Conflict.BaseGeometry, Conflict.VersionGeometry))">
+                            <code class="version-conflict-wkt">@Display(Conflict.VersionGeometry)</code>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (HasGeometry)
+    {
+        <p class="console-muted">Geometry is shown as WKT text. A full map-overlay diff is a planned follow-up.</p>
+    }
+</article>
+
+@code {
+    /// <summary>The conflicting feature to render as a 3-way diff.</summary>
+    [Parameter]
+    public required VersionConflictView Conflict { get; set; }
+
+    /// <summary>The currently selected resolution choice (version / default / base), or null when unset.</summary>
+    [Parameter]
+    public string? Choice { get; set; }
+
+    /// <summary>Raised with the per-feature key and the chosen resolution when the operator picks one.</summary>
+    [Parameter]
+    public EventCallback<(string Key, string Choice)> ChoiceChanged { get; set; }
+
+    private bool HasGeometry =>
+        !string.IsNullOrEmpty(Conflict.BaseGeometry)
+        || !string.IsNullOrEmpty(Conflict.DefaultGeometry)
+        || !string.IsNullOrEmpty(Conflict.VersionGeometry);
+
+    private async Task OnChoiceAsync(string choice)
+    {
+        Choice = choice;
+        if (ChoiceChanged.HasDelegate)
+        {
+            await ChoiceChanged.InvokeAsync((Conflict.Key, choice));
+        }
+    }
+
+    private static string Display(string? value) => string.IsNullOrEmpty(value) ? "∅" : value;
+
+    // Highlight a DEFAULT/version cell only when it diverges from base, so the operator's eye lands on the
+    // side(s) that actually changed.
+    private static string CellClass(string? @base, string? candidate) =>
+        string.Equals(@base, candidate, StringComparison.Ordinal) ? string.Empty : "version-conflict-diff-cell";
+}
