@@ -712,6 +712,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             services.TryAddSingleton<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation>();
             // Service time-info authoring (GET settings + PUT /api/v1/admin/services/{svc}/timeinfo).
             services.TryAddSingleton<IConsoleTimeInfoOperation, HonuaServerConsoleTimeInfoOperation>();
+            // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives
+            // OGC API Records / STAC / DCAT / Esri documentInfo output.
+            services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, HonuaServerConsoleDiscoveryMetadataOperation>();
             return;
         }
 
@@ -725,6 +728,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
         services.TryAddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
         services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
+        services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
