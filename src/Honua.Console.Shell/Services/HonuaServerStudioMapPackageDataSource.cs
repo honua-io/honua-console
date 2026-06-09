@@ -375,6 +375,55 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             if (match is not null && !string.IsNullOrWhiteSpace(match.LayerId))
             {
                 layer.BoundLayerId = match.LayerId;
+                if (string.IsNullOrWhiteSpace(layer.BoundServiceId))
+                {
+                    layer.BoundServiceId = match.ServiceId;
+                }
+            }
+        }
+
+        // The small local model frequently returns an EMPTY map (no layers) for a prompt like "a map of the
+        // E2E Source layer". When the workspace has a real source, SEED a bound layer so the workflow still
+        // produces a map that RENDERS the data the operator asked for — not an empty package they must
+        // hand-fix. The layer is the real catalog layer (single source, or the first available), never
+        // fabricated.
+        var bound = state.Layers.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.BoundLayerId));
+        if (bound is null)
+        {
+            var src = available[0];
+            if (!string.IsNullOrWhiteSpace(src.LayerId))
+            {
+                bound = new StudioMapLayerEditor
+                {
+                    BoundLayerId = src.LayerId,
+                    BoundServiceId = src.ServiceId,
+                    Title = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!,
+                    SourceRef = $"service:{src.ServiceId}/{src.LayerId}",
+                    Visible = true,
+                };
+                state.Layers.Add(bound);
+            }
+        }
+
+        // Frame + finish the map so it actually renders and is closer to publish-ready (the model usually
+        // leaves the extent/basemap/title unset). Use the bound layer's real EPSG:4326 extent for the view.
+        if (bound is not null)
+        {
+            var src = available.FirstOrDefault(s => string.Equals(s.LayerId, bound.BoundLayerId, StringComparison.Ordinal))
+                ?? available[0];
+            if (string.IsNullOrWhiteSpace(state.InitialExtent) && src.Bbox is { Length: 4 } bbox)
+            {
+                state.InitialExtent = string.Join(",", bbox.Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+
+            if (string.IsNullOrWhiteSpace(state.Basemap))
+            {
+                state.Basemap = "basemap:streets";
+            }
+
+            if (string.IsNullOrWhiteSpace(state.Title))
+            {
+                state.Title = bound.Title;
             }
         }
     }

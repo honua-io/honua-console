@@ -12,7 +12,7 @@
     <div class="console-page-heading">
         <p class="console-kicker">Builder workflow</p>
         <h1>Map builder</h1>
-        <p>Author a server-owned map package — layers, filters, style, popup, legend, basemap, extent, and interactions — then review the publish, share, embed, and rollback settings before publishing to honua-server.</p>
+        <p>Describe the map you want and see it render from your live data. Style it, then publish when you're ready.</p>
     </div>
 
     @if (_loading)
@@ -120,52 +120,53 @@
                     </PreviewHeader>
                     <PreviewContent>
                         <div class="studio-map-ai-inspect">
-                            @* LEFT — package inspector driven by the real authoring state (never fabricated). *@
-                            <aside class="studio-map-ai-package" aria-label="Map package">
-                                <div class="studio-map-ai-package-head">
-                                    <p class="console-kicker">Map package</p>
-                                    <p class="studio-map-ai-package-id">@(string.IsNullOrWhiteSpace(editor.Title) ? "new map" : StudioMapPackageMapper.BuildPackageKey(editor)) · v@(editor.Version) @editor.Status</p>
-                                </div>
-
-                                <p class="console-muted studio-map-ai-section">Data bindings · @editor.Layers.Count(layer => !string.IsNullOrWhiteSpace(layer.SourceRef))</p>
+                            @* LEFT — a plain-language summary of WHAT THE MAP SHOWS. The map package internals
+                               (bindings, extent, pre-publish checklist, raw JSON) are tucked into a collapsed
+                               disclosure so the result — the map on the right — stays the focus. *@
+                            <aside class="studio-map-ai-package" aria-label="Map summary">
+                                <p class="console-kicker">This map shows</p>
                                 @if (editor.Layers.Count == 0)
                                 {
-                                    <p class="console-muted">No layers bound yet. Open the editor to bind sources, or describe the map you want on the left.</p>
+                                    <p class="console-muted">No layers yet — describe the map you want on the left and it'll appear here.</p>
                                 }
                                 else
                                 {
-                                    <p class="console-muted studio-map-ai-section">Layers · @editor.Layers.Count</p>
                                     <ul class="studio-map-ai-layer-list">
                                         @foreach (var layer in editor.Layers)
                                         {
                                             <li class="studio-map-ai-layer">
-                                                <span class="studio-mono studio-map-ai-layer-name">@(string.IsNullOrWhiteSpace(layer.Title) ? (string.IsNullOrWhiteSpace(layer.SourceRef) ? "untitled layer" : layer.SourceRef) : layer.Title)</span>
-                                                <span class="console-muted">@(string.IsNullOrWhiteSpace(layer.Style) ? "unstyled" : layer.Style)@(string.IsNullOrWhiteSpace(layer.SourceRef) ? " · unbound" : null)</span>
+                                                <span class="studio-map-ai-layer-name">@(string.IsNullOrWhiteSpace(layer.Title) ? (string.IsNullOrWhiteSpace(layer.SourceRef) ? "untitled layer" : layer.SourceRef) : layer.Title)</span>
+                                                @if (!string.IsNullOrWhiteSpace(layer.Style))
+                                                {
+                                                    <span class="console-muted">@layer.Style</span>
+                                                }
                                             </li>
                                         }
                                     </ul>
                                 }
 
-                                <p class="console-muted studio-map-ai-section">Initial extent</p>
-                                <div class="studio-mono studio-map-ai-extent">@(string.IsNullOrWhiteSpace(editor.InitialExtent) ? "extent unset" : editor.InitialExtent)</div>
-
-                                <p class="console-muted studio-map-ai-section">Pre-publish</p>
-                                @if (readiness.CanPublish)
+                                @if (!readiness.CanPublish && readiness.UnmetRequirements.Count > 0)
                                 {
-                                    <div class="studio-map-ai-validation studio-map-ai-validation-ok">All pre-publish requirements met.</div>
-                                }
-                                else
-                                {
-                                    <ul class="studio-compact-list studio-map-ai-validation">
-                                        @foreach (var requirement in readiness.UnmetRequirements)
-                                        {
-                                            <li>@requirement</li>
-                                        }
-                                    </ul>
+                                    <p class="console-muted studio-map-ai-tofix">@readiness.UnmetRequirements.Count thing@(readiness.UnmetRequirements.Count == 1 ? "" : "s") to finish before publishing.</p>
                                 }
 
                                 <details class="studio-map-ai-raw">
-                                    <summary>View raw package JSON</summary>
+                                    <summary>Map package details</summary>
+                                    <p class="console-muted studio-map-ai-section">@(string.IsNullOrWhiteSpace(editor.Title) ? "new map" : StudioMapPackageMapper.BuildPackageKey(editor)) · v@(editor.Version) @editor.Status</p>
+                                    <p class="console-muted studio-map-ai-section">Data bindings · @editor.Layers.Count(layer => !string.IsNullOrWhiteSpace(layer.SourceRef))</p>
+                                    <p class="console-muted studio-map-ai-section">Initial extent</p>
+                                    <div class="studio-mono studio-map-ai-extent">@(string.IsNullOrWhiteSpace(editor.InitialExtent) ? "extent unset" : editor.InitialExtent)</div>
+                                    @if (!readiness.CanPublish)
+                                    {
+                                        <p class="console-muted studio-map-ai-section">Pre-publish</p>
+                                        <ul class="studio-compact-list studio-map-ai-validation">
+                                            @foreach (var requirement in readiness.UnmetRequirements)
+                                            {
+                                                <li>@requirement</li>
+                                            }
+                                        </ul>
+                                    }
+                                    <p class="console-muted studio-map-ai-section">Raw package JSON</p>
                                     <pre class="studio-code studio-package-json">@PackageJson(editor)</pre>
                                 </details>
                             </aside>
