@@ -124,10 +124,68 @@
                             <input type="checkbox" @bind="_allowAnonymousWrite" data-allow-anonymous-write />
                             <span>Allow anonymous write</span>
                         </label>
+                        <label class="console-field">
+                            <span>Allowed read roles</span>
+                            <input type="text" @bind="_allowedRoles" data-allowed-roles
+                                   placeholder="viewer, editor" />
+                            <small>Comma- or newline-separated role names granted read access. Leave blank to clear.</small>
+                        </label>
+                        <label class="console-field">
+                            <span>Allowed write roles</span>
+                            <input type="text" @bind="_allowedWriteRoles" data-allowed-write-roles
+                                   placeholder="editor, admin" />
+                            <small>Comma- or newline-separated role names granted write access. Leave blank to clear.</small>
+                        </label>
                         <div class="console-action-row">
                             <button class="console-button" type="button" disabled="@_savingAccess"
                                     @onclick="SaveAccessAsync" data-save-access>
                                 @(_savingAccess ? "Saving…" : "Save access policy")
+                            </button>
+                        </div>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">MapServer</p>
+                        <h3>Render settings</h3>
+                        <p>Caps applied to MapServer export/draw requests for this service.</p>
+                        <div class="console-field-grid">
+                            <label class="console-field">
+                                <span>Max image width (px)</span>
+                                <input type="number" min="1" @bind="_maxImageWidth" data-max-image-width />
+                            </label>
+                            <label class="console-field">
+                                <span>Max image height (px)</span>
+                                <input type="number" min="1" @bind="_maxImageHeight" data-max-image-height />
+                            </label>
+                            <label class="console-field">
+                                <span>Default image width (px)</span>
+                                <input type="number" min="1" @bind="_defaultImageWidth" data-default-image-width />
+                            </label>
+                            <label class="console-field">
+                                <span>Default image height (px)</span>
+                                <input type="number" min="1" @bind="_defaultImageHeight" data-default-image-height />
+                            </label>
+                            <label class="console-field">
+                                <span>Default DPI</span>
+                                <input type="number" min="1" @bind="_defaultDpi" data-default-dpi />
+                            </label>
+                            <label class="console-field">
+                                <span>Default format</span>
+                                <input type="text" @bind="_defaultFormat" data-default-format placeholder="png" />
+                            </label>
+                            <label class="console-field">
+                                <span>Max features per layer</span>
+                                <input type="number" min="1" @bind="_maxFeaturesPerLayer" data-max-features-per-layer />
+                            </label>
+                        </div>
+                        <label class="console-inline-check">
+                            <input type="checkbox" @bind="_defaultTransparent" data-default-transparent />
+                            <span>Default transparent background</span>
+                        </label>
+                        <div class="console-action-row">
+                            <button class="console-button" type="button" disabled="@_savingMapServer"
+                                    @onclick="SaveMapServerAsync" data-save-mapserver>
+                                @(_savingMapServer ? "Saving…" : "Save MapServer settings")
                             </button>
                         </div>
                     </article>
@@ -192,9 +250,22 @@
     private readonly HashSet<string> _selectedProtocols = new(StringComparer.OrdinalIgnoreCase);
     private bool _allowAnonymous;
     private bool _allowAnonymousWrite;
+    private string _allowedRoles = string.Empty;
+    private string _allowedWriteRoles = string.Empty;
     private bool _savingProtocols;
     private bool _savingAccess;
     private ServiceConfigurationResult? _configResult;
+
+    // MapServer render-settings editor state.
+    private int? _maxImageWidth;
+    private int? _maxImageHeight;
+    private int? _defaultImageWidth;
+    private int? _defaultImageHeight;
+    private int? _defaultDpi;
+    private string? _defaultFormat;
+    private bool _defaultTransparent;
+    private int? _maxFeaturesPerLayer;
+    private bool _savingMapServer;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -220,7 +291,27 @@
 
         _allowAnonymous = _settings.AllowAnonymous;
         _allowAnonymousWrite = _settings.AllowAnonymousWrite;
+        _allowedRoles = string.Join(", ", _settings.AllowedRoles);
+        _allowedWriteRoles = string.Join(", ", _settings.AllowedWriteRoles);
+
+        var map = _settings.MapServer;
+        _maxImageWidth = map?.MaxImageWidth;
+        _maxImageHeight = map?.MaxImageHeight;
+        _defaultImageWidth = map?.DefaultImageWidth;
+        _defaultImageHeight = map?.DefaultImageHeight;
+        _defaultDpi = map?.DefaultDpi;
+        _defaultFormat = map?.DefaultFormat;
+        _defaultTransparent = map?.DefaultTransparent ?? false;
+        _maxFeaturesPerLayer = map?.MaxFeaturesPerLayer;
     }
+
+    // Splits a comma-/newline-separated role textbox into a trimmed, de-duplicated, non-empty role array.
+    // Returns an empty array (not null) when the textbox is blank so the access PUT clears the role list.
+    private static string[] ParseRoles(string? raw) =>
+        (raw ?? string.Empty)
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private void ToggleProtocol(string protocol, bool enabled)
     {
@@ -268,7 +359,9 @@
             {
                 ServiceName = ServiceName,
                 AllowAnonymous = _allowAnonymous,
-                AllowAnonymousWrite = _allowAnonymousWrite
+                AllowAnonymousWrite = _allowAnonymousWrite,
+                AllowedRoles = ParseRoles(_allowedRoles),
+                AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
             });
             if (_configResult.Succeeded)
             {
@@ -278,6 +371,35 @@
         finally
         {
             _savingAccess = false;
+        }
+    }
+
+    private async Task SaveMapServerAsync()
+    {
+        _savingMapServer = true;
+        _configResult = null;
+        try
+        {
+            _configResult = await ServiceConfig.UpdateMapServerSettingsAsync(new ServiceMapServerSettingsCommand
+            {
+                ServiceName = ServiceName,
+                MaxImageWidth = _maxImageWidth,
+                MaxImageHeight = _maxImageHeight,
+                DefaultImageWidth = _defaultImageWidth,
+                DefaultImageHeight = _defaultImageHeight,
+                DefaultDpi = _defaultDpi,
+                DefaultFormat = string.IsNullOrWhiteSpace(_defaultFormat) ? null : _defaultFormat.Trim(),
+                DefaultTransparent = _defaultTransparent,
+                MaxFeaturesPerLayer = _maxFeaturesPerLayer
+            });
+            if (_configResult.Succeeded)
+            {
+                await LoadSettingsAsync();
+            }
+        }
+        finally
+        {
+            _savingMapServer = false;
         }
     }
 }

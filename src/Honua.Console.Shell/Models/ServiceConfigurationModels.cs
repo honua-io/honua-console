@@ -45,6 +45,33 @@ public sealed record ServiceAccessPolicyCommand
 }
 
 /// <summary>
+/// Operator intent to change a service's MapServer render settings (max/default image size, DPI, default
+/// image format, default transparency, per-layer feature cap). Null fields are left unchanged server-side.
+/// Closes Bucket 3-A #5 of the metadata-UI gap analysis. The server PUT may answer 501 (a V2 gap), in which
+/// case the operation surfaces an honest "Unsupported" result rather than a fabricated success.
+/// </summary>
+public sealed record ServiceMapServerSettingsCommand
+{
+    public required string ServiceName { get; init; }
+
+    public int? MaxImageWidth { get; init; }
+
+    public int? MaxImageHeight { get; init; }
+
+    public int? DefaultImageWidth { get; init; }
+
+    public int? DefaultImageHeight { get; init; }
+
+    public int? DefaultDpi { get; init; }
+
+    public string? DefaultFormat { get; init; }
+
+    public bool? DefaultTransparent { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
+}
+
+/// <summary>
 /// Outcome of a service-configuration operation (layer enable/disable or service settings change). On
 /// success, <see cref="Succeeded"/> is <c>true</c> and the projection fields carry the post-change server
 /// state the operation read back. On failure (missing binding, validation rejection, transport error)
@@ -112,12 +139,42 @@ public sealed record ServiceSettingsView
 
     public IReadOnlyList<string> AllowedWriteRoles { get; init; } = [];
 
+    /// <summary>
+    /// The service's current MapServer render settings as read back from the server's settings projection, or
+    /// <c>null</c> when the server did not return a MapServer block. Pre-populates the MapServer editor.
+    /// </summary>
+    public ServiceMapServerSettingsView? MapServer { get; init; }
+
     public static ServiceSettingsView Unbound(string serviceName, string detail) => new()
     {
         Bound = false,
         ServiceName = serviceName,
         Detail = detail
     };
+}
+
+/// <summary>
+/// A service's current MapServer render settings, projected from the server settings read-back so the
+/// MapServer editor can pre-populate its inputs. All fields are nullable — the server only reports the caps
+/// it actually has configured.
+/// </summary>
+public sealed record ServiceMapServerSettingsView
+{
+    public int? MaxImageWidth { get; init; }
+
+    public int? MaxImageHeight { get; init; }
+
+    public int? DefaultImageWidth { get; init; }
+
+    public int? DefaultImageHeight { get; init; }
+
+    public int? DefaultDpi { get; init; }
+
+    public string? DefaultFormat { get; init; }
+
+    public bool? DefaultTransparent { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
 }
 
 /// <summary>A field-addressable validation error surfaced by a service-configuration operation.</summary>
