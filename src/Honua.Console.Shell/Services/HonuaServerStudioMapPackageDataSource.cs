@@ -383,12 +383,13 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         }
 
         // The small local model frequently returns an EMPTY map (no layers) for a prompt like "a map of the
-        // E2E Source layer". When the workspace has a real source, SEED a bound layer so the workflow still
-        // produces a map that RENDERS the data the operator asked for — not an empty package they must
-        // hand-fix. The layer is the real catalog layer (single source, or the first available), never
-        // fabricated.
+        // E2E Source layer". When the workspace has exactly ONE real source, SEED a bound layer so the
+        // workflow still produces a map that RENDERS the data the operator asked for — not an empty package
+        // they must hand-fix. We only seed for a single-source workspace: with several real layers there is
+        // no signal for which one the operator meant, and silently binding an arbitrary available[0] would
+        // present the wrong layer as the answer. The layer is the real catalog layer, never fabricated.
         var bound = state.Layers.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.BoundLayerId));
-        if (bound is null)
+        if (bound is null && available.Count == 1)
         {
             var src = available[0];
             if (!string.IsNullOrWhiteSpace(src.LayerId))
@@ -409,9 +410,15 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         // leaves the extent/basemap/title unset). Use the bound layer's real EPSG:4326 extent for the view.
         if (bound is not null)
         {
-            var src = available.FirstOrDefault(s => string.Equals(s.LayerId, bound.BoundLayerId, StringComparison.Ordinal))
-                ?? available[0];
-            if (string.IsNullOrWhiteSpace(state.InitialExtent) && src.Bbox is { Length: 4 } bbox)
+            // Only frame from the source that the bound layer actually resolves to — never from an unrelated
+            // available[0], which would stamp a different layer's extent and frame the wrong area.
+            var src = available.FirstOrDefault(s => string.Equals(s.LayerId, bound.BoundLayerId, StringComparison.Ordinal));
+            // A real EPSG:4326 bbox must be four FINITE numbers; an unset/sentinel extent can carry NaN or
+            // ±Infinity, which would serialize to "NaN"/"Infinity" and slip through bbox validation (NaN
+            // comparisons are all false) — producing a degenerate extent the framing was meant to prevent.
+            if (string.IsNullOrWhiteSpace(state.InitialExtent)
+                && src?.Bbox is { Length: 4 } bbox
+                && bbox.All(double.IsFinite))
             {
                 state.InitialExtent = string.Join(",", bbox.Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }

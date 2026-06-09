@@ -751,30 +751,51 @@
         {
             // Show a real result immediately: seed a baseline from the live catalog (no model call) so the
             // operator isn't left on a spinner while the model runs — it can take minutes and reports
-            // "unsupported" on this server. The real generation below still runs and replaces this if it
-            // returns a richer plan; we keep generating from the original (blank) scaffold so it stays a
-            // fresh generation rather than a refine of the baseline.
+            // "unsupported" on this server. The real generation below still runs (from the original blank
+            // scaffold, so it stays a fresh generation) and replaces this ONLY if it returns a richer,
+            // model-authored plan — if it just re-confirms the baseline we keep what's already shown.
             var generationPlan = _plan;
+            var seededBaseline = false;
             if (_plan.Inputs.Count == 0)
             {
                 var baseline = await AnalysisData.SeedBaselineAsync(request.Prompt);
                 if (baseline is not null)
                 {
                     _plan = baseline;
+                    seededBaseline = true;
                     _dirty.MarkDirty();
                     RecomputeClientErrors();
-                    var layer = _plan.Title.Replace("Baseline distribution of ", string.Empty);
+                    var layer = baseline.Inputs.Count > 0 ? baseline.Title["Baseline distribution of ".Length..] : "your data";
                     _turns.Add(new StudioConversationTurn(
                         StudioConversationRole.Honua,
-                        $"Started you with a baseline distribution of {layer} — the layer's real features. Refining with AI…",
+                        $"Started you with a baseline distribution of {layer} — the layer's real features. Refine it below, or open the editor.",
                         "just now",
                         StudioConversationTone.Ready,
                         "view evidence"));
                     StateHasChanged();
                 }
+                else
+                {
+                    // No catalog source to baseline from: acknowledge so the operator isn't staring at a
+                    // silent spinner for the (possibly multi-minute) generate call.
+                    _turns.Add(new StudioConversationTurn(
+                        StudioConversationRole.Honua,
+                        "Working on it — drafting an analysis. This can take a couple of minutes on this server.",
+                        "just now",
+                        StudioConversationTone.Neutral));
+                    StateHasChanged();
+                }
             }
 
             var outcome = await AnalysisData.GenerateAsync(generationPlan, request);
+
+            // If we already seeded a baseline this turn and the server just re-confirms a baseline (the model
+            // couldn't draft one), keep the seeded plan as-is: don't overwrite the operator's in-flight edits
+            // and don't stack a second, contradictory "AI isn't available" turn.
+            if (seededBaseline && outcome.IsBaseline)
+            {
+                return;
+            }
 
             if (outcome.BindingState is not null)
             {

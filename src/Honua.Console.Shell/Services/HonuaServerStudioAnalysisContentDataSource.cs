@@ -409,20 +409,22 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
 
     // Wrap the baseline plan in a "generated" outcome with an honest rationale for the server path: when the
     // model reports "unsupported", we still hand back a real, refinable starting plan instead of a dead end.
+    // Marked IsBaseline so the page can tell it apart from a model-authored plan.
     private static StudioAnalysisGenerationOutcome? SeedBaselinePlan(
         string? prompt,
         HonuaQueryGenerationSource[] sources)
     {
-        if (BuildBaselinePlan(prompt, sources) is not { } plan)
+        if (SelectBaselineSource(prompt, sources) is not { } src)
         {
             return null;
         }
 
-        var name = plan.Inputs.Count > 0 ? plan.Title.Replace("Baseline distribution of ", string.Empty) : "your data";
+        var name = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!;
         return new StudioAnalysisGenerationOutcome
         {
             Status = StudioAnalysisGenerationStatuses.Generated,
-            Plan = plan,
+            IsBaseline = true,
+            Plan = BuildBaselinePlan(prompt, src),
             Rationale =
                 $"AI analysis generation isn't available on this server, so I started you from a baseline "
                 + $"distribution of {name} — the layer's real features. Refine the method, inputs, and "
@@ -434,41 +436,28 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
         };
     }
 
-    // Build a baseline analysis grounded in a real catalog layer. Binds the REAL service+layer of the source
-    // the prompt names (or the first available source) so the input-data chart renders the layer's actual
-    // features — nothing is fabricated. Returns null when there is no usable catalog source. Mirrors the map
-    // data source's empty-result seed.
+    // Build a baseline analysis plan grounded in a real catalog layer. Returns null when no usable source
+    // exists. The plan binds a REAL service+layer so the input-data chart renders the layer's actual
+    // features — nothing is fabricated. Mirrors the map data source's empty-result seed.
     private static StudioAnalysisPlanEditor? BuildBaselinePlan(
         string? prompt,
         HonuaQueryGenerationSource[] sources)
     {
-        if (sources.Length == 0)
+        if (SelectBaselineSource(prompt, sources) is not { } src)
         {
             return null;
         }
 
-        // Prefer a source the prompt actually names (by layer name or service id) so the baseline is about
-        // the layer the operator asked for; otherwise fall back to the first available source. This only
-        // selects among REAL catalog sources — it never invents one.
-        var prone = prompt ?? string.Empty;
-        var src = sources.FirstOrDefault(s =>
-                     (!string.IsNullOrWhiteSpace(s.Name)
-                         && prone.Contains(s.Name!, StringComparison.OrdinalIgnoreCase))
-                     || (!string.IsNullOrWhiteSpace(s.ServiceId)
-                         && prone.Contains(s.ServiceId, StringComparison.OrdinalIgnoreCase)))
-                  ?? sources[0];
-        if (string.IsNullOrWhiteSpace(src.ServiceId)
-            || !int.TryParse(
-                src.LayerId,
-                System.Globalization.NumberStyles.Integer,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var layerId)
-            || layerId < 0)
-        {
-            return null;
-        }
+        return BuildBaselinePlan(prompt, src);
+    }
 
+    private static StudioAnalysisPlanEditor BuildBaselinePlan(string? prompt, HonuaQueryGenerationSource src)
+    {
         var name = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!;
+        var layerId = int.Parse(
+            src.LayerId,
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture);
         var plan = new StudioAnalysisPlanEditor
         {
             Title = $"Baseline distribution of {name}",
@@ -483,6 +472,36 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
         });
 
         return plan;
+    }
+
+    // Pick the catalog source to baseline: prefer one the prompt names (by layer name or service id),
+    // otherwise the first usable source. Only considers sources with a real serviceId and a parseable
+    // non-negative layerId, so a single source with a bad/blank layerId can't shadow good ones (and we never
+    // invent a binding). Returns null when nothing is usable.
+    private static HonuaQueryGenerationSource? SelectBaselineSource(
+        string? prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        var usable = sources
+            .Where(s => !string.IsNullOrWhiteSpace(s.ServiceId)
+                && int.TryParse(
+                    s.LayerId,
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var id)
+                && id >= 0)
+            .ToArray();
+        if (usable.Length == 0)
+        {
+            return null;
+        }
+
+        var prone = prompt ?? string.Empty;
+        return usable.FirstOrDefault(s =>
+                   (!string.IsNullOrWhiteSpace(s.Name)
+                       && prone.Contains(s.Name!, StringComparison.OrdinalIgnoreCase))
+                   || prone.Contains(s.ServiceId, StringComparison.OrdinalIgnoreCase))
+               ?? usable[0];
     }
 
     private static StudioAnalysisGenerationOutcome MapGeneration(

@@ -107,7 +107,12 @@ test.describe('Studio · workflow result rendering (live)', () => {
   test('ANALYSIS from prompt renders a result graph (baseline distribution of the bound layer\'s real rows)', async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto('/studio/analysis');
-    await page.getByRole('button', { name: 'New from prompt' }).click();
+    // Blazor Server: the button is in the DOM before its onclick handler is wired over the SignalR circuit,
+    // so an early click can be lost and the from-prompt textarea never appears. Re-click until it shows.
+    await expect(async () => {
+      await page.getByRole('button', { name: 'New from prompt' }).click();
+      await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5_000 });
+    }).toPass({ timeout: 60_000 });
 
     const turnsBefore = await page.locator('.studio-ai-turn-honua').count();
     await page.locator('textarea').first().fill(ANALYSIS_PROMPT);
@@ -134,11 +139,25 @@ test.describe('Studio · workflow result rendering (live)', () => {
     test.setTimeout(120_000);
     await page.goto('/studio/workflows/new');
 
-    // The provider selector lists every available generation provider; pick the server's deterministic
-    // (fixture replay) provider so generation is model-free and returns a real, validated graph.
-    const provider = page.locator('select[data-workflow-ai-provider]');
-    await expect(provider).toBeVisible({ timeout: 30_000 });
-    await provider.selectOption({ label: (await provider.locator('option', { hasText: DETERMINISTIC_PROVIDER_LABEL }).first().textContent())!.trim() });
+    // Choose the server's deterministic (fixture replay) provider so generation is model-free and returns a
+    // real, validated graph. With ≥2 available providers the page renders a <select>; with exactly one it
+    // renders a <span> (nothing to pick). Wait for whichever marker appears, then select deterministic by
+    // its option VALUE and wait for the @bind to commit (Blazor Server round-trips onchange over the
+    // circuit, so selectOption resolving does NOT guarantee _selectedProvider has updated) before sending —
+    // otherwise Send can read a stale provider and run the wrong (model) provider.
+    const providerSelect = page.locator('select[data-workflow-ai-provider]');
+    const providerLabel = page.locator('span[data-workflow-ai-provider]');
+    await expect(providerSelect.or(providerLabel).first()).toBeVisible({ timeout: 30_000 });
+    if (await providerSelect.count()) {
+      const detOption = providerSelect.locator('option', { hasText: DETERMINISTIC_PROVIDER_LABEL }).first();
+      await expect(detOption).toHaveCount(1, { timeout: 10_000 });
+      const detValue = (await detOption.getAttribute('value'))!;
+      await providerSelect.selectOption(detValue);
+      await expect(providerSelect).toHaveValue(detValue);
+    } else {
+      // Single-provider server: it must be the deterministic one for this model-free test to be meaningful.
+      await expect(providerLabel).toContainText(DETERMINISTIC_PROVIDER_LABEL, { timeout: 10_000 });
+    }
 
     await page.locator('textarea').first().fill(WORKFLOW_PROMPT);
     await page.getByRole('button', { name: /Send/ }).click();
