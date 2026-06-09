@@ -58,7 +58,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateAlertRulesDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
-        AddOperateLayerStyleOverrideDataSource(services);
+        AddOperateLayerStyleOverrideDataSource(services, honuaServerBaseUrl);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
         // Operate observability binds to a real honua-server through a thin
@@ -840,16 +840,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
     }
 
-    // Binds the Operate resource-presentation per-slot style/popup OVERRIDE surface
-    // (/operate/layers/{id}/style, honua-console UI-032). honua-server does not yet expose a per-slot
-    // presentation-override contract, so the merged build registers the unsupported source: the override
-    // read/write render an explicit missing-binding state and never fabricate per-slot overrides (Console
-    // Patterns Charter section 11). The page still reads the REAL /ogc/styles list through the already
-    // registered IStudioMapStyleCatalogDataSource. When the override contract lands, wire a Server*
-    // implementation here gated on a configured server base URL exactly like the other bindings. TryAdd keeps
-    // a test/demo provider overridable.
-    private static void AddOperateLayerStyleOverrideDataSource(IServiceCollection services) =>
+    // Binds the Operate resource-presentation per-layer popup-info + drawing-info (renderer) authoring surface
+    // (/operate/layers/{id}/style, honua-console UI-032) to the SHIPPED honua-server admin authoring endpoints
+    // (GET/PUT /api/v1/admin/metadata/layers/{id}/popup-info and .../drawing-info). When a server base URL is
+    // configured the live ServerOperateLayerStyleOverrideDataSource reads/writes both documents through the
+    // already-registered IHonuaAdminOperateClient (resolving the route's canonical resource id to the layer's
+    // global id via the live layers projection). With no server configured the unsupported source surfaces an
+    // honest missing-binding state and never fabricates a popup/renderer (Console Patterns Charter section 11);
+    // the page still reads the REAL /ogc/styles list through IStudioMapStyleCatalogDataSource. TryAdd keeps a
+    // test/demo provider overridable.
+    private static void AddOperateLayerStyleOverrideDataSource(IServiceCollection services, string? honuaServerBaseUrl)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            // IOperateTransitionDataSource + IHonuaAdminOperateClient are registered by
+            // AddOperateTransitionDataSource under the same base-URL gate.
+            services.TryAddSingleton<IOperateLayerStyleOverrideDataSource>(serviceProvider =>
+                new ServerOperateLayerStyleOverrideDataSource(
+                    serviceProvider.GetRequiredService<IOperateTransitionDataSource>(),
+                    serviceProvider.GetRequiredService<IHonuaAdminOperateClient>()));
+            return;
+        }
+
         services.TryAddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
+    }
 
     private static HttpClient CreateOperateObservabilityHttpClient() =>
         new(new SocketsHttpHandler
