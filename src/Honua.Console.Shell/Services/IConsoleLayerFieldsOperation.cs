@@ -22,4 +22,16 @@ public interface IConsoleLayerFieldsOperation
         string domainName,
         IReadOnlyList<ConsoleCodedValue> codedValues,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets a field's display <paramref name="alias"/> and <paramref name="hidden"/> visibility through the same
+    /// <c>PUT /api/v1/admin/metadata/layers/{layerId}/fields</c> the domain editor uses. A null/empty alias is
+    /// sent as-is (the server treats it as "no override"); the field's domain is left untouched.
+    /// </summary>
+    Task<ConsoleSetDomainResult> SetFieldConfigurationAsync(
+        int layerId,
+        string fieldName,
+        string? alias,
+        bool hidden,
+        CancellationToken cancellationToken = default);
 }

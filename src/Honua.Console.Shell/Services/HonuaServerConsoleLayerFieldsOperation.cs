@@ -94,4 +94,50 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
             Detail = issue?.Detail ?? "The Honua server did not accept the field-domain update.",
         };
     }
+
+    public async Task<ConsoleSetDomainResult> SetFieldConfigurationAsync(
+        int layerId,
+        string fieldName,
+        string? alias,
+        bool hidden,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
+
+        // Carry only alias + hidden; leaving Domain null on the update record preserves the field's existing
+        // domain (the server only mutates the properties the request sets). An empty alias is normalized to null
+        // so the server clears any prior override instead of persisting an empty string.
+        var normalizedAlias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
+        var request = new HonuaAdminLayerFieldsUpdate
+        {
+            Fields =
+            [
+                new HonuaAdminLayerFieldUpdate
+                {
+                    Name = fieldName,
+                    Alias = normalizedAlias,
+                    Hidden = hidden,
+                }
+            ],
+        };
+
+        var result = await _client.UpdateLayerFieldsAsync(layerId, request, cancellationToken).ConfigureAwait(false);
+        if (result.Data is not null)
+        {
+            return new ConsoleSetDomainResult
+            {
+                Succeeded = true,
+                State = "Updated",
+                Detail = $"Set alias '{normalizedAlias ?? "(none)"}' and {(hidden ? "hidden" : "visible")} on '{fieldName}'.",
+            };
+        }
+
+        var issue = result.Issue;
+        return new ConsoleSetDomainResult
+        {
+            Succeeded = false,
+            State = issue?.State ?? "Unavailable",
+            Detail = issue?.Detail ?? "The Honua server did not accept the field configuration update.",
+        };
+    }
 }

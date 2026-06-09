@@ -84,18 +84,27 @@
             }
             else
             {
+                <p class="console-muted">Edit a field's display alias and visibility, then Save to persist it through honua-server's field metadata. After saving, the table re-reads from the server.</p>
                 <div class="console-table-wrap">
                     <table class="console-table">
                         <thead>
-                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Domain</th></tr>
+                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Hidden</th><th>Domain</th><th></th></tr>
                         </thead>
                         <tbody>
                             @foreach (var field in _fields.Fields)
                             {
+                                var edit = EditFor(field.Name);
                                 <tr data-field-row data-field-name="@field.Name">
                                     <td class="console-mono">@field.Name</td>
                                     <td>@(field.Type ?? "—")</td>
-                                    <td>@(field.Alias ?? "—")</td>
+                                    <td>
+                                        <input class="console-input" @bind="edit.Alias" data-field-alias
+                                               aria-label="@($"Alias for {field.Name}")" placeholder="@field.Name" />
+                                    </td>
+                                    <td>
+                                        <input type="checkbox" @bind="edit.Hidden" data-field-hidden
+                                               aria-label="@($"Hidden for {field.Name}")" />
+                                    </td>
                                     <td data-field-domain>
                                         @if (field.DomainName is { } dn)
                                         {
@@ -106,11 +115,28 @@
                                             <span class="console-muted">—</span>
                                         }
                                     </td>
+                                    <td>
+                                        <button class="console-button" type="button" disabled="@_savingField"
+                                                @onclick="() => SaveFieldAsync(field.Name)" data-field-save>
+                                            Save
+                                        </button>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
+                @if (_fieldResult is { } fr)
+                {
+                    <div class="console-panel @(fr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-field-result>
+                        <p class="console-kicker">@fr.State</p>
+                        <p>@fr.Detail</p>
+                    </div>
+                }
+                @* TODO(metadata-ui-gap #13): the /fields PUT contract carries only a coded-value domain
+                   (HonuaAdminFieldDomain has no range[] / defaultValue). Supporting range-type domains and a
+                   per-field default value needs the Contracts record + the server mapping extended first, so it
+                   is intentionally out of scope for this alias+hidden console-wiring change. *@
 
                 <article class="console-panel">
                     <p class="console-kicker">Coded-value domain</p>
@@ -177,6 +203,21 @@
     private bool _savingDomain;
     private ConsoleSetDomainResult? _domainResult;
 
+    // Per-field alias/hidden edit state, keyed by field name and seeded from the last server read so the inputs
+    // reflect persisted values (and round-trip after a save). Rebuilt on every LoadFieldsAsync.
+    private readonly Dictionary<string, FieldEdit> _fieldEdits = new(StringComparer.Ordinal);
+    private bool _savingField;
+    private ConsoleSetDomainResult? _fieldResult;
+
+    private FieldEdit EditFor(string fieldName) =>
+        _fieldEdits.TryGetValue(fieldName, out var edit) ? edit : new FieldEdit();
+
+    private sealed class FieldEdit
+    {
+        public string? Alias { get; set; }
+        public bool Hidden { get; set; }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         var view = await OperateData.GetLayersViewAsync();
@@ -200,6 +241,41 @@
         if (_fields.Bound && _fields.Fields.Count > 0 && string.IsNullOrEmpty(_domainField))
         {
             _domainField = _fields.Fields[0].Name;
+        }
+
+        // Reseed the editable alias/hidden state from the server read so the inputs (and any re-read after a
+        // save) reflect what is actually persisted.
+        _fieldEdits.Clear();
+        foreach (var field in _fields.Fields)
+        {
+            _fieldEdits[field.Name] = new FieldEdit { Alias = field.Alias, Hidden = field.Hidden };
+        }
+    }
+
+    private async Task SaveFieldAsync(string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName) || !_fieldEdits.TryGetValue(fieldName, out var edit))
+        {
+            return;
+        }
+
+        _savingField = true;
+        _fieldResult = null;
+        try
+        {
+            _fieldResult = await LayerFields.SetFieldConfigurationAsync(
+                _exposures[0].Layer.LayerId,
+                fieldName,
+                edit.Alias,
+                edit.Hidden);
+            if (_fieldResult.Succeeded)
+            {
+                await LoadFieldsAsync();
+            }
+        }
+        finally
+        {
+            _savingField = false;
         }
     }
 
