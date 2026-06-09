@@ -74,7 +74,7 @@ jobs:
         run: npm run smoke:parity
 
       - name: Upload Console artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: honua-console-web
           path: artifacts/honua-console-web/
@@ -82,7 +82,7 @@ jobs:
 
       - name: Upload parity evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: console-parity-evidence
           path: smoke-evidence/console-parity.json
@@ -91,7 +91,7 @@ jobs:
       - name: Upload code coverage (cobertura)
         # Visibility only — no coverage threshold gate.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: console-coverage
           path: artifacts/test-results/**/coverage.cobertura.xml
