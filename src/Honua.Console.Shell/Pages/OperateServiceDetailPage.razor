@@ -16,6 +16,9 @@
             <p>@_service.MetadataOwnership</p>
             <div class="console-detail-actions">
                 <a class="console-button-link" href="@($"/operate/services/{ServiceName}/discovery")" data-service-discovery-link>Discovery metadata</a>
+                @* The console projection does not surface a publication metadata id yet, so this links to the
+                   publication-overrides authoring page where the operator supplies the publication id. *@
+                <a class="console-button-link" href="/operate/publications/overrides" data-publication-overrides-link>Publication overrides</a>
             </div>
         </div>
 

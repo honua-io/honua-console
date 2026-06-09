@@ -721,6 +721,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives
             // OGC API Records / STAC / DCAT / Esri documentInfo output.
             services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, HonuaServerConsoleDiscoveryMetadataOperation>();
+            // Publication-overrides authoring (GET/PUT overrides for a publication — a layer's exposure within a
+            // service): titleOverride, per-publication field aliases, capabilities, supported formats, isPrimary.
+            services.TryAddSingleton<IConsolePublicationOverridesOperation, HonuaServerConsolePublicationOverridesOperation>();
             return;
         }
 
@@ -737,6 +740,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
         services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
         services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
+        services.TryAddSingleton<IConsolePublicationOverridesOperation, UnsupportedConsolePublicationOverridesOperation>();
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
