@@ -1,0 +1,214 @@
+@page "/operate/versions/{ServiceId}/{VersionGuid}/conflicts"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@inject IVersionManagementOperation VersionOps
+
+<section class="console-page operate-version-conflicts" data-version-conflicts>
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Versions</p>
+        <h1>Conflict resolution</h1>
+        <p>Review the pending conflicts for this branch version as a three-way diff (base vs DEFAULT vs version) for attributes and geometry. Pick a per-feature resolution — take the version edit, take the DEFAULT edit, or revert to the common-ancestor base — then submit. Post to DEFAULT stays disabled until no conflicts remain.</p>
+        <p class="console-muted">Service <code>@ServiceId</code> · version <code>@VersionGuid</code></p>
+    </div>
+
+    <div class="console-action-row">
+        <a class="console-button-link" href="/operate/versions">Back to versions</a>
+        <button class="console-button console-button-secondary" type="button" @onclick="LoadAsync" disabled="@_loading">
+            @(_loading ? "Loading…" : "Refresh conflicts")
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Conflict resolution"
+                          Title="Loading conflicts"
+                          Message="Reading the pending conflict set from honua-server." />
+    }
+    else if (_conflicts is { Bound: false } unbound)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="@(unbound.State ?? "Missing binding")"
+                          Title="Conflict resolution is not bound"
+                          Message="@DescribeBinding(unbound.Detail, unbound.Contract)" />
+    }
+    else if (_conflicts is { } conflicts)
+    {
+        @if (_resolveResult is { } resolve)
+        {
+            <article class="console-panel @(resolve.Operation.Succeeded ? "console-state-success" : "console-state-danger")"
+                     role="status" data-resolve-result>
+                <p class="console-kicker">@resolve.Operation.State</p>
+                <p>@resolve.Operation.Detail</p>
+            </article>
+        }
+
+        @if (_postResult is { } post)
+        {
+            <article class="console-panel @(post.Succeeded ? "console-state-success" : "console-state-danger")"
+                     role="status" data-post-result>
+                <p class="console-kicker">@post.State</p>
+                <p>@post.Detail</p>
+            </article>
+        }
+
+        @if (!conflicts.HasConflicts)
+        {
+            <article class="console-panel console-state-success" role="status" data-no-conflicts>
+                <p class="console-kicker">Clean</p>
+                <p>No conflicts remain for this version. It can be posted to DEFAULT.</p>
+            </article>
+        }
+        else
+        {
+            <section class="console-section" aria-label="Pending conflicts">
+                @foreach (var conflict in conflicts.Conflicts)
+                {
+                    <VersionConflictDiff Conflict="conflict"
+                                         Choice="@GetChoice(conflict.Key)"
+                                         ChoiceChanged="OnChoiceChanged" />
+                }
+            </section>
+
+            <section class="console-section" aria-label="Submit resolutions">
+                <div class="console-action-row">
+                    <button class="console-button" type="button" @onclick="ResolveAsync"
+                            disabled="@(_busy || _choices.Count == 0)" data-submit-resolutions>
+                        @(_busy ? "Submitting…" : $"Resolve selected ({_choices.Count})")
+                    </button>
+                    <span class="console-muted">@_choices.Count of @conflicts.Conflicts.Count conflict(s) chosen.</span>
+                </div>
+            </section>
+        }
+
+        <section class="console-section" aria-label="Post to DEFAULT">
+            <div class="console-page-heading">
+                <p class="console-kicker">Publish</p>
+                <h2>Post to DEFAULT</h2>
+                <p>Replays this version's net changes onto DEFAULT. Disabled while conflicts remain.</p>
+            </div>
+            <div class="console-action-row">
+                <button class="console-button" type="button" @onclick="PostAsync"
+                        disabled="@(_busy || conflicts.HasConflicts)" data-post>
+                    @(_busy ? "Posting…" : "Post to DEFAULT")
+                </button>
+                @if (conflicts.HasConflicts)
+                {
+                    <span class="console-muted" data-post-blocked>Resolve all conflicts to enable post.</span>
+                }
+            </div>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ServiceId { get; set; } = string.Empty;
+
+    [Parameter]
+    public string VersionGuid { get; set; } = string.Empty;
+
+    private VersionConflictsView? _conflicts;
+    private bool _loading;
+    private bool _busy;
+
+    // Per-conflict resolution choices keyed by "layerId:objectId".
+    private readonly Dictionary<string, string> _choices = new(StringComparer.Ordinal);
+
+    private ResolveConflictsResultView? _resolveResult;
+    private VersionOperationResult? _postResult;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _conflicts = await VersionOps.InspectConflictsAsync(ServiceId, VersionGuid);
+            // Drop any stale choices for conflicts that are no longer present.
+            if (_conflicts is { Bound: true })
+            {
+                var present = _conflicts.Conflicts.Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+                foreach (var key in _choices.Keys.Where(k => !present.Contains(k)).ToArray())
+                {
+                    _choices.Remove(key);
+                }
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string? GetChoice(string key) => _choices.TryGetValue(key, out var choice) ? choice : null;
+
+    private void OnChoiceChanged((string Key, string Choice) selection)
+    {
+        _choices[selection.Key] = selection.Choice;
+        _resolveResult = null;
+        _postResult = null;
+    }
+
+    private async Task ResolveAsync()
+    {
+        if (_conflicts is not { Bound: true } || _choices.Count == 0)
+        {
+            return;
+        }
+
+        _busy = true;
+        _postResult = null;
+        try
+        {
+            var resolutions = _choices
+                .Select(pair =>
+                {
+                    var parts = pair.Key.Split(':', 2);
+                    var layerId = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+                    var objectId = long.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                    return new ConflictResolutionChoice(layerId, objectId, pair.Value);
+                })
+                .ToArray();
+
+            _resolveResult = await VersionOps.ResolveConflictsAsync(ServiceId, VersionGuid, resolutions);
+            if (_resolveResult.Operation.Succeeded)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PostAsync()
+    {
+        if (_conflicts is not { Bound: true, HasConflicts: false })
+        {
+            return;
+        }
+
+        _busy = true;
+        _resolveResult = null;
+        try
+        {
+            _postResult = await VersionOps.PostAsync(ServiceId, VersionGuid);
+            if (_postResult.Succeeded)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string DescribeBinding(string? detail, string? contract) =>
+        string.IsNullOrWhiteSpace(contract)
+            ? detail ?? "No server binding is configured."
+            : $"{detail} (contract: {contract})";
+}

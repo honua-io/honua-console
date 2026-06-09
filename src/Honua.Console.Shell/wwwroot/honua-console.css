@@ -8497,3 +8497,58 @@ p {
 .console-nav-help {
     margin-top: auto;
 }
+
+/* ----- branch-version manager + conflict resolution (honua-console#177) ----- */
+.console-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.console-field-label {
+    font-weight: 700;
+    color: var(--honua-muted);
+    font-size: 0.85rem;
+}
+
+.console-button-danger {
+    border-color: #b03a2e;
+    background: var(--honua-surface);
+    color: #8f2f24;
+}
+
+.version-conflict {
+    margin-bottom: 16px;
+}
+
+.version-conflict-choice {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    border: 0;
+    padding: 0;
+    margin: 0;
+}
+
+.version-conflict-table code {
+    display: block;
+    max-width: 28ch;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.version-conflict-wkt {
+    font-size: 0.78rem;
+}
+
+/* Highlight the full row when any of base/DEFAULT/version diverge. */
+.version-conflict-changed > td {
+    background: rgba(217, 119, 6, 0.08);
+}
+
+/* Highlight just the DEFAULT/version cell that diverged from base. */
+.version-conflict-diff-cell {
+    background: rgba(217, 119, 6, 0.16);
+    font-weight: 700;
+}

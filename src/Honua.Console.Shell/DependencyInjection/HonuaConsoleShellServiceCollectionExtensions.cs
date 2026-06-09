@@ -58,6 +58,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateAlertRulesDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddVersionManagementOperation(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateLayerStyleOverrideDataSource(services, honuaServerBaseUrl);
         services.TryAddScoped<IConsoleCatalogReadContextResolver, ConsoleCatalogReadContextResolver>();
 
@@ -868,6 +869,34 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
+    }
+
+    // Binds the Operate branch-version manager + conflict-resolution surface (/operate/versions,
+    // honua-console#177) to honua-server's GeoServices VersionManagementServer (#371 / PR #1551):
+    // list/create/alter/delete versions, reconcile with an auto-resolution policy, inspect the pending 3-way
+    // conflict set, submit manual per-feature resolutions, and post to DEFAULT. Live only when a server base
+    // URL is configured; otherwise the unsupported source renders an explicit missing-binding state and never
+    // fabricates a version operation (Console Patterns Charter section 11).
+    private static void AddVersionManagementOperation(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IHonuaVersionManagementClient>(_ =>
+            {
+                var httpClient = new HttpClient { BaseAddress = baseUri };
+                return new HonuaVersionManagementHttpClient(
+                    httpClient,
+                    new HonuaVersionManagementClientOptions(baseUri, honuaServerAdminApiKey));
+            });
+            services.TryAddSingleton<IVersionManagementOperation, HonuaServerVersionManagementOperation>();
+            return;
+        }
+
+        services.TryAddSingleton<IVersionManagementOperation, UnsupportedVersionManagementOperation>();
     }
 
     // Binds the Operate resource-presentation per-layer popup-info + drawing-info (renderer) authoring surface
