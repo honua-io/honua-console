@@ -25,7 +25,10 @@ public sealed class LayerMetadataPageRenderTests
             Editing = new ConsoleLayerEditing { Bound = true, LayerId = 1, GlobalIdField = "globalid", CanModify = true },
             Spatial = new ConsoleLayerSpatial
             {
-                Bound = true, LayerId = 1, Srid = 4326, GeometryType = "polygon",
+                Bound = true,
+                LayerId = 1,
+                Srid = 4326,
+                GeometryType = "polygon",
                 SupportedCrs = ["http://www.opengis.net/def/crs/EPSG/0/4326"],
                 StorageCrs = "http://www.opengis.net/def/crs/EPSG/0/4326",
             },
@@ -102,7 +105,8 @@ public sealed class LayerMetadataPageRenderTests
             Editing = new ConsoleLayerEditing { Bound = true, LayerId = 1 },
             Spatial = new ConsoleLayerSpatial
             {
-                Bound = true, LayerId = 1,
+                Bound = true,
+                LayerId = 1,
                 SupportedCrs = ["http://www.opengis.net/def/crs/EPSG/0/4326"],
             },
             SpatialSaveResult = new ConsoleSetLayerMetadataResult { Succeeded = true, State = "Updated", Detail = "Saved the layer's CRS / spatial metadata on honua-server." },

@@ -263,7 +263,11 @@ public sealed class HonuaServerTemporalCapabilityClientTests
                     To = new HonuaTemporalCheckpointResponse { Kind = "generation", Generation = 42 },
                     Summary = new HonuaTemporalDiffSummaryResponse
                     {
-                        Added = 2, Removed = 1, AttributeChanged = 3, GeometryChanged = 1, Total = 6,
+                        Added = 2,
+                        Removed = 1,
+                        AttributeChanged = 3,
+                        GeometryChanged = 1,
+                        Total = 6,
                     },
                     Changes =
                     [
