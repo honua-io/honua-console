@@ -316,6 +316,69 @@ public partial interface IHonuaAdminOperateClient
             "This IHonuaAdminOperateClient implementation does not provide UpdateServiceSettingsCapsAsync.");
 
     /// <summary>
+    /// Reads a layer's persisted 3D extrusion + 3D symbology metadata
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/extrusion</c>). <paramref name="layerId"/> is the global
+    /// id. Returns the extrusion (height/base-height field, unit, default height, material hint) and the 3D
+    /// symbology (default RGB color + opacity and the attribute-comparison rules) the server has persisted.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> GetLayerExtrusionAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerExtrusionAsync.");
+
+    /// <summary>
+    /// Updates a layer's 3D extrusion + 3D symbology metadata
+    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/extrusion</c>). A null section leaves it unchanged; the
+    /// matching clear flag removes it. heightField / baseHeightField / rule attributes are validated server-side
+    /// against the layer schema. The server re-reads and returns the persisted projection.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> UpdateLayerExtrusionAsync(
+        int layerId,
+        HonuaAdminLayerExtrusionUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerExtrusionAsync.");
+
+    /// <summary>
+    /// Reads a layer's persisted lifecycle status — lifecycle stage + operational state
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/status</c>). <paramref name="layerId"/> is the global id.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> GetLayerStatusAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerStatusAsync.");
+
+    /// <summary>
+    /// Updates a layer's lifecycle status (<c>PUT /api/v1/admin/metadata/layers/{layerId}/status</c>). At least
+    /// one of lifecycle/state is required; a null field leaves the other unchanged. The server re-reads and
+    /// returns the persisted status.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> UpdateLayerStatusAsync(
+        int layerId,
+        HonuaAdminLayerStatusUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerStatusAsync.");
+
+    /// <summary>
     /// Reads a layer's persisted relationships (origin/destination, cardinality, esriRelationshipId)
     /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/relationships</c>). <paramref name="layerId"/> is the
     /// global id. FeatureServer layer metadata emits these as <c>relationships[]</c>.
@@ -332,6 +395,69 @@ public partial interface IHonuaAdminOperateClient
         int layerId,
         HonuaAdminLayerRelationshipsUpdate request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a layer's persisted subtype set — subtype field, default subtype code, per-subtype field
+    /// default/domain overrides (<c>GET /api/v1/admin/metadata/layers/{layerId}/subtypes</c>).
+    /// <paramref name="layerId"/> is the global id.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> GetLayerSubtypesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerSubtypesAsync.");
+
+    /// <summary>
+    /// Updates a layer's subtype set (<c>PUT /api/v1/admin/metadata/layers/{layerId}/subtypes</c>).
+    /// <c>clear:true</c> removes the set; a null <c>subtypes</c> keeps the existing set; the subtype field /
+    /// override keys are validated server-side against the schema. The server re-reads and returns the
+    /// persisted subtype projection.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> UpdateLayerSubtypesAsync(
+        int layerId,
+        HonuaAdminLayerSubtypesUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerSubtypesAsync.");
+
+    /// <summary>
+    /// Reads a layer's persisted attribute rules — calculation/constraint/validation rules with their
+    /// triggering events (<c>GET /api/v1/admin/metadata/layers/{layerId}/attribute-rules</c>).
+    /// <paramref name="layerId"/> is the global id.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> GetLayerAttributeRulesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerAttributeRulesAsync.");
+
+    /// <summary>
+    /// Replaces a layer's attribute rules (<c>PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules</c>).
+    /// An empty <c>rules</c> clears the set; duplicate rule names are rejected server-side. The server re-reads
+    /// and returns the persisted rule set.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> UpdateLayerAttributeRulesAsync(
+        int layerId,
+        HonuaAdminLayerAttributeRulesUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerAttributeRulesAsync.");
 
     /// <summary>
     /// Reads a layer's discovery / catalog metadata — title, description, keywords, themes, language, license,
@@ -977,6 +1103,50 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> GetLayerExtrusionAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerExtrusion>(
+            $"/api/v1/admin/metadata/layers/{layerId}/extrusion",
+            "GET /api/v1/admin/metadata/layers/{layerId}/extrusion",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> UpdateLayerExtrusionAsync(
+        int layerId,
+        HonuaAdminLayerExtrusionUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerExtrusionUpdate, HonuaAdminLayerExtrusion>(
+            $"/api/v1/admin/metadata/layers/{layerId}/extrusion",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/extrusion",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> GetLayerStatusAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerStatus>(
+            $"/api/v1/admin/metadata/layers/{layerId}/status",
+            "GET /api/v1/admin/metadata/layers/{layerId}/status",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> UpdateLayerStatusAsync(
+        int layerId,
+        HonuaAdminLayerStatusUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerStatusUpdate, HonuaAdminLayerStatus>(
+            $"/api/v1/admin/metadata/layers/{layerId}/status",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/status",
+            cancellationToken);
+    }
+
     public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(
         int layerId,
         CancellationToken cancellationToken = default) =>
@@ -996,6 +1166,50 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/metadata/layers/{layerId}/relationships",
             request,
             "PUT /api/v1/admin/metadata/layers/{layerId}/relationships",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> GetLayerSubtypesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerSubtypes>(
+            $"/api/v1/admin/metadata/layers/{layerId}/subtypes",
+            "GET /api/v1/admin/metadata/layers/{layerId}/subtypes",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> UpdateLayerSubtypesAsync(
+        int layerId,
+        HonuaAdminLayerSubtypesUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerSubtypesUpdate, HonuaAdminLayerSubtypes>(
+            $"/api/v1/admin/metadata/layers/{layerId}/subtypes",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/subtypes",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> GetLayerAttributeRulesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerAttributeRules>(
+            $"/api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            "GET /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> UpdateLayerAttributeRulesAsync(
+        int layerId,
+        HonuaAdminLayerAttributeRulesUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerAttributeRulesUpdate, HonuaAdminLayerAttributeRules>(
+            $"/api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
             cancellationToken);
     }
 
@@ -1879,6 +2093,108 @@ public sealed record HonuaAdminLayerRelationshipsUpdate
 }
 
 /// <summary>
+/// A layer's persisted subtype set (<c>GET /api/v1/admin/metadata/layers/{id}/subtypes</c>): the subtype
+/// field, the default subtype code, and the per-subtype field overrides. <c>code</c>/<c>defaultSubtypeCode</c>
+/// are JSON-typed passthroughs (the server validates the subtype field/override keys against the schema).
+/// </summary>
+public sealed record HonuaAdminLayerSubtypes
+{
+    public int LayerId { get; init; }
+
+    public string? SubtypeField { get; init; }
+
+    public JsonElement? DefaultSubtypeCode { get; init; }
+
+    public IReadOnlyList<HonuaAdminLayerSubtype> Subtypes { get; init; } = [];
+}
+
+/// <summary>One subtype: its code (JSON scalar), display name, and per-field default/domain overrides.</summary>
+public sealed record HonuaAdminLayerSubtype
+{
+    public JsonElement? Code { get; init; }
+
+    public string? Name { get; init; }
+
+    /// <summary>Per-field overrides keyed by field name; each carries an optional default value and domain.</summary>
+    public IReadOnlyDictionary<string, HonuaAdminSubtypeFieldOverride> FieldOverrides { get; init; } =
+        new Dictionary<string, HonuaAdminSubtypeFieldOverride>(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>A subtype's override for one field: a default value (any JSON scalar) and/or a domain.</summary>
+public sealed record HonuaAdminSubtypeFieldOverride
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? DefaultValue { get; init; }
+
+    /// <summary>The override domain (JSON-typed passthrough; the server validates it against the schema).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Domain { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/subtypes</c>. <see cref="Clear"/> removes the
+/// whole subtype set; a null <see cref="Subtypes"/> keeps the existing set; the subtype field / override keys
+/// are validated server-side against the schema.
+/// </summary>
+public sealed record HonuaAdminLayerSubtypesUpdate
+{
+    public bool Clear { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SubtypeField { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? DefaultSubtypeCode { get; init; }
+
+    /// <summary>Null keeps the existing subtypes; a (possibly empty) list replaces them.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<HonuaAdminLayerSubtype>? Subtypes { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted attribute rules (<c>GET /api/v1/admin/metadata/layers/{id}/attribute-rules</c>):
+/// calculation / constraint / validation rules the server evaluates on insert/update/delete.
+/// </summary>
+public sealed record HonuaAdminLayerAttributeRules
+{
+    public int LayerId { get; init; }
+
+    public IReadOnlyList<HonuaAdminAttributeRule> Rules { get; init; } = [];
+}
+
+/// <summary>
+/// One attribute rule: a name, a <see cref="Type"/> (<c>calculation</c>/<c>constraint</c>/<c>validation</c>),
+/// the field it targets, the script expression, the triggering events, an error message, and an enabled flag.
+/// </summary>
+public sealed record HonuaAdminAttributeRule
+{
+    public string? Name { get; init; }
+
+    /// <summary>"calculation", "constraint", or "validation".</summary>
+    public string? Type { get; init; }
+
+    public string? FieldName { get; init; }
+
+    public string? ScriptExpression { get; init; }
+
+    /// <summary>Any of "insert", "update", "delete".</summary>
+    public IReadOnlyList<string> TriggeringEvents { get; init; } = [];
+
+    public string? ErrorMessage { get; init; }
+
+    public bool IsEnabled { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/attribute-rules</c>. An empty
+/// <see cref="Rules"/> clears the set; duplicate rule names are rejected server-side.
+/// </summary>
+public sealed record HonuaAdminLayerAttributeRulesUpdate
+{
+    public IReadOnlyList<HonuaAdminAttributeRule> Rules { get; init; } = [];
+}
+
+/// <summary>
 /// A layer's persisted display hints (<c>GET /api/v1/admin/metadata/layers/{id}/display</c>): scale-dependent
 /// visibility window, default visibility, the display (label) field, queryable, and the hasZ/hasM geometry
 /// dimensionality flags.
@@ -2017,6 +2333,130 @@ public sealed record HonuaAdminLayerSpatialUpdate
 
     /// <summary>When true, clears the storage-CRS coordinate epoch server-side.</summary>
     public bool ClearStorageCrsCoordinateEpoch { get; init; }
+}
+
+/// <summary>
+/// An RGB color (0–255 per channel) used by 3D symbology
+/// (<c>GET/PUT /api/v1/admin/metadata/layers/{id}/extrusion</c>).
+/// </summary>
+public sealed record HonuaAdminRgbColor
+{
+    public int Red { get; init; }
+
+    public int Green { get; init; }
+
+    public int Blue { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted 3D extrusion settings: the attribute field that drives extruded height, an optional
+/// base-height field, the height unit, a fallback default height, and an optional material hint.
+/// </summary>
+public sealed record HonuaAdminLayerExtrusionSettings
+{
+    public string? HeightField { get; init; }
+
+    public string? BaseHeightField { get; init; }
+
+    /// <summary>"meters", "feet", or "usSurveyFeet".</summary>
+    public string? Unit { get; init; }
+
+    public double? DefaultHeight { get; init; }
+
+    public string? MaterialHint { get; init; }
+}
+
+/// <summary>One attribute-driven 3D symbology rule: when <see cref="Attribute"/> compares to <see cref="Value"/>,
+/// apply the color/opacity/visibility.</summary>
+public sealed record HonuaAdminSymbology3DRule
+{
+    public string? Attribute { get; init; }
+
+    /// <summary>"equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", or "lessThanOrEqual".</summary>
+    public string? Comparison { get; init; }
+
+    /// <summary>The compared value (any JSON scalar); round-tripped as-is.</summary>
+    public JsonElement? Value { get; init; }
+
+    public HonuaAdminRgbColor? Color { get; init; }
+
+    public double? Opacity { get; init; }
+
+    public bool? Visible { get; init; }
+}
+
+/// <summary>A layer's persisted 3D symbology: default RGB color + opacity and the ordered attribute rules.</summary>
+public sealed record HonuaAdminSymbology3D
+{
+    public HonuaAdminRgbColor? DefaultColor { get; init; }
+
+    public double? DefaultOpacity { get; init; }
+
+    public IReadOnlyList<HonuaAdminSymbology3DRule> Rules { get; init; } = [];
+}
+
+/// <summary>
+/// A layer's persisted 3D extrusion + 3D symbology metadata
+/// (<c>GET /api/v1/admin/metadata/layers/{id}/extrusion</c>). Either section may be null when the layer has no
+/// extrusion / no 3D symbology configured.
+/// </summary>
+public sealed record HonuaAdminLayerExtrusion
+{
+    public int LayerId { get; init; }
+
+    public HonuaAdminLayerExtrusionSettings? Extrusion { get; init; }
+
+    public HonuaAdminSymbology3D? Symbology3D { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/extrusion</c>. A null section leaves it unchanged;
+/// the matching clear flag removes it. heightField / baseHeightField / rule attributes are validated server-side
+/// against the layer schema.
+/// </summary>
+public sealed record HonuaAdminLayerExtrusionUpdate
+{
+    /// <summary>Set the extrusion settings; null leaves the persisted extrusion untouched. Not serialized when null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HonuaAdminLayerExtrusionSettings? Extrusion { get; init; }
+
+    /// <summary>When true, removes the extrusion settings server-side.</summary>
+    public bool ClearExtrusion { get; init; }
+
+    /// <summary>Set the 3D symbology; null leaves the persisted symbology untouched. Not serialized when null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HonuaAdminSymbology3D? Symbology3D { get; init; }
+
+    /// <summary>When true, removes the 3D symbology server-side.</summary>
+    public bool ClearSymbology3D { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted lifecycle status (<c>GET /api/v1/admin/metadata/layers/{id}/status</c>): the lifecycle
+/// stage and the operational state.
+/// </summary>
+public sealed record HonuaAdminLayerStatus
+{
+    public int LayerId { get; init; }
+
+    /// <summary>"draft", "active", "deprecated", "retired", or "archived". Canonical "Published" maps to active.</summary>
+    public string? Lifecycle { get; init; }
+
+    /// <summary>"unknown", "ready", "pending", "degraded", or "failed".</summary>
+    public string? State { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/status</c>. At least one of lifecycle/state is
+/// required; a null field leaves the other unchanged. Null fields are omitted on the wire.
+/// </summary>
+public sealed record HonuaAdminLayerStatusUpdate
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Lifecycle { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? State { get; init; }
 }
 
 /// <summary>

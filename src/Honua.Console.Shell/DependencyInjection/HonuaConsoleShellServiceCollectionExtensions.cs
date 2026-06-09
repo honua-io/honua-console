@@ -707,9 +707,15 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             services.TryAddSingleton<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation>();
             // Layer relationships authoring (GET/PUT /api/v1/admin/metadata/layers/{id}/relationships).
             services.TryAddSingleton<IConsoleLayerRelationshipsOperation, HonuaServerConsoleLayerRelationshipsOperation>();
+            // Layer subtypes + attribute-rules authoring
+            // (GET/PUT /api/v1/admin/metadata/layers/{id}/subtypes|attribute-rules).
+            services.TryAddSingleton<IConsoleLayerSubtypesOperation, HonuaServerConsoleLayerSubtypesOperation>();
             // Layer display / editing / CRS metadata authoring
             // (GET/PUT /api/v1/admin/metadata/layers/{id}/display|editing|spatial).
             services.TryAddSingleton<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation>();
+            // Layer 3D extrusion / symbology + lifecycle status authoring
+            // (GET/PUT /api/v1/admin/metadata/layers/{id}/extrusion|status).
+            services.TryAddSingleton<IConsoleLayer3DOperation, HonuaServerConsoleLayer3DOperation>();
             // Service time-info authoring (GET settings + PUT /api/v1/admin/services/{svc}/timeinfo).
             services.TryAddSingleton<IConsoleTimeInfoOperation, HonuaServerConsoleTimeInfoOperation>();
             // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives
@@ -726,7 +732,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
         services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
         services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
+        services.TryAddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
         services.TryAddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
+        services.TryAddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
         services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
         services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
     }
