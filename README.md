@@ -1,5 +1,7 @@
 # Honua Console
 
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/honua-io/honua-console/badge)](https://scorecard.dev/viewer/?uri=github.com/honua-io/honua-console)
+
 Honua Console is the unified web surface for Honua.
 
 It brings Studio, Catalog, Operate, and Share into one product surface and one deployment runtime:
