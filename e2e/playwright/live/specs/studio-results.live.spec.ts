@@ -68,8 +68,36 @@ test.describe('Studio · workflow result rendering (live)', () => {
     await expect(page.locator('figure.map-preview').first()).toBeVisible();
   });
 
-  // Documented coverage of the families whose final output cannot be produced live on this testbed.
+  test('FORM from prompt renders the form (real interactive controls) as its final output', async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.goto('/studio/form/ai');
+    // The from-prompt builder must be AVAILABLE (the server now exposes the form generation providers
+    // endpoint; the console no longer shows the "AI generation unavailable" state).
+    const refine = page.locator('textarea').first();
+    await expect(refine).toBeEnabled({ timeout: 30_000 });
+    await expect(page.getByText(/AI generation (is )?unavailable/i)).toHaveCount(0);
+
+    const turnsBefore = await page.locator('.studio-ai-turn-honua').count();
+    await refine.fill('An inspection form for the E2E Source layer: a required Asset name text field, a condition field with choices good/fair/poor, and a notes text area.');
+    await page.getByRole('button', { name: /Send/ }).click();
+
+    // Generation actually round-tripped through the server: a new Honua response turn appears (proving the
+    // form providers endpoint + generate call worked, not just the starting scaffold).
+    await expect
+      .poll(async () => await page.locator('.studio-ai-turn-honua').count(), { timeout: 120_000, intervals: [1000, 2000, 5000] })
+      .toBeGreaterThan(turnsBefore);
+
+    // The FINAL OUTPUT: a live, interactive form rendered from the schema (the form IS its result).
+    const form = page.locator('[aria-label="Form preview"] form').first();
+    await expect(form).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(async () => await form.locator('input, select, textarea').count(), { timeout: 15_000, intervals: [500, 1000, 2000] })
+      .toBeGreaterThan(0);
+  });
+
+  // Documented coverage of the families whose final output cannot be produced live on the 7b CPU model
+  // (a model-capability limit, not a render gap — both renders are built + unit-tested, ready for a capable
+  // model; generation returns unsupported/needs-clarification on 7b).
   test.skip('ANALYSIS from prompt renders a result graph — blocked by the 7b model (returns unsupported)', () => {});
-  test.skip('WORKFLOW from prompt renders the DAG — blocked by the 7b model (returns unsupported)', () => {});
-  test.skip('FORM from prompt renders the form — console AI-generation capability probe reports unavailable', () => {});
+  test.skip('WORKFLOW from prompt renders the DAG — blocked by the 7b model (needs-clarification, no graph)', () => {});
 });
