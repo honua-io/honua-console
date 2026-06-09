@@ -1,0 +1,418 @@
+@page "/operate/layers/{ResourceId}/subtypes"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOperateTransitionDataSource OperateData
+@inject IConsoleLayerSubtypesOperation LayerSubtypes
+
+<section class="console-page" data-subtypes-page>
+    @if (_layer is null)
+    {
+        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>@_layer.Name · subtypes &amp; attribute rules</h1>
+            <p>Author the subtype set and attribute rules on layer @_layer.LayerId. honua-server validates the subtype field, override keys and rule scripts against the layer schema.</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+            </div>
+        </div>
+
+        @* ---------------- Subtypes ---------------- *@
+        <section class="console-section" data-subtypes-panel>
+            <h2>Subtypes</h2>
+            @if (!_subtypes.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-subtypes-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_subtypes.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-field-row">
+                    <label class="console-field">
+                        <span>Subtype field</span>
+                        <input class="console-input" @bind="_subtypeField" data-subtype-field placeholder="status" />
+                    </label>
+                    <label class="console-field">
+                        <span>Default subtype code</span>
+                        <input class="console-input" @bind="_defaultSubtypeCode" data-subtype-default placeholder="1" />
+                    </label>
+                </div>
+
+                <div class="console-table-wrap">
+                    <table class="console-table" aria-label="Subtypes">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Field overrides (field = defaultJson; field = defaultJson)</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_subtypeRows.Count == 0)
+                            {
+                                <tr data-subtypes-empty><td colspan="4" class="console-muted">No subtypes are authored on this layer yet.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in _subtypeRows)
+                                {
+                                    <tr data-subtype-row>
+                                        <td><input class="console-input console-input-narrow" @bind="row.Code" aria-label="Subtype code" data-subtype-code placeholder="1" /></td>
+                                        <td><input class="console-input" @bind="row.Name" aria-label="Subtype name" data-subtype-name placeholder="Active" /></td>
+                                        <td><input class="console-input" @bind="row.Overrides" aria-label="Field overrides" data-subtype-overrides placeholder="status = &quot;active&quot;" /></td>
+                                        <td>
+                                            <button class="console-button console-button-secondary" type="button"
+                                                    @onclick="() => RemoveSubtype(row)" data-subtype-remove aria-label="Remove subtype">Remove</button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="console-action-row">
+                    <button class="console-button console-button-secondary" type="button" @onclick="AddSubtype" data-subtype-add>Add subtype</button>
+                    <button class="console-button" type="button" disabled="@_savingSubtypes" @onclick="SaveSubtypesAsync" data-subtype-save>
+                        @(_savingSubtypes ? "Saving…" : "Save subtypes")
+                    </button>
+                    <button class="console-button console-button-secondary" type="button" disabled="@_savingSubtypes" @onclick="ClearSubtypesAsync" data-subtype-clear>
+                        Clear subtype set
+                    </button>
+                </div>
+
+                @if (_subtypesResult is { } sr)
+                {
+                    <div class="console-panel @(sr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-subtypes-result>
+                        <p class="console-kicker">@sr.State</p>
+                        <p>@sr.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+
+        @* ---------------- Attribute rules ---------------- *@
+        <section class="console-section" data-rules-panel>
+            <h2>Attribute rules</h2>
+            @if (!_rules.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-rules-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_rules.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-table-wrap">
+                    <table class="console-table" aria-label="Attribute rules">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Field</th>
+                                <th>Script expression</th>
+                                <th>Events</th>
+                                <th>Error message</th>
+                                <th>Enabled</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_ruleRows.Count == 0)
+                            {
+                                <tr data-rules-empty><td colspan="8" class="console-muted">No attribute rules are authored on this layer yet.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in _ruleRows)
+                                {
+                                    <tr data-rule-row>
+                                        <td><input class="console-input" @bind="row.Name" aria-label="Rule name" data-rule-name placeholder="calc_area" /></td>
+                                        <td>
+                                            <select class="console-input" @bind="row.Type" aria-label="Rule type" data-rule-type>
+                                                <option value="calculation">calculation</option>
+                                                <option value="constraint">constraint</option>
+                                                <option value="validation">validation</option>
+                                            </select>
+                                        </td>
+                                        <td><input class="console-input" @bind="row.FieldName" aria-label="Field name" data-rule-field placeholder="area" /></td>
+                                        <td><textarea class="console-input" @bind="row.ScriptExpression" aria-label="Script expression" data-rule-script rows="2" placeholder="$feature.area * 2"></textarea></td>
+                                        <td>
+                                            <label class="console-checkbox"><input type="checkbox" @bind="row.Insert" data-rule-insert aria-label="insert" /> insert</label>
+                                            <label class="console-checkbox"><input type="checkbox" @bind="row.Update" data-rule-update aria-label="update" /> update</label>
+                                            <label class="console-checkbox"><input type="checkbox" @bind="row.Delete" data-rule-delete aria-label="delete" /> delete</label>
+                                        </td>
+                                        <td><input class="console-input" @bind="row.ErrorMessage" aria-label="Error message" data-rule-error placeholder="Area must be positive" /></td>
+                                        <td><input type="checkbox" @bind="row.IsEnabled" data-rule-enabled aria-label="Enabled" /></td>
+                                        <td>
+                                            <button class="console-button console-button-secondary" type="button"
+                                                    @onclick="() => RemoveRule(row)" data-rule-remove aria-label="Remove rule">Remove</button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="console-action-row">
+                    <button class="console-button console-button-secondary" type="button" @onclick="AddRule" data-rule-add>Add rule</button>
+                    <button class="console-button" type="button" disabled="@_savingRules" @onclick="SaveRulesAsync" data-rule-save>
+                        @(_savingRules ? "Saving…" : "Save attribute rules")
+                    </button>
+                </div>
+
+                @if (_rulesResult is { } rr)
+                {
+                    <div class="console-panel @(rr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-rules-result>
+                        <p class="console-kicker">@rr.State</p>
+                        <p>@rr.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ResourceId { get; set; } = string.Empty;
+
+    private OperateServiceLayerProjection? _layer;
+
+    private ConsoleLayerSubtypes _subtypes = ConsoleLayerSubtypes.Unbound("Loading…");
+    private readonly List<SubtypeRow> _subtypeRows = new();
+    private string? _subtypeField;
+    private string? _defaultSubtypeCode;
+    private bool _savingSubtypes;
+    private ConsoleSetSubtypesResult? _subtypesResult;
+
+    private ConsoleLayerAttributeRules _rules = ConsoleLayerAttributeRules.Unbound("Loading…");
+    private readonly List<RuleRow> _ruleRows = new();
+    private bool _savingRules;
+    private ConsoleSetAttributeRulesResult? _rulesResult;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var view = await OperateData.GetLayersViewAsync();
+        // A raw layer id is only unique within its connection, so the route keys on the canonical resource id
+        // ({connection}-layer-{layerId}) — matching /operate/layers/{id}.
+        _layer = view.Services
+            .SelectMany(service => service.Layers)
+            .FirstOrDefault(layer => string.Equals(layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+
+        if (_layer is not null)
+        {
+            await LoadSubtypesAsync();
+            await LoadRulesAsync();
+        }
+    }
+
+    // ---- Subtypes ----
+
+    private async Task LoadSubtypesAsync()
+    {
+        _subtypes = await LayerSubtypes.GetSubtypesAsync(_layer!.LayerId);
+        _subtypeRows.Clear();
+        if (_subtypes.Bound)
+        {
+            _subtypeField = _subtypes.SubtypeField;
+            _defaultSubtypeCode = _subtypes.DefaultSubtypeCode;
+            foreach (var subtype in _subtypes.Subtypes)
+            {
+                _subtypeRows.Add(SubtypeRow.From(subtype));
+            }
+        }
+    }
+
+    private void AddSubtype() => _subtypeRows.Add(new SubtypeRow());
+
+    private void RemoveSubtype(SubtypeRow row) => _subtypeRows.Remove(row);
+
+    private async Task SaveSubtypesAsync() => await SaveSubtypesCoreAsync(clear: false);
+
+    private async Task ClearSubtypesAsync() => await SaveSubtypesCoreAsync(clear: true);
+
+    private async Task SaveSubtypesCoreAsync(bool clear)
+    {
+        if (_layer is null)
+        {
+            return;
+        }
+
+        _savingSubtypes = true;
+        _subtypesResult = null;
+        try
+        {
+            var payload = clear
+                ? Array.Empty<ConsoleLayerSubtype>()
+                : _subtypeRows.Select(row => row.ToModel()).ToArray();
+            _subtypesResult = await LayerSubtypes.SetSubtypesAsync(
+                _layer.LayerId, _subtypeField, _defaultSubtypeCode, clear, payload);
+            if (_subtypesResult.Succeeded)
+            {
+                await LoadSubtypesAsync();
+            }
+        }
+        finally
+        {
+            _savingSubtypes = false;
+        }
+    }
+
+    // ---- Attribute rules ----
+
+    private async Task LoadRulesAsync()
+    {
+        _rules = await LayerSubtypes.GetAttributeRulesAsync(_layer!.LayerId);
+        _ruleRows.Clear();
+        if (_rules.Bound)
+        {
+            foreach (var rule in _rules.Rules)
+            {
+                _ruleRows.Add(RuleRow.From(rule));
+            }
+        }
+    }
+
+    private void AddRule() => _ruleRows.Add(new RuleRow());
+
+    private void RemoveRule(RuleRow row) => _ruleRows.Remove(row);
+
+    private async Task SaveRulesAsync()
+    {
+        if (_layer is null)
+        {
+            return;
+        }
+
+        _savingRules = true;
+        _rulesResult = null;
+        try
+        {
+            var payload = _ruleRows.Select(row => row.ToModel()).ToArray();
+            _rulesResult = await LayerSubtypes.SetAttributeRulesAsync(_layer.LayerId, payload);
+            if (_rulesResult.Succeeded)
+            {
+                await LoadRulesAsync();
+            }
+        }
+        finally
+        {
+            _savingRules = false;
+        }
+    }
+
+    // Mutable per-row edit models bound to the inputs (the domain records are immutable).
+    private sealed class SubtypeRow
+    {
+        public string? Code { get; set; }
+        public string? Name { get; set; }
+
+        /// <summary>Field overrides as "field = json; field = json" so a single text field drives the map.</summary>
+        public string? Overrides { get; set; }
+
+        public static SubtypeRow From(ConsoleLayerSubtype subtype) => new()
+        {
+            Code = subtype.Code,
+            Name = subtype.Name,
+            Overrides = string.Join(
+                "; ",
+                subtype.FieldOverrides
+                    .Where(o => !string.IsNullOrWhiteSpace(o.FieldName))
+                    .Select(o => $"{o.FieldName} = {o.DefaultValueJson}")),
+        };
+
+        public ConsoleLayerSubtype ToModel() => new()
+        {
+            Code = Code,
+            Name = Name,
+            FieldOverrides = ParseOverrides(Overrides),
+        };
+
+        private static IReadOnlyList<ConsoleSubtypeFieldOverride> ParseOverrides(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return [];
+            }
+
+            var list = new List<ConsoleSubtypeFieldOverride>();
+            foreach (var part in text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var eq = part.IndexOf('=');
+                if (eq <= 0)
+                {
+                    continue;
+                }
+
+                var field = part[..eq].Trim();
+                var value = part[(eq + 1)..].Trim();
+                if (field.Length == 0)
+                {
+                    continue;
+                }
+
+                list.Add(new ConsoleSubtypeFieldOverride
+                {
+                    FieldName = field,
+                    DefaultValueJson = value.Length == 0 ? null : value,
+                });
+            }
+
+            return list;
+        }
+    }
+
+    private sealed class RuleRow
+    {
+        public string? Name { get; set; }
+        public string Type { get; set; } = "calculation";
+        public string? FieldName { get; set; }
+        public string? ScriptExpression { get; set; }
+        public bool Insert { get; set; } = true;
+        public bool Update { get; set; } = true;
+        public bool Delete { get; set; }
+        public string? ErrorMessage { get; set; }
+        public bool IsEnabled { get; set; } = true;
+
+        public static RuleRow From(ConsoleAttributeRule rule) => new()
+        {
+            Name = rule.Name,
+            Type = string.IsNullOrWhiteSpace(rule.Type) ? "calculation" : rule.Type,
+            FieldName = rule.FieldName,
+            ScriptExpression = rule.ScriptExpression,
+            Insert = rule.TriggeringEvents.Contains("insert", StringComparer.OrdinalIgnoreCase),
+            Update = rule.TriggeringEvents.Contains("update", StringComparer.OrdinalIgnoreCase),
+            Delete = rule.TriggeringEvents.Contains("delete", StringComparer.OrdinalIgnoreCase),
+            ErrorMessage = rule.ErrorMessage,
+            IsEnabled = rule.IsEnabled,
+        };
+
+        public ConsoleAttributeRule ToModel()
+        {
+            var events = new List<string>();
+            if (Insert) events.Add("insert");
+            if (Update) events.Add("update");
+            if (Delete) events.Add("delete");
+
+            return new ConsoleAttributeRule
+            {
+                Name = Name,
+                Type = Type,
+                FieldName = FieldName,
+                ScriptExpression = ScriptExpression,
+                TriggeringEvents = events,
+                ErrorMessage = ErrorMessage,
+                IsEnabled = IsEnabled,
+            };
+        }
+    }
+}

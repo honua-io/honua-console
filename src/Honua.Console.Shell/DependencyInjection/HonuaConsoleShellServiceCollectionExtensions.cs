@@ -707,6 +707,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             services.TryAddSingleton<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation>();
             // Layer relationships authoring (GET/PUT /api/v1/admin/metadata/layers/{id}/relationships).
             services.TryAddSingleton<IConsoleLayerRelationshipsOperation, HonuaServerConsoleLayerRelationshipsOperation>();
+            // Layer subtypes + attribute-rules authoring
+            // (GET/PUT /api/v1/admin/metadata/layers/{id}/subtypes|attribute-rules).
+            services.TryAddSingleton<IConsoleLayerSubtypesOperation, HonuaServerConsoleLayerSubtypesOperation>();
             // Layer display / editing / CRS metadata authoring
             // (GET/PUT /api/v1/admin/metadata/layers/{id}/display|editing|spatial).
             services.TryAddSingleton<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation>();
@@ -726,6 +729,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
         services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
         services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
+        services.TryAddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
         services.TryAddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
         services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
         services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
