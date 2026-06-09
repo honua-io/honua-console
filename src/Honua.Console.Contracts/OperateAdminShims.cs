@@ -235,6 +235,47 @@ public partial interface IHonuaAdminOperateClient
         HonuaAdminLayerRelationshipsUpdate request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reads a layer's discovery / catalog metadata — title, description, keywords, themes, language, license,
+    /// attribution, publisher, contact point, links (<c>GET /api/v1/admin/metadata/layers/{layerId}/discovery</c>).
+    /// <paramref name="layerId"/> is the global id. This metadata drives the layer's OGC API Records / STAC /
+    /// DCAT / Esri documentInfo output.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a layer's discovery / catalog metadata
+    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/discovery</c>). A null/omitted scalar leaves that field
+    /// unchanged server-side; an empty array (<c>[]</c>) clears a list. The server re-reads and returns the
+    /// persisted metadata.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(
+        int layerId,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a service's discovery / catalog metadata
+    /// (<c>GET /api/v1/admin/services/{serviceName}/discovery</c>). Drives the service's OGC API Records / STAC /
+    /// DCAT / Esri documentInfo output.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a service's discovery / catalog metadata
+    /// (<c>PUT /api/v1/admin/services/{serviceName}/discovery</c>). A null/omitted scalar leaves that field
+    /// unchanged server-side; an empty array (<c>[]</c>) clears a list. The server re-reads and returns the
+    /// persisted metadata.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(
+        string serviceName,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
         CancellationToken cancellationToken = default);
 
@@ -830,6 +871,55 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             $"/api/v1/admin/metadata/layers/{layerId}/relationships",
             request,
             "PUT /api/v1/admin/metadata/layers/{layerId}/relationships",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/metadata/layers/{layerId}/discovery",
+            "GET /api/v1/admin/metadata/layers/{layerId}/discovery",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(
+        int layerId,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminDiscoveryMetadataUpdate, HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/metadata/layers/{layerId}/discovery",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/discovery",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        return GetApiResponseAsync<HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/discovery",
+            "GET /api/v1/admin/services/{serviceName}/discovery",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(
+        string serviceName,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminDiscoveryMetadataUpdate, HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/discovery",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/discovery",
             cancellationToken);
     }
 
@@ -1564,6 +1654,88 @@ public sealed record HonuaAdminLayerRelationship
 public sealed record HonuaAdminLayerRelationshipsUpdate
 {
     public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
+}
+
+/// <summary>
+/// A layer's or service's discovery / catalog metadata as read from honua-server
+/// (<c>GET /api/v1/admin/metadata/layers/{id}/discovery</c> and
+/// <c>GET /api/v1/admin/services/{svc}/discovery</c>). Drives the OGC API Records / STAC / DCAT / Esri
+/// documentInfo output. Title/description/license/attribution/publisher/language/contactPoint are scalar;
+/// keywords/themes/links are lists.
+/// </summary>
+public sealed record HonuaAdminDiscoveryMetadata
+{
+    public string? Title { get; init; }
+
+    public string? Description { get; init; }
+
+    public IReadOnlyList<string> Keywords { get; init; } = [];
+
+    public IReadOnlyList<string> Themes { get; init; } = [];
+
+    public string? Language { get; init; }
+
+    public string? License { get; init; }
+
+    public string? Attribution { get; init; }
+
+    public string? Publisher { get; init; }
+
+    public HonuaAdminDiscoveryContactPoint? ContactPoint { get; init; }
+
+    public IReadOnlyList<HonuaAdminDiscoveryLink> Links { get; init; } = [];
+}
+
+/// <summary>Discovery contact point (DCAT <c>contactPoint</c> / OGC Records <c>contacts</c>).</summary>
+public sealed record HonuaAdminDiscoveryContactPoint
+{
+    public string? Name { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? Url { get; init; }
+}
+
+/// <summary>One discovery link (OGC <c>links[]</c> / STAC link). <c>Href</c>+<c>Rel</c> are the load-bearing fields.</summary>
+public sealed record HonuaAdminDiscoveryLink
+{
+    public string? Href { get; init; }
+
+    public string? Rel { get; init; }
+
+    public string? Type { get; init; }
+
+    public string? Title { get; init; }
+
+    public string? Hreflang { get; init; }
+}
+
+/// <summary>
+/// Request body for the discovery PUT endpoints (layer + service). A null scalar leaves that field unchanged
+/// server-side; a non-null list replaces (an empty list clears). Mirrors <see cref="HonuaAdminDiscoveryMetadata"/>
+/// but keeps the lists nullable so an omitted list is "unchanged" rather than "clear".
+/// </summary>
+public sealed record HonuaAdminDiscoveryMetadataUpdate
+{
+    public string? Title { get; init; }
+
+    public string? Description { get; init; }
+
+    public IReadOnlyList<string>? Keywords { get; init; }
+
+    public IReadOnlyList<string>? Themes { get; init; }
+
+    public string? Language { get; init; }
+
+    public string? License { get; init; }
+
+    public string? Attribution { get; init; }
+
+    public string? Publisher { get; init; }
+
+    public HonuaAdminDiscoveryContactPoint? ContactPoint { get; init; }
+
+    public IReadOnlyList<HonuaAdminDiscoveryLink>? Links { get; init; }
 }
 
 /// <summary>
