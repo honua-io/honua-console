@@ -1,0 +1,180 @@
+@using Honua.Console.Shell.Models
+
+@*
+    StudioWorkflowGraph — the FINAL visible output of the WORKFLOW Studio family: the generated
+    workflow.package rendered as a live node/edge graph (DAG). It lays out the REAL generated nodes
+    (type + label) as labelled boxes in a left-to-right layered flow and joins them by the package's
+    edges (success / failure routing) — mirroring the analysis pipeline flow style.
+
+    NO-MOCK (Charter §11): renders only the real Nodes/Edges passed in. An empty workflow (no nodes)
+    shows an honest empty state; it never fabricates sample steps.
+
+    Layout is derived from the graph itself — a longest-path topological layering over the edges puts
+    each node in the earliest column that respects all of its upstream dependencies, so the flow reads
+    correctly without depending on server-populated Column/Row coordinates. Disconnected roots and
+    failure sinks fall into the layering naturally.
+*@
+
+<div class="studio-workflow-graph" data-workflow-graph="true" role="group" aria-label="@AriaLabel">
+    @if (Nodes is null || Nodes.Count == 0)
+    {
+        <p class="console-muted studio-workflow-graph-empty" data-workflow-graph-empty="true">@EmptyMessage</p>
+    }
+    else
+    {
+        var layers = BuildLayers();
+        <div class="studio-workflow-graph-flow" role="list">
+            @{
+                var firstLayer = true;
+            }
+            @foreach (var layer in layers)
+            {
+                @if (!firstLayer)
+                {
+                    <span class="studio-workflow-graph-edge" aria-hidden="true">→</span>
+                }
+                firstLayer = false;
+                <div class="studio-workflow-graph-layer" role="listitem">
+                    @foreach (var node in layer)
+                    {
+                        var failureNode = node.Type.Contains("failure", StringComparison.Ordinal);
+                        var deps = IncomingLabels(node);
+                        <div class="studio-workflow-graph-node studio-workflow-graph-node-@node.Category @(failureNode ? "studio-workflow-graph-node-failure" : string.Empty)"
+                             data-workflow-graph-node="@node.Id"
+                             data-workflow-node-category="@node.Category"
+                             @key="node">
+                            <span class="studio-workflow-graph-node-type">@node.Type</span>
+                            <strong class="studio-workflow-graph-node-label">@node.Label</strong>
+                            @if (deps.Count > 0)
+                            {
+                                <span class="console-muted studio-workflow-graph-node-deps" data-workflow-graph-deps="@node.Id">← @string.Join(", ", deps)</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (Edges is { Count: > 0 })
+        {
+            <ol class="studio-workflow-graph-edge-list" aria-label="Workflow connections">
+                @foreach (var edge in Edges)
+                {
+                    var failure = edge.Kind == StudioWorkflowContractValues.EdgeKindFailure;
+                    <li class="studio-workflow-graph-edge-row studio-workflow-graph-edge-@edge.Kind @(failure ? "studio-workflow-graph-edge-failure" : string.Empty)"
+                        data-workflow-graph-edge="@edge.Kind">
+                        <span class="studio-workflow-graph-edge-kind">@edge.Kind</span>
+                        <strong>@LabelFor(edge.FromNodeId) → @LabelFor(edge.ToNodeId)</strong>
+                    </li>
+                }
+            </ol>
+        }
+    }
+</div>
+
+@code {
+    /// <summary>The generated workflow's real nodes. Required — an empty/absent list shows the empty state.</summary>
+    [Parameter]
+    public IReadOnlyList<StudioWorkflowNode>? Nodes { get; set; }
+
+    /// <summary>The generated workflow's real edges (success / failure routing) connecting the nodes.</summary>
+    [Parameter]
+    public IReadOnlyList<StudioWorkflowEdge>? Edges { get; set; }
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "Workflow graph";
+
+    [Parameter]
+    public string EmptyMessage { get; set; } = "No steps yet — this workflow has no nodes to graph.";
+
+    private IReadOnlyList<StudioWorkflowEdge> SafeEdges => Edges ?? [];
+
+    /// <summary>
+    /// Longest-path topological layering: each node's column is 1 + the max column of its upstream nodes
+    /// (following edges), so every node sits to the right of everything it depends on. Cycles (which a
+    /// validated DAG should not contain) are broken defensively by a visited guard so layout still
+    /// terminates and renders. Within a layer, nodes keep their declared order for a stable read.
+    /// </summary>
+    private IReadOnlyList<IReadOnlyList<StudioWorkflowNode>> BuildLayers()
+    {
+        var nodes = Nodes ?? [];
+        if (nodes.Count == 0)
+        {
+            return [];
+        }
+
+        var byId = new Dictionary<string, StudioWorkflowNode>(StringComparer.Ordinal);
+        foreach (var node in nodes)
+        {
+            byId.TryAdd(node.Id, node);
+        }
+
+        // Incoming adjacency: for each node id, the upstream node ids that feed it.
+        var incoming = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var node in nodes)
+        {
+            incoming[node.Id] = [];
+        }
+
+        foreach (var edge in SafeEdges)
+        {
+            if (byId.ContainsKey(edge.FromNodeId) && byId.ContainsKey(edge.ToNodeId) &&
+                !string.Equals(edge.FromNodeId, edge.ToNodeId, StringComparison.Ordinal))
+            {
+                incoming[edge.ToNodeId].Add(edge.FromNodeId);
+            }
+        }
+
+        var depth = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        int Depth(string id, HashSet<string> stack)
+        {
+            if (depth.TryGetValue(id, out var cached))
+            {
+                return cached;
+            }
+
+            if (!stack.Add(id))
+            {
+                // Cycle guard: treat the back-edge as depth 0 so layering still terminates.
+                return 0;
+            }
+
+            var max = 0;
+            foreach (var upstream in incoming[id])
+            {
+                max = Math.Max(max, Depth(upstream, stack) + 1);
+            }
+
+            stack.Remove(id);
+            depth[id] = max;
+            return max;
+        }
+
+        foreach (var node in nodes)
+        {
+            Depth(node.Id, []);
+        }
+
+        // Group by computed depth, preserving declared node order within each layer.
+        return nodes
+            .GroupBy(node => depth[node.Id])
+            .OrderBy(group => group.Key)
+            .Select(group => (IReadOnlyList<StudioWorkflowNode>)group.ToArray())
+            .ToArray();
+    }
+
+    private IReadOnlyList<string> IncomingLabels(StudioWorkflowNode node) =>
+        SafeEdges
+            .Where(edge => string.Equals(edge.ToNodeId, node.Id, StringComparison.Ordinal) &&
+                           !string.Equals(edge.FromNodeId, node.Id, StringComparison.Ordinal))
+            .Select(edge => LabelFor(edge.FromNodeId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    private string LabelFor(string nodeId)
+    {
+        var node = (Nodes ?? []).FirstOrDefault(n => string.Equals(n.Id, nodeId, StringComparison.Ordinal));
+        return node is null || string.IsNullOrWhiteSpace(node.Label) ? nodeId : node.Label;
+    }
+}

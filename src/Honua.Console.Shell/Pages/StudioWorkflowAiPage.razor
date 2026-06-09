@@ -148,58 +148,14 @@
                             <p class="console-kicker">DAG preview</p>
                             <h2>Trigger → Steps → Sinks</h2>
                         </div>
-                        <div class="workflow-canvas" role="group" aria-label="Workflow DAG preview canvas">
-                            <svg class="workflow-canvas-edges" viewBox="0 0 1100 380" preserveAspectRatio="none" aria-hidden="true">
-                                <defs>
-                                    <marker id="workflow-ai-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-                                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#141414"></path>
-                                    </marker>
-                                    <marker id="workflow-ai-arrow-failure" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-                                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#c03b2b"></path>
-                                    </marker>
-                                </defs>
-                                @foreach (var edge in _draft.Edges)
-                                {
-                                    var path = EdgePath(edge);
-                                    if (path is not null)
-                                    {
-                                        var failure = edge.Kind == StudioWorkflowContractValues.EdgeKindFailure;
-                                        <path class="workflow-canvas-edge workflow-canvas-edge-@edge.Kind"
-                                              d="@path"
-                                              fill="none"
-                                              stroke="@(failure ? "#c03b2b" : "#141414")"
-                                              stroke-width="@(failure ? "1.2" : "1.4")"
-                                              stroke-dasharray="@(failure ? "4 4" : null)"
-                                              marker-end="@(failure ? "url(#workflow-ai-arrow-failure)" : "url(#workflow-ai-arrow)")"></path>
-                                    }
-                                }
-                            </svg>
-                            <div class="workflow-canvas-nodes">
-                                @foreach (var node in _draft.Nodes)
-                                {
-                                    var failureNode = node.Type.Contains("failure", StringComparison.Ordinal);
-                                    <div class="workflow-node workflow-node-@node.Category @(failureNode ? "workflow-node-failure" : string.Empty)"
-                                         style="@NodeStyle(node)">
-                                        <span class="workflow-node-glyph" aria-hidden="true">@StepGlyph(node.Category, node.Type)</span>
-                                        <strong>@node.Label</strong>
-                                        <small>@node.Type</small>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                        @if (_draft.Nodes.Count == 0)
-                        {
-                            <p class="console-muted workflow-ai-empty">No steps yet — @(AiEnabled ? "describe the pipeline on the left to generate one." : "open the editor to add steps.")</p>
-                        }
-                        <ol class="workflow-edge-list" aria-label="Workflow edges">
-                            @foreach (var edge in _draft.Edges)
-                            {
-                                <li class="workflow-edge workflow-edge-@edge.Kind">
-                                    <span>@edge.Kind</span>
-                                    <strong>@GetNodeLabel(edge.FromNodeId) to @GetNodeLabel(edge.ToNodeId)</strong>
-                                </li>
-                            }
-                        </ol>
+                        @* The generated workflow's FINAL visible output: its real nodes/edges laid out as a
+                           layered node/edge graph. The graph derives its layout from the package's edges, so it
+                           reads correctly for any server-proposed shape; an empty proposal shows the empty
+                           state. (Charter §11 — only the real generated graph is rendered.) *@
+                        <StudioWorkflowGraph Nodes="_draft.Nodes"
+                                             Edges="_draft.Edges"
+                                             AriaLabel="Proposed workflow graph"
+                                             EmptyMessage="@($"No steps yet — {(AiEnabled ? "describe the pipeline on the left to generate one." : "open the editor to add steps.")}")" />
                     </section>
 
                     @if (_lastDryRun is not null)
@@ -666,66 +622,6 @@
         !string.IsNullOrWhiteSpace(dryRun.OperateJobUrl) &&
         !string.IsNullOrWhiteSpace(dryRun.OperateEventsUrl);
 
-    // Canvas geometry mirrors the StudioWorkflowEditorPage layout so the DAG preview and the editor read the
-    // same: nodes flow left-to-right by column with a small vertical fan-out for sink rows.
-    private const int CanvasColumnStride = 130;
-    private const int CanvasRowStride = 90;
-    private const int CanvasOriginX = 30;
-    private const int CanvasOriginY = 40;
-    private const int CanvasNodeWidth = 110;
-    private const int CanvasNodeHeight = 70;
-
-    private static int NodeX(StudioWorkflowNode node) => CanvasOriginX + Math.Max(0, node.Column - 1) * CanvasColumnStride;
-
-    private static int NodeY(StudioWorkflowNode node) => CanvasOriginY + Math.Max(0, node.Row - 1) * CanvasRowStride;
-
-    private static string NodeStyle(StudioWorkflowNode node) => $"left:{NodeX(node)}px;top:{NodeY(node)}px;";
-
-    private string? EdgePath(StudioWorkflowEdge edge)
-    {
-        var from = _draft?.Nodes.FirstOrDefault(node => node.Id == edge.FromNodeId);
-        var to = _draft?.Nodes.FirstOrDefault(node => node.Id == edge.ToNodeId);
-        if (from is null || to is null)
-        {
-            return null;
-        }
-
-        var x1 = NodeX(from) + CanvasNodeWidth;
-        var y1 = NodeY(from) + (CanvasNodeHeight / 2);
-        var x2 = NodeX(to);
-        var y2 = NodeY(to) + (CanvasNodeHeight / 2);
-
-        if (edge.Kind == StudioWorkflowContractValues.EdgeKindFailure)
-        {
-            var midY = Math.Max(y1, y2) + 70;
-            return $"M {x1} {y1} C {x1} {midY}, {x2} {midY}, {x2} {y2}";
-        }
-
-        return $"M {x1} {y1} L {x2} {y2}";
-    }
-
     private string GetNodeLabel(string nodeId) =>
         _draft?.Nodes.FirstOrDefault(node => node.Id == nodeId)?.Label ?? nodeId;
-
-    private static string StepGlyph(string category, string type)
-    {
-        var key = type.ToLowerInvariant();
-        if (key.Contains("trigger", StringComparison.Ordinal)) return "⏱";
-        if (key.Contains("pull", StringComparison.Ordinal) || key.Contains("sftp", StringComparison.Ordinal)) return "⤴";
-        if (key.Contains("read", StringComparison.Ordinal)) return "📦";
-        if (key.Contains("validate", StringComparison.Ordinal)) return "✓";
-        if (key.Contains("geocode", StringComparison.Ordinal)) return "📍";
-        if (key.Contains("transform", StringComparison.Ordinal) || key.Contains("sql", StringComparison.Ordinal) || key.Contains("script", StringComparison.Ordinal)) return "🔀";
-        if (key.Contains("publish", StringComparison.Ordinal)) return "🚀";
-        if (key.Contains("notify", StringComparison.Ordinal) || key.Contains("failure", StringComparison.Ordinal)) return "📢";
-        if (key.Contains("write", StringComparison.Ordinal) || key.Contains("append", StringComparison.Ordinal)) return "➕";
-        if (key.Contains("ai", StringComparison.Ordinal)) return "🤖";
-
-        return category switch
-        {
-            StudioWorkflowContractValues.NodeCategorySource => "⤴",
-            StudioWorkflowContractValues.NodeCategorySink => "🚀",
-            _ => "🔀"
-        };
-    }
 }
