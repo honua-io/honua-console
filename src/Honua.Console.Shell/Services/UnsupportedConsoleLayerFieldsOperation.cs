@@ -22,6 +22,12 @@ public sealed class UnsupportedConsoleLayerFieldsOperation : IConsoleLayerFields
         CancellationToken cancellationToken = default) =>
         Task.FromResult(ConsoleSetDomainResult.MissingBinding(BindingDetail));
 
+    public Task<ConsoleSetDomainResult> SetDomainAsync(
+        int layerId,
+        ConsoleDomainAuthoring authoring,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(ConsoleSetDomainResult.MissingBinding(BindingDetail));
+
     public Task<ConsoleSetDomainResult> SetFieldConfigurationAsync(
         int layerId,
         string fieldName,

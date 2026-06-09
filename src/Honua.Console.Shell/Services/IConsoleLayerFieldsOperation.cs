@@ -24,6 +24,27 @@ public interface IConsoleLayerFieldsOperation
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Authors a field's domain (coded-value or range), its merge/split policies, and a per-field default value
+    /// through the same <c>PUT /api/v1/admin/metadata/layers/{layerId}/fields</c> the coded-value editor uses.
+    /// All authoring is sent in one field update so the round-trip reflects the combined state.
+    /// </summary>
+    /// <remarks>
+    /// Defaulted so pre-existing fakes/implementations that only authored coded-value domains keep compiling;
+    /// the live <see cref="HonuaServerConsoleLayerFieldsOperation"/> and missing-binding
+    /// <c>UnsupportedConsoleLayerFieldsOperation</c> both override it.
+    /// </remarks>
+    Task<ConsoleSetDomainResult> SetDomainAsync(
+        int layerId,
+        ConsoleDomainAuthoring authoring,
+        CancellationToken cancellationToken = default) =>
+        SetCodedValueDomainAsync(
+            layerId,
+            authoring.FieldName,
+            authoring.DomainName ?? authoring.FieldName,
+            authoring.Kind == ConsoleDomainKind.CodedValue ? authoring.CodedValues : [],
+            cancellationToken);
+
+    /// <summary>
     /// Sets a field's display <paramref name="alias"/> and <paramref name="hidden"/> visibility through the same
     /// <c>PUT /api/v1/admin/metadata/layers/{layerId}/fields</c> the domain editor uses. A null/empty alias is
     /// sent as-is (the server treats it as "no override"); the field's domain is left untouched.

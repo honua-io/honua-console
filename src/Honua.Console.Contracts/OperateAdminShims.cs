@@ -1472,7 +1472,7 @@ public sealed record HonuaAdminLayerFields
     public IReadOnlyList<HonuaAdminLayerField> Fields { get; init; } = [];
 }
 
-/// <summary>One field's persisted configuration: type, alias, coded-value domain, visibility.</summary>
+/// <summary>One field's persisted configuration: type, alias, domain, visibility, default value.</summary>
 public sealed record HonuaAdminLayerField
 {
     public string? Name { get; init; }
@@ -1484,17 +1484,37 @@ public sealed record HonuaAdminLayerField
     public HonuaAdminFieldDomain? Domain { get; init; }
 
     public bool Hidden { get; init; }
+
+    /// <summary>
+    /// The field's persisted default value (any JSON scalar) as emitted by the server's field metadata, or
+    /// null when the field has no default. Round-tripped so the editor reflects the persisted default.
+    /// </summary>
+    public JsonElement? DefaultValue { get; init; }
 }
 
-/// <summary>A coded-value domain on a field.</summary>
+/// <summary>
+/// A domain on a field. <see cref="Type"/> is <c>"codedValue"</c> (carry <see cref="CodedValues"/>) or
+/// <c>"range"</c> (carry <see cref="Range"/> as a two-element [min,max] array). The optional
+/// <see cref="MergePolicy"/>/<see cref="SplitPolicy"/> are Esri policy tokens
+/// (e.g. <c>esriMPTDefaultValue</c>, <c>esriSPTDuplicate</c>).
+/// </summary>
 public sealed record HonuaAdminFieldDomain
 {
     public string? Name { get; init; }
 
-    /// <summary>"codedValue" (the only kind the console authors).</summary>
+    /// <summary>"codedValue" or "range".</summary>
     public string? Type { get; init; }
 
     public IReadOnlyList<HonuaAdminCodedValue> CodedValues { get; init; } = [];
+
+    /// <summary>Two-element <c>[min, max]</c> bound for a range domain (min ≤ max); null for coded-value.</summary>
+    public IReadOnlyList<double>? Range { get; init; }
+
+    /// <summary>Esri merge-policy token (e.g. <c>esriMPTDefaultValue</c>); null leaves the server default.</summary>
+    public string? MergePolicy { get; init; }
+
+    /// <summary>Esri split-policy token (e.g. <c>esriSPTDuplicate</c>); null leaves the server default.</summary>
+    public string? SplitPolicy { get; init; }
 }
 
 /// <summary>A single code/label pair in a coded-value domain.</summary>
@@ -1511,17 +1531,28 @@ public sealed record HonuaAdminLayerFieldsUpdate
     public IReadOnlyList<HonuaAdminLayerFieldUpdate> Fields { get; init; } = [];
 }
 
-/// <summary>A single field update: set/clear the coded-value domain (and optionally alias/hidden).</summary>
+/// <summary>
+/// A single field update: set/clear the domain (coded-value or range) and optionally alias/hidden/default.
+/// </summary>
 public sealed record HonuaAdminLayerFieldUpdate
 {
     public required string Name { get; init; }
 
     public string? Alias { get; init; }
 
-    /// <summary>Set the coded-value domain; null clears it.</summary>
+    /// <summary>Set the domain (coded-value or range); null leaves the field's existing domain untouched.</summary>
     public HonuaAdminFieldDomain? Domain { get; init; }
 
     public bool? Hidden { get; init; }
+
+    /// <summary>
+    /// Set the field's default value (any JSON scalar). A JSON <c>null</c> (a <see cref="JsonElement"/> whose
+    /// <see cref="JsonElement.ValueKind"/> is <see cref="JsonValueKind.Null"/>) clears the default; a C# null
+    /// (the property left unset) leaves the existing default untouched. Serialized only when set so an
+    /// alias/hidden/domain-only update never disturbs the persisted default.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? DefaultValue { get; init; }
 }
 
 /// <summary>

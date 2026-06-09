@@ -107,13 +107,21 @@
                                                aria-label="@($"Hidden for {field.Name}")" />
                                     </td>
                                     <td data-field-domain>
-                                        @if (field.DomainName is { } dn)
+                                        @if (field.DomainKind == ConsoleDomainKind.CodedValue)
                                         {
-                                            <span>@dn <small class="console-muted">(@field.CodedValues.Count value(s))</small></span>
+                                            <span>@(field.DomainName ?? "domain") <small class="console-muted">(@field.CodedValues.Count value(s))</small></span>
+                                        }
+                                        else if (field.DomainKind == ConsoleDomainKind.Range)
+                                        {
+                                            <span>@(field.DomainName ?? "domain") <small class="console-muted">(range @field.RangeMin – @field.RangeMax)</small></span>
                                         }
                                         else
                                         {
                                             <span class="console-muted">—</span>
+                                        }
+                                        @if (field.DefaultValueText is { } dv)
+                                        {
+                                            <br /><small class="console-muted" data-field-default>default: @dv</small>
                                         }
                                     </td>
                                     <td>
@@ -134,13 +142,8 @@
                         <p>@fr.Detail</p>
                     </div>
                 }
-                @* TODO(metadata-ui-gap #13): the /fields PUT contract carries only a coded-value domain
-                   (HonuaAdminFieldDomain has no range[] / defaultValue). Supporting range-type domains and a
-                   per-field default value needs the Contracts record + the server mapping extended first, so it
-                   is intentionally out of scope for this alias+hidden console-wiring change. *@
-
                 <article class="console-panel">
-                    <p class="console-kicker">Coded-value domain</p>
+                    <p class="console-kicker">Domain &amp; default value</p>
                     <div class="studio-field-grid">
                         <label>
                             <span>Field</span>
@@ -152,15 +155,68 @@
                             </select>
                         </label>
                         <label>
+                            <span>Domain type</span>
+                            <select class="console-input" aria-label="Domain type" @bind="_domainKind" data-domain-type>
+                                <option value="@ConsoleDomainKind.None">None (clear)</option>
+                                <option value="@ConsoleDomainKind.CodedValue">Coded value</option>
+                                <option value="@ConsoleDomainKind.Range">Range</option>
+                            </select>
+                        </label>
+                        <label>
                             <span>Domain name</span>
                             <input class="console-input" @bind="_domainName" data-domain-name placeholder="status_codes" />
                         </label>
                     </div>
-                    <label>
-                        <span>Coded values (one <code>code=label</code> per line)</span>
-                        <textarea class="console-input" rows="4" @bind="_domainCodes" data-domain-codes
-                                  placeholder="1=Active&#10;2=Inactive"></textarea>
-                    </label>
+
+                    @if (_domainKind == ConsoleDomainKind.CodedValue)
+                    {
+                        <label>
+                            <span>Coded values (one <code>code=label</code> per line)</span>
+                            <textarea class="console-input" rows="4" @bind="_domainCodes" data-domain-codes
+                                      placeholder="1=Active&#10;2=Inactive"></textarea>
+                        </label>
+                    }
+                    else if (_domainKind == ConsoleDomainKind.Range)
+                    {
+                        <div class="studio-field-grid">
+                            <label>
+                                <span>Minimum</span>
+                                <input class="console-input" type="number" step="any" @bind="_domainRangeMin"
+                                       data-domain-range-min placeholder="0" />
+                            </label>
+                            <label>
+                                <span>Maximum</span>
+                                <input class="console-input" type="number" step="any" @bind="_domainRangeMax"
+                                       data-domain-range-max placeholder="100" />
+                            </label>
+                        </div>
+                    }
+
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Merge policy</span>
+                            <input class="console-input" @bind="_domainMergePolicy" data-domain-merge-policy
+                                   placeholder="esriMPTDefaultValue" />
+                        </label>
+                        <label>
+                            <span>Split policy</span>
+                            <input class="console-input" @bind="_domainSplitPolicy" data-domain-split-policy
+                                   placeholder="esriSPTDuplicate" />
+                        </label>
+                    </div>
+
+                    <div class="studio-field-grid">
+                        <label>
+                            <span>Default value</span>
+                            <input class="console-input" @bind="_defaultValueText" data-domain-default-value
+                                   placeholder="(JSON scalar, e.g. 1 or Active)" />
+                        </label>
+                        <label class="console-checkbox-label">
+                            <input type="checkbox" @bind="_clearDefaultValue" data-domain-default-clear />
+                            <span>Clear default value</span>
+                        </label>
+                    </div>
+
                     <div class="console-action-row">
                         <button class="console-button" type="button" disabled="@_savingDomain" @onclick="SaveDomainAsync" data-domain-save>
                             @(_savingDomain ? "Saving…" : "Save domain")
@@ -200,7 +256,14 @@
     private ConsoleLayerFields _fields = ConsoleLayerFields.Unbound("Loading…");
     private string _domainField = string.Empty;
     private string _domainName = string.Empty;
+    private ConsoleDomainKind _domainKind = ConsoleDomainKind.CodedValue;
     private string _domainCodes = string.Empty;
+    private double? _domainRangeMin;
+    private double? _domainRangeMax;
+    private string _domainMergePolicy = string.Empty;
+    private string _domainSplitPolicy = string.Empty;
+    private string _defaultValueText = string.Empty;
+    private bool _clearDefaultValue;
     private bool _savingDomain;
     private ConsoleSetDomainResult? _domainResult;
 
@@ -287,16 +350,33 @@
             return;
         }
 
-        var codedValues = ParseCodedValues(_domainCodes);
+        // A "Clear default value" check wins over typed text; otherwise typed text sets the default, and an
+        // untouched/empty box leaves the persisted default alone.
+        var defaultIntent = _clearDefaultValue
+            ? ConsoleDefaultValueIntent.Clear
+            : string.IsNullOrWhiteSpace(_defaultValueText)
+                ? ConsoleDefaultValueIntent.Unchanged
+                : ConsoleDefaultValueIntent.Set;
+
+        var authoring = new ConsoleDomainAuthoring
+        {
+            FieldName = _domainField,
+            DomainName = _domainName,
+            Kind = _domainKind,
+            CodedValues = _domainKind == ConsoleDomainKind.CodedValue ? ParseCodedValues(_domainCodes) : [],
+            RangeMin = _domainKind == ConsoleDomainKind.Range ? _domainRangeMin : null,
+            RangeMax = _domainKind == ConsoleDomainKind.Range ? _domainRangeMax : null,
+            MergePolicy = _domainMergePolicy,
+            SplitPolicy = _domainSplitPolicy,
+            DefaultValueIntent = defaultIntent,
+            DefaultValueText = _defaultValueText,
+        };
+
         _savingDomain = true;
         _domainResult = null;
         try
         {
-            _domainResult = await LayerFields.SetCodedValueDomainAsync(
-                _exposures[0].Layer.LayerId,
-                _domainField,
-                _domainName,
-                codedValues);
+            _domainResult = await LayerFields.SetDomainAsync(_exposures[0].Layer.LayerId, authoring);
             if (_domainResult.Succeeded)
             {
                 await LoadFieldsAsync();
