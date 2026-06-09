@@ -517,7 +517,10 @@
         }
     }
 
-    private int StepCount => _draft?.Nodes.Count ?? 0;
+    // "Steps" counts the pipeline work nodes — the trigger/source is reported separately under "Trigger",
+    // so it is excluded here to match the per-step duration chips and the estimated total below.
+    private int StepCount =>
+        _draft?.Nodes.Count(node => node.Category != StudioWorkflowContractValues.NodeCategorySource) ?? 0;
 
     private IReadOnlyList<(string Label, string Duration)> StepDurations =>
         _draft is null
@@ -545,13 +548,16 @@
                 return "unknown";
             }
 
-            var seconds = _draft.Nodes.Sum(node => node.Category switch
-            {
-                StudioWorkflowContractValues.NodeCategorySink => 45,
-                StudioWorkflowContractValues.NodeCategoryTransform => 72,
-                StudioWorkflowContractValues.NodeCategorySource => 30,
-                _ => 30
-            });
+            // Sum only the work nodes (exclude the source/trigger) so the total matches the per-step chips,
+            // which also exclude it.
+            var seconds = _draft.Nodes
+                .Where(node => node.Category != StudioWorkflowContractValues.NodeCategorySource)
+                .Sum(node => node.Category switch
+                {
+                    StudioWorkflowContractValues.NodeCategorySink => 45,
+                    StudioWorkflowContractValues.NodeCategoryTransform => 72,
+                    _ => 30
+                });
 
             var minutes = seconds / 60;
             var remainder = seconds % 60;

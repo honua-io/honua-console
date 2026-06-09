@@ -26,6 +26,16 @@ const WORKFLOW_PROMPT =
   'Nightly: copy new assessor parcels into a working layer, stamp a reviewed flag, then compute parcel area.';
 const DETERMINISTIC_PROVIDER_LABEL = /Deterministic/i;
 
+// Blazor Server wires a button's onclick over the SignalR circuit AFTER the button is in the DOM, so an
+// early click on a freshly-loaded page can be lost and the from-prompt textarea never appears. Re-click
+// "New from prompt" until the textarea shows, so a cold console can't flake the suite.
+async function openFromPrompt(page: import('@playwright/test').Page) {
+  await expect(async () => {
+    await page.getByRole('button', { name: 'New from prompt' }).click();
+    await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+}
+
 test.describe('Studio · workflow result rendering (live)', () => {
   test.beforeEach(async ({ page, admin }) => {
     const res = await page.request.get(`${admin.serverUrl}/rest/services/e2e_src_fs/FeatureServer?f=json`, { headers: ADMIN_HEADERS });
@@ -35,7 +45,7 @@ test.describe('Studio · workflow result rendering (live)', () => {
   test('QUERY from prompt renders a live chart of the bound layer\'s real rows', async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto('/studio/query');
-    await page.getByRole('button', { name: 'New from prompt' }).click();
+    await openFromPrompt(page);
 
     // Send the prompt; generation grounds in the real catalog and binds the real layer server-side.
     await page.locator('textarea').first().fill(QUERY_PROMPT);
@@ -59,7 +69,7 @@ test.describe('Studio · workflow result rendering (live)', () => {
   test('MAP from prompt binds the published layer\'s real style (live map preview)', async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto('/studio/map');
-    await page.getByRole('button', { name: 'New from prompt' }).click();
+    await openFromPrompt(page);
     await page.locator('textarea').first().fill(MAP_PROMPT);
 
     // Arm the listener BEFORE sending: when generation binds the real layer (catalog fallback resolves the
@@ -107,12 +117,7 @@ test.describe('Studio · workflow result rendering (live)', () => {
   test('ANALYSIS from prompt renders a result graph (baseline distribution of the bound layer\'s real rows)', async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto('/studio/analysis');
-    // Blazor Server: the button is in the DOM before its onclick handler is wired over the SignalR circuit,
-    // so an early click can be lost and the from-prompt textarea never appears. Re-click until it shows.
-    await expect(async () => {
-      await page.getByRole('button', { name: 'New from prompt' }).click();
-      await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5_000 });
-    }).toPass({ timeout: 60_000 });
+    await openFromPrompt(page);
 
     const turnsBefore = await page.locator('.studio-ai-turn-honua').count();
     await page.locator('textarea').first().fill(ANALYSIS_PROMPT);

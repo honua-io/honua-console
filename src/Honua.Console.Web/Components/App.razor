@@ -8,7 +8,9 @@
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["_content/Honua.Console.Shell/honua-console.css"]" />
-    <link rel="stylesheet" href="@Assets["Honua.Console.Web.styles.css"]" />
+    @* No Honua.Console.Web.styles.css link: the host project has no scoped component CSS (.razor.css),
+       so that bundle is never emitted and linking it 404s on every page. All real styling lives in
+       honua-console.css above. Re-add the bundle link if a scoped *.razor.css is ever introduced. *@
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />

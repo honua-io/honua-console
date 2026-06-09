@@ -91,9 +91,11 @@
 
     /// <summary>
     /// Longest-path topological layering: each node's column is 1 + the max column of its upstream nodes
-    /// (following edges), so every node sits to the right of everything it depends on. Cycles (which a
-    /// validated DAG should not contain) are broken defensively by a visited guard so layout still
-    /// terminates and renders. Within a layer, nodes keep their declared order for a stable read.
+    /// (following edges), so every node sits to the right of everything it depends on. For a valid DAG this
+    /// is the exact longest-path layering. Cycles (which a validated DAG should not contain) are broken by
+    /// DROPPING the back-edge — the upstream currently on the recursion stack is skipped entirely rather
+    /// than counted, so a cycle can't terminate yet still inflate/invert a node's depth. Within a layer,
+    /// nodes keep their declared order for a stable read.
     /// </summary>
     private IReadOnlyList<IReadOnlyList<StudioWorkflowNode>> BuildLayers()
     {
@@ -134,15 +136,19 @@
                 return cached;
             }
 
-            if (!stack.Add(id))
-            {
-                // Cycle guard: treat the back-edge as depth 0 so layering still terminates.
-                return 0;
-            }
+            stack.Add(id);
 
             var max = 0;
             foreach (var upstream in incoming[id])
             {
+                // Skip a back-edge (upstream already on the recursion stack): including it would let a cycle
+                // both contribute depth and invert the layer order. Dropping it breaks the cycle cleanly so
+                // the remaining acyclic structure still lays out correctly. For a true DAG this never fires.
+                if (stack.Contains(upstream))
+                {
+                    continue;
+                }
+
                 max = Math.Max(max, Depth(upstream, stack) + 1);
             }
 
