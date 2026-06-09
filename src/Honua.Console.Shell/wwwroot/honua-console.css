@@ -5471,6 +5471,99 @@ p {
     grid-column: 1 / -1;
 }
 
+/* Studio APP family — live app-shell preview (the generated app's FINAL output). */
+.studio-app-shell {
+    display: grid;
+    gap: 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface);
+    overflow: hidden;
+}
+
+.studio-app-shell-empty {
+    padding: 24px;
+}
+
+.studio-app-shell-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.studio-app-shell-title {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.studio-app-shell-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.studio-app-shell-navitem {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    color: var(--honua-text-muted);
+    border: 1px solid transparent;
+}
+
+.studio-app-shell-navitem-active {
+    color: var(--honua-text);
+    border-color: var(--honua-border);
+    background: var(--honua-surface);
+}
+
+.studio-app-shell-stage {
+    display: grid;
+    gap: 12px;
+    padding: 0 14px 14px;
+}
+
+.studio-app-shell-unbound {
+    margin: 12px 0 0;
+}
+
+.studio-app-shell-panels {
+    display: grid;
+    gap: 12px;
+}
+
+.studio-app-shell-panel {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.studio-app-shell-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.studio-app-shell-panel-binding {
+    margin-left: auto;
+    font-size: 0.78rem;
+}
+
+.studio-app-shell-form {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+}
+
 .studio-ai-preview-titlebar {
     display: flex;
     align-items: center;
