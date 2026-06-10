@@ -1,3 +1,4 @@
+using System.Net;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
@@ -36,7 +37,36 @@ public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigura
                 AllowAnonymous = settings.AccessPolicy?.AllowAnonymous ?? false,
                 AllowAnonymousWrite = settings.AccessPolicy?.AllowAnonymousWrite ?? false,
                 AllowedRoles = settings.AccessPolicy?.AllowedRoles ?? [],
-                AllowedWriteRoles = settings.AccessPolicy?.AllowedWriteRoles ?? []
+                AllowedWriteRoles = settings.AccessPolicy?.AllowedWriteRoles ?? [],
+                MapServer = settings.MapServer is { } map
+                    ? new ServiceMapServerSettingsView
+                    {
+                        MaxImageWidth = map.MaxImageWidth,
+                        MaxImageHeight = map.MaxImageHeight,
+                        DefaultImageWidth = map.DefaultImageWidth,
+                        DefaultImageHeight = map.DefaultImageHeight,
+                        DefaultDpi = map.DefaultDpi,
+                        DefaultFormat = map.DefaultFormat,
+                        DefaultTransparent = map.DefaultTransparent,
+                        MaxFeaturesPerLayer = map.MaxFeaturesPerLayer
+                    }
+                    : null,
+                SettingsCaps = settings.SettingsCaps is { } caps
+                    ? new ServiceSettingsCapsView
+                    {
+                        MaxRecordCount = caps.MaxRecordCount,
+                        DefaultRecordCount = caps.DefaultRecordCount,
+                        MaxFeaturesPerLayer = caps.MaxFeaturesPerLayer,
+                        QueryTimeoutMs = caps.QueryTimeoutMs,
+                        MaxEditsPerTransaction = caps.MaxEditsPerTransaction,
+                        MaxPayloadBytes = caps.MaxPayloadBytes,
+                        SupportedFormats = caps.SupportedFormats ?? [],
+                        DefaultFormat = caps.DefaultFormat,
+                        DefaultTileMatrixSet = caps.DefaultTileMatrixSet,
+                        SupportsAttachments = caps.SupportsAttachments,
+                        MaxAttachmentSizeBytes = caps.MaxAttachmentSizeBytes
+                    }
+                    : null
             };
         }
 
@@ -132,18 +162,133 @@ public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigura
         return Failure(result.Issue);
     }
 
+    public async Task<ServiceConfigurationResult> UpdateMapServerSettingsAsync(
+        ServiceMapServerSettingsCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var request = new HonuaAdminUpdateMapServerSettingsRequest
+        {
+            MaxImageWidth = command.MaxImageWidth,
+            MaxImageHeight = command.MaxImageHeight,
+            DefaultImageWidth = command.DefaultImageWidth,
+            DefaultImageHeight = command.DefaultImageHeight,
+            DefaultDpi = command.DefaultDpi,
+            DefaultFormat = command.DefaultFormat,
+            DefaultTransparent = command.DefaultTransparent,
+            MaxFeaturesPerLayer = command.MaxFeaturesPerLayer
+        };
+
+        var result = await _client
+            .UpdateServiceMapServerSettingsAsync(command.ServiceName, request, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Data is { } settings)
+        {
+            return new ServiceConfigurationResult
+            {
+                Succeeded = true,
+                State = "Updated",
+                Detail = "The service's MapServer render settings were updated on honua-server.",
+                ServiceName = settings.ServiceName ?? command.ServiceName,
+                EnabledProtocols = settings.EnabledProtocols ?? []
+            };
+        }
+
+        // The server PUT may answer 501 Not Implemented on a build that has not landed the MapServer-settings
+        // write path (a known V2 gap). The client maps 501 -> "Unsupported"; surface that honestly with a
+        // MapServer-specific message instead of fabricating a success (Console Patterns Charter section 11).
+        if (result.Issue is { } issue
+            && (issue.StatusCode == (int)HttpStatusCode.NotImplemented
+                || string.Equals(issue.State, "Unsupported", StringComparison.OrdinalIgnoreCase)))
+        {
+            return new ServiceConfigurationResult
+            {
+                Succeeded = false,
+                State = "Unsupported",
+                Detail = "MapServer settings are not supported on this server "
+                    + $"(it answered: {issue.Detail}).",
+                ServiceName = command.ServiceName,
+                FieldErrors = MapFieldErrors(issue)
+            };
+        }
+
+        return Failure(result.Issue);
+    }
+
+    public async Task<ServiceConfigurationResult> UpdateServiceSettingsCapsAsync(
+        ServiceSettingsCapsCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var request = new HonuaAdminUpdateServiceSettingsCapsRequest
+        {
+            MaxRecordCount = command.MaxRecordCount,
+            DefaultRecordCount = command.DefaultRecordCount,
+            MaxFeaturesPerLayer = command.MaxFeaturesPerLayer,
+            QueryTimeoutMs = command.QueryTimeoutMs,
+            MaxEditsPerTransaction = command.MaxEditsPerTransaction,
+            MaxPayloadBytes = command.MaxPayloadBytes,
+            SupportedFormats = command.SupportedFormats,
+            DefaultFormat = command.DefaultFormat,
+            DefaultTileMatrixSet = command.DefaultTileMatrixSet,
+            SupportsAttachments = command.SupportsAttachments,
+            MaxAttachmentSizeBytes = command.MaxAttachmentSizeBytes
+        };
+
+        var result = await _client
+            .UpdateServiceSettingsCapsAsync(command.ServiceName, request, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Data is not null)
+        {
+            return new ServiceConfigurationResult
+            {
+                Succeeded = true,
+                State = "Updated",
+                Detail = "The service's settings caps were updated on honua-server.",
+                ServiceName = command.ServiceName
+            };
+        }
+
+        // The server PUT may answer 501 Not Implemented on a build that has not landed the settings-caps write
+        // path. The client maps 501 -> "Unsupported"; surface that honestly with a caps-specific message
+        // instead of fabricating a success (Console Patterns Charter section 11).
+        if (result.Issue is { } issue
+            && (issue.StatusCode == (int)HttpStatusCode.NotImplemented
+                || string.Equals(issue.State, "Unsupported", StringComparison.OrdinalIgnoreCase)))
+        {
+            return new ServiceConfigurationResult
+            {
+                Succeeded = false,
+                State = "Unsupported",
+                Detail = "Settings caps are not supported on this server "
+                    + $"(it answered: {issue.Detail}).",
+                ServiceName = command.ServiceName,
+                FieldErrors = MapFieldErrors(issue)
+            };
+        }
+
+        return Failure(result.Issue);
+    }
+
     private static ServiceConfigurationResult Failure(HonuaAdminEndpointIssue? issue) => new()
     {
         Succeeded = false,
         State = issue?.State ?? "Unavailable",
         Detail = issue?.Detail ?? "The Honua server did not accept the service-configuration request.",
-        FieldErrors = (issue?.FieldErrors ?? [])
+        FieldErrors = MapFieldErrors(issue)
+    };
+
+    private static IReadOnlyList<ServiceConfigurationFieldError> MapFieldErrors(HonuaAdminEndpointIssue? issue) =>
+        (issue?.FieldErrors ?? [])
             .Select(error => new ServiceConfigurationFieldError(
                 error.Code,
                 error.Message,
                 error.Path,
                 error.FieldId,
                 error.Severity))
-            .ToArray()
-    };
+            .ToArray();
 }

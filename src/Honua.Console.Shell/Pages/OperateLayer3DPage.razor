@@ -1,0 +1,428 @@
+@page "/operate/layers/{ResourceId}/extrusion"
+@using System.Globalization
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOperateTransitionDataSource OperateData
+@inject IConsoleLayer3DOperation Layer3D
+
+<section class="console-page" data-layer-3d-page>
+    @if (_layer is null)
+    {
+        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>@_layer.Name · 3D &amp; lifecycle</h1>
+            <p>Author this layer's 3D extrusion, 3D symbology, and lifecycle status on layer @_layer.LayerId. honua-server persists these through its admin metadata API and validates height / attribute fields against the layer schema.</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+            </div>
+        </div>
+
+        @* ---- 3D extrusion + symbology ---- *@
+        <section class="console-section" data-extrusion-panel>
+            <h2>3D extrusion &amp; symbology</h2>
+            @if (!_threeD.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-extrusion-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_threeD.Detail</p>
+                </article>
+            }
+            else
+            {
+                <h3>Extrusion</h3>
+                <div class="console-field-grid">
+                    <label class="console-field">
+                        <span>Height field</span>
+                        <input class="console-input" @bind="_edit.HeightField" aria-label="Height field" data-extrusion-height-field placeholder="building_height" />
+                    </label>
+                    <label class="console-field">
+                        <span>Base-height field</span>
+                        <input class="console-input" @bind="_edit.BaseHeightField" aria-label="Base-height field" data-extrusion-base-height-field placeholder="ground_elevation" />
+                    </label>
+                    <label class="console-field">
+                        <span>Unit</span>
+                        <select class="console-input" @bind="_edit.Unit" aria-label="Height unit" data-extrusion-unit>
+                            <option value="">(unset)</option>
+                            <option value="meters">meters</option>
+                            <option value="feet">feet</option>
+                            <option value="usSurveyFeet">usSurveyFeet</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>Default height</span>
+                        <input class="console-input" type="number" step="any" @bind="_edit.DefaultHeight" aria-label="Default height" data-extrusion-default-height />
+                    </label>
+                    <label class="console-field">
+                        <span>Material hint</span>
+                        <input class="console-input" @bind="_edit.MaterialHint" aria-label="Material hint" data-extrusion-material-hint placeholder="concrete" />
+                    </label>
+                    <label class="console-field console-field-check">
+                        <input type="checkbox" @bind="_edit.ClearExtrusion" aria-label="Clear extrusion" data-extrusion-clear />
+                        <span>Clear extrusion (remove it)</span>
+                    </label>
+                </div>
+
+                <h3>3D symbology</h3>
+                <div class="console-field-grid">
+                    <label class="console-field">
+                        <span>Default color · red</span>
+                        <input class="console-input" type="number" min="0" max="255" @bind="_edit.DefaultRed" aria-label="Default color red" data-symbology-default-red />
+                    </label>
+                    <label class="console-field">
+                        <span>green</span>
+                        <input class="console-input" type="number" min="0" max="255" @bind="_edit.DefaultGreen" aria-label="Default color green" data-symbology-default-green />
+                    </label>
+                    <label class="console-field">
+                        <span>blue</span>
+                        <input class="console-input" type="number" min="0" max="255" @bind="_edit.DefaultBlue" aria-label="Default color blue" data-symbology-default-blue />
+                    </label>
+                    <label class="console-field">
+                        <span>Default opacity (0–1)</span>
+                        <input class="console-input" type="number" step="any" min="0" max="1" @bind="_edit.DefaultOpacity" aria-label="Default opacity" data-symbology-default-opacity />
+                    </label>
+                    <label class="console-field console-field-check">
+                        <input type="checkbox" @bind="_edit.ClearSymbology" aria-label="Clear 3D symbology" data-symbology-clear />
+                        <span>Clear 3D symbology (remove it)</span>
+                    </label>
+                </div>
+
+                <h4>Rules</h4>
+                <div class="console-table-wrap">
+                    <table class="console-table" data-symbology-rules>
+                        <thead>
+                            <tr><th>Attribute</th><th>Comparison</th><th>Value</th><th>R</th><th>G</th><th>B</th><th>Opacity</th><th>Visible</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < _edit.Rules.Count; i++)
+                            {
+                                var ruleIndex = i;
+                                var rule = _edit.Rules[ruleIndex];
+                                <tr data-symbology-rule-row>
+                                    <td><input class="console-input" @bind="rule.Attribute" aria-label="Rule attribute" data-rule-attribute placeholder="status" /></td>
+                                    <td>
+                                        <select class="console-input" @bind="rule.Comparison" aria-label="Rule comparison" data-rule-comparison>
+                                            <option value="equals">equals</option>
+                                            <option value="notEquals">notEquals</option>
+                                            <option value="greaterThan">greaterThan</option>
+                                            <option value="greaterThanOrEqual">greaterThanOrEqual</option>
+                                            <option value="lessThan">lessThan</option>
+                                            <option value="lessThanOrEqual">lessThanOrEqual</option>
+                                        </select>
+                                    </td>
+                                    <td><input class="console-input" @bind="rule.Value" aria-label="Rule value" data-rule-value placeholder="1" /></td>
+                                    <td><input class="console-input" type="number" min="0" max="255" @bind="rule.Red" aria-label="Rule color red" data-rule-red /></td>
+                                    <td><input class="console-input" type="number" min="0" max="255" @bind="rule.Green" aria-label="Rule color green" data-rule-green /></td>
+                                    <td><input class="console-input" type="number" min="0" max="255" @bind="rule.Blue" aria-label="Rule color blue" data-rule-blue /></td>
+                                    <td><input class="console-input" type="number" step="any" min="0" max="1" @bind="rule.Opacity" aria-label="Rule opacity" data-rule-opacity /></td>
+                                    <td>
+                                        <select class="console-input" @bind="rule.Visible" aria-label="Rule visible" data-rule-visible>
+                                            <option value="">(unchanged)</option>
+                                            <option value="true">true</option>
+                                            <option value="false">false</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <button class="console-button" type="button" @onclick="() => RemoveRule(ruleIndex)" data-rule-remove>Remove</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" @onclick="AddRule" data-rule-add>Add rule</button>
+                    <button class="console-button" type="button" disabled="@_savingExtrusion" @onclick="SaveExtrusionAsync" data-extrusion-save>
+                        @(_savingExtrusion ? "Saving…" : "Save 3D")
+                    </button>
+                </div>
+                @if (_extrusionResult is { } xr)
+                {
+                    <div class="console-panel @(xr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-extrusion-result>
+                        <p class="console-kicker">@xr.State</p>
+                        <p>@xr.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+
+        @* ---- Lifecycle status ---- *@
+        <section class="console-section" data-status-panel>
+            <h2>Lifecycle status</h2>
+            @if (!_status.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-status-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_status.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-field-grid">
+                    <label class="console-field">
+                        <span>Lifecycle</span>
+                        <select class="console-input" @bind="_statusEdit.Lifecycle" aria-label="Lifecycle" data-status-lifecycle>
+                            <option value="">(unchanged)</option>
+                            <option value="draft">draft</option>
+                            <option value="active">active (Published)</option>
+                            <option value="deprecated">deprecated</option>
+                            <option value="retired">retired</option>
+                            <option value="archived">archived</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>State</span>
+                        <select class="console-input" @bind="_statusEdit.State" aria-label="State" data-status-state>
+                            <option value="">(unchanged)</option>
+                            <option value="unknown">unknown</option>
+                            <option value="ready">ready</option>
+                            <option value="pending">pending</option>
+                            <option value="degraded">degraded</option>
+                            <option value="failed">failed</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_savingStatus" @onclick="SaveStatusAsync" data-status-save>
+                        @(_savingStatus ? "Saving…" : "Save status")
+                    </button>
+                </div>
+                @if (_statusResult is { } sr)
+                {
+                    <div class="console-panel @(sr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-status-result>
+                        <p class="console-kicker">@sr.State</p>
+                        <p>@sr.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ResourceId { get; set; } = string.Empty;
+
+    private OperateServiceLayerProjection? _layer;
+
+    private ConsoleLayer3D _threeD = ConsoleLayer3D.Unbound("Loading…");
+    private readonly ThreeDEdit _edit = new();
+    private bool _savingExtrusion;
+    private ConsoleSetLayerMetadataResult? _extrusionResult;
+
+    private ConsoleLayerStatus _status = ConsoleLayerStatus.Unbound("Loading…");
+    private readonly StatusEdit _statusEdit = new();
+    private bool _savingStatus;
+    private ConsoleSetLayerMetadataResult? _statusResult;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var view = await OperateData.GetLayersViewAsync();
+        // A raw layer id is only unique within its connection, so the route keys on the canonical resource id
+        // ({connection}-layer-{layerId}); take the first projection for its global LayerId.
+        _layer = view.Services
+            .SelectMany(service => service.Layers)
+            .FirstOrDefault(layer => string.Equals(layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+
+        if (_layer is not null)
+        {
+            await LoadExtrusionAsync();
+            await LoadStatusAsync();
+        }
+    }
+
+    private async Task LoadExtrusionAsync()
+    {
+        _threeD = await Layer3D.GetExtrusionAsync(_layer!.LayerId);
+        if (_threeD.Bound)
+        {
+            var ex = _threeD.Extrusion;
+            _edit.HeightField = ex?.HeightField;
+            _edit.BaseHeightField = ex?.BaseHeightField;
+            _edit.Unit = ex?.Unit ?? "";
+            _edit.DefaultHeight = ex?.DefaultHeight;
+            _edit.MaterialHint = ex?.MaterialHint;
+            _edit.ClearExtrusion = false;
+
+            var sym = _threeD.Symbology3D;
+            _edit.DefaultRed = sym?.DefaultColor?.Red;
+            _edit.DefaultGreen = sym?.DefaultColor?.Green;
+            _edit.DefaultBlue = sym?.DefaultColor?.Blue;
+            _edit.DefaultOpacity = sym?.DefaultOpacity;
+            _edit.ClearSymbology = false;
+            _edit.Rules = (sym?.Rules ?? [])
+                .Select(RuleEdit.From)
+                .ToList();
+        }
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        _status = await Layer3D.GetStatusAsync(_layer!.LayerId);
+        if (_status.Bound)
+        {
+            _statusEdit.Lifecycle = _status.Lifecycle ?? "";
+            _statusEdit.State = _status.State ?? "";
+        }
+    }
+
+    private void AddRule() => _edit.Rules.Add(new RuleEdit { Comparison = "equals" });
+
+    private void RemoveRule(int index)
+    {
+        if (index >= 0 && index < _edit.Rules.Count)
+        {
+            _edit.Rules.RemoveAt(index);
+        }
+    }
+
+    private async Task SaveExtrusionAsync()
+    {
+        if (_layer is null) return;
+        _savingExtrusion = true;
+        _extrusionResult = null;
+        try
+        {
+            // The extrusion section is sent only when the operator did not opt to clear it AND at least one
+            // field carries a value, so an untouched-but-bound layer doesn't resend an all-null block.
+            ConsoleLayerExtrusionSettings? extrusion = null;
+            if (!_edit.ClearExtrusion && _edit.HasExtrusionValues)
+            {
+                extrusion = new ConsoleLayerExtrusionSettings
+                {
+                    HeightField = Trim(_edit.HeightField),
+                    BaseHeightField = Trim(_edit.BaseHeightField),
+                    Unit = string.IsNullOrWhiteSpace(_edit.Unit) ? null : _edit.Unit,
+                    DefaultHeight = _edit.DefaultHeight,
+                    MaterialHint = Trim(_edit.MaterialHint),
+                };
+            }
+
+            ConsoleSymbology3D? symbology = null;
+            if (!_edit.ClearSymbology && _edit.HasSymbologyValues)
+            {
+                symbology = new ConsoleSymbology3D
+                {
+                    DefaultColor = _edit.HasDefaultColor
+                        ? new ConsoleRgbColor { Red = _edit.DefaultRed ?? 0, Green = _edit.DefaultGreen ?? 0, Blue = _edit.DefaultBlue ?? 0 }
+                        : null,
+                    DefaultOpacity = _edit.DefaultOpacity,
+                    Rules = _edit.Rules.Select(r => r.ToModel()).ToArray(),
+                };
+            }
+
+            _extrusionResult = await Layer3D.SetExtrusionAsync(
+                _layer.LayerId,
+                extrusion,
+                _edit.ClearExtrusion,
+                symbology,
+                _edit.ClearSymbology);
+            if (_extrusionResult.Succeeded)
+            {
+                await LoadExtrusionAsync();
+            }
+        }
+        finally
+        {
+            _savingExtrusion = false;
+        }
+    }
+
+    private async Task SaveStatusAsync()
+    {
+        if (_layer is null) return;
+        _savingStatus = true;
+        _statusResult = null;
+        try
+        {
+            _statusResult = await Layer3D.SetStatusAsync(
+                _layer.LayerId,
+                string.IsNullOrWhiteSpace(_statusEdit.Lifecycle) ? null : _statusEdit.Lifecycle,
+                string.IsNullOrWhiteSpace(_statusEdit.State) ? null : _statusEdit.State);
+            if (_statusResult.Succeeded)
+            {
+                await LoadStatusAsync();
+            }
+        }
+        finally
+        {
+            _savingStatus = false;
+        }
+    }
+
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed class ThreeDEdit
+    {
+        public string? HeightField { get; set; }
+        public string? BaseHeightField { get; set; }
+        public string Unit { get; set; } = "";
+        public double? DefaultHeight { get; set; }
+        public string? MaterialHint { get; set; }
+        public bool ClearExtrusion { get; set; }
+
+        public int? DefaultRed { get; set; }
+        public int? DefaultGreen { get; set; }
+        public int? DefaultBlue { get; set; }
+        public double? DefaultOpacity { get; set; }
+        public bool ClearSymbology { get; set; }
+        public List<RuleEdit> Rules { get; set; } = new();
+
+        public bool HasDefaultColor => DefaultRed.HasValue || DefaultGreen.HasValue || DefaultBlue.HasValue;
+
+        public bool HasExtrusionValues =>
+            !string.IsNullOrWhiteSpace(HeightField)
+            || !string.IsNullOrWhiteSpace(BaseHeightField)
+            || !string.IsNullOrWhiteSpace(Unit)
+            || DefaultHeight.HasValue
+            || !string.IsNullOrWhiteSpace(MaterialHint);
+
+        public bool HasSymbologyValues => HasDefaultColor || DefaultOpacity.HasValue || Rules.Count > 0;
+    }
+
+    private sealed class RuleEdit
+    {
+        public string? Attribute { get; set; }
+        public string Comparison { get; set; } = "equals";
+        public string? Value { get; set; }
+        public int? Red { get; set; }
+        public int? Green { get; set; }
+        public int? Blue { get; set; }
+        public double? Opacity { get; set; }
+        public string Visible { get; set; } = "";
+
+        public static RuleEdit From(ConsoleSymbology3DRule rule) => new()
+        {
+            Attribute = rule.Attribute,
+            Comparison = string.IsNullOrWhiteSpace(rule.Comparison) ? "equals" : rule.Comparison!,
+            Value = rule.Value,
+            Red = rule.Color?.Red,
+            Green = rule.Color?.Green,
+            Blue = rule.Color?.Blue,
+            Opacity = rule.Opacity,
+            Visible = rule.Visible switch { true => "true", false => "false", _ => "" },
+        };
+
+        public ConsoleSymbology3DRule ToModel() => new()
+        {
+            Attribute = string.IsNullOrWhiteSpace(Attribute) ? null : Attribute!.Trim(),
+            Comparison = Comparison,
+            Value = string.IsNullOrWhiteSpace(Value) ? null : Value,
+            Color = (Red.HasValue || Green.HasValue || Blue.HasValue)
+                ? new ConsoleRgbColor { Red = Red ?? 0, Green = Green ?? 0, Blue = Blue ?? 0 }
+                : null,
+            Opacity = Opacity,
+            Visible = Visible switch { "true" => true, "false" => false, _ => null },
+        };
+    }
+
+    private sealed class StatusEdit
+    {
+        public string Lifecycle { get; set; } = "";
+        public string State { get; set; } = "";
+    }
+}

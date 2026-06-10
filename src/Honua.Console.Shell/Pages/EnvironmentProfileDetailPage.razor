@@ -101,7 +101,7 @@ else
             <h2>Session</h2>
             <dl class="console-definition-list">
                 <dt>Tenant</dt>
-                <dd>@_profile.TenantId</dd>
+                <dd>@(string.IsNullOrWhiteSpace(_profile.TenantId) ? "—" : _profile.TenantId)</dd>
                 <dt>Account model</dt>
                 <dd>@_profile.Account.AuthMode</dd>
                 <dt>Certificate reference</dt>

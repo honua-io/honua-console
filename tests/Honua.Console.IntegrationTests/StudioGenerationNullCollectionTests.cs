@@ -61,7 +61,7 @@ public sealed class StudioGenerationNullCollectionTests
                     UnmappedRequests = null!
                 })
         };
-        var source = new HonuaServerStudioMapPackageDataSource(new ThrowingPackageLifecycleClient(), generation);
+        var source = new HonuaServerStudioMapPackageDataSource(new ThrowingPackageLifecycleClient(), generation, new UnsupportedOperateTransitionDataSource());
 
         var outcome = await source.GenerateAsync(
             new StudioMapEditorState(),
@@ -305,6 +305,7 @@ public sealed class StudioGenerationNullCollectionTests
         public Uri BaseUri { get; } = new("https://server.example");
 
         public Task<StudioEndpointResult<StudioPackageFamilyCapabilities>> ListPackageFamiliesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(Honua.Console.Contracts.StudioPackageFamily? family = null, Honua.Console.Contracts.StudioPackageValidationStatus? status = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPackageDraft>> CreatePackageDraftAsync(CreateStudioPackageDraftRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPackageDraft>> GetPackageDraftAsync(Guid draftId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPackageDraft>> UpdatePackageDraftAsync(Guid draftId, UpdateStudioPackageDraftRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

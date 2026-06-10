@@ -146,6 +146,27 @@ public sealed record TeamMembershipLoad(
     public bool HasMembership => Membership is not null;
 }
 
+/// <summary>One role-change audit entry (create/update/delete) for the Access &gt; roles-audit panel.</summary>
+public sealed record RbacAuditEntryView(
+    long Id,
+    string? Timestamp,
+    string? Actor,
+    string? Action,
+    string? RoleId,
+    string? Outcome);
+
+/// <summary>Result of loading the role-change audit trail: the entries, or capability states explaining why not.</summary>
+public sealed record RbacAuditLoad(
+    IReadOnlyList<RbacAuditEntryView> Entries,
+    IReadOnlyList<RbacCapabilityState> CapabilityStates)
+{
+    public bool HasEntries => Entries.Count > 0;
+    public RbacCapabilityState? FirstIssue => CapabilityStates.FirstOrDefault();
+}
+
+/// <summary>Outcome of a role create/delete mutation: success, or an error message to surface.</summary>
+public sealed record RbacRoleMutationResult(bool Succeeded, string? Error);
+
 /// <summary>Maps the honua-server Console Access (RBAC) wire records to the Access page view records.</summary>
 public static class RbacAccessMapper
 {

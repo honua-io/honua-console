@@ -46,11 +46,11 @@ public sealed class StudioWorkflowAiPageTests
             Assert.Contains(label, readinessText, StringComparison.Ordinal);
         }
 
-        // DAG preview draws the SVG edge layer with both arrow markers, even before a prompt.
-        var dag = page.Find("section[aria-label='Workflow DAG preview'] .workflow-canvas");
-        Assert.NotEmpty(dag.QuerySelectorAll("svg.workflow-canvas-edges"));
-        Assert.NotEmpty(dag.QuerySelectorAll("marker#workflow-ai-arrow"));
-        Assert.NotEmpty(dag.QuerySelectorAll("marker#workflow-ai-arrow-failure"));
+        // DAG preview renders the live workflow graph; before a prompt it shows the honest empty state
+        // (no nodes to graph) rather than a fabricated diagram.
+        var dag = page.Find("section[aria-label='Workflow DAG preview'] [data-workflow-graph]");
+        Assert.NotEmpty(dag.QuerySelectorAll("[data-workflow-graph-empty]"));
+        Assert.Empty(dag.QuerySelectorAll("[data-workflow-graph-node]"));
     }
 
     [Fact]
@@ -58,14 +58,14 @@ public sealed class StudioWorkflowAiPageTests
     {
         var page = RenderWith(new FakeAiWorkflowClient());
 
-        Assert.Empty(page.FindAll("section[aria-label='Workflow DAG preview'] .workflow-node"));
+        Assert.Empty(page.FindAll("section[aria-label='Workflow DAG preview'] [data-workflow-graph-node]"));
 
         page.Find(".studio-ai-refine-input").Input("Nightly: pull CSV, validate, publish to FeatureServer");
         FindButton(page, "Send").Click();
 
         // The server-proposed graph is applied (nodes appear) and Honua acknowledges with a ready turn.
         page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll("section[aria-label='Workflow DAG preview'] .workflow-node")),
+            () => Assert.NotEmpty(page.FindAll("section[aria-label='Workflow DAG preview'] [data-workflow-graph-node]")),
             TimeSpan.FromSeconds(5));
         Assert.NotEmpty(page.FindAll(".studio-ai-turn-honua .studio-ai-turn-tone-ready"));
         var log = page.Find(".studio-ai-conversation-log");
@@ -89,12 +89,12 @@ public sealed class StudioWorkflowAiPageTests
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll(".studio-ai-clarification-card")),
             TimeSpan.FromSeconds(5));
-        Assert.Empty(page.FindAll("section[aria-label='Workflow DAG preview'] .workflow-node"));
+        Assert.Empty(page.FindAll("section[aria-label='Workflow DAG preview'] [data-workflow-graph-node]"));
 
         // Selecting a choice answers the clarification and resumes generation → the graph appears.
         page.FindAll(".studio-ai-clarification-choice").First().Click();
         page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll("section[aria-label='Workflow DAG preview'] .workflow-node")),
+            () => Assert.NotEmpty(page.FindAll("section[aria-label='Workflow DAG preview'] [data-workflow-graph-node]")),
             TimeSpan.FromSeconds(5));
         Assert.Empty(page.FindAll(".studio-ai-clarification-card"));
     }
@@ -110,7 +110,7 @@ public sealed class StudioWorkflowAiPageTests
 
         // The chat is disabled (no fabricated proposal) but the editor handoff stays available.
         Assert.True(page.Find(".studio-ai-refine-input").HasAttribute("disabled"));
-        Assert.Empty(page.FindAll("section[aria-label='Workflow DAG preview'] .workflow-node"));
+        Assert.Empty(page.FindAll("section[aria-label='Workflow DAG preview'] [data-workflow-graph-node]"));
         Assert.Empty(page.FindAll("[data-workflow-ai-provider]"));
         Assert.Contains(page.FindAll("button"), b => b.TextContent.Contains("Open editor", StringComparison.Ordinal));
     }

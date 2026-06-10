@@ -32,4 +32,14 @@ public sealed class UnsupportedServiceConfigurationOperation : IServiceConfigura
         ServiceAccessPolicyCommand command,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(ServiceConfigurationResult.MissingBinding(MissingBindingDetail));
+
+    public Task<ServiceConfigurationResult> UpdateMapServerSettingsAsync(
+        ServiceMapServerSettingsCommand command,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(ServiceConfigurationResult.MissingBinding(MissingBindingDetail));
+
+    public Task<ServiceConfigurationResult> UpdateServiceSettingsCapsAsync(
+        ServiceSettingsCapsCommand command,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(ServiceConfigurationResult.MissingBinding(MissingBindingDetail));
 }
