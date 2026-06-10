@@ -101,6 +101,15 @@
                         }
                     </section>
 
+                    @* The result IS the form: a live preview of the real generated controls. *@
+                    <section class="console-panel workflow-ai-result" aria-label="Form preview">
+                        <div class="workflow-section-heading">
+                            <p class="console-kicker">Result</p>
+                            <h2>Live preview</h2>
+                        </div>
+                        <FormPreview Fields="_state.Fields" Title="@_state.Title" Description="@_state.Description" />
+                    </section>
+
                     @if (_warnings.Count > 0)
                     {
                         <section class="console-panel console-state-warning workflow-ai-warnings" role="status" data-form-ai-warnings>

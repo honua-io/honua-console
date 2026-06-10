@@ -26,15 +26,18 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
+    private readonly string? _adminApiKey;
 
     public HttpConsoleOperateObservabilityClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
-        IConsoleAccountSessionStore sessionStore)
+        IConsoleAccountSessionStore sessionStore,
+        string? adminApiKey = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
+        _adminApiKey = adminApiKey;
     }
 
     public async Task<OperateSectionResult<OperateFleetOverview>> GetOverviewAsync(
@@ -933,6 +936,13 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         if (!string.IsNullOrWhiteSpace(token))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+        else if (!string.IsNullOrWhiteSpace(_adminApiKey))
+        {
+            // No account-session bearer token (e.g. the browser host has no interactive sign-in): fall back
+            // to the configured admin API key like the GitOps/metrics clients, so the admin-authorized
+            // observability endpoints return data instead of 401 Unauthorized.
+            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
         }
 
         try

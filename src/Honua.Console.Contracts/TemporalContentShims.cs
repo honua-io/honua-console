@@ -23,10 +23,12 @@ namespace Honua.Console.Contracts;
 // accordingly and maps status semantics (400 validation, 404 not found, 409 conflict/already-resolved,
 // 501 not-supported, 401/403 auth) to issues.
 //
-// MERGED SCOPE: #1166 slice 1 (capabilities + as-of) and #1167 slices 1+2 (replica list/detail +
-// conflict review/resolution). The deferred temporal slice — diff/timeline/rollback execution (#1285) —
-// is NOT merged; the Console binds what exists and renders the rest as the established not-yet-available
-// state rather than fabricating it.
+// MERGED SCOPE: #1166 slice 1 (capabilities + as-of), #1166 slices 2-5 (diff + feature timeline +
+// governed rollback plan/execute, shipped as honua-server#1285), and #1167 slices 1+2 (replica
+// list/detail + conflict review/resolution). The diff/timeline/rollback-plan endpoints return their DTO
+// body directly (Results.Json of the response, like capabilities/as-of); rollback execute returns a job
+// handle directly with HTTP 202. Each is bound here; an honest 404/forbidden/unsupported is mapped to an
+// issue rather than fabricated.
 public sealed record HonuaTemporalClientOptions(Uri BaseUri, string? ApiKey = null);
 
 public interface IHonuaTemporalClient
@@ -44,6 +46,33 @@ public interface IHonuaTemporalClient
         long? generation,
         string? timestamp,
         int? limit,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaTemporalDiffResponse>> GetDiffAsync(
+        string serviceId,
+        int layerId,
+        string from,
+        string? to,
+        int? limit,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaTemporalTimelineResponse>> GetFeatureTimelineAsync(
+        string serviceId,
+        int layerId,
+        long featureId,
+        int? limit,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaTemporalRollbackPlanResponse>> PlanRollbackAsync(
+        string serviceId,
+        int layerId,
+        HonuaTemporalRollbackPlanRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<HonuaAdminEndpointResult<HonuaTemporalRollbackJobResponse>> ExecuteRollbackAsync(
+        string serviceId,
+        int layerId,
+        HonuaTemporalRollbackExecuteRequest request,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaReplicaManagementListResponse>> ListReplicasAsync(
@@ -143,6 +172,85 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         return GetDirectAsync<HonuaTemporalAsOfResponse>(
             $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/as-of{queryString}",
             "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/as-of",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaTemporalDiffResponse>> GetDiffAsync(
+        string serviceId,
+        int layerId,
+        string from,
+        string? to,
+        int? limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(from);
+
+        var parameters = new List<string> { $"from={Uri.EscapeDataString(from)}" };
+        if (!string.IsNullOrWhiteSpace(to))
+        {
+            parameters.Add($"to={Uri.EscapeDataString(to)}");
+        }
+
+        if (limit is { } lim)
+        {
+            parameters.Add($"limit={lim.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        return GetDirectAsync<HonuaTemporalDiffResponse>(
+            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/diff?{string.Join("&", parameters)}",
+            "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/diff",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaTemporalTimelineResponse>> GetFeatureTimelineAsync(
+        string serviceId,
+        int layerId,
+        long featureId,
+        int? limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+
+        var queryString = limit is { } lim
+            ? $"?limit={lim.ToString(CultureInfo.InvariantCulture)}"
+            : string.Empty;
+
+        return GetDirectAsync<HonuaTemporalTimelineResponse>(
+            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/features/{featureId.ToString(CultureInfo.InvariantCulture)}/timeline{queryString}",
+            "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/features/{featureId}/timeline",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaTemporalRollbackPlanResponse>> PlanRollbackAsync(
+        string serviceId,
+        int layerId,
+        HonuaTemporalRollbackPlanRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostDirectAsync<HonuaTemporalRollbackPlanRequest, HonuaTemporalRollbackPlanResponse>(
+            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/rollback/plan",
+            "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback/plan",
+            request,
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaTemporalRollbackJobResponse>> ExecuteRollbackAsync(
+        string serviceId,
+        int layerId,
+        HonuaTemporalRollbackExecuteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PostDirectAsync<HonuaTemporalRollbackExecuteRequest, HonuaTemporalRollbackJobResponse>(
+            $"/api/v1/temporal/services/{Uri.EscapeDataString(serviceId)}/layers/{Layer(layerId)}/rollback",
+            "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback",
+            request,
             cancellationToken);
     }
 
@@ -271,6 +379,57 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
                 "The Honua server temporal response body was empty.",
                 (int)http.StatusCode))
             : HonuaAdminEndpointResult<T>.FromData(payload);
+    }
+
+    // The temporal rollback plan/execute endpoints are POSTs that return their DTO body directly (not
+    // wrapped in ApiResponse<T>). Plan returns 200; execute returns 202 Accepted with the job handle.
+    private async Task<HonuaAdminEndpointResult<TResponse>> PostDirectAsync<TRequest, TResponse>(
+        string path,
+        string contract,
+        TRequest body,
+        CancellationToken cancellationToken)
+    {
+        var (response, transportIssue) = await SendAsync(
+                HttpMethod.Post,
+                path,
+                contract,
+                () => JsonContent.Create(body, options: JsonOptions),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (transportIssue is not null)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(transportIssue);
+        }
+
+        using var http = response!;
+        if (!http.IsSuccessStatusCode)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(CreateIssue(contract, http.StatusCode));
+        }
+
+        TResponse? payload;
+        try
+        {
+            payload = await http.Content
+                .ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException ex)
+        {
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported",
+                contract,
+                $"The Honua server temporal response did not match the expected contract: {ex.Message}",
+                (int)http.StatusCode));
+        }
+
+        return payload is null
+            ? HonuaAdminEndpointResult<TResponse>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable",
+                contract,
+                "The Honua server temporal response body was empty.",
+                (int)http.StatusCode))
+            : HonuaAdminEndpointResult<TResponse>.FromData(payload);
     }
 
     // The replica management endpoints wrap their payload in the shared ApiResponse<T> envelope.
@@ -548,6 +707,241 @@ public sealed record HonuaTemporalFeatureState
 
     [JsonPropertyName("attributes")]
     public Dictionary<string, JsonElement>? Attributes { get; init; }
+}
+
+// --- Wire records mirroring honua-server temporal diff/timeline/rollback (TemporalHistorySlicesApiModels,
+//     #1166 slices 2-5, shipped as #1285). Bodies are camelCase and returned directly. ---
+
+public sealed record HonuaTemporalCheckpointResponse
+{
+    [JsonPropertyName("kind")]
+    public string Kind { get; init; } = string.Empty;
+
+    [JsonPropertyName("value")]
+    public string? Value { get; init; }
+
+    [JsonPropertyName("generation")]
+    public long Generation { get; init; }
+}
+
+public sealed record HonuaTemporalAttributionResponse
+{
+    [JsonPropertyName("actor")]
+    public string? Actor { get; init; }
+
+    [JsonPropertyName("source")]
+    public string Source { get; init; } = string.Empty;
+
+    [JsonPropertyName("operation")]
+    public string? Operation { get; init; }
+
+    [JsonPropertyName("sourceId")]
+    public string? SourceId { get; init; }
+}
+
+public sealed record HonuaTemporalFieldChangeResponse
+{
+    [JsonPropertyName("field")]
+    public string Field { get; init; } = string.Empty;
+
+    [JsonPropertyName("oldValue")]
+    public JsonElement? OldValue { get; init; }
+
+    [JsonPropertyName("newValue")]
+    public JsonElement? NewValue { get; init; }
+
+    [JsonPropertyName("masked")]
+    public bool Masked { get; init; }
+}
+
+public sealed record HonuaTemporalFeatureDiffResponse
+{
+    [JsonPropertyName("objectId")]
+    public long ObjectId { get; init; }
+
+    [JsonPropertyName("primaryClass")]
+    public string PrimaryClass { get; init; } = string.Empty;
+
+    [JsonPropertyName("classes")]
+    public string[] Classes { get; init; } = [];
+
+    [JsonPropertyName("geometryChanged")]
+    public bool GeometryChanged { get; init; }
+
+    [JsonPropertyName("fieldChanges")]
+    public HonuaTemporalFieldChangeResponse[] FieldChanges { get; init; } = [];
+
+    [JsonPropertyName("attribution")]
+    public HonuaTemporalAttributionResponse? Attribution { get; init; }
+}
+
+public sealed record HonuaTemporalDiffSummaryResponse
+{
+    [JsonPropertyName("added")]
+    public int Added { get; init; }
+
+    [JsonPropertyName("removed")]
+    public int Removed { get; init; }
+
+    [JsonPropertyName("attributeChanged")]
+    public int AttributeChanged { get; init; }
+
+    [JsonPropertyName("geometryChanged")]
+    public int GeometryChanged { get; init; }
+
+    [JsonPropertyName("total")]
+    public int Total { get; init; }
+}
+
+public sealed record HonuaTemporalDiffResponse
+{
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("from")]
+    public HonuaTemporalCheckpointResponse From { get; init; } = new();
+
+    [JsonPropertyName("to")]
+    public HonuaTemporalCheckpointResponse To { get; init; } = new();
+
+    [JsonPropertyName("summary")]
+    public HonuaTemporalDiffSummaryResponse Summary { get; init; } = new();
+
+    [JsonPropertyName("changes")]
+    public HonuaTemporalFeatureDiffResponse[] Changes { get; init; } = [];
+
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; init; }
+}
+
+public sealed record HonuaTemporalRevisionResponse
+{
+    [JsonPropertyName("generation")]
+    public long Generation { get; init; }
+
+    [JsonPropertyName("operation")]
+    public string Operation { get; init; } = string.Empty;
+
+    [JsonPropertyName("changedAt")]
+    public string ChangedAt { get; init; } = string.Empty;
+
+    [JsonPropertyName("attribution")]
+    public HonuaTemporalAttributionResponse? Attribution { get; init; }
+}
+
+public sealed record HonuaTemporalTimelineResponse
+{
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("objectId")]
+    public long ObjectId { get; init; }
+
+    [JsonPropertyName("currentGeneration")]
+    public long CurrentGeneration { get; init; }
+
+    [JsonPropertyName("revisions")]
+    public HonuaTemporalRevisionResponse[] Revisions { get; init; } = [];
+
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; init; }
+}
+
+// A target checkpoint reference supplied in a rollback request body (kind + value/generation).
+public sealed record HonuaTemporalCheckpointBody
+{
+    [JsonPropertyName("kind")]
+    public string? Kind { get; init; }
+
+    [JsonPropertyName("value")]
+    public string? Value { get; init; }
+
+    [JsonPropertyName("generation")]
+    public long? Generation { get; init; }
+}
+
+public sealed record HonuaTemporalRollbackPlanRequest
+{
+    [JsonPropertyName("checkpoint")]
+    public HonuaTemporalCheckpointBody? Checkpoint { get; init; }
+}
+
+public sealed record HonuaTemporalRollbackExecuteRequest
+{
+    [JsonPropertyName("checkpoint")]
+    public HonuaTemporalCheckpointBody? Checkpoint { get; init; }
+
+    [JsonPropertyName("approved")]
+    public bool Approved { get; init; }
+
+    [JsonPropertyName("reason")]
+    public string? Reason { get; init; }
+}
+
+public sealed record HonuaTemporalRollbackFindingResponse
+{
+    [JsonPropertyName("code")]
+    public string Code { get; init; } = string.Empty;
+
+    [JsonPropertyName("severity")]
+    public string Severity { get; init; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; init; } = string.Empty;
+}
+
+public sealed record HonuaTemporalRollbackPlanResponse
+{
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("targetCheckpoint")]
+    public HonuaTemporalCheckpointResponse TargetCheckpoint { get; init; } = new();
+
+    [JsonPropertyName("currentGeneration")]
+    public long CurrentGeneration { get; init; }
+
+    [JsonPropertyName("state")]
+    public string State { get; init; } = string.Empty;
+
+    [JsonPropertyName("affectedFeatureCount")]
+    public int AffectedFeatureCount { get; init; }
+
+    [JsonPropertyName("validationFindings")]
+    public HonuaTemporalRollbackFindingResponse[] ValidationFindings { get; init; } = [];
+
+    [JsonPropertyName("compatibilityFindings")]
+    public HonuaTemporalRollbackFindingResponse[] CompatibilityFindings { get; init; } = [];
+
+    [JsonPropertyName("requiresApproval")]
+    public bool RequiresApproval { get; init; }
+}
+
+public sealed record HonuaTemporalRollbackJobResponse
+{
+    [JsonPropertyName("jobId")]
+    public string JobId { get; init; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; init; }
+
+    [JsonPropertyName("targetCheckpoint")]
+    public HonuaTemporalCheckpointResponse TargetCheckpoint { get; init; } = new();
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = string.Empty;
 }
 
 // --- Wire records mirroring honua-server replica management (ReplicaManagementModels, #1167). ---

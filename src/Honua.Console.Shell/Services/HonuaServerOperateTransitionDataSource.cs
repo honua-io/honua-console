@@ -8,7 +8,6 @@ namespace Honua.Console.Shell.Services;
 
 public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionDataSource
 {
-    private const string MetadataResourcesContract = "GET /api/v1/admin/metadata/resources";
 
     private static readonly IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> EmptyServiceSettings =
         new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(
@@ -44,7 +43,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, connectionStates);
         MergeStates(states, summaryStates);
         MergeStates(states, layerStates);
-        AddStateOnce(states, ResourcesUnsupportedState());
         MergeStates(states, serviceSettingsStates);
         MergeStates(states, settingsChangeStates);
 
@@ -80,7 +78,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         MergeStates(states, connectionStates);
         MergeStates(states, summaryStates);
         MergeStates(states, layerStates);
-        AddStateOnce(states, ResourcesUnsupportedState());
 
         return new OperateResourcesView(BuildResourceEdits(layerRows), states);
     }
@@ -228,13 +225,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         }
     }
 
-    private static OperateCapabilityState ResourcesUnsupportedState() =>
-        new(
-            "Resources",
-            "Unsupported",
-            $"{MetadataResourcesContract} plus resource edit validation/blast-radius projection",
-            "honua-server does not currently expose a Metadata v2 resource-edit preview contract for validation issues, saved maps, share links, or generated-app blast radius.");
-
     private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
         IReadOnlyList<HonuaAdminServiceSummary> services,
@@ -291,7 +281,10 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
                         Coalesce(normalizedLayer.LayerName, $"Layer {normalizedLayer.LayerId}"),
                         Coalesce(normalizedLayer.GeometryType, "Unknown"),
                         resource.ResourceId,
-                        resource.Name)));
+                        resource.Name,
+                        normalizedLayer.Extent is { } ext
+                            ? new[] { ext.MinX, ext.MinY, ext.MaxX, ext.MaxY }
+                            : null)));
             }
         }
 
@@ -346,16 +339,8 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             }
 
             settings[serviceName] = result.Data;
-            if (result.Data.TimeInfo is null)
-            {
-                AddStateOnce(
-                    states,
-                    new OperateCapabilityState(
-                        "Services",
-                        "Unsupported",
-                        "GET /api/v1/admin/services/{serviceName}/settings timeInfo",
-                        "honua-server reports service-scope TimeInfo as unavailable in the Metadata v2 graph; use the per-layer metadata contract when it lands in the Console SDK projection."));
-            }
+            // A null service-scope TimeInfo is normal for non-temporal services — it is not an
+            // unsupported capability, so it is not surfaced as a capability-gap notice.
         }
 
         return (new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(settings), states);
@@ -616,22 +601,6 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
                 "No restart reported by the OIDC provider list endpoint.",
                 "GET /api/v1/admin/oidc/providers.");
         }
-
-        AddStateOnce(
-            states,
-            new OperateCapabilityState(
-                "Settings",
-                "Unsupported",
-                "CORS admin read/write contract",
-                "honua-server configures CORS from process configuration and does not expose an operator settings API for allowed origins."));
-
-        AddStateOnce(
-            states,
-            new OperateCapabilityState(
-                "Settings",
-                "Unsupported",
-                "Catalog endpoint visibility admin contract",
-                "honua-server does not currently expose a Console admin contract for catalog endpoint visibility changes."));
     }
 
     private static OperateConnectionSummary MapConnection(HonuaAdminConnectionSummary connection)
@@ -721,17 +690,46 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             ["Overview", "Source", "Fields", "Validation"]);
     }
 
-    private string BuildProtocolUrl(string serviceName, string protocol)
+    // Each protocol is served under a DIFFERENT URL scheme — only the Esri GeoServices server types live
+    // under /rest/services/{service}/...; the OGC + OData + STAC protocols have their own roots. Map every
+    // protocol to where honua-server actually serves it (verified against the server endpoint registry) so
+    // the publication-slot URL an operator copies is real.
+    internal string BuildProtocolUrl(string serviceName, string protocol)
     {
-        var escapedService = Uri.EscapeDataString(serviceName);
-        var trimmedBase = _client.BaseUri.ToString().TrimEnd('/');
+        var svc = Uri.EscapeDataString(serviceName);
+        var b = _client.BaseUri.ToString().TrimEnd('/');
 
         return protocol switch
         {
-            "FeatureServer" => $"{trimmedBase}/rest/services/{escapedService}/FeatureServer",
-            "MapServer" => $"{trimmedBase}/rest/services/{escapedService}/MapServer",
-            "Stac" => $"{trimmedBase}/stac",
-            _ => $"{trimmedBase}/rest/services/{escapedService}/{Uri.EscapeDataString(protocol)}"
+            // Esri GeoServices REST — per-service under /rest/services/{service}/{ServerType}.
+            "FeatureServer" => $"{b}/rest/services/{svc}/FeatureServer",
+            "MapServer" => $"{b}/rest/services/{svc}/MapServer",
+            "ImageServer" => $"{b}/rest/services/{svc}/ImageServer",
+            "GPServer" => $"{b}/rest/services/{svc}/GPServer",
+
+            // OGC "classic" (per-service) — /ogc/services/{service}/{wms|wmts|wcs}.
+            "Wms" => $"{b}/ogc/services/{svc}/wms",
+            "Wmts" => $"{b}/ogc/services/{svc}/wmts",
+            "Wcs" => $"{b}/ogc/services/{svc}/wcs",
+
+            // OGC WFS — a single server endpoint; this service's feature types are typeNames within it.
+            "Wfs20" => $"{b}/wfs",
+
+            // OGC API family — the API landing root; this service is exposed as a collection within it.
+            "OgcFeatures" => $"{b}/ogc/features",
+            "OgcApiTiles" => $"{b}/ogc/tiles",
+            "OgcApiMaps" => $"{b}/ogc/maps",
+            "OgcApiCoverages" => $"{b}/ogc/coverages",
+
+            // Standalone protocol roots.
+            "OData" => $"{b}/odata",
+            "Stac" => $"{b}/stac",
+            "Terrain" => $"{b}/terrain",
+            "Elevation" => $"{b}/elevation",
+            "Grpc" => $"{b}/grpc",
+
+            // Unknown/future protocol: GeoServices REST shape is the safest default, but flag it.
+            _ => $"{b}/rest/services/{svc}/{Uri.EscapeDataString(protocol)}"
         };
     }
 

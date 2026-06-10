@@ -17,4 +17,21 @@ public interface IRbacAccessDataSource
 
     /// <summary>Loads the server-owned membership roster for a workspace, or capability states when it cannot be read.</summary>
     Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default);
+
+    /// <summary>Creates a custom role granting the given console permission columns. Returns the outcome.</summary>
+    Task<RbacRoleMutationResult> CreateRoleAsync(
+        string workspaceId,
+        string name,
+        string? description,
+        IReadOnlyList<string> grantedPermissionKeys,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes a custom role (built-in roles are rejected server-side). Returns the outcome.</summary>
+    Task<RbacRoleMutationResult> DeleteRoleAsync(
+        string workspaceId,
+        string roleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Loads the role-change audit trail for a workspace, or capability states when it cannot be read.</summary>
+    Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default);
 }

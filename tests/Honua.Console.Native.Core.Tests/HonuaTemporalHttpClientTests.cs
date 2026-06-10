@@ -87,6 +87,118 @@ public sealed class HonuaTemporalHttpClientTests
     }
 
     [Fact]
+    public async Task GetDiff_GetsDiffRoute_WithFromToLimit_AndReturnsDirectBody()
+    {
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, DiffJson));
+        var client = CreateClient(handler, apiKey: "admin-secret");
+
+        var result = await client.GetDiffAsync("parcels", 0, from: "40", to: "42", limit: 50);
+
+        Assert.Null(result.Issue);
+        Assert.Equal(6, result.Data!.Summary.Total);
+        var change = Assert.Single(result.Data.Changes);
+        Assert.Equal(101, change.ObjectId);
+        Assert.Equal("owner", Assert.Single(change.FieldChanges).Field);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, recorded.Method);
+        Assert.Equal("/api/v1/temporal/services/parcels/layers/0/diff", recorded.Uri!.AbsolutePath);
+        Assert.Contains("from=40", recorded.Uri.Query, StringComparison.Ordinal);
+        Assert.Contains("to=42", recorded.Uri.Query, StringComparison.Ordinal);
+        Assert.Contains("limit=50", recorded.Uri.Query, StringComparison.Ordinal);
+        Assert.Equal("admin-secret", Assert.Single(recorded.ApiKeyValues));
+    }
+
+    [Fact]
+    public async Task GetFeatureTimeline_GetsTimelineRoute_AndReturnsDirectBody()
+    {
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, TimelineJson));
+        var client = CreateClient(handler);
+
+        var result = await client.GetFeatureTimelineAsync("parcels", 0, featureId: 101, limit: null);
+
+        Assert.Null(result.Issue);
+        Assert.Equal(101, result.Data!.ObjectId);
+        var revision = Assert.Single(result.Data.Revisions);
+        Assert.Equal(40, revision.Generation);
+        Assert.Equal("Update", revision.Operation);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal("/api/v1/temporal/services/parcels/layers/0/features/101/timeline", recorded.Uri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task PlanRollback_PostsPlanRoute_WithCheckpointBody_AndReturnsDirectBody()
+    {
+        string? body = null;
+        var handler = new RecordingHandler(request =>
+        {
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Json(HttpStatusCode.OK, PlanJson);
+        });
+        var client = CreateClient(handler, apiKey: "admin-secret");
+
+        var result = await client.PlanRollbackAsync(
+            "parcels", 0,
+            new HonuaTemporalRollbackPlanRequest
+            {
+                Checkpoint = new HonuaTemporalCheckpointBody { Kind = "generation", Generation = 40 },
+            });
+
+        Assert.Null(result.Issue);
+        Assert.Equal("jobRequired", result.Data!.State);
+        Assert.Equal(17, result.Data.AffectedFeatureCount);
+        Assert.True(result.Data.RequiresApproval);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, recorded.Method);
+        Assert.Equal("/api/v1/temporal/services/parcels/layers/0/rollback/plan", recorded.Uri!.AbsolutePath);
+        Assert.Equal("admin-secret", Assert.Single(recorded.ApiKeyValues));
+        Assert.Contains("\"generation\":40", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteRollback_PostsRollbackRoute_AcceptsAccepted202_AndReturnsJobHandle()
+    {
+        string? body = null;
+        var handler = new RecordingHandler(request =>
+        {
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Json(HttpStatusCode.Accepted, JobJson);
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.ExecuteRollbackAsync(
+            "parcels", 0,
+            new HonuaTemporalRollbackExecuteRequest
+            {
+                Checkpoint = new HonuaTemporalCheckpointBody { Kind = "generation", Generation = 40 },
+                Approved = true,
+            });
+
+        Assert.Null(result.Issue);
+        Assert.Equal("job-7", result.Data!.JobId);
+        Assert.Equal("queued", result.Data.Status);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, recorded.Method);
+        Assert.Equal("/api/v1/temporal/services/parcels/layers/0/rollback", recorded.Uri!.AbsolutePath);
+        Assert.Contains("\"approved\":true", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetDiff_Forbidden_MapsToForbidden()
+    {
+        var handler = new RecordingHandler(_ => ProblemDetails(HttpStatusCode.Forbidden));
+        var client = CreateClient(handler);
+
+        var result = await client.GetDiffAsync("parcels", 0, from: "40", to: "42", limit: null);
+
+        Assert.Null(result.Data);
+        Assert.Equal("Forbidden", result.Issue!.State);
+    }
+
+    [Fact]
     public async Task ListReplicas_GetsReplicasRoute_AndUnwrapsApiResponseEnvelope()
     {
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, ReplicaListJson));
@@ -246,6 +358,55 @@ public sealed class HonuaTemporalHttpClientTests
           "serviceId":"parcels","layerId":0,"requestedCursorKind":"Generation","resolvedGeneration":40,
           "currentGeneration":42,
           "features":[{"objectId":101,"operation":"Update","changedAt":"2026-05-28T09:00:00.000Z","attributes":{"owner":"Acme"}}]
+        }
+        """;
+
+    private const string DiffJson =
+        """
+        {
+          "serviceId":"parcels","layerId":0,
+          "from":{"kind":"generation","value":null,"generation":40},
+          "to":{"kind":"generation","value":null,"generation":42},
+          "summary":{"added":2,"removed":1,"attributeChanged":3,"geometryChanged":1,"total":6},
+          "changes":[
+            {"objectId":101,"primaryClass":"attributeChanged","classes":["attributeChanged"],"geometryChanged":false,
+             "fieldChanges":[{"field":"owner","oldValue":"Acme","newValue":"Acme Inc","masked":false}],
+             "attribution":{"actor":"alice","source":"editSession","operation":"edit","sourceId":"sess-1"}}
+          ],
+          "nextCursor":null
+        }
+        """;
+
+    private const string TimelineJson =
+        """
+        {
+          "serviceId":"parcels","layerId":0,"objectId":101,"currentGeneration":42,
+          "revisions":[
+            {"generation":40,"operation":"Update","changedAt":"2026-05-28T09:00:00.000Z",
+             "attribution":{"actor":"bob","source":"job","operation":null,"sourceId":"job-3"}}
+          ],
+          "nextCursor":null
+        }
+        """;
+
+    private const string PlanJson =
+        """
+        {
+          "serviceId":"parcels","layerId":0,
+          "targetCheckpoint":{"kind":"generation","value":null,"generation":40},
+          "currentGeneration":42,"state":"jobRequired","affectedFeatureCount":17,
+          "validationFindings":[{"code":"FK_RISK","severity":"warning","message":"Foreign keys may break."}],
+          "compatibilityFindings":[],
+          "requiresApproval":true
+        }
+        """;
+
+    private const string JobJson =
+        """
+        {
+          "jobId":"job-7","serviceId":"parcels","layerId":0,
+          "targetCheckpoint":{"kind":"generation","value":null,"generation":40},
+          "status":"queued"
         }
         """;
 

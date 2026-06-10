@@ -14,6 +14,12 @@
             <p class="console-kicker">Operate / Services</p>
             <h1>@_service.DisplayName</h1>
             <p>@_service.MetadataOwnership</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/services/{ServiceName}/discovery")" data-service-discovery-link>Discovery metadata</a>
+                @* The console projection does not surface a publication metadata id yet, so this links to the
+                   publication-overrides authoring page where the operator supplies the publication id. *@
+                <a class="console-button-link" href="/operate/publications/overrides" data-publication-overrides-link>Publication overrides</a>
+            </div>
         </div>
 
         <div class="console-panel-grid">
@@ -124,10 +130,128 @@
                             <input type="checkbox" @bind="_allowAnonymousWrite" data-allow-anonymous-write />
                             <span>Allow anonymous write</span>
                         </label>
+                        <label class="console-field">
+                            <span>Allowed read roles</span>
+                            <input type="text" @bind="_allowedRoles" data-allowed-roles
+                                   placeholder="viewer, editor" />
+                            <small>Comma- or newline-separated role names granted read access. Leave blank to clear.</small>
+                        </label>
+                        <label class="console-field">
+                            <span>Allowed write roles</span>
+                            <input type="text" @bind="_allowedWriteRoles" data-allowed-write-roles
+                                   placeholder="editor, admin" />
+                            <small>Comma- or newline-separated role names granted write access. Leave blank to clear.</small>
+                        </label>
                         <div class="console-action-row">
                             <button class="console-button" type="button" disabled="@_savingAccess"
                                     @onclick="SaveAccessAsync" data-save-access>
                                 @(_savingAccess ? "Saving…" : "Save access policy")
+                            </button>
+                        </div>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">MapServer</p>
+                        <h3>Render settings</h3>
+                        <p>Caps applied to MapServer export/draw requests for this service.</p>
+                        <div class="console-field-grid">
+                            <label class="console-field">
+                                <span>Max image width (px)</span>
+                                <input type="number" min="1" @bind="_maxImageWidth" data-max-image-width />
+                            </label>
+                            <label class="console-field">
+                                <span>Max image height (px)</span>
+                                <input type="number" min="1" @bind="_maxImageHeight" data-max-image-height />
+                            </label>
+                            <label class="console-field">
+                                <span>Default image width (px)</span>
+                                <input type="number" min="1" @bind="_defaultImageWidth" data-default-image-width />
+                            </label>
+                            <label class="console-field">
+                                <span>Default image height (px)</span>
+                                <input type="number" min="1" @bind="_defaultImageHeight" data-default-image-height />
+                            </label>
+                            <label class="console-field">
+                                <span>Default DPI</span>
+                                <input type="number" min="1" @bind="_defaultDpi" data-default-dpi />
+                            </label>
+                            <label class="console-field">
+                                <span>Default format</span>
+                                <input type="text" @bind="_defaultFormat" data-default-format placeholder="png" />
+                            </label>
+                            <label class="console-field">
+                                <span>Max features per layer</span>
+                                <input type="number" min="1" @bind="_maxFeaturesPerLayer" data-max-features-per-layer />
+                            </label>
+                        </div>
+                        <label class="console-inline-check">
+                            <input type="checkbox" @bind="_defaultTransparent" data-default-transparent />
+                            <span>Default transparent background</span>
+                        </label>
+                        <div class="console-action-row">
+                            <button class="console-button" type="button" disabled="@_savingMapServer"
+                                    @onclick="SaveMapServerAsync" data-save-mapserver>
+                                @(_savingMapServer ? "Saving…" : "Save MapServer settings")
+                            </button>
+                        </div>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Settings caps</p>
+                        <h3>Service limits</h3>
+                        <p>Result-size and request-size caps the server enforces for this service.</p>
+                        <div class="console-field-grid">
+                            <label class="console-field">
+                                <span>Max record count</span>
+                                <input type="number" min="0" @bind="_maxRecordCount" data-max-record-count />
+                            </label>
+                            <label class="console-field">
+                                <span>Default record count</span>
+                                <input type="number" min="0" @bind="_defaultRecordCount" data-default-record-count />
+                            </label>
+                            <label class="console-field">
+                                <span>Max features per layer</span>
+                                <input type="number" min="0" @bind="_capsMaxFeaturesPerLayer" data-caps-max-features-per-layer />
+                            </label>
+                            <label class="console-field">
+                                <span>Query timeout (ms)</span>
+                                <input type="number" min="0" @bind="_queryTimeoutMs" data-query-timeout-ms />
+                            </label>
+                            <label class="console-field">
+                                <span>Max edits per transaction</span>
+                                <input type="number" min="0" @bind="_maxEditsPerTransaction" data-max-edits-per-transaction />
+                            </label>
+                            <label class="console-field">
+                                <span>Max payload (bytes)</span>
+                                <input type="number" min="0" @bind="_maxPayloadBytes" data-max-payload-bytes />
+                            </label>
+                            <label class="console-field">
+                                <span>Default format</span>
+                                <input type="text" @bind="_capsDefaultFormat" data-caps-default-format placeholder="json" />
+                            </label>
+                            <label class="console-field">
+                                <span>Default tile matrix set</span>
+                                <input type="text" @bind="_defaultTileMatrixSet" data-default-tile-matrix-set placeholder="WebMercatorQuad" />
+                            </label>
+                            <label class="console-field">
+                                <span>Max attachment size (bytes)</span>
+                                <input type="number" min="0" @bind="_maxAttachmentSizeBytes" data-max-attachment-size-bytes />
+                            </label>
+                        </div>
+                        <label class="console-field">
+                            <span>Supported formats</span>
+                            <input type="text" @bind="_supportedFormats" data-supported-formats
+                                   placeholder="json, geojson, pbf" />
+                            <small>Comma- or newline-separated output formats. Leave blank to leave unchanged.</small>
+                        </label>
+                        <label class="console-inline-check">
+                            <input type="checkbox" @bind="_supportsAttachments" data-supports-attachments />
+                            <span>Supports attachments</span>
+                        </label>
+                        <div class="console-action-row">
+                            <button class="console-button" type="button" disabled="@_savingCaps"
+                                    @onclick="SaveSettingsCapsAsync" data-save-settings-caps>
+                                @(_savingCaps ? "Saving…" : "Save settings caps")
                             </button>
                         </div>
                     </article>
@@ -192,9 +316,36 @@
     private readonly HashSet<string> _selectedProtocols = new(StringComparer.OrdinalIgnoreCase);
     private bool _allowAnonymous;
     private bool _allowAnonymousWrite;
+    private string _allowedRoles = string.Empty;
+    private string _allowedWriteRoles = string.Empty;
     private bool _savingProtocols;
     private bool _savingAccess;
     private ServiceConfigurationResult? _configResult;
+
+    // MapServer render-settings editor state.
+    private int? _maxImageWidth;
+    private int? _maxImageHeight;
+    private int? _defaultImageWidth;
+    private int? _defaultImageHeight;
+    private int? _defaultDpi;
+    private string? _defaultFormat;
+    private bool _defaultTransparent;
+    private int? _maxFeaturesPerLayer;
+    private bool _savingMapServer;
+
+    // Settings-caps editor state.
+    private int? _maxRecordCount;
+    private int? _defaultRecordCount;
+    private int? _capsMaxFeaturesPerLayer;
+    private int? _queryTimeoutMs;
+    private int? _maxEditsPerTransaction;
+    private long? _maxPayloadBytes;
+    private string _supportedFormats = string.Empty;
+    private string? _capsDefaultFormat;
+    private string? _defaultTileMatrixSet;
+    private bool _supportsAttachments;
+    private long? _maxAttachmentSizeBytes;
+    private bool _savingCaps;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -220,7 +371,51 @@
 
         _allowAnonymous = _settings.AllowAnonymous;
         _allowAnonymousWrite = _settings.AllowAnonymousWrite;
+        _allowedRoles = string.Join(", ", _settings.AllowedRoles);
+        _allowedWriteRoles = string.Join(", ", _settings.AllowedWriteRoles);
+
+        var map = _settings.MapServer;
+        _maxImageWidth = map?.MaxImageWidth;
+        _maxImageHeight = map?.MaxImageHeight;
+        _defaultImageWidth = map?.DefaultImageWidth;
+        _defaultImageHeight = map?.DefaultImageHeight;
+        _defaultDpi = map?.DefaultDpi;
+        _defaultFormat = map?.DefaultFormat;
+        _defaultTransparent = map?.DefaultTransparent ?? false;
+        _maxFeaturesPerLayer = map?.MaxFeaturesPerLayer;
+
+        var caps = _settings.SettingsCaps;
+        _maxRecordCount = caps?.MaxRecordCount;
+        _defaultRecordCount = caps?.DefaultRecordCount;
+        _capsMaxFeaturesPerLayer = caps?.MaxFeaturesPerLayer;
+        _queryTimeoutMs = caps?.QueryTimeoutMs;
+        _maxEditsPerTransaction = caps?.MaxEditsPerTransaction;
+        _maxPayloadBytes = caps?.MaxPayloadBytes;
+        _supportedFormats = string.Join(", ", caps?.SupportedFormats ?? []);
+        _capsDefaultFormat = caps?.DefaultFormat;
+        _defaultTileMatrixSet = caps?.DefaultTileMatrixSet;
+        _supportsAttachments = caps?.SupportsAttachments ?? false;
+        _maxAttachmentSizeBytes = caps?.MaxAttachmentSizeBytes;
     }
+
+    // Splits a comma-/newline-separated formats textbox into a trimmed, de-duplicated, non-empty array.
+    // Returns null (not an empty array) when the textbox is blank so the caps PUT leaves the formats unchanged.
+    private static IReadOnlyList<string>? ParseFormats(string? raw)
+    {
+        var parsed = (raw ?? string.Empty)
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return parsed.Length == 0 ? null : parsed;
+    }
+
+    // Splits a comma-/newline-separated role textbox into a trimmed, de-duplicated, non-empty role array.
+    // Returns an empty array (not null) when the textbox is blank so the access PUT clears the role list.
+    private static string[] ParseRoles(string? raw) =>
+        (raw ?? string.Empty)
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private void ToggleProtocol(string protocol, bool enabled)
     {
@@ -268,7 +463,9 @@
             {
                 ServiceName = ServiceName,
                 AllowAnonymous = _allowAnonymous,
-                AllowAnonymousWrite = _allowAnonymousWrite
+                AllowAnonymousWrite = _allowAnonymousWrite,
+                AllowedRoles = ParseRoles(_allowedRoles),
+                AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
             });
             if (_configResult.Succeeded)
             {
@@ -278,6 +475,67 @@
         finally
         {
             _savingAccess = false;
+        }
+    }
+
+    private async Task SaveMapServerAsync()
+    {
+        _savingMapServer = true;
+        _configResult = null;
+        try
+        {
+            _configResult = await ServiceConfig.UpdateMapServerSettingsAsync(new ServiceMapServerSettingsCommand
+            {
+                ServiceName = ServiceName,
+                MaxImageWidth = _maxImageWidth,
+                MaxImageHeight = _maxImageHeight,
+                DefaultImageWidth = _defaultImageWidth,
+                DefaultImageHeight = _defaultImageHeight,
+                DefaultDpi = _defaultDpi,
+                DefaultFormat = string.IsNullOrWhiteSpace(_defaultFormat) ? null : _defaultFormat.Trim(),
+                DefaultTransparent = _defaultTransparent,
+                MaxFeaturesPerLayer = _maxFeaturesPerLayer
+            });
+            if (_configResult.Succeeded)
+            {
+                await LoadSettingsAsync();
+            }
+        }
+        finally
+        {
+            _savingMapServer = false;
+        }
+    }
+
+    private async Task SaveSettingsCapsAsync()
+    {
+        _savingCaps = true;
+        _configResult = null;
+        try
+        {
+            _configResult = await ServiceConfig.UpdateServiceSettingsCapsAsync(new ServiceSettingsCapsCommand
+            {
+                ServiceName = ServiceName,
+                MaxRecordCount = _maxRecordCount,
+                DefaultRecordCount = _defaultRecordCount,
+                MaxFeaturesPerLayer = _capsMaxFeaturesPerLayer,
+                QueryTimeoutMs = _queryTimeoutMs,
+                MaxEditsPerTransaction = _maxEditsPerTransaction,
+                MaxPayloadBytes = _maxPayloadBytes,
+                SupportedFormats = ParseFormats(_supportedFormats),
+                DefaultFormat = string.IsNullOrWhiteSpace(_capsDefaultFormat) ? null : _capsDefaultFormat.Trim(),
+                DefaultTileMatrixSet = string.IsNullOrWhiteSpace(_defaultTileMatrixSet) ? null : _defaultTileMatrixSet.Trim(),
+                SupportsAttachments = _supportsAttachments,
+                MaxAttachmentSizeBytes = _maxAttachmentSizeBytes
+            });
+            if (_configResult.Succeeded)
+            {
+                await LoadSettingsAsync();
+            }
+        }
+        finally
+        {
+            _savingCaps = false;
         }
     }
 }

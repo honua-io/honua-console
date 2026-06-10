@@ -1,0 +1,279 @@
+@page "/operate/publications/overrides"
+@page "/operate/publications/{PublicationId}/overrides"
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsolePublicationOverridesOperation Overrides
+@inject NavigationManager Nav
+
+<section class="console-page" data-publication-overrides-page>
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Publications · overrides</p>
+        <h1>Publication overrides</h1>
+        <p>
+            Author the overrides for a publication — a layer's exposure within a service. honua-server applies
+            the title override, per-publication field aliases, capability set, supported formats, and primary
+            flag to this exposure without disturbing the underlying layer metadata.
+        </p>
+    </div>
+
+    @if (string.IsNullOrWhiteSpace(PublicationId))
+    {
+        @* The console projection does not currently surface a publication metadata id, so the operator
+           supplies one here (honest input rather than a fabricated target). *@
+        <section class="console-section" data-publication-overrides-picker>
+            <article class="console-panel">
+                <p class="console-kicker">Target</p>
+                <h2>Choose a publication</h2>
+                <p class="console-muted">
+                    Enter the publication's metadata id (its exposure id within a service) to load and author its
+                    overrides.
+                </p>
+                <label class="console-field">
+                    <span>Publication id</span>
+                    <input class="console-input" @bind="_publicationIdInput" data-publication-id-input
+                           placeholder="00000000-0000-0000-0000-000000000000" />
+                </label>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" @onclick="GoToPublication"
+                            disabled="@string.IsNullOrWhiteSpace(_publicationIdInput)" data-publication-id-go>
+                        Load overrides
+                    </button>
+                </div>
+            </article>
+        </section>
+    }
+    else
+    {
+        <section class="console-section" data-publication-overrides-panel>
+            @if (!_overrides.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-publication-overrides-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_overrides.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-page-subheading">
+                    <h2>@PublicationId</h2>
+                </div>
+
+                <article class="console-panel">
+                    <p class="console-kicker">Title</p>
+                    <h2>Title override</h2>
+                    <label class="console-field">
+                        <span>Title override</span>
+                        <input class="console-input" @bind="_titleOverride" data-overrides-title
+                               placeholder="Public parcel boundaries" />
+                        <small>Leave blank to clear the override and fall back to the layer's title.</small>
+                    </label>
+                    <label class="console-checkbox">
+                        <input type="checkbox" @bind="_isPrimary" data-overrides-is-primary />
+                        <span>This is the primary publication of its layer</span>
+                    </label>
+                </article>
+
+                <article class="console-panel" data-overrides-aliases>
+                    <p class="console-kicker">Field aliases</p>
+                    <h2>Per-publication field aliases</h2>
+                    <div class="console-table-wrap">
+                        <table class="console-table" aria-label="Field aliases">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Alias</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_aliases.Count == 0)
+                                {
+                                    <tr data-overrides-aliases-empty><td colspan="3" class="console-muted">No field aliases are authored yet.</td></tr>
+                                }
+                                else
+                                {
+                                    @for (var i = 0; i < _aliases.Count; i++)
+                                    {
+                                        var alias = _aliases[i];
+                                        <tr data-overrides-alias-row>
+                                            <td><input class="console-input" @bind="alias.Field" aria-label="Alias field" data-alias-field placeholder="OBJECTID" /></td>
+                                            <td><input class="console-input" @bind="alias.Alias" aria-label="Alias value" data-alias-value placeholder="Record ID" /></td>
+                                            <td>
+                                                <button class="console-button console-button-secondary" type="button"
+                                                        @onclick="() => RemoveAlias(alias)" data-alias-remove aria-label="Remove field alias">Remove</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="console-action-row">
+                        <button class="console-button console-button-secondary" type="button" @onclick="AddAlias" data-alias-add>Add field alias</button>
+                    </div>
+                </article>
+
+                <div class="console-panel-grid">
+                    <article class="console-panel">
+                        <p class="console-kicker">Capabilities</p>
+                        <h2>Exposed capabilities</h2>
+                        <label class="console-field">
+                            <span>Capabilities</span>
+                            <textarea class="console-input" rows="3" @bind="_capabilities" data-overrides-capabilities
+                                      placeholder="Query, Create, Update, Delete"></textarea>
+                            <small>Comma- or newline-separated. Leave blank to clear.</small>
+                        </label>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Formats</p>
+                        <h2>Supported formats</h2>
+                        <label class="console-field">
+                            <span>Supported formats</span>
+                            <textarea class="console-input" rows="3" @bind="_supportedFormats" data-overrides-formats
+                                      placeholder="json, geojson, pbf"></textarea>
+                            <small>Comma- or newline-separated. Leave blank to clear.</small>
+                        </label>
+                    </article>
+                </div>
+
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_saving" @onclick="SaveAsync" data-overrides-save>
+                        @(_saving ? "Saving…" : "Save publication overrides")
+                    </button>
+                </div>
+
+                @if (_result is { } r)
+                {
+                    <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-overrides-result>
+                        <p class="console-kicker">@r.State</p>
+                        <p>@r.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string? PublicationId { get; set; }
+
+    private string? _publicationIdInput;
+
+    private ConsolePublicationOverrides _overrides = ConsolePublicationOverrides.Unbound("Loading…");
+
+    private string? _titleOverride;
+    private bool _isPrimary;
+    private string _capabilities = string.Empty;
+    private string _supportedFormats = string.Empty;
+    private readonly List<AliasRow> _aliases = new();
+
+    private bool _saving;
+    private ConsoleSavePublicationOverridesResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _result = null;
+        if (string.IsNullOrWhiteSpace(PublicationId))
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private void GoToPublication()
+    {
+        if (string.IsNullOrWhiteSpace(_publicationIdInput))
+        {
+            return;
+        }
+
+        Nav.NavigateTo($"/operate/publications/{Uri.EscapeDataString(_publicationIdInput.Trim())}/overrides");
+    }
+
+    private async Task LoadAsync()
+    {
+        _overrides = await Overrides.GetOverridesAsync(PublicationId!);
+        if (!_overrides.Bound)
+        {
+            return;
+        }
+
+        _titleOverride = _overrides.TitleOverride;
+        _isPrimary = _overrides.IsPrimary;
+        _capabilities = string.Join(", ", _overrides.Capabilities);
+        _supportedFormats = string.Join(", ", _overrides.SupportedFormats);
+        _aliases.Clear();
+        foreach (var alias in _overrides.FieldAliases)
+        {
+            _aliases.Add(AliasRow.From(alias));
+        }
+    }
+
+    private void AddAlias() => _aliases.Add(new AliasRow());
+
+    private void RemoveAlias(AliasRow row) => _aliases.Remove(row);
+
+    // Splits a comma-/newline-separated textbox into a trimmed, de-duplicated, non-empty array. Returns an
+    // empty array (not null) when blank so the PUT clears the list.
+    private static string[] ParseList(string? raw) =>
+        (raw ?? string.Empty)
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _result = null;
+        try
+        {
+            var overrides = new ConsolePublicationOverrides
+            {
+                Bound = true,
+                PublicationId = PublicationId,
+                // A blank box clears the title server-side (empty string), matching the form's intent.
+                TitleOverride = string.IsNullOrWhiteSpace(_titleOverride) ? string.Empty : _titleOverride.Trim(),
+                IsPrimary = _isPrimary,
+                Capabilities = ParseList(_capabilities),
+                SupportedFormats = ParseList(_supportedFormats),
+                FieldAliases = _aliases
+                    .Where(row => !string.IsNullOrWhiteSpace(row.Field))
+                    .Select(row => row.ToModel())
+                    .ToArray(),
+            };
+
+            _result = await Overrides.SaveOverridesAsync(PublicationId!, overrides);
+
+            if (_result.Succeeded)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // Mutable per-row edit model bound to the alias inputs (the domain record is immutable).
+    private sealed class AliasRow
+    {
+        public string? Field { get; set; }
+        public string? Alias { get; set; }
+
+        public static AliasRow From(ConsolePublicationFieldAlias alias) => new()
+        {
+            Field = alias.Field,
+            Alias = alias.Alias,
+        };
+
+        public ConsolePublicationFieldAlias ToModel() => new()
+        {
+            Field = string.IsNullOrWhiteSpace(Field) ? null : Field.Trim(),
+            Alias = string.IsNullOrWhiteSpace(Alias) ? null : Alias.Trim(),
+        };
+    }
+}

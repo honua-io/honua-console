@@ -388,8 +388,10 @@
                                         <label class="studio-form-label" data-share-opendata-hero>
                                             <span>Page hero</span>
                                             <div class="console-button-row">
-                                                <button class="console-button console-button-ghost" type="button" disabled>Upload…</button>
-                                                <button class="console-button console-button-ghost" type="button" disabled>Use map preview</button>
+                                                <button class="console-button console-button-ghost" type="button" disabled
+                                                        title="Open-data page hero authoring is not bound yet; no honua-server contract is exposed.">Upload…</button>
+                                                <button class="console-button console-button-ghost" type="button" disabled
+                                                        title="Open-data page hero authoring is not bound yet; no honua-server contract is exposed.">Use map preview</button>
                                             </div>
                                         </label>
                                         <label class="studio-form-label" data-share-opendata-intro>
@@ -518,8 +520,10 @@
                                 <h3>Scheduled exports</h3>
                             </div>
                             <div class="console-button-row">
-                                <button class="console-button console-button-ghost" type="button" disabled>Run now</button>
-                                <button class="console-button" type="button" disabled>+ New export</button>
+                                <button class="console-button console-button-ghost" type="button" disabled
+                                        title="Scheduled exports are authored on honua-server; the export registry contract is not bound yet.">Run now</button>
+                                <button class="console-button" type="button" disabled
+                                        title="Scheduled exports are authored on honua-server; the export registry contract is not bound yet.">+ New export</button>
                             </div>
                         </div>
                         <p class="console-muted">Scheduled exports to S3, SFTP, webhook targets, and audit snapshots run as honua-server jobs. They are authored and monitored on the unified Console runtime; export runs and history surface in Operate jobs and the Event viewer. The scheduled-export registry is server-owned — Console renders it from honua-server and never fabricates export rows.</p>
@@ -557,7 +561,8 @@
                                                 <td><code class="console-inline-code">@export.Schedule</code></td>
                                                 <td class="console-muted">@export.LastRun</td>
                                                 <td><span class="console-status @StateClass(export.State)" data-share-export-state="@export.State">@StateLabel(export.State)</span></td>
-                                                <td><button class="console-button console-button-ghost" type="button" disabled>Edit</button></td>
+                                                <td><button class="console-button console-button-ghost" type="button" disabled
+                                                        title="Scheduled exports are authored on honua-server; the export registry contract is not bound yet.">Edit</button></td>
                                             </tr>
                                         }
                                     }

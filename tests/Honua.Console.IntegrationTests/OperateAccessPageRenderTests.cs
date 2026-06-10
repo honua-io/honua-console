@@ -67,26 +67,50 @@ public sealed class OperateAccessPageRenderTests
         Assert.Contains("data-rbac-grant=\"not-granted\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-rbac-legend", page.Markup, StringComparison.Ordinal);
 
-        // Counts strip and a custom-role action gated on the caller facet.
+        // Counts strip.
         Assert.Contains("8 built-in roles", page.Markup, StringComparison.Ordinal);
         Assert.Contains("2 custom", page.Markup, StringComparison.Ordinal);
         Assert.Contains("14 members affected", page.Markup, StringComparison.Ordinal);
+
+        // Role authoring + audit are now bound to the server contract (#1162): '+ Custom role' is enabled
+        // when the caller may manage roles (SampleOverview sets CanManageRoles true), and 'Roles audit' is
+        // enabled once the overview loads.
         var customRole = page.Find("[data-rbac-custom-role]");
         Assert.False(customRole.HasAttribute("disabled"));
+        Assert.NotNull(page.Find("[data-rbac-audit]"));
     }
 
     [Fact]
-    public void RolesOverview_WhenCannotManage_DisablesCustomRoleAction()
+    public void RolesOverview_CustomRoleAndAudit_EnabledWhenCallerCanManageRoles()
     {
-        var overview = SampleOverview() with { CanManageRoles = false };
-        var data = new FakeRbacDataSource { OverviewLoad = new RbacOverviewLoad(overview, []) };
+        // With the manage-roles permission, both actions are enabled and wired to the server authoring/audit
+        // contract — no longer a read-only projection.
+        var canManage = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(SampleOverview() with { CanManageRoles = true }, [])
+        };
 
-        var page = RenderRoles(data);
+        var page = RenderRoles(canManage);
 
         page.WaitForAssertion(
             () => Assert.NotNull(page.Find("[data-rbac-custom-role]")),
             TimeSpan.FromSeconds(5));
-        Assert.True(page.Find("[data-rbac-custom-role]").HasAttribute("disabled"));
+        Assert.False(page.Find("[data-rbac-custom-role]").HasAttribute("disabled"));
+        Assert.False(page.Find("[data-rbac-audit]").HasAttribute("disabled"));
+
+        // Without the manage-roles permission, '+ Custom role' is honestly disabled with the reason.
+        var cannotManage = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(SampleOverview() with { CanManageRoles = false }, [])
+        };
+
+        var page2 = RenderRoles(cannotManage);
+
+        page2.WaitForAssertion(
+            () => Assert.NotNull(page2.Find("[data-rbac-custom-role]")),
+            TimeSpan.FromSeconds(5));
+        Assert.True(page2.Find("[data-rbac-custom-role]").HasAttribute("disabled"));
+        Assert.Contains("manage-roles", page2.Find("[data-rbac-custom-role]").GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -161,7 +185,7 @@ public sealed class OperateAccessPageRenderTests
     }
 
     [Fact]
-    public void Members_OpenInvite_GatesSendOnValidation_AndBindsLimitsInputs()
+    public void Members_OpenInvite_SendIsHonestlyDisabled_ButClientValidationStillSurfaces()
     {
         var data = new FakeRbacDataSource
         {
@@ -177,16 +201,17 @@ public sealed class OperateAccessPageRenderTests
             () => Assert.NotNull(page.Find("[data-rbac-invite-send]")),
             TimeSpan.FromSeconds(5));
 
-        // Drawer opens with no email and only dev selected by default -> email blocker gates Send.
+        // Membership/invitations are a READ-ONLY projection of the server RBAC contract — there is no
+        // invite-send mutation surface — so Send is honestly disabled (never a clickable no-op) regardless
+        // of client-side validity. (Charter §11.)
         Assert.True(page.Find("[data-rbac-invite-send]").HasAttribute("disabled"));
 
-        // Provide a valid email -> drawer becomes submittable (dev scope is on by default).
+        // Provide a valid email + the default dev scope: Send stays disabled (no server contract) but the
+        // drawer remains a live scoped-invite preview, so its client-side CIDR validation still surfaces.
         page.Find("input[placeholder='name@example.gov']").Change("r.kim@example.gov");
-        page.WaitForAssertion(
-            () => Assert.False(page.Find("[data-rbac-invite-send]").HasAttribute("disabled")),
-            TimeSpan.FromSeconds(5));
+        Assert.True(page.Find("[data-rbac-invite-send]").HasAttribute("disabled"));
 
-        // The newly @bind-wired IP allowlist input round-trips and validates as CIDR.
+        // The @bind-wired IP allowlist input round-trips and validates as CIDR.
         page.Find("input[placeholder='(none · global)']").Change("not-a-cidr");
         page.WaitForAssertion(
             () => Assert.Contains("valid CIDR block", page.Markup, StringComparison.Ordinal),
@@ -373,5 +398,18 @@ public sealed class OperateAccessPageRenderTests
 
         public Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default) =>
             Task.FromResult(MembershipLoad);
+
+        public RbacRoleMutationResult CreateResult { get; set; } = new(true, null);
+        public RbacRoleMutationResult DeleteResult { get; set; } = new(true, null);
+        public RbacAuditLoad AuditLoad { get; set; } = new(Array.Empty<RbacAuditEntryView>(), Array.Empty<RbacCapabilityState>());
+
+        public Task<RbacRoleMutationResult> CreateRoleAsync(string workspaceId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CreateResult);
+
+        public Task<RbacRoleMutationResult> DeleteRoleAsync(string workspaceId, string roleId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(DeleteResult);
+
+        public Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AuditLoad);
     }
 }

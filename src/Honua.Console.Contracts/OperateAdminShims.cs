@@ -20,7 +20,7 @@ namespace Honua.Console.Contracts;
 // to SDK types. Do not add a sibling-repo ProjectReference. See SDK_SHIM_POLICY "Active Shims".
 public sealed record HonuaAdminOperateClientOptions(Uri BaseUri, string? ApiKey = null);
 
-public interface IHonuaAdminOperateClient
+public partial interface IHonuaAdminOperateClient
 {
     Uri BaseUri { get; }
 
@@ -132,6 +132,65 @@ public interface IHonuaAdminOperateClient
         HonuaAdminLayerFieldsUpdate request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reads a layer's persisted display hints — min/max scale, default visibility, display field, queryable,
+    /// hasZ/hasM (<c>GET /api/v1/admin/metadata/layers/{layerId}/display</c>). <paramref name="layerId"/> is the
+    /// global id.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> GetLayerDisplayAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a layer's display hints (<c>PUT /api/v1/admin/metadata/layers/{layerId}/display</c>). A null/omitted
+    /// request field leaves the corresponding server value unchanged; the server re-reads and returns the
+    /// persisted display projection.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> UpdateLayerDisplayAsync(
+        int layerId,
+        HonuaAdminLayerDisplayUpdate request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a layer's persisted editor-tracking + edit-capability metadata — globalId/creator/created-at/
+    /// editor/updated-at fields, canModify, supportsAttachments, supportsRelatedRecords
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/editing</c>). <paramref name="layerId"/> is the global id.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> GetLayerEditingAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a layer's editor-tracking + edit-capability metadata
+    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/editing</c>). A null/omitted request field leaves the
+    /// corresponding server value unchanged; the server re-reads and returns the persisted editing projection.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> UpdateLayerEditingAsync(
+        int layerId,
+        HonuaAdminLayerEditingUpdate request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a layer's persisted spatial/CRS metadata — supported CRS list, storage CRS, storage-CRS coordinate
+    /// epoch (<c>GET /api/v1/admin/metadata/layers/{layerId}/spatial</c>). <paramref name="layerId"/> is the
+    /// global id. SRID/geometry are reported but not authored by the matching PUT.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> GetLayerSpatialAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a layer's CRS-list/output spatial metadata only — supported CRS list, storage CRS, storage-CRS
+    /// coordinate epoch (<c>PUT /api/v1/admin/metadata/layers/{layerId}/spatial</c>). The stored SRID/geometry
+    /// are untouched. For the supported-CRS list: omit = unchanged, <c>[]</c> = clear; the explicit
+    /// clear-storage flags clear the scalar output fields. The server re-reads and returns the persisted spatial
+    /// projection.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> UpdateLayerSpatialAsync(
+        int layerId,
+        HonuaAdminLayerSpatialUpdate request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminPublishedLayerSummary[]>> ListConnectionLayersAsync(
         string connectionId,
         string? serviceName = null,
@@ -192,6 +251,325 @@ public interface IHonuaAdminOperateClient
         HonuaAdminUpdateAccessPolicyRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates a service's MapServer render settings (max/default image size, DPI, default format,
+    /// transparency, max features per layer) through the real honua-server admin endpoint
+    /// (<c>PUT /api/v1/admin/services/{serviceName}/mapserver</c>, mirrors <c>UpdateMapServerSettingsRequest</c>).
+    /// Null request fields are left unchanged server-side; the server re-reads and returns the updated settings
+    /// projection. Note (gap analysis): this PUT may answer <c>501 Not Implemented</c> on a server build that
+    /// has not landed the MapServer-settings write path yet — the resulting issue carries an "Unsupported"
+    /// state and the 501 status so the caller can surface it honestly rather than fabricating a success.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceMapServerSettingsAsync(
+        string serviceName,
+        HonuaAdminUpdateMapServerSettingsRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a service's temporal time-info (start/end time fields + track id field) through the real
+    /// honua-server admin endpoint (<c>PUT /api/v1/admin/services/{serviceName}/timeinfo</c>, mirrors
+    /// <c>UpdateTimeInfoRequest</c>). Null fields clear the corresponding time field server-side; the server
+    /// re-reads and returns the updated settings projection so the result reflects the post-change state.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceTimeInfoAsync(
+        string serviceName,
+        HonuaAdminUpdateTimeInfoRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a service's current settings caps (maxRecordCount, query timeout, attachment caps, supported
+    /// formats, …) through the real honua-server admin endpoint
+    /// (<c>GET /api/v1/admin/services/{serviceName}/settings-caps</c>). Returns the caps projection or a
+    /// status-mapped <see cref="HonuaAdminEndpointIssue"/> (Unsupported on 404/501, etc.).
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> GetServiceSettingsCapsAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetServiceSettingsCapsAsync.");
+
+    /// <summary>
+    /// Updates a service's settings caps — request-size and result-size limits the server enforces on this
+    /// service (maxRecordCount, defaultRecordCount, maxFeaturesPerLayer, queryTimeoutMs, maxEditsPerTransaction,
+    /// maxPayloadBytes, supportedFormats, defaultFormat, defaultTileMatrixSet, supportsAttachments,
+    /// maxAttachmentSizeBytes) through the real honua-server admin endpoint
+    /// (<c>PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, mirrors
+    /// <c>UpdateServiceSettingsCapsRequest</c>). Null/omitted fields are left unchanged server-side; the server
+    /// rejects negative caps. The server re-reads and returns the updated caps projection so the result
+    /// reflects the canonical post-change state. May answer <c>501 Not Implemented</c> on a server build that
+    /// has not landed the write path — the resulting issue carries an "Unsupported" state and the 501 status so
+    /// the caller can surface it honestly rather than fabricating a success.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> UpdateServiceSettingsCapsAsync(
+        string serviceName,
+        HonuaAdminUpdateServiceSettingsCapsRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateServiceSettingsCapsAsync.");
+
+    /// <summary>
+    /// Reads a layer's persisted 3D extrusion + 3D symbology metadata
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/extrusion</c>). <paramref name="layerId"/> is the global
+    /// id. Returns the extrusion (height/base-height field, unit, default height, material hint) and the 3D
+    /// symbology (default RGB color + opacity and the attribute-comparison rules) the server has persisted.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> GetLayerExtrusionAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerExtrusionAsync.");
+
+    /// <summary>
+    /// Updates a layer's 3D extrusion + 3D symbology metadata
+    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/extrusion</c>). A null section leaves it unchanged; the
+    /// matching clear flag removes it. heightField / baseHeightField / rule attributes are validated server-side
+    /// against the layer schema. The server re-reads and returns the persisted projection.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> UpdateLayerExtrusionAsync(
+        int layerId,
+        HonuaAdminLayerExtrusionUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerExtrusionAsync.");
+
+    /// <summary>
+    /// Reads a layer's persisted lifecycle status — lifecycle stage + operational state
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/status</c>). <paramref name="layerId"/> is the global id.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> GetLayerStatusAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerStatusAsync.");
+
+    /// <summary>
+    /// Updates a layer's lifecycle status (<c>PUT /api/v1/admin/metadata/layers/{layerId}/status</c>). At least
+    /// one of lifecycle/state is required; a null field leaves the other unchanged. The server re-reads and
+    /// returns the persisted status.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> UpdateLayerStatusAsync(
+        int layerId,
+        HonuaAdminLayerStatusUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerStatusAsync.");
+
+    /// <summary>
+    /// Reads a publication's persisted overrides — the title override, per-publication field aliases,
+    /// capabilities, supported formats, and whether this is the primary publication of its layer
+    /// (<c>GET /api/v1/admin/metadata/publications/{publicationId}/overrides</c>). <paramref name="publicationId"/>
+    /// is the publication's metadata id (a layer's exposure within a service). Returns the overrides projection
+    /// or a status-mapped <see cref="HonuaAdminEndpointIssue"/> (Unsupported on 404/501, etc.).
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> GetPublicationOverridesAsync(
+        string publicationId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetPublicationOverridesAsync.");
+
+    /// <summary>
+    /// Updates a publication's overrides — titleOverride, per-publication field aliases, capabilities,
+    /// supported formats, and isPrimary
+    /// (<c>PUT /api/v1/admin/metadata/publications/{publicationId}/overrides</c>). A null scalar leaves the
+    /// corresponding value unchanged; an empty string clears the title; an empty array/map clears that list/map.
+    /// The server re-reads and returns the persisted overrides projection so the result reflects the canonical
+    /// post-change state. 404 when the publication id is unknown.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> UpdatePublicationOverridesAsync(
+        string publicationId,
+        HonuaAdminPublicationOverridesUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdatePublicationOverridesAsync.");
+
+    /// <summary>
+    /// Reads a layer's persisted relationships (origin/destination, cardinality, esriRelationshipId)
+    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/relationships</c>). <paramref name="layerId"/> is the
+    /// global id. FeatureServer layer metadata emits these as <c>relationships[]</c>.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces a layer's relationships (<c>PUT /api/v1/admin/metadata/layers/{layerId}/relationships</c>).
+    /// The PUT body carries the full relationship set; the server re-reads and returns the persisted set.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> UpdateLayerRelationshipsAsync(
+        int layerId,
+        HonuaAdminLayerRelationshipsUpdate request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a layer's persisted subtype set — subtype field, default subtype code, per-subtype field
+    /// default/domain overrides (<c>GET /api/v1/admin/metadata/layers/{layerId}/subtypes</c>).
+    /// <paramref name="layerId"/> is the global id.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> GetLayerSubtypesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerSubtypesAsync.");
+
+    /// <summary>
+    /// Updates a layer's subtype set (<c>PUT /api/v1/admin/metadata/layers/{layerId}/subtypes</c>).
+    /// <c>clear:true</c> removes the set; a null <c>subtypes</c> keeps the existing set; the subtype field /
+    /// override keys are validated server-side against the schema. The server re-reads and returns the
+    /// persisted subtype projection.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> UpdateLayerSubtypesAsync(
+        int layerId,
+        HonuaAdminLayerSubtypesUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerSubtypesAsync.");
+
+    /// <summary>
+    /// Reads a layer's persisted attribute rules — calculation/constraint/validation rules with their
+    /// triggering events (<c>GET /api/v1/admin/metadata/layers/{layerId}/attribute-rules</c>).
+    /// <paramref name="layerId"/> is the global id.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> GetLayerAttributeRulesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerAttributeRulesAsync.");
+
+    /// <summary>
+    /// Replaces a layer's attribute rules (<c>PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules</c>).
+    /// An empty <c>rules</c> clears the set; duplicate rule names are rejected server-side. The server re-reads
+    /// and returns the persisted rule set.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes) compile without change; the real
+    /// <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> UpdateLayerAttributeRulesAsync(
+        int layerId,
+        HonuaAdminLayerAttributeRulesUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerAttributeRulesAsync.");
+
+    /// <summary>
+    /// Reads a layer's persisted permanent filter — the server-enforced query filter applied to every read of
+    /// the layer (<c>GET /api/v1/admin/metadata/layers/{layerId}/filter</c>). <paramref name="layerId"/> is the
+    /// global id. The projection's <c>PermanentFilter</c> is null when no filter is saved.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes that hand-roll the full interface) compile
+    /// without change; the real <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> GetLayerFilterAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide GetLayerFilterAsync.");
+
+    /// <summary>
+    /// Authors a layer's permanent filter (<c>PUT /api/v1/admin/metadata/layers/{layerId}/filter</c>). The PUT
+    /// body carries <c>{ permanentFilter: { expression, language } }</c>; send a request whose
+    /// <see cref="HonuaAdminLayerFilterUpdate.PermanentFilter"/> is null to CLEAR the saved filter. The server
+    /// validates the expression against the layer schema and answers <c>400</c> with a reason on a bad
+    /// expression; the resulting issue carries that reason so the console surfaces it honestly. The server
+    /// re-reads and returns the persisted filter projection.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so existing implementors (e.g. test fakes that hand-roll the full interface) compile
+    /// without change; the real <see cref="HonuaAdminOperateHttpClient"/> overrides it to call the server.
+    /// </remarks>
+    Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> UpdateLayerFilterAsync(
+        int layerId,
+        HonuaAdminLayerFilterUpdate request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "This IHonuaAdminOperateClient implementation does not provide UpdateLayerFilterAsync.");
+
+    /// <summary>
+    /// Reads a layer's discovery / catalog metadata — title, description, keywords, themes, language, license,
+    /// attribution, publisher, contact point, links (<c>GET /api/v1/admin/metadata/layers/{layerId}/discovery</c>).
+    /// <paramref name="layerId"/> is the global id. This metadata drives the layer's OGC API Records / STAC /
+    /// DCAT / Esri documentInfo output.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(
+        int layerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a layer's discovery / catalog metadata
+    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/discovery</c>). A null/omitted scalar leaves that field
+    /// unchanged server-side; an empty array (<c>[]</c>) clears a list. The server re-reads and returns the
+    /// persisted metadata.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(
+        int layerId,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a service's discovery / catalog metadata
+    /// (<c>GET /api/v1/admin/services/{serviceName}/discovery</c>). Drives the service's OGC API Records / STAC /
+    /// DCAT / Esri documentInfo output.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a service's discovery / catalog metadata
+    /// (<c>PUT /api/v1/admin/services/{serviceName}/discovery</c>). A null/omitted scalar leaves that field
+    /// unchanged server-side; an empty array (<c>[]</c>) clears a list. The server re-reads and returns the
+    /// persisted metadata.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(
+        string serviceName,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default);
+
     Task<HonuaAdminEndpointResult<HonuaAdminVersionResponse>> GetVersionAsync(
         CancellationToken cancellationToken = default);
 
@@ -206,9 +584,19 @@ public interface IHonuaAdminOperateClient
 
     Task<HonuaAdminEndpointResult<HonuaAdminOidcProviderResponse[]>> ListOidcProvidersAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET-probes an admin endpoint and reports reachability: <c>Data=true</c> on a 2xx, otherwise the
+    /// status-mapped issue (Unsupported on 404/501, Missing permission on 401/403, Unavailable otherwise).
+    /// Used to drive capability states from the live server instead of hardcoded assumptions.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<bool>> ProbeEndpointAsync(
+        string contract,
+        string relativePath,
+        CancellationToken cancellationToken = default);
 }
 
-public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDisposable
+public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -728,6 +1116,271 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             cancellationToken);
     }
 
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceMapServerSettingsAsync(
+        string serviceName,
+        HonuaAdminUpdateMapServerSettingsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminUpdateMapServerSettingsRequest, HonuaAdminServiceSettingsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/mapserver",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/mapserver",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsResponse>> UpdateServiceTimeInfoAsync(
+        string serviceName,
+        HonuaAdminUpdateTimeInfoRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminUpdateTimeInfoRequest, HonuaAdminServiceSettingsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/timeinfo",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/timeinfo",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> GetServiceSettingsCapsAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        return GetApiResponseAsync<HonuaAdminServiceSettingsCapsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings-caps",
+            "GET /api/v1/admin/services/{serviceName}/settings-caps",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminServiceSettingsCapsResponse>> UpdateServiceSettingsCapsAsync(
+        string serviceName,
+        HonuaAdminUpdateServiceSettingsCapsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminUpdateServiceSettingsCapsRequest, HonuaAdminServiceSettingsCapsResponse>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/settings-caps",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/settings-caps",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> GetLayerExtrusionAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerExtrusion>(
+            $"/api/v1/admin/metadata/layers/{layerId}/extrusion",
+            "GET /api/v1/admin/metadata/layers/{layerId}/extrusion",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerExtrusion>> UpdateLayerExtrusionAsync(
+        int layerId,
+        HonuaAdminLayerExtrusionUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerExtrusionUpdate, HonuaAdminLayerExtrusion>(
+            $"/api/v1/admin/metadata/layers/{layerId}/extrusion",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/extrusion",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> GetLayerStatusAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerStatus>(
+            $"/api/v1/admin/metadata/layers/{layerId}/status",
+            "GET /api/v1/admin/metadata/layers/{layerId}/status",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerStatus>> UpdateLayerStatusAsync(
+        int layerId,
+        HonuaAdminLayerStatusUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerStatusUpdate, HonuaAdminLayerStatus>(
+            $"/api/v1/admin/metadata/layers/{layerId}/status",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/status",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> GetPublicationOverridesAsync(
+        string publicationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
+
+        return GetApiResponseAsync<HonuaAdminPublicationOverrides>(
+            $"/api/v1/admin/metadata/publications/{Uri.EscapeDataString(publicationId)}/overrides",
+            "GET /api/v1/admin/metadata/publications/{publicationId}/overrides",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminPublicationOverrides>> UpdatePublicationOverridesAsync(
+        string publicationId,
+        HonuaAdminPublicationOverridesUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publicationId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminPublicationOverridesUpdate, HonuaAdminPublicationOverrides>(
+            $"/api/v1/admin/metadata/publications/{Uri.EscapeDataString(publicationId)}/overrides",
+            request,
+            "PUT /api/v1/admin/metadata/publications/{publicationId}/overrides",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> GetLayerRelationshipsAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerRelationships>(
+            $"/api/v1/admin/metadata/layers/{layerId}/relationships",
+            "GET /api/v1/admin/metadata/layers/{layerId}/relationships",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerRelationships>> UpdateLayerRelationshipsAsync(
+        int layerId,
+        HonuaAdminLayerRelationshipsUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerRelationshipsUpdate, HonuaAdminLayerRelationships>(
+            $"/api/v1/admin/metadata/layers/{layerId}/relationships",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/relationships",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> GetLayerSubtypesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerSubtypes>(
+            $"/api/v1/admin/metadata/layers/{layerId}/subtypes",
+            "GET /api/v1/admin/metadata/layers/{layerId}/subtypes",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSubtypes>> UpdateLayerSubtypesAsync(
+        int layerId,
+        HonuaAdminLayerSubtypesUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerSubtypesUpdate, HonuaAdminLayerSubtypes>(
+            $"/api/v1/admin/metadata/layers/{layerId}/subtypes",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/subtypes",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> GetLayerAttributeRulesAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerAttributeRules>(
+            $"/api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            "GET /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerAttributeRules>> UpdateLayerAttributeRulesAsync(
+        int layerId,
+        HonuaAdminLayerAttributeRulesUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerAttributeRulesUpdate, HonuaAdminLayerAttributeRules>(
+            $"/api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/attribute-rules",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> GetLayerFilterAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerFilter>(
+            $"/api/v1/admin/metadata/layers/{layerId}/filter",
+            "GET /api/v1/admin/metadata/layers/{layerId}/filter",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerFilter>> UpdateLayerFilterAsync(
+        int layerId,
+        HonuaAdminLayerFilterUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerFilterUpdate, HonuaAdminLayerFilter>(
+            $"/api/v1/admin/metadata/layers/{layerId}/filter",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/filter",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetLayerDiscoveryAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/metadata/layers/{layerId}/discovery",
+            "GET /api/v1/admin/metadata/layers/{layerId}/discovery",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateLayerDiscoveryAsync(
+        int layerId,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminDiscoveryMetadataUpdate, HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/metadata/layers/{layerId}/discovery",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/discovery",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> GetServiceDiscoveryAsync(
+        string serviceName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        return GetApiResponseAsync<HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/discovery",
+            "GET /api/v1/admin/services/{serviceName}/discovery",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminDiscoveryMetadata>> UpdateServiceDiscoveryAsync(
+        string serviceName,
+        HonuaAdminDiscoveryMetadataUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminDiscoveryMetadataUpdate, HonuaAdminDiscoveryMetadata>(
+            $"/api/v1/admin/services/{Uri.EscapeDataString(serviceName)}/discovery",
+            request,
+            "PUT /api/v1/admin/services/{serviceName}/discovery",
+            cancellationToken);
+    }
+
     public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
         int layerId,
         CancellationToken cancellationToken = default) =>
@@ -747,6 +1400,72 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             $"/api/v1/admin/metadata/layers/{layerId}/fields",
             request,
             "PUT /api/v1/admin/metadata/layers/{layerId}/fields",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> GetLayerDisplayAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerDisplay>(
+            $"/api/v1/admin/metadata/layers/{layerId}/display",
+            "GET /api/v1/admin/metadata/layers/{layerId}/display",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerDisplay>> UpdateLayerDisplayAsync(
+        int layerId,
+        HonuaAdminLayerDisplayUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerDisplayUpdate, HonuaAdminLayerDisplay>(
+            $"/api/v1/admin/metadata/layers/{layerId}/display",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/display",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> GetLayerEditingAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerEditing>(
+            $"/api/v1/admin/metadata/layers/{layerId}/editing",
+            "GET /api/v1/admin/metadata/layers/{layerId}/editing",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerEditing>> UpdateLayerEditingAsync(
+        int layerId,
+        HonuaAdminLayerEditingUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerEditingUpdate, HonuaAdminLayerEditing>(
+            $"/api/v1/admin/metadata/layers/{layerId}/editing",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/editing",
+            cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> GetLayerSpatialAsync(
+        int layerId,
+        CancellationToken cancellationToken = default) =>
+        GetApiResponseAsync<HonuaAdminLayerSpatial>(
+            $"/api/v1/admin/metadata/layers/{layerId}/spatial",
+            "GET /api/v1/admin/metadata/layers/{layerId}/spatial",
+            cancellationToken);
+
+    public Task<HonuaAdminEndpointResult<HonuaAdminLayerSpatial>> UpdateLayerSpatialAsync(
+        int layerId,
+        HonuaAdminLayerSpatialUpdate request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PutApiResponseAsync<HonuaAdminLayerSpatialUpdate, HonuaAdminLayerSpatial>(
+            $"/api/v1/admin/metadata/layers/{layerId}/spatial",
+            request,
+            "PUT /api/v1/admin/metadata/layers/{layerId}/spatial",
             cancellationToken);
     }
 
@@ -784,6 +1503,33 @@ public sealed class HonuaAdminOperateHttpClient : IHonuaAdminOperateClient, IDis
             "/api/v1/admin/oidc/providers/",
             "GET /api/v1/admin/oidc/providers",
             cancellationToken);
+
+    public async Task<HonuaAdminEndpointResult<bool>> ProbeEndpointAsync(
+        string contract,
+        string relativePath,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        try
+        {
+            using var response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            return response.IsSuccessStatusCode
+                ? HonuaAdminEndpointResult<bool>.FromData(true)
+                : HonuaAdminEndpointResult<bool>.FromIssue(CreateIssue(contract, response.StatusCode));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return HonuaAdminEndpointResult<bool>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unavailable", contract, $"The Honua server endpoint could not be reached: {ex.Message}"));
+        }
+    }
 
     public void Dispose() => _httpClient.Dispose();
 
@@ -1340,7 +2086,7 @@ public sealed record HonuaAdminLayerFields
     public IReadOnlyList<HonuaAdminLayerField> Fields { get; init; } = [];
 }
 
-/// <summary>One field's persisted configuration: type, alias, coded-value domain, visibility.</summary>
+/// <summary>One field's persisted configuration: type, alias, domain, visibility, default value.</summary>
 public sealed record HonuaAdminLayerField
 {
     public string? Name { get; init; }
@@ -1352,17 +2098,37 @@ public sealed record HonuaAdminLayerField
     public HonuaAdminFieldDomain? Domain { get; init; }
 
     public bool Hidden { get; init; }
+
+    /// <summary>
+    /// The field's persisted default value (any JSON scalar) as emitted by the server's field metadata, or
+    /// null when the field has no default. Round-tripped so the editor reflects the persisted default.
+    /// </summary>
+    public JsonElement? DefaultValue { get; init; }
 }
 
-/// <summary>A coded-value domain on a field.</summary>
+/// <summary>
+/// A domain on a field. <see cref="Type"/> is <c>"codedValue"</c> (carry <see cref="CodedValues"/>) or
+/// <c>"range"</c> (carry <see cref="Range"/> as a two-element [min,max] array). The optional
+/// <see cref="MergePolicy"/>/<see cref="SplitPolicy"/> are Esri policy tokens
+/// (e.g. <c>esriMPTDefaultValue</c>, <c>esriSPTDuplicate</c>).
+/// </summary>
 public sealed record HonuaAdminFieldDomain
 {
     public string? Name { get; init; }
 
-    /// <summary>"codedValue" (the only kind the console authors).</summary>
+    /// <summary>"codedValue" or "range".</summary>
     public string? Type { get; init; }
 
     public IReadOnlyList<HonuaAdminCodedValue> CodedValues { get; init; } = [];
+
+    /// <summary>Two-element <c>[min, max]</c> bound for a range domain (min ≤ max); null for coded-value.</summary>
+    public IReadOnlyList<double>? Range { get; init; }
+
+    /// <summary>Esri merge-policy token (e.g. <c>esriMPTDefaultValue</c>); null leaves the server default.</summary>
+    public string? MergePolicy { get; init; }
+
+    /// <summary>Esri split-policy token (e.g. <c>esriSPTDuplicate</c>); null leaves the server default.</summary>
+    public string? SplitPolicy { get; init; }
 }
 
 /// <summary>A single code/label pair in a coded-value domain.</summary>
@@ -1379,17 +2145,568 @@ public sealed record HonuaAdminLayerFieldsUpdate
     public IReadOnlyList<HonuaAdminLayerFieldUpdate> Fields { get; init; } = [];
 }
 
-/// <summary>A single field update: set/clear the coded-value domain (and optionally alias/hidden).</summary>
+/// <summary>
+/// A single field update: set/clear the domain (coded-value or range) and optionally alias/hidden/default.
+/// </summary>
 public sealed record HonuaAdminLayerFieldUpdate
 {
     public required string Name { get; init; }
 
     public string? Alias { get; init; }
 
-    /// <summary>Set the coded-value domain; null clears it.</summary>
+    /// <summary>Set the domain (coded-value or range); null leaves the field's existing domain untouched.</summary>
     public HonuaAdminFieldDomain? Domain { get; init; }
 
     public bool? Hidden { get; init; }
+
+    /// <summary>
+    /// Set the field's default value (any JSON scalar). A JSON <c>null</c> (a <see cref="JsonElement"/> whose
+    /// <see cref="JsonElement.ValueKind"/> is <see cref="JsonValueKind.Null"/>) clears the default; a C# null
+    /// (the property left unset) leaves the existing default untouched. Serialized only when set so an
+    /// alias/hidden/domain-only update never disturbs the persisted default.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? DefaultValue { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted relationships (<c>GET /api/v1/admin/metadata/layers/{id}/relationships</c>). The
+/// server emits these as <c>relationships[]</c> on FeatureServer layer metadata.
+/// </summary>
+public sealed record HonuaAdminLayerRelationships
+{
+    public int LayerId { get; init; }
+
+    public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
+}
+
+/// <summary>
+/// One layer relationship: identity, the related layer, origin/destination role + cardinality, the join
+/// fields, and the Esri relationship id. Mirrors <c>MetadataV2Relationship</c>.
+/// </summary>
+public sealed record HonuaAdminLayerRelationship
+{
+    public string? Id { get; init; }
+
+    public string? Name { get; init; }
+
+    public int? RelatedLayerId { get; init; }
+
+    /// <summary>"origin" or "destination".</summary>
+    public string? Role { get; init; }
+
+    /// <summary>e.g. "one-to-many".</summary>
+    public string? Cardinality { get; init; }
+
+    public string? OriginField { get; init; }
+
+    public string? DestinationField { get; init; }
+
+    public int? EsriRelationshipId { get; init; }
+}
+
+/// <summary>Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/relationships</c> (replaces the set).</summary>
+public sealed record HonuaAdminLayerRelationshipsUpdate
+{
+    public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
+}
+
+/// <summary>
+/// A layer's persisted subtype set (<c>GET /api/v1/admin/metadata/layers/{id}/subtypes</c>): the subtype
+/// field, the default subtype code, and the per-subtype field overrides. <c>code</c>/<c>defaultSubtypeCode</c>
+/// are JSON-typed passthroughs (the server validates the subtype field/override keys against the schema).
+/// </summary>
+public sealed record HonuaAdminLayerSubtypes
+{
+    public int LayerId { get; init; }
+
+    public string? SubtypeField { get; init; }
+
+    public JsonElement? DefaultSubtypeCode { get; init; }
+
+    public IReadOnlyList<HonuaAdminLayerSubtype> Subtypes { get; init; } = [];
+}
+
+/// <summary>One subtype: its code (JSON scalar), display name, and per-field default/domain overrides.</summary>
+public sealed record HonuaAdminLayerSubtype
+{
+    public JsonElement? Code { get; init; }
+
+    public string? Name { get; init; }
+
+    /// <summary>Per-field overrides keyed by field name; each carries an optional default value and domain.</summary>
+    public IReadOnlyDictionary<string, HonuaAdminSubtypeFieldOverride> FieldOverrides { get; init; } =
+        new Dictionary<string, HonuaAdminSubtypeFieldOverride>(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>A subtype's override for one field: a default value (any JSON scalar) and/or a domain.</summary>
+public sealed record HonuaAdminSubtypeFieldOverride
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? DefaultValue { get; init; }
+
+    /// <summary>The override domain (JSON-typed passthrough; the server validates it against the schema).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Domain { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/subtypes</c>. <see cref="Clear"/> removes the
+/// whole subtype set; a null <see cref="Subtypes"/> keeps the existing set; the subtype field / override keys
+/// are validated server-side against the schema.
+/// </summary>
+public sealed record HonuaAdminLayerSubtypesUpdate
+{
+    public bool Clear { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SubtypeField { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? DefaultSubtypeCode { get; init; }
+
+    /// <summary>Null keeps the existing subtypes; a (possibly empty) list replaces them.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<HonuaAdminLayerSubtype>? Subtypes { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted attribute rules (<c>GET /api/v1/admin/metadata/layers/{id}/attribute-rules</c>):
+/// calculation / constraint / validation rules the server evaluates on insert/update/delete.
+/// </summary>
+public sealed record HonuaAdminLayerAttributeRules
+{
+    public int LayerId { get; init; }
+
+    public IReadOnlyList<HonuaAdminAttributeRule> Rules { get; init; } = [];
+}
+
+/// <summary>
+/// One attribute rule: a name, a <see cref="Type"/> (<c>calculation</c>/<c>constraint</c>/<c>validation</c>),
+/// the field it targets, the script expression, the triggering events, an error message, and an enabled flag.
+/// </summary>
+public sealed record HonuaAdminAttributeRule
+{
+    public string? Name { get; init; }
+
+    /// <summary>"calculation", "constraint", or "validation".</summary>
+    public string? Type { get; init; }
+
+    public string? FieldName { get; init; }
+
+    public string? ScriptExpression { get; init; }
+
+    /// <summary>Any of "insert", "update", "delete".</summary>
+    public IReadOnlyList<string> TriggeringEvents { get; init; } = [];
+
+    public string? ErrorMessage { get; init; }
+
+    public bool IsEnabled { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/attribute-rules</c>. An empty
+/// <see cref="Rules"/> clears the set; duplicate rule names are rejected server-side.
+/// </summary>
+public sealed record HonuaAdminLayerAttributeRulesUpdate
+{
+    public IReadOnlyList<HonuaAdminAttributeRule> Rules { get; init; } = [];
+}
+
+/// <summary>
+/// A layer's persisted permanent filter projection (<c>GET/PUT /api/v1/admin/metadata/layers/{id}/filter</c>):
+/// the global layer id and the server-enforced query filter. <see cref="PermanentFilter"/> is null when no
+/// filter is saved on the layer.
+/// </summary>
+public sealed record HonuaAdminLayerFilter
+{
+    public int LayerId { get; init; }
+
+    public HonuaAdminPermanentFilter? PermanentFilter { get; init; }
+}
+
+/// <summary>
+/// A server-enforced query filter expression and the language it is written in (<c>arcgis-sql</c> /
+/// <c>cql2-text</c> / <c>cql2-json</c>). The expression is validated server-side against the layer schema
+/// (max 4096 chars).
+/// </summary>
+public sealed record HonuaAdminPermanentFilter
+{
+    public string Expression { get; init; } = string.Empty;
+
+    /// <summary>"arcgis-sql" (default), "cql2-text", or "cql2-json".</summary>
+    public string? Language { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/filter</c>. Carries the permanent filter to
+/// author; set <see cref="PermanentFilter"/> to null to CLEAR the saved filter (the property is always
+/// serialized so the server receives <c>{ "permanentFilter": null }</c>).
+/// </summary>
+public sealed record HonuaAdminLayerFilterUpdate
+{
+    public HonuaAdminPermanentFilter? PermanentFilter { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted display hints (<c>GET /api/v1/admin/metadata/layers/{id}/display</c>): scale-dependent
+/// visibility window, default visibility, the display (label) field, queryable, and the hasZ/hasM geometry
+/// dimensionality flags.
+/// </summary>
+public sealed record HonuaAdminLayerDisplay
+{
+    public int LayerId { get; init; }
+
+    public double? MinScale { get; init; }
+
+    public double? MaxScale { get; init; }
+
+    public bool? DefaultVisibility { get; init; }
+
+    public string? DisplayField { get; init; }
+
+    public bool? Queryable { get; init; }
+
+    public bool? HasZ { get; init; }
+
+    public bool? HasM { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/display</c>. Every field is nullable; a
+/// null/omitted field leaves the corresponding server value unchanged.
+/// </summary>
+public sealed record HonuaAdminLayerDisplayUpdate
+{
+    public double? MinScale { get; init; }
+
+    public double? MaxScale { get; init; }
+
+    public bool? DefaultVisibility { get; init; }
+
+    public string? DisplayField { get; init; }
+
+    public bool? Queryable { get; init; }
+
+    public bool? HasZ { get; init; }
+
+    public bool? HasM { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted editor-tracking + edit-capability metadata
+/// (<c>GET /api/v1/admin/metadata/layers/{id}/editing</c>): the global-id / creator / created-at / editor /
+/// updated-at field names, whether features can be modified, and attachment / related-record support.
+/// </summary>
+public sealed record HonuaAdminLayerEditing
+{
+    public int LayerId { get; init; }
+
+    public string? GlobalIdField { get; init; }
+
+    public string? CreatorField { get; init; }
+
+    public string? CreatedAtField { get; init; }
+
+    public string? EditorField { get; init; }
+
+    public string? UpdatedAtField { get; init; }
+
+    public bool? CanModify { get; init; }
+
+    public bool? SupportsAttachments { get; init; }
+
+    public bool? SupportsRelatedRecords { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/editing</c>. Every field is nullable; a
+/// null/omitted field leaves the corresponding server value unchanged.
+/// </summary>
+public sealed record HonuaAdminLayerEditingUpdate
+{
+    public string? GlobalIdField { get; init; }
+
+    public string? CreatorField { get; init; }
+
+    public string? CreatedAtField { get; init; }
+
+    public string? EditorField { get; init; }
+
+    public string? UpdatedAtField { get; init; }
+
+    public bool? CanModify { get; init; }
+
+    public bool? SupportsAttachments { get; init; }
+
+    public bool? SupportsRelatedRecords { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted spatial/CRS metadata (<c>GET /api/v1/admin/metadata/layers/{id}/spatial</c>): the
+/// advertised supported-CRS list, the storage CRS, and its coordinate epoch. The stored SRID/geometry are
+/// reported here for context but are not authored by the matching PUT.
+/// </summary>
+public sealed record HonuaAdminLayerSpatial
+{
+    public int LayerId { get; init; }
+
+    /// <summary>Stored SRID (read-only context; not authored by the spatial PUT).</summary>
+    public int? Srid { get; init; }
+
+    /// <summary>Geometry type (read-only context; not authored by the spatial PUT).</summary>
+    public string? GeometryType { get; init; }
+
+    public IReadOnlyList<string> SupportedCrs { get; init; } = [];
+
+    public string? StorageCrs { get; init; }
+
+    public double? StorageCrsCoordinateEpoch { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/spatial</c>. Only the CRS-list/output fields are
+/// written (the stored SRID/geometry are untouched). For <see cref="SupportedCrs"/>: omit (null) = unchanged,
+/// <c>[]</c> = clear. The scalar output fields are cleared via the explicit clear flags rather than by sending
+/// null, so a present-but-null scalar is unambiguous.
+/// </summary>
+public sealed record HonuaAdminLayerSpatialUpdate
+{
+    /// <summary>Omit (null) leaves the list unchanged; <c>[]</c> clears it. Not serialized when null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? SupportedCrs { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StorageCrs { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? StorageCrsCoordinateEpoch { get; init; }
+
+    /// <summary>When true, clears the storage CRS server-side.</summary>
+    public bool ClearStorageCrs { get; init; }
+
+    /// <summary>When true, clears the storage-CRS coordinate epoch server-side.</summary>
+    public bool ClearStorageCrsCoordinateEpoch { get; init; }
+}
+
+/// <summary>
+/// An RGB color (0–255 per channel) used by 3D symbology
+/// (<c>GET/PUT /api/v1/admin/metadata/layers/{id}/extrusion</c>).
+/// </summary>
+public sealed record HonuaAdminRgbColor
+{
+    public int Red { get; init; }
+
+    public int Green { get; init; }
+
+    public int Blue { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted 3D extrusion settings: the attribute field that drives extruded height, an optional
+/// base-height field, the height unit, a fallback default height, and an optional material hint.
+/// </summary>
+public sealed record HonuaAdminLayerExtrusionSettings
+{
+    public string? HeightField { get; init; }
+
+    public string? BaseHeightField { get; init; }
+
+    /// <summary>"meters", "feet", or "usSurveyFeet".</summary>
+    public string? Unit { get; init; }
+
+    public double? DefaultHeight { get; init; }
+
+    public string? MaterialHint { get; init; }
+}
+
+/// <summary>One attribute-driven 3D symbology rule: when <see cref="Attribute"/> compares to <see cref="Value"/>,
+/// apply the color/opacity/visibility.</summary>
+public sealed record HonuaAdminSymbology3DRule
+{
+    public string? Attribute { get; init; }
+
+    /// <summary>"equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", or "lessThanOrEqual".</summary>
+    public string? Comparison { get; init; }
+
+    /// <summary>The compared value (any JSON scalar); round-tripped as-is.</summary>
+    public JsonElement? Value { get; init; }
+
+    public HonuaAdminRgbColor? Color { get; init; }
+
+    public double? Opacity { get; init; }
+
+    public bool? Visible { get; init; }
+}
+
+/// <summary>A layer's persisted 3D symbology: default RGB color + opacity and the ordered attribute rules.</summary>
+public sealed record HonuaAdminSymbology3D
+{
+    public HonuaAdminRgbColor? DefaultColor { get; init; }
+
+    public double? DefaultOpacity { get; init; }
+
+    public IReadOnlyList<HonuaAdminSymbology3DRule> Rules { get; init; } = [];
+}
+
+/// <summary>
+/// A layer's persisted 3D extrusion + 3D symbology metadata
+/// (<c>GET /api/v1/admin/metadata/layers/{id}/extrusion</c>). Either section may be null when the layer has no
+/// extrusion / no 3D symbology configured.
+/// </summary>
+public sealed record HonuaAdminLayerExtrusion
+{
+    public int LayerId { get; init; }
+
+    public HonuaAdminLayerExtrusionSettings? Extrusion { get; init; }
+
+    public HonuaAdminSymbology3D? Symbology3D { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/extrusion</c>. A null section leaves it unchanged;
+/// the matching clear flag removes it. heightField / baseHeightField / rule attributes are validated server-side
+/// against the layer schema.
+/// </summary>
+public sealed record HonuaAdminLayerExtrusionUpdate
+{
+    /// <summary>Set the extrusion settings; null leaves the persisted extrusion untouched. Not serialized when null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HonuaAdminLayerExtrusionSettings? Extrusion { get; init; }
+
+    /// <summary>When true, removes the extrusion settings server-side.</summary>
+    public bool ClearExtrusion { get; init; }
+
+    /// <summary>Set the 3D symbology; null leaves the persisted symbology untouched. Not serialized when null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HonuaAdminSymbology3D? Symbology3D { get; init; }
+
+    /// <summary>When true, removes the 3D symbology server-side.</summary>
+    public bool ClearSymbology3D { get; init; }
+}
+
+/// <summary>
+/// A layer's persisted lifecycle status (<c>GET /api/v1/admin/metadata/layers/{id}/status</c>): the lifecycle
+/// stage and the operational state.
+/// </summary>
+public sealed record HonuaAdminLayerStatus
+{
+    public int LayerId { get; init; }
+
+    /// <summary>"draft", "active", "deprecated", "retired", or "archived". Canonical "Published" maps to active.</summary>
+    public string? Lifecycle { get; init; }
+
+    /// <summary>"unknown", "ready", "pending", "degraded", or "failed".</summary>
+    public string? State { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/layers/{id}/status</c>. At least one of lifecycle/state is
+/// required; a null field leaves the other unchanged. Null fields are omitted on the wire.
+/// </summary>
+public sealed record HonuaAdminLayerStatusUpdate
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Lifecycle { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? State { get; init; }
+}
+
+/// <summary>
+/// A layer's or service's discovery / catalog metadata as read from honua-server
+/// (<c>GET /api/v1/admin/metadata/layers/{id}/discovery</c> and
+/// <c>GET /api/v1/admin/services/{svc}/discovery</c>). Drives the OGC API Records / STAC / DCAT / Esri
+/// documentInfo output. Title/description/license/attribution/publisher/language/contactPoint are scalar;
+/// keywords/themes/links are lists.
+/// </summary>
+public sealed record HonuaAdminDiscoveryMetadata
+{
+    public string? Title { get; init; }
+
+    public string? Description { get; init; }
+
+    public IReadOnlyList<string> Keywords { get; init; } = [];
+
+    public IReadOnlyList<string> Themes { get; init; } = [];
+
+    public string? Language { get; init; }
+
+    public string? License { get; init; }
+
+    public string? Attribution { get; init; }
+
+    public string? Publisher { get; init; }
+
+    public HonuaAdminDiscoveryContactPoint? ContactPoint { get; init; }
+
+    public IReadOnlyList<HonuaAdminDiscoveryLink> Links { get; init; } = [];
+}
+
+/// <summary>Discovery contact point (DCAT <c>contactPoint</c> / OGC Records <c>contacts</c>).</summary>
+public sealed record HonuaAdminDiscoveryContactPoint
+{
+    public string? Name { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? Url { get; init; }
+}
+
+/// <summary>One discovery link (OGC <c>links[]</c> / STAC link). <c>Href</c>+<c>Rel</c> are the load-bearing fields.</summary>
+public sealed record HonuaAdminDiscoveryLink
+{
+    public string? Href { get; init; }
+
+    public string? Rel { get; init; }
+
+    public string? Type { get; init; }
+
+    public string? Title { get; init; }
+
+    public string? Hreflang { get; init; }
+}
+
+/// <summary>
+/// Request body for the discovery PUT endpoints (layer + service). A null scalar leaves that field unchanged
+/// server-side; a non-null list replaces (an empty list clears). Mirrors <see cref="HonuaAdminDiscoveryMetadata"/>
+/// but keeps the lists nullable so an omitted list is "unchanged" rather than "clear".
+/// </summary>
+public sealed record HonuaAdminDiscoveryMetadataUpdate
+{
+    public string? Title { get; init; }
+
+    public string? Description { get; init; }
+
+    public IReadOnlyList<string>? Keywords { get; init; }
+
+    public IReadOnlyList<string>? Themes { get; init; }
+
+    public string? Language { get; init; }
+
+    public string? License { get; init; }
+
+    public string? Attribution { get; init; }
+
+    public string? Publisher { get; init; }
+
+    public HonuaAdminDiscoveryContactPoint? ContactPoint { get; init; }
+
+    public IReadOnlyList<HonuaAdminDiscoveryLink>? Links { get; init; }
+}
+
+/// <summary>
+/// Wire shape of the honua-server time-info update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/timeinfo</c>, mirrors <c>UpdateTimeInfoRequest</c>). A null
+/// field clears the corresponding time field server-side.
+/// </summary>
+public sealed record HonuaAdminUpdateTimeInfoRequest
+{
+    public string? StartTimeField { get; init; }
+
+    public string? EndTimeField { get; init; }
+
+    public string? TrackIdField { get; init; }
 }
 
 /// <summary>Request body for <c>POST /api/v1/admin/import/geoservices/start</c>.</summary>
@@ -1612,6 +2929,95 @@ public sealed record HonuaAdminUpdateAccessPolicyRequest
     public IReadOnlyList<string>? AllowedWriteRoles { get; init; }
 }
 
+/// <summary>
+/// Wire shape of the honua-server MapServer render-settings update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/mapserver</c>, mirrors <c>UpdateMapServerSettingsRequest</c>).
+/// Null fields are left unchanged server-side. Caps the MapServer export surface: max/default image size,
+/// DPI, default image format, default transparency, and the per-layer feature cap.
+/// </summary>
+public sealed record HonuaAdminUpdateMapServerSettingsRequest
+{
+    public int? MaxImageWidth { get; init; }
+
+    public int? MaxImageHeight { get; init; }
+
+    public int? DefaultImageWidth { get; init; }
+
+    public int? DefaultImageHeight { get; init; }
+
+    public int? DefaultDpi { get; init; }
+
+    public string? DefaultFormat { get; init; }
+
+    public bool? DefaultTransparent { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
+}
+
+/// <summary>
+/// Wire shape of the honua-server service settings-caps update request body
+/// (<c>PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, mirrors
+/// <c>UpdateServiceSettingsCapsRequest</c>). Null fields are left unchanged server-side; the server rejects
+/// negative caps. Caps the service's result/request surface: max/default record counts, per-layer feature
+/// cap, query timeout, edit-transaction cap, payload size, supported output formats + default, default
+/// tile-matrix set, and attachment support + size cap.
+/// </summary>
+public sealed record HonuaAdminUpdateServiceSettingsCapsRequest
+{
+    public int? MaxRecordCount { get; init; }
+
+    public int? DefaultRecordCount { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
+
+    public int? QueryTimeoutMs { get; init; }
+
+    public int? MaxEditsPerTransaction { get; init; }
+
+    public long? MaxPayloadBytes { get; init; }
+
+    public IReadOnlyList<string>? SupportedFormats { get; init; }
+
+    public string? DefaultFormat { get; init; }
+
+    public string? DefaultTileMatrixSet { get; init; }
+
+    public bool? SupportsAttachments { get; init; }
+
+    public long? MaxAttachmentSizeBytes { get; init; }
+}
+
+/// <summary>
+/// Wire shape of the honua-server service settings-caps projection
+/// (<c>GET/PUT /api/v1/admin/services/{serviceName}/settings-caps</c>, the <c>data</c> of
+/// <c>ApiResponse&lt;ServiceSettingsCapsResponse&gt;</c>). All fields nullable — the server only reports the
+/// caps it actually has configured. Pre-populates the settings-caps editor and is read back after a save.
+/// </summary>
+public sealed record HonuaAdminServiceSettingsCapsResponse
+{
+    public int? MaxRecordCount { get; init; }
+
+    public int? DefaultRecordCount { get; init; }
+
+    public int? MaxFeaturesPerLayer { get; init; }
+
+    public int? QueryTimeoutMs { get; init; }
+
+    public int? MaxEditsPerTransaction { get; init; }
+
+    public long? MaxPayloadBytes { get; init; }
+
+    public IReadOnlyList<string> SupportedFormats { get; init; } = [];
+
+    public string? DefaultFormat { get; init; }
+
+    public string? DefaultTileMatrixSet { get; init; }
+
+    public bool? SupportsAttachments { get; init; }
+
+    public long? MaxAttachmentSizeBytes { get; init; }
+}
+
 public sealed record HonuaAdminPublishedLayerSummary
 {
     public int LayerId { get; init; }
@@ -1635,6 +3041,24 @@ public sealed record HonuaAdminPublishedLayerSummary
     public bool? Enabled { get; init; }
 
     public string? ServiceName { get; init; }
+
+    /// <summary>
+    /// Layer's cached spatial extent in EPSG:4326 (lng/lat), recomputed when the layer is published or
+    /// refreshed server-side. Null when the layer has no stored extent. Used to frame the map preview.
+    /// </summary>
+    public HonuaAdminLayerExtent? Extent { get; init; }
+}
+
+/// <summary>Axis-aligned bounding box of a layer in EPSG:4326 (longitude/latitude degrees).</summary>
+public sealed record HonuaAdminLayerExtent
+{
+    public double MinX { get; init; }
+
+    public double MinY { get; init; }
+
+    public double MaxX { get; init; }
+
+    public double MaxY { get; init; }
 }
 
 public sealed record HonuaAdminServiceSummary
@@ -1661,6 +3085,13 @@ public sealed record HonuaAdminServiceSettingsResponse
     public HonuaAdminTimeInfoResponse? TimeInfo { get; init; }
 
     public HonuaAdminMapServerSettingsResponse? MapServer { get; init; }
+
+    /// <summary>
+    /// The service's current settings caps as read back from the server settings projection, or <c>null</c>
+    /// when the server build does not include a caps block in the settings GET. Pre-populates the
+    /// settings-caps editor when the dedicated caps GET is not separately queried.
+    /// </summary>
+    public HonuaAdminServiceSettingsCapsResponse? SettingsCaps { get; init; }
 }
 
 public sealed record HonuaAdminAccessPolicyResponse
@@ -1802,4 +3233,52 @@ public sealed record HonuaAdminOidcProviderResponse
     public DateTimeOffset? UpdatedAt { get; init; }
 
     public DateTimeOffset? LastHealthCheck { get; init; }
+}
+
+/// <summary>
+/// A publication's persisted overrides as read from honua-server
+/// (<c>GET /api/v1/admin/metadata/publications/{publicationId}/overrides</c>). A "publication" is a layer's
+/// exposure within a service; these overrides let an operator re-title it, alias its fields per-publication,
+/// constrain its capabilities and supported formats, and mark it primary — without disturbing the underlying
+/// layer metadata.
+/// </summary>
+public sealed record HonuaAdminPublicationOverrides
+{
+    /// <summary>The publication's metadata id (echoed by the server).</summary>
+    public string? PublicationId { get; init; }
+
+    /// <summary>Display title that overrides the layer's title for this publication; null/empty when unset.</summary>
+    public string? TitleOverride { get; init; }
+
+    /// <summary>Per-publication field aliases as a <c>{ "&lt;field&gt;": "&lt;alias&gt;" }</c> map.</summary>
+    public IReadOnlyDictionary<string, string> FieldAliases { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>The capabilities this publication exposes (e.g. <c>Query</c>, <c>Create</c>, <c>Update</c>).</summary>
+    public IReadOnlyList<string> Capabilities { get; init; } = [];
+
+    /// <summary>The output formats this publication supports (e.g. <c>json</c>, <c>geojson</c>, <c>pbf</c>).</summary>
+    public IReadOnlyList<string> SupportedFormats { get; init; } = [];
+
+    /// <summary>Whether this is the primary publication of its layer.</summary>
+    public bool IsPrimary { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/admin/metadata/publications/{publicationId}/overrides</c>. A null scalar
+/// leaves that value unchanged server-side; an empty <see cref="TitleOverride"/> string clears the title; an
+/// empty array/map (<c>[]</c>/<c>{}</c>) clears that list/map. Lists/map are nullable so an omitted list is
+/// "unchanged" rather than "clear".
+/// </summary>
+public sealed record HonuaAdminPublicationOverridesUpdate
+{
+    public string? TitleOverride { get; init; }
+
+    public IReadOnlyDictionary<string, string>? FieldAliases { get; init; }
+
+    public IReadOnlyList<string>? Capabilities { get; init; }
+
+    public IReadOnlyList<string>? SupportedFormats { get; init; }
+
+    public bool? IsPrimary { get; init; }
 }

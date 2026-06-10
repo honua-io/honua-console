@@ -32,6 +32,40 @@ builder.Services.AddHonuaConsoleShell(
 
 var app = builder.Build();
 
+// Development testbed convenience: the browser host cannot create environment profiles
+// (profile creation runs on the native MAUI host), so seed + activate one from
+// HONUA_SERVER_BASE_URL when the in-memory profile store is empty. This lets a browser-only
+// testbed bind to a running honua-server without the native host. Never runs outside Development.
+if (app.Environment.IsDevelopment())
+{
+    var seedUrl = app.Configuration["Honua:Server:BaseUrl"]
+        ?? Environment.GetEnvironmentVariable("HONUA_SERVER_BASE_URL");
+    if (!string.IsNullOrWhiteSpace(seedUrl) && Uri.TryCreate(seedUrl, UriKind.Absolute, out var seedUri))
+    {
+        using var seedScope = app.Services.CreateScope();
+        var profileStore = seedScope.ServiceProvider
+            .GetRequiredService<Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore>();
+        if ((await profileStore.ListProfilesAsync()).Count == 0)
+        {
+            var devProfile = new Honua.Console.Shell.Models.ConsoleEnvironmentProfile
+            {
+                Id = "local-dev",
+                DisplayName = "Local honua-server",
+                ServerBaseUri = seedUri,
+                EnvironmentKind = "development",
+                Account = new Honua.Console.Shell.Models.ConsoleAccountBinding
+                {
+                    AuthMode = Honua.Console.Shell.Models.ConsoleAccountAuthMode.AccountRbac,
+                    AccountId = "console-user",
+                    DisplayName = "Console User",
+                },
+            };
+            await profileStore.UpsertProfileAsync(devProfile);
+            await profileStore.ActivateProfileAsync(devProfile.Id);
+        }
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
@@ -66,6 +100,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
 {
     app.MapGet("/map-proxy/styles/{layerId:int}.json", async (
         int layerId,
+        HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
         CancellationToken cancellationToken) =>
     {
@@ -84,8 +119,12 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
 
         var styleJson = await response.Content.ReadAsStringAsync(cancellationToken);
         // The server returns tile URLs as /tiles/{id}/... — route them back through this proxy so the browser
-        // fetches tiles with the admin key injected here, not in the page.
-        styleJson = styleJson.Replace("\"/tiles/", "\"/map-proxy/tiles/", StringComparison.Ordinal);
+        // fetches tiles with the admin key injected here, not in the page. The URL MUST be ABSOLUTE:
+        // MapLibre loads vector tiles in a web worker that calls new Request(url) with no document base, so a
+        // root-relative "/map-proxy/tiles/..." throws "Failed to parse URL" and no feature tile ever loads.
+        // Build the absolute origin from the incoming request so it works behind any host/scheme.
+        var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/map-proxy/tiles/";
+        styleJson = styleJson.Replace("\"/tiles/", $"\"{absoluteTileBase}", StringComparison.Ordinal);
         return Results.Content(styleJson, "application/json");
     });
 
@@ -120,6 +159,38 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/vnd.mapbox-vector-tile";
         return Results.Bytes(bytes, contentType);
+    });
+
+    // Real tabular feature rows for the Studio query-result table and the live chart (graphs) preview.
+    // Proxies the server's Esri FeatureServer query (the only feature-row contract; it needs both the
+    // serviceId and the layerId, both captured into the editor binding at generation time) with the admin
+    // key injected here, never in the page. Returns the server's Esri feature JSON verbatim so the browser
+    // chart/table interop maps attributes → rows. No binding → the caller never calls this (no mock rows).
+    app.MapGet("/map-proxy/features/{serviceId}/{layerId:int}", async (
+        string serviceId,
+        int layerId,
+        int? limit,
+        IHttpClientFactory httpClientFactory,
+        CancellationToken cancellationToken) =>
+    {
+        var count = limit is > 0 and <= 2000 ? limit.Value : 200;
+        var client = httpClientFactory.CreateClient("honua-map-proxy");
+        var url = $"{mapProxyServerUrl}/rest/services/{Uri.EscapeDataString(serviceId)}/FeatureServer/{layerId}/query"
+            + $"?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount={count}&f=json";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (!string.IsNullOrWhiteSpace(mapProxyAdminKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", mapProxyAdminKey);
+        }
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return Results.StatusCode((int)response.StatusCode);
+        }
+
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        return Results.Content(json, "application/json");
     });
 }
 

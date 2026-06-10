@@ -1,5 +1,7 @@
 @page "/operate/temporal"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @using Honua.Console.Shell.Validation
 @inject ITemporalCapabilityClient TemporalData
 
@@ -9,6 +11,12 @@
         <h1>Temporal viewer</h1>
         <p>Inspect temporal data history, compare a now-vs-as-of state, plan governed rollbacks, and review disconnected replica sync conflicts. Temporal capability is server-owned: each source declares which modes it supports, and unsupported sources show a capability explanation rather than an empty viewer.</p>
     </div>
+
+    @* Time-info setter: declares which fields make a service time-aware (start/end time + track id).
+       Self-contained component — binds the admin time-info endpoint
+       (PUT /api/v1/admin/services/{svc}/timeinfo) independent of the capability viewer below, and renders an
+       honest missing-binding state when no server is configured. *@
+    <ServiceTimeInfoSetter />
 
     @if (_loading)
     {

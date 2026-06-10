@@ -29,12 +29,30 @@ a {
     min-height: 100vh;
     display: grid;
     grid-template-columns: 280px minmax(0, 1fr);
+    transition: grid-template-columns 0.18s ease;
+}
+
+/* CSS-only collapse driver — the checkbox is never shown; its state collapses the rail. */
+.console-collapse-toggle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .console-sidebar {
     background: #17211d;
     color: #f8fbfa;
     padding: 24px 18px;
+    overflow: hidden;
+}
+
+.console-sidebar-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 28px;
 }
 
 .console-brand {
@@ -43,7 +61,8 @@ a {
     align-items: center;
     color: inherit;
     text-decoration: none;
-    margin-bottom: 28px;
+    flex: 1;
+    min-width: 0;
 }
 
 .console-brand-mark {
@@ -51,15 +70,49 @@ a {
     place-items: center;
     width: 38px;
     height: 38px;
+    flex: none;
     border: 1px solid #7bbdb5;
     background: #0f766e;
     font-weight: 800;
+}
+
+.console-brand-label {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.console-brand-label strong {
+    display: block;
 }
 
 .console-brand small,
 .console-nav small {
     display: block;
     color: #b8cac4;
+}
+
+.console-collapse-button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border-radius: 8px;
+    color: #b8cac4;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.console-collapse-button:hover {
+    background: rgb(255 255 255 / 11%);
+    color: #f8fbfa;
+}
+
+.console-collapse-button svg {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.18s ease;
 }
 
 .console-nav {
@@ -74,8 +127,11 @@ a {
 }
 
 .console-nav a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     text-decoration: none;
-    padding: 11px 12px;
+    padding: 10px 12px;
     border-radius: 8px;
     color: #edf4f1;
 }
@@ -85,12 +141,61 @@ a {
     background: rgb(255 255 255 / 11%);
 }
 
+.console-nav-icon {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    color: #9fc6bd;
+}
+
+.console-nav a.active .console-nav-icon {
+    color: var(--honua-accent-strong, #5eead4);
+}
+
+.console-nav-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.console-nav-label {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* ---- Collapsed state (checkbox checked) ---- */
+.console-shell:has(.console-collapse-toggle:checked) {
+    grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.console-shell:has(.console-collapse-toggle:checked) .console-brand-label,
+.console-shell:has(.console-collapse-toggle:checked) .console-nav-label {
+    display: none;
+}
+
+.console-shell:has(.console-collapse-toggle:checked) .console-sidebar-head {
+    flex-direction: column;
+    gap: 12px;
+}
+
+.console-shell:has(.console-collapse-toggle:checked) .console-nav a {
+    justify-content: center;
+    padding: 10px 0;
+}
+
+.console-shell:has(.console-collapse-toggle:checked) .console-collapse-button svg {
+    transform: rotate(180deg);
+}
+
 .console-main {
     min-width: 0;
+    padding-inline: clamp(20px, 3vw, 44px);
 }
 
 .console-page {
-    width: min(1180px, calc(100vw - 48px));
+    width: min(1180px, 100%);
     margin: 0 auto;
     padding: 42px 0 64px;
 }
@@ -621,6 +726,11 @@ p {
     border-color: var(--honua-border);
     background: var(--honua-surface-strong);
     color: var(--honua-muted);
+    /* Make a server-gated / not-yet-bound control read as non-interactive instead of looking
+       clickable: a muted colour alone left a pointer cursor, so users clicked dead buttons. The
+       not-allowed cursor + reduced opacity signal "disabled" while the title tooltip still explains why. */
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 .console-button-secondary {
@@ -2873,6 +2983,103 @@ p {
     align-self: center;
     color: var(--honua-text);
     font-weight: 700;
+}
+
+/* Workflow result graph — the generated workflow.package rendered as a layered node/edge DAG.
+   Mirrors the analysis pipeline flow: labelled boxes (type + label) joined left-to-right by → edges. */
+.studio-workflow-graph {
+    display: grid;
+    gap: 12px;
+}
+
+.studio-workflow-graph-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.studio-workflow-graph-layer {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+}
+
+.studio-workflow-graph-edge {
+    align-self: center;
+    color: var(--honua-text);
+    font-weight: 700;
+}
+
+.studio-workflow-graph-node {
+    display: grid;
+    gap: 2px;
+    min-width: 130px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--honua-text);
+    border-radius: 6px;
+    background: #ffffff;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.studio-workflow-graph-node-type {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--honua-muted, #6b6b6b);
+}
+
+.studio-workflow-graph-node-label {
+    font-weight: 700;
+}
+
+.studio-workflow-graph-node-deps {
+    font-size: 0.78rem;
+}
+
+.studio-workflow-graph-node-source {
+    border-style: solid;
+}
+
+.studio-workflow-graph-node-sink {
+    background: #f4faf4;
+}
+
+.studio-workflow-graph-node-failure {
+    border-color: #c03b2b;
+    background: #fdf3f1;
+}
+
+.studio-workflow-graph-edge-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.82rem;
+}
+
+.studio-workflow-graph-edge-row {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.studio-workflow-graph-edge-kind {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.7rem;
+    color: var(--honua-muted, #6b6b6b);
+}
+
+.studio-workflow-graph-edge-failure .studio-workflow-graph-edge-kind {
+    color: #c03b2b;
+}
+
+.studio-workflow-graph-empty {
+    margin: 14px 0 0;
 }
 
 .studio-analysis-gate {
@@ -5361,6 +5568,99 @@ p {
     grid-column: 1 / -1;
 }
 
+/* Studio APP family — live app-shell preview (the generated app's FINAL output). */
+.studio-app-shell {
+    display: grid;
+    gap: 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    background: var(--honua-surface);
+    overflow: hidden;
+}
+
+.studio-app-shell-empty {
+    padding: 24px;
+}
+
+.studio-app-shell-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--honua-border);
+    background: var(--honua-surface-strong);
+}
+
+.studio-app-shell-title {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.studio-app-shell-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.studio-app-shell-navitem {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    color: var(--honua-text-muted);
+    border: 1px solid transparent;
+}
+
+.studio-app-shell-navitem-active {
+    color: var(--honua-text);
+    border-color: var(--honua-border);
+    background: var(--honua-surface);
+}
+
+.studio-app-shell-stage {
+    display: grid;
+    gap: 12px;
+    padding: 0 14px 14px;
+}
+
+.studio-app-shell-unbound {
+    margin: 12px 0 0;
+}
+
+.studio-app-shell-panels {
+    display: grid;
+    gap: 12px;
+}
+
+.studio-app-shell-panel {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.studio-app-shell-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.studio-app-shell-panel-binding {
+    margin-left: auto;
+    font-size: 0.78rem;
+}
+
+.studio-app-shell-form {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+}
+
 .studio-ai-preview-titlebar {
     display: flex;
     align-items: center;
@@ -5492,6 +5792,53 @@ p {
 .map-preview-legend,
 .map-preview-popup {
     z-index: 2;
+}
+
+/* Live chart (graphs) preview — the dashboard/report/analysis analog of the map preview. */
+.chart-preview {
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.chart-preview-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--honua-text);
+}
+
+.chart-preview-stage {
+    position: relative;
+    height: var(--chart-preview-height, 240px);
+    border: 1px solid var(--honua-text);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f4f7f3;
+    padding: 8px;
+}
+
+.chart-preview-canvas {
+    position: absolute;
+    inset: 8px;
+    z-index: 1;
+}
+
+.chart-preview-canvas svg,
+.chart-preview-canvas canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.chart-preview-schematic {
+    position: absolute;
+    inset: 8px;
+    width: calc(100% - 16px);
+    height: calc(100% - 16px);
+    display: block;
+}
+
+.chart-preview[data-chart-bound="true"] .chart-preview-schematic {
+    display: none;
 }
 
 .map-preview-scale {
