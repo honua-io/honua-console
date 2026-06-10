@@ -32,10 +32,10 @@ public sealed class CatalogServerBindingRenderTests
                 ServerItem("map-1", "Storm Response Map", "saved-map", "organization", ["view", "edit", "publish"])
             ]
         }));
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler, anonymous: false);
 
-        var page = ctx.RenderComponent<CatalogPage>();
+        var page = ctx.Render<CatalogPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Coastal Flood Service", page.Markup, StringComparison.Ordinal),
@@ -57,10 +57,10 @@ public sealed class CatalogServerBindingRenderTests
                 ServerItem("map-1", "Storm Response Map", "saved-map", "private", ["view", "edit"])
             ]
         }));
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler, anonymous: false);
 
-        var page = ctx.RenderComponent<CatalogPage>();
+        var page = ctx.Render<CatalogPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Coastal Flood Service", page.Markup, StringComparison.Ordinal),
@@ -110,11 +110,11 @@ public sealed class CatalogServerBindingRenderTests
             Usage = [new ConsoleContentUsage("dash-1", "Q3 land use review", "dashboard", "low")]
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new StubCatalogClient(item));
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new StubReadContextResolver(anonymous: false));
 
-        var page = ctx.RenderComponent<CatalogDetailPage>(parameters =>
+        var page = ctx.Render<CatalogDetailPage>(parameters =>
             parameters.Add(p => p.IdOrSlug, "storm-response-map"));
 
         page.WaitForAssertion(
@@ -142,10 +142,10 @@ public sealed class CatalogServerBindingRenderTests
     public void Catalog_WhenServerUnavailable_RendersEmptySurfaceNotMockData()
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler, anonymous: false);
 
-        var page = ctx.RenderComponent<CatalogPage>();
+        var page = ctx.Render<CatalogPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("No content matched", page.Markup, StringComparison.Ordinal),
@@ -154,7 +154,7 @@ public sealed class CatalogServerBindingRenderTests
         Assert.DoesNotContain("Coastal Flood Service", page.Markup, StringComparison.Ordinal);
     }
 
-    private static void RegisterCatalog(Bunit.TestContext ctx, StubHandler handler, bool anonymous)
+    private static void RegisterCatalog(Bunit.BunitContext ctx, StubHandler handler, bool anonymous)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };
         var client = new HonuaConsoleContentHttpClient(httpClient, new HonuaConsoleContentClientOptions(BaseUri, "admin-key"));

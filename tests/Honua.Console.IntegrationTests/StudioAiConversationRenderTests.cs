@@ -36,9 +36,9 @@ public sealed class StudioAiConversationRenderTests
     [Fact]
     public void StudioAiConversation_RendersTwoColumnTurnsAndPreviewSlot()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<StudioAiConversation>(parameters => parameters
+        var cut = ctx.Render<StudioAiConversation>(parameters => parameters
             .Add(p => p.ConversationTitle, "Map from prompt")
             .Add(p => p.Turns, SampleTurns())
             .Add(p => p.PreviewContent, Preview("MapPreview slot")));
@@ -61,10 +61,10 @@ public sealed class StudioAiConversationRenderTests
     [Fact]
     public void StudioAiConversation_RendersClarificationCardsAndRaisesAnswer()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         (StudioConversationClarification Question, StudioConversationChoice Choice)? answered = null;
-        var cut = ctx.RenderComponent<StudioAiConversation>(parameters => parameters
+        var cut = ctx.Render<StudioAiConversation>(parameters => parameters
             .Add(p => p.Clarifications,
             [
                 new StudioConversationClarification(
@@ -95,10 +95,10 @@ public sealed class StudioAiConversationRenderTests
     [Fact]
     public void StudioAiConversation_Send_RaisesOnSendWithRefineText()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         string? sent = null;
-        var cut = ctx.RenderComponent<StudioAiConversation>(parameters => parameters
+        var cut = ctx.Render<StudioAiConversation>(parameters => parameters
             .Add(p => p.Turns, SampleTurns())
             .Add(p => p.OnSend, text => sent = text));
 
@@ -118,9 +118,9 @@ public sealed class StudioAiConversationRenderTests
     [Fact]
     public void StudioAiConversation_WhenBusy_DisablesRefineAndClarificationChoices()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<StudioAiConversation>(parameters => parameters
+        var cut = ctx.Render<StudioAiConversation>(parameters => parameters
             .Add(p => p.Busy, true)
             .Add(p => p.Clarifications,
             [

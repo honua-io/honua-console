@@ -29,9 +29,9 @@ public sealed class FieldStateRowRenderTests
     [InlineData(FieldState.Admin, "admin", "admin")]
     public void FieldStateRow_RendersStateSlugAndPill(FieldState state, string stateSlug, string pillSlug)
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, state)
             .Add(p => p.Label, "Field id")
             .Add(p => p.Value, "asset_id"));
@@ -54,9 +54,9 @@ public sealed class FieldStateRowRenderTests
     [InlineData(FieldState.Admin, "admin only")]
     public void FieldStateRow_RendersPillLabelVocabulary(FieldState state, string pillLabel)
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, state)
             .Add(p => p.Label, "Field")
             .Add(p => p.Value, "value"));
@@ -67,9 +67,9 @@ public sealed class FieldStateRowRenderTests
     [Fact]
     public void FieldStateRow_WithChildContent_RendersEditableControl()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Input)
             .Add(p => p.Label, "Title")
             .Add(p => p.ChildContent, Control("title-input")));
@@ -88,9 +88,9 @@ public sealed class FieldStateRowRenderTests
     [Fact]
     public void FieldStateRow_Calculated_RendersDerivedFromSource()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Calculated)
             .Add(p => p.Label, "Estimated runtime")
             .Add(p => p.Value, "12 s")
@@ -104,9 +104,9 @@ public sealed class FieldStateRowRenderTests
     [Fact]
     public void FieldStateRow_System_RendersReadonlyValueAndNoControl()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.System)
             .Add(p => p.Label, "Form id")
             .Add(p => p.Value, "form-123")
@@ -120,11 +120,11 @@ public sealed class FieldStateRowRenderTests
     [Fact]
     public void FieldStateRow_Discovered_RendersOverrideAndRevertWhenWired()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         var overrode = false;
         var reverted = false;
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Discovered)
             .Add(p => p.Label, "Target field")
             .Add(p => p.Value, "asset_id")
@@ -141,9 +141,9 @@ public sealed class FieldStateRowRenderTests
     [Fact]
     public void FieldStateRow_Discovered_OmitsAffordancesWhenNoHandlers()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Discovered)
             .Add(p => p.Label, "Binding alias")
             .Add(p => p.ChildContent, Control("alias")));

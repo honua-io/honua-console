@@ -67,10 +67,10 @@ public sealed class PublishingWorkspaceLiveServerTests
         Assert.Equal("rolled-back", rolledBack.Review!.RollbackClass);
 
         // 5. The page renders the live workspace.
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(dataSource);
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
-        var page = ctx.RenderComponent<OperatePublishingPage>();
+        var page = ctx.Render<OperatePublishingPage>();
         page.WaitForAssertion(
             () => Assert.Contains("Publication Matrix", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));

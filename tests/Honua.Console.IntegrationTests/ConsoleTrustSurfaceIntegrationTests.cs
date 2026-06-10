@@ -50,12 +50,12 @@ public sealed class ConsoleTrustSurfaceIntegrationTests
         Assert.NotNull(state.Trust);
 
         // Render the shared diagnostics surface against the live-validated state.
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(store);
         ctx.Services.AddSingleton<IConsoleHostCapabilities>(new NativeConsoleHostCapabilities());
         ctx.Services.AddSingleton<IConsoleConnectionManager>(manager);
 
-        var component = ctx.RenderComponent<EnvironmentProfileDetailPage>(
+        var component = ctx.Render<EnvironmentProfileDetailPage>(
             parameters => parameters.Add(page => page.ProfileId, profileId));
         var markup = component.Markup;
 

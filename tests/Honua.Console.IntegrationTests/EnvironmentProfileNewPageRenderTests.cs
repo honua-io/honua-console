@@ -83,12 +83,12 @@ public sealed class EnvironmentProfileNewPageRenderTests
 
     private static IRenderedComponent<EnvironmentProfileNewPage> Render()
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         // The page hosts an <UnsavedChangesGuard/> (Wave 5); run Loose JSInterop so its JS module import /
         // confirm() calls no-op in render tests.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([]));
         ctx.Services.AddSingleton<IConsoleHostCapabilities>(new NativeConsoleHostCapabilities());
-        return ctx.RenderComponent<EnvironmentProfileNewPage>();
+        return ctx.Render<EnvironmentProfileNewPage>();
     }
 }

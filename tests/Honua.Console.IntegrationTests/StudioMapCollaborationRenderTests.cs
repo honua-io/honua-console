@@ -80,10 +80,10 @@ public sealed class StudioMapCollaborationRenderTests
         // status dots, named cursors, comment pins, follow-mode pill, activity feed) is exercised, not just
         // the missing-binding state. This is Console-local test composition — never the merged runtime path.
         var session = BoundSession();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioMapCollaborationDataSource>(new StubCollaborationDataSource(session));
 
-        var component = ctx.RenderComponent<StudioMapCollaboration>(parameters => parameters
+        var component = ctx.Render<StudioMapCollaboration>(parameters => parameters
             .Add(p => p.MapId, "map-1")
             .Add(p => p.Section, "activity"));
 
@@ -111,10 +111,10 @@ public sealed class StudioMapCollaborationRenderTests
     public void CollaborationPanel_WhenBound_OpensFeaturePinnedCommentThreadDrawer()
     {
         var session = BoundSession();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioMapCollaborationDataSource>(new StubCollaborationDataSource(session));
 
-        var component = ctx.RenderComponent<StudioMapCollaboration>(parameters => parameters
+        var component = ctx.Render<StudioMapCollaboration>(parameters => parameters
             .Add(p => p.MapId, "map-1")
             .Add(p => p.Section, "comments"));
 
@@ -137,9 +137,9 @@ public sealed class StudioMapCollaborationRenderTests
         Assert.Contains("Mark resolved", component.Markup, StringComparison.Ordinal);
     }
 
-    private static Bunit.TestContext CreatePageContext(out FakeMapDataSource data)
+    private static Bunit.BunitContext CreatePageContext(out FakeMapDataSource data)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         data = new FakeMapDataSource
         {
             Workspace = new StudioMapWorkspace(
@@ -156,9 +156,9 @@ public sealed class StudioMapCollaborationRenderTests
         return ctx;
     }
 
-    private static IRenderedComponent<StudioMapBuilderPage> OpenEditor(Bunit.TestContext ctx)
+    private static IRenderedComponent<StudioMapBuilderPage> OpenEditor(Bunit.BunitContext ctx)
     {
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
         FindButton(page, "Public works").Click();
         page.WaitForAssertion(

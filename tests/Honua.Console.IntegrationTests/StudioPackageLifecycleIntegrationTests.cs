@@ -56,8 +56,8 @@ public sealed class StudioPackageLifecycleIntegrationTests
         Assert.NotEmpty(session.ActivePackage.ValidationItems);
 
         // 4. The shared inspector renders from the live draft.
-        using var inspectorContext = new Bunit.TestContext();
-        var inspector = inspectorContext.RenderComponent<StudioPackageInspector>(
+        using var inspectorContext = new Bunit.BunitContext();
+        var inspector = inspectorContext.Render<StudioPackageInspector>(
             parameters => parameters.Add(component => component.Package, session.ActivePackage));
         Assert.Contains(session.ActivePackage.PackageRef, inspector.Markup, StringComparison.Ordinal);
         Assert.Contains(session.ActivePackage.SchemaVersion, inspector.Markup, StringComparison.Ordinal);
@@ -77,10 +77,10 @@ public sealed class StudioPackageLifecycleIntegrationTests
             probe.BindingState is not null,
             $"The live server did not return Studio package families: {probe.BindingState?.Detail}");
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(shell);
 
-        var page = ctx.RenderComponent<StudioPage>();
+        var page = ctx.Render<StudioPage>();
 
         // The page hydrates its session from the live families; once loaded it must render the studio shell
         // (not the missing-binding state) and a server-reported schema version.

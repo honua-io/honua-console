@@ -357,7 +357,7 @@ public sealed class ShareManagePageRenderTests
         string itemId,
         IConsoleCatalogClient? catalog = null)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         // The page now hosts an <UnsavedChangesGuard/> (Wave 5), which imports a JS module and may call
         // confirm() on navigation; run Loose JSInterop so those calls no-op in render tests.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -367,7 +367,7 @@ public sealed class ShareManagePageRenderTests
         ctx.Services.AddSingleton<IConsoleCatalogClient>(catalog ?? new UnsupportedConsoleCatalogClient());
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("itemId", itemId));
-        return ctx.RenderComponent<ShareManagePage>();
+        return ctx.Render<ShareManagePage>();
     }
 
     private static ShareAccessView PublicShare(string tier, bool publicLinkEnabled, bool embedEnabled, bool canShare, bool canEmbed) =>

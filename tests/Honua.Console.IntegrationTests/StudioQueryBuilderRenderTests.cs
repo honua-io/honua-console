@@ -28,11 +28,11 @@ public sealed class StudioQueryBuilderRenderTests
         {
             Workspace = new StudioQueryWorkspace([], [MissingBinding])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioQueryBuilderPage>();
+        var page = ctx.Render<StudioQueryBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Query content lifecycle is not bound", page.Markup, StringComparison.Ordinal),
@@ -57,11 +57,11 @@ public sealed class StudioQueryBuilderRenderTests
                 ],
                 [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioQueryBuilderPage>();
+        var page = ctx.Render<StudioQueryBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-query-builder", page.Markup, StringComparison.Ordinal),
@@ -78,10 +78,10 @@ public sealed class StudioQueryBuilderRenderTests
         template.Predicates.Add(new StudioQueryPredicateEditor { Field = "status", Operator = "=", Value = "approved" });
         var data = new FakeQueryDataSource { NewQuery = template };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
-        var page = ctx.RenderComponent<StudioQueryBuilderPage>();
+        var page = ctx.Render<StudioQueryBuilderPage>();
 
         // Click "New blank query" to enter the authoring editor directly (not the from-prompt surface).
         page.WaitForAssertion(
@@ -140,10 +140,10 @@ public sealed class StudioQueryBuilderRenderTests
             }
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
-        var page = ctx.RenderComponent<StudioQueryBuilderPage>();
+        var page = ctx.Render<StudioQueryBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("New from prompt", page.Markup, StringComparison.Ordinal),
@@ -192,10 +192,10 @@ public sealed class StudioQueryBuilderRenderTests
             PreviewResult = new StudioQueryCommandResult(true, "Previewed 1 of 1 feature(s).", previewed)
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
-        var page = ctx.RenderComponent<StudioQueryBuilderPage>();
+        var page = ctx.Render<StudioQueryBuilderPage>();
 
         // Open the seeded query from the list.
         page.WaitForAssertion(

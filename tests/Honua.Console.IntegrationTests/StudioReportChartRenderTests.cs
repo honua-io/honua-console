@@ -19,7 +19,7 @@ public sealed class StudioReportChartRenderTests
     [Fact]
     public void ReportChartPanel_RendersChartPreviewOverPanelSpec()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         // A real report chart panel as the builder authors it (AddPanel seeds DefaultBarChart()).
@@ -34,7 +34,7 @@ public sealed class StudioReportChartRenderTests
         // The panel carries a real Vega-Lite spec (the spec the report page hands ChartPreview).
         Assert.True(StudioReportChartSpec.DeclaresVegaLiteSchema(panel.VegaLiteSpec));
 
-        var cut = ctx.RenderComponent<ChartPreview>(parameters => parameters
+        var cut = ctx.Render<ChartPreview>(parameters => parameters
             .Add(p => p.Spec, panel.VegaLiteSpec)
             .Add(p => p.Height, 200)
             .Add(p => p.AriaLabel, $"{panel.Title} chart"));
@@ -50,13 +50,13 @@ public sealed class StudioReportChartRenderTests
     [Fact]
     public void ReportChartPanel_WithoutSpec_RendersHonestSchematicPlaceholder()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         // A chart panel with no spec yet (unbound) must still render an honest placeholder, never blank.
         var panel = new StudioReportPanelEditor { Kind = StudioReportPanelKinds.Chart };
 
-        var cut = ctx.RenderComponent<ChartPreview>(parameters => parameters
+        var cut = ctx.Render<ChartPreview>(parameters => parameters
             .Add(p => p.Spec, panel.VegaLiteSpec)
             .Add(p => p.Height, 200));
 
@@ -67,14 +67,14 @@ public sealed class StudioReportChartRenderTests
     [Fact]
     public void ReportMapPanel_RendersMapPreviewSchematicLayerMode()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         var panel = new StudioReportPanelEditor { Title = "Coverage", Kind = StudioReportPanelKinds.Map };
         Assert.False(panel.IsChart);
 
         // The report map panel emits a MapPreview in Layer mode with popups suppressed (mirrors dashboard).
-        var cut = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var cut = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.Mode, MapPreviewMode.Layer)
             .Add(p => p.Height, 200)
             .Add(p => p.ShowPopup, false)

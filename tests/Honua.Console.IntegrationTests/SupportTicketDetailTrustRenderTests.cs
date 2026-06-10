@@ -264,11 +264,11 @@ public sealed class SupportTicketDetailTrustRenderTests
 
     private static string Render(SupportTicketResponse ticket)
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleSupportTicketClient>(new FakeSupportTicketClient(ticket));
 
-        var page = ctx.RenderComponent<SupportTicketDetailPage>(
+        var page = ctx.Render<SupportTicketDetailPage>(
             p => p.Add(c => c.TicketId, ticket.Id));
         page.WaitForAssertion(
             () => Assert.Contains("Status", page.Markup, StringComparison.Ordinal),

@@ -23,7 +23,7 @@ public sealed class StudioWorkflowGraphRenderTests
     [Fact]
     public void WorkflowGraph_WithConnectedNodes_RendersEveryNodeLabelAndEdgeFlow()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         // A small, real connected workflow: trigger → read → transform → publish, with a failure route
@@ -44,7 +44,7 @@ public sealed class StudioWorkflowGraphRenderTests
             Edge("n-transform", "n-notify", StudioWorkflowContractValues.EdgeKindFailure),
         };
 
-        var cut = ctx.RenderComponent<StudioWorkflowGraph>(parameters => parameters
+        var cut = ctx.Render<StudioWorkflowGraph>(parameters => parameters
             .Add(p => p.Nodes, nodes)
             .Add(p => p.Edges, edges));
 
@@ -105,10 +105,10 @@ public sealed class StudioWorkflowGraphRenderTests
     [Fact]
     public void WorkflowGraph_WithNoNodes_RendersHonestEmptyState()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<StudioWorkflowGraph>(parameters => parameters
+        var cut = ctx.Render<StudioWorkflowGraph>(parameters => parameters
             .Add(p => p.Nodes, new List<StudioWorkflowNode>())
             .Add(p => p.Edges, new List<StudioWorkflowEdge>())
             .Add(p => p.EmptyMessage, "No steps yet — describe the pipeline to generate one."));
@@ -123,11 +123,11 @@ public sealed class StudioWorkflowGraphRenderTests
     [Fact]
     public void WorkflowGraph_WithNullNodes_RendersDefaultEmptyState()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         // No parameters bound at all — the component must not throw and must show the empty state.
-        var cut = ctx.RenderComponent<StudioWorkflowGraph>();
+        var cut = ctx.Render<StudioWorkflowGraph>();
 
         Assert.Contains("data-workflow-graph-empty=\"true\"", cut.Markup, StringComparison.Ordinal);
         Assert.Empty(cut.FindAll(".studio-workflow-graph-node"));

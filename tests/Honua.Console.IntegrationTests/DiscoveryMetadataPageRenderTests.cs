@@ -79,10 +79,10 @@ public sealed class DiscoveryMetadataPageRenderTests
             Read = new ConsoleDiscoveryMetadata { Bound = true, Title = "Parcels service" },
             SaveResult = new ConsoleSaveDiscoveryResult { Succeeded = true, State = "Updated", Detail = "Saved discovery metadata on honua-server." },
         };
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation>(fake);
-        var page = ctx.RenderComponent<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ServiceName, "svc"));
+        var page = ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ServiceName, "svc"));
 
         page.WaitForAssertion(
             () => Assert.Contains("data-discovery-title", page.Markup, StringComparison.Ordinal),
@@ -100,11 +100,11 @@ public sealed class DiscoveryMetadataPageRenderTests
     [Fact]
     public void LayerDiscovery_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
 
-        var page = ctx.RenderComponent<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        var page = ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
         page.WaitForAssertion(
             () => Assert.Contains("data-discovery-unbound", page.Markup, StringComparison.Ordinal),
@@ -114,10 +114,10 @@ public sealed class DiscoveryMetadataPageRenderTests
 
     private static IRenderedComponent<OperateDiscoveryMetadataPage> RenderLayer(FakeDiscovery fake)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation>(fake);
-        return ctx.RenderComponent<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        return ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
     }
 
     private sealed class FakeTransition : IOperateTransitionDataSource

@@ -258,10 +258,10 @@ public sealed class PublicationOverridesTests
     [Fact]
     public void Page_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsolePublicationOverridesOperation, UnsupportedConsolePublicationOverridesOperation>();
 
-        var page = ctx.RenderComponent<OperatePublicationOverridesPage>(p => p.Add(x => x.PublicationId, PublicationId));
+        var page = ctx.Render<OperatePublicationOverridesPage>(p => p.Add(x => x.PublicationId, PublicationId));
 
         page.WaitForAssertion(
             () => Assert.Contains("data-publication-overrides-unbound", page.Markup, StringComparison.Ordinal),
@@ -271,9 +271,9 @@ public sealed class PublicationOverridesTests
 
     private static IRenderedComponent<OperatePublicationOverridesPage> Render(FakeOverrides fake, string? publicationId)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsolePublicationOverridesOperation>(fake);
-        return ctx.RenderComponent<OperatePublicationOverridesPage>(p =>
+        return ctx.Render<OperatePublicationOverridesPage>(p =>
         {
             if (publicationId is not null)
             {

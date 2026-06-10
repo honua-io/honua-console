@@ -16,10 +16,10 @@ public sealed class MapPreviewRenderTests
     [Fact]
     public void MapPreview_WithoutBackend_RendersSchematicScaleAndZoomChrome()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var cut = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.ScaleText, "1:8,000")
             .Add(p => p.Crs, "EPSG:4326")
             .Add(p => p.Zoom, 14));
@@ -46,7 +46,7 @@ public sealed class MapPreviewRenderTests
     [Fact]
     public void MapPreview_LayerMode_TogglesLabelsHighlightAndPopup()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         var popup = new MapPreviewPopup(
@@ -57,7 +57,7 @@ public sealed class MapPreviewRenderTests
             ],
             "GetFeatureInfo preview · 4 of 23 fields exposed");
 
-        var withChrome = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var withChrome = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.Mode, MapPreviewMode.Layer)
             .Add(p => p.ShowLabels, true)
             .Add(p => p.ShowHighlight, true)
@@ -71,7 +71,7 @@ public sealed class MapPreviewRenderTests
         Assert.Contains("— redacted —", withChrome.Markup, StringComparison.Ordinal);
 
         // Disabling the toggles removes each landmark; popup hidden even though content is supplied.
-        var bare = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var bare = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.Mode, MapPreviewMode.Layer)
             .Add(p => p.ShowLabels, false)
             .Add(p => p.ShowHighlight, false)
@@ -86,10 +86,10 @@ public sealed class MapPreviewRenderTests
     [Fact]
     public void MapPreview_WithLegend_RendersClassBreakSwatches()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var cut = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.LegendTitle, "use_code")
             .Add(p => p.Legend,
             [
@@ -106,11 +106,11 @@ public sealed class MapPreviewRenderTests
     [Fact]
     public void MapPreview_ServiceMode_RendersLayerListOverlayAndRaisesToggle()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         MapPreviewLayer? toggled = null;
-        var cut = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var cut = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.Mode, MapPreviewMode.Service)
             .Add(p => p.Layers,
             [
@@ -131,11 +131,11 @@ public sealed class MapPreviewRenderTests
     [Fact]
     public void MapPreview_Basemaps_SelectActivatesChipAndRaisesCallback()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         MapPreviewBasemap? selected = null;
-        var cut = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var cut = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.Basemaps,
             [
                 new MapPreviewBasemap("positron", "Positron"),
@@ -158,17 +158,17 @@ public sealed class MapPreviewRenderTests
     [Fact]
     public void MapPreview_TimeFrame_RendersAsOfAndNowBadges()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var asOf = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var asOf = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.TimeFrame, MapPreviewTimeFrame.AsOf)
             .Add(p => p.TimeFrameLabel, "2026-05-14 12:00 UTC · 10d ago"));
         Assert.Contains("map-preview-timeframe-asof", asOf.Markup, StringComparison.Ordinal);
         Assert.Contains("as-of", asOf.Markup, StringComparison.Ordinal);
         Assert.Contains("10d ago", asOf.Markup, StringComparison.Ordinal);
 
-        var now = ctx.RenderComponent<MapPreview>(parameters => parameters
+        var now = ctx.Render<MapPreview>(parameters => parameters
             .Add(p => p.TimeFrame, MapPreviewTimeFrame.Now)
             .Add(p => p.TimeFrameLabel, "current"));
         Assert.Contains("map-preview-timeframe-now", now.Markup, StringComparison.Ordinal);

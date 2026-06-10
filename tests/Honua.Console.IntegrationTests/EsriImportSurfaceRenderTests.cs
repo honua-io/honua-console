@@ -18,20 +18,20 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class EsriImportSurfaceRenderTests
 {
-    private static Bunit.TestContext NewContext()
+    private static Bunit.BunitContext NewContext()
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         return ctx;
     }
 
     // [SupplyParameterFromQuery] parameters cannot be set directly in bUnit; navigate the wizard to the
     // ?step= query before rendering so the page reads the step from the route, as it does in the host.
-    private static IRenderedComponent<ImportEsriWizardPage> RenderWizardAtStep(Bunit.TestContext ctx, int step)
+    private static IRenderedComponent<ImportEsriWizardPage> RenderWizardAtStep(Bunit.BunitContext ctx, int step)
     {
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
         nav.NavigateTo($"operate/import/esri?step={step}");
-        return ctx.RenderComponent<ImportEsriWizardPage>();
+        return ctx.Render<ImportEsriWizardPage>();
     }
 
     // ---- shared components ----
@@ -45,7 +45,7 @@ public sealed class EsriImportSurfaceRenderTests
     {
         using var ctx = NewContext();
 
-        var cut = ctx.RenderComponent<FidelityBadge>(p => p.Add(c => c.Fidelity, fidelity));
+        var cut = ctx.Render<FidelityBadge>(p => p.Add(c => c.Fidelity, fidelity));
 
         Assert.Contains($"data-fidelity=\"{slug}\"", cut.Markup, StringComparison.Ordinal);
         Assert.Contains(label, cut.Markup, StringComparison.Ordinal);
@@ -64,7 +64,7 @@ public sealed class EsriImportSurfaceRenderTests
             new("Heatmap", "FeatureLayer", null, ImportFidelity.Drop, "heatmap renderer not in map-package.v1", Included: false),
         ];
 
-        var cut = ctx.RenderComponent<SourceTargetMappingTable>(p => p
+        var cut = ctx.Render<SourceTargetMappingTable>(p => p
             .Add(c => c.Rows, rows)
             .Add(c => c.ShowBoundColumn, true)
             .Add(c => c.Heading, "Layer mapping"));
@@ -93,7 +93,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
 
         // Four intake modes.
         Assert.Contains("Paste JSON", page.Markup, StringComparison.Ordinal);
@@ -127,7 +127,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
 
         // The bundled sample must not auto-populate as if it were the user's own import.
         Assert.Contains("Paste or upload a Web Map JSON", page.Markup, StringComparison.Ordinal);
@@ -144,7 +144,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
         page.Find("[data-intake-sample]").Click();
         page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create map package", StringComparison.Ordinal)).Click();
 
@@ -160,7 +160,7 @@ public sealed class EsriImportSurfaceRenderTests
     {
         using var ctx = NewContext();
 
-        var page = ctx.RenderComponent<ImportEsriDashboardPage>();
+        var page = ctx.Render<ImportEsriDashboardPage>();
         page.Find("[data-intake-sample]").Click();
 
         Assert.Contains("Element → widget mapping", page.Markup, StringComparison.Ordinal);
@@ -178,7 +178,7 @@ public sealed class EsriImportSurfaceRenderTests
     {
         using var ctx = NewContext();
 
-        var page = ctx.RenderComponent<ImportStoryMapPage>();
+        var page = ctx.Render<ImportStoryMapPage>();
         page.Find("[data-intake-sample]").Click();
 
         Assert.Contains("Section → content mapping", page.Markup, StringComparison.Ordinal);
@@ -285,7 +285,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
 
         // Paste structurally-broken JSON and ask to parse it.
         page.Find("textarea.esri-intake__textarea").Input("{ not json");
@@ -304,7 +304,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
         page.Find("textarea.esri-intake__textarea").Input("[1, 2, 3]");
 
         Assert.Contains("must be a JSON object", page.Markup, StringComparison.Ordinal);
@@ -315,7 +315,7 @@ public sealed class EsriImportSurfaceRenderTests
     {
         using var ctx = NewContext();
 
-        var page = ctx.RenderComponent<ImportEsriDashboardPage>();
+        var page = ctx.Render<ImportEsriDashboardPage>();
 
         // Switch to URL / item id mode — a bound URL input replaces the static binding note.
         page.FindAll("button.esri-intake__mode").First(b => b.TextContent.Contains("URL", StringComparison.Ordinal)).Click();
@@ -337,7 +337,7 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
 
         // Switch to Upload mode: the source-required finding shows until a file is staged.
         page.FindAll("button.esri-intake__mode").First(b => b.TextContent.Contains("Upload file", StringComparison.Ordinal)).Click();
@@ -359,7 +359,7 @@ public sealed class EsriImportSurfaceRenderTests
     {
         using var ctx = NewContext();
 
-        var page = ctx.RenderComponent<ImportStoryMapPage>();
+        var page = ctx.Render<ImportStoryMapPage>();
         page.Find("textarea.esri-intake__textarea").Input("""{ "nodes": { "n1": { "type": "text", "title": "Intro" } } }""");
         page.FindAll("button.console-button-sm").First(b => b.TextContent.Contains("Parse JSON", StringComparison.Ordinal)).Click();
 
@@ -376,9 +376,9 @@ public sealed class EsriImportSurfaceRenderTests
         // confirm() returns false => operator chose to stay on the page when leaving with unsaved intake.
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
 
         // Editing the intake marks the form dirty (the inline JSON finding appears once edited); the
         // <UnsavedChangesGuard/> intercepts internal SPA navigation and (confirm() => false) keeps the
@@ -398,9 +398,9 @@ public sealed class EsriImportSurfaceRenderTests
         using var ctx = NewContext();
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
 
-        var page = ctx.RenderComponent<ImportEsriWebMapPage>();
+        var page = ctx.Render<ImportEsriWebMapPage>();
 
         // Stage an edit, then parse a valid Web Map. A successful parse marks the intake clean.
         page.Find("textarea.esri-intake__textarea").Input(EsriImportSampleDocumentsValidWebMap);

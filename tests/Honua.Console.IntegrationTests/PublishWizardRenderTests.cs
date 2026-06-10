@@ -32,9 +32,9 @@ public sealed class PublishWizardRenderTests
     [Fact]
     public void PublishWizard_RendersStepperBodyAndFooterNav()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<PublishWizard>(parameters => parameters
+        var cut = ctx.Render<PublishWizard>(parameters => parameters
             .Add(p => p.Steps, QuickSteps())
             .Add(p => p.Current, 0));
 
@@ -56,10 +56,10 @@ public sealed class PublishWizardRenderTests
     [Fact]
     public void PublishWizard_ForwardAndBack_RaiseCurrentChanged()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         var current = 1;
-        var cut = ctx.RenderComponent<PublishWizard>(parameters => parameters
+        var cut = ctx.Render<PublishWizard>(parameters => parameters
             .Add(p => p.Steps, QuickSteps())
             .Add(p => p.Current, current)
             .Add(p => p.CurrentChanged, EventCallback.Factory.Create<int>(this, next => current = next)));
@@ -67,7 +67,7 @@ public sealed class PublishWizardRenderTests
         cut.Find(".publish-wizard-next").Click();
         Assert.Equal(2, current);
 
-        cut.SetParametersAndRender(parameters => parameters.Add(p => p.Current, 1));
+        cut.Render(parameters => parameters.Add(p => p.Current, 1));
         cut.Find(".publish-wizard-back").Click();
         Assert.Equal(0, current);
     }
@@ -75,10 +75,10 @@ public sealed class PublishWizardRenderTests
     [Fact]
     public void PublishWizard_InvalidStep_DisablesForwardNav()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         var advanced = false;
-        var cut = ctx.RenderComponent<PublishWizard>(parameters => parameters
+        var cut = ctx.Render<PublishWizard>(parameters => parameters
             .Add(p => p.Steps, QuickSteps(serviceValid: false))
             .Add(p => p.Current, 0)
             .Add(p => p.CurrentChanged, EventCallback.Factory.Create<int>(this, _ => advanced = true)));
@@ -93,10 +93,10 @@ public sealed class PublishWizardRenderTests
     [Fact]
     public void PublishWizard_LastStep_ShowsFinishAndRaisesOnFinish()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         var finished = false;
-        var cut = ctx.RenderComponent<PublishWizard>(parameters => parameters
+        var cut = ctx.Render<PublishWizard>(parameters => parameters
             .Add(p => p.Steps, QuickSteps())
             .Add(p => p.Current, 2)
             .Add(p => p.FinishLabel, "Publish + open resource →")
