@@ -42,6 +42,13 @@ public sealed record StudioAnalysisGenerationOutcome
     /// <summary>The plan-card state with the server-proposed analysis applied; present iff status == generated.</summary>
     public StudioAnalysisPlanEditor? Plan { get; init; }
 
+    /// <summary>
+    /// True when <see cref="Plan"/> is a console-built baseline (the model couldn't draft one), not a
+    /// model-authored plan. Lets the page avoid re-applying / re-announcing a baseline it already seeded
+    /// optimistically — so it never clobbers the operator's in-flight edits or stacks a contradictory turn.
+    /// </summary>
+    public bool IsBaseline { get; init; }
+
     /// <summary>The Honua turn body to show (rationale, refusal reason, or error detail).</summary>
     public string Rationale { get; init; } = string.Empty;
 

@@ -93,11 +93,15 @@
             <span>z @Zoom</span>
         </div>
 
-        @* Zoom chrome. *@
+        @* Zoom chrome. Drives the live MapLibre camera when one is bound; disabled over the static
+           schematic placeholder (no camera to move) so it is never a clickable no-op. *@
         <div class="map-preview-zoom" role="group" aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom in">+</button>
-            <button type="button" aria-label="Zoom out">&#8722;</button>
-            <button type="button" aria-label="Recenter">&#9094;</button>
+            <button type="button" aria-label="Zoom in" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="ZoomInAsync">+</button>
+            <button type="button" aria-label="Zoom out" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="ZoomOutAsync">&#8722;</button>
+            <button type="button" aria-label="Recenter" disabled="@(!_liveMapBound)"
+                    title="@ZoomControlTitle" @onclick="RecenterAsync">&#9094;</button>
         </div>
 
         @* Service-mode layer list overlay. *@
@@ -197,6 +201,7 @@
     private ElementReference _canvas;
     private IJSObjectReference? _module;
     private bool _liveMapBound;
+    private string? _boundStyleUrl;
     private string? _activeBasemapId;
     private bool _basemapInitialized;
 
@@ -284,6 +289,13 @@
     [Parameter]
     public double[]? Center { get; set; }
 
+    /// <summary>
+    /// Optional data extent [minLng, minLat, maxLng, maxLat] in EPSG:4326. When set, the live map
+    /// fits to it on load so the layer's data is framed instead of opening at a whole-world view.
+    /// </summary>
+    [Parameter]
+    public double[]? Bounds { get; set; }
+
     /// <summary>Raised when a basemap chip is selected.</summary>
     [Parameter]
     public EventCallback<MapPreviewBasemap> OnBasemapChanged { get; set; }
@@ -308,7 +320,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || string.IsNullOrWhiteSpace(StyleUrl))
+        // Bind (or re-bind) the live map whenever a style URL is present and differs from the one currently
+        // bound. The builder/AI flows mount the preview BEFORE a style exists (empty draft) and only supply
+        // StyleUrl after generation binds a real layer, so binding only on firstRender would never show the
+        // map. Re-binding on change also handles switching between layers/refined proposals.
+        if (string.IsNullOrWhiteSpace(StyleUrl) || string.Equals(StyleUrl, _boundStyleUrl, StringComparison.Ordinal))
         {
             return;
         }
@@ -318,6 +334,21 @@
             _module ??= await JS.InvokeAsync<IJSObjectReference>(
                 "import", "./_content/Honua.Console.Shell/map-preview.js");
 
+            // Dispose a previously-bound map before binding a new style (refine / layer switch).
+            if (_liveMapBound)
+            {
+                try
+                {
+                    await _module.InvokeVoidAsync("dispose", _canvas);
+                }
+                catch (JSException)
+                {
+                    // Ignore teardown failures; the re-init below replaces the canvas state.
+                }
+
+                _liveMapBound = false;
+            }
+
             var bound = await _module.InvokeAsync<bool>(
                 "init",
                 _canvas,
@@ -326,11 +357,13 @@
                     styleUrl = StyleUrl,
                     center = Center,
                     zoom = (double)Zoom,
+                    bounds = Bounds,
                     showScale = true,
                 });
 
-            if (bound && !_liveMapBound)
+            if (bound)
             {
+                _boundStyleUrl = StyleUrl;
                 _liveMapBound = true;
                 StateHasChanged();
             }
@@ -369,6 +402,48 @@
 
     private Task ToggleLayer(MapPreviewLayer layer) =>
         OnLayerToggled.HasDelegate ? OnLayerToggled.InvokeAsync(layer) : Task.CompletedTask;
+
+    private string ZoomControlTitle => _liveMapBound
+        ? "Zoom / recenter the live map"
+        : "Zoom is available once a live map style is bound; the schematic placeholder has no camera.";
+
+    private async Task ZoomInAsync() => await InvokeMapAsync("zoomIn");
+
+    private async Task ZoomOutAsync() => await InvokeMapAsync("zoomOut");
+
+    private async Task RecenterAsync()
+    {
+        if (!_liveMapBound || _module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeAsync<bool>("recenter", _canvas, Center, (double)Zoom);
+        }
+        catch (JSException)
+        {
+            // Live camera move failed; keep the current view.
+        }
+    }
+
+    private async Task InvokeMapAsync(string fn)
+    {
+        if (!_liveMapBound || _module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeAsync<bool>(fn, _canvas);
+        }
+        catch (JSException)
+        {
+            // Live camera move failed; keep the current view.
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {

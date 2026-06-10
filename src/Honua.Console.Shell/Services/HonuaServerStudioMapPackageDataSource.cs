@@ -34,30 +34,78 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
     private readonly IStudioPackageLifecycleClient _client;
     private readonly IStudioMapGenerationClient _generation;
+    private readonly IOperateTransitionDataSource _operate;
 
     public HonuaServerStudioMapPackageDataSource(
         IStudioPackageLifecycleClient client,
-        IStudioMapGenerationClient generation)
+        IStudioMapGenerationClient generation,
+        IOperateTransitionDataSource operate)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _generation = generation ?? throw new ArgumentNullException(nameof(generation));
+        _operate = operate ?? throw new ArgumentNullException(nameof(operate));
     }
 
-    public Task<StudioMapWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+    // Catalog grounding: the real published layers in the workspace, so map generation binds real
+    // serviceId/layerId/extent instead of inventing placeholders (and the preview can render them).
+    private async Task<IReadOnlyList<MapGenerationSource>> LoadAvailableSourcesAsync(CancellationToken cancellationToken)
     {
-        // honua-server#1180/#1183 address packages by id and expose no map-package list verb, so the
-        // workspace cannot enumerate existing maps from live data without fabricating them. Surface that
-        // explicitly (Console Patterns Charter section 11) — operators reach an existing map by id (deep
-        // link / known id) or author a new map. This list binds automatically once a list route lands.
-        var listUnsupported = new StudioMapCapabilityState(
-            Surface,
-            "Unsupported",
-            ListContract,
-            "honua-server does not yet expose a map-package list endpoint, so existing map packages cannot "
-            + "be enumerated from live data. Create a new map, or open a known map by id. The package list "
-            + "binds automatically once honua-server adds a Studio package list route.");
+        try
+        {
+            var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
+            var sources = new List<MapGenerationSource>();
+            foreach (var service in view.Services)
+            {
+                foreach (var layer in service.Layers)
+                {
+                    sources.Add(new MapGenerationSource
+                    {
+                        ServiceId = service.Name,
+                        LayerId = layer.LayerId.ToString(CultureInfo.InvariantCulture),
+                        Name = layer.Name,
+                        GeometryType = layer.Geometry,
+                        Protocol = "geoservices_feature_service",
+                        Bbox = layer.Extent,
+                    });
+                }
+            }
 
-        return Task.FromResult(new StudioMapWorkspace([], [listUnsupported]));
+            return sources;
+        }
+        catch (Exception)
+        {
+            // Grounding is best-effort; without it the model falls back to placeholder bindings.
+            return [];
+        }
+    }
+
+    public async Task<StudioMapWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+    {
+        // honua-server now exposes a Studio package-draft list route, so the workspace enumerates existing
+        // map drafts from live data (filtered to the map family). The summaries are secret-safe — they carry
+        // identity/title-key/timestamps but not the package body — so layer counts are not available without
+        // opening a draft; the list still lets operators reach an existing map by id, or author a new one.
+        var result = await _client
+            .ListPackageDraftsAsync(StudioPackageFamily.Map, status: null, cancellationToken)
+            .ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return new StudioMapWorkspace([], [ToCapabilityState(ListContract, issue)]);
+        }
+
+        var packages = (result.Data!.Drafts ?? [])
+            .Select(summary => new StudioMapPackageListItem(
+                summary.DraftId.ToString(),
+                string.IsNullOrWhiteSpace(summary.PackageKey) ? summary.DraftId.ToString() : summary.PackageKey,
+                LayerCount: 0,
+                DraftVersion: null,
+                PublishedVersion: null,
+                summary.UpdatedAt))
+            .OrderByDescending(item => item.UpdatedAt)
+            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new StudioMapWorkspace(packages, []);
     }
 
     public async Task<StudioMapEditorLoad> LoadAsync(string? mapId, CancellationToken cancellationToken = default)
@@ -271,9 +319,11 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
                 .ToArray(),
             Answers = request.Answers
                 .Select(answer => new MapGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
-                .ToArray()
+                .ToArray(),
+            AvailableSources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false)
         };
 
+        var availableSources = wire.AvailableSources;
         var result = await _generation.GenerateMapAsync(wire, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
@@ -292,7 +342,97 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             return StudioMapGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
         }
 
-        return MapGeneration(currentState, result.Data!);
+        var outcome = MapGeneration(currentState, result.Data!);
+        ResolveBoundLayerIds(outcome.State, availableSources);
+        return outcome;
+    }
+
+    // When generation named a service but not the numeric layer id (small local models are inconsistent),
+    // resolve each layer's BoundLayerId from the real catalog by matching its BoundServiceId — so the
+    // builder preview can render the real layer via /map-proxy/styles/{layerId}.json every time.
+    private static void ResolveBoundLayerIds(StudioMapEditorState? state, IReadOnlyList<MapGenerationSource> available)
+    {
+        if (state is null || available.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var layer in state.Layers)
+        {
+            if (!string.IsNullOrWhiteSpace(layer.BoundLayerId))
+            {
+                continue;
+            }
+
+            var match = available.FirstOrDefault(source =>
+                !string.IsNullOrWhiteSpace(layer.BoundServiceId)
+                && string.Equals(source.ServiceId, layer.BoundServiceId, StringComparison.OrdinalIgnoreCase));
+
+            // Single-source workspace: if the model bound nothing resolvable but there's exactly one real
+            // layer, bind it so the map still renders the available data.
+            match ??= available.Count == 1 ? available[0] : null;
+
+            if (match is not null && !string.IsNullOrWhiteSpace(match.LayerId))
+            {
+                layer.BoundLayerId = match.LayerId;
+                if (string.IsNullOrWhiteSpace(layer.BoundServiceId))
+                {
+                    layer.BoundServiceId = match.ServiceId;
+                }
+            }
+        }
+
+        // The small local model frequently returns an EMPTY map (no layers) for a prompt like "a map of the
+        // E2E Source layer". When the workspace has exactly ONE real source, SEED a bound layer so the
+        // workflow still produces a map that RENDERS the data the operator asked for — not an empty package
+        // they must hand-fix. We only seed for a single-source workspace: with several real layers there is
+        // no signal for which one the operator meant, and silently binding an arbitrary available[0] would
+        // present the wrong layer as the answer. The layer is the real catalog layer, never fabricated.
+        var bound = state.Layers.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.BoundLayerId));
+        if (bound is null && available.Count == 1)
+        {
+            var src = available[0];
+            if (!string.IsNullOrWhiteSpace(src.LayerId))
+            {
+                bound = new StudioMapLayerEditor
+                {
+                    BoundLayerId = src.LayerId,
+                    BoundServiceId = src.ServiceId,
+                    Title = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!,
+                    SourceRef = $"service:{src.ServiceId}/{src.LayerId}",
+                    Visible = true,
+                };
+                state.Layers.Add(bound);
+            }
+        }
+
+        // Frame + finish the map so it actually renders and is closer to publish-ready (the model usually
+        // leaves the extent/basemap/title unset). Use the bound layer's real EPSG:4326 extent for the view.
+        if (bound is not null)
+        {
+            // Only frame from the source that the bound layer actually resolves to — never from an unrelated
+            // available[0], which would stamp a different layer's extent and frame the wrong area.
+            var src = available.FirstOrDefault(s => string.Equals(s.LayerId, bound.BoundLayerId, StringComparison.Ordinal));
+            // A real EPSG:4326 bbox must be four FINITE numbers; an unset/sentinel extent can carry NaN or
+            // ±Infinity, which would serialize to "NaN"/"Infinity" and slip through bbox validation (NaN
+            // comparisons are all false) — producing a degenerate extent the framing was meant to prevent.
+            if (string.IsNullOrWhiteSpace(state.InitialExtent)
+                && src?.Bbox is { Length: 4 } bbox
+                && bbox.All(double.IsFinite))
+            {
+                state.InitialExtent = string.Join(",", bbox.Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+
+            if (string.IsNullOrWhiteSpace(state.Basemap))
+            {
+                state.Basemap = "basemap:streets";
+            }
+
+            if (string.IsNullOrWhiteSpace(state.Title))
+            {
+                state.Title = bound.Title;
+            }
+        }
     }
 
     private static StudioMapGenerationOutcome MapGeneration(

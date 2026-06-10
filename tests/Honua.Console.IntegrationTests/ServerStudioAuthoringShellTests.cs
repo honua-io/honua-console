@@ -210,6 +210,13 @@ public sealed class ServerStudioAuthoringShellTests
                 ]
             }));
 
+        public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
+            StudioPackageFamily? family = null,
+            StudioPackageValidationStatus? status = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioEndpointResult<StudioPackageDraftListResponse>.FromData(
+                new StudioPackageDraftListResponse()));
+
         public Task<StudioEndpointResult<StudioPackageDraft>> CreatePackageDraftAsync(
             CreateStudioPackageDraftRequest request,
             CancellationToken cancellationToken = default)

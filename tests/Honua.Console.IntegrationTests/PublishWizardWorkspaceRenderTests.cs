@@ -105,6 +105,53 @@ public sealed class PublishWizardWorkspaceRenderTests
     }
 
     [Fact]
+    public void QuickFlow_LayerStep_CreateResourceActions_NavigateToRealOperateFlows()
+    {
+        // The "+ Create from …" affordances under the resource picker were dead buttons; each now navigates
+        // to the real Operate authoring flow that owns that create contract. (Charter §11.)
+        using var ctx = NewContext();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        cut.Find(".publish-wizard-next").Click();
+
+        var actions = cut.Find(".publish-resource-actions");
+        actions.Children.Single(b => b.TextContent.Contains("Create from connection", StringComparison.Ordinal)).Click();
+        Assert.EndsWith("/operate/connections/new", nav.Uri, StringComparison.Ordinal);
+
+        actions = cut.Find(".publish-resource-actions");
+        actions.Children.Single(b => b.TextContent.Contains("Create from file", StringComparison.Ordinal)).Click();
+        Assert.EndsWith("/operate/resources/import", nav.Uri, StringComparison.Ordinal);
+
+        actions = cut.Find(".publish-resource-actions");
+        actions.Children.Single(b => b.TextContent.Contains("Migrate remote service", StringComparison.Ordinal)).Click();
+        Assert.EndsWith("/operate/import/service", nav.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QuickFlow_CreateNewService_CopyUrlButton_IsWiredToClipboardInterop()
+    {
+        // The URL-preview "Copy URL" control was a dead button; it now copies the previewed URL through the
+        // shared clipboard interop and flips the label on success. (Charter §11.)
+        using var ctx = NewContext();
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
+        module.Setup<bool>("copyText", _ => true).SetResult(true);
+        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+
+        var createNew = cut.FindAll("[data-quick-step=\"service\"] .publish-segment-option")
+            .Single(b => b.TextContent.Contains("Create new service", StringComparison.Ordinal));
+        createNew.Click();
+
+        var copy = cut.Find("[data-url-copy]");
+        Assert.False(copy.HasAttribute("disabled"));
+        copy.Click();
+
+        Assert.Single(module.Invocations["copyText"]);
+        cut.WaitForAssertion(
+            () => Assert.Contains("Copied", cut.Find("[data-url-copy]").TextContent, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void QuickFlow_ReviewStep_ShowsCreationStackAndFinishPublishes()
     {
         using var ctx = NewContext();

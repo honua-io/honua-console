@@ -1,0 +1,165 @@
+@namespace Honua.Console.Shell.Components
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@*
+    Shared live chart (graphs) preview — the dashboard/report/analysis analog of MapPreview.
+
+    An inline SVG bar-chart schematic ALWAYS renders first as a no-backend placeholder, so the
+    component is fully usable in bUnit and in the missing-binding (no spec / no data) state. When a
+    Vega-Lite Spec is supplied AND a browser Vega runtime is reachable, a live Vega-Lite chart mounts
+    over the placeholder via JS interop, plotting the bound layer's REAL rows fetched from FeaturesUrl
+    (the console /map-proxy/features proxy). Otherwise the schematic stays. This preserves the no-mock
+    contract — a real chart appears only when a real spec is bound to real data.
+*@
+
+<figure class="chart-preview"
+        style="@HeightStyle"
+        data-chart-bound="@(_liveChartBound ? "true" : "false")"
+        aria-label="@AriaLabel">
+
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <figcaption class="chart-preview-title">@Title</figcaption>
+    }
+
+    <div class="chart-preview-stage">
+        <div class="chart-preview-canvas" @ref="_canvas" data-chart-preview-canvas></div>
+
+        @* No-backend schematic placeholder. Always present; hidden by the live chart when one mounts. *@
+        <svg class="chart-preview-schematic"
+             viewBox="0 0 320 180"
+             preserveAspectRatio="xMidYMid meet"
+             role="img"
+             aria-hidden="true"
+             focusable="false">
+            <line x1="36" y1="150" x2="300" y2="150" stroke="#c2cdc0" stroke-width="1.5" />
+            <line x1="36" y1="20" x2="36" y2="150" stroke="#c2cdc0" stroke-width="1.5" />
+            @foreach (var bar in SchematicBars)
+            {
+                <rect x="@bar.X" y="@bar.Y" width="26" height="@bar.H" fill="@bar.Fill" rx="2" />
+            }
+        </svg>
+    </div>
+</figure>
+
+@code {
+    private static readonly (int X, int Y, int H, string Fill)[] DefaultBars =
+    [
+        (52, 92, 58, "#d9a23a"), (96, 64, 86, "#b56b1c"), (140, 110, 40, "#ead78a"),
+        (184, 48, 102, "#612d0a"), (228, 80, 70, "#d9a23a"), (272, 120, 30, "#ead78a"),
+    ];
+
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private bool _liveChartBound;
+    private string? _boundSpec;
+
+    /// <summary>Optional chart caption.</summary>
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>Pixel height of the chart stage.</summary>
+    [Parameter]
+    public int Height { get; set; } = 240;
+
+    /// <summary>Accessible label for the figure.</summary>
+    [Parameter]
+    public string AriaLabel { get; set; } = "Chart preview";
+
+    /// <summary>
+    /// Vega-Lite chart spec (JSON). When set AND a browser Vega runtime is reachable, a live chart
+    /// mounts over the schematic. When null/blank (missing-binding) the schematic placeholder is used
+    /// and no chart backend is contacted.
+    /// </summary>
+    [Parameter]
+    public string? Spec { get; set; }
+
+    /// <summary>
+    /// Optional URL serving the bound layer's real rows (the console /map-proxy/features proxy). When
+    /// set, the live chart plots those rows; when null it falls back to any inline data in the spec.
+    /// </summary>
+    [Parameter]
+    public string? FeaturesUrl { get; set; }
+
+    private string HeightStyle => $"--chart-preview-height:{Height}px;";
+
+    private static IReadOnlyList<(int X, int Y, int H, string Fill)> SchematicBars => DefaultBars;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Bind (or re-bind) the live chart whenever a spec is present and differs from the one currently
+        // bound. The builder/AI flows mount the preview BEFORE a spec exists (empty draft) and only supply
+        // Spec after generation, so binding only on firstRender would never show the chart. Re-binding on
+        // change also handles refined proposals and panel switches.
+        if (string.IsNullOrWhiteSpace(Spec) || string.Equals(Spec, _boundSpec, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/Honua.Console.Shell/chart-preview.js");
+
+            // Dispose a previously-bound chart before binding a new spec (refine / panel switch).
+            if (_liveChartBound)
+            {
+                try
+                {
+                    await _module.InvokeVoidAsync("dispose", _canvas);
+                }
+                catch (JSException)
+                {
+                    // Ignore teardown failures; the re-init below replaces the canvas state.
+                }
+
+                _liveChartBound = false;
+            }
+
+            var bound = await _module.InvokeAsync<bool>(
+                "init",
+                _canvas,
+                new
+                {
+                    spec = Spec,
+                    featuresUrl = FeaturesUrl,
+                });
+
+            if (bound)
+            {
+                _boundSpec = Spec;
+                _liveChartBound = true;
+                StateHasChanged();
+            }
+        }
+        catch (Exception)
+        {
+            // The live chart is strictly best-effort: no browser Vega runtime (offline, blocked CDN, or
+            // a non-interactive/prerender host), or a render harness with no/strict JS interop set up for
+            // this module. Any failure keeps the schematic placeholder — binding a live chart must NEVER
+            // break the host page's render. (Charter §11: honest placeholder over a thrown error.)
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("dispose", _canvas);
+                await _module.DisposeAsync();
+            }
+            catch (JSException)
+            {
+                // Ignore teardown failures.
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore teardown failures during prerender.
+            }
+        }
+    }
+}

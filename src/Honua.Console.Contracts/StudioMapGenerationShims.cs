@@ -102,6 +102,20 @@ public sealed record GenerateMapPackageRequest
     [JsonPropertyName("conversation")] public IReadOnlyList<MapGenerationTurn> Conversation { get; init; } = [];
     /// <summary>Answers to a prior needs-clarification turn.</summary>
     [JsonPropertyName("answers")] public IReadOnlyList<MapGenerationAnswer> Answers { get; init; } = [];
+    /// <summary>Real published layers in the workspace (catalog grounding) so the model binds real data.</summary>
+    [JsonPropertyName("availableSources")] public IReadOnlyList<MapGenerationSource> AvailableSources { get; init; } = [];
+}
+
+/// <summary>One real, published source the model may bind directly (catalog grounding).</summary>
+public sealed record MapGenerationSource
+{
+    [JsonPropertyName("serviceId")] public string ServiceId { get; init; } = string.Empty;
+    [JsonPropertyName("layerId")] public string LayerId { get; init; } = string.Empty;
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("geometryType")] public string? GeometryType { get; init; }
+    [JsonPropertyName("protocol")] public string? Protocol { get; init; }
+    /// <summary>Layer extent [minLng, minLat, maxLng, maxLat] in EPSG:4326.</summary>
+    [JsonPropertyName("bbox")] public double[]? Bbox { get; init; }
 }
 
 #endregion

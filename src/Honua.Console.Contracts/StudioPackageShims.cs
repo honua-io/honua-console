@@ -214,6 +214,34 @@ public sealed record StudioPackageDraft
     [JsonPropertyName("updatedAt")] public DateTimeOffset UpdatedAt { get; init; }
 }
 
+/// <summary>
+/// Secret-safe summary of a Studio package draft returned by the list endpoint
+/// (<c>GET /api/v1/studio/package-drafts</c>). Carries identity, family, package key, validation status,
+/// generation, and timestamps, but never the full package graph (no envelope body/bindings), so
+/// enumerating existing packages never leaks credentialed binding details.
+/// </summary>
+public sealed record StudioPackageDraftSummary
+{
+    [JsonPropertyName("draftId")] public Guid DraftId { get; init; }
+    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
+    [JsonPropertyName("packageKey")] public string PackageKey { get; init; } = string.Empty;
+    [JsonPropertyName("workspaceId")] public string? WorkspaceId { get; init; }
+    [JsonPropertyName("ownerId")] public string? OwnerId { get; init; }
+    [JsonPropertyName("family")] public StudioPackageFamily Family { get; init; }
+    [JsonPropertyName("validationStatus")] public StudioPackageValidationStatus ValidationStatus { get; init; }
+    [JsonPropertyName("baseVersionId")] public Guid? BaseVersionId { get; init; }
+    [JsonPropertyName("generation")] public long Generation { get; init; }
+    [JsonPropertyName("createdBy")] public string? CreatedBy { get; init; }
+    [JsonPropertyName("updatedBy")] public string? UpdatedBy { get; init; }
+    [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
+    [JsonPropertyName("updatedAt")] public DateTimeOffset UpdatedAt { get; init; }
+}
+
+public sealed record StudioPackageDraftListResponse
+{
+    [JsonPropertyName("drafts")] public IReadOnlyList<StudioPackageDraftSummary> Drafts { get; init; } = [];
+}
+
 public sealed record StudioPreviewPlan
 {
     [JsonPropertyName("draftId")] public Guid DraftId { get; init; }
@@ -382,6 +410,16 @@ public interface IStudioPackageLifecycleClient
         Guid draftId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lists secret-safe package-draft summaries (server route <c>GET /api/v1/studio/package-drafts</c>),
+    /// optionally filtered by package <paramref name="family"/> and validation <paramref name="status"/>, so
+    /// a Studio surface can enumerate existing packages instead of reporting the list as unsupported.
+    /// </summary>
+    Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
+        StudioPackageFamily? family = null,
+        StudioPackageValidationStatus? status = null,
+        CancellationToken cancellationToken = default);
+
     Task<StudioEndpointResult<StudioPackageDraft>> UpdatePackageDraftAsync(
         Guid draftId,
         UpdateStudioPackageDraftRequest request,
@@ -507,6 +545,31 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             "GET /api/v1/studio/package-drafts/{draftId}",
             cancellationToken);
 
+    public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
+        StudioPackageFamily? family = null,
+        StudioPackageValidationStatus? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var queryParts = new List<string>();
+        if (family is { } f)
+        {
+            queryParts.Add($"family={Uri.EscapeDataString(FamilyToWire(f))}");
+        }
+
+        if (status is { } s)
+        {
+            queryParts.Add($"status={Uri.EscapeDataString(StatusToWire(s))}");
+        }
+
+        var query = queryParts.Count == 0 ? string.Empty : "?" + string.Join("&", queryParts);
+        return SendAsync<object, StudioPackageDraftListResponse>(
+            HttpMethod.Get,
+            $"/api/v1/studio/package-drafts{query}",
+            null,
+            "GET /api/v1/studio/package-drafts (list)",
+            cancellationToken);
+    }
+
     public Task<StudioEndpointResult<StudioPackageDraft>> UpdatePackageDraftAsync(
         Guid draftId,
         UpdateStudioPackageDraftRequest request,
@@ -629,6 +692,30 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         RollbackAsync(itemId, request, cancellationToken);
 
     public void Dispose() => _httpClient.Dispose();
+
+    private static string FamilyToWire(StudioPackageFamily family) => family switch
+    {
+        StudioPackageFamily.Query => "query",
+        StudioPackageFamily.Analysis => "analysis",
+        StudioPackageFamily.Map => "map",
+        StudioPackageFamily.Dashboard => "dashboard",
+        StudioPackageFamily.Report => "report",
+        StudioPackageFamily.Form => "form",
+        StudioPackageFamily.App => "app",
+        StudioPackageFamily.Workflow => "workflow",
+        StudioPackageFamily.Geoprocessing => "gp",
+        StudioPackageFamily.Etl => "etl",
+        _ => family.ToString().ToLowerInvariant(),
+    };
+
+    private static string StatusToWire(StudioPackageValidationStatus status) => status switch
+    {
+        StudioPackageValidationStatus.NotValidated => "not-validated",
+        StudioPackageValidationStatus.Valid => "valid",
+        StudioPackageValidationStatus.Warning => "warning",
+        StudioPackageValidationStatus.Invalid => "invalid",
+        _ => status.ToString().ToLowerInvariant(),
+    };
 
     private async Task<StudioEndpointResult<TResponse>> SendAsync<TBody, TResponse>(
         HttpMethod method,
