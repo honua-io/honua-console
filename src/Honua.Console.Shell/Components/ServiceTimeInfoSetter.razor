@@ -1,0 +1,151 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+@* Self-contained service time-info setter (gap report Bucket 3-A #4). Binds the admin time-info endpoint
+   (GET service settings + PUT /api/v1/admin/services/{svc}/timeinfo) to let an operator declare a service's
+   start/end time fields and optional track-id field. The operation is resolved from the service provider so
+   this component renders everywhere — when no server is configured (or the operation is not registered) it
+   shows an honest missing-binding state and never fabricates time fields (Console Patterns Charter §11). *@
+<section class="console-section" data-timeinfo-setter>
+    <div class="console-page-heading">
+        <p class="console-kicker">Time-info</p>
+        <h2>Set service time fields</h2>
+        <p>Time-enable a service by declaring its start/end time fields (and an optional track id field for moving features). honua-server stores these on the service's temporal settings and emits them in FeatureServer/OGC API time-info.</p>
+    </div>
+
+    <article class="console-panel">
+        <div class="studio-field-grid">
+            <label>
+                <span>Service</span>
+                <input class="console-input" @bind="_service" data-timeinfo-service placeholder="my_feature_service" />
+            </label>
+        </div>
+        <div class="console-action-row">
+            <button class="console-button console-button-secondary" type="button"
+                    disabled="@(_busy || string.IsNullOrWhiteSpace(_service))"
+                    @onclick="LoadAsync" data-timeinfo-load>Load current</button>
+        </div>
+
+        @if (_loaded is { } li && !li.Bound)
+        {
+            <div class="console-panel console-state-warning" role="status" data-timeinfo-unbound>
+                <p class="console-kicker">Unavailable</p>
+                <p>@li.Detail</p>
+            </div>
+        }
+
+        <div class="studio-field-grid">
+            <label>
+                <span>Start time field</span>
+                <input class="console-input" @bind="_startTimeField" data-timeinfo-start placeholder="observed_at" />
+            </label>
+            <label>
+                <span>End time field</span>
+                <input class="console-input" @bind="_endTimeField" data-timeinfo-end placeholder="observed_until" />
+            </label>
+            <label>
+                <span>Track id field</span>
+                <input class="console-input" @bind="_trackIdField" data-timeinfo-track placeholder="vehicle_id" />
+            </label>
+        </div>
+        <p class="console-muted">Leave a field blank to clear it server-side.</p>
+        <div class="console-action-row">
+            <button class="console-button" type="button"
+                    disabled="@(_busy || string.IsNullOrWhiteSpace(_service))"
+                    @onclick="SaveAsync" data-timeinfo-save>
+                @(_busy ? "Saving…" : "Save time-info")
+            </button>
+        </div>
+
+        @if (_result is { } r)
+        {
+            <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-timeinfo-result>
+                <p class="console-kicker">@r.State</p>
+                <p>@r.Detail</p>
+            </div>
+        }
+    </article>
+</section>
+
+@code {
+    private string _service = string.Empty;
+    private string _startTimeField = string.Empty;
+    private string _endTimeField = string.Empty;
+    private string _trackIdField = string.Empty;
+    private bool _busy;
+    private ConsoleServiceTimeInfo? _loaded;
+    private ConsoleSetTimeInfoResult? _result;
+
+    private const string NotRegisteredDetail =
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the console can read and set the service's time-info on honua-server.";
+
+    // Resolve at use-time so the component renders even when the operation is not registered in DI (e.g. the
+    // merged build with no server, or a render harness): an unresolved operation surfaces missing-binding.
+    private IConsoleTimeInfoOperation? Operation => Services.GetService<IConsoleTimeInfoOperation>();
+
+    private async Task LoadAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_service))
+        {
+            return;
+        }
+
+        var operation = Operation;
+        if (operation is null)
+        {
+            _loaded = ConsoleServiceTimeInfo.Unbound(_service.Trim(), NotRegisteredDetail);
+            return;
+        }
+
+        _busy = true;
+        _result = null;
+        try
+        {
+            _loaded = await operation.GetTimeInfoAsync(_service.Trim());
+            if (_loaded.Bound)
+            {
+                _startTimeField = _loaded.StartTimeField ?? string.Empty;
+                _endTimeField = _loaded.EndTimeField ?? string.Empty;
+                _trackIdField = _loaded.TrackIdField ?? string.Empty;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_service))
+        {
+            return;
+        }
+
+        var operation = Operation;
+        if (operation is null)
+        {
+            _result = ConsoleSetTimeInfoResult.MissingBinding(NotRegisteredDetail);
+            return;
+        }
+
+        _busy = true;
+        _result = null;
+        try
+        {
+            _result = await operation.SetTimeInfoAsync(_service.Trim(), _startTimeField, _endTimeField, _trackIdField);
+            if (_result.Succeeded)
+            {
+                _startTimeField = _result.StartTimeField ?? string.Empty;
+                _endTimeField = _result.EndTimeField ?? string.Empty;
+                _trackIdField = _result.TrackIdField ?? string.Empty;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

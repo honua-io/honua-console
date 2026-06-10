@@ -25,34 +25,6 @@
     }
     else
     {
-        @if (_states.Count > 0)
-        {
-            <section class="console-section" aria-label="Server capability states">
-                <div class="console-page-heading">
-                    <p class="console-kicker">Sync binding</p>
-                    <h2>Server Capability States</h2>
-                </div>
-                <div class="console-panel-grid">
-                    @foreach (var state in _states)
-                    {
-                        <article class="console-panel">
-                            <div class="console-panel-heading">
-                                <div>
-                                    <p class="console-kicker">@state.State</p>
-                                    <h2>@state.Surface</h2>
-                                </div>
-                            </div>
-                            <p class="console-muted">@state.Detail</p>
-                            <dl class="console-definition-list">
-                                <dt>Contract</dt>
-                                <dd>@state.Contract</dd>
-                            </dl>
-                        </article>
-                    }
-                </div>
-            </section>
-        }
-
         @if (_syncSources.Count == 0)
         {
             <EmptyState Area="operate" Subject="sync-eligible sources" />
@@ -314,7 +286,6 @@
 @code {
     private bool _loading = true;
     private TemporalCapabilityState? _bindingState;
-    private IReadOnlyList<TemporalCapabilityState> _states = [];
     private IReadOnlyList<TemporalSourceCapability> _syncSources = [];
 
     private TemporalSourceCapability? _selectedSource;
@@ -335,11 +306,12 @@
     {
         _loading = true;
         var workspace = await TemporalData.GetWorkspaceAsync();
+        // Gate on whether the server-owned disconnected-replica workspace is reachable. The non-missing
+        // temporal capability rows are deliberately NOT surfaced here — this is the sync page, and a
+        // "Temporal viewer" capability card would mislabel it (the sync-eligible sources below are the
+        // sync-relevant signal). Only the missing-binding state, if any, gates the page.
         _bindingState = workspace.CapabilityStates.FirstOrDefault(state =>
             string.Equals(state.State, TemporalBindingState.MissingBinding, StringComparison.OrdinalIgnoreCase));
-        _states = workspace.CapabilityStates
-            .Where(state => !ReferenceEquals(state, _bindingState))
-            .ToArray();
         _syncSources = workspace.Sources
             .Where(source => source.SyncConflictReviewSupported)
             .ToArray();

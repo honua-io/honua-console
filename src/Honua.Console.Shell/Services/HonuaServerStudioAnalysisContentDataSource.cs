@@ -32,10 +32,71 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
     private const string GenerateContract = "POST /api/v1/analysis/content/generate";
 
     private readonly IHonuaAnalysisContentClient _client;
+    private readonly IOperateTransitionDataSource? _operate;
 
-    public HonuaServerStudioAnalysisContentDataSource(IHonuaAnalysisContentClient client)
+    public HonuaServerStudioAnalysisContentDataSource(
+        IHonuaAnalysisContentClient client,
+        IOperateTransitionDataSource? operate = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _operate = operate;
+    }
+
+    // Catalog grounding: the real published layers so analysis generation binds a real input
+    // serviceId/layerId (instead of layerId 0). Best-effort; without the catalog the model is ungrounded
+    // and the input-data chart simply stays unbound. Mirrors the query/map data sources.
+    private async Task<HonuaQueryGenerationSource[]> LoadAvailableSourcesAsync(CancellationToken cancellationToken)
+    {
+        if (_operate is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
+            return view.Services
+                .SelectMany(service => service.Layers.Select(layer => new HonuaQueryGenerationSource
+                {
+                    ServiceId = service.Name,
+                    LayerId = layer.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    Name = layer.Name,
+                }))
+                .ToArray();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    // The local model binds the real numeric layerId but is inconsistent about echoing the serviceId; the
+    // serviceId is deterministic given the layerId, so recover it from the catalog (match the bound layerId,
+    // else the single available source) for each input the model left unbound. This is what lets the
+    // input-data chart fetch the input layer's real rows. Never invents a binding.
+    private static void ResolveInputBindings(StudioAnalysisPlanEditor? plan, HonuaQueryGenerationSource[] sources)
+    {
+        if (plan is null || sources.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var input in plan.Inputs)
+        {
+            if (!string.IsNullOrWhiteSpace(input.ServiceId))
+            {
+                continue;
+            }
+
+            var layerId = input.LayerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var match = sources.FirstOrDefault(source =>
+                string.Equals(source.LayerId, layerId, StringComparison.Ordinal));
+            match ??= sources.Length == 1 ? sources[0] : null;
+            if (match is not null && !string.IsNullOrWhiteSpace(match.ServiceId))
+            {
+                input.ServiceId = match.ServiceId;
+            }
+        }
     }
 
     public async Task<StudioAnalysisWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -281,6 +342,8 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
             || !string.IsNullOrWhiteSpace(currentPlan.Goal)
             || !string.IsNullOrWhiteSpace(currentPlan.Title);
 
+        var availableSources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false);
+
         var wire = new HonuaGenerateAnalysisRequest
         {
             Prompt = request.Prompt,
@@ -292,27 +355,153 @@ public sealed class HonuaServerStudioAnalysisContentDataSource : IStudioAnalysis
                 .ToArray(),
             Answers = request.Answers
                 .Select(answer => new HonuaAnalysisGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
-                .ToArray()
+                .ToArray(),
+            AvailableSources = availableSources
         };
 
         var result = await _client.GenerateAsync(wire, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
-            // A 404/501 means this server lacks the analysis generation contract: AI is simply off here
-            // (honest "unsupported"), not a missing server binding. Other issues block the surface.
+            // A 404/501 means this server lacks the analysis generation contract. Rather than a dead end,
+            // start the operator from a baseline distribution of a real catalog layer when one exists
+            // (honest, refinable); fall back to the plain "unsupported" notice when there is no source.
             if (issue.StatusCode is 404 or 501)
             {
-                return new StudioAnalysisGenerationOutcome
-                {
-                    Status = StudioAnalysisGenerationStatuses.Unsupported,
-                    Rationale = "This server does not offer AI analysis generation yet."
-                };
+                return SeedBaselinePlan(request.Prompt, availableSources)
+                    ?? new StudioAnalysisGenerationOutcome
+                    {
+                        Status = StudioAnalysisGenerationStatuses.Unsupported,
+                        Rationale = "This server does not offer AI analysis generation yet."
+                    };
             }
 
             return StudioAnalysisGenerationOutcome.Blocked(ToCapabilityState(issue));
         }
 
-        return MapGeneration(currentPlan, result.Data!);
+        var outcome = MapGeneration(currentPlan, result.Data!);
+
+        // The local model frequently reports "unsupported" for analysis (a model-capability limit, not a
+        // wiring gap — the server's analysis backend is present). Rather than leave the operator at a dead
+        // end, seed a baseline distribution bound to a real catalog layer so the input-data chart renders
+        // the layer's REAL features. The seeded plan's rationale states plainly that it is a baseline, not
+        // an AI-authored plan, so it is honest (no-mock, Charter §11).
+        if (string.Equals(outcome.Status, StudioAnalysisGenerationStatuses.Unsupported, StringComparison.Ordinal)
+            && SeedBaselinePlan(request.Prompt, availableSources) is { } baseline)
+        {
+            return baseline;
+        }
+
+        ResolveInputBindings(outcome.Plan, availableSources);
+        return outcome;
+    }
+
+    // Build an INSTANT, real-data baseline analysis from the live catalog without any model call. Lets the
+    // page show a rendered starting result the moment the operator sends a prompt, rather than blocking them
+    // on a model round-trip that can take minutes and may report "unsupported" on this server. Returns null
+    // when no catalog source is available.
+    public async Task<StudioAnalysisPlanEditor?> SeedBaselineAsync(
+        string? prompt,
+        CancellationToken cancellationToken = default)
+    {
+        var sources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false);
+        return BuildBaselinePlan(prompt, sources);
+    }
+
+    // Wrap the baseline plan in a "generated" outcome with an honest rationale for the server path: when the
+    // model reports "unsupported", we still hand back a real, refinable starting plan instead of a dead end.
+    // Marked IsBaseline so the page can tell it apart from a model-authored plan.
+    private static StudioAnalysisGenerationOutcome? SeedBaselinePlan(
+        string? prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        if (SelectBaselineSource(prompt, sources) is not { } src)
+        {
+            return null;
+        }
+
+        var name = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!;
+        return new StudioAnalysisGenerationOutcome
+        {
+            Status = StudioAnalysisGenerationStatuses.Generated,
+            IsBaseline = true,
+            Plan = BuildBaselinePlan(prompt, src),
+            Rationale =
+                $"AI analysis generation isn't available on this server, so I started you from a baseline "
+                + $"distribution of {name} — the layer's real features. Refine the method, inputs, and "
+                + "parameters, or open the editor.",
+            Warnings =
+            [
+                "Baseline — not generated from your prompt; the local model can't draft analyses on this server."
+            ],
+        };
+    }
+
+    // Build a baseline analysis plan grounded in a real catalog layer. Returns null when no usable source
+    // exists. The plan binds a REAL service+layer so the input-data chart renders the layer's actual
+    // features — nothing is fabricated. Mirrors the map data source's empty-result seed.
+    private static StudioAnalysisPlanEditor? BuildBaselinePlan(
+        string? prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        if (SelectBaselineSource(prompt, sources) is not { } src)
+        {
+            return null;
+        }
+
+        return BuildBaselinePlan(prompt, src);
+    }
+
+    private static StudioAnalysisPlanEditor BuildBaselinePlan(string? prompt, HonuaQueryGenerationSource src)
+    {
+        var name = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!;
+        var layerId = int.Parse(
+            src.LayerId,
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture);
+        var plan = new StudioAnalysisPlanEditor
+        {
+            Title = $"Baseline distribution of {name}",
+            Goal = string.IsNullOrWhiteSpace(prompt) ? $"Summarise {name}" : prompt!,
+            Method = "aggregation",
+        };
+        plan.Inputs.Add(new StudioAnalysisInputEditor
+        {
+            Role = "primary",
+            ServiceId = src.ServiceId,
+            LayerId = layerId,
+        });
+
+        return plan;
+    }
+
+    // Pick the catalog source to baseline: prefer one the prompt names (by layer name or service id),
+    // otherwise the first usable source. Only considers sources with a real serviceId and a parseable
+    // non-negative layerId, so a single source with a bad/blank layerId can't shadow good ones (and we never
+    // invent a binding). Returns null when nothing is usable.
+    private static HonuaQueryGenerationSource? SelectBaselineSource(
+        string? prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        var usable = sources
+            .Where(s => !string.IsNullOrWhiteSpace(s.ServiceId)
+                && int.TryParse(
+                    s.LayerId,
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var id)
+                && id >= 0)
+            .ToArray();
+        if (usable.Length == 0)
+        {
+            return null;
+        }
+
+        var prone = prompt ?? string.Empty;
+        return usable.FirstOrDefault(s =>
+                   (!string.IsNullOrWhiteSpace(s.Name)
+                       && prone.Contains(s.Name!, StringComparison.OrdinalIgnoreCase))
+                   || prone.Contains(s.ServiceId, StringComparison.OrdinalIgnoreCase))
+               ?? usable[0];
     }
 
     private static StudioAnalysisGenerationOutcome MapGeneration(

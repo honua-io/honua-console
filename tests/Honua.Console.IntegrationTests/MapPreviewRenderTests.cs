@@ -34,8 +34,13 @@ public sealed class MapPreviewRenderTests
         Assert.Contains("EPSG:4326", scale.TextContent, StringComparison.Ordinal);
         Assert.Contains("z 14", scale.TextContent, StringComparison.Ordinal);
 
-        // Zoom chrome has in / out / recenter controls.
-        Assert.Equal(3, cut.FindAll(".map-preview-zoom button").Count);
+        // Zoom chrome has in / out / recenter controls. With no live map bound there is no camera to drive,
+        // so they are honestly disabled (never clickable no-ops over the static schematic) with a title that
+        // explains why. They wire to the live MapLibre camera only once a style is bound. (Charter §11.)
+        var zoomButtons = cut.FindAll(".map-preview-zoom button");
+        Assert.Equal(3, zoomButtons.Count);
+        Assert.All(zoomButtons, b => Assert.True(b.HasAttribute("disabled")));
+        Assert.All(zoomButtons, b => Assert.False(string.IsNullOrWhiteSpace(b.GetAttribute("title"))));
     }
 
     [Fact]

@@ -65,4 +65,17 @@ public interface IStudioAnalysisPackageDataSource
         StudioAnalysisPlanEditor currentPlan,
         StudioAnalysisGenerationRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds an instant, real-data baseline analysis from the live catalog (no model call) so the builder
+    /// can render a starting result the moment a prompt is sent, rather than blocking the operator on a model
+    /// round-trip that can take minutes and may report "unsupported" on this server. The baseline binds a real
+    /// service+layer (a distribution of the layer the prompt names, or the first available source); it never
+    /// fabricates data (Charter §11). Returns null when no catalog source is available. Test doubles inherit
+    /// the null default.
+    /// </summary>
+    Task<StudioAnalysisPlanEditor?> SeedBaselineAsync(
+        string? prompt,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<StudioAnalysisPlanEditor?>(null);
 }

@@ -176,15 +176,45 @@ public sealed class StudioDashboardPackageDataSourceTests
     }
 
     [Fact]
-    public async Task GetWorkspace_ReturnsEmptyListWithUnsupportedListingState()
+    public async Task GetWorkspace_WithNoDrafts_ReturnsEmptyListWithoutCapabilityState()
     {
         var dataSource = new HonuaServerStudioDashboardPackageDataSource(new RecordingLifecycleClient());
 
         var workspace = await dataSource.GetWorkspaceAsync();
 
         Assert.Empty(workspace.Packages);
-        var state = Assert.Single(workspace.CapabilityStates);
-        Assert.Equal("Unsupported", state.State);
+        Assert.Empty(workspace.CapabilityStates);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_EnumeratesLiveDashboardDrafts()
+    {
+        var draftId = Guid.NewGuid();
+        var client = new RecordingLifecycleClient
+        {
+            ListResult =
+            [
+                new StudioPackageDraftSummary
+                {
+                    DraftId = draftId,
+                    ItemId = Guid.NewGuid(),
+                    PackageKey = "studio-dashboard-sales",
+                    Family = StudioPackageFamily.Dashboard,
+                    ValidationStatus = StudioPackageValidationStatus.Valid,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                },
+            ],
+        };
+        var dataSource = new HonuaServerStudioDashboardPackageDataSource(client);
+
+        var workspace = await dataSource.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.CapabilityStates);
+        var item = Assert.Single(workspace.Packages);
+        Assert.Equal(draftId.ToString(), item.DashboardId);
+        Assert.Equal("studio-dashboard-sales", item.Title);
+        Assert.Equal(StudioPackageFamily.Dashboard, client.LastListFamily);
     }
 
     [Fact]
@@ -422,6 +452,20 @@ public sealed class StudioDashboardPackageDataSourceTests
             Task.FromResult(_draft is not null && _draft.DraftId == draftId
                 ? StudioEndpointResult<StudioPackageDraft>.FromData(_draft)
                 : NotFound<StudioPackageDraft>("GET draft"));
+
+        public IReadOnlyList<StudioPackageDraftSummary> ListResult { get; init; } = [];
+
+        public StudioPackageFamily? LastListFamily { get; private set; }
+
+        public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
+            StudioPackageFamily? family = null,
+            StudioPackageValidationStatus? status = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastListFamily = family;
+            return Task.FromResult(StudioEndpointResult<StudioPackageDraftListResponse>.FromData(
+                new StudioPackageDraftListResponse { Drafts = ListResult }));
+        }
 
         public Task<StudioEndpointResult<StudioPackageDraft>> UpdatePackageDraftAsync(
             Guid draftId,

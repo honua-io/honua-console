@@ -354,6 +354,12 @@ public sealed class StudioAppPackageDataSourceTests
             Guid draftId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
+            Honua.Console.Contracts.StudioPackageFamily? family = null,
+            StudioPackageValidationStatus? status = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioEndpointResult<StudioPackageDraftListResponse>.FromData(new StudioPackageDraftListResponse()));
+
         public Task<StudioEndpointResult<StudioPackageDraft>> UpdatePackageDraftAsync(
             Guid draftId, UpdateStudioPackageDraftRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

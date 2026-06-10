@@ -182,6 +182,19 @@
 
                                 <p class="console-muted studio-query-ai-section">Generated SQL</p>
                                 <pre class="console-code studio-query-sql" data-query-ai-readout="true">@StudioQueryReadoutGenerator.Generate(_query)</pre>
+
+                                @* The query RESULT — the live graph of the bound layer's real rows (count by
+                                   the projected field). Renders only when the query is bound to a real
+                                   service+layer; an unbound draft shows no result (no fabricated data). *@
+                                @if (StudioQueryResultChart.IsBound(_query))
+                                {
+                                    <p class="console-muted studio-query-ai-section" data-query-ai-result="true">Result · live (@_query.ServiceName/layer @_query.LayerId)</p>
+                                    <ChartPreview Title="@("Features by " + StudioQueryResultChart.DimensionField(_query))"
+                                                  Spec="@StudioQueryResultChart.BuildSpec(_query)"
+                                                  FeaturesUrl="@StudioQueryResultChart.FeaturesUrl(_query)"
+                                                  Height="200"
+                                                  AriaLabel="Query result chart" />
+                                }
                             </aside>
                         </div>
                     </PreviewContent>

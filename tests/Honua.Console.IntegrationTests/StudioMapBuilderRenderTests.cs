@@ -177,14 +177,15 @@ public sealed class StudioMapBuilderRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient()));
+        ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource()));
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
         var page = ctx.RenderComponent<StudioMapBuilderPage>();
 
-        // The list view surfaces the no-list-verb capability state (never a fabricated package list).
+        // The list view renders from the live package-draft list route (empty here); a new map can be
+        // authored from its toolbar.
         page.WaitForAssertion(
-            () => Assert.Contains("Map packages cannot be listed yet", page.Markup, StringComparison.Ordinal),
+            () => FindButton(page, "New from prompt"),
             TimeSpan.FromSeconds(5));
 
         // "New from prompt" opens the StudioMapAI conversation pane; "Open editor →" drops into the editor.
@@ -561,6 +562,12 @@ public sealed class StudioMapBuilderRenderTests
 
             object? data = path switch
             {
+                // GET enumerates existing drafts (the live list route); POST to the same path creates one.
+                // The workspace loads via the list route, so it must return the list shape, not a draft.
+                "/api/v1/studio/package-drafts" when request.Method == HttpMethod.Get => new
+                {
+                    drafts = Array.Empty<object>()
+                },
                 "/api/v1/studio/package-drafts" => new
                 {
                     draftId = _draftId,

@@ -15,6 +15,10 @@
     <ProjectReference Include="..\Honua.Console.Contracts\Honua.Console.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Honua.Console.Native.Core.Tests" />
+  </ItemGroup>
+
   <!-- L0 deflection (honua-console#165): bundle the honua-gis-llm support KB
        seed next to the Shell assembly so FileConsoleSupportKnowledgeBase can
        load it at runtime. The README documents provenance + the embeddings

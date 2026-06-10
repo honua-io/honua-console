@@ -20,6 +20,7 @@ namespace Honua.Console.Shell.Services;
 public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboardPackageDataSource
 {
     private const string Surface = "Dashboard builder";
+    private const string ListContract = "GET /api/v1/studio/package-drafts (list)";
     private const string LoadContract = "GET /api/v1/studio/package-drafts/{draftId}";
     private const string CreateContract = "POST /api/v1/studio/package-drafts";
     private const string UpdateContract = "PUT /api/v1/studio/package-drafts/{draftId}";
@@ -34,16 +35,6 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
     // a workspace-scoped dashboard maps to the "team" visibility.
     private const string DefaultPublicationRoute = "/share/dashboard";
     private const string DefaultPublicationVisibility = "team";
-
-    // honua-server's Studio API exposes draft/version/publish lifecycle but no "list all dashboard
-    // packages" endpoint yet, so the workspace list is empty against a live server and the editor opens
-    // a fresh draft (New) or an existing draft by id. Surfaced as an informational capability state so
-    // the surface is honest about the gap rather than fabricating a list.
-    private static readonly StudioDashboardCapabilityState ListingUnavailable = new(
-        Surface,
-        "Unsupported",
-        "GET /api/v1/studio/content-items",
-        "The honua-server Studio API does not yet expose a dashboard package listing endpoint. Create a new dashboard or open one by id; saved versions persist on the server.");
 
     private const string GenerateContract = "POST /api/v1/console/publications/generate";
 
@@ -64,10 +55,34 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         _publicationClient = publicationClient;
     }
 
-    public Task<StudioDashboardWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-        // No server list contract — the editor binds live, but the package list stays empty with an
-        // explicit capability state rather than a mock list.
-        Task.FromResult(new StudioDashboardWorkspace([], [ListingUnavailable]));
+    public async Task<StudioDashboardWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+    {
+        // honua-server now exposes a Studio package-draft list route, so the workspace enumerates existing
+        // dashboard drafts from live data (filtered to the dashboard family). The summaries are secret-safe
+        // (no package body), so panel counts are not available without opening a draft; the list still lets
+        // operators reach an existing dashboard by id, or author a new one.
+        var result = await _client
+            .ListPackageDraftsAsync(StudioPackageFamily.Dashboard, status: null, cancellationToken)
+            .ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            return new StudioDashboardWorkspace([], [ToCapabilityState(ListContract, issue)]);
+        }
+
+        var packages = (result.Data!.Drafts ?? [])
+            .Select(summary => new StudioDashboardPackageListItem(
+                summary.DraftId.ToString(),
+                string.IsNullOrWhiteSpace(summary.PackageKey) ? summary.DraftId.ToString() : summary.PackageKey,
+                PanelCount: 0,
+                DraftVersion: null,
+                PublishedVersion: null,
+                summary.UpdatedAt))
+            .OrderByDescending(item => item.UpdatedAt)
+            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new StudioDashboardWorkspace(packages, []);
+    }
 
     public async Task<StudioDashboardEditorLoad> LoadAsync(
         string? dashboardId,

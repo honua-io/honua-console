@@ -184,6 +184,7 @@ public sealed class ConsoleEndToEndSmokeTests
         {
             operateContext.Services.AddSingleton<IPublishingWorkspaceDataSource>(publishingDataSource);
             operateContext.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
+            operateContext.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
             var operatePage = operateContext.RenderComponent<OperatePublishingPage>();
             operatePage.WaitForAssertion(
                 () => Assert.Contains("Publication Matrix", operatePage.Markup, StringComparison.Ordinal),
