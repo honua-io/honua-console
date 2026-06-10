@@ -92,7 +92,7 @@ jobs:
         run: echo "HONUA_SERVER_PROJECT=${GITHUB_WORKSPACE}/honua-server/src/Honua.Server/Honua.Server.csproj" >> "$GITHUB_ENV"
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
@@ -162,7 +162,7 @@ jobs:
 
       - name: Upload test results (trx)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: console-nightly-trx
           path: artifacts/test-results/**/*.trx
@@ -170,7 +170,7 @@ jobs:
 
       - name: Upload code coverage (cobertura)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: console-nightly-coverage
           path: artifacts/test-results/**/coverage.cobertura.xml
@@ -178,7 +178,7 @@ jobs:
 
       - name: Upload cross-cutting contract-drift evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: console-nightly-contract-drift
           path: smoke-evidence/console-contract-drift.json
