@@ -58,14 +58,16 @@ public sealed record HonuaServerTemporalOptions(IReadOnlyList<TemporalSourceCand
 /// shim. There is no in-memory temporal data in the merged result (Console Patterns Charter section 11).
 ///
 /// LIVE (bound here): capability discovery per configured source, an as-of read surfaced as the current
-/// generation checkpoint, the disconnected replica list/detail, and the replica conflict-review/resolution
-/// slice (honua-server#1167 slice 2: list conflicts, per-conflict base/client/server detail, and an
-/// operator-selected resolution write).
+/// generation checkpoint, the diff/feature-timeline/governed-rollback slice (honua-server#1166 slices 2-5,
+/// shipped as honua-server#1285), the disconnected replica list/detail, and the replica
+/// conflict-review/resolution slice (honua-server#1167 slice 2: list conflicts, per-conflict
+/// base/client/server detail, and an operator-selected resolution write).
 ///
-/// NOT-YET-AVAILABLE (deferred server slices, rendered honestly, never fabricated): the diff/timeline/
-/// rollback execution slice (honua-server#1285). The server capability descriptor reports these deferred
-/// capabilities as false, so the viewer surfaces an explicit not-yet-available state from each — it never
-/// synthesizes diffs, revision histories, or rollback plans.
+/// HONEST BINDING (Console Patterns Charter section 11): the diff/timeline/rollback endpoints are now live,
+/// but the per-source capability descriptor still gates which modes a layer exposes. When the descriptor
+/// reports diff/rollback unsupported for a layer, the viewer surfaces the established not-available state
+/// instead of probing; when the endpoints return 404/forbidden/unreachable, the real probe's issue is
+/// surfaced. The viewer never synthesizes diffs, revision histories, or rollback plans.
 /// </summary>
 public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityClient
 {
@@ -75,24 +77,10 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
     internal const string ReplicaContract = "GET /api/v1/admin/services/{serviceId}/replicas";
     internal const string ConflictReviewContract = "GET /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts";
     internal const string ConflictResolveContract = "POST /api/v1/admin/services/{serviceId}/replicas/{replicaId}/conflicts/{conflictId}/resolve";
-
-    // Deferred server slice — bound to the established not-yet-available state, never fabricated.
-    internal const string DiffContract = "honua-server#1285 (temporal diff/timeline/rollback execution)";
-
-    private static readonly TemporalBindingState DiffDeferred = new(
-        Surface, TemporalBindingState.Unsupported, DiffContract,
-        "Temporal diff is not yet available: the server reports this slice is deferred (honua-server#1285). "
-        + "Capability discovery and as-of read are live; diff binds automatically once #1285 lands.");
-
-    private static readonly TemporalBindingState TimelineDeferred = new(
-        Surface, TemporalBindingState.Unsupported, DiffContract,
-        "Per-feature revision history is not yet available: the server reports this slice is deferred "
-        + "(honua-server#1285). It binds automatically once #1285 lands.");
-
-    private static readonly TemporalBindingState RollbackDeferred = new(
-        Surface, TemporalBindingState.Unsupported, DiffContract,
-        "Governed rollback execution is not yet available: the server reports this slice is deferred "
-        + "(honua-server#1285). It binds automatically once #1285 lands.");
+    internal const string DiffContract = "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/diff";
+    internal const string TimelineContract = "GET /api/v1/temporal/services/{serviceId}/layers/{layerId}/features/{featureId}/timeline";
+    internal const string RollbackPlanContract = "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback/plan";
+    internal const string RollbackExecuteContract = "POST /api/v1/temporal/services/{serviceId}/layers/{layerId}/rollback";
 
     private readonly IHonuaTemporalClient _client;
     private readonly HonuaServerTemporalOptions _options;
@@ -179,31 +167,172 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
         return new TemporalCheckpointList([checkpoint]);
     }
 
-    public Task<TemporalDiff> GetDiffAsync(
+    public async Task<TemporalDiff> GetDiffAsync(
         string sourceId,
         string fromCheckpointId,
         string toCheckpointId,
-        CancellationToken cancellationToken = default) =>
-        // Deferred server slice (#1285). Surface the not-yet-available state rather than fabricating a diff.
-        Task.FromResult(TemporalDiff.Blocked(DiffDeferred));
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
 
-    public Task<TemporalFeatureTimeline> GetFeatureTimelineAsync(
+        if (!TryResolve(sourceId, out var candidate))
+        {
+            return TemporalDiff.Blocked(NotConfiguredBinding(sourceId));
+        }
+
+        // Honor the per-source capability descriptor: a layer that does not declare diff support surfaces the
+        // established not-available state rather than probing an endpoint the server gates off for it.
+        var (capabilityIssue, deferred) = await ProbeDeferredAsync(candidate, cancellationToken).ConfigureAwait(false);
+        if (capabilityIssue is { } capIssue)
+        {
+            return TemporalDiff.Blocked(ToBindingState(capIssue, DiffContract));
+        }
+
+        if (!deferred.SupportsDiff)
+        {
+            return TemporalDiff.Blocked(CapabilityUnsupported(
+                DiffContract, "Temporal diff is not supported for this layer (the server capability descriptor reports diff unsupported)."));
+        }
+
+        var result = await _client
+            .GetDiffAsync(candidate.ServiceId, candidate.LayerId, ToCheckpointParam(fromCheckpointId), ToCheckpointParam(toCheckpointId), limit: null, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Issue is { } issue)
+        {
+            return TemporalDiff.Blocked(ToBindingState(issue, DiffContract));
+        }
+
+        return ToTemporalDiff(result.Data!, sourceId, fromCheckpointId, toCheckpointId);
+    }
+
+    public async Task<TemporalFeatureTimeline> GetFeatureTimelineAsync(
         string sourceId,
         string featureId,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(new TemporalFeatureTimeline(featureId, sourceId, [], TimelineDeferred));
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
 
-    public Task<TemporalRollbackPlan> CreateRollbackPlanAsync(
+        if (!TryResolve(sourceId, out var candidate))
+        {
+            return new TemporalFeatureTimeline(featureId, sourceId, [], NotConfiguredBinding(sourceId));
+        }
+
+        // The server timeline route is keyed by a numeric object id; a non-numeric feature id cannot be routed,
+        // so surface an honest rejection rather than guessing.
+        if (!long.TryParse(featureId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var objectId))
+        {
+            return new TemporalFeatureTimeline(featureId, sourceId, [], new TemporalBindingState(
+                Surface, "Rejected", TimelineContract,
+                $"Feature id '{featureId}' is not a numeric object id; the temporal timeline route is keyed by object id."));
+        }
+
+        var (capabilityIssue, deferred) = await ProbeDeferredAsync(candidate, cancellationToken).ConfigureAwait(false);
+        if (capabilityIssue is { } capIssue)
+        {
+            return new TemporalFeatureTimeline(featureId, sourceId, [], ToBindingState(capIssue, TimelineContract));
+        }
+
+        if (!deferred.SupportsTimeline)
+        {
+            return new TemporalFeatureTimeline(featureId, sourceId, [], CapabilityUnsupported(
+                TimelineContract, "Per-feature revision history is not supported for this layer (the server capability descriptor reports timeline unsupported)."));
+        }
+
+        var result = await _client
+            .GetFeatureTimelineAsync(candidate.ServiceId, candidate.LayerId, objectId, limit: null, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Issue is { } issue)
+        {
+            return new TemporalFeatureTimeline(featureId, sourceId, [], ToBindingState(issue, TimelineContract));
+        }
+
+        return ToFeatureTimeline(result.Data!, sourceId, featureId);
+    }
+
+    public async Task<TemporalRollbackPlan> CreateRollbackPlanAsync(
         string sourceId,
         TemporalRollbackScope scope,
         string targetCheckpointId,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(TemporalRollbackPlan.Blocked(RollbackDeferred));
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
 
-    public Task<TemporalRollbackOperation> ExecuteRollbackAsync(
+        if (!TryResolve(sourceId, out var candidate))
+        {
+            return TemporalRollbackPlan.Blocked(NotConfiguredBinding(sourceId));
+        }
+
+        var (capabilityIssue, deferred) = await ProbeDeferredAsync(candidate, cancellationToken).ConfigureAwait(false);
+        if (capabilityIssue is { } capIssue)
+        {
+            return TemporalRollbackPlan.Blocked(ToBindingState(capIssue, RollbackPlanContract));
+        }
+
+        if (!deferred.SupportsRollback)
+        {
+            return TemporalRollbackPlan.Blocked(CapabilityUnsupported(
+                RollbackPlanContract, "Governed rollback is not supported for this layer (the server capability descriptor reports rollback unsupported)."));
+        }
+
+        var request = new HonuaTemporalRollbackPlanRequest { Checkpoint = ToCheckpointBody(targetCheckpointId) };
+        var result = await _client
+            .PlanRollbackAsync(candidate.ServiceId, candidate.LayerId, request, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Issue is { } issue)
+        {
+            return TemporalRollbackPlan.Blocked(ToBindingState(issue, RollbackPlanContract));
+        }
+
+        return ToRollbackPlan(result.Data!, sourceId, scope, targetCheckpointId);
+    }
+
+    public async Task<TemporalRollbackOperation> ExecuteRollbackAsync(
         string rollbackPlanId,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(TemporalRollbackOperation.Blocked(RollbackDeferred));
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rollbackPlanId);
+
+        // The server computes rollback plans inline (there is no plan store), so the console-issued plan id
+        // round-trips the owning source + target checkpoint. Decode it to route the forward corrective job;
+        // a plan id that does not decode (or whose source is no longer configured) is reported honestly.
+        if (!TryDecodeRollbackPlanId(rollbackPlanId, out var sourceId, out var targetCheckpointId)
+            || !TryResolve(sourceId, out var candidate))
+        {
+            return TemporalRollbackOperation.Blocked(new TemporalBindingState(
+                Surface, "Rejected", RollbackExecuteContract,
+                $"Rollback plan '{rollbackPlanId}' could not be routed to a configured temporal source."));
+        }
+
+        var request = new HonuaTemporalRollbackExecuteRequest
+        {
+            Checkpoint = ToCheckpointBody(targetCheckpointId),
+            Approved = true,
+        };
+
+        var result = await _client
+            .ExecuteRollbackAsync(candidate.ServiceId, candidate.LayerId, request, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Issue is { } issue)
+        {
+            return TemporalRollbackOperation.Blocked(ToBindingState(issue, RollbackExecuteContract));
+        }
+
+        var handle = result.Data!;
+        return new TemporalRollbackOperation(
+            RollbackOperationId: handle.JobId,
+            RollbackPlanId: rollbackPlanId,
+            JobRunId: handle.JobId,
+            Status: handle.Status,
+            RequestedBy: null,
+            ApprovedBy: null,
+            ResultCheckpointId: $"gen-{handle.TargetCheckpoint.Generation.ToString(CultureInfo.InvariantCulture)}",
+            AuditEventIds: [$"temporal.rollback.execute:{handle.JobId}"],
+            FailureReason: null);
+    }
 
     public async Task<ReplicaConflictQueue> GetReplicaConflictQueueAsync(
         string sourceId,
@@ -692,4 +821,231 @@ public sealed class HonuaServerTemporalCapabilityClient : ITemporalCapabilityCli
             CapabilityContract,
             $"Temporal source '{sourceId}' is not a configured candidate source. Configure it in "
             + "Honua:Server:TemporalSources to inspect its temporal capability.");
+
+    // Reads the per-source capability descriptor so diff/timeline/rollback honor the server's declared
+    // support flags before probing the (now-live) endpoints. A capability read failure short-circuits to its
+    // issue so the surface renders the honest binding state.
+    private async Task<(HonuaAdminEndpointIssue? Issue, HonuaTemporalDeferredCapabilities Deferred)> ProbeDeferredAsync(
+        TemporalSourceCandidate candidate,
+        CancellationToken cancellationToken)
+    {
+        var result = await _client
+            .GetCapabilityAsync(candidate.ServiceId, candidate.LayerId, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Issue is { } issue
+            ? (issue, new HonuaTemporalDeferredCapabilities())
+            : (null, result.Data!.Deferred ?? new HonuaTemporalDeferredCapabilities());
+    }
+
+    // Maps a console checkpoint id to the server checkpoint query/body syntax. The console emits "gen-N"
+    // generation checkpoints (see GetCheckpointsAsync); the server accepts a bare generation number, so strip
+    // the prefix. Any other token (e.g. "timestamp:...", "named:...") is passed through verbatim.
+    private static string ToCheckpointParam(string checkpointId) =>
+        checkpointId.StartsWith("gen-", StringComparison.Ordinal)
+            ? checkpointId["gen-".Length..]
+            : checkpointId;
+
+    private static HonuaTemporalCheckpointBody ToCheckpointBody(string checkpointId)
+    {
+        var value = ToCheckpointParam(checkpointId);
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var generation))
+        {
+            return new HonuaTemporalCheckpointBody { Kind = "generation", Generation = generation };
+        }
+
+        var separator = value.IndexOf(':');
+        return separator > 0
+            ? new HonuaTemporalCheckpointBody { Kind = value[..separator], Value = value[(separator + 1)..] }
+            : new HonuaTemporalCheckpointBody { Kind = "named", Value = value };
+    }
+
+    // The server has no rollback-plan store (plans are computed inline), so the console plan id round-trips
+    // the owning source + target checkpoint needed to execute the forward corrective job. Encoded as
+    // "rb|<sourceId>|<targetCheckpointId>"; the source id itself contains no '|' (it is "serviceId/layerId").
+    private static string EncodeRollbackPlanId(string sourceId, string targetCheckpointId) =>
+        $"rb|{sourceId}|{targetCheckpointId}";
+
+    private static bool TryDecodeRollbackPlanId(string rollbackPlanId, out string sourceId, out string targetCheckpointId)
+    {
+        sourceId = string.Empty;
+        targetCheckpointId = string.Empty;
+
+        var parts = rollbackPlanId.Split('|');
+        if (parts.Length != 3 || !string.Equals(parts[0], "rb", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(parts[1]) || string.IsNullOrWhiteSpace(parts[2]))
+        {
+            return false;
+        }
+
+        sourceId = parts[1];
+        targetCheckpointId = parts[2];
+        return true;
+    }
+
+    private static TemporalDiff ToTemporalDiff(
+        HonuaTemporalDiffResponse diff,
+        string sourceId,
+        string fromCheckpointId,
+        string toCheckpointId)
+    {
+        var summary = diff.Summary;
+        var sample = (diff.Changes ?? [])
+            .Select(ToFeatureChange)
+            .ToArray();
+
+        return new TemporalDiff(
+            DiffId: $"{sourceId}:{diff.From.Generation.ToString(CultureInfo.InvariantCulture)}->{diff.To.Generation.ToString(CultureInfo.InvariantCulture)}",
+            SourceId: sourceId,
+            FromCheckpointId: fromCheckpointId,
+            ToCheckpointId: toCheckpointId,
+            AddedFeatures: summary.Added,
+            RemovedFeatures: summary.Removed,
+            UpdatedFeatures: summary.Total - summary.Added - summary.Removed,
+            GeometryChangedFeatures: summary.GeometryChanged,
+            AttributeChangedFeatures: summary.AttributeChanged,
+            SampleFeatureChanges: sample,
+            GeneratedAt: DateTimeOffset.UtcNow);
+    }
+
+    private static TemporalFeatureChange ToFeatureChange(HonuaTemporalFeatureDiffResponse change)
+    {
+        var attributeChanges = (change.FieldChanges ?? [])
+            .Select(f => new TemporalAttributeChange(
+                Field: f.Field,
+                Before: ReadJsonScalar(f.OldValue),
+                After: ReadJsonScalar(f.NewValue),
+                Masked: f.Masked))
+            .ToArray();
+
+        return new TemporalFeatureChange(
+            FeatureId: change.ObjectId.ToString(CultureInfo.InvariantCulture),
+            ChangeType: MapChangeType(change.PrimaryClass),
+            FromRevisionId: null,
+            ToRevisionId: null,
+            AttributeChanges: attributeChanges,
+            GeometryChanged: change.GeometryChanged,
+            ActorId: change.Attribution?.Actor,
+            OperationRef: change.Attribution?.Operation);
+    }
+
+    private static TemporalChangeType MapChangeType(string primaryClass) => primaryClass.ToLowerInvariant() switch
+    {
+        "added" or "insert" or "inserted" => TemporalChangeType.Added,
+        "removed" or "delete" or "deleted" => TemporalChangeType.Removed,
+        "unchanged" => TemporalChangeType.Unchanged,
+        _ => TemporalChangeType.Updated,
+    };
+
+    private static TemporalFeatureTimeline ToFeatureTimeline(
+        HonuaTemporalTimelineResponse timeline,
+        string sourceId,
+        string featureId)
+    {
+        var revisions = (timeline.Revisions ?? [])
+            .Select(r => new TemporalRevision(
+                RevisionId: $"gen-{r.Generation.ToString(CultureInfo.InvariantCulture)}",
+                TransactionTime: ParseTimestamp(r.ChangedAt),
+                Operation: MapRevisionOperation(r.Operation),
+                ActorDisplayName: r.Attribution?.Actor,
+                SourceClient: r.Attribution?.Source,
+                JobRunId: r.Attribution?.SourceId,
+                ReleaseOperationId: null,
+                Reason: r.Attribution?.Operation,
+                GeometryChanged: false,
+                ChangedFieldCount: 0,
+                RestoreAllowed: false))
+            .ToArray();
+
+        return new TemporalFeatureTimeline(featureId, sourceId, revisions);
+    }
+
+    private static TemporalRevisionOperation MapRevisionOperation(string operation) => operation.ToLowerInvariant() switch
+    {
+        "insert" or "inserted" or "added" => TemporalRevisionOperation.Insert,
+        "delete" or "deleted" or "removed" => TemporalRevisionOperation.Delete,
+        "restore" or "restored" => TemporalRevisionOperation.Restore,
+        _ => TemporalRevisionOperation.Update,
+    };
+
+    private static TemporalRollbackPlan ToRollbackPlan(
+        HonuaTemporalRollbackPlanResponse plan,
+        string sourceId,
+        TemporalRollbackScope scope,
+        string targetCheckpointId)
+    {
+        var validation = (plan.ValidationFindings ?? [])
+            .Select(FormatFinding)
+            .ToArray();
+        var compatibility = (plan.CompatibilityFindings ?? [])
+            .Select(FormatFinding)
+            .ToArray();
+
+        var (mode, requiresJob) = MapRollbackState(plan.State);
+
+        return new TemporalRollbackPlan(
+            RollbackPlanId: EncodeRollbackPlanId(sourceId, targetCheckpointId),
+            SourceId: sourceId,
+            TargetScope: scope,
+            TargetCheckpointId: $"gen-{plan.TargetCheckpoint.Generation.ToString(CultureInfo.InvariantCulture)}",
+            CurrentCheckpointId: $"gen-{plan.CurrentGeneration.ToString(CultureInfo.InvariantCulture)}",
+            AffectedFeatureCount: plan.AffectedFeatureCount,
+            RequiresJob: requiresJob,
+            RequiresApproval: plan.RequiresApproval,
+            RollbackMode: mode,
+            RiskLevel: DeriveRiskLevel(plan.State, validation),
+            ValidationFindings: validation,
+            CompatibilityFindings: compatibility);
+    }
+
+    // Maps the server rollback disposition ("supported/blocked/scriptRequired/jobRequired/manual") to the
+    // console rollback mode + whether the corrective operation runs as a job.
+    private static (TemporalRollbackMode Mode, bool RequiresJob) MapRollbackState(string state) => state.ToLowerInvariant() switch
+    {
+        "scriptrequired" => (TemporalRollbackMode.ScriptRequired, true),
+        "jobrequired" => (TemporalRollbackMode.DataRevert, true),
+        "manual" => (TemporalRollbackMode.Manual, false),
+        "blocked" => (TemporalRollbackMode.Manual, false),
+        _ => (TemporalRollbackMode.DataRevert, true),
+    };
+
+    private static string DeriveRiskLevel(string state, IReadOnlyList<string> validationFindings)
+    {
+        if (string.Equals(state, "blocked", StringComparison.OrdinalIgnoreCase))
+        {
+            return "blocked";
+        }
+
+        return validationFindings.Count > 0 ? "elevated" : "normal";
+    }
+
+    private static string FormatFinding(HonuaTemporalRollbackFindingResponse finding) =>
+        $"[{finding.Severity}] {finding.Message} ({finding.Code})";
+
+    private static string? ReadJsonScalar(System.Text.Json.JsonElement? element) => element switch
+    {
+        null => null,
+        { ValueKind: System.Text.Json.JsonValueKind.Null } => null,
+        { ValueKind: System.Text.Json.JsonValueKind.String } value => value.GetString(),
+        { } value => value.GetRawText(),
+    };
+
+    private static DateTimeOffset ParseTimestamp(string raw) =>
+        DateTimeOffset.TryParse(
+            raw, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
+            ? parsed
+            : default;
+
+    private static TemporalBindingState ToBindingState(HonuaAdminEndpointIssue issue, string contract) =>
+        new(
+            Surface,
+            issue.State,
+            contract,
+            issue.StatusCode is null
+                ? issue.Detail
+                : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
+
+    private static TemporalBindingState CapabilityUnsupported(string contract, string detail) =>
+        new(Surface, TemporalBindingState.Unsupported, contract, detail);
 }

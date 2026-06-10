@@ -775,10 +775,15 @@
                 builder.AddContent(seq++, "Vega-Lite");
                 builder.CloseElement();
                 builder.CloseElement();
-                builder.OpenElement(seq++, "div");
-                builder.AddAttribute(seq++, "class", "studio-canvas-placeholder");
-                builder.AddContent(seq++, "chart preview");
-                builder.CloseElement();
+                // The chart panel's live graph: ChartPreview renders the panel's Vega-Lite spec when the
+                // server emitted one with chartable data, falling back to the schematic placeholder otherwise
+                // (no fabricated data). The dashboard binds data via content refs rather than a direct layer,
+                // so no features URL is supplied here — the chart plots the spec's own data.
+                builder.OpenComponent<ChartPreview>(seq++);
+                builder.AddComponentParameter(seq++, nameof(ChartPreview.Spec), chart.VegaLiteSpec);
+                builder.AddComponentParameter(seq++, nameof(ChartPreview.Height), 200);
+                builder.AddComponentParameter(seq++, nameof(ChartPreview.AriaLabel), $"{PanelLabel(chart)} chart");
+                builder.CloseComponent();
                 builder.CloseElement();
             }
 

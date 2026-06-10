@@ -1,0 +1,360 @@
+@page "/operate/layers/{ResourceId}/discovery"
+@page "/operate/services/{ServiceName}/discovery"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOperateTransitionDataSource OperateData
+@inject IConsoleDiscoveryMetadataOperation Discovery
+
+<section class="console-page" data-discovery-page>
+    @if (!_resolved)
+    {
+        <MissingItemView Kind="@(IsService ? "service" : "layer")" AreaLabel="@($"Operate / {(IsService ? "Services" : "Layers")}")" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / @(IsService ? "Services" : "Layers") · discovery metadata</p>
+            <h1>@_targetTitle · discovery</h1>
+            <p>
+                Author the discovery / catalog metadata for this @(IsService ? "service" : "layer"). honua-server
+                projects this into its OGC API Records, STAC, DCAT, and Esri <code>documentInfo</code> output.
+            </p>
+            @if (!IsService)
+            {
+                <div class="console-detail-actions">
+                    <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+                </div>
+            }
+            else
+            {
+                <div class="console-detail-actions">
+                    <a class="console-button-link" href="@($"/operate/services/{ServiceName}/settings")" data-service-detail-link>Back to service</a>
+                </div>
+            }
+        </div>
+
+        <section class="console-section" data-discovery-panel>
+            @if (!_metadata.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-discovery-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_metadata.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-panel-grid">
+                    <article class="console-panel">
+                        <p class="console-kicker">Summary</p>
+                        <h2>Title &amp; description</h2>
+                        <label class="console-field">
+                            <span>Title</span>
+                            <input class="console-input" @bind="_title" data-discovery-title placeholder="Parcel boundaries" />
+                        </label>
+                        <label class="console-field">
+                            <span>Description</span>
+                            <textarea class="console-input" rows="3" @bind="_description" data-discovery-description
+                                      placeholder="Authoritative cadastral parcel polygons."></textarea>
+                        </label>
+                        <label class="console-field">
+                            <span>Keywords</span>
+                            <textarea class="console-input" rows="2" @bind="_keywords" data-discovery-keywords
+                                      placeholder="cadastre, parcels, land"></textarea>
+                            <small>Comma- or newline-separated. Leave blank to clear.</small>
+                        </label>
+                        <label class="console-field">
+                            <span>Themes</span>
+                            <textarea class="console-input" rows="2" @bind="_themes" data-discovery-themes
+                                      placeholder="boundaries, planningCadastre"></textarea>
+                            <small>Comma- or newline-separated theme/category labels. Leave blank to clear.</small>
+                        </label>
+                        <label class="console-field">
+                            <span>Language</span>
+                            <input class="console-input" @bind="_language" data-discovery-language placeholder="en" />
+                        </label>
+                    </article>
+
+                    <article class="console-panel">
+                        <p class="console-kicker">Rights &amp; provenance</p>
+                        <h2>License, attribution, publisher</h2>
+                        <label class="console-field">
+                            <span>License</span>
+                            <input class="console-input" @bind="_license" data-discovery-license placeholder="CC-BY-4.0" />
+                        </label>
+                        <label class="console-field">
+                            <span>Attribution</span>
+                            <input class="console-input" @bind="_attribution" data-discovery-attribution
+                                   placeholder="© County GIS" />
+                        </label>
+                        <label class="console-field">
+                            <span>Publisher</span>
+                            <input class="console-input" @bind="_publisher" data-discovery-publisher
+                                   placeholder="County GIS Department" />
+                        </label>
+                        <h3>Contact point</h3>
+                        <label class="console-field">
+                            <span>Contact name</span>
+                            <input class="console-input" @bind="_contactName" data-discovery-contact-name placeholder="GIS Help Desk" />
+                        </label>
+                        <label class="console-field">
+                            <span>Contact email</span>
+                            <input class="console-input" type="email" @bind="_contactEmail" data-discovery-contact-email
+                                   placeholder="gis@county.example" />
+                        </label>
+                        <label class="console-field">
+                            <span>Contact URL</span>
+                            <input class="console-input" @bind="_contactUrl" data-discovery-contact-url
+                                   placeholder="https://county.example/gis" />
+                        </label>
+                    </article>
+                </div>
+
+                <article class="console-panel" data-discovery-links>
+                    <p class="console-kicker">Links</p>
+                    <h2>Related links</h2>
+                    <div class="console-table-wrap">
+                        <table class="console-table" aria-label="Links">
+                            <thead>
+                                <tr>
+                                    <th>Href</th>
+                                    <th>Rel</th>
+                                    <th>Type</th>
+                                    <th>Title</th>
+                                    <th>Hreflang</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_links.Count == 0)
+                                {
+                                    <tr data-discovery-links-empty><td colspan="6" class="console-muted">No links are authored yet.</td></tr>
+                                }
+                                else
+                                {
+                                    @for (var i = 0; i < _links.Count; i++)
+                                    {
+                                        var link = _links[i];
+                                        <tr data-discovery-link-row>
+                                            <td><input class="console-input" @bind="link.Href" aria-label="Link href" data-link-href placeholder="https://example.org/metadata" /></td>
+                                            <td><input class="console-input console-input-narrow" @bind="link.Rel" aria-label="Link rel" data-link-rel placeholder="describedby" /></td>
+                                            <td><input class="console-input console-input-narrow" @bind="link.Type" aria-label="Link type" data-link-type placeholder="text/html" /></td>
+                                            <td><input class="console-input" @bind="link.Title" aria-label="Link title" data-link-title placeholder="Metadata" /></td>
+                                            <td><input class="console-input console-input-narrow" @bind="link.Hreflang" aria-label="Link hreflang" data-link-hreflang placeholder="en" /></td>
+                                            <td>
+                                                <button class="console-button console-button-secondary" type="button"
+                                                        @onclick="() => RemoveLink(link)" data-link-remove aria-label="Remove link">Remove</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="console-action-row">
+                        <button class="console-button console-button-secondary" type="button" @onclick="AddLink" data-link-add>Add link</button>
+                    </div>
+                </article>
+
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_saving" @onclick="SaveAsync" data-discovery-save>
+                        @(_saving ? "Saving…" : "Save discovery metadata")
+                    </button>
+                </div>
+
+                @if (_result is { } r)
+                {
+                    <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-discovery-result>
+                        <p class="console-kicker">@r.State</p>
+                        <p>@r.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string? ResourceId { get; set; }
+
+    [Parameter]
+    public string? ServiceName { get; set; }
+
+    private bool IsService => !string.IsNullOrWhiteSpace(ServiceName);
+
+    private bool _resolved;
+    private int _layerId;
+    private string _targetTitle = string.Empty;
+    private ConsoleDiscoveryMetadata _metadata = ConsoleDiscoveryMetadata.Unbound("Loading…");
+
+    private string? _title;
+    private string? _description;
+    private string _keywords = string.Empty;
+    private string _themes = string.Empty;
+    private string? _language;
+    private string? _license;
+    private string? _attribution;
+    private string? _publisher;
+    private string? _contactName;
+    private string? _contactEmail;
+    private string? _contactUrl;
+    private readonly List<LinkRow> _links = new();
+
+    private bool _saving;
+    private ConsoleSaveDiscoveryResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsService)
+        {
+            var view = await OperateData.GetServicesViewAsync();
+            var service = view.Services.FirstOrDefault(
+                s => string.Equals(s.Name, ServiceName, StringComparison.OrdinalIgnoreCase));
+            _resolved = service is not null;
+            _targetTitle = service?.DisplayName ?? ServiceName ?? string.Empty;
+            if (_resolved)
+            {
+                await LoadAsync();
+            }
+        }
+        else
+        {
+            var view = await OperateData.GetLayersViewAsync();
+            // A raw layer id is only unique within its connection, so the route keys on the canonical resource
+            // id ({connection}-layer-{layerId}) — matching /operate/layers/{id}.
+            var layer = view.Services
+                .SelectMany(service => service.Layers)
+                .FirstOrDefault(l => string.Equals(l.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+            _resolved = layer is not null;
+            if (layer is not null)
+            {
+                _layerId = layer.LayerId;
+                _targetTitle = layer.Name;
+                await LoadAsync();
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _metadata = IsService
+            ? await Discovery.GetServiceDiscoveryAsync(ServiceName!)
+            : await Discovery.GetLayerDiscoveryAsync(_layerId);
+
+        if (!_metadata.Bound)
+        {
+            return;
+        }
+
+        _title = _metadata.Title;
+        _description = _metadata.Description;
+        _keywords = string.Join(", ", _metadata.Keywords);
+        _themes = string.Join(", ", _metadata.Themes);
+        _language = _metadata.Language;
+        _license = _metadata.License;
+        _attribution = _metadata.Attribution;
+        _publisher = _metadata.Publisher;
+        _contactName = _metadata.ContactPoint?.Name;
+        _contactEmail = _metadata.ContactPoint?.Email;
+        _contactUrl = _metadata.ContactPoint?.Url;
+        _links.Clear();
+        foreach (var link in _metadata.Links)
+        {
+            _links.Add(LinkRow.From(link));
+        }
+    }
+
+    private void AddLink() => _links.Add(new LinkRow());
+
+    private void RemoveLink(LinkRow row) => _links.Remove(row);
+
+    // Splits a comma-/newline-separated textbox into a trimmed, de-duplicated, non-empty array. Returns an
+    // empty array (not null) when blank so the PUT clears the list.
+    private static string[] ParseList(string? raw) =>
+        (raw ?? string.Empty)
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static string? Trimmed(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _result = null;
+        try
+        {
+            var hasContact = !string.IsNullOrWhiteSpace(_contactName)
+                || !string.IsNullOrWhiteSpace(_contactEmail)
+                || !string.IsNullOrWhiteSpace(_contactUrl);
+
+            var metadata = new ConsoleDiscoveryMetadata
+            {
+                Bound = true,
+                Title = Trimmed(_title),
+                Description = Trimmed(_description),
+                Keywords = ParseList(_keywords),
+                Themes = ParseList(_themes),
+                Language = Trimmed(_language),
+                License = Trimmed(_license),
+                Attribution = Trimmed(_attribution),
+                Publisher = Trimmed(_publisher),
+                ContactPoint = hasContact
+                    ? new ConsoleDiscoveryContactPoint
+                    {
+                        Name = Trimmed(_contactName),
+                        Email = Trimmed(_contactEmail),
+                        Url = Trimmed(_contactUrl),
+                    }
+                    : null,
+                Links = _links
+                    .Where(row => !string.IsNullOrWhiteSpace(row.Href) || !string.IsNullOrWhiteSpace(row.Rel))
+                    .Select(row => row.ToModel())
+                    .ToArray(),
+            };
+
+            _result = IsService
+                ? await Discovery.SaveServiceDiscoveryAsync(ServiceName!, metadata)
+                : await Discovery.SaveLayerDiscoveryAsync(_layerId, metadata);
+
+            if (_result.Succeeded)
+            {
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // Mutable per-row edit model bound to the link inputs (the domain record is immutable).
+    private sealed class LinkRow
+    {
+        public string? Href { get; set; }
+        public string? Rel { get; set; }
+        public string? Type { get; set; }
+        public string? Title { get; set; }
+        public string? Hreflang { get; set; }
+
+        public static LinkRow From(ConsoleDiscoveryLink link) => new()
+        {
+            Href = link.Href,
+            Rel = link.Rel,
+            Type = link.Type,
+            Title = link.Title,
+            Hreflang = link.Hreflang,
+        };
+
+        public ConsoleDiscoveryLink ToModel() => new()
+        {
+            Href = string.IsNullOrWhiteSpace(Href) ? null : Href.Trim(),
+            Rel = string.IsNullOrWhiteSpace(Rel) ? null : Rel.Trim(),
+            Type = string.IsNullOrWhiteSpace(Type) ? null : Type.Trim(),
+            Title = string.IsNullOrWhiteSpace(Title) ? null : Title.Trim(),
+            Hreflang = string.IsNullOrWhiteSpace(Hreflang) ? null : Hreflang.Trim(),
+        };
+    }
+}

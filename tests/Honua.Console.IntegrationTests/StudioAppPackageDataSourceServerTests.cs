@@ -239,6 +239,13 @@ public sealed class StudioAppPackageDataSourceServerTests
             Task.FromResult(StudioEndpointResult<StudioPackageFamilyCapabilities>.FromData(
                 new StudioPackageFamilyCapabilities()));
 
+        public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
+            Honua.Console.Contracts.StudioPackageFamily? family = null,
+            Honua.Console.Contracts.StudioPackageValidationStatus? status = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioEndpointResult<StudioPackageDraftListResponse>.FromData(
+                new StudioPackageDraftListResponse()));
+
         public Task<StudioEndpointResult<StudioPackageDraft>> CreatePackageDraftAsync(
             CreateStudioPackageDraftRequest request,
             CancellationToken cancellationToken = default)

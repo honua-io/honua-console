@@ -1,0 +1,168 @@
+@page "/operate/layers/{ResourceId}/filter"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOperateTransitionDataSource OperateData
+@inject IConsoleLayerFilterOperation LayerFilter
+
+<section class="console-page" data-filter-page>
+    @if (_layer is null)
+    {
+        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>@_layer.Name · permanent filter</h1>
+            <p>Author the server-enforced query filter on layer @_layer.LayerId. honua-server applies the <strong>permanent filter</strong> to every read of this layer (queries, exports, map renders) and validates the expression against the layer schema. Send a bad expression and the server rejects it with a reason; clearing removes the constraint entirely.</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+            </div>
+        </div>
+
+        <section class="console-section" data-filter-panel>
+            @if (!_filter.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-filter-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_filter.Detail</p>
+                </article>
+            }
+            else
+            {
+                <article class="console-panel" data-filter-current>
+                    <p class="console-kicker">Current</p>
+                    @if (_filter.HasFilter)
+                    {
+                        <p>A permanent filter (<code>@_filter.Language</code>) is enforced on this layer.</p>
+                    }
+                    else
+                    {
+                        <p class="console-muted" data-filter-none>No permanent filter is saved on this layer — reads are unconstrained.</p>
+                    }
+                </article>
+
+                <div class="console-field">
+                    <label class="console-label" for="filter-language">Language</label>
+                    <select id="filter-language" class="console-input" @bind="_editLanguage" aria-label="Filter language" data-filter-language>
+                        <option value="arcgis-sql">arcgis-sql</option>
+                        <option value="cql2-text">cql2-text</option>
+                        <option value="cql2-json">cql2-json</option>
+                    </select>
+                </div>
+
+                <div class="console-field">
+                    <label class="console-label" for="filter-expression">Filter expression</label>
+                    <textarea id="filter-expression" class="console-input console-textarea" rows="5"
+                              @bind="_editExpression" aria-label="Filter expression" data-filter-expression
+                              placeholder="status = 'active'"></textarea>
+                    <p class="console-muted">Max 4096 characters. Validated server-side against the layer schema.</p>
+                </div>
+
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_busy" @onclick="SaveAsync" data-filter-save>
+                        @(_busy ? "Saving…" : "Save filter")
+                    </button>
+                    <button class="console-button console-button-secondary" type="button"
+                            disabled="@(_busy || !_filter.HasFilter)" @onclick="ClearAsync" data-filter-clear>
+                        Clear filter
+                    </button>
+                </div>
+
+                @if (_result is { } r)
+                {
+                    <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-filter-result>
+                        <p class="console-kicker">@r.State</p>
+                        <p>@r.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ResourceId { get; set; } = string.Empty;
+
+    private OperateServiceLayerProjection? _layer;
+    private ConsoleLayerFilter _filter = ConsoleLayerFilter.Unbound("Loading…");
+    private string _editExpression = string.Empty;
+    private string _editLanguage = "arcgis-sql";
+    private bool _busy;
+    private ConsoleSetLayerFilterResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var view = await OperateData.GetLayersViewAsync();
+        // A raw layer id is only unique within its connection, so the route keys on the canonical resource id
+        // ({connection}-layer-{layerId}) — matching /operate/layers/{id}. The same layer is exposed by every
+        // service that serves it, so take the first projection for its global LayerId.
+        _layer = view.Services
+            .SelectMany(service => service.Layers)
+            .FirstOrDefault(layer => string.Equals(layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+
+        if (_layer is not null)
+        {
+            await LoadFilterAsync();
+        }
+    }
+
+    private async Task LoadFilterAsync()
+    {
+        _filter = await LayerFilter.GetFilterAsync(_layer!.LayerId);
+        if (_filter.Bound)
+        {
+            _editExpression = _filter.Expression;
+            _editLanguage = _filter.Language;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_layer is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _result = null;
+        try
+        {
+            _result = await LayerFilter.SaveFilterAsync(_layer.LayerId, _editExpression, _editLanguage);
+            if (_result.Succeeded)
+            {
+                await LoadFilterAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        if (_layer is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _result = null;
+        try
+        {
+            _result = await LayerFilter.ClearFilterAsync(_layer.LayerId);
+            if (_result.Succeeded)
+            {
+                _editExpression = string.Empty;
+                await LoadFilterAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

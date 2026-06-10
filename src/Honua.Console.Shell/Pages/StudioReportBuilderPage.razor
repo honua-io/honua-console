@@ -209,6 +209,28 @@
                                             </table>
                                         </div>
                                     }
+                                    else if (panel.IsChart)
+                                    {
+                                        @* The chart panel's live graph: ChartPreview renders the panel's Vega-Lite spec
+                                           over the spec's own data when a Vega runtime is reachable, and degrades to the
+                                           honest schematic placeholder otherwise (no fabricated data). Reports bind data
+                                           via content-ref aliases rather than a direct layer, so no features URL is
+                                           supplied here. (Charter §11.) *@
+                                        <div class="studio-report-embed-body" data-report-embed-kind="@panel.Kind">
+                                            <ChartPreview Spec="@panel.VegaLiteSpec"
+                                                          Height="200"
+                                                          AriaLabel="@($"{PanelLabel(panel)} chart")" />
+                                        </div>
+                                    }
+                                    else if (panel.Kind == StudioReportPanelKinds.Map)
+                                    {
+                                        <div class="studio-report-embed-body" data-report-embed-kind="@panel.Kind">
+                                            <MapPreview Mode="MapPreviewMode.Layer"
+                                                        Height="200"
+                                                        ShowPopup="false"
+                                                        AriaLabel="@($"{PanelLabel(panel)} preview")" />
+                                        </div>
+                                    }
                                     else
                                     {
                                         <div class="studio-report-embed-body" data-report-embed-kind="@panel.Kind">

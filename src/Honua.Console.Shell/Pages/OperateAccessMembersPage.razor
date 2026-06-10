@@ -17,7 +17,12 @@
             <p class="console-muted rbac-lede">Grouped by role · invite by email, scope by workspace / env / content. Membership and invitations are authored on honua-server and are never resolved client-side.</p>
         </div>
         <div class="console-detail-actions">
-            <button class="console-button console-button-secondary" type="button" disabled="@(_membership is null)">Export CSV</button>
+            @* Membership/invitations are a read-only projection of honua-server's RBAC contract
+               (honua-server#1162) — there is no roster-export or invite-mutation surface, so the
+               write/export controls are honestly disabled rather than shipping clickable no-ops
+               (Charter §11). Re-enable when a server-side export/invite contract lands. *@
+            <button class="console-button console-button-secondary" type="button" disabled
+                    title="Roster export is managed on honua-server; not available from this read-only projection.">Export CSV</button>
             <button class="console-button"
                     type="button"
                     data-rbac-invite-open
@@ -122,7 +127,8 @@
                                             </td>
                                             <td><span class="console-inline-code">@(invitation.Scope ?? "—")</span></td>
                                             <td class="console-muted">@(invitation.Status ?? "pending")</td>
-                                            <td><button class="console-button" type="button">Resend</button></td>
+                                            <td><button class="console-button" type="button" disabled
+                                                    title="Invitation re-send is managed on honua-server; not available from this read-only projection.">Resend</button></td>
                                         </tr>
                                     }
                                 </tbody>
@@ -233,8 +239,14 @@
                     </div>
                     <footer class="rbac-invite-foot">
                         <button class="console-button console-button-secondary" type="button" @onclick="CloseInvite">Cancel</button>
-                        <button class="console-button console-button-secondary" type="button">Save as template</button>
-                        <button class="console-button" type="button" data-rbac-invite-send disabled="@_inviteValidation.HasBlockingClientErrors">Send invite</button>
+                        @* Invite send / template-save have no honua-server mutation contract (the RBAC
+                           projection is read-only, honua-server#1162). The drawer remains a live scoped-invite
+                           preview with client-side validation, but the write actions are honestly disabled
+                           rather than shipping clickable no-ops (Charter §11). *@
+                        <button class="console-button console-button-secondary" type="button" disabled
+                                title="Saving invite templates is managed on honua-server; not available from this read-only projection.">Save as template</button>
+                        <button class="console-button" type="button" data-rbac-invite-send disabled
+                                title="Sending invitations is managed on honua-server; not available from this read-only projection.">Send invite</button>
                     </footer>
                 </aside>
             }
