@@ -1,6 +1,9 @@
 @page "/operate/catalogs/{Key}"
 @using Honua.Console.Shell.Models
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 @inject ICatalogDiscoveryDataSource CatalogDiscovery
+@inject IJSRuntime JS
 
 @* Operate > Catalogs > endpoint detail (screens-catalogs.jsx EsriCatalogDetail): one discovery endpoint's
    drill-down — the ON/issue header with the endpoint URL, the Items / Settings / Access / Activity /
@@ -54,9 +57,25 @@
                 </p>
             </div>
             <div class="console-detail-actions">
-                <button class="console-button console-button-secondary" type="button">⧉ Copy</button>
-                <button class="console-button console-button-secondary" type="button">Open ↗</button>
-                <button class="console-button" type="button">Rebuild index</button>
+                @* Copy / Open act on the real endpoint URL the registry returns; both are honestly disabled
+                   when this endpoint carries no URL. Rebuild index has no honua-server mutation contract in
+                   the discovery-endpoints registry (honua-server#1279), so it is honestly disabled rather
+                   than a clickable no-op (Charter §11). *@
+                <button class="console-button console-button-secondary" type="button"
+                        data-catalog-copy-url disabled="@(string.IsNullOrWhiteSpace(endpoint.Url))"
+                        @onclick="CopyEndpointUrlAsync">@(_copied ? "✓ Copied" : "⧉ Copy")</button>
+                @if (!string.IsNullOrWhiteSpace(endpoint.Url))
+                {
+                    <a class="console-button console-button-secondary" data-catalog-open-url
+                       href="@endpoint.Url" target="_blank" rel="noopener noreferrer">Open ↗</a>
+                }
+                else
+                {
+                    <button class="console-button console-button-secondary" type="button" disabled
+                            title="This endpoint has no URL to open.">Open ↗</button>
+                }
+                <button class="console-button" type="button" disabled
+                        title="Index rebuild is managed on honua-server; no rebuild action is exposed by the discovery-endpoints registry.">Rebuild index</button>
             </div>
         </div>
 
@@ -185,6 +204,8 @@
     private CatalogEndpointDetailView? _detail;
     private CatalogDiscoveryCapabilityState? _bindingState;
     private bool _loading = true;
+    private bool _copied;
+    private IJSObjectReference? _clipboardModule;
 
     private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
 
@@ -204,7 +225,50 @@
             _bindingState = load.CapabilityStates.FirstOrDefault();
         }
 
+        _copied = false;
         _loading = false;
+    }
+
+    // Copy the real endpoint URL to the clipboard via the shared wwwroot clipboard module (the same
+    // pattern as CatalogItemEditorPage's "Copy item URL"). Interop failures (prerender / bUnit / torn-down
+    // circuit) are swallowed so the action never throws; the button simply does not flip to "Copied".
+    private async Task CopyEndpointUrlAsync()
+    {
+        var url = _detail?.Endpoint.Url;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        try
+        {
+            _clipboardModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/Honua.Console.Shell/catalog-item-editor.js");
+            _copied = await _clipboardModule.InvokeAsync<bool>("copyText", url);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            _copied = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_clipboardModule is not null)
+        {
+            try
+            {
+                await _clipboardModule.DisposeAsync();
+            }
+            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            {
+                // Circuit already gone; nothing to clean up browser-side.
+            }
+            finally
+            {
+                _clipboardModule = null;
+            }
+        }
     }
 
     // Carry the active workspace through the item drill-down and the back-to-list breadcrumb so a non-default

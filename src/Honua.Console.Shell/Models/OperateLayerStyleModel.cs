@@ -30,20 +30,36 @@ public sealed record OperateLayerStyleOverrideView(
     IReadOnlyList<OperateLayerSlotStyleOverride> Slots,
     OperateLayerStyleBindingState? BindingState = null);
 
-/// <summary>One publication slot's style/popup override (server-owned shape once the contract lands).</summary>
+/// <summary>
+/// One publication slot's presentation override. For the per-layer authoring surface backed by honua-server's
+/// popup-info + drawing-info admin endpoints, a layer is presented as a single slot whose
+/// <see cref="PopupInfoJson"/> is the stored GeoServices popupInfo template ({title, fieldInfos:[...]}) and
+/// whose <see cref="DrawingInfoJson"/> is the stored drawingInfo renderer document ({renderer:{...}}). Both
+/// are the raw server JSON, pretty-printed for editing; empty means nothing is authored. The legacy
+/// <see cref="StyleIdOverride"/>/<see cref="PopupTemplateOverride"/> fields are retained for compatibility
+/// with the missing-binding shell and are unused by the server-bound source.
+/// </summary>
 public sealed record OperateLayerSlotStyleOverride(
     string SlotId,
     string ServiceName,
     string ServiceDisplayName,
-    string? StyleIdOverride,
-    string? PopupTemplateOverride);
+    string? StyleIdOverride = null,
+    string? PopupTemplateOverride = null,
+    string? PopupInfoJson = null,
+    string? DrawingInfoJson = null);
 
-/// <summary>An override edit submitted by the editor for one slot.</summary>
+/// <summary>
+/// An override edit submitted by the editor for one slot. <see cref="PopupInfoJson"/> and
+/// <see cref="DrawingInfoJson"/> carry the raw popupInfo / drawingInfo documents to persist (a blank value
+/// clears the stored document).
+/// </summary>
 public sealed record OperateLayerSlotStyleOverrideEdit(
     string ResourceId,
     string SlotId,
-    string? StyleIdOverride,
-    string? PopupTemplateOverride);
+    string? StyleIdOverride = null,
+    string? PopupTemplateOverride = null,
+    string? PopupInfoJson = null,
+    string? DrawingInfoJson = null);
 
 /// <summary>Result of a per-slot override save: a binding state when the write is blocked.</summary>
 public sealed record OperateLayerStyleOverrideSaveResult(

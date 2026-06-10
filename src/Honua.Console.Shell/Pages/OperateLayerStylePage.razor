@@ -73,22 +73,16 @@
                     </div>
                     <div class="studio-field-grid">
                         <label>
-                            <span>Style override</span>
-                            <select class="console-input" data-slot-style
-                                    value="@StyleValue(slot.SlotId)"
-                                    @onchange="e => SetStyle(slot.SlotId, e)">
-                                <option value="">Use canonical style</option>
-                                @foreach (var style in _catalog.Styles)
-                                {
-                                    <option value="@style.StyleId">@style.Label</option>
-                                }
-                            </select>
-                        </label>
-                        <label>
-                            <span>Popup template override</span>
-                            <textarea class="console-input console-mono" rows="3" data-slot-popup
+                            <span>Popup info (GeoServices popupInfo JSON — e.g. <code>{"title":"{name}","fieldInfos":[…]}</code>)</span>
+                            <textarea class="console-input console-mono" rows="6" data-slot-popup
                                       value="@PopupValue(slot.SlotId)"
                                       @onchange="e => SetPopup(slot.SlotId, e)"></textarea>
+                        </label>
+                        <label>
+                            <span>Drawing info (renderer JSON — e.g. <code>{"renderer":{"type":"uniqueValue",…}}</code>)</span>
+                            <textarea class="console-input console-mono" rows="6" data-slot-drawing
+                                      value="@DrawingValue(slot.SlotId)"
+                                      @onchange="e => SetDrawing(slot.SlotId, e)"></textarea>
                         </label>
                     </div>
                     <div class="console-action-row">
@@ -128,9 +122,10 @@
     private OperateLayerStyleOverrideView _overrides = new(string.Empty, []);
     private OperateLayerStyleOverrideSaveResult? _saveResult;
 
-    // Per-slot edit state, keyed by slot id, seeded from the loaded overrides.
-    private readonly Dictionary<string, string> _styleEdits = new(StringComparer.Ordinal);
+    // Per-slot edit state, keyed by slot id, seeded from the loaded overrides. popupInfo + drawingInfo are
+    // authored as the raw GeoServices JSON documents that honua-server stores and emits back.
     private readonly Dictionary<string, string> _popupEdits = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _drawingEdits = new(StringComparer.Ordinal);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -138,28 +133,28 @@
         _saveResult = null;
         _catalog = await StyleCatalog.GetStyleCatalogAsync();
         _overrides = await OverrideData.GetOverridesAsync(ResourceId);
-        _styleEdits.Clear();
         _popupEdits.Clear();
+        _drawingEdits.Clear();
         foreach (var slot in _overrides.Slots)
         {
-            _styleEdits[slot.SlotId] = slot.StyleIdOverride ?? string.Empty;
-            _popupEdits[slot.SlotId] = slot.PopupTemplateOverride ?? string.Empty;
+            _popupEdits[slot.SlotId] = slot.PopupInfoJson ?? string.Empty;
+            _drawingEdits[slot.SlotId] = slot.DrawingInfoJson ?? string.Empty;
         }
 
         _loading = false;
     }
 
-    private string StyleValue(string slotId) =>
-        _styleEdits.TryGetValue(slotId, out var value) ? value : string.Empty;
-
     private string PopupValue(string slotId) =>
         _popupEdits.TryGetValue(slotId, out var value) ? value : string.Empty;
 
-    private void SetStyle(string slotId, ChangeEventArgs e) =>
-        _styleEdits[slotId] = e.Value?.ToString() ?? string.Empty;
+    private string DrawingValue(string slotId) =>
+        _drawingEdits.TryGetValue(slotId, out var value) ? value : string.Empty;
 
     private void SetPopup(string slotId, ChangeEventArgs e) =>
         _popupEdits[slotId] = e.Value?.ToString() ?? string.Empty;
+
+    private void SetDrawing(string slotId, ChangeEventArgs e) =>
+        _drawingEdits[slotId] = e.Value?.ToString() ?? string.Empty;
 
     private async Task SaveSlotAsync(OperateLayerSlotStyleOverride slot)
     {
@@ -167,13 +162,11 @@
         _saveResult = null;
         try
         {
-            var style = StyleValue(slot.SlotId);
-            var popup = PopupValue(slot.SlotId);
             var edit = new OperateLayerSlotStyleOverrideEdit(
                 ResourceId,
                 slot.SlotId,
-                string.IsNullOrWhiteSpace(style) ? null : style,
-                string.IsNullOrWhiteSpace(popup) ? null : popup);
+                PopupInfoJson: PopupValue(slot.SlotId),
+                DrawingInfoJson: DrawingValue(slot.SlotId));
             _saveResult = await OverrideData.SaveOverrideAsync(edit);
         }
         finally

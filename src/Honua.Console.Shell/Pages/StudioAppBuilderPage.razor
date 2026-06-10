@@ -67,32 +67,15 @@
                         <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">Publish…</button>
                     </PreviewHeader>
                     <PreviewContent>
+                        @* The RESULT: a live preview of the generated app shell — the real pages laid out as
+                           panels (map → MapPreview, dashboard/report → ChartPreview, table → structural table,
+                           form → bound form), driven entirely by the real authoring state. The package
+                           summary, actions/permissions, pre-publish, and raw JSON stay available below as
+                           structural detail, but the headline is the shell — not apppackage chrome. *@
                         <div class="studio-app-ai-inspect" data-app-preview="true">
-                            <aside class="studio-app-ai-package" aria-label="App package">
-                                <div class="studio-app-ai-package-head">
-                                    <p class="console-kicker">App package</p>
-                                    <p class="studio-app-ai-package-id">@(string.IsNullOrWhiteSpace(editor.Title) ? "new app" : editor.Title) · @editor.Pages.Count page@(editor.Pages.Count == 1 ? string.Empty : "s") · @editor.Visibility</p>
-                                </div>
+                            <StudioAppPreview App="editor" />
 
-                                <p class="console-muted studio-app-ai-section">Pages · @editor.Pages.Count</p>
-                                @if (editor.Pages.Count == 0)
-                                {
-                                    <p class="console-muted">No pages yet. Describe the app you want on the left, or open the editor to author pages directly.</p>
-                                }
-                                else
-                                {
-                                    <ul class="studio-app-ai-page-list">
-                                        @foreach (var aiPage in editor.Pages)
-                                        {
-                                            <li class="studio-app-ai-page" data-preview-kind="@aiPage.ComponentKind" @key="aiPage">
-                                                <span class="studio-app-ai-page-icon" aria-hidden="true">@ComponentGlyph(aiPage.ComponentKind)</span>
-                                                <span class="studio-mono studio-app-ai-page-name">@(string.IsNullOrWhiteSpace(aiPage.Title) ? aiPage.Route : aiPage.Title)</span>
-                                                <span class="console-muted">@aiPage.ComponentKind@(string.IsNullOrWhiteSpace(aiPage.ContentBinding) ? " · unbound" : $" · {aiPage.ContentBinding}")</span>
-                                            </li>
-                                        }
-                                    </ul>
-                                }
-
+                            <aside class="studio-app-ai-package" aria-label="App package detail">
                                 <p class="console-muted studio-app-ai-section">Actions &amp; permissions · @editor.Actions.Count</p>
                                 @if (editor.Actions.Count > 0)
                                 {

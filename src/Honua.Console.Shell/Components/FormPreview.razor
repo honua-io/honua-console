@@ -1,0 +1,282 @@
+@using Honua.Console.Shell.Models
+
+@*
+    FormPreview — the "see the result" surface for the Studio FORM family.
+
+    For a form, the RESULT is the form itself: a live, interactive preview of the generated/authored
+    schema's REAL input controls (text/number/date inputs, a <select> per coded choice, a checkbox for
+    a single-choice yes/no, a textarea for long text, radios for short choice sets) with each field's
+    <label>, required marker, choice options, and help text — all rendered from the real
+    StudioFormFieldEditor rows. Fields are grouped under their section heading when the schema carries
+    one. No external data is needed: the schema is the result, so this renders fully without any backend.
+
+    NO-MOCK (Charter §11): only real fields render. With no fields, an honest empty state shows — never a
+    fabricated sample field. The preview is read-only chrome (disabled controls) so it never implies a
+    working submit; it exists to let the operator *see* the form their prompt/edits produced.
+*@
+
+<div class="form-preview" data-form-preview="@(HasFields ? "true" : "false")" data-form-field-count="@Fields.Count">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <div class="form-preview-heading">
+            <h3 class="form-preview-title" data-form-preview-title>@Title</h3>
+            @if (!string.IsNullOrWhiteSpace(Description))
+            {
+                <p class="form-preview-description console-muted">@Description</p>
+            }
+        </div>
+    }
+
+    @if (!HasFields)
+    {
+        <p class="form-preview-empty console-muted" data-form-preview-empty>No fields yet — this form has no inputs to preview.</p>
+    }
+    else
+    {
+        <form class="form-preview-form" aria-label="Form preview" @onsubmit:preventDefault>
+            @foreach (var group in GroupedFields)
+            {
+                <fieldset class="form-preview-section">
+                    @if (!string.IsNullOrWhiteSpace(group.Heading))
+                    {
+                        <legend class="form-preview-section-heading" data-form-preview-section>@group.Heading</legend>
+                    }
+
+                    @foreach (var field in group.Fields)
+                    {
+                        var controlId = ControlId(field);
+                        var help = HelpText(field);
+                        <div class="form-preview-field" data-form-preview-field data-field-type="@RenderKind(field)">
+                            @if (RenderKind(field) == "checkbox")
+                            {
+                                <label class="form-preview-label form-preview-label-inline" for="@controlId">
+                                    <input type="checkbox" id="@controlId" disabled />
+                                    <span>@DisplayLabel(field)@if (field.Required){<span class="form-preview-required" aria-hidden="true" data-form-preview-required>*</span>}</span>
+                                </label>
+                            }
+                            else
+                            {
+                                <label class="form-preview-label" for="@controlId">
+                                    @DisplayLabel(field)@if (field.Required){<span class="form-preview-required" aria-hidden="true" data-form-preview-required>*</span>}
+                                </label>
+
+                                @switch (RenderKind(field))
+                                {
+                                    case "select":
+                                        <select id="@controlId" class="console-input form-preview-control" disabled required="@field.Required" data-form-preview-select>
+                                            <option value="" selected>@PlaceholderOption(field)</option>
+                                            @foreach (var choice in Choices(field))
+                                            {
+                                                <option value="@choice.Code">@choice.Label</option>
+                                            }
+                                        </select>
+                                        break;
+
+                                    case "radio":
+                                        <div class="form-preview-radio-group" role="radiogroup" aria-label="@DisplayLabel(field)" data-form-preview-radio-group>
+                                            @foreach (var choice in Choices(field))
+                                            {
+                                                var radioId = $"{controlId}-{choice.Code}";
+                                                <label class="form-preview-radio" for="@radioId">
+                                                    <input type="radio" id="@radioId" name="@controlId" value="@choice.Code" disabled />
+                                                    <span>@choice.Label</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        break;
+
+                                    case "textarea":
+                                        <textarea id="@controlId" class="console-input form-preview-control" rows="3" disabled required="@field.Required" placeholder="@help" data-form-preview-textarea></textarea>
+                                        break;
+
+                                    case "attachment":
+                                        <input type="file" id="@controlId" class="console-input form-preview-control" disabled required="@field.Required" data-form-preview-file />
+                                        break;
+
+                                    default:
+                                        <input type="@InputType(field)" id="@controlId" class="console-input form-preview-control" disabled required="@field.Required" placeholder="@PlaceholderOption(field)" data-form-preview-input />
+                                        break;
+                                }
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(help))
+                            {
+                                <p class="form-preview-help console-muted" id="@($"{controlId}-help")">@help</p>
+                            }
+                        </div>
+                    }
+                </fieldset>
+            }
+        </form>
+    }
+</div>
+
+@code {
+    /// <summary>The real authored/generated fields. The schema is the result; nothing here is synthesized.</summary>
+    [Parameter]
+    public IReadOnlyList<StudioFormFieldEditor> Fields { get; set; } = [];
+
+    /// <summary>Optional form title rendered above the controls.</summary>
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>Optional form description rendered under the title.</summary>
+    [Parameter]
+    public string? Description { get; set; }
+
+    private bool HasFields => Fields.Count > 0;
+
+    private IReadOnlyList<FieldGroup> GroupedFields
+    {
+        get
+        {
+            // Preserve authoring order while collecting each section's fields under its first-seen heading.
+            var groups = new List<FieldGroup>();
+            var byHeading = new Dictionary<string, FieldGroup>(StringComparer.Ordinal);
+            foreach (var item in Fields)
+            {
+                var heading = (item.Group ?? string.Empty).Trim();
+                if (!byHeading.TryGetValue(heading, out var group))
+                {
+                    group = new FieldGroup(heading);
+                    byHeading[heading] = group;
+                    groups.Add(group);
+                }
+
+                group.Fields.Add(item);
+            }
+
+            return groups;
+        }
+    }
+
+    // The authoring field type (text/number/date/choice/geometry/attachment) maps onto a real HTML control.
+    // A coded-choice field becomes a radio group for a small option set, else a <select>. A single yes/no
+    // coded choice (or a non-coded "boolean"/"checkbox" type) becomes a checkbox.
+    private static string RenderKind(StudioFormFieldEditor field)
+    {
+        var type = (field.Type ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (type is "boolean" or "checkbox" or "bool")
+        {
+            return "checkbox";
+        }
+
+        if (field.IsAttachment)
+        {
+            return "attachment";
+        }
+
+        var isCoded = string.Equals(field.DomainKind, "coded", StringComparison.OrdinalIgnoreCase);
+        if (type == "choice" || isCoded)
+        {
+            var count = ParseChoices(field.Choices).Count;
+            if (count == 2 && LooksBoolean(field))
+            {
+                return "checkbox";
+            }
+
+            return count > 0 && count <= 4 ? "radio" : "select";
+        }
+
+        if (type is "textarea" or "multiline" or "longtext")
+        {
+            return "textarea";
+        }
+
+        return "input";
+    }
+
+    private static string InputType(StudioFormFieldEditor field) =>
+        (field.Type ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "number" or "integer" or "double" or "float" => "number",
+            "date" => "date",
+            "datetime" => "datetime-local",
+            "email" => "email",
+            "url" => "url",
+            _ => "text",
+        };
+
+    private IReadOnlyList<ChoiceOption> Choices(StudioFormFieldEditor field) => ParseChoices(field.Choices);
+
+    // Mirror the editor encoding (StudioFormPackageMapper): coded choices are one-per-line as
+    // "code" or "code=label". We split on the first '=' for display; the result is the real option set.
+    private static List<ChoiceOption> ParseChoices(string? raw)
+    {
+        var options = new List<ChoiceOption>();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return options;
+        }
+
+        foreach (var line in raw.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            var eq = trimmed.IndexOf('=');
+            if (eq > 0 && eq < trimmed.Length - 1)
+            {
+                options.Add(new ChoiceOption(trimmed[..eq].Trim(), trimmed[(eq + 1)..].Trim()));
+            }
+            else if (eq == 0)
+            {
+                options.Add(new ChoiceOption(trimmed, trimmed));
+            }
+            else
+            {
+                options.Add(new ChoiceOption(trimmed, trimmed));
+            }
+        }
+
+        return options;
+    }
+
+    private static bool LooksBoolean(StudioFormFieldEditor field)
+    {
+        var codes = ParseChoices(field.Choices).Select(c => c.Code.Trim().ToLowerInvariant()).ToHashSet();
+        return codes.SetEquals(["true", "false"])
+            || codes.SetEquals(["yes", "no"])
+            || codes.SetEquals(["y", "n"])
+            || codes.SetEquals(["0", "1"]);
+    }
+
+    private static string DisplayLabel(StudioFormFieldEditor field) =>
+        !string.IsNullOrWhiteSpace(field.Label)
+            ? field.Label
+            : !string.IsNullOrWhiteSpace(field.TargetField)
+                ? field.TargetField
+                : "Untitled field";
+
+    // The builder has no dedicated help/placeholder column; the single declarative validation message is the
+    // closest operator-authored hint, so surface it as help text rather than dropping it.
+    private static string HelpText(StudioFormFieldEditor field) => (field.ValidationMessage ?? string.Empty).Trim();
+
+    private static string PlaceholderOption(StudioFormFieldEditor field) =>
+        $"{DisplayLabel(field)}…";
+
+    private static string ControlId(StudioFormFieldEditor field)
+    {
+        var basis = !string.IsNullOrWhiteSpace(field.FieldId)
+            ? field.FieldId
+            : !string.IsNullOrWhiteSpace(field.TargetField)
+                ? field.TargetField
+                : DisplayLabel(field);
+        var slug = new string(basis.Trim().ToLowerInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
+        return $"form-preview-{slug}";
+    }
+
+    private sealed class FieldGroup(string heading)
+    {
+        public string Heading { get; } = heading;
+
+        public List<StudioFormFieldEditor> Fields { get; } = [];
+    }
+
+    private readonly record struct ChoiceOption(string Code, string Label);
+}

@@ -1,0 +1,442 @@
+@page "/operate/layers/{ResourceId}/metadata"
+@using System.Globalization
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOperateTransitionDataSource OperateData
+@inject IConsoleLayerMetadataOperation LayerMetadata
+
+<section class="console-page" data-layer-metadata-page>
+    @if (_layer is null)
+    {
+        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>@_layer.Name · metadata</h1>
+            <p>Author display hints, editor-tracking / edit capability, and CRS / spatial metadata on layer @_layer.LayerId. honua-server persists these through its admin metadata API and projects them onto FeatureServer / OGC layer metadata.</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+            </div>
+        </div>
+
+        @* ---- Display ---- *@
+        <section class="console-section" data-display-panel>
+            <h2>Display</h2>
+            @if (!_display.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-display-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_display.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-field-grid">
+                    <label class="console-field">
+                        <span>Min scale</span>
+                        <input class="console-input" type="number" step="any" @bind="_displayEdit.MinScale" aria-label="Min scale" data-display-min-scale />
+                    </label>
+                    <label class="console-field">
+                        <span>Max scale</span>
+                        <input class="console-input" type="number" step="any" @bind="_displayEdit.MaxScale" aria-label="Max scale" data-display-max-scale />
+                    </label>
+                    <label class="console-field">
+                        <span>Display field</span>
+                        <input class="console-input" @bind="_displayEdit.DisplayField" aria-label="Display field" data-display-field placeholder="name" />
+                    </label>
+                    <label class="console-field">
+                        <span>Default visibility</span>
+                        <select class="console-input" @bind="_displayEdit.DefaultVisibility" aria-label="Default visibility" data-display-visibility>
+                            <option value="">(unchanged)</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>Queryable</span>
+                        <select class="console-input" @bind="_displayEdit.Queryable" aria-label="Queryable" data-display-queryable>
+                            <option value="">(unchanged)</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>Has Z</span>
+                        <select class="console-input" @bind="_displayEdit.HasZ" aria-label="Has Z" data-display-hasz>
+                            <option value="">(unchanged)</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>Has M</span>
+                        <select class="console-input" @bind="_displayEdit.HasM" aria-label="Has M" data-display-hasm>
+                            <option value="">(unchanged)</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_savingDisplay" @onclick="SaveDisplayAsync" data-display-save>
+                        @(_savingDisplay ? "Saving…" : "Save display")
+                    </button>
+                </div>
+                @if (_displayResult is { } dr)
+                {
+                    <div class="console-panel @(dr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-display-result>
+                        <p class="console-kicker">@dr.State</p>
+                        <p>@dr.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+
+        @* ---- Editing ---- *@
+        <section class="console-section" data-editing-panel>
+            <h2>Editing</h2>
+            @if (!_editing.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-editing-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_editing.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-field-grid">
+                    <label class="console-field">
+                        <span>Global id field</span>
+                        <input class="console-input" @bind="_editingEdit.GlobalIdField" aria-label="Global id field" data-editing-globalid placeholder="globalid" />
+                    </label>
+                    <label class="console-field">
+                        <span>Creator field</span>
+                        <input class="console-input" @bind="_editingEdit.CreatorField" aria-label="Creator field" data-editing-creator placeholder="created_user" />
+                    </label>
+                    <label class="console-field">
+                        <span>Created-at field</span>
+                        <input class="console-input" @bind="_editingEdit.CreatedAtField" aria-label="Created-at field" data-editing-createdat placeholder="created_date" />
+                    </label>
+                    <label class="console-field">
+                        <span>Editor field</span>
+                        <input class="console-input" @bind="_editingEdit.EditorField" aria-label="Editor field" data-editing-editor placeholder="last_edited_user" />
+                    </label>
+                    <label class="console-field">
+                        <span>Updated-at field</span>
+                        <input class="console-input" @bind="_editingEdit.UpdatedAtField" aria-label="Updated-at field" data-editing-updatedat placeholder="last_edited_date" />
+                    </label>
+                    <label class="console-field">
+                        <span>Can modify</span>
+                        <select class="console-input" @bind="_editingEdit.CanModify" aria-label="Can modify" data-editing-canmodify>
+                            <option value="">(unchanged)</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>Supports attachments</span>
+                        <select class="console-input" @bind="_editingEdit.SupportsAttachments" aria-label="Supports attachments" data-editing-attachments>
+                            <option value="">(unchanged)</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                    <label class="console-field">
+                        <span>Supports related records</span>
+                        <select class="console-input" @bind="_editingEdit.SupportsRelatedRecords" aria-label="Supports related records" data-editing-related>
+                            <option value="">(unchanged)</option>
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_savingEditing" @onclick="SaveEditingAsync" data-editing-save>
+                        @(_savingEditing ? "Saving…" : "Save editing")
+                    </button>
+                </div>
+                @if (_editingResult is { } er)
+                {
+                    <div class="console-panel @(er.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-editing-result>
+                        <p class="console-kicker">@er.State</p>
+                        <p>@er.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+
+        @* ---- CRS / Spatial ---- *@
+        <section class="console-section" data-spatial-panel>
+            <h2>CRS / Spatial</h2>
+            @if (!_spatial.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-spatial-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_spatial.Detail</p>
+                </article>
+            }
+            else
+            {
+                <p class="console-muted" data-spatial-context>
+                    Stored SRID: @(_spatial.Srid?.ToString(CultureInfo.InvariantCulture) ?? "—") ·
+                    geometry: @(_spatial.GeometryType ?? "—") (read-only; the SRID/geometry are not changed here).
+                </p>
+                <div class="console-field-grid">
+                    <label class="console-field console-field-wide">
+                        <span>Supported CRS (one per line; blank = leave unchanged, clear all lines to clear)</span>
+                        <textarea class="console-input" rows="4" @bind="_spatialEdit.SupportedCrsText" aria-label="Supported CRS" data-spatial-supported placeholder="http://www.opengis.net/def/crs/EPSG/0/4326"></textarea>
+                    </label>
+                    <label class="console-field">
+                        <span>Storage CRS</span>
+                        <input class="console-input" @bind="_spatialEdit.StorageCrs" disabled="@_spatialEdit.ClearStorageCrs" aria-label="Storage CRS" data-spatial-storage placeholder="http://www.opengis.net/def/crs/EPSG/0/3857" />
+                    </label>
+                    <label class="console-field console-field-check">
+                        <input type="checkbox" @bind="_spatialEdit.ClearStorageCrs" aria-label="Clear storage CRS" data-spatial-clear-storage />
+                        <span>Clear storage CRS</span>
+                    </label>
+                    <label class="console-field">
+                        <span>Storage CRS coordinate epoch</span>
+                        <input class="console-input" type="number" step="any" @bind="_spatialEdit.StorageCrsCoordinateEpoch" disabled="@_spatialEdit.ClearStorageCrsCoordinateEpoch" aria-label="Storage CRS coordinate epoch" data-spatial-epoch />
+                    </label>
+                    <label class="console-field console-field-check">
+                        <input type="checkbox" @bind="_spatialEdit.ClearStorageCrsCoordinateEpoch" aria-label="Clear storage CRS coordinate epoch" data-spatial-clear-epoch />
+                        <span>Clear coordinate epoch</span>
+                    </label>
+                </div>
+                <div class="console-action-row">
+                    <button class="console-button" type="button" disabled="@_savingSpatial" @onclick="SaveSpatialAsync" data-spatial-save>
+                        @(_savingSpatial ? "Saving…" : "Save CRS / spatial")
+                    </button>
+                </div>
+                @if (_spatialResult is { } sr)
+                {
+                    <div class="console-panel @(sr.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-spatial-result>
+                        <p class="console-kicker">@sr.State</p>
+                        <p>@sr.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ResourceId { get; set; } = string.Empty;
+
+    private OperateServiceLayerProjection? _layer;
+
+    private ConsoleLayerDisplay _display = ConsoleLayerDisplay.Unbound("Loading…");
+    private readonly DisplayEdit _displayEdit = new();
+    private bool _savingDisplay;
+    private ConsoleSetLayerMetadataResult? _displayResult;
+
+    private ConsoleLayerEditing _editing = ConsoleLayerEditing.Unbound("Loading…");
+    private readonly EditingEdit _editingEdit = new();
+    private bool _savingEditing;
+    private ConsoleSetLayerMetadataResult? _editingResult;
+
+    private ConsoleLayerSpatial _spatial = ConsoleLayerSpatial.Unbound("Loading…");
+    private readonly SpatialEdit _spatialEdit = new();
+    private bool _savingSpatial;
+    private ConsoleSetLayerMetadataResult? _spatialResult;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var view = await OperateData.GetLayersViewAsync();
+        // A raw layer id is only unique within its connection, so the route keys on the canonical resource id
+        // ({connection}-layer-{layerId}); take the first projection for its global LayerId (same as relationships).
+        _layer = view.Services
+            .SelectMany(service => service.Layers)
+            .FirstOrDefault(layer => string.Equals(layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+
+        if (_layer is not null)
+        {
+            await LoadDisplayAsync();
+            await LoadEditingAsync();
+            await LoadSpatialAsync();
+        }
+    }
+
+    private async Task LoadDisplayAsync()
+    {
+        _display = await LayerMetadata.GetDisplayAsync(_layer!.LayerId);
+        if (_display.Bound)
+        {
+            _displayEdit.MinScale = _display.MinScale;
+            _displayEdit.MaxScale = _display.MaxScale;
+            _displayEdit.DisplayField = _display.DisplayField;
+            _displayEdit.DefaultVisibility = ToSelect(_display.DefaultVisibility);
+            _displayEdit.Queryable = ToSelect(_display.Queryable);
+            _displayEdit.HasZ = ToSelect(_display.HasZ);
+            _displayEdit.HasM = ToSelect(_display.HasM);
+        }
+    }
+
+    private async Task LoadEditingAsync()
+    {
+        _editing = await LayerMetadata.GetEditingAsync(_layer!.LayerId);
+        if (_editing.Bound)
+        {
+            _editingEdit.GlobalIdField = _editing.GlobalIdField;
+            _editingEdit.CreatorField = _editing.CreatorField;
+            _editingEdit.CreatedAtField = _editing.CreatedAtField;
+            _editingEdit.EditorField = _editing.EditorField;
+            _editingEdit.UpdatedAtField = _editing.UpdatedAtField;
+            _editingEdit.CanModify = ToSelect(_editing.CanModify);
+            _editingEdit.SupportsAttachments = ToSelect(_editing.SupportsAttachments);
+            _editingEdit.SupportsRelatedRecords = ToSelect(_editing.SupportsRelatedRecords);
+        }
+    }
+
+    private async Task LoadSpatialAsync()
+    {
+        _spatial = await LayerMetadata.GetSpatialAsync(_layer!.LayerId);
+        if (_spatial.Bound)
+        {
+            _spatialEdit.SupportedCrsText = string.Join('\n', _spatial.SupportedCrs);
+            _spatialEdit.StorageCrs = _spatial.StorageCrs;
+            _spatialEdit.StorageCrsCoordinateEpoch = _spatial.StorageCrsCoordinateEpoch;
+            _spatialEdit.ClearStorageCrs = false;
+            _spatialEdit.ClearStorageCrsCoordinateEpoch = false;
+        }
+    }
+
+    private async Task SaveDisplayAsync()
+    {
+        if (_layer is null) return;
+        _savingDisplay = true;
+        _displayResult = null;
+        try
+        {
+            var payload = new ConsoleLayerDisplay
+            {
+                MinScale = _displayEdit.MinScale,
+                MaxScale = _displayEdit.MaxScale,
+                DisplayField = string.IsNullOrWhiteSpace(_displayEdit.DisplayField) ? null : _displayEdit.DisplayField,
+                DefaultVisibility = FromSelect(_displayEdit.DefaultVisibility),
+                Queryable = FromSelect(_displayEdit.Queryable),
+                HasZ = FromSelect(_displayEdit.HasZ),
+                HasM = FromSelect(_displayEdit.HasM),
+            };
+            _displayResult = await LayerMetadata.SetDisplayAsync(_layer.LayerId, payload);
+            if (_displayResult.Succeeded)
+            {
+                await LoadDisplayAsync();
+            }
+        }
+        finally
+        {
+            _savingDisplay = false;
+        }
+    }
+
+    private async Task SaveEditingAsync()
+    {
+        if (_layer is null) return;
+        _savingEditing = true;
+        _editingResult = null;
+        try
+        {
+            var payload = new ConsoleLayerEditing
+            {
+                GlobalIdField = Trim(_editingEdit.GlobalIdField),
+                CreatorField = Trim(_editingEdit.CreatorField),
+                CreatedAtField = Trim(_editingEdit.CreatedAtField),
+                EditorField = Trim(_editingEdit.EditorField),
+                UpdatedAtField = Trim(_editingEdit.UpdatedAtField),
+                CanModify = FromSelect(_editingEdit.CanModify),
+                SupportsAttachments = FromSelect(_editingEdit.SupportsAttachments),
+                SupportsRelatedRecords = FromSelect(_editingEdit.SupportsRelatedRecords),
+            };
+            _editingResult = await LayerMetadata.SetEditingAsync(_layer.LayerId, payload);
+            if (_editingResult.Succeeded)
+            {
+                await LoadEditingAsync();
+            }
+        }
+        finally
+        {
+            _savingEditing = false;
+        }
+    }
+
+    private async Task SaveSpatialAsync()
+    {
+        if (_layer is null) return;
+        _savingSpatial = true;
+        _spatialResult = null;
+        try
+        {
+            // A blank textarea = "leave the list unchanged" (null); any non-blank content = the explicit
+            // list (which may be a single line). To CLEAR, the operator removes every line — which a fully
+            // blank box can't express, so an all-whitespace box is treated as unchanged. The server's []=clear
+            // is reachable from the API; the UI's primary affordances are set/unchanged.
+            IReadOnlyList<string>? supportedCrs = null;
+            if (!string.IsNullOrWhiteSpace(_spatialEdit.SupportedCrsText))
+            {
+                supportedCrs = _spatialEdit.SupportedCrsText
+                    .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToArray();
+            }
+
+            _spatialResult = await LayerMetadata.SetSpatialAsync(
+                _layer.LayerId,
+                supportedCrs,
+                Trim(_spatialEdit.StorageCrs),
+                _spatialEdit.StorageCrsCoordinateEpoch,
+                _spatialEdit.ClearStorageCrs,
+                _spatialEdit.ClearStorageCrsCoordinateEpoch);
+            if (_spatialResult.Succeeded)
+            {
+                await LoadSpatialAsync();
+            }
+        }
+        finally
+        {
+            _savingSpatial = false;
+        }
+    }
+
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    // Tri-state bool <-> select-string: "" = unchanged (null), "true"/"false" = explicit.
+    private static string ToSelect(bool? value) => value switch { true => "true", false => "false", _ => "" };
+
+    private static bool? FromSelect(string value) => value switch { "true" => true, "false" => false, _ => null };
+
+    private sealed class DisplayEdit
+    {
+        public double? MinScale { get; set; }
+        public double? MaxScale { get; set; }
+        public string? DisplayField { get; set; }
+        public string DefaultVisibility { get; set; } = "";
+        public string Queryable { get; set; } = "";
+        public string HasZ { get; set; } = "";
+        public string HasM { get; set; } = "";
+    }
+
+    private sealed class EditingEdit
+    {
+        public string? GlobalIdField { get; set; }
+        public string? CreatorField { get; set; }
+        public string? CreatedAtField { get; set; }
+        public string? EditorField { get; set; }
+        public string? UpdatedAtField { get; set; }
+        public string CanModify { get; set; } = "";
+        public string SupportsAttachments { get; set; } = "";
+        public string SupportsRelatedRecords { get; set; } = "";
+    }
+
+    private sealed class SpatialEdit
+    {
+        public string? SupportedCrsText { get; set; }
+        public string? StorageCrs { get; set; }
+        public double? StorageCrsCoordinateEpoch { get; set; }
+        public bool ClearStorageCrs { get; set; }
+        public bool ClearStorageCrsCoordinateEpoch { get; set; }
+    }
+}

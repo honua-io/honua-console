@@ -26,10 +26,41 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
     private const string GenerateContract = "POST /api/v1/analysis/content/queries/generate";
 
     private readonly IHonuaAnalysisContentClient _client;
+    private readonly IOperateTransitionDataSource? _operate;
 
-    public HonuaServerStudioQueryContentDataSource(IHonuaAnalysisContentClient client)
+    public HonuaServerStudioQueryContentDataSource(
+        IHonuaAnalysisContentClient client,
+        IOperateTransitionDataSource? operate = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _operate = operate;
+    }
+
+    // Catalog grounding: the real published layers, so query generation binds a real serviceId/layerId
+    // instead of layerId 0. Best-effort; without the catalog the model falls back to the placeholder.
+    private async Task<HonuaQueryGenerationSource[]> LoadAvailableSourcesAsync(CancellationToken cancellationToken)
+    {
+        if (_operate is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
+            return view.Services
+                .SelectMany(service => service.Layers.Select(layer => new HonuaQueryGenerationSource
+                {
+                    ServiceId = service.Name,
+                    LayerId = layer.LayerId.ToString(CultureInfo.InvariantCulture),
+                    Name = layer.Name,
+                }))
+                .ToArray();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
     }
 
     public Task<StudioQueryWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -173,6 +204,8 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
             || !string.IsNullOrWhiteSpace(currentQuery.NaturalLanguageQuery)
             || !string.IsNullOrWhiteSpace(currentQuery.Title);
 
+        var availableSources = await LoadAvailableSourcesAsync(cancellationToken).ConfigureAwait(false);
+
         var wire = new HonuaGenerateSavedQueryRequest
         {
             Prompt = request.Prompt,
@@ -184,7 +217,8 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
                 .ToArray(),
             Answers = request.Answers
                 .Select(answer => new HonuaAnalysisGenerationAnswer { QuestionId = answer.QuestionId, OptionId = answer.OptionId })
-                .ToArray()
+                .ToArray(),
+            AvailableSources = availableSources
         };
 
         var result = await _client.GenerateQueryAsync(wire, cancellationToken).ConfigureAwait(false);
@@ -204,7 +238,31 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
             return StudioQueryGenerationOutcome.Blocked(ToCapabilityState(issue));
         }
 
-        return MapGeneration(currentQuery, result.Data!);
+        var outcome = MapGeneration(currentQuery, result.Data!);
+        ResolveServiceBinding(outcome.Query, availableSources);
+        return outcome;
+    }
+
+    // The local model reliably binds the real numeric layerId (grounded in the catalog) but is inconsistent
+    // about echoing the serviceId alongside it. The serviceId is deterministic given the layerId, so recover
+    // it from the catalog when the model left it blank: match the bound layerId, else fall back to the single
+    // available source. This is what lets the live result chart fetch the bound layer's real rows. Never
+    // invents a binding — if nothing matches, the query stays unbound (and shows no result).
+    private static void ResolveServiceBinding(StudioQueryEditor? query, HonuaQueryGenerationSource[] sources)
+    {
+        if (query is null || !string.IsNullOrWhiteSpace(query.ServiceName) || sources.Length == 0)
+        {
+            return;
+        }
+
+        var layerId = query.LayerId.ToString(CultureInfo.InvariantCulture);
+        var match = sources.FirstOrDefault(source =>
+            string.Equals(source.LayerId, layerId, StringComparison.Ordinal));
+        match ??= sources.Length == 1 ? sources[0] : null;
+        if (match is not null && !string.IsNullOrWhiteSpace(match.ServiceId))
+        {
+            query.ServiceName = match.ServiceId;
+        }
     }
 
     private static StudioQueryGenerationOutcome MapGeneration(

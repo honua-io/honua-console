@@ -59,7 +59,7 @@ public sealed class StudioMapPublishRoundTripTests
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var title = $"Console IT map {suffix}";
-        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient());
+        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
 
         // --- OPERATION: author + save a real map draft, then publish it (freezes an immutable version). ---
         var load = await source.LoadAsync(null);
