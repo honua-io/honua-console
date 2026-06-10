@@ -71,7 +71,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Optional: check out honua-server source so the two source-build live lanes
       # (GitOps release + Operate transition) run too. Gated on an explicit ref so
@@ -80,7 +80,7 @@ jobs:
       - name: Check out honua-server (source-build lanes)
         id: server_src
         if: ${{ github.event.inputs.server_ref != '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: honua-io/honua-server
           ref: ${{ github.event.inputs.server_ref }}
