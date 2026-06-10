@@ -341,6 +341,17 @@
                     }
                 </article>
 
+                @* The result IS the form: a live preview of the authored controls as they render to a submitter. *@
+                <article class="console-panel studio-form-preview-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Result</p>
+                            <h3>Live preview</h3>
+                        </div>
+                    </div>
+                    <FormPreview Fields="editor.Fields" Title="@editor.Title" Description="@editor.Description" />
+                </article>
+
                 <div class="console-panel-grid">
                     <article class="console-panel">
                         <p class="console-kicker">Attachments</p>

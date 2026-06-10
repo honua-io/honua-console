@@ -58,6 +58,37 @@ public sealed class StudioMapPackageDataSourceTests
     }
 
     [Fact]
+    public void ApplyGeneratedPackage_CapturesBoundLayerIdAndServiceId_DrivingTheLiveRender()
+    {
+        // When generation binds a real catalog layer, the locator carries serviceId + layerId. The mapper must
+        // lift them onto the editor layer (BoundServiceId / BoundLayerId) — this is what lets the builder
+        // preview render the actual map via /map-proxy/styles/{BoundLayerId}.json. layerId may be a string or
+        // a number; both must be captured (small local models are inconsistent).
+        var package = JsonSerializer.Deserialize<JsonElement>(
+            """
+            {
+              "mapPackageId": "map_e2e_parcels",
+              "format": "honua_map_package.v1",
+              "sourceBindings": [
+                {
+                  "sourceId": "src_e2e_parcels",
+                  "protocol": "geoservices_feature_service",
+                  "locator": { "url": "https://placeholder/e2e_src_fs", "serviceId": "e2e_src_fs", "layerId": 1 }
+                }
+              ],
+              "initialView": { "bbox": [0, 0, 0.0449, 0.0449], "crs": "EPSG:4326" }
+            }
+            """);
+        var state = new StudioMapEditorState();
+
+        StudioMapPackageMapper.ApplyGeneratedPackage(state, package);
+
+        Assert.Single(state.Layers);
+        Assert.Equal("1", state.Layers[0].BoundLayerId);
+        Assert.Equal("e2e_src_fs", state.Layers[0].BoundServiceId);
+    }
+
+    [Fact]
     public void ApplyGeneratedPackage_NullOrEmptyBody_DoesNotThrowAndBindsNoLayers()
     {
         var state = new StudioMapEditorState();
@@ -128,15 +159,55 @@ public sealed class StudioMapPackageDataSourceTests
     }
 
     [Fact]
-    public async Task GetWorkspace_SurfacesUnsupportedListInsteadOfFabricatingPackages()
+    public async Task GetWorkspace_WithNoDrafts_ReturnsEmptyListWithoutCapabilityState()
     {
-        var source = CreateSource(new RecordingHandler());
+        var handler = new RecordingHandler();
+        handler.Map(
+            HttpMethod.Get,
+            "/api/v1/studio/package-drafts",
+            """{"success":true,"data":{"drafts":[]}}""");
+        var source = CreateSource(handler);
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.Packages);
+        Assert.Empty(workspace.CapabilityStates);
+        Assert.Equal("/api/v1/studio/package-drafts", Assert.Single(handler.RequestedPaths).Path);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_EnumeratesLiveMapDrafts()
+    {
+        var draftId = Guid.NewGuid();
+        var listJson = "{\"success\":true,\"data\":{\"drafts\":[{"
+            + "\"draftId\":\"" + draftId + "\","
+            + "\"itemId\":\"" + Guid.NewGuid() + "\","
+            + "\"packageKey\":\"studio-map-public-works\","
+            + "\"family\":\"map\",\"validationStatus\":\"valid\",\"generation\":1,"
+            + "\"createdAt\":\"2026-01-01T00:00:00Z\",\"updatedAt\":\"2026-01-02T00:00:00Z\"}]}}";
+        var handler = new RecordingHandler();
+        handler.Map(HttpMethod.Get, "/api/v1/studio/package-drafts", listJson);
+        var source = CreateSource(handler);
+
+        var workspace = await source.GetWorkspaceAsync();
+
+        Assert.Empty(workspace.CapabilityStates);
+        var item = Assert.Single(workspace.Packages);
+        Assert.Equal(draftId.ToString(), item.MapId);
+        Assert.Equal("studio-map-public-works", item.Title);
+    }
+
+    [Fact]
+    public async Task GetWorkspace_WhenListEndpointFails_SurfacesCapabilityState()
+    {
+        var handler = new RecordingHandler();
+        handler.MapStatus(HttpMethod.Get, "/api/v1/studio/package-drafts", HttpStatusCode.Forbidden);
+        var source = CreateSource(handler);
 
         var workspace = await source.GetWorkspaceAsync();
 
         Assert.Empty(workspace.Packages);
         var state = Assert.Single(workspace.CapabilityStates);
-        Assert.Equal("Unsupported", state.State);
         Assert.Contains("list", state.Contract, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -400,7 +471,7 @@ public sealed class StudioMapPackageDataSourceTests
         var client = new HttpStudioPackageLifecycleClient(
             httpClient,
             new StudioPackageLifecycleClientOptions(BaseUri, "test-api-key"));
-        return new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient());
+        return new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
     }
 
     private static string DraftJson(Guid draftId, Guid itemId, long generation)

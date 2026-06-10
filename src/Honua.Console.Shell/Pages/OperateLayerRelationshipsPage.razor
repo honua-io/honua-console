@@ -1,0 +1,210 @@
+@page "/operate/layers/{ResourceId}/relationships"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOperateTransitionDataSource OperateData
+@inject IConsoleLayerRelationshipsOperation LayerRelationships
+
+<section class="console-page" data-relationships-page>
+    @if (_layer is null)
+    {
+        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Operate / Layers</p>
+            <h1>@_layer.Name · relationships</h1>
+            <p>Author origin/destination relationships on layer @_layer.LayerId. honua-server emits these as <code>relationships[]</code> on FeatureServer layer metadata and uses them to drive related-records / <code>$expand</code> / relationshipQuery.</p>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="@($"/operate/layers/{ResourceId}")" data-layer-detail-link>Back to layer</a>
+            </div>
+        </div>
+
+        <section class="console-section" data-relationships-panel>
+            @if (!_relationships.Bound)
+            {
+                <article class="console-panel console-state-warning" role="status" data-relationships-unbound>
+                    <p class="console-kicker">Unavailable</p>
+                    <p>@_relationships.Detail</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-table-wrap">
+                    <table class="console-table" aria-label="Relationships">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Related layer</th>
+                                <th>Role</th>
+                                <th>Cardinality</th>
+                                <th>Origin field</th>
+                                <th>Destination field</th>
+                                <th>Esri rel id</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_rows.Count == 0)
+                            {
+                                <tr data-relationships-empty><td colspan="8" class="console-muted">No relationships are authored on this layer yet.</td></tr>
+                            }
+                            else
+                            {
+                                @for (var i = 0; i < _rows.Count; i++)
+                                {
+                                    var row = _rows[i];
+                                    <tr data-relationship-row>
+                                        <td><input class="console-input" @bind="row.Name" aria-label="Relationship name" data-rel-name placeholder="parcels_owner" /></td>
+                                        <td><input class="console-input console-input-narrow" type="number" @bind="row.RelatedLayerId" aria-label="Related layer id" data-rel-related /></td>
+                                        <td>
+                                            <select class="console-input" @bind="row.Role" aria-label="Role" data-rel-role>
+                                                <option value="origin">origin</option>
+                                                <option value="destination">destination</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select class="console-input" @bind="row.Cardinality" aria-label="Cardinality" data-rel-cardinality>
+                                                <option value="one-to-many">one-to-many</option>
+                                                <option value="one-to-one">one-to-one</option>
+                                                <option value="many-to-many">many-to-many</option>
+                                            </select>
+                                        </td>
+                                        <td><input class="console-input" @bind="row.OriginField" aria-label="Origin field" data-rel-origin placeholder="id" /></td>
+                                        <td><input class="console-input" @bind="row.DestinationField" aria-label="Destination field" data-rel-destination placeholder="parcel_id" /></td>
+                                        <td><input class="console-input console-input-narrow" type="number" @bind="row.EsriRelationshipId" aria-label="Esri relationship id" data-rel-esri /></td>
+                                        <td>
+                                            <button class="console-button console-button-secondary" type="button"
+                                                    @onclick="() => RemoveRow(row)" data-rel-remove aria-label="Remove relationship">Remove</button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="console-action-row">
+                    <button class="console-button console-button-secondary" type="button" @onclick="AddRow" data-rel-add>Add relationship</button>
+                    <button class="console-button" type="button" disabled="@_saving" @onclick="SaveAsync" data-rel-save>
+                        @(_saving ? "Saving…" : "Save relationships")
+                    </button>
+                </div>
+
+                @if (_result is { } r)
+                {
+                    <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-relationships-result>
+                        <p class="console-kicker">@r.State</p>
+                        <p>@r.Detail</p>
+                    </div>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string ResourceId { get; set; } = string.Empty;
+
+    private OperateServiceLayerProjection? _layer;
+    private ConsoleLayerRelationships _relationships = ConsoleLayerRelationships.Unbound("Loading…");
+    private readonly List<RelationshipRow> _rows = new();
+    private bool _saving;
+    private ConsoleSetRelationshipsResult? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var view = await OperateData.GetLayersViewAsync();
+        // A raw layer id is only unique within its connection, so the route keys on the canonical resource id
+        // ({connection}-layer-{layerId}) — matching /operate/layers/{id}. The same layer is exposed by every
+        // service that serves it, so take the first projection for its global LayerId.
+        _layer = view.Services
+            .SelectMany(service => service.Layers)
+            .FirstOrDefault(layer => string.Equals(layer.CanonicalResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
+
+        if (_layer is not null)
+        {
+            await LoadRelationshipsAsync();
+        }
+    }
+
+    private async Task LoadRelationshipsAsync()
+    {
+        _relationships = await LayerRelationships.GetRelationshipsAsync(_layer!.LayerId);
+        _rows.Clear();
+        if (_relationships.Bound)
+        {
+            foreach (var rel in _relationships.Relationships)
+            {
+                _rows.Add(RelationshipRow.From(rel));
+            }
+        }
+    }
+
+    private void AddRow() => _rows.Add(new RelationshipRow());
+
+    private void RemoveRow(RelationshipRow row) => _rows.Remove(row);
+
+    private async Task SaveAsync()
+    {
+        if (_layer is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        _result = null;
+        try
+        {
+            var payload = _rows.Select(row => row.ToModel()).ToArray();
+            _result = await LayerRelationships.SetRelationshipsAsync(_layer.LayerId, payload);
+            if (_result.Succeeded)
+            {
+                await LoadRelationshipsAsync();
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // Mutable per-row edit model bound to the inputs (the domain record is immutable).
+    private sealed class RelationshipRow
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public int? RelatedLayerId { get; set; }
+        public string Role { get; set; } = "origin";
+        public string Cardinality { get; set; } = "one-to-many";
+        public string? OriginField { get; set; }
+        public string? DestinationField { get; set; }
+        public int? EsriRelationshipId { get; set; }
+
+        public static RelationshipRow From(ConsoleLayerRelationship rel) => new()
+        {
+            Id = rel.Id,
+            Name = rel.Name,
+            RelatedLayerId = rel.RelatedLayerId,
+            Role = string.IsNullOrWhiteSpace(rel.Role) ? "origin" : rel.Role,
+            Cardinality = string.IsNullOrWhiteSpace(rel.Cardinality) ? "one-to-many" : rel.Cardinality,
+            OriginField = rel.OriginField,
+            DestinationField = rel.DestinationField,
+            EsriRelationshipId = rel.EsriRelationshipId,
+        };
+
+        public ConsoleLayerRelationship ToModel() => new()
+        {
+            Id = Id,
+            Name = Name,
+            RelatedLayerId = RelatedLayerId,
+            Role = Role,
+            Cardinality = Cardinality,
+            OriginField = OriginField,
+            DestinationField = DestinationField,
+            EsriRelationshipId = EsriRelationshipId,
+        };
+    }
+}

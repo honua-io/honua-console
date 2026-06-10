@@ -29,7 +29,7 @@
                 <dt>Server</dt>
                 <dd>@_profile.ServerBaseUri</dd>
                 <dt>Tenant</dt>
-                <dd>@_profile.TenantId</dd>
+                <dd>@(string.IsNullOrWhiteSpace(_profile.TenantId) ? "—" : _profile.TenantId)</dd>
                 <dt>Account</dt>
                 <dd>@AccountLabel(_profile)</dd>
                 <dt>Return to</dt>

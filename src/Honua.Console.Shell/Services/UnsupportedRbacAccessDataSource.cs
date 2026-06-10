@@ -24,4 +24,21 @@ public sealed class UnsupportedRbacAccessDataSource : IRbacAccessDataSource
 
     public Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new TeamMembershipLoad(null, [MissingBinding]));
+
+    public Task<RbacRoleMutationResult> CreateRoleAsync(
+        string workspaceId,
+        string name,
+        string? description,
+        IReadOnlyList<string> grantedPermissionKeys,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new RbacRoleMutationResult(false, MissingBinding.Detail));
+
+    public Task<RbacRoleMutationResult> DeleteRoleAsync(
+        string workspaceId,
+        string roleId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new RbacRoleMutationResult(false, MissingBinding.Detail));
+
+    public Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new RbacAuditLoad([], [MissingBinding]));
 }

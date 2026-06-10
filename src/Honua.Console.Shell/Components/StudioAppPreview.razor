@@ -1,0 +1,218 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
+@*
+    Live app-shell preview — the APP family's FINAL visible output (honua-console#58, Studio result
+    rendering). Renders the generated app package as the real app shell: a header with the app title and
+    nav, then each page's component laid out as a real panel — a map page renders the live MapPreview, a
+    chart-style page (dashboard/report) renders ChartPreview, a table page renders a structural table of
+    its binding, and a form page renders its bound form controls. The panel kinds/titles/bindings come
+    straight from the generated package; nothing is fabricated.
+
+    No-mock contract (Charter §11): only the REAL generated pages render. When the package has no pages,
+    or no page is bound to content, an honest empty/missing-binding state shows instead of sample panels.
+    MapPreview/ChartPreview already degrade to honest placeholders when no live backend/spec is bound.
+*@
+
+<div class="studio-app-shell" data-app-shell="true" aria-label="App preview">
+    @if (App is null || App.Pages.Count == 0)
+    {
+        <div class="studio-app-shell-empty" data-app-shell-empty="true">
+            <p class="console-kicker">App preview</p>
+            <p class="console-muted">No pages yet. Describe the app you want, or add a page bound to a saved content version — the shell renders the real generated pages, never sample panels.</p>
+        </div>
+    }
+    else
+    {
+        var title = string.IsNullOrWhiteSpace(App.Title) ? "Untitled app" : App.Title;
+
+        <header class="studio-app-shell-header" data-app-shell-header="true">
+            <span class="studio-app-shell-glyph" aria-hidden="true">❒</span>
+            <h2 class="studio-app-shell-title">@title</h2>
+            <nav class="studio-app-shell-nav" aria-label="App navigation">
+                @foreach (var navPage in App.Pages.Where(p => !string.IsNullOrWhiteSpace(p.Route)))
+                {
+                    <span class="studio-app-shell-navitem @(ReferenceEquals(navPage, ActivePage) ? "studio-app-shell-navitem-active" : null)">
+                        @(string.IsNullOrWhiteSpace(navPage.Title) ? navPage.Route : navPage.Title)
+                    </span>
+                }
+            </nav>
+        </header>
+
+        <div class="studio-app-shell-stage" data-app-shell-stage="true">
+            @{
+                var bound = App.Pages.Any(p => !string.IsNullOrWhiteSpace(p.ContentBinding));
+            }
+            @if (!bound)
+            {
+                <p class="console-muted studio-app-shell-unbound" data-app-shell-unbound="true">No page is bound to content yet. Bind a page component to a saved content version to see its live result; until then the panels show their honest unbound placeholders.</p>
+            }
+
+            <div class="studio-app-shell-panels">
+                @foreach (var appPage in App.Pages)
+                {
+                    var kind = (appPage.ComponentKind ?? string.Empty).Trim().ToLowerInvariant();
+                    var panelTitle = string.IsNullOrWhiteSpace(appPage.Title) ? appPage.Route : appPage.Title;
+                    <article class="studio-app-shell-panel studio-app-shell-panel-@kind"
+                             data-app-shell-panel="@kind"
+                             data-preview-kind="@kind"
+                             @key="appPage">
+                        <div class="studio-app-shell-panel-head">
+                            <span class="studio-app-shell-panel-glyph" aria-hidden="true">@Glyph(kind)</span>
+                            <b class="studio-app-shell-panel-title">@panelTitle</b>
+                            <span class="console-muted studio-app-shell-panel-kind">@appPage.ComponentKind</span>
+                            @if (string.IsNullOrWhiteSpace(appPage.ContentBinding))
+                            {
+                                <span class="console-status console-status-warning studio-app-shell-panel-binding">unbound</span>
+                            }
+                            else
+                            {
+                                <span class="console-muted studio-app-shell-panel-binding mono">@appPage.ContentBinding</span>
+                            }
+                        </div>
+
+                        <div class="studio-app-shell-panel-body">
+                            @switch (kind)
+                            {
+                                case "map":
+                                    <MapPreview Mode="MapPreviewMode.Layer"
+                                                Height="220"
+                                                ShowPopup="false"
+                                                AriaLabel="@($"{panelTitle} map panel")" />
+                                    break;
+
+                                case "dashboard":
+                                case "report":
+                                    @* No Vega-Lite spec is carried on an app page, so ChartPreview renders its
+                                       honest schematic placeholder (no fabricated data). It upgrades to a live
+                                       chart once a real spec is bound. *@
+                                    <ChartPreview Height="200"
+                                                  AriaLabel="@($"{panelTitle} chart panel")" />
+                                    break;
+
+                                case "table":
+                                    @RenderTablePanel(appPage, panelTitle)
+                                    break;
+
+                                case "form":
+                                    @RenderFormPanel(appPage)
+                                    break;
+
+                                default:
+                                    <p class="console-muted studio-app-shell-panel-empty">@appPage.ComponentKind component @(string.IsNullOrWhiteSpace(appPage.ContentBinding) ? "— no binding yet." : $"bound to {appPage.ContentBinding}.")</p>
+                                    break;
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The generated app package to render as a live shell.</summary>
+    [Parameter]
+    public StudioAppEditorState? App { get; set; }
+
+    /// <summary>The page highlighted as active in the nav (defaults to the first page).</summary>
+    [Parameter]
+    public StudioAppPageState? ActivePageOverride { get; set; }
+
+    private StudioAppPageState? ActivePage =>
+        ActivePageOverride is not null && App?.Pages.Contains(ActivePageOverride) == true
+            ? ActivePageOverride
+            : App?.Pages.FirstOrDefault();
+
+    private static string Glyph(string kind) => kind switch
+    {
+        "map" => "◐",
+        "dashboard" => "▦",
+        "form" => "☱",
+        "report" => "⊟",
+        "table" => "▤",
+        _ => "❒"
+    };
+
+    // A table panel renders a real (structural) table of the binding it declares. App pages carry no
+    // explicit column list, so the structure is shown honestly: a single bound column resolved from the
+    // page's content binding, or an unbound placeholder. No sample rows are fabricated (Charter §11).
+    private RenderFragment RenderTablePanel(StudioAppPageState page, string panelTitle) => builder =>
+    {
+        var seq = 0;
+        if (string.IsNullOrWhiteSpace(page.ContentBinding))
+        {
+            builder.OpenElement(seq++, "p");
+            builder.AddAttribute(seq++, "class", "console-muted studio-app-shell-panel-empty");
+            builder.AddContent(seq++, "Table component — bind a saved content version to list its rows.");
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "console-table-wrap studio-app-shell-table");
+        builder.AddAttribute(seq++, "data-app-shell-table", "true");
+        builder.OpenElement(seq++, "table");
+        builder.AddAttribute(seq++, "class", "console-table");
+
+        builder.OpenElement(seq++, "thead");
+        builder.OpenElement(seq++, "tr");
+        builder.OpenElement(seq++, "th");
+        builder.AddContent(seq++, panelTitle);
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement(); // thead
+
+        builder.OpenElement(seq++, "tbody");
+        builder.OpenElement(seq++, "tr");
+        builder.OpenElement(seq++, "td");
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", "mono");
+        builder.AddContent(seq++, page.ContentBinding);
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement(); // tbody
+
+        builder.CloseElement(); // table
+        builder.CloseElement(); // wrap
+    };
+
+    // A form panel renders its bound form controls as a structural form (the real binding, no fabricated
+    // field set). App pages carry no field list, so the form shows the bound content version with a
+    // disabled submit affordance, or an unbound placeholder.
+    private RenderFragment RenderFormPanel(StudioAppPageState page) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "studio-app-shell-form");
+        builder.AddAttribute(seq++, "data-app-shell-form", "true");
+
+        if (string.IsNullOrWhiteSpace(page.ContentBinding))
+        {
+            builder.OpenElement(seq++, "p");
+            builder.AddAttribute(seq++, "class", "console-muted studio-app-shell-panel-empty");
+            builder.AddContent(seq++, "Form component — bind a saved form content version to render its fields.");
+            builder.CloseElement();
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(seq++, "p");
+        builder.AddAttribute(seq++, "class", "console-muted");
+        builder.AddContent(seq++, "Form bound to:");
+        builder.CloseElement();
+        builder.OpenElement(seq++, "p");
+        builder.AddAttribute(seq++, "class", "mono studio-app-shell-form-binding");
+        builder.AddContent(seq++, page.ContentBinding);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "button");
+        builder.AddAttribute(seq++, "type", "button");
+        builder.AddAttribute(seq++, "class", "console-button console-button-secondary");
+        builder.AddAttribute(seq++, "disabled", true);
+        builder.AddContent(seq++, "Submit");
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+}
