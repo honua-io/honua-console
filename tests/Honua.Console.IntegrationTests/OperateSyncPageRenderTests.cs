@@ -33,10 +33,10 @@ public sealed class OperateSyncPageRenderTests
     [Fact]
     public void Sync_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
 
-        var page = ctx.RenderComponent<OperateSyncPage>();
+        var page = ctx.Render<OperateSyncPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Sync conflict review is not bound", page.Markup, StringComparison.Ordinal),
@@ -84,9 +84,9 @@ public sealed class OperateSyncPageRenderTests
 
     private static IRenderedComponent<OperateSyncPage> Render(ITemporalCapabilityClient client)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(client);
-        return ctx.RenderComponent<OperateSyncPage>();
+        return ctx.Render<OperateSyncPage>();
     }
 
     private static void ClickByText(IRenderedComponent<OperateSyncPage> page, string text) =>

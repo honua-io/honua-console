@@ -291,11 +291,11 @@ public sealed class LayerSubtypesAndAttributeRulesTests
     [Fact]
     public void Page_MergedBuild_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
 
-        var page = ctx.RenderComponent<OperateLayerSubtypesPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        var page = ctx.Render<OperateLayerSubtypesPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
         page.WaitForAssertion(
             () => Assert.Contains("data-subtypes-unbound", page.Markup, StringComparison.Ordinal),
@@ -308,10 +308,10 @@ public sealed class LayerSubtypesAndAttributeRulesTests
 
     private static IRenderedComponent<OperateLayerSubtypesPage> RenderPage(FakeSubtypes fake)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerSubtypesOperation>(fake);
-        return ctx.RenderComponent<OperateLayerSubtypesPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        return ctx.Render<OperateLayerSubtypesPage>(p => p.Add(x => x.ResourceId, ResourceId));
     }
 
     private static System.Text.Json.JsonElement ParseJson(string text)

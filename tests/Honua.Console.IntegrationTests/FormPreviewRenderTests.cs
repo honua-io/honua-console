@@ -17,7 +17,7 @@ public sealed class FormPreviewRenderTests
     [Fact]
     public void FormPreview_WithRealFields_RendersLiveControlsLabelsAndRequiredMarker()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         var fields = new List<StudioFormFieldEditor>
@@ -37,7 +37,7 @@ public sealed class FormPreviewRenderTests
             new() { FieldId = "is_safe", Label = "Marked safe", Type = "boolean", Group = "Inspection" },
         };
 
-        var cut = ctx.RenderComponent<FormPreview>(parameters => parameters
+        var cut = ctx.Render<FormPreview>(parameters => parameters
             .Add(p => p.Fields, fields)
             .Add(p => p.Title, "Field inspection"));
 
@@ -76,7 +76,7 @@ public sealed class FormPreviewRenderTests
     [Fact]
     public void FormPreview_SmallChoiceSet_RendersRadioGroup()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         var fields = new List<StudioFormFieldEditor>
@@ -91,7 +91,7 @@ public sealed class FormPreviewRenderTests
             },
         };
 
-        var cut = ctx.RenderComponent<FormPreview>(parameters => parameters.Add(p => p.Fields, fields));
+        var cut = ctx.Render<FormPreview>(parameters => parameters.Add(p => p.Fields, fields));
 
         // A 2-option (non-boolean) choice renders as a real radio group, one <input type=radio> per choice.
         Assert.Single(cut.FindAll("[data-form-preview-radio-group]"));
@@ -103,10 +103,10 @@ public sealed class FormPreviewRenderTests
     [Fact]
     public void FormPreview_EmptySchema_ShowsHonestEmptyStateAndNoFabricatedInputs()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<FormPreview>(parameters => parameters
+        var cut = ctx.Render<FormPreview>(parameters => parameters
             .Add(p => p.Fields, new List<StudioFormFieldEditor>()));
 
         // Honest empty state, no fabricated sample controls (Charter §11 — no-mock).

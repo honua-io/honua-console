@@ -17,12 +17,12 @@ public sealed class OperatePublishingPageRenderTests
     [Fact]
     public void OperatePublishingPage_WhenUnbound_RendersMissingBindingWithoutMockData()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
 
-        var page = ctx.RenderComponent<OperatePublishingPage>();
+        var page = ctx.Render<OperatePublishingPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Missing binding", page.Markup, StringComparison.Ordinal),
@@ -45,12 +45,12 @@ public sealed class OperatePublishingPageRenderTests
     [Fact]
     public void OperatePublishingPage_ModeToggle_SwapsStepperBetweenQuickAndAuthorFirst()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
 
-        var page = ctx.RenderComponent<OperatePublishingPage>();
+        var page = ctx.Render<OperatePublishingPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("publish-stepper", page.Markup, StringComparison.Ordinal),
@@ -79,12 +79,12 @@ public sealed class OperatePublishingPageRenderTests
     [Fact]
     public void OperatePublishingPage_WhenBound_RendersMatrixAndReviewSurface()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new StubPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
 
-        var page = ctx.RenderComponent<OperatePublishingPage>();
+        var page = ctx.Render<OperatePublishingPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Publication Matrix", page.Markup, StringComparison.Ordinal),
@@ -122,13 +122,13 @@ public sealed class OperatePublishingPageRenderTests
     [Fact]
     public void OperatePublishingPage_Lookup_RendersReviewVersionsAndDrivesRepublishRollback()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         var source = new InteractivePublishingWorkspaceDataSource();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(source);
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
 
-        var page = ctx.RenderComponent<OperatePublishingPage>();
+        var page = ctx.Render<OperatePublishingPage>();
 
         // Type a publication id and run the lookup. Scope to the lookup section: the functional
         // publish wizards now render their own console-input / console-button controls above it.
@@ -152,12 +152,12 @@ public sealed class OperatePublishingPageRenderTests
     [Fact]
     public void OperatePublishingPage_MalformedLookupId_ShowsInlineError_AndGatesReview()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new InteractivePublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
 
-        var page = ctx.RenderComponent<OperatePublishingPage>();
+        var page = ctx.Render<OperatePublishingPage>();
 
         var lookup = page.Find("[data-publication-lookup]");
         lookup.QuerySelector("input.console-input")!.Input("bad id");

@@ -95,12 +95,12 @@ public sealed class StudioReportBuilderIntegrationTests
         }
 
         // 5. The report builder page renders the live publication (route + immutable version history).
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(dataSource);
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("publicationId", publicationId));
 
-        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        var page = ctx.Render<StudioReportBuilderPage>();
 
         page.WaitForAssertion(
             () =>

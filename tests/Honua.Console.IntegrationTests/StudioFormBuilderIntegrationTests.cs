@@ -59,9 +59,9 @@ public sealed class StudioFormBuilderIntegrationTests
         Assert.NotEmpty(load.State.Fields);
 
         // 4. The form builder page renders the seeded draft from the live data source.
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(dataSource);
-        var page = ctx.RenderComponent<StudioFormBuilderPage>();
+        var page = ctx.Render<StudioFormBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains(title, page.Markup, StringComparison.Ordinal),

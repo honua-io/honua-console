@@ -67,11 +67,11 @@ public sealed class CatalogServerBindingIntegrationTests
         Assert.Contains("metadata-v2", detail.Item.Capabilities);
 
         // 4. The Catalog page renders the seeded item from the live server-bound client.
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleCatalogClient>(catalog);
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new AuthenticatedReadContextResolver());
 
-        var page = ctx.RenderComponent<CatalogPage>();
+        var page = ctx.Render<CatalogPage>();
         page.WaitForAssertion(
             () => Assert.Contains(title, page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));

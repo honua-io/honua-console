@@ -32,10 +32,10 @@ public sealed class ShareHomeRenderTests
                 OpenDataItem("lyr-wetlands", "Wetlands Inventory", "layer")
             ]
         }));
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler);
 
-        var page = ctx.RenderComponent<SharePage>();
+        var page = ctx.Render<SharePage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-share-home-table", page.Markup, StringComparison.Ordinal),
@@ -59,10 +59,10 @@ public sealed class ShareHomeRenderTests
     public void ShareHome_WhenServerUnavailable_RendersEmptySurfaceNotMockData()
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler);
 
-        var page = ctx.RenderComponent<SharePage>();
+        var page = ctx.Render<SharePage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("No public open-data items", page.Markup, StringComparison.Ordinal),
@@ -75,11 +75,11 @@ public sealed class ShareHomeRenderTests
     [Fact]
     public void ShareHome_WhenBindingMissing_RendersMissingBindingNotEmptyState()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // No server bound: the catalog client is the missing-binding implementation, never an in-memory source.
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
 
-        var page = ctx.RenderComponent<SharePage>();
+        var page = ctx.Render<SharePage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Share is not bound to honua-server", page.Markup, StringComparison.Ordinal),
@@ -92,10 +92,10 @@ public sealed class ShareHomeRenderTests
     [Fact]
     public void SharePublicItem_WhenBindingMissing_RendersMissingBindingNotNotFound()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
 
-        var page = ctx.RenderComponent<SharePublicItemPage>(parameters =>
+        var page = ctx.Render<SharePublicItemPage>(parameters =>
             parameters.Add(p => p.IdOrSlug, "parcels-2024"));
 
         page.WaitForAssertion(
@@ -105,7 +105,7 @@ public sealed class ShareHomeRenderTests
         Assert.DoesNotContain("Public item not found", page.Markup, StringComparison.Ordinal);
     }
 
-    private static void RegisterCatalog(Bunit.TestContext ctx, StubHandler handler)
+    private static void RegisterCatalog(Bunit.BunitContext ctx, StubHandler handler)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };
         var client = new HonuaConsoleContentHttpClient(httpClient, new HonuaConsoleContentClientOptions(BaseUri, "admin-key"));

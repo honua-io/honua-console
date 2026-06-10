@@ -100,11 +100,11 @@ public sealed class StudioMapPublishRoundTripTests
         Assert.Contains(version.VersionNumber!.Value, versionNumbers);
 
         // --- Console reflection: the builder page renders the live data source, not the missing-binding state. ---
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(source);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(
             () => Assert.DoesNotContain("Map package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
@@ -217,9 +217,9 @@ public sealed class StudioDashboardPublishRoundTripTests
         Assert.Contains(published.State.PublishedVersion!.Value, versionNumbers);
 
         // --- Console reflection: the builder page renders the live data source, not the missing-binding state. ---
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(source);
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(
             () => Assert.DoesNotContain("Dashboard package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
@@ -353,11 +353,11 @@ public sealed class StudioReportPublishRoundTripTests
         Assert.Equal("organization", route.Visibility);
 
         // --- Console reflection: the report builder page renders the live publication + version history. ---
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(dataSource);
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("publicationId", publicationId));
-        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        var page = ctx.Render<StudioReportBuilderPage>();
         page.WaitForAssertion(
             () =>
             {
@@ -470,9 +470,9 @@ public sealed class StudioFormPublishRoundTripTests
         Assert.NotNull(offline);
 
         // --- Console reflection: the form builder page renders the published form from the live data source. ---
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(dataSource);
-        var page = ctx.RenderComponent<StudioFormBuilderPage>();
+        var page = ctx.Render<StudioFormBuilderPage>();
         page.WaitForAssertion(
             () => Assert.Contains(title, page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));

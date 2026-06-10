@@ -74,10 +74,10 @@ public sealed class StudioAnalysisBuilderIntegrationTests
         Assert.Contains("server estimate", load.Plan.Estimate!.CostNote, StringComparison.OrdinalIgnoreCase);
 
         // 5. The analysis builder page renders the seeded plan from the live data source (live list row).
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(dataSource);
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains(title, page.Markup, StringComparison.Ordinal),

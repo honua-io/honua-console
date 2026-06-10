@@ -62,15 +62,15 @@ public sealed class CatalogUsageTabRenderTests
 
     private static IRenderedComponent<CatalogDetailPage> RenderUsageTab(ConsoleContentDetail detail)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new StubCatalogClient(detail));
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new StubReadContextResolver());
 
         // The Usage tab is selected via the ?tab=usage query, which the page reads from the navigation URI.
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
         nav.NavigateTo($"/catalog/{detail.Summary.Id}?tab=usage");
 
-        return ctx.RenderComponent<CatalogDetailPage>(parameters =>
+        return ctx.Render<CatalogDetailPage>(parameters =>
             parameters.Add(p => p.IdOrSlug, detail.Summary.Id));
     }
 

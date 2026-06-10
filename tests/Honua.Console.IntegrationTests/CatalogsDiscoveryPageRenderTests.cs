@@ -167,12 +167,12 @@ public sealed class CatalogsDiscoveryPageRenderTests
             EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
         };
 
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
         module.Setup<bool>("copyText", _ => true).SetResult(true);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
         NavigateToWorkspace(ctx, "operate/catalogs/esri", workspace: null);
-        var page = ctx.RenderComponent<CatalogsEndpointDetailPage>(parameters => parameters
+        var page = ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters
             .Add(p => p.Key, "esri"));
 
         page.WaitForAssertion(
@@ -261,14 +261,14 @@ public sealed class CatalogsDiscoveryPageRenderTests
             ItemLoad = new CatalogItemLoad(SampleItem(), [])
         };
 
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         // Set up the catalog-item-editor.js module so copyText reports a successful copy; the component
         // should then flip the label to "Copied". This also lets us assert the page URL is the copied text.
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
         module.Setup<bool>("copyText", _ => true).SetResult(true);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
         NavigateToWorkspace(ctx, "operate/catalogs/esri/items/a3bf-0214", workspace: null);
-        var page = ctx.RenderComponent<CatalogItemEditorPage>(parameters => parameters
+        var page = ctx.Render<CatalogItemEditorPage>(parameters => parameters
             .Add(p => p.Key, "esri")
             .Add(p => p.ItemId, "a3bf-0214"));
 
@@ -375,36 +375,36 @@ public sealed class CatalogsDiscoveryPageRenderTests
 
     private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? workspace = null)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
         NavigateToWorkspace(ctx, "operate/catalogs", workspace);
-        return ctx.RenderComponent<CatalogsListPage>();
+        return ctx.Render<CatalogsListPage>();
     }
 
     private static IRenderedComponent<CatalogsEndpointDetailPage> RenderDetail(FakeCatalogDiscoveryDataSource data, string key, string? workspace = null)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
         NavigateToWorkspace(ctx, $"operate/catalogs/{key}", workspace);
-        return ctx.RenderComponent<CatalogsEndpointDetailPage>(parameters => parameters
+        return ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters
             .Add(p => p.Key, key));
     }
 
     private static IRenderedComponent<CatalogItemEditorPage> RenderItem(FakeCatalogDiscoveryDataSource data, string key, string itemId, string? workspace = null)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
         NavigateToWorkspace(ctx, $"operate/catalogs/{key}/items/{itemId}", workspace);
-        return ctx.RenderComponent<CatalogItemEditorPage>(parameters => parameters
+        return ctx.Render<CatalogItemEditorPage>(parameters => parameters
             .Add(p => p.Key, key)
             .Add(p => p.ItemId, itemId));
     }
 
     // Drives the page's [SupplyParameterFromQuery] workspace via the navigation URI, since the parameter is
     // private and cannot be set through the bUnit parameter builder.
-    private static void NavigateToWorkspace(Bunit.TestContext ctx, string path, string? workspace)
+    private static void NavigateToWorkspace(Bunit.BunitContext ctx, string path, string? workspace)
     {
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
         var query = string.IsNullOrEmpty(workspace) ? string.Empty : $"?workspace={Uri.EscapeDataString(workspace)}";
         nav.NavigateTo(path + query);
     }

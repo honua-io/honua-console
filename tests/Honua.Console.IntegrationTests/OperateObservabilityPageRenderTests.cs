@@ -20,10 +20,10 @@ public sealed class OperateObservabilityPageRenderTests
     [Fact]
     public void EventDeepLink_WhenEventPageEmpty_StillRendersMissingDetailSurface()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
 
-        var page = ctx.RenderComponent<OperateObservabilityPage>(parameters =>
+        var page = ctx.Render<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedEventId, "evt-unknown"));
 
         page.WaitForAssertion(
@@ -43,10 +43,10 @@ public sealed class OperateObservabilityPageRenderTests
     [Fact]
     public void AlertDeepLink_WhenAlertPageEmpty_StillRendersMissingDetailSurface()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
 
-        var page = ctx.RenderComponent<OperateObservabilityPage>(parameters =>
+        var page = ctx.Render<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedAlertId, "alert-unknown"));
 
         page.WaitForAssertion(
@@ -70,13 +70,13 @@ public sealed class OperateObservabilityPageRenderTests
             JobDetail = jobRunId => OperateSectionResult<OperateJobRun>.Allowed(BuildJob(jobRunId)),
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(stub);
         // The unified job-run deep link also embeds the workflow job-evidence panel, which binds
         // IStudioWorkflowPackageClient. The unsupported client returns null evidence (missing-binding).
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
 
-        var page = ctx.RenderComponent<OperateObservabilityPage>(parameters =>
+        var page = ctx.Render<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedJobRunId, "job-deep-001"));
 
         page.WaitForAssertion(
@@ -104,11 +104,11 @@ public sealed class OperateObservabilityPageRenderTests
             JobDetail = jobRunId => OperateSectionResult<OperateJobRun>.Allowed(BuildJob(jobRunId)),
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(stub);
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
 
-        var page = ctx.RenderComponent<OperateObservabilityPage>(parameters =>
+        var page = ctx.Render<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedJobRunId, "job-deep-002"));
 
         page.WaitForAssertion(

@@ -23,11 +23,11 @@ public sealed class StudioReportBuilderRenderTests
         {
             Load = new StudioReportPublicationLoad(null, [MissingBinding])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
         NavigateWithPublicationId(ctx, "pub-1");
 
-        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        var page = ctx.Render<StudioReportBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Report publication registry is not bound", page.Markup, StringComparison.Ordinal),
@@ -62,11 +62,11 @@ public sealed class StudioReportBuilderRenderTests
                     ]),
                 [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
         NavigateWithPublicationId(ctx, "pub-report-1");
 
-        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        var page = ctx.Render<StudioReportBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-report-publication", page.Markup, StringComparison.Ordinal),
@@ -82,10 +82,10 @@ public sealed class StudioReportBuilderRenderTests
     public void ReportBuilder_NewReport_RendersAuthoringSurfaceWithPublishGate()
     {
         var data = new FakeReportDataSource();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        var page = ctx.Render<StudioReportBuilderPage>();
 
         // Click "New report" (the first toolbar button) to open the authoring surface.
         page.Find("button.console-button").Click();
@@ -120,13 +120,13 @@ public sealed class StudioReportBuilderRenderTests
     public void ReportBuilder_AddPanel_RendersOutlineEntryAndEmbeddedItemInThePage()
     {
         var data = new FakeReportDataSource();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // Adding a panel marks the editor dirty, which arms the <UnsavedChangesGuard/> (a JS module import);
         // run Loose JSInterop so bUnit auto-handles that import.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        var page = ctx.Render<StudioReportBuilderPage>();
         page.Find("button.console-button").Click();
 
         // Add a panel from the outline ("+ Panel"); a chart panel is created and auto-selected.
@@ -177,11 +177,11 @@ public sealed class StudioReportBuilderRenderTests
                     ]),
                 [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
         NavigateWithPublicationId(ctx, "pub-report-1");
 
-        var page = ctx.RenderComponent<StudioReportBuilderPage>();
+        var page = ctx.Render<StudioReportBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-report-publication", page.Markup, StringComparison.Ordinal),
@@ -192,7 +192,7 @@ public sealed class StudioReportBuilderRenderTests
         Assert.Contains("Edit / republish", page.Markup, StringComparison.Ordinal);
     }
 
-    private static void NavigateWithPublicationId(Bunit.TestContext ctx, string publicationId)
+    private static void NavigateWithPublicationId(Bunit.BunitContext ctx, string publicationId)
     {
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("publicationId", publicationId));

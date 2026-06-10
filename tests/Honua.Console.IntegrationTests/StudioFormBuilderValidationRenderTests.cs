@@ -127,7 +127,7 @@ public sealed class StudioFormBuilderValidationRenderTests
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
 
         var page = OpenEditor(ctx, data);
-        var nav = ctx.Services.GetRequiredService<FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<BunitNavigationManager>();
 
         // Clean: navigation proceeds.
         nav.NavigateTo("catalog");
@@ -154,18 +154,18 @@ public sealed class StudioFormBuilderValidationRenderTests
             TimeSpan.FromSeconds(5));
     }
 
-    private static Bunit.TestContext NewContext()
+    private static Bunit.BunitContext NewContext()
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         return ctx;
     }
 
     private static IRenderedComponent<StudioFormBuilderPage> OpenEditor(
-        Bunit.TestContext ctx,
+        Bunit.BunitContext ctx,
         FakeFormDataSource data)
     {
-        var page = ctx.RenderComponent<StudioFormBuilderPage>();
+        var page = ctx.Render<StudioFormBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, FakeFormDataSource.OpenLabel), TimeSpan.FromSeconds(5));
         FindButton(page, FakeFormDataSource.OpenLabel).Click();
         page.WaitForAssertion(

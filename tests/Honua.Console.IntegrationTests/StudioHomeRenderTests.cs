@@ -34,7 +34,7 @@ public sealed class StudioHomeRenderTests
     {
         using var ctx = NewContext(new StubCatalogClient([]));
 
-        var page = ctx.RenderComponent<StudioHome>();
+        var page = ctx.Render<StudioHome>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-studio-home-hero='true']")),
@@ -59,7 +59,7 @@ public sealed class StudioHomeRenderTests
     {
         using var ctx = NewContext(new StubCatalogClient([]));
 
-        var page = ctx.RenderComponent<StudioHome>();
+        var page = ctx.Render<StudioHome>();
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-studio-home-hero='true']")),
             TimeSpan.FromSeconds(5));
@@ -76,7 +76,7 @@ public sealed class StudioHomeRenderTests
     {
         using var ctx = NewContext(new StubCatalogClient([]));
 
-        var page = ctx.RenderComponent<StudioHome>();
+        var page = ctx.Render<StudioHome>();
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-studio-home-types='true']")),
             TimeSpan.FromSeconds(5));
@@ -101,7 +101,7 @@ public sealed class StudioHomeRenderTests
         };
         using var ctx = NewContext(new StubCatalogClient(items));
 
-        var page = ctx.RenderComponent<StudioHome>();
+        var page = ctx.Render<StudioHome>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-recent-project]")),
@@ -127,7 +127,7 @@ public sealed class StudioHomeRenderTests
         };
         using var ctx = NewContext(new StubCatalogClient(items));
 
-        var page = ctx.RenderComponent<StudioHome>();
+        var page = ctx.Render<StudioHome>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-recent-project]")),
@@ -142,7 +142,7 @@ public sealed class StudioHomeRenderTests
     {
         using var ctx = NewContext(new StubCatalogClient([]));
 
-        var page = ctx.RenderComponent<StudioHome>();
+        var page = ctx.Render<StudioHome>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll(".console-state-empty")),
@@ -159,7 +159,7 @@ public sealed class StudioHomeRenderTests
     {
         using var ctx = NewContext(new UnsupportedConsoleCatalogClient());
 
-        var page = ctx.RenderComponent<StudioHome>();
+        var page = ctx.Render<StudioHome>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll(".console-state-missing")),
@@ -177,10 +177,10 @@ public sealed class StudioHomeRenderTests
     {
         using var ctx = NewContext(new StubCatalogClient([]));
         ctx.Services.AddSingleton<IStudioAuthoringShell>(new ThrowingAuthoringShell());
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
         nav.NavigateTo("studio");
 
-        var page = ctx.RenderComponent<StudioPage>();
+        var page = ctx.Render<StudioPage>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-studio-home='true']")),
@@ -191,9 +191,9 @@ public sealed class StudioHomeRenderTests
         Assert.Equal(8, page.FindAll("[data-content-type]").Count);
     }
 
-    private static Bunit.TestContext NewContext(IConsoleCatalogClient catalog)
+    private static Bunit.BunitContext NewContext(IConsoleCatalogClient catalog)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(catalog);
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new StubReadContextResolver());
         return ctx;

@@ -80,12 +80,12 @@ public sealed class ConsoleEndToEndSmokeTests
             CatalogReadContext.Authenticated);
         Assert.Contains(search.Items, summary => summary.Id == catalogItemId && summary.Title == catalogTitle);
 
-        using (var catalogContext = new Bunit.TestContext())
+        using (var catalogContext = new Bunit.BunitContext())
         {
             catalogContext.Services.AddSingleton<IConsoleCatalogClient>(catalog);
             catalogContext.Services.AddSingleton<IConsoleCatalogReadContextResolver>(
                 new AuthenticatedReadContextResolver());
-            var catalogPage = catalogContext.RenderComponent<CatalogPage>();
+            var catalogPage = catalogContext.Render<CatalogPage>();
             catalogPage.WaitForAssertion(
                 () => Assert.Contains(catalogTitle, catalogPage.Markup, StringComparison.Ordinal),
                 TimeSpan.FromSeconds(10));
@@ -134,10 +134,10 @@ public sealed class ConsoleEndToEndSmokeTests
         var renderedPackageRef = session.ActivePackage.PackageRef;
         var renderedValidationDetail = session.ActivePackage.ValidationItems[0].Detail;
 
-        using (var studioContext = new Bunit.TestContext())
+        using (var studioContext = new Bunit.BunitContext())
         {
             studioContext.Services.AddSingleton<IStudioAuthoringShell>(seededShell);
-            var studioPage = studioContext.RenderComponent<StudioPage>();
+            var studioPage = studioContext.Render<StudioPage>();
             studioPage.WaitForAssertion(
                 () =>
                 {
@@ -180,12 +180,12 @@ public sealed class ConsoleEndToEndSmokeTests
             review.GeneratedEndpoints,
             endpoint => endpoint.Url.Contains(publicationSlug, StringComparison.Ordinal));
 
-        using (var operateContext = new Bunit.TestContext())
+        using (var operateContext = new Bunit.BunitContext())
         {
             operateContext.Services.AddSingleton<IPublishingWorkspaceDataSource>(publishingDataSource);
             operateContext.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
             operateContext.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
-            var operatePage = operateContext.RenderComponent<OperatePublishingPage>();
+            var operatePage = operateContext.Render<OperatePublishingPage>();
             operatePage.WaitForAssertion(
                 () => Assert.Contains("Publication Matrix", operatePage.Markup, StringComparison.Ordinal),
                 TimeSpan.FromSeconds(10));

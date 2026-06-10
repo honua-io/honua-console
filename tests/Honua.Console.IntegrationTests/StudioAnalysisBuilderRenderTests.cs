@@ -22,11 +22,11 @@ public sealed class StudioAnalysisBuilderRenderTests
         {
             Workspace = new StudioAnalysisWorkspace([], [MissingBinding])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Analysis content lifecycle is not bound", page.Markup, StringComparison.Ordinal),
@@ -50,11 +50,11 @@ public sealed class StudioAnalysisBuilderRenderTests
                 ],
                 [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
 
         // Live list values render in the table; no degraded list/estimate capability state is shown.
         page.WaitForAssertion(
@@ -77,11 +77,11 @@ public sealed class StudioAnalysisBuilderRenderTests
                 []),
             EditorLoad = new StudioAnalysisEditorLoad(ReadyPlan(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Hydrant buffer"), TimeSpan.FromSeconds(5));
         FindButton(page, "Hydrant buffer").Click();
 
@@ -131,11 +131,11 @@ public sealed class StudioAnalysisBuilderRenderTests
                 []),
             EditorLoad = new StudioAnalysisEditorLoad(incomplete, [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "No estimate"), TimeSpan.FromSeconds(5));
         FindButton(page, "No estimate").Click();
 
@@ -169,11 +169,11 @@ public sealed class StudioAnalysisBuilderRenderTests
                 []),
             EditorLoad = new StudioAnalysisEditorLoad(plan, [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Hydrant buffer"), TimeSpan.FromSeconds(5));
         FindButton(page, "Hydrant buffer").Click();
 
@@ -206,11 +206,11 @@ public sealed class StudioAnalysisBuilderRenderTests
                 "artifact-1", "FeatureLayer", "Buffered hydrants", null, null, null, "retained",
                 ["layer", "content", "workflow"])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Hydrant buffer"), TimeSpan.FromSeconds(5));
         FindButton(page, "Hydrant buffer").Click();
 
@@ -249,11 +249,11 @@ public sealed class StudioAnalysisBuilderRenderTests
                 []),
             EditorLoad = new StudioAnalysisEditorLoad(plan, [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Hydrant buffer"), TimeSpan.FromSeconds(5));
         FindButton(page, "Hydrant buffer").Click();
 

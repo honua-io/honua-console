@@ -29,10 +29,10 @@ public sealed class StudioAppPreviewRenderTests
             ]
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
+        var cut = ctx.Render<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
 
         // The shell renders as a real app: a header with the app title and a nav of the pages.
         Assert.Contains("data-app-shell=\"true\"", cut.Markup, StringComparison.Ordinal);
@@ -73,10 +73,10 @@ public sealed class StudioAppPreviewRenderTests
             ]
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
+        var cut = ctx.Render<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
 
         var formPanel = cut.Find("[data-app-shell-panel=\"form\"]");
         Assert.Single(formPanel.QuerySelectorAll("[data-app-shell-form]"));
@@ -90,10 +90,10 @@ public sealed class StudioAppPreviewRenderTests
     {
         var app = new StudioAppEditorState { Title = "Untitled app", Pages = [] };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
+        var cut = ctx.Render<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
 
         // No pages → honest empty state, no fabricated sample panels.
         Assert.Single(cut.FindAll("[data-app-shell-empty]"));
@@ -113,10 +113,10 @@ public sealed class StudioAppPreviewRenderTests
             ]
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
+        var cut = ctx.Render<StudioAppPreview>(parameters => parameters.Add(p => p.App, app));
 
         // The page still renders its panel (the honest unbound MapPreview placeholder), and the shell
         // surfaces an explicit unbound notice rather than inventing bound data.
@@ -129,10 +129,10 @@ public sealed class StudioAppPreviewRenderTests
     [Fact]
     public void AppPreview_NullApp_RendersEmptyStateWithoutThrowing()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<StudioAppPreview>();
+        var cut = ctx.Render<StudioAppPreview>();
 
         Assert.Single(cut.FindAll("[data-app-shell-empty]"));
         Assert.Empty(cut.FindAll("[data-app-shell-panel]"));

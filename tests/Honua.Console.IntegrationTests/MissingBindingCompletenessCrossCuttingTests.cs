@@ -25,11 +25,11 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     [Fact]
     public void OperateTemporal_WithNoServer_RendersMissingBinding_AndNoFabricatedData()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
 
-        var page = ctx.RenderComponent<OperateTemporalPage>();
+        var page = ctx.Render<OperateTemporalPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Temporal capability is not bound", page.Markup, StringComparison.Ordinal),
@@ -41,13 +41,13 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     [Fact]
     public void OperatePublishing_WithNoServer_RendersMissingBinding_AndNoFabricatedMatrix()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
 
-        var page = ctx.RenderComponent<OperatePublishingPage>();
+        var page = ctx.Render<OperatePublishingPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Missing binding", page.Markup, StringComparison.Ordinal),
@@ -82,11 +82,11 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     [Fact]
     public void StudioAnalysisBuilder_WithNoServer_RendersMissingBinding_AndNoFabricatedList()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(new UnsupportedStudioAnalysisPackageDataSource());
 
-        var page = ctx.RenderComponent<StudioAnalysisBuilderPage>();
+        var page = ctx.Render<StudioAnalysisBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Analysis content lifecycle is not bound", page.Markup, StringComparison.Ordinal),
@@ -96,14 +96,14 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     [Fact]
     public void ShareManage_WithNoServer_RendersMissingBinding_AndNoFabricatedPanels()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IShareAccessDataSource>(new UnsupportedShareAccessDataSource());
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("itemId", "item-cross-cutting"));
 
-        var page = ctx.RenderComponent<ShareManagePage>();
+        var page = ctx.Render<ShareManagePage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Share access API is not bound", page.Markup, StringComparison.Ordinal),
