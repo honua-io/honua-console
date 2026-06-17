@@ -1,4 +1,5 @@
 @namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
 
 @*
     DESIGN SKETCH (docs/design/console-ux-redesign.md, Phase 1, step ① "Add data").
@@ -47,16 +48,11 @@
     {
         case AddDataMode.File:
             <div class="add-data-intake__input">
-                <label class="studio-form-label">
-                    <span>Upload a geospatial file</span>
-                    <InputFile class="add-data-intake__file" OnChange="OnFileSelected"
-                               accept="@AcceptAttribute" aria-label="Upload a geospatial file" />
-                    @if (SupportedExtensions.Count > 0)
-                    {
-                        <small class="console-muted">Supported: @string.Join(", ", SupportedExtensions)</small>
-                    }
-                </label>
-                <p class="console-muted">The file is ingested into a canonical resource; the next step publishes it — pick which services/protocols expose it.</p>
+                @if (SupportedExtensions.Count > 0)
+                {
+                    <small class="console-muted">Supported: @string.Join(", ", SupportedExtensions)</small>
+                }
+                <p class="console-muted">The file is ingested into a canonical resource; the next step publishes it — pick which services/protocols expose it. Choose the file below.</p>
             </div>
             break;
 
@@ -145,16 +141,6 @@
     private string _remoteUrl = string.Empty;
     private string _aiPrompt = string.Empty;
 
-    /// <summary>The five sources the unified flow accepts (see redesign §3, item 2).</summary>
-    public enum AddDataMode
-    {
-        File,
-        Table,
-        RemoteService,
-        ExistingResource,
-        Ai,
-    }
-
     /// <summary>A chosen source, raised to the host flow. Ref is mode-specific (file name, table id, URL, resource id, prompt).</summary>
     public readonly record struct DataSourceIntake(AddDataMode Mode, string? Reference);
 
@@ -188,8 +174,20 @@
     [Parameter]
     public EventCallback<DataSourceIntake> OnSourceChosen { get; set; }
 
-    private string AcceptAttribute =>
-        SupportedExtensions.Count == 0 ? string.Empty : string.Join(",", SupportedExtensions);
+    /// <summary>The mode the intake opens on (lets the host seed it from a <c>?source=</c> entry point). Defaults to File.</summary>
+    [Parameter]
+    public AddDataMode InitialMode { get; set; } = AddDataMode.File;
+
+    private bool _modeInitialized;
+
+    protected override void OnParametersSet()
+    {
+        if (!_modeInitialized)
+        {
+            _mode = InitialMode;
+            _modeInitialized = true;
+        }
+    }
 
     private async Task SetMode(AddDataMode mode)
     {
@@ -219,9 +217,6 @@
     private Task RaiseExisting() => Raise(AddDataMode.ExistingResource, string.IsNullOrEmpty(_resourceId) ? null : _resourceId);
 
     private Task RaiseAi() => Raise(AddDataMode.Ai, string.IsNullOrWhiteSpace(_aiPrompt) ? null : _aiPrompt);
-
-    private Task OnFileSelected(InputFileChangeEventArgs args) =>
-        Raise(AddDataMode.File, args.File?.Name);
 
     private async Task Raise(AddDataMode mode, string? reference)
     {
