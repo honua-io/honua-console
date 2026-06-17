@@ -38,6 +38,7 @@ public sealed class OperateReleasesPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
         var page = ctx.RenderComponent<OperateReleasesPage>();
 
@@ -62,6 +63,7 @@ public sealed class OperateReleasesPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
         var page = ctx.RenderComponent<OperateReleasesPage>();
 
@@ -82,6 +84,7 @@ public sealed class OperateReleasesPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
         var page = ctx.RenderComponent<OperateReleasesPage>(parameters =>
             parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));
@@ -108,6 +111,7 @@ public sealed class OperateReleasesPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
         var page = ctx.RenderComponent<OperateReleasesPage>(parameters =>
             parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));
@@ -196,6 +200,7 @@ public sealed class OperateReleasesPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
         var page = ctx.RenderComponent<OperateReleasesPage>(parameters =>
             parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));
@@ -235,6 +240,7 @@ public sealed class OperateReleasesPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
         var page = ctx.RenderComponent<OperateReleasesPage>(parameters =>
             parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));
@@ -261,6 +267,7 @@ public sealed class OperateReleasesPageRenderTests
 
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
         var page = ctx.RenderComponent<OperateReleasesPage>(parameters =>
             parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));

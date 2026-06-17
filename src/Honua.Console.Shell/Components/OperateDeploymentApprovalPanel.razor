@@ -1,0 +1,423 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleDeployApprovalClient ApprovalClient
+@implements IDisposable
+
+@* Human-in-the-loop approval panel for a single deploy-control operation. Shows the
+   proposal detail (service/env/revision/action, change summary, evidence links, required
+   approvals, suggested rollback) and the governed actions:
+     Approve  -> POST /operations/{id}/submit  (optional reason)
+     Reject   -> records the operator's decision (no server reject endpoint; see note)
+     Rollback -> POST /operations/{id}/rollback (data-affecting requires explicit confirm)
+   Status polling reflects AwaitingApproval -> Submitted -> Reconciling -> Succeeded.
+   The server's OperatorApprovalGate is the real gate; this panel never bypasses it. *@
+
+@if (_proposal is null)
+{
+    <OperateSectionStatusPanel Heading="Deploy approval" Status="_status" Message="@_message" />
+}
+else
+{
+    var proposal = _proposal;
+    <section class="console-panel operate-deploy-approval-panel" aria-labelledby="deploy-approval-heading">
+        <div class="console-panel-heading">
+            <div>
+                <p class="console-kicker">Deploy approval</p>
+                <h3 id="deploy-approval-heading">
+                    <span class="console-mono">@proposal.OperationId</span>
+                </h3>
+            </div>
+            <span class="console-status @DeployOperationPresentation.StateClass(proposal.Lifecycle)">
+                @DeployOperationPresentation.Label(proposal.Lifecycle)
+            </span>
+        </div>
+
+        <dl class="console-definition-list operate-deploy-facts">
+            <dt>Service</dt>
+            <dd class="console-mono">@proposal.Service</dd>
+            <dt>Environment</dt>
+            <dd class="console-mono">@proposal.Environment</dd>
+            <dt>Desired revision</dt>
+            <dd class="console-mono">@proposal.DesiredRevision</dd>
+            <dt>Action</dt>
+            <dd>@proposal.Action</dd>
+            <dt>Priority</dt>
+            <dd>@proposal.Priority</dd>
+            @if (!string.IsNullOrWhiteSpace(proposal.RequestedBy))
+            {
+                <dt>Requested by</dt>
+                <dd>@proposal.RequestedBy</dd>
+            }
+            @if (proposal.PrUrl is { Length: > 0 } prUrl)
+            {
+                <dt>Pull request</dt>
+                <dd><a class="console-link" href="@prUrl" rel="noopener noreferrer" target="_blank">@prUrl</a></dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(proposal.CommitSha))
+            {
+                <dt>Commit</dt>
+                <dd class="console-mono">@proposal.CommitSha</dd>
+            }
+        </dl>
+
+        <div class="operate-deploy-change-summary">
+            <h4>Change summary</h4>
+            <p class="console-muted">@proposal.ChangeSummary</p>
+        </div>
+
+        @if (proposal.Evidence.Count > 0)
+        {
+            <div class="operate-deploy-evidence">
+                <h4>Evidence</h4>
+                <ul class="operate-note-list">
+                    @foreach (var evidence in proposal.Evidence)
+                    {
+                        <li>
+                            <span class="console-chip">@evidence.Kind</span>
+                            @if (evidence.Uri is { Length: > 0 } uri)
+                            {
+                                <a class="console-link" href="@uri" rel="noopener noreferrer" target="_blank">@evidence.RefId</a>
+                            }
+                            else
+                            {
+                                <span class="console-mono">@evidence.RefId</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (proposal.BlockingReasons.Count > 0)
+        {
+            <div class="console-usage-callout operate-deploy-callout-warn">
+                <strong>Blocking findings.</strong>
+                <ul class="operate-note-list">
+                    @foreach (var blocker in proposal.BlockingReasons)
+                    {
+                        <li class="console-state-danger">@blocker</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (proposal.Warnings.Count > 0)
+        {
+            <ul class="operate-note-list operate-deploy-warnings">
+                @foreach (var warning in proposal.Warnings)
+                {
+                    <li class="console-state-warning">@warning</li>
+                }
+            </ul>
+        }
+
+        @* SUGGESTED ROLLBACK — surfaced before any action so rollback readiness and the
+           data-affecting confirmation requirement are visible up-front. *@
+        @if (proposal.RollbackPlan is { } rollback)
+        {
+            <div class="operate-deploy-rollback-summary">
+                <h4>Suggested rollback</h4>
+                <p class="console-status @(rollback.RequiresConfirmation ? "console-state-warning" : "console-state-neutral")">
+                    @GitOpsReleasePresentation.Label(rollback.Classification)
+                    @if (rollback.IsDataAffecting)
+                    {
+                        <span> &middot; data-affecting</span>
+                    }
+                </p>
+                <p class="console-muted">@GitOpsReleasePresentation.Description(rollback.Classification)</p>
+                <dl class="console-definition-list">
+                    <dt>Data-affecting</dt>
+                    <dd>@(rollback.IsDataAffecting ? "yes" : "no")</dd>
+                    <dt>Requires explicit approval</dt>
+                    <dd>@(rollback.RequiresConfirmation ? "yes" : "no")</dd>
+                    @if (!string.IsNullOrWhiteSpace(rollback.ApprovalPolicyRef))
+                    {
+                        <dt>Approval policy</dt>
+                        <dd>@rollback.ApprovalPolicyRef</dd>
+                    }
+                </dl>
+                @if (rollback.Steps.Count > 0)
+                {
+                    <ol class="operate-note-list">
+                        @foreach (var step in rollback.Steps)
+                        {
+                            <li>@step</li>
+                        }
+                    </ol>
+                }
+            </div>
+        }
+
+        @* GOVERNED ACTIONS — reason field + approve/reject/rollback. Approve and Reject are
+           offered only while AwaitingApproval; Rollback only when rollback-eligible. *@
+        <div class="operate-deploy-actions">
+            <label class="operate-deploy-reason-label" for="deploy-approval-reason">Reason (optional)</label>
+            <textarea id="deploy-approval-reason"
+                      class="operate-deploy-reason"
+                      rows="2"
+                      placeholder="Why are you approving / rejecting / rolling back?"
+                      disabled="@_busy"
+                      @bind="_reason"></textarea>
+
+            <div class="operate-deploy-action-row">
+                @if (proposal.IsAwaitingApproval)
+                {
+                    <button type="button"
+                            class="console-button"
+                            disabled="@(_busy || proposal.BlockingReasons.Count > 0)"
+                            title="@(proposal.BlockingReasons.Count > 0
+                                ? "Resolve blocking findings before approving."
+                                : "Approve and submit this operation for execution.")"
+                            @onclick="ApproveAsync">
+                        Approve &amp; submit
+                    </button>
+                    <button type="button"
+                            class="console-button console-button-secondary"
+                            disabled="@_busy"
+                            @onclick="RejectAsync">
+                        Reject
+                    </button>
+                }
+
+                @if (proposal.IsRollbackEligible)
+                {
+                    <button type="button"
+                            class="console-button console-button-secondary operate-deploy-rollback-button"
+                            disabled="@_busy"
+                            @onclick="RequestRollbackAsync">
+                        Rollback&hellip;
+                    </button>
+                }
+            </div>
+
+            @* DATA-AFFECTING ROLLBACK CONFIRMATION — a destructive rollback must be
+               explicitly confirmed before the request is sent. The server gate also
+               enforces this; the UI never weakens it. *@
+            @if (_confirmingRollback)
+            {
+                <div class="console-usage-callout operate-deploy-confirm" role="alertdialog" aria-label="Confirm rollback">
+                    @if (proposal.RollbackPlan?.RequiresConfirmation == true)
+                    {
+                        <p>
+                            <strong>This rollback is data-affecting.</strong>
+                            It may revert data and requires explicit confirmation. The server's approval gate
+                            must also permit it.
+                        </p>
+                    }
+                    else
+                    {
+                        <p>Roll this operation back to the prior revision?</p>
+                    }
+                    <div class="operate-deploy-action-row">
+                        <button type="button"
+                                class="console-button console-button-danger"
+                                disabled="@_busy"
+                                @onclick="ConfirmRollbackAsync">
+                            Confirm rollback
+                        </button>
+                        <button type="button"
+                                class="console-button console-button-secondary"
+                                disabled="@_busy"
+                                @onclick="CancelRollback">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_actionMessage))
+            {
+                <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
+            }
+        </div>
+
+        <p class="operate-deploy-governed console-state-danger">
+            Governed operation &middot; routed through the server's deploy-control approval gate;
+            emits an audit event.
+        </p>
+    </section>
+}
+
+@code {
+    /// <summary>The deploy-control operation id under review.</summary>
+    [Parameter, EditorRequired]
+    public required string OperationId { get; set; }
+
+    /// <summary>
+    /// Poll interval for reflecting lifecycle transitions. Disabled when null/zero.
+    /// </summary>
+    [Parameter]
+    public TimeSpan? PollInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Raised after a successful approve/reject/rollback so the parent can refresh its list.</summary>
+    [Parameter]
+    public EventCallback<DeployOperationProposal> OnActioned { get; set; }
+
+    private DeployOperationProposal? _proposal;
+    private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
+    private string _message = string.Empty;
+    private string? _reason;
+    private bool _busy;
+    private bool _confirmingRollback;
+    private string? _actionMessage;
+    private string _actionMessageClass = string.Empty;
+    private string? _loadedOperationId;
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _pollCts;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.Equals(_loadedOperationId, OperationId, StringComparison.Ordinal))
+        {
+            _loadedOperationId = OperationId;
+            _confirmingRollback = false;
+            _actionMessage = null;
+            await LoadAsync();
+            StartPolling();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await ApprovalClient.GetOperationAsync(OperationId);
+        Apply(result);
+    }
+
+    private void Apply(OperateSectionResult<DeployOperationProposal> result)
+    {
+        _status = result.Status;
+        _message = result.Message;
+        _proposal = result.IsAllowed ? result.Value : null;
+    }
+
+    private async Task ApproveAsync()
+    {
+        await RunActionAsync(
+            () => ApprovalClient.SubmitAsync(OperationId, _reason),
+            successMessage: "Approved — operation submitted for execution.");
+    }
+
+    private Task RejectAsync()
+    {
+        // The deploy-control surface has no server-side reject endpoint: an AwaitingApproval
+        // operation is rejected by simply NOT submitting it (and letting it expire / be
+        // cancelled out-of-band). We record the operator's intent locally and surface it
+        // honestly rather than calling an endpoint that would mutate state. This keeps the
+        // safety model intact (reject never advances the operation).
+        _confirmingRollback = false;
+        _actionMessage =
+            "Rejection recorded. This operation has no server reject endpoint; leaving it unsubmitted holds it at "
+            + "AwaitingApproval until it is cancelled or expires. It will not be executed.";
+        _actionMessageClass = "console-state-warning";
+        return Task.CompletedTask;
+    }
+
+    private void RequestRollbackAsync()
+    {
+        // Always require an explicit confirm step before a rollback request is sent, and make
+        // the data-affecting case loud. The confirm dialog gates the actual POST.
+        _actionMessage = null;
+        _confirmingRollback = true;
+    }
+
+    private void CancelRollback() => _confirmingRollback = false;
+
+    private async Task ConfirmRollbackAsync()
+    {
+        _confirmingRollback = false;
+        await RunActionAsync(
+            () => ApprovalClient.RollbackAsync(OperationId, _reason),
+            successMessage: "Rollback requested.");
+    }
+
+    private async Task RunActionAsync(
+        Func<Task<OperateSectionResult<DeployOperationProposal>>> action,
+        string successMessage)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _actionMessage = null;
+        try
+        {
+            var result = await action();
+            if (result.IsAllowed && result.Value is not null)
+            {
+                Apply(result);
+                _actionMessage = successMessage;
+                _actionMessageClass = "console-state-success";
+                await OnActioned.InvokeAsync(result.Value);
+            }
+            else
+            {
+                _actionMessage = string.IsNullOrWhiteSpace(result.Message)
+                    ? OperateSectionPresentation.FallbackMessage(result.Status)
+                    : result.Message;
+                _actionMessageClass = "console-state-danger";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void StartPolling()
+    {
+        StopPolling();
+        if (PollInterval is not { } interval || interval <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        _pollCts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(interval);
+        _ = PollLoopAsync(_timer, _pollCts.Token);
+    }
+
+    private async Task PollLoopAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                // Stop polling once the operation is terminal; nothing further changes.
+                if (_proposal is { IsTerminal: true })
+                {
+                    break;
+                }
+
+                if (_busy)
+                {
+                    continue;
+                }
+
+                var result = await ApprovalClient.GetOperationAsync(OperationId, cancellationToken);
+                await InvokeAsync(() =>
+                {
+                    Apply(result);
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Component disposed or operation id changed; expected.
+        }
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    public void Dispose() => StopPolling();
+}

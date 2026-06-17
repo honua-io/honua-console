@@ -1,6 +1,7 @@
 @page "/operate/releases"
 @page "/operate/releases/{SelectedReleaseId}"
 @inject IConsoleGitOpsReleaseClient ReleaseClient
+@inject IConsoleDeployApprovalClient ApprovalClient
 
 <section class="console-page console-operate-page">
     <div class="console-page-heading operate-heading">
@@ -18,7 +19,38 @@
     {
         <nav class="operate-section-nav" aria-label="GitOps release sections">
             <a href="#proposals">Release proposals</a>
+            <a href="#deploy-approvals">Deploy approvals</a>
         </nav>
+
+        @* DEPLOY APPROVALS — the human-in-the-loop approval queue for paused deploy-control
+           operations. The honua-server deploy-control surface exposes no list-all endpoint
+           (operations are read by id), so the queue is projected from the deploy operation
+           ids discovered on the release operations in view. When none are known, the
+           section renders an honest empty/unsupported state and points the operator at a
+           release to drill into. *@
+        <section id="deploy-approvals" class="operate-section" aria-labelledby="deploy-approvals-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Human-in-the-loop</p>
+                    <h2 id="deploy-approvals-heading">Deploy approvals</h2>
+                    <p class="console-muted">
+                        Paused deploy-control operations awaiting an approval decision. Open a release to
+                        review and approve, reject, or roll back a specific operation.
+                    </p>
+                </div>
+            </div>
+
+            @if (!_pendingApprovalsLoaded)
+            {
+                <OperateSectionStatusPanel Heading="Deploy approvals" Loading="true" />
+            }
+            else
+            {
+                <OperateDeploymentProposalList Result="_pendingApprovals"
+                    SelectedOperationId="@_selectedApprovalOperationId"
+                    OnSelect="OnApprovalSelectedFromList" />
+            }
+        </section>
 
         <section id="proposals" class="operate-section" aria-labelledby="proposals-heading">
             <div class="operate-section-heading">
@@ -155,6 +187,10 @@
             <a href="#pr-preview">Git PR preview</a>
             <a href="#timeline">CI timeline</a>
             <a href="#rollback">Rollback</a>
+            @if (operation is not null && DeployApprovalOperationId(operation) is { Length: > 0 })
+            {
+                <a href="#deploy-approval">Approval</a>
+            }
         </nav>
 
         <div class="operate-detail-grid operate-release-grid">
@@ -440,6 +476,25 @@
                         }
                     }
                 </section>
+
+                @* DEPLOY APPROVAL — the human-in-the-loop approve/reject/rollback surface for
+                   the deploy-control operation behind this release. Bound to the operation's
+                   durable deploy operation id (falling back to the release operation id). The
+                   panel reads the live operation, polls its lifecycle, and routes the governed
+                   actions through the server's deploy-control approval gate. *@
+                @if (operation is not null && DeployApprovalOperationId(operation) is { Length: > 0 } approvalOperationId)
+                {
+                    <section id="deploy-approval" class="operate-section" aria-labelledby="deploy-approval-section-heading">
+                        <div class="console-panel-heading operate-release-card-head">
+                            <div>
+                                <h3 id="deploy-approval-section-heading">Approval</h3>
+                                <p class="console-muted">Approve, reject, or roll back the paused deploy-control operation.</p>
+                            </div>
+                        </div>
+                        <OperateDeploymentApprovalPanel OperationId="@approvalOperationId"
+                            OnActioned="OnApprovalActioned" />
+                    </section>
+                }
             </div>
 
             @* SIDE COLUMN — mockup's right rail: breaking-change callout, compatibility
@@ -594,9 +649,22 @@
     private OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>? _proposals;
     private OperateSectionResult<GitOpsReleaseDetail>? _detail;
 
+    private bool _pendingApprovalsLoaded;
+    private OperateSectionResult<IReadOnlyList<DeployOperationProposal>> _pendingApprovals =
+        OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
+    private string? _selectedApprovalOperationId;
+
     private IReadOnlyList<GitOpsReleaseProposal> Proposals => _proposals?.Value ?? [];
 
     private bool HasSelectedReleaseRoute => !string.IsNullOrWhiteSpace(SelectedReleaseId);
+
+    // The durable deploy-control operation id behind a release operation. The release
+    // OperationId is the release-operation lifecycle id; the deploy-control approval surface
+    // binds to the DeployOperationId the lifecycle carries (honua-server#1165). When the
+    // lifecycle has not yet produced a deploy-control operation there is nothing to approve,
+    // so the approval surface is intentionally not offered (no fabricated binding).
+    private static string? DeployApprovalOperationId(GitOpsReleaseOperation operation) =>
+        string.IsNullOrWhiteSpace(operation.DeployOperationId) ? null : operation.DeployOperationId;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -610,6 +678,56 @@
         {
             _proposals = await ReleaseClient.GetReleaseProposalsAsync();
             _listLoaded = true;
+            await LoadPendingApprovalsAsync();
+        }
+    }
+
+    // Projects the deploy-approval queue from the deploy operation ids discovered on the
+    // release operations in the list. The list-view release proposals are lightweight and do
+    // not carry deploy operation ids, so this resolves each proposal's detail to harvest the
+    // deploy-control operation id, then asks the approval client to project the pending set.
+    // This keeps the queue honest (server-owned, no list endpoint) without fabricating ids.
+    private async Task LoadPendingApprovalsAsync()
+    {
+        try
+        {
+            if (_proposals is not { IsAllowed: true })
+            {
+                _pendingApprovals = OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
+                return;
+            }
+
+            var details = await Task.WhenAll(
+                Proposals.Select(p => ReleaseClient.GetReleaseDetailAsync(p.ReleasePackageId)));
+
+            var operationIds = details
+                .Where(d => d.IsAllowed && d.Value?.Operation is not null)
+                .Select(d => DeployApprovalOperationId(d.Value!.Operation!))
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id!)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            _pendingApprovals = await ApprovalClient.ListPendingAsync(operationIds);
+        }
+        finally
+        {
+            _pendingApprovalsLoaded = true;
+        }
+    }
+
+    private void OnApprovalSelectedFromList(DeployOperationProposal proposal)
+    {
+        _selectedApprovalOperationId = proposal.OperationId;
+    }
+
+    private async Task OnApprovalActioned(DeployOperationProposal proposal)
+    {
+        // After an approve/reject/rollback, refresh the queue so a now-terminal/submitted
+        // operation drops out of the pending list.
+        if (!HasSelectedReleaseRoute)
+        {
+            await LoadPendingApprovalsAsync();
         }
     }
 }
