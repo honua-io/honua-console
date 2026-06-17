@@ -89,6 +89,21 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
+        // The human-in-the-loop deploy approval surface binds to the honua-server
+        // deploy-control admin endpoints (GET /operations/{id}, POST .../submit,
+        // POST .../rollback) via the same thin typed HttpClient. An agent
+        // creates-and-pauses an operation on pr-first; an operator reviews and approves
+        // (submit) / rejects / rolls back here, all through the server's governed
+        // endpoints (the OperatorApprovalGate stays the real gate — never bypassed). No
+        // standing in-memory source is registered (Charter section 11); when no
+        // environment is connected the surface renders the missing-binding state. The
+        // admin API key is sent as X-API-Key.
+        services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>
+            new HttpConsoleDeployApprovalClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                honuaServerAdminApiKey));
+
         // Operate metrics binds to the connected honua-server's production-monitoring
         // endpoints (group /monitoring, admin-authorized, bare JSON — NO ApiResponse
         // envelope) via a thin typed HttpClient behind Honua.Console.Contracts. No
