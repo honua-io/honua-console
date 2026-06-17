@@ -66,9 +66,14 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/new       Create
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
-/operate/resources             Data resources list and edit queue
-/operate/resources/new         Create resource from table/file or one-time remote-service migration
+/operate/data                  Data & Layers — resource→publications treeview + Layer Preview (the resource-first spine; merges Resources/Layers/Services lists; console-ux-redesign §5.3)
+/operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource|ai, ?driver=manual|ai; console-ux-redesign §5.2/§5.4)
+/operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
+/operate/resources/new         REDIRECT → /operate/data/new (the five entry points fold into one flow)
 /operate/resources/:id         Resource detail, validation, publish, access, presentation, and advanced tabs
+/operate/resources/import      REDIRECT → /operate/data/new?source=file
+/operate/publishing/quick      REDIRECT → /operate/data/new?source=table
+/operate/import/service        REDIRECT → /operate/data/new?source=remoteservice
 /operate/publishing            Publishing workspace
 /operate/identity/providers
 /operate/identity/status
@@ -83,9 +88,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/jobs/:jobRunId        Unified job-run detail deep link
 /operate/operations            Operations console
 /operate/control-center        Control center
-/operate/services              Service list and layer explorer
+/operate/services              REDIRECT → /operate/data?view=services (services fold into the treeview)
 /operate/services/:name/settings
-/operate/layers                Flat layer list
+/operate/layers                REDIRECT → /operate/data (a "layer" is now a Publication node under its resource)
 /operate/layers/:id            Layer configuration (default + ?tab=configure)
 /operate/layers/:id/style      Layer style editor
 /operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
@@ -179,9 +184,16 @@ will not see Operate while B is active. Confirmed default (§13, Q4).
 
 ### 2.2 Secondary navigation (within Operate)
 
-Connections, Resources, Publishing, Identity, License, Observability,
-Operations, Control Center, Services, Layers, Catalogs, Settings, Deploy,
-Server Info, Analytics, Legacy.
+Data & Layers, Connections, Publishing, Identity, License, Observability,
+Operations, Control Center, Catalogs, Settings, Deploy, Server Info,
+Analytics, Legacy.
+
+Resource-first IA change (`console-ux-redesign.md` §5.1): the former
+**Resources / Services / Layers** trio collapses into one **Data & Layers**
+entry (`/operate/data`) — the resource→publications treeview with a Layer
+Preview. Connections move *under* Data & Layers as the data-source
+sub-section (it stays a legitimate concept, GeoServer "Stores"). The old
+Resources/Services/Layers nav routes redirect into `/operate/data`.
 
 Catalogs (`/operate/catalogs`) is the discovery-endpoints surface
 (`honua-console#125`): which catalog dialects the server publishes
@@ -843,9 +855,14 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/connections/new` | — | — | forbidden | operate |
 | `/operate/connections/:id` | — | missing-item | forbidden | operate |
 | `/operate/connections/:id/diagnostics` | — | missing-item | forbidden | operate |
-| `/operate/resources` | — | empty-operate (no resources) | forbidden | operate |
-| `/operate/resources/new` | — | — | forbidden | operate |
+| `/operate/data` | — | empty-operate (no resources → tree empty-state launches the flow) | forbidden | operate |
+| `/operate/data/new` | — | — (flow host; missing-binding surfaces per step as first-class "unsupported") | forbidden | operate |
+| `/operate/resources` | — | REDIRECT → `/operate/data` | forbidden | operate |
+| `/operate/resources/new` | — | REDIRECT → `/operate/data/new` | forbidden | operate |
 | `/operate/resources/:id` | — | missing-item | forbidden | operate |
+| `/operate/resources/import` | — | REDIRECT → `/operate/data/new?source=file` | forbidden | operate |
+| `/operate/publishing/quick` | — | REDIRECT → `/operate/data/new?source=table` | forbidden | operate |
+| `/operate/import/service` | — | REDIRECT → `/operate/data/new?source=remoteservice` | forbidden | operate |
 | `/operate/publishing` | — | empty-operate | forbidden | operate |
 | `/operate/identity/providers` | `entitlement:identity.oidc` (gate the OIDC provider) | empty-operate | forbidden / upgrade | operate |
 | `/operate/identity/status` | — | empty-operate | forbidden | operate |
@@ -857,9 +874,9 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/jobs/:jobRunId` | — | missing job | forbidden | operate |
 | `/operate/operations` | — | empty-operate | forbidden | operate |
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
-| `/operate/services` | — | empty-operate (no services) | forbidden | operate |
+| `/operate/services` | — | REDIRECT → `/operate/data?view=services` | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
-| `/operate/layers` | — | empty-operate (no layers) | forbidden | operate |
+| `/operate/layers` | — | REDIRECT → `/operate/data` (a layer is a Publication node) | forbidden | operate |
 | `/operate/layers/:id` | — | missing-item | forbidden | operate |
 | `/operate/layers/:id/style` | — | missing-item | forbidden | operate |
 | `/operate/settings` | — | — | forbidden | operate |

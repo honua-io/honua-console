@@ -1,0 +1,135 @@
+@namespace Honua.Console.Shell.Components.Operate
+@using Honua.Console.Shell.Models
+
+@*
+    The GeoServer-style resource→publications treeview (redesign §5.3) — the structural cure for the
+    resources-vs-layers split. Each resource is a node; expanding it reveals its protocol publications
+    (a checked protocol == a live Publication). Selecting a publication drives the Layer Preview pane
+    (B8: preview the served endpoint). Context-sensitive actions live on the selected node. This component
+    is presentational over a prebuilt list of ResourceTreeNode; it fabricates nothing — a resource with no
+    publications renders as a draft node with a "Publish →" affordance into the flow.
+*@
+<div class="resource-tree" data-resource-tree>
+    <div class="resource-tree__toolbar">
+        <input class="console-input" type="search" placeholder="filter…" aria-label="Filter resources"
+               @bind="_filter" @bind:event="oninput" />
+    </div>
+
+    @if (FilteredNodes.Count == 0)
+    {
+        <p class="console-muted" data-tree-empty>
+            No resources yet. <a href="/operate/data/new">Add data</a> — it becomes a resource you can publish.
+        </p>
+    }
+    else
+    {
+        <ul class="resource-tree__list" role="tree">
+            @foreach (var node in FilteredNodes)
+            {
+                <li class="resource-tree__node @(node.HasPublications ? "resource-tree__node--running" : "resource-tree__node--draft")"
+                    data-resource-node="@node.ResourceId" role="treeitem" aria-expanded="@(_expanded.Contains(node.ResourceId))">
+                    <div class="resource-tree__row">
+                        <button type="button" class="resource-tree__toggle" @onclick="() => ToggleExpand(node.ResourceId)"
+                                aria-label="@(_expanded.Contains(node.ResourceId) ? "Collapse" : "Expand") @node.Name">
+                            @(node.HasPublications ? (_expanded.Contains(node.ResourceId) ? "▼" : "▶") : "○")
+                        </button>
+                        <span class="resource-tree__name" @onclick="() => SelectResource(node)">@node.Name</span>
+                        <span class="resource-tree__meta console-muted">@node.Source</span>
+                        <span class="console-status @(node.HasPublications ? "console-status-success" : "console-status-warning")">@node.Status</span>
+                    </div>
+
+                    @if (_expanded.Contains(node.ResourceId))
+                    {
+                        <ul class="resource-tree__publications" role="group">
+                            @foreach (var publication in node.Publications)
+                            {
+                                <li class="resource-tree__publication" data-publication="@publication.ProtocolId" role="treeitem">
+                                    <button type="button" class="resource-tree__publication-row"
+                                            @onclick="() => SelectPublication(node, publication)">
+                                        <span class="resource-tree__publication-check">✓</span>
+                                        <span class="resource-tree__publication-label">@publication.ProtocolLabel</span>
+                                        <span class="resource-tree__publication-route console-mono">@publication.Route</span>
+                                    </button>
+                                </li>
+                            }
+                            <li class="resource-tree__expose">
+                                <a class="console-link" href="@ExposeHref(node)" data-expose>+ expose another protocol…</a>
+                            </li>
+                        </ul>
+                    }
+
+                    @if (!node.HasPublications)
+                    {
+                        <div class="resource-tree__draft-actions">
+                            <a class="console-button" href="@PublishHref(node)" data-publish>Publish →</a>
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>The resource nodes to render (prebuilt by the host page from the Operate workspace).</summary>
+    [Parameter] public IReadOnlyList<ResourceTreeNode> Nodes { get; set; } = [];
+
+    /// <summary>Raised when a resource node is selected (drives the detail/context actions).</summary>
+    [Parameter] public EventCallback<ResourceTreeNode> OnResourceSelected { get; set; }
+
+    /// <summary>Raised when a publication is selected (drives the Layer Preview pane).</summary>
+    [Parameter] public EventCallback<LayerPreviewPane.PreviewSelection> OnPublicationSelected { get; set; }
+
+    /// <summary>Resource id to auto-expand and focus on first render (e.g. the node a just-completed flow ended on).</summary>
+    [Parameter] public string? FocusResourceId { get; set; }
+
+    private string _filter = string.Empty;
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+    private bool _focusApplied;
+
+    protected override void OnParametersSet()
+    {
+        if (!_focusApplied && !string.IsNullOrWhiteSpace(FocusResourceId))
+        {
+            _expanded.Add(FocusResourceId);
+            _focusApplied = true;
+        }
+    }
+
+    private IReadOnlyList<ResourceTreeNode> FilteredNodes =>
+        string.IsNullOrWhiteSpace(_filter)
+            ? Nodes
+            : Nodes.Where(node => node.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+    private void ToggleExpand(string resourceId)
+    {
+        if (!_expanded.Remove(resourceId))
+        {
+            _expanded.Add(resourceId);
+        }
+    }
+
+    private async Task SelectResource(ResourceTreeNode node)
+    {
+        ToggleExpand(node.ResourceId);
+        if (OnResourceSelected.HasDelegate)
+        {
+            await OnResourceSelected.InvokeAsync(node);
+        }
+    }
+
+    private async Task SelectPublication(ResourceTreeNode node, PublicationTreeNode publication)
+    {
+        if (OnPublicationSelected.HasDelegate)
+        {
+            await OnPublicationSelected.InvokeAsync(new LayerPreviewPane.PreviewSelection(
+                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route));
+        }
+    }
+
+    private static string PublishHref(ResourceTreeNode node) =>
+        $"/operate/data/new?source=existingresource&resource={Uri.EscapeDataString(node.ResourceId)}";
+
+    private static string ExposeHref(ResourceTreeNode node) =>
+        $"/operate/data/new?source=existingresource&resource={Uri.EscapeDataString(node.ResourceId)}&step=publish";
+}

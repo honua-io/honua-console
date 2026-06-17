@@ -5,6 +5,20 @@ three founder-specified pillars (see box below).
 
 Audience: console product/design, frontend architecture, founder review.
 
+> **Implementation status (Phases 1+2 landed).** The resource-first publish flow
+> (`Components/Operate/DataToPublishFlow.razor` at `/operate/data/new`) and the
+> GeoServer-style resource→publications treeview + Layer Preview
+> (`Components/Operate/ResourcePublicationsTree.razor` + `LayerPreviewPane.razor` at
+> `/operate/data`) are implemented and wired to the real honua-server admin clients
+> (`IConsoleFileImportOperation`, `IServiceLayerPublishOperation`,
+> `IOperateTransitionDataSource`, `IStudioMapStyleCatalogDataSource`). The
+> protocol→publication mapping is the single authority `Models/PublishProtocolCatalog.cs`.
+> The old entry points (resources/layers/services/import/publish) redirect into the
+> unified flow (`Pages/OperateDataRedirects.razor`); the Operate nav adopts the
+> Data & Layers spine (§5.1). **Phase 3 (the AI outcome-approval driver) is a clean
+> seam, not built** — `FlowDriver.Ai` surfaces the deferred outcome+approval intent
+> over the same flow object; manual mode drives the flow today.
+
 > **What this revision adds (founder direction, post-#198).** The first cut of this
 > doc had the unified flow, the existing-resource intake, and dual-mode styling
 > right, but it modeled the middle of the flow as a vague "Layer / Service" step and
