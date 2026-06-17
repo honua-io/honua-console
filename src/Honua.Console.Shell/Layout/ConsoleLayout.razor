@@ -79,12 +79,13 @@
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
 
+    // Resource-first IA (redesign §5.1): the Resources/Services/Layers trio collapses into one
+    // "Data & Layers" treeview spine; Connections move under it as the data-source sub-section.
     private static readonly (string Path, string Label, string Icon)[] OperateSections =
     [
+        ("/operate/data", "Data & Layers", "layers"),
         ("/operate/connections", "Connections", "connections"),
-        ("/operate/resources", "Resources", "resources"),
-        ("/operate/services", "Services", "services"),
-        ("/operate/layers", "Layers", "layers"),
+        ("/operate/publishing", "Publishing", "services"),
         ("/operate/versions", "Versions", "versions"),
         ("/operate/deploy", "Deploy", "deploy"),
         ("/operate/catalogs", "Catalogs", "catalogs"),

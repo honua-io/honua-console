@@ -1,0 +1,97 @@
+@page "/operate/data"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Components.Operate
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOperateTransitionDataSource OperateData
+
+@*
+    The GeoServer-style "Data & Layers" spine (redesign §5.2 NEW /operate/data, §5.3). Merges the old
+    Resources / Layers / Services flat lists into one resource→publications treeview with a Layer Preview.
+    The tree is built from the Operate workspace projections (resources + services-with-layers grouped by
+    canonical resource); missing-binding states render as first-class capability states, never fabricated.
+*@
+<section class="console-page operate-data-page" data-operate-data>
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / Data &amp; Layers</p>
+        <h1>Data &amp; Layers</h1>
+        <p>Resources, and the services/protocols each is published on. Expand a resource to see its publications; pick one to preview its served endpoint.</p>
+        <div class="console-action-row">
+            <a class="console-button" href="/operate/data/new">+ Add data</a>
+        </div>
+    </div>
+
+    <OperateCapabilityStateList States="@_states" />
+
+    <div class="operate-data-page__split">
+        <ResourcePublicationsTree Nodes="@_nodes"
+                                  FocusResourceId="@Focus"
+                                  OnPublicationSelected="OnPublicationSelected"
+                                  OnResourceSelected="OnResourceSelected" />
+        <LayerPreviewPane Selection="@_preview"
+                          Protocols="@_previewProtocols"
+                          OnProtocolSelected="OnPreviewProtocolChanged" />
+    </div>
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "focus")]
+    public string? Focus { get; set; }
+
+    private IReadOnlyList<ResourceTreeNode> _nodes = [];
+    private IReadOnlyList<OperateCapabilityState> _states = [];
+    private LayerPreviewPane.PreviewSelection? _preview;
+    private IReadOnlyList<LayerPreviewPane.PreviewSelection> _previewProtocols = [];
+    private ResourceTreeNode? _selectedResource;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resourcesView = await OperateData.GetResourcesViewAsync();
+        var servicesView = await OperateData.GetServicesViewAsync();
+
+        _nodes = ResourcePublicationsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
+        _states = OperateCapabilityStateFilters.ForSurface(
+            resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),
+            "Resources", "Layers", "Services");
+
+        if (!string.IsNullOrWhiteSpace(Focus))
+        {
+            var focused = _nodes.FirstOrDefault(node => string.Equals(node.ResourceId, Focus, StringComparison.Ordinal));
+            if (focused is { } node && node.Publications.Count > 0)
+            {
+                SetPreviewFromResource(node, node.Publications[0]);
+            }
+        }
+    }
+
+    private void OnResourceSelected(ResourceTreeNode node) => _selectedResource = node;
+
+    private void OnPublicationSelected(LayerPreviewPane.PreviewSelection selection)
+    {
+        _preview = selection;
+        var node = _nodes.FirstOrDefault(n => string.Equals(n.ResourceId, selection.ResourceId, StringComparison.Ordinal));
+        _previewProtocols = node is null ? [] : ProtocolsFor(node);
+    }
+
+    private void OnPreviewProtocolChanged(string protocolId)
+    {
+        var match = _previewProtocols.FirstOrDefault(p => string.Equals(p.ProtocolId, protocolId, StringComparison.Ordinal));
+        if (match is not null)
+        {
+            _preview = match;
+        }
+    }
+
+    private void SetPreviewFromResource(ResourceTreeNode node, PublicationTreeNode publication)
+    {
+        _preview = new LayerPreviewPane.PreviewSelection(
+            node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route);
+        _previewProtocols = ProtocolsFor(node);
+    }
+
+    private static IReadOnlyList<LayerPreviewPane.PreviewSelection> ProtocolsFor(ResourceTreeNode node) =>
+        node.Publications
+            .Select(publication => new LayerPreviewPane.PreviewSelection(
+                node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, publication.Route))
+            .ToArray();
+}

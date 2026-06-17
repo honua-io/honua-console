@@ -1,0 +1,142 @@
+namespace Honua.Console.Shell.Models;
+
+/// <summary>
+/// The single source of truth for the resource-first publish step (redesign §3.0 / §5.4b): the set of
+/// protocol surfaces a <em>resource</em> can be exposed through, and the metadata-v2 mapping each protocol
+/// implies — its <c>ServiceProtocols</c> string constant, the <c>MetadataV2ServiceType</c> service category
+/// the binding lands under, and a human label/hint for the toggle grid.
+///
+/// Each enabled protocol toggle corresponds to exactly one metadata-v2 <b>Publication</b> (a binding of
+/// <c>resourceId</c> + <c>serviceId</c>). The picker, the treeview's "+ expose" affordance, and the
+/// go-live route preview all read this catalog so the protocol→publication mapping is defined once and
+/// stays coherent (Console Patterns Charter: no fabricated data, one mapping authority).
+/// </summary>
+public static class PublishProtocolCatalog
+{
+    /// <summary>
+    /// Protocol identifiers mirroring honua-server <c>ServiceProtocols</c> string constants. The toggle
+    /// set maps 1:1 onto the metadata-v2 services that publish a resource (redesign §3.0).
+    /// </summary>
+    public static class Protocols
+    {
+        public const string FeatureServer = "FeatureServer";
+        public const string MapServer = "MapServer";
+        public const string ImageServer = "ImageServer";
+        public const string Stac = "Stac";
+        public const string OgcFeatures = "OgcFeatures";
+        public const string Wms = "Wms";
+        public const string Wfs20 = "Wfs20";
+        public const string Wmts = "Wmts";
+        public const string OData = "OData";
+    }
+
+    /// <summary>
+    /// A single protocol surface: its <c>ServiceProtocols</c> id, the <c>MetadataV2ServiceType</c> category
+    /// its Publication binds under, a display label, a one-line hint, and the toggle-grid group it renders in.
+    /// </summary>
+    public sealed record ProtocolDescriptor(
+        string Id,
+        string ServiceType,
+        string Label,
+        string Hint,
+        string Group);
+
+    /// <summary>The toggle-grid groups, in render order (GeoServices · OGC · STAC/Catalog).</summary>
+    public static IReadOnlyList<(string Key, string Label)> Groups { get; } =
+    [
+        ("geoservices", "GeoServices (Esri)"),
+        ("ogc", "OGC"),
+        ("catalog", "STAC / Catalog"),
+    ];
+
+    /// <summary>
+    /// Every protocol the publish step exposes, keyed by its <c>ServiceProtocols</c> id. The
+    /// <c>ServiceType</c> values mirror <c>MetadataV2ServiceType</c> in honua-server metadata-v2.
+    /// </summary>
+    public static IReadOnlyList<ProtocolDescriptor> All { get; } =
+    [
+        new(Protocols.FeatureServer, "esri-feature-service", "FeatureServer", "editable features", "geoservices"),
+        new(Protocols.MapServer, "esri-map-service", "MapServer", "rendered tiles", "geoservices"),
+        new(Protocols.ImageServer, "esri-image-service", "ImageServer", "raster only", "geoservices"),
+        new(Protocols.OgcFeatures, "ogc-api-features", "OGC API Features", "features", "ogc"),
+        new(Protocols.Wms, "wms", "WMS", "rendered", "ogc"),
+        new(Protocols.Wfs20, "wfs", "WFS", "feature download", "ogc"),
+        new(Protocols.Wmts, "wmts", "WMTS", "tiled", "ogc"),
+        new(Protocols.OData, "odata", "OData", "tabular/query", "ogc"),
+        new(Protocols.Stac, "stac-api", "STAC API", "collection", "catalog"),
+    ];
+
+    private static readonly IReadOnlyDictionary<string, ProtocolDescriptor> ById =
+        All.ToDictionary(descriptor => descriptor.Id, StringComparer.Ordinal);
+
+    /// <summary>The default-on protocol set for a freshly-staged publish (redesign §5.4b: FeatureServer + MapServer + STAC).</summary>
+    public static IReadOnlyList<string> DefaultEnabled { get; } =
+    [
+        Protocols.FeatureServer,
+        Protocols.MapServer,
+        Protocols.Stac,
+    ];
+
+    /// <summary>Looks up a protocol descriptor by its <c>ServiceProtocols</c> id, or <c>null</c> when unknown.</summary>
+    public static ProtocolDescriptor? Find(string protocolId) =>
+        protocolId is not null && ById.TryGetValue(protocolId, out var descriptor) ? descriptor : null;
+
+    /// <summary>The descriptors in a group, in catalog order.</summary>
+    public static IReadOnlyList<ProtocolDescriptor> InGroup(string group) =>
+        All.Where(descriptor => string.Equals(descriptor.Group, group, StringComparison.Ordinal)).ToArray();
+
+    /// <summary>
+    /// Maps an enabled protocol set into the metadata-v2 Publications they imply for a service slot:
+    /// one <see cref="PublishProtocolPlan"/> per protocol, carrying its service type and the served route
+    /// the Publication will expose (redesign §5.4b "Will create N publications" + §5.6 per-protocol routes).
+    /// Unknown protocol ids are skipped (never fabricated). The order follows <see cref="All"/> so the
+    /// preview is stable regardless of toggle order.
+    /// </summary>
+    public static IReadOnlyList<PublishProtocolPlan> PlanPublications(
+        string serviceSlot,
+        IEnumerable<string> enabledProtocols)
+    {
+        ArgumentNullException.ThrowIfNull(enabledProtocols);
+        var enabled = enabledProtocols.ToHashSet(StringComparer.Ordinal);
+        var slot = string.IsNullOrWhiteSpace(serviceSlot) ? "service" : serviceSlot.Trim().Trim('/');
+
+        return All
+            .Where(descriptor => enabled.Contains(descriptor.Id))
+            .Select(descriptor => new PublishProtocolPlan(
+                descriptor.Id,
+                descriptor.ServiceType,
+                descriptor.Label,
+                RouteFor(descriptor.Id, slot)))
+            .ToArray();
+    }
+
+    /// <summary>The served endpoint a protocol Publication exposes for a service slot (redesign §5.3/§5.6 routes).</summary>
+    public static string RouteFor(string protocolId, string serviceSlot)
+    {
+        var slot = string.IsNullOrWhiteSpace(serviceSlot) ? "service" : serviceSlot.Trim().Trim('/');
+        var leaf = slot.Contains('/') ? slot[(slot.LastIndexOf('/') + 1)..] : slot;
+        return protocolId switch
+        {
+            Protocols.FeatureServer => $"/{slot}/FeatureServer/0",
+            Protocols.MapServer => $"/{slot}/MapServer",
+            Protocols.ImageServer => $"/{slot}/ImageServer",
+            Protocols.Stac => $"/stac/collections/{leaf}",
+            Protocols.OgcFeatures => $"/ogc/{slot}/collections/{leaf}",
+            Protocols.Wms => $"/ogc/{slot}/wms",
+            Protocols.Wfs20 => $"/ogc/{slot}/wfs",
+            Protocols.Wmts => $"/ogc/{slot}/wmts",
+            Protocols.OData => $"/odata/{slot}",
+            _ => $"/{slot}",
+        };
+    }
+}
+
+/// <summary>
+/// One planned metadata-v2 Publication: the protocol being exposed, the service type its binding lands
+/// under, a display label, and the served route. The publish step creates one server publication per plan.
+/// </summary>
+public sealed record PublishProtocolPlan(
+    string ProtocolId,
+    string ServiceType,
+    string Label,
+    string Route);

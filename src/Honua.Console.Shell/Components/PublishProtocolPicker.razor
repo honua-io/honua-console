@@ -1,27 +1,19 @@
 @namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
 
 @*
-    DESIGN SKETCH (docs/design/console-ux-redesign.md, step (3) "Publish", sections 3.0 and 5.4b).
+    The RESOURCE-FIRST publish control (redesign step ③, §3.0 / §5.4b) — the heart of the redesign.
+    The user already has a canonical RESOURCE (produced or selected in step ①/②); this control lets them
+    toggle which SERVICES / PROTOCOLS expose that resource. Each enabled toggle corresponds to a
+    metadata-v2 PUBLICATION (a binding of resourceId + serviceId) — and those Publications are the "layers"
+    Esri/OGC clients consume.
 
-    The RESOURCE-FIRST publish control: the heart of the redesign. The user already has a canonical
-    RESOURCE (produced or selected in step (1)/(2)); this control lets them toggle which
-    SERVICES / PROTOCOLS expose that resource. Each enabled toggle corresponds to a metadata-v2
-    PUBLICATION (a binding of resourceId + serviceId; see
-    honua-server Honua.Core.Abstractions/Features/Metadata/Domain/V2/MetadataV2Graph.cs
-    MetadataV2Publication) -- and those Publications are the "layers" Esri/OGC clients consume.
+    The protocol→publication mapping is defined once in Models/PublishProtocolCatalog.cs and read here, by
+    the host flow's go-live route preview, and by the treeview's "+ expose" affordance, so the mapping
+    stays coherent across surfaces. Presentational only: it owns no server binding and fabricates no data.
 
-    This is the inverse of BlueSpatial's service-first model: you do NOT name a service and then hang
-    layers under it. You publish the resource and select protocol surfaces; the service slot is
-    auto-provisioned (editable under "change"). The protocol identifiers mirror
-    ServiceProtocols / MetadataV2ServiceType in metadata-v2.
-
-    The same control is reused by the treeview's "+ expose" affordance (redesign section 5.3):
-    exposing an already-published resource through one more protocol is the same act -- add a
-    Publication.
-
-    Presentational only: it owns the toggle state and the auto/changed service slot, and raises the
-    chosen protocol set to the host flow (Components/Operate DataToPublishFlow, not yet built) via
-    OnSelectionChanged. It binds no services and fabricates no data, so it builds clean.
+    The same control is reused by the treeview's "+ expose" affordance (§5.3): exposing an
+    already-published resource through one more protocol is the same act — add a Publication.
 *@
 <div class="publish-protocol-picker" data-publish-protocol-picker>
     <p class="console-muted">
@@ -29,17 +21,17 @@
         publication — the "layer" an Esri or OGC client consumes.
     </p>
 
-    @foreach (var group in ProtocolGroups)
+    @foreach (var (key, label) in PublishProtocolCatalog.Groups)
     {
-        <fieldset class="publish-protocol-picker__group" data-protocol-group="@group.Key">
-            <legend>@group.Label</legend>
+        <fieldset class="publish-protocol-picker__group" data-protocol-group="@key">
+            <legend>@label</legend>
             <div class="publish-protocol-picker__options">
-                @foreach (var protocol in group.Protocols)
+                @foreach (var protocol in PublishProtocolCatalog.InGroup(key))
                 {
                     <label class="publish-protocol-picker__option">
                         <input type="checkbox"
                                data-protocol="@protocol.Id"
-                               checked="@_enabled.Contains(protocol.Id)"
+                               checked="@Enabled.Contains(protocol.Id)"
                                @onchange="args => Toggle(protocol.Id, args)" />
                         <span class="publish-protocol-picker__option-label">@protocol.Label</span>
                         <small class="console-muted">@protocol.Hint</small>
@@ -56,7 +48,10 @@
         <button type="button" class="console-link" @onclick="RequestSlotChange">change…</button>
     </div>
 
-    @if (_enabled.Count == 0)
+    @{
+        var plans = PublishProtocolCatalog.PlanPublications(ServiceSlot, Enabled);
+    }
+    @if (plans.Count == 0)
     {
         <p class="console-muted" data-no-protocols>
             No protocols selected yet — pick at least one to publish this resource.
@@ -65,101 +60,54 @@
     else
     {
         <p class="console-muted" data-publication-preview>
-            Will create @_enabled.Count publication@(_enabled.Count == 1 ? string.Empty : "s"):
-            @string.Join(" · ", _enabled)
+            Will create @plans.Count publication@(plans.Count == 1 ? string.Empty : "s"):
+            @string.Join(" · ", plans.Select(p => p.Label))
         </p>
     }
 </div>
 
 @code {
-    // Default-on set mirrors the redesign's section 5.4b wireframe (FeatureServer + MapServer + STAC).
-    private readonly HashSet<string> _enabled = new(StringComparer.Ordinal)
-    {
-        Protocols.FeatureServer,
-        Protocols.MapServer,
-        Protocols.Stac,
-    };
+    /// <summary>The currently-enabled protocol ids (host-owned, two-way via <see cref="EnabledChanged"/>).</summary>
+    [Parameter]
+    public IReadOnlyCollection<string> Enabled { get; set; } = PublishProtocolCatalog.DefaultEnabled;
 
-    /// <summary>
-    /// Protocol identifiers, mirroring honua-server ServiceProtocols string constants so the toggle
-    /// set maps 1:1 onto the metadata-v2 services that publish a resource (redesign section 3.0).
-    /// </summary>
-    public static class Protocols
-    {
-        public const string FeatureServer = "FeatureServer";
-        public const string MapServer = "MapServer";
-        public const string ImageServer = "ImageServer";
-        public const string Stac = "Stac";
-        public const string OgcFeatures = "OgcFeatures";
-        public const string Wms = "Wms";
-        public const string Wfs20 = "Wfs20";
-        public const string Wmts = "Wmts";
-        public const string OData = "OData";
-    }
-
-    private readonly record struct ProtocolOption(string Id, string Label, string Hint);
-
-    private readonly record struct ProtocolGroup(string Key, string Label, ProtocolOption[] Protocols);
-
-    private static readonly ProtocolGroup[] ProtocolGroups =
-    [
-        new("geoservices", "GeoServices (Esri)",
-        [
-            new(Protocols.FeatureServer, "FeatureServer", "editable features"),
-            new(Protocols.MapServer, "MapServer", "rendered tiles"),
-            new(Protocols.ImageServer, "ImageServer", "raster only"),
-        ]),
-        new("ogc", "OGC",
-        [
-            new(Protocols.OgcFeatures, "OGC API Features", "features"),
-            new(Protocols.Wms, "WMS", "rendered"),
-            new(Protocols.Wfs20, "WFS", "feature download"),
-            new(Protocols.Wmts, "WMTS", "tiled"),
-            new(Protocols.OData, "OData", "tabular/query"),
-        ]),
-        new("catalog", "STAC / Catalog",
-        [
-            new(Protocols.Stac, "STAC API", "collection"),
-        ]),
-    ];
+    /// <summary>Raised with the new enabled set whenever a toggle changes (each id maps to a Publication to create).</summary>
+    [Parameter]
+    public EventCallback<IReadOnlyCollection<string>> EnabledChanged { get; set; }
 
     /// <summary>Auto-provisioned service slot the publications attach to (host may override on "change").</summary>
     [Parameter]
-    public string ServiceSlot { get; set; } = "auto";
-
-    /// <summary>Raised with the current set of enabled protocols (each maps to a Publication to create).</summary>
-    [Parameter]
-    public EventCallback<IReadOnlyCollection<string>> OnSelectionChanged { get; set; }
+    public string ServiceSlot { get; set; } = "service";
 
     /// <summary>Raised when the user asks to change the auto-provisioned service slot.</summary>
     [Parameter]
     public EventCallback OnRequestSlotChange { get; set; }
 
-    protected override async Task OnInitializedAsync() => await RaiseSelection();
-
     private async Task Toggle(string protocolId, ChangeEventArgs args)
     {
         var on = args.Value is bool b && b;
+        var next = new HashSet<string>(Enabled, StringComparer.Ordinal);
         if (on)
         {
-            _enabled.Add(protocolId);
+            next.Add(protocolId);
         }
         else
         {
-            _enabled.Remove(protocolId);
+            next.Remove(protocolId);
         }
 
-        await RaiseSelection();
+        // Preserve catalog order so the publication preview is stable regardless of click order.
+        var ordered = PublishProtocolCatalog.All
+            .Where(descriptor => next.Contains(descriptor.Id))
+            .Select(descriptor => descriptor.Id)
+            .ToArray();
+
+        if (EnabledChanged.HasDelegate)
+        {
+            await EnabledChanged.InvokeAsync(ordered);
+        }
     }
 
     private Task RequestSlotChange() =>
         OnRequestSlotChange.HasDelegate ? OnRequestSlotChange.InvokeAsync() : Task.CompletedTask;
-
-    private async Task RaiseSelection()
-    {
-        if (OnSelectionChanged.HasDelegate)
-        {
-            await OnSelectionChanged.InvokeAsync(_enabled.ToArray());
-        }
-    }
 }
