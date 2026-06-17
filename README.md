@@ -17,6 +17,7 @@ It brings Studio, Catalog, Operate, and Share into one product surface and one d
 - [Optional MAUI Blazor Hybrid Host](docs/native/MAUI_BLAZOR_HOST.md)
 - [Honua Console Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 - [Honua Console Route Map, RBAC, and Navigation](docs/console-route-map.md) — IA source of truth for Studio, Catalog, Operate, Share routes, gates, and exception surfaces. Migration tickets cite this map for URL shapes, gates, empty states, and smoke evidence.
+- [Console UX Redesign — Unified Data → Layer Flow (AI + manual)](docs/design/console-ux-redesign.md) — proposal to collapse the separate Resources/Services/Layers Operate sections and the five scattered import/publish entry points into one guided "add data → resource → layer → style → publish" flow with two drivers (agent-approval and manual wizard). BlueSpatial-inspired; honors console#193 (information + approval, forms-light).
 - [Honua Studio Information Model And Workflows](docs/architecture/studio-information-model-and-workflows.md)
 - [Studio Package Editor Routes](docs/studio/package-editor-routes.md) — Console-native editor routes, package-family coverage, the temporary lifecycle mock contract for the remaining `honua-console#39` editors, and the server-bound `/studio/form` exception from `honua-console#57`.
 - [GitOps Metadata Publishing Information Model](docs/architecture/gitops-metadata-publishing-information-model.md)

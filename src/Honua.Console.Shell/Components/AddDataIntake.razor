@@ -1,0 +1,225 @@
+@namespace Honua.Console.Shell.Components
+
+@*
+    DESIGN SKETCH (docs/design/console-ux-redesign.md, Phase 1, step ① "Add data").
+
+    The single intake bar that anchors the unified "Add data → layer" flow. It generalizes the
+    Esri-only Components/EsriImportIntake.razor "intake bar" pattern into the five data sources the
+    redesign calls for:
+
+        Upload file · Connect a table · Remote service · Existing resource · Describe it (AI)
+
+    This is a presentational sketch: it owns the mode selection + source description and raises the
+    chosen DataSourceIntake to the host flow (Components/Operate DataToLayerFlow, not yet built) via
+    OnSourceChosen. It binds no services and fabricates no data, so it builds clean and renders the
+    same missing-binding/binding-required posture the existing intake uses for server-only modes.
+
+    The "Existing resource" mode is the explicit answer to the founder's "use an existing resource to
+    create a layer" gap: choosing it lets the flow skip the ingest/Resource step and jump straight to
+    the Layer step. "Describe it (AI)" hands the source description to the AI driver
+    (Components/StudioAiConversation) rather than a parser.
+*@
+<div class="add-data-intake" data-add-data-intake>
+    <div class="add-data-intake__bar">
+        <div class="add-data-intake__modes" role="tablist" aria-label="Add data source">
+            @foreach (var option in ModeOptions)
+            {
+                <button type="button"
+                        role="tab"
+                        class="add-data-intake__mode @(option.Mode == _mode ? "add-data-intake__mode--on" : string.Empty)"
+                        aria-selected="@(option.Mode == _mode)"
+                        data-intake-mode="@option.Mode.ToString()"
+                        @onclick="() => SetMode(option.Mode)">
+                    @option.Label
+                </button>
+            }
+        </div>
+    </div>
+
+    @switch (_mode)
+    {
+        case AddDataMode.File:
+            <div class="add-data-intake__input">
+                <label class="studio-form-label">
+                    <span>Upload a geospatial file</span>
+                    <InputFile class="add-data-intake__file" OnChange="OnFileSelected"
+                               accept="@AcceptAttribute" aria-label="Upload a geospatial file" />
+                    @if (SupportedExtensions.Count > 0)
+                    {
+                        <small class="console-muted">Supported: @string.Join(", ", SupportedExtensions)</small>
+                    }
+                </label>
+                <p class="console-muted">The file is ingested into a canonical resource, then exposed as a layer.</p>
+            </div>
+            break;
+
+        case AddDataMode.Table:
+            <div class="add-data-intake__input">
+                <label class="studio-form-label">
+                    <span>Connection</span>
+                    <select class="console-input" aria-label="Connection"
+                            @bind="_connectionId" @bind:after="RaiseTable">
+                        <option value="">Select a connection…</option>
+                        @foreach (var connection in Connections)
+                        {
+                            <option value="@connection.Id">@connection.Label</option>
+                        }
+                    </select>
+                </label>
+                @if (Connections.Count == 0)
+                {
+                    <p class="console-muted">
+                        No data connections yet. <a href="/operate/connections/new">Add a connection</a>,
+                        then choose a table here. (BlueSpatial B6: connect-then-pick the live table list.)
+                    </p>
+                }
+                else
+                {
+                    <p class="console-muted">Pick a table/view; honua-server lists what the connection actually exposes.</p>
+                }
+            </div>
+            break;
+
+        case AddDataMode.RemoteService:
+            <div class="add-data-intake__input">
+                <label class="studio-form-label">
+                    <span>Service or catalog URL</span>
+                    <input class="console-input" type="text" data-intake-url
+                           placeholder="https://example.com/arcgis/rest/services"
+                           aria-label="Remote service or catalog URL"
+                           @bind="_remoteUrl" @bind:event="oninput" @bind:after="RaiseRemote" />
+                </label>
+                <div class="add-data-intake__binding" data-intake-binding>
+                    <span class="console-status console-state-info">binding required</span>
+                    <span>Discovering and importing a remote Esri/OGC service reads through honua-server.</span>
+                </div>
+            </div>
+            break;
+
+        case AddDataMode.ExistingResource:
+            <div class="add-data-intake__input">
+                <label class="studio-form-label">
+                    <span>Existing resource</span>
+                    <select class="console-input" aria-label="Existing resource"
+                            @bind="_resourceId" @bind:after="RaiseExisting">
+                        <option value="">Choose a resource you already have…</option>
+                        @foreach (var resource in ExistingResources)
+                        {
+                            <option value="@resource.Id">@resource.Label</option>
+                        }
+                    </select>
+                </label>
+                <p class="console-muted">
+                    Skips ingest — the flow jumps straight to creating a layer/service from this resource.
+                </p>
+            </div>
+            break;
+
+        default: // AddDataMode.Ai
+            <div class="add-data-intake__input">
+                <label class="studio-form-label">
+                    <span>Describe what you want</span>
+                    <textarea class="console-input add-data-intake__textarea" rows="3"
+                              placeholder="e.g. publish the parcels shapefile I uploaded as a public layer"
+                              aria-label="Describe the data and layer you want"
+                              @bind="_aiPrompt" @bind:event="oninput" @bind:after="RaiseAi"></textarea>
+                </label>
+                <p class="console-muted">The agent fills the flow and pauses at each step for your approval.</p>
+            </div>
+            break;
+    }
+</div>
+
+@code {
+    private AddDataMode _mode = AddDataMode.File;
+    private string _connectionId = string.Empty;
+    private string _resourceId = string.Empty;
+    private string _remoteUrl = string.Empty;
+    private string _aiPrompt = string.Empty;
+
+    /// <summary>The five sources the unified flow accepts (see redesign §3, item 2).</summary>
+    public enum AddDataMode
+    {
+        File,
+        Table,
+        RemoteService,
+        ExistingResource,
+        Ai,
+    }
+
+    /// <summary>A chosen source, raised to the host flow. Ref is mode-specific (file name, table id, URL, resource id, prompt).</summary>
+    public readonly record struct DataSourceIntake(AddDataMode Mode, string? Reference);
+
+    /// <summary>A selectable option (connection / existing resource) the host supplies.</summary>
+    public readonly record struct IntakeOption(string Id, string Label);
+
+    private readonly record struct ModeOption(AddDataMode Mode, string Label);
+
+    private static readonly ModeOption[] ModeOptions =
+    [
+        new(AddDataMode.File, "Upload file"),
+        new(AddDataMode.Table, "Connect a table"),
+        new(AddDataMode.RemoteService, "Remote service"),
+        new(AddDataMode.ExistingResource, "Existing resource"),
+        new(AddDataMode.Ai, "Describe it (AI)"),
+    ];
+
+    /// <summary>Connections available for the "Connect a table" mode (host-supplied; empty by default).</summary>
+    [Parameter]
+    public IReadOnlyList<IntakeOption> Connections { get; set; } = Array.Empty<IntakeOption>();
+
+    /// <summary>Existing resources available for the "Existing resource" mode (host-supplied; empty by default).</summary>
+    [Parameter]
+    public IReadOnlyList<IntakeOption> ExistingResources { get; set; } = Array.Empty<IntakeOption>();
+
+    /// <summary>Supported upload extensions, read live from honua-server by the host (e.g. ".geojson", ".gpkg").</summary>
+    [Parameter]
+    public IReadOnlyList<string> SupportedExtensions { get; set; } = Array.Empty<string>();
+
+    /// <summary>Raised whenever the chosen source changes, so the host flow can stage step ① and enable Continue.</summary>
+    [Parameter]
+    public EventCallback<DataSourceIntake> OnSourceChosen { get; set; }
+
+    private string AcceptAttribute =>
+        SupportedExtensions.Count == 0 ? string.Empty : string.Join(",", SupportedExtensions);
+
+    private async Task SetMode(AddDataMode mode)
+    {
+        if (_mode == mode)
+        {
+            return;
+        }
+
+        _mode = mode;
+        // Re-raise the current source for the newly selected mode so the host reflects the switch.
+        await Raise(mode, CurrentReferenceFor(mode));
+    }
+
+    private string? CurrentReferenceFor(AddDataMode mode) => mode switch
+    {
+        AddDataMode.Table => string.IsNullOrEmpty(_connectionId) ? null : _connectionId,
+        AddDataMode.RemoteService => string.IsNullOrWhiteSpace(_remoteUrl) ? null : _remoteUrl,
+        AddDataMode.ExistingResource => string.IsNullOrEmpty(_resourceId) ? null : _resourceId,
+        AddDataMode.Ai => string.IsNullOrWhiteSpace(_aiPrompt) ? null : _aiPrompt,
+        _ => null,
+    };
+
+    private Task RaiseTable() => Raise(AddDataMode.Table, string.IsNullOrEmpty(_connectionId) ? null : _connectionId);
+
+    private Task RaiseRemote() => Raise(AddDataMode.RemoteService, string.IsNullOrWhiteSpace(_remoteUrl) ? null : _remoteUrl);
+
+    private Task RaiseExisting() => Raise(AddDataMode.ExistingResource, string.IsNullOrEmpty(_resourceId) ? null : _resourceId);
+
+    private Task RaiseAi() => Raise(AddDataMode.Ai, string.IsNullOrWhiteSpace(_aiPrompt) ? null : _aiPrompt);
+
+    private Task OnFileSelected(InputFileChangeEventArgs args) =>
+        Raise(AddDataMode.File, args.File?.Name);
+
+    private async Task Raise(AddDataMode mode, string? reference)
+    {
+        if (OnSourceChosen.HasDelegate)
+        {
+            await OnSourceChosen.InvokeAsync(new DataSourceIntake(mode, reference));
+        }
+    }
+}
