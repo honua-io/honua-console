@@ -8,6 +8,7 @@
 @inject IServiceLayerPublishOperation PublishOperation
 @inject IOperateTransitionDataSource OperateData
 @inject IStudioMapStyleCatalogDataSource StyleData
+@inject IAiPublishDriver AiDriver
 @inject NavigationManager Nav
 
 @*
@@ -22,12 +23,16 @@
         ④ Style       — dual-mode StudioStyleEditor (picked here, authored in the embedded editor; not forked)
         ⑤ Go live     — per-protocol route review + visibility + the single Apply (publishes each Publication)
 
-    Manual driver is wired end-to-end. The AI driver is a structural seam (FlowDriver.Ai): the same flow
-    object, an AiDriver TODO — manual mode is the priority for first testing (redesign Phase 3 deferred).
+    Both drivers are wired end-to-end (redesign Phase 3). The AI driver (FlowDriver.Ai) fills the SAME flow
+    object: the user states intent in plain language, the server's AI generation surface (Bedrock-capable —
+    honua-server #1737, via IAiPublishDriver) proposes a resource + protocols + style, and the console renders
+    a single OUTCOME + approval card (Approve / Edit / Reject) with the plan behind a Details disclosure only —
+    not a plan/spec/tool-call dump. Approve applies through the SAME wired admin publish path manual mode uses;
+    Edit drops the proposal into the manual controls and resumes; Reject discards. The human always approves.
 
     Every server-touching call surfaces its real outcome; when no server is bound the underlying clients
-    return missing-binding states, which this host renders as a first-class "unsupported" panel rather than
-    fabricating a step result.
+    return missing-binding states (and the AI driver an honest "AI unavailable" state), which this host renders
+    as a first-class panel rather than fabricating a step result.
 *@
 <section class="console-page data-publish-flow" data-data-publish-flow>
     <div class="console-page-heading">
@@ -66,20 +71,98 @@
         </article>
     }
 
-    @if (_flow.Driver == FlowDriver.Ai)
+    @if (_flow.Driver == FlowDriver.Ai && _flow.Step != FlowStep.Done)
     {
-        <article class="console-panel console-state-info" role="note" data-ai-driver-seam>
+        <article class="console-panel data-publish-flow__ai" data-ai-driver>
             <p class="console-kicker">AI driver</p>
-            <h2>Outcome + one approval — coming in Phase 3</h2>
-            <p>
-                The AI driver fills this same flow object and surfaces a single outcome card
-                (&ldquo;I&rsquo;ll publish <em>&hellip;</em> as FeatureServer + STAC&rdquo; — Approve / Edit / Reject),
-                with the plan behind a <em>Details</em> disclosure. The seam is in place; manual mode drives the flow today.
-            </p>
-            <div class="console-action-row">
-                <button type="button" class="console-button" @onclick="() => SetDriver(FlowDriver.Manual)">Use manual mode</button>
-            </div>
+            <h2>Describe what to publish</h2>
+            <p class="console-muted">Say it in plain language — I&rsquo;ll propose a resource, the services to expose, and a style, then ask you to approve. Nothing publishes until you do.</p>
+
+            @if (_aiCapability is { Enabled: false })
+            {
+                <article class="console-panel console-state-warning" role="note" data-ai-unavailable>
+                    <p class="console-kicker">AI unavailable</p>
+                    <p>@(_aiCapability.Detail ?? "The honua-server AI generation surface is not available.")</p>
+                    <div class="console-action-row">
+                        <button type="button" class="console-button" @onclick="() => SetDriver(FlowDriver.Manual)" data-ai-use-manual>Use manual mode</button>
+                    </div>
+                </article>
+            }
+            else
+            {
+                <label class="studio-form-label">
+                    <span>Your intent</span>
+                    <textarea class="console-input" rows="3" @bind="_aiIntent" @bind:event="oninput"
+                              placeholder="publish Maui parcels as a feature service and a STAC catalog, styled by zoning"
+                              disabled="@_busy" data-ai-intent></textarea>
+                </label>
+                <div class="console-action-row">
+                    <button type="button" class="console-button" disabled="@(_busy || string.IsNullOrWhiteSpace(_aiIntent))" @onclick="ProposeAsync" data-ai-propose>
+                        @(_busy ? "Thinking…" : "Propose →")
+                    </button>
+                    <button type="button" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Manual)">Switch to manual</button>
+                </div>
+
+                @if (_aiOutcome is { Status: AiPublishOutcomeStatus.Proposed })
+                {
+                    <AiPublishOutcomeCard Proposal="_aiOutcome.Proposal"
+                                          Busy="_busy"
+                                          OnApprove="ApproveProposalAsync"
+                                          OnEdit="EditProposal"
+                                          OnReject="RejectProposal" />
+                }
+                else if (_aiOutcome is { Status: AiPublishOutcomeStatus.NeedsInput })
+                {
+                    <article class="console-panel console-state-info" role="note" data-ai-needs-input>
+                        <p class="console-kicker">A bit more detail</p>
+                        <p>@_aiOutcome.Detail</p>
+                        @if (_aiOutcome.Clarifications.Count > 0)
+                        {
+                            <ul>@foreach (var prompt in _aiOutcome.Clarifications){<li>@prompt</li>}</ul>
+                        }
+                    </article>
+                }
+                else if (_aiOutcome is { Status: AiPublishOutcomeStatus.Unavailable })
+                {
+                    <article class="console-panel console-state-warning" role="note" data-ai-unavailable>
+                        <p class="console-kicker">AI unavailable</p>
+                        <p>@_aiOutcome.Detail</p>
+                    </article>
+                }
+                else if (_aiOutcome is { Status: AiPublishOutcomeStatus.Blocked })
+                {
+                    <article class="console-panel console-state-danger" role="alert" data-ai-blocked>
+                        <p class="console-kicker">AI couldn&rsquo;t reach the server</p>
+                        <p>@_aiOutcome.Detail</p>
+                        <div class="console-action-row">
+                            <button type="button" class="console-button" @onclick="() => SetDriver(FlowDriver.Manual)" data-ai-use-manual>Use manual mode</button>
+                        </div>
+                    </article>
+                }
+
+                @if (_publishResults.Count > 0)
+                {
+                    <div class="console-panel-grid" data-ai-publish-results>
+                        @foreach (var entry in _publishResults)
+                        {
+                            <article class="console-panel @(entry.Succeeded ? "console-state-success" : "console-state-danger")" role="@(entry.Succeeded ? "status" : "alert")">
+                                <p class="console-kicker">@entry.ProtocolLabel — @entry.State</p>
+                                <p>@entry.Detail</p>
+                            </article>
+                        }
+                    </div>
+                }
+            }
+            @if (_missingBinding is null)
+            {
+                @StepError()
+            }
         </article>
+    }
+    else if (_flow.Driver == FlowDriver.Ai)
+    {
+        @* AI approve landed → the shared Done panel below renders. *@
+        @DonePanel()
     }
     else
     {
@@ -278,15 +361,7 @@
                 break;
 
             case FlowStep.Done:
-                <article class="console-panel console-state-success" role="status" data-step-body="Done">
-                    <p class="console-kicker">Published</p>
-                    <h2>@_flow.Resource.Name is live</h2>
-                    <p>@_successPublicationCount of @_flow.PlannedPublications.Count publications landed on honua-server.</p>
-                    <div class="console-action-row">
-                        <a class="console-button" href="@($"/operate/data?focus={Uri.EscapeDataString(_flow.Resource.ResourceId ?? string.Empty)}")">See it in the tree &amp; preview →</a>
-                        <a href="/operate/data">Back to Data &amp; Layers</a>
-                    </div>
-                </article>
+                @DonePanel()
                 break;
         }
     }
@@ -315,6 +390,19 @@
     private string? _missingBinding;
     private string? _styleBinding;
     private int _successPublicationCount;
+
+    // AI driver state (redesign Phase 3): the plain-language intent, the server's capability probe, and the
+    // current outcome (proposal / needs-input / unavailable / blocked) the outcome card renders against.
+    private string _aiIntent = string.Empty;
+    private AiPublishCapability? _aiCapability;
+    private AiPublishOutcome? _aiOutcome;
+
+    // Publishable PostGIS tables the AI can resolve a proposal onto, keyed by display name. Loaded across the
+    // configured connections when AI mode opens so Approve publishes through the SAME wired admin operation
+    // manual mode uses (a Table source is the slice wired end-to-end against the live admin API in #199).
+    private readonly Dictionary<string, AiPublishableTable> _aiTables = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed record AiPublishableTable(string ConnectionId, ServiceLayerPublishTable Table);
 
     private readonly List<PublishResultEntry> _publishResults = [];
 
@@ -350,6 +438,40 @@
         {
             _styleBinding = $"{issue.State}: {issue.Detail}";
         }
+
+        if (_flow.Driver == FlowDriver.Ai)
+        {
+            await ProbeAiCapabilityAsync();
+        }
+    }
+
+    private async Task ProbeAiCapabilityAsync()
+    {
+        // An honest capability probe up front so AI mode shows "AI unavailable" (not a dead Propose button)
+        // when the server lacks AI generation or no provider is configured.
+        _aiCapability = await AiDriver.GetCapabilityAsync();
+
+        // Load the publishable tables the AI can resolve a proposal onto. This is the same data manual mode
+        // uses on the Table source; loading it here lets Approve publish for real through the wired admin op.
+        if (_aiCapability is { Enabled: true } && _aiTables.Count == 0)
+        {
+            await LoadAiPublishableTablesAsync();
+        }
+    }
+
+    private async Task LoadAiPublishableTablesAsync()
+    {
+        foreach (var connection in _connectionOptions)
+        {
+            var tables = await PublishOperation.ListTablesAsync(connection.Id);
+            foreach (var table in tables)
+            {
+                // Keyed by the bare table name (what an intent says) and falling back to the qualified name;
+                // first one wins so a later connection never clobbers an already-resolvable name.
+                _aiTables.TryAdd(table.Table, new AiPublishableTable(connection.Id, table));
+                _aiTables.TryAdd(table.QualifiedName, new AiPublishableTable(connection.Id, table));
+            }
+        }
     }
 
     private void ApplyInitialSource(string? source)
@@ -368,6 +490,17 @@
     private async Task OnSourceChosen(AddDataIntake.DataSourceIntake intake)
     {
         _stepError = null;
+
+        // Choosing the "Describe it (AI)" intake mode flips the flow to the AI driver: the same flow object,
+        // reached through plain-language intent → outcome card (redesign §3.1). The typed prompt seeds the
+        // intent box so the user continues in AI mode without retyping.
+        if (intake.Mode == AddDataMode.Ai)
+        {
+            _aiIntent = intake.Reference ?? _aiIntent;
+            await SetDriver(FlowDriver.Ai);
+            return;
+        }
+
         _flow.Source.Mode = intake.Mode;
         _flow.Source.Reference = intake.Reference;
 
@@ -698,7 +831,162 @@
         _flow.Step = step;
     }
 
-    private void SetDriver(FlowDriver driver) => _flow.Driver = driver;
+    private async Task SetDriver(FlowDriver driver)
+    {
+        _stepError = null;
+        _flow.Driver = driver;
+        if (driver == FlowDriver.Ai && _aiCapability is null)
+        {
+            await ProbeAiCapabilityAsync();
+        }
+    }
+
+    // -------------------------------------------------------------------------- AI driver (Phase 3)
+
+    private async Task ProposeAsync()
+    {
+        _stepError = null;
+        _missingBinding = null;
+        _aiOutcome = null;
+        _publishResults.Clear();
+        _busy = true;
+        try
+        {
+            // Resolve the intent against the real bound resources so the AI never fabricates a resource id: the
+            // publishable PostGIS tables (which Approve publishes for real through the wired admin operation)
+            // plus the catalog resources. The apply step publishes the resolved resource — never a made-up one.
+            var knownResources = _aiTables.Values
+                .Select(entry => new AiPublishResourceRef(entry.Table.QualifiedName, entry.Table.Table))
+                .Concat(_resourceOptions.Select(option => new AiPublishResourceRef(option.Id, option.Label)))
+                .GroupBy(reference => reference.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToArray();
+            _aiOutcome = await AiDriver.ProposeAsync(_aiIntent, knownResources);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // Approve → apply through the SAME wired admin publish path manual mode uses. The proposal's protocols and
+    // service slot are projected onto the shared flow object first, so apply is the identical code path — the
+    // human approval is the single gate and is never weakened.
+    private async Task ApproveProposalAsync()
+    {
+        if (_aiOutcome?.Proposal is not { } proposal)
+        {
+            return;
+        }
+
+        ProjectProposalOntoFlow(proposal);
+        await AiDriver.RecordDecisionAsync(proposal.FeedbackId, "approved");
+        await ApplyAsync();
+    }
+
+    // Edit → drop the proposal into the manual controls and resume there (the redesign's "Edit → manual
+    // handoff"). The flow object already carries the proposal; switching to manual lands the user on Publish
+    // with the proposed protocols/slot pre-filled so they can adjust and finish by hand.
+    private async Task EditProposal()
+    {
+        if (_aiOutcome?.Proposal is not { } proposal)
+        {
+            return;
+        }
+
+        ProjectProposalOntoFlow(proposal);
+        await AiDriver.RecordDecisionAsync(proposal.FeedbackId, "edited");
+        _flow.Driver = FlowDriver.Manual;
+        // Land on Publish (the proposal's protocols/slot are pre-filled); the resource is staged from the
+        // resolved catalog resource so the manual controls pick up from there.
+        _flow.Step = FlowStep.Publish;
+        _aiOutcome = null;
+    }
+
+    private async Task RejectProposal()
+    {
+        var feedbackId = _aiOutcome?.Proposal?.FeedbackId;
+        _aiOutcome = null;
+        _publishResults.Clear();
+        await AiDriver.RecordDecisionAsync(feedbackId, "rejected");
+    }
+
+    // Projects an accepted proposal onto the shared flow object so Approve/Edit reuse the manual apply path.
+    // The resolved resource (a real catalog resource id/name) is staged as an existing resource — never
+    // fabricated — and the proposed protocols/slot/visibility fill the publish step.
+    private void ProjectProposalOntoFlow(AiPublishProposal proposal)
+    {
+        _flow.EnabledProtocols = proposal.Protocols.ToList();
+        _flow.ServiceSlot = proposal.ServiceSlot;
+        _flow.Visibility = proposal.Visibility;
+
+        // Prefer a publishable PostGIS table: it sets a Table source so ApplyAsync publishes for real through
+        // the wired admin op (the slice wired end-to-end in #199). The table list (_tables) is what ApplyAsync
+        // re-looks-up, so populate it with the resolved table.
+        if (_aiTables.TryGetValue(proposal.ResourceName, out var publishable))
+        {
+            _tables = [publishable.Table];
+            _flow.Source.Mode = AddDataMode.Table;
+            _flow.Source.Reference = publishable.ConnectionId;
+            _flow.Source.TableKey = publishable.Table.QualifiedName;
+            _flow.Resource = new ResourceStaging
+            {
+                ResourceId = publishable.Table.QualifiedName,
+                Name = publishable.Table.Table,
+                GeometryType = publishable.Table.GeometryType,
+                Srid = publishable.Table.Srid,
+                FeatureCount = publishable.Table.EstimatedRows ?? 0,
+                Fields = publishable.Table.Columns,
+            };
+            return;
+        }
+
+        // Otherwise the proposal resolved to a catalog resource: stage it as an existing resource (its
+        // per-protocol publish lands server-side after materialization — the same honest result manual mode
+        // surfaces for non-Table sources). Never fabricate a resource id.
+        var option = _resourceOptions.FirstOrDefault(o =>
+            string.Equals(o.Label, proposal.ResourceName, StringComparison.OrdinalIgnoreCase));
+        var resourceId = string.IsNullOrEmpty(option.Id) ? proposal.ResourceName : option.Id;
+        _flow.Source.Mode = AddDataMode.ExistingResource;
+        _flow.Source.Reference = resourceId;
+        _flow.Source.TableKey = null;
+        _flow.Resource = new ResourceStaging
+        {
+            ResourceId = resourceId,
+            Name = proposal.ResourceName,
+        };
+    }
+
+    private RenderFragment DonePanel() => builder =>
+    {
+        builder.OpenElement(0, "article");
+        builder.AddAttribute(1, "class", "console-panel console-state-success");
+        builder.AddAttribute(2, "role", "status");
+        builder.AddAttribute(3, "data-step-body", "Done");
+        builder.OpenElement(4, "p");
+        builder.AddAttribute(5, "class", "console-kicker");
+        builder.AddContent(6, "Published");
+        builder.CloseElement();
+        builder.OpenElement(7, "h2");
+        builder.AddContent(8, $"{_flow.Resource.Name} is live");
+        builder.CloseElement();
+        builder.OpenElement(9, "p");
+        builder.AddContent(10, $"{_successPublicationCount} of {_flow.PlannedPublications.Count} publications landed on honua-server.");
+        builder.CloseElement();
+        builder.OpenElement(11, "div");
+        builder.AddAttribute(12, "class", "console-action-row");
+        builder.OpenElement(13, "a");
+        builder.AddAttribute(14, "class", "console-button");
+        builder.AddAttribute(15, "href", $"/operate/data?focus={Uri.EscapeDataString(_flow.Resource.ResourceId ?? string.Empty)}");
+        builder.AddContent(16, "See it in the tree & preview →");
+        builder.CloseElement();
+        builder.OpenElement(17, "a");
+        builder.AddAttribute(18, "href", "/operate/data");
+        builder.AddContent(19, "Back to Data & Layers");
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+    };
 
     private RenderFragment StepError() => builder =>
     {
