@@ -1,11 +1,41 @@
-# Console UX Redesign — Unified Data → Layer Flow (AI + Manual), BlueSpatial-inspired
+# Console UX Redesign — Resource-First Publication, GeoServer-style Treeview, Unified Data → Publish Flow (AI + Manual)
 
-Status: design proposal (draft). Filed 2026-06-17.
+Status: design proposal (draft). Filed 2026-06-17. Revised 2026-06-17 to add the
+three founder-specified pillars (see box below).
 
 Audience: console product/design, frontend architecture, founder review.
 
+> **What this revision adds (founder direction, post-#198).** The first cut of this
+> doc had the unified flow, the existing-resource intake, and dual-mode styling
+> right, but it modeled the middle of the flow as a vague "Layer / Service" step and
+> still drew a flat catalog list. The founder asked for three things that are the
+> *heart* of the design, now folded in:
+>
+> 1. **The resource-first publication model** (§3.0) — the real metadata-v2 model:
+>    you publish a **Resource**, then toggle which **Services/protocols** expose it,
+>    which creates **Publications** (the "layers" clients consume). This replaces the
+>    old "Layer/Service" step ③ with a **"Publish the resource → pick protocols"** step.
+> 2. **A GeoServer-style treeview as the primary organizing UI** (§5.3) — a
+>    **Resource → its protocol publications** tree (GeoServer "Store" == Honua
+>    "Resource"), with a prominent **Layer Preview**. This *is* the cure for the
+>    "resources separate from layers" split, and it's a migration on-ramp for
+>    Esri/GeoServer users.
+> 3. **Hide the plumbing in AI mode** (§5.5) — the AI surface reads as an
+>    **outcome + one approval** ("I'll publish Maui Parcels as FeatureServer + STAC
+>    and style it green — [Approve] [Edit] [Reject]"), not a plan/spec/tool-call/
+>    dry-run dump. The plan and internals move behind an on-demand **Details**
+>    disclosure; the same flow object drives it underneath.
+
 Decision inputs this proposal honors:
 
+- **The resource-first publication model is the spine** — confirmed in metadata-v2
+  (`Honua.Core.Abstractions/Features/Metadata/Domain/V2/MetadataReleaseEnums.cs`,
+  `MetadataV2Graph.cs`): three semantic kinds — **Resource** (canonical data +
+  `schemaFields`), **Service** (publishes resources; carries `protocols`), and
+  **Publication** (binds `resourceId` + `serviceId`). You publish a *resource* and
+  select which services/protocols expose it; each binding is a Publication, and the
+  Publications are the "layers" Esri/OGC clients consume. This is the inverse of
+  BlueSpatial's service-first model — and the correct one. See §3.0.
 - **console#193** (founder, 2026-06-12) — the console's job is **information**
   (status, timelines, plans/diffs, audit) + **approval** (human-in-the-loop for
   agent operations). *Minimal forms — agents and APIs do the writing; the console
@@ -79,7 +109,7 @@ makes the user be the orchestrator.
 
 ### 1.3 The pain: AI and manual paths are different surfaces, not one flow
 
-Studio already has a strong **AI conversation + live-preview + approve** surface
+Studio already has an **AI conversation + live-preview + approve** surface
 (`Components/StudioAiConversation.razor`: left conversation column with structured
 clarification cards, right live package preview; the design-fidelity scorecard
 rates the Studio Map/Dashboard AI screens 93–94). But that AI posture lives **only
@@ -87,7 +117,10 @@ in Studio** (map/dashboard/report/app authoring). The Operate "add data → laye
 journey has **no AI driver at all** — it is pure forms. So the two product
 directions the founder wants unified (agent-first per console#193, and a usable
 manual fallback) are today split across two areas (Studio = AI authoring; Operate =
-manual plumbing) with no shared flow.
+manual plumbing) with no shared flow. **And the existing AI surface itself draws a
+founder critique — it "exposes too much plumbing"** (plan/spec/tool-call/dry-run
+columns up front). So we reuse its *mechanism* but not its default presentation: the
+data→publish AI mode reads as an outcome + one approval, plan-on-demand (§4.1/§5.5).
 
 ### 1.4 What is actually good and reusable (don't rebuild)
 
@@ -134,70 +167,124 @@ mode**, not the default.
 
 ---
 
+## 3.0 The resource-first publication model (the spine of the whole design)
+
+Everything below — the flow, the treeview, the AI surface — hangs off one model,
+confirmed in metadata-v2. There are **three semantic artifact kinds**
+(`MetadataReleaseEnums.cs:MetadataSemanticArtifactKind`):
+
+| Kind | What it is | metadata-v2 source |
+|---|---|---|
+| **Resource** | The canonical data + schema. Owns `schemaFields`, geometry, SRS, storage bindings. *The thing you actually have.* | `MetadataV2Resource` (`MetadataV2Graph.cs:135`); `schemaFields` at `:189` |
+| **Service** | A publisher of resources. Carries **`protocols`** — the single source of truth for which protocol surfaces it exposes. | `MetadataV2Service` (`:560`); `Protocols` at `:619`; `MetadataV2ServiceType` (`MetadataV2Enums.cs:255`) |
+| **Publication** | A **binding of `resourceId` + `serviceId`** — at most one per `(resourceId, serviceId)` pair. *This binding is the "layer" an Esri/OGC client consumes.* | `MetadataV2Publication` (`:743`); `resourceId`/`serviceId` at `:758`/`:765` |
+
+The graph spells the direction out: *"Resource-first publication links from
+`resourceId` to `serviceId`"* (`MetadataV2Graph.cs:89`) and *"Canonical resources.
+Publications expose these resources through services"* (`:65`). So the real model is
+**resource-first**:
+
+```
+  RESOURCE  ──(select services/protocols to expose it)──►  PUBLICATIONS  ──►  live REST surfaces
+  (data +                                                   (one per                (FeatureServer/MapServer/
+   schemaFields)        each toggle creates a Publication    resource×service)       STAC/WMS/WFS/WMTS/OGC API…)
+```
+
+You **publish the Resource**, then **toggle which Services/protocols hang off it**;
+each toggle is a Publication; the Publications are the "layers." This is the **inverse
+of BlueSpatial's service-first** flow (where you pre-create a Service and *then* hang
+layers under it) — and it's the correct one, because the data (the resource) is the
+durable thing and the protocol exposure is a cheap, additive, toggleable projection.
+
+**Protocol vocabulary** (what the toggles are). Services declare `protocols` from
+`ServiceProtocols` (e.g. `FeatureServer`, `MapServer`, `ImageServer`, `Stac`,
+`OgcFeatures`, `OGC-API-Maps`, `OGC-API-Tiles`, `Wfs20`, `Wms`, `Wmts`, `OData`,
+`Grpc`), with `MetadataV2ServiceType` naming the service category
+(`ogc-api-features`, `wfs`, `wms`, `wmts`, `esri-feature-service`, `esri-map-service`,
+`esri-image-service`, `stac-api`, `odata`, …). The publish step renders these as a
+**checklist of protocols/services to expose the resource through** — not a "name a
+service" form.
+
+**What this changes in the redesign:** the old "③ Layer / Service" step becomes
+**③ Publish — pick the services/protocols that expose this resource** (each pick is a
+Publication). "Layer" stops being a thing you create; it is the *result* of a
+Publication. This is the precise model the flat catalog only half-expressed.
+
+---
+
 ## 3. The unified flow (the core fix)
 
 One coherent journey replaces the five-page scatter. Same flow, whether an agent or
-a human drives it:
+a human drives it. The middle step is now the **resource-first publish** (§3.0):
 
 ```
             ┌─────────────────────────────────────────────────────────────────────┐
-            │                         ADD DATA → LAYER                              │
+            │                  CONNECTION → RESOURCE → PUBLISH → STYLE              │
             │                    (one route, one flow object)                       │
             └─────────────────────────────────────────────────────────────────────┘
 
-  ① ADD DATA                ② RESOURCE              ③ LAYER / SERVICE        ④ STYLE          ⑤ PUBLISH
-  intake bar (B1)           canonical metadata      expose as a service       dual-mode (kept) review + approve
-  ┌──────────────┐          ┌──────────────┐        layer (new or reuse)      ┌──────────┐    ┌──────────────┐
-  │ Upload file  │          │ inferred     │        ┌──────────────┐          │ MapLibre │    │ blast radius │
-  │ Connect/pick │──ingest─▶│ fields,      │──bind─▶│ service slot │──draws──▶│   OR     │──▶ │ + visibility │
-  │   table      │          │ geometry,    │        │ + layer name │          │ Esri     │    │ + route/embed│
-  │ Remote svc   │          │ SRS, issues  │        │ (auto or pick)│         │ drawing  │    │ → APPLY      │
-  │ Existing     │          │ (validation) │        └──────────────┘          │  Info    │    └──────────────┘
-  │   resource   │          └──────────────┘                                  └──────────┘
-  │ Describe(AI) │                                                                              ends on the
-  └──────────────┘                                                                              new layer's detail (B4)
+  ① ADD DATA            ② RESOURCE            ③ PUBLISH (resource-first)      ④ STYLE          ⑤ GO LIVE
+  intake bar (B1)       canonical data        pick services/protocols to     dual-mode (kept)  review + approve
+  ┌──────────────┐      + schemaFields        expose this resource → each    ┌──────────┐      ┌──────────────┐
+  │ Upload file  │      ┌──────────────┐      toggle = a Publication         │ MapLibre │      │ blast radius │
+  │ Connect/pick │      │ inferred     │      ┌─────────────────────────┐    │   OR     │      │ + visibility │
+  │   table      │─ingest▶│ fields,    │─publish▶│ FeatureServer  ✓     │─draws▶│ Esri  │──▶  │ + routes per │
+  │ Remote svc   │      │ geometry,    │      │ MapServer      ✓        │    │ drawing  │      │   protocol   │
+  │ Existing     │      │ SRS, issues  │      │ STAC           ✓        │    │  Info    │      │ → APPLY      │
+  │   resource   │      │ (validation) │      │ WMS · WFS · OGC API …  │    └──────────┘      └──────────────┘
+  │ Describe(AI) │      └──────────────┘      └─────────────────────────┘                        ends on the
+  └──────────────┘            ▲                  (Publications created)                          resource node (B4)
+                              └── "Existing resource" skips ingest, lands here ──┘                in the treeview (§5.3)
 ```
 
 Key principles:
 
-1. **No orphan "resource" vs "layer" split.** A resource is the canonical metadata
-   produced in step ②; a layer is that same resource *exposed* in step ③. They are
-   two states of one object in one flow, not two nav sections (kills the
-   "Canonical resource" back-link, §1.1; pattern B2).
+1. **No orphan "resource" vs "layer" split.** A resource is the canonical data
+   produced in step ②; the "layers" are the **Publications** created in step ③ when
+   you toggle protocols on. They are facets of one object in one flow, not two nav
+   sections (kills the "Canonical resource" back-link, §1.1; pattern B2; the
+   resource-first model, §3.0).
 2. **One intake, five sources** (step ①, generalizing `EsriImportIntake`):
    *Upload file*, *Connect/choose a table on an existing connection*, *Remote
    Esri/OGC service*, ***Use an existing resource*** (the "I already have data,
-   make a layer from it" case), and *Describe it (AI)*. Picking "existing resource"
-   skips ② and lands directly on ③ — this is the explicit answer to the founder's
+   publish it" case), and *Describe it (AI)*. Picking "existing resource"
+   skips ② and lands directly on ③ — the explicit answer to the founder's
    "use an existing resource to create a layer" gap.
-3. **Auto-provision the boring plumbing** (B-divergence): the service slot, folder,
-   and (where possible) the connection are auto-named/auto-created, with an
-   "advanced / change" affordance — never a mandatory pre-step.
-4. **End on the artifact, not a toast** (B4): the flow terminates on the new
-   layer's detail with Preview / Style / Share inline.
+3. **③ is resource-first publish, not a layer form** (§3.0): you toggle the
+   **services/protocols** that should expose the resource (FeatureServer / MapServer /
+   STAC / WMS / WFS / WMTS / OGC API / OData …). Each enabled toggle creates a
+   **Publication**. The service slot/name is auto-provisioned with a "change"
+   affordance (B-divergence) — never a mandatory pre-step.
+4. **End on the artifact, not a toast** (B4): the flow terminates on the
+   **resource's node in the treeview** (§5.3), its protocol publications and Preview
+   right there.
 5. **Style is the existing dual-mode editor** (step ④), embedded — MapLibre or Esri
    drawingInfo, server-converted. Not re-specified here.
-6. **Publish is an approval, not a form** (step ⑤, console#193): the review card
-   shows the blast radius (`OperateResourcesPage` model) + visibility/route/embed
-   policy; Apply is the single authorizing action.
+6. **Go-live is an approval, not a form** (step ⑤, console#193): the review card
+   shows the blast radius (`OperateResourcesPage` model) + the visibility and the
+   **per-protocol routes** the publications will serve; Apply is the single
+   authorizing action.
 
 ### 3.1 Flow object (shared by both drivers)
 
 ```
-DataToLayerFlow
+DataToPublishFlow                                  # (was DataToLayerFlow — renamed for the resource-first model)
   Source        : { kind: file|table|remoteService|existingResource|aiPrompt, ref }
   Resource      : { resourceId?, inferredFields[], geometry, srs, validationFindings[] }
-  Exposure      : { serviceSlot, layerName, reuseExistingService?: serviceId }
+  Publications[]: { serviceId?, serviceType, protocols[], identifier?, isPrimary,    # §3.0: one per service/protocol set
+                    autoProvisioned: bool }        #   each entry binds Resource→Service (a metadata-v2 Publication)
   Style         : { styleId, encoding: MapLibre|Esri }     # reuses StudioStyleEditor
-  Publication   : { visibility, route, embedPolicy, blastRadius }
+  GoLive        : { visibility, embedPolicy, routesByProtocol{}, blastRadius }
   Driver        : agent | manual
-  Step          : addData | resource | layer | style | publish | done
+  Step          : addData | resource | publish | style | golive | done
   Approvals[]   : { step, plan, dryRun?, decidedBy, decision }
 ```
 
-Both drivers mutate the *same* flow object and hit the *same* server contracts
-(file import, table publish, service-layer publish, style save). The only
-difference is **who fills the fields and who clicks Apply**.
+The shape mirrors metadata-v2 (§3.0): one `Resource`, a list of `Publications` (one
+per service/protocol exposure), and the styled, gated go-live. Both drivers mutate the
+*same* flow object and hit the *same* server contracts (file import, publish-resource,
+toggle-protocol, style save). The only difference is **who fills the fields and who
+clicks Apply** — and, in AI mode, **how much of this object the human sees** (§5.5).
 
 ---
 
@@ -209,24 +296,44 @@ difference is **who fills the fields and who clicks Apply**.
 > flow object* — you can start with AI, drop to manual to hand-tune step ③, and
 > resume.
 
-### 4.1 AI mode (default) — agent proposes, human approves
+### 4.1 AI mode (default) — outcome + one approval, plumbing hidden
 
-Reuses `StudioAiConversation.razor` as the left rail; the right rail is the **same
-step preview** the manual wizard renders.
+> **Founder critique this answers:** the current AI studio flows *"expose too much
+> plumbing."* The first cut of this doc reused `StudioAiConversation.razor` as-is —
+> i.e. the very surface being criticized, with its plan/spec/tool-call/dry-run
+> columns visible by default. **This revision keeps the same underlying flow object
+> but changes what the human sees:** AI mode reads as an **outcome statement + a
+> single approval**, with the plan and internals tucked behind an on-demand
+> *Details* disclosure.
 
-- The human states intent ("publish the parcels shapefile I just uploaded as a
-  styled layer, public").
-- The agent fills the flow object step by step and **pauses at each step boundary**
-  with a **plan card** (and, where the server supports it, a **dry-run** result):
-  inferred fields/geometry/SRS for ②; proposed service slot + layer name for ③;
-  proposed style for ④; visibility + **blast radius** for ⑤.
-- The human **Approves / Rejects / Edits** each plan card. Reject or Edit drops that
-  one step into manual controls (the wizard's own inputs), then resumes AI.
-- Ambiguity → structured **clarification cards** (already supported by
-  `StudioAiConversation`: choices with effect labels), not a free-text dead-end.
+The default AI surface is **one card, not a transcript**:
+
+- The human states intent ("publish Maui Parcels as a public layer, styled green").
+- The agent works the whole flow object silently and surfaces **one outcome card**:
+  > *"I'll publish **Maui Parcels** as **FeatureServer + STAC** and style it
+  > **green**."*  **[ Approve ]   [ Edit ]   [ Reject ]**
+- **Approve** is the single authorizing action — it runs the whole flow (it does not
+  walk the human through five sub-approvals unless they ask).
+- **Edit** opens the relevant step's manual control inline (drops to the wizard
+  inputs for just that facet, §4.3), then re-summarizes.
+- **Reject** discards and re-prompts.
+- **The plan/internals are available on demand, never the default surface.** A
+  *Details ▸* disclosure on the card reveals what §4.1-old put up front: inferred
+  fields/geometry/SRS, the exact Publications (service/protocol bindings) it will
+  create, the chosen style encoding, the dry-run result, and the blast radius. Power
+  users and audits get the full plan; the default reader gets the outcome.
+- Ambiguity that genuinely blocks the outcome → **one inline clarification** with
+  effect-labeled choices (reusing `StudioAiConversation`'s clarification cards), not a
+  multi-turn interrogation.
 - Maps cleanly onto the devops console-bridge posture (console#193:
-  `create_gitops_proposal` / `get_devops_operation_status`): each approved step can
-  emit a proposal/operation the timeline tracks.
+  `create_gitops_proposal` / `get_devops_operation_status`): the single Approve emits
+  the proposal/operation the timeline tracks; the *Details* disclosure is where that
+  plan/diff lives.
+
+This is the "minimal forms, information + approval" posture of console#193 taken to
+its conclusion: the human authorizes an **outcome**, and the plumbing
+(services, protocols, publications, dry-runs) is *information available on request*,
+not the headline. See the revised wireframe in §5.5.
 
 ### 4.2 Non-AI mode (manual) — guided wizard, human drives
 
@@ -255,29 +362,37 @@ it's also the natural Edit affordance for an AI plan card (§4.1).
 
 ### 5.1 Proposed IA change (Operate secondary nav)
 
+GeoServer's webadmin sidebar IA is the model the founder pointed at: a familiar
+left-rail of *Data → Stores → Layers* with a Layer Preview, narrow and stable. We
+adopt that shape (a single **Data & Layers** spine fronting a tree) — a deliberate
+familiarity win for migrating Esri/GeoServer users.
+
 ```
 BEFORE (Layout/ConsoleLayout.razor:82–95)        AFTER
-  Connections                                       Data & Layers      ← unified (resources+layers+services)
+  Connections                                       Data & Layers      ← resource-first TREE (resources→publications)
   Resources        ─┐                                 ├─ + Add data    ← launches the flow (route below)
-  Services          ├─ four parallel nouns            └─ Connections   ← sources stay a sub-section (B6)
-  Layers           ─┘                               Publishing
-  Versions                                          Versions
-  Catalogs                                          Catalogs
-  Settings / Access / Temporal / Observability / Metrics  (unchanged)
+  Services          ├─ four parallel nouns            ├─ Layer Preview ← GeoServer-style "see the output fast" (B8)
+  Layers           ─┘                                 └─ Connections   ← sources stay a sub-section (B6)
+  Versions                                          Publishing
+  Catalogs                                          Versions
+  Settings / Access / Temporal / Observability / Metrics  (unchanged)   Catalogs
 ```
 
-`Connections` stays (a data *source* is legitimately its own concept, B6) but moves
-*under* Data & Layers as a sub-section rather than a co-equal top noun. `Resources`,
-`Services`, and `Layers` collapse into the single **Data & Layers** surface.
+`Connections` stays (a data *source* is legitimately its own concept, B6 ≙
+GeoServer's "Stores → connection params") but moves *under* Data & Layers as a
+sub-section. `Resources`, `Services`, and `Layers` collapse into the single
+**Data & Layers** tree (§5.3). **Layer Preview** is promoted to a first-class
+sidebar entry — GeoServer's "immediate visibility" onboarding lever, so a user sees
+a rendered result fast rather than only catalog rows.
 
 ### 5.2 Route map delta (additive; governed by `docs/console-route-map.md`)
 
 ```
-NEW   /operate/data                         Unified Data & Layers view (resource+layer+service, one list)
-NEW   /operate/data/new                     The Add data → layer flow  (?driver=ai|manual, ?step=add|resource|layer|style|publish)
-KEEP  /operate/data/:id                     Resource/layer detail (merges /operate/resources/:id + /operate/layers/:id)
+NEW   /operate/data                         Resource→publications treeview (the GeoServer-style spine, §5.3)
+NEW   /operate/data/new                     The data → publish flow  (?driver=ai|manual, ?step=add|resource|publish|style|golive)
+KEEP  /operate/data/:id                     Resource node detail = the resource + its publications (merges /operate/resources/:id + /operate/layers/:id)
 REDIRECT /operate/resources  → /operate/data
-REDIRECT /operate/layers     → /operate/data
+REDIRECT /operate/layers     → /operate/data           (a "layer" is now a Publication node under its resource)
 REDIRECT /operate/services   → /operate/data?view=services
 REDIRECT /operate/resources/new, /operate/resources/import, /operate/publishing/quick, /operate/import/service
          → /operate/data/new?source=<file|table|remoteService>   (the five entry points fold into one)
@@ -289,38 +404,67 @@ KEEP  /studio/styles/:id                    (dual-mode style editor — embedded
 distinct — it is *content* migration, not the data→layer flow (route map §106 calls
 out this distinction explicitly). The flow may *link* to it as an alternate source.
 
-### 5.3 Wireframe — Unified "Data & Layers" view (replaces 3 list pages)
+### 5.3 Wireframe — GeoServer-style **resource → publications treeview** (the primary spine)
+
+This is the structural heart of the IA. GeoServer shows **Layers under a Store**; the
+exact analogy is **Honua Publications under a Resource** (GeoServer "Store" == Honua
+"Resource", §3.0). Making that hierarchy *visible* is what finally cures the
+"resources separate from layers" split that the old flat catalog only half-addressed.
+Each resource node expands to its **protocol publications, rendered as toggles** —
+the same toggles the publish step (§3.0/§5.4b) writes:
 
 ```
-┌ Operate / Data & Layers ───────────────────────────────────────────────────┐
-│  Data & Layers                                            [ + Add data ▾ ]  │  ← ▾ = file/table/remote/AI
-│  Every dataset and the layer/service it's published as. One object, one row.│
-│                                                                             │
-│  ⌕ filter…            [ All ][ Published ][ Draft ][ Needs review ]         │
-│ ┌─────────────────────────────────────────────────────────────────────────┐│
-│ │ ● parcels            file · 12,403 feat · polygon   ▶ Running            ││ ● = status badge (B2)
-│ │   resource: rsc_8f… → service: city/parcels-fs → layer #1   public      ││   resource→service→layer
-│ │   [ Preview ] [ Style ] [ Share ] [ ⋯ ]                                  ││   inline next actions (B3)
-│ ├─────────────────────────────────────────────────────────────────────────┤│
-│ │ ○ zoning             table · postgis: city_db.zoning   ⏹ Draft          ││ ○ = not yet exposed
-│ │   resource: rsc_2a…    (not published)        [ Publish as layer → ]    ││   the missing-link CTA
-│ ├─────────────────────────────────────────────────────────────────────────┤│
-│ │ ● traffic-sensors    remote · arcgis…/Traffic   ▶ Running    org-only   ││
-│ │   resource: rsc_d3… → service: live/traffic-fs → layer #0               ││
-│ └─────────────────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────────────┘
+┌ Operate / Data & Layers ─────────────────────────────────────┬─ Layer Preview ──────────────┐
+│  Data & Layers                          [ + Add data ▾ ]      │  parcels · FeatureServer      │  ← GeoServer "see
+│  Resources, and the services/protocols each is published on.  │ ┌──────────────────────────┐ │     output fast"
+│  ⌕ filter…     [ All ][ Published ][ Draft ][ Needs review ]  │ │   ▢▢▢ rendered map tile   │ │     (B5/B8)
+│ ┌───────────────────────────────────────────────────────────┐│ │   (the served endpoint)   │ │
+│ │ ▼ ● parcels        file · 12,403 feat · polygon  ▶ Running ││ └──────────────────────────┘ │
+│ │     resource rsc_8f…   (canonical data + 14 fields)        ││  open in: FeatureServer ▾     │  ← preview == the
+│ │     ├─ FeatureServer  ✓  /city/parcels/FeatureServer/1     ││  [ Style ] [ Share ] [ ⋯ ]    │     published URL
+│ │     ├─ MapServer      ✓  /city/parcels/MapServer            ││                               │
+│ │     ├─ STAC           ✓  /stac/collections/parcels         │└───────────────────────────────┘
+│ │     └─ WMS · WFS · WMTS · OGC API · OData    [ + expose ▾ ] │   ← dormant protocols = one click
+│ │        [ Preview ] [ Style ] [ Share ] [ ⋯ ]               │      to add a Publication (§3.0)
+│ ├───────────────────────────────────────────────────────────┤
+│ │ ▶ ○ zoning         table · postgis: city_db.zoning ⏹ Draft │   ○ = resource exists, no Publications yet
+│ │     resource rsc_2a…   (not published)  [ Publish → ]       │      → the resource-first publish flow (§5.4)
+│ ├───────────────────────────────────────────────────────────┤
+│ │ ▼ ● traffic-sensors  remote · arcgis…/Traffic   ▶ Running   │
+│ │     ├─ FeatureServer  ✓  /live/traffic/FeatureServer/0      │   org-only
+│ │     └─ STAC           ✓  /stac/collections/traffic         │
+│ └───────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────┘
 ```
 
-The "Canonical resource" back-link column (§1.1) is gone — the resource, its
-service, and its layer are **one row**. The "not published" row carries the exact
-CTA that was previously a separate page (`/operate/publishing/quick`).
+Why this is the cure, not cosmetic:
 
-### 5.4 Wireframe — the Add-data → layer flow (manual driver)
+- **The hierarchy is now visible.** The "Canonical resource" back-link column (§1.1)
+  is gone because the resource *is* the parent node and its publications hang under
+  it — exactly GeoServer's Store→Layers tree, exactly metadata-v2's
+  Resource→Publications (§3.0). No more bouncing between a Resources page and a
+  Layers page to reconcile what is one object.
+- **Publications render as protocol toggles** (`FeatureServer ✓ · MapServer ✓ ·
+  STAC ✓ · WMS …`). A checked protocol is a live Publication; an unchecked one under
+  `[ + expose ▾ ]` is one click to create another (additive, cheap — the
+  resource-first promise). Toggling here is the *same* act as step ③ of the flow.
+- **Layer Preview is first-class** (right rail + the sidebar entry, §5.1):
+  GeoServer's "immediate visibility" onboarding. The preview targets the **served
+  endpoint** for the selected protocol (B8: "what I preview is what I publish"), so
+  users see a rendered result immediately and pick which protocol to open it in.
+- **Context-sensitive actions** (B3) live on the selected node: a resource offers
+  *Publish / Preview / Style / Share*; a single publication offers *Preview / Open
+  route / Unpublish*.
+- **Migration advantage:** this is the IA Esri (Portal/Server "service → layers") and
+  GeoServer ("store → layers") users already have in muscle memory. The tree lowers
+  the switching cost — an explicit moat note for the redesign.
+
+### 5.4 Wireframe — the data → publish flow (manual driver)
 
 ```
 ┌ Operate / Add data                                      ◀ AI ─[ Manual ]▶ ┐  ← driver toggle (§4.3)
 │  ●─────────●─────────○─────────○─────────○                                │
-│  Add data  Resource  Layer     Style     Publish                          │  ← step rail (1 flow, §3)
+│  Add data  Resource  Publish   Style     Go live                          │  ← step rail (1 flow, §3)
 │ ┌─────────────────────────────────────────────────────────────────────────┐│
 │ │  ① Add data                                                             ││
 │ │  [ Upload file ][ Connect a table ][ Remote service ][ Existing resource ]│ ← intake bar (B1, EsriImportIntake)
@@ -330,42 +474,86 @@ CTA that was previously a separate page (`/operate/publishing/quick`).
 │ │                                          [ Cancel ]   [ Continue → ]    ││
 │ └─────────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────┘
-        … step ② shows inferred fields/geometry/SRS + validation findings …
-        … step ③ shows service slot + layer name (auto-filled, "change" to edit) …
+        … step ② shows the RESOURCE: inferred fields/geometry/SRS + validation findings …
+        … step ③ is the RESOURCE-FIRST PUBLISH step — pick protocols/services (below, §5.4b) …
         … step ④ embeds StudioStyleEditor (MapLibre | Esri) …
-        … step ⑤ is the publish review (below) …  → ends on /operate/data/:id (B4)
+        … step ⑤ is Go live: visibility + per-protocol routes + blast radius (§5.6) …
+        → ends on the resource node in the treeview (B4, §5.3)
 ```
 
-### 5.5 Wireframe — the AI driver + approval surface (default)
+### 5.4b Wireframe — the **primary** step ③: *publish a resource → pick services/protocols*
+
+This is the redesign's headline interaction and the direct expression of the
+resource-first model (§3.0). The user is past "I have data" (the resource exists);
+now they **toggle which protocol surfaces expose it**. Each toggle they enable becomes
+a metadata-v2 **Publication** (`resourceId` + `serviceId`). No "name a service" form
+fronts this — the service slot is auto-provisioned, editable under *change*.
 
 ```
-┌ Operate / Add data                                      ◀[ AI ]─ Manual ▶ ┐
-│  ●─────────●─────────●─────────○─────────○                                │
-│  Add data  Resource  Layer     Style     Publish                          │
-│ ┌───────────── Conversation (StudioAiConversation) ──┬─ Plan / Preview ──┐│
-│ │ You:  publish the parcels file as a public layer   │ ③ LAYER — proposed ││
-│ │ Honua: inferred 14 fields, polygon, EPSG:2926.     │  service: city/    ││  agent's plan card
-│ │        Proposing service `city/parcels-fs`,        │    parcels-fs (new)││  for the current step
-│ │        layer "Parcels".                            │  layer:   Parcels  ││
-│ │  ┌ Clarification ─────────────────────────────┐    │  dry-run: ✓ slot   ││
-│ │  │ Geometry precision?  [ keep ] [ snap 1m ]  │    │    free, schema ok ││
-│ │  └────────────────────────────────────────────┘    │                    ││
-│ │  …                                                 │  [ Reject ] [ Edit ││  Edit → drops to manual
-│ │ ┌ refine… ───────────────────────────┐ [ Send ]   │  → ][ Approve step ]││  controls for THIS step
-│ └─┴────────────────────────────────────┴────────────┴────────────────────┘│
-│  Each approved step may emit a devops proposal/operation (console#193).     │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌ ③ Publish "parcels" — choose how to expose this resource ───────────────────┐
+│  Resource: parcels   (12,403 polygon features · 14 fields · EPSG:2926)      │  ← the thing you have (§3.0)
+│  Pick the services/protocols that should serve it. Each is a Publication.    │
+│ ┌─ GeoServices (Esri) ───────────────┬─ OGC ──────────────────────────────┐ │
+│ │ [✓] FeatureServer   editable feat.  │ [ ] OGC API Features               │ │  ← protocol toggles
+│ │ [✓] MapServer       rendered tiles  │ [ ] WMS    rendered                │ │     = Publications
+│ │ [ ] ImageServer     (raster only)   │ [ ] WFS    feature download        │ │     (ServiceProtocols /
+│ ├─ STAC / Catalog ───────────────────┤ [ ] WMTS   tiled                   │ │      MetadataV2ServiceType,
+│ │ [✓] STAC API        collection      │ [ ] OData                          │ │      §3.0)
+│ └─────────────────────────────────────┴────────────────────────────────────┘ │
+│  Service slot:  city/parcels   (auto)            [ change… ]                  │  ← auto-provision (B-divergence)
+│  Will create 3 publications →  FeatureServer/1 · MapServer · stac/parcels     │  ← preview of what ③ writes
+│                                              [ Back ]   [ Continue to style → ]│
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.6 Wireframe — Publish review (step ⑤, both drivers; the approval payload)
+The same toggle control appears on the treeview's `[ + expose ▾ ]` (§5.3): publishing
+a resource and exposing an *already-published* resource through one more protocol are
+the **same act** on the same model — add a Publication.
+
+### 5.5 Wireframe — the AI driver: **outcome + one approval, plumbing hidden** (default)
+
+Per the founder critique (§4.1), the AI surface is **not** a plan/spec/tool-call/
+dry-run dump. It is a single outcome card; the plan lives behind *Details ▸*.
 
 ```
-┌ ⑤ Publish — review & approve ───────────────────────────────────────────────┐
-│  Layer "Parcels"  →  service city/parcels-fs (new)                          │
+┌ Operate / Add data                                      ◀[ AI ]─ Manual ▶ ──┐
+│ ┌─ Conversation (StudioAiConversation) ──────────────────────────────────┐  │
+│ │ You:  publish Maui Parcels as a public layer, styled green             │  │
+│ │                                                                        │  │
+│ │ Honua:                                                                 │  │
+│ │  ┌──────────────────────────────────────────────────────────────────┐ │  │
+│ │  │  I'll publish **Maui Parcels** as **FeatureServer + STAC**         │ │  │  ← the OUTCOME,
+│ │  │  and style it **green**.                                          │ │  │     not the plan
+│ │  │                                                                    │ │  │
+│ │  │      [ Approve ]      [ Edit ]      [ Reject ]                     │ │  │  ← ONE approval
+│ │  │                                                                    │ │  │
+│ │  │  Details ▸  (inferred fields · publications · dry-run · blast)     │ │  │  ← plumbing on demand
+│ │  └──────────────────────────────────────────────────────────────────┘ │  │
+│ │                                                                        │  │
+│ │  (if genuinely ambiguous, ONE inline choice — e.g.                     │  │
+│ │   "Geometry precision?  [ keep ]  [ snap 1m ]" — else nothing)         │  │
+│ │ ┌ refine… ─────────────────────────────────────────────┐  [ Send ]    │  │
+│ └─┴───────────────────────────────────────────────────────┴─────────────┘  │
+│  Approve emits the devops proposal/operation; the plan/diff lives in Details.│  ← console#193
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+Expanding **Details ▸** reveals exactly what the old surface put up front — the
+inferred schema, the precise Publications (service/protocol bindings) to be created,
+the dry-run, and the blast radius — but only when asked. The default reader sees an
+outcome and one button.
+
+### 5.6 Wireframe — Go live (step ⑤, both drivers; the approval payload)
+
+```
+┌ ⑤ Go live — review & approve ───────────────────────────────────────────────┐
+│  Resource "parcels"  →  3 publications on service city/parcels (new)        │
 │  Visibility:  ( ) Private   ( ) Org   (•) Public        Embed: [ allow ▾ ]  │
-│  Route:       /city/parcels-fs/FeatureServer/1                              │
+│  Routes:   FeatureServer  /city/parcels/FeatureServer/1                     │  ← per-protocol routes
+│            MapServer      /city/parcels/MapServer                           │     (one per Publication, §3.0)
+│            STAC           /stac/collections/parcels                         │
 │ ┌ Blast radius (OperateResourcesPage model) ─────────────────────────────┐ │
-│ │  Services 1   Layers 1   Saved maps 0   Share links 0   Generated apps 0│ │  ← info, console#193
+│ │  Services 1   Publications 3   Saved maps 0   Share links 0   Apps 0    │ │  ← info, console#193
 │ └─────────────────────────────────────────────────────────────────────────┘│
 │                                            [ Back ]      [ Apply & publish ]│  ← single authorizing action
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -379,56 +567,78 @@ CTA that was previously a separate page (`/operate/publishing/quick`).
 
 | Action | Component / page | Notes |
 |---|---|---|
-| **Reuse** | `Components/StudioAiConversation.razor` | The AI driver's left rail + approval cards. Already generalized. |
+| **Reuse** | `Components/StudioAiConversation.razor` | The AI driver's rail. **But default to the outcome card (§5.5), not its plan/spec columns** — the founder's "too much plumbing" critique is about exactly this surface; the plan moves behind *Details* (§4.1). |
 | **Reuse** | `Pages/StudioStyleEditorPage.razor` (+ `StyleReferencePicker`) | Step ④, embedded. Dual-mode preserved. |
 | **Reuse** | `Components/OperateCapabilityStateList`, missing-binding surfaces | Flow keeps neutral/missing-binding states; never fabricates. |
 | **Generalize** | `Components/EsriImportIntake.razor` → `AddDataIntake.razor` | Add modes: *table*, *existing resource*, *AI prompt* (it already has paste/upload/URL/connected). |
-| **Merge** | `OperateResourcesPage` + `OperateLayersPage` + `OperateServicesPage` → `OperateDataPage` (`/operate/data`) | One list, resource→service→layer per row (§5.3). Old routes redirect. |
-| **Merge** | `OperateResourceDetailPage` + `OperateLayerDetailPage` → `/operate/data/:id` | One detail object with inline Preview/Style/Share/Publish (B3/B4). |
-| **Re-sequence** | `OperateImportFilePage`, `OperatePublishLayerPage`, `OperateImportServicePage` | Their bodies become **steps** of `OperateDataFlowPage` (`/operate/data/new`), not standalone pages. Old routes redirect into `?source=`. |
-| **Add** | `Components/Operate/DataToLayerFlow.razor` (host) + `DataToLayerFlowState` (model) | The flow object (§3.1) + step rail + driver toggle. Wraps the reused step bodies. |
-| **Add** | `Components/Operate/AddDataIntake.razor` | Step ①. |
+| **Merge** | `OperateResourcesPage` + `OperateLayersPage` + `OperateServicesPage` → `OperateDataPage` (`/operate/data`) | The **resource→publications treeview** (§5.3), not a flat list: each resource node expands to its protocol publications. Old routes redirect. |
+| **Merge** | `OperateResourceDetailPage` + `OperateLayerDetailPage` → `/operate/data/:id` | One node = resource + its publications; inline Preview/Style/Share/Publish (B3/B4). |
+| **Re-sequence** | `OperateImportFilePage`, `OperatePublishLayerPage`, `OperateImportServicePage` | Their bodies become **steps** of the flow (`/operate/data/new`), not standalone pages. The publish-layer page body becomes the **resource-first protocol-toggle step ③** (§5.4b). Old routes redirect into `?source=`. |
+| **Add** | `Components/Operate/DataToPublishFlow.razor` (host) + `DataToPublishFlowState` (model) | The flow object (§3.1) + step rail + driver toggle. Wraps the reused step bodies. |
+| **Add** | `Components/Operate/AddDataIntake.razor` | Step ① (sketched in `src/Honua.Console.Shell/Components/AddDataIntake.razor`). |
+| **Add** | `Components/Operate/PublishProtocolPicker.razor` | Step ③ — the protocol/service toggle grid (§5.4b); also reused by the treeview's `[ + expose ▾ ]`. Each toggle ↔ a metadata-v2 Publication. |
+| **Add** | `Components/Operate/ResourcePublicationsTree.razor` (+ `LayerPreviewPane`) | The §5.3 spine: resource nodes, publication toggles, the served-endpoint preview (B8). |
+| **Add** | `Components/Operate/AiOutcomeApprovalCard.razor` | The §5.5 outcome+approval surface with the *Details* disclosure; wraps `StudioAiConversation`'s plan as the disclosure body. |
 | **Update** | `Layout/ConsoleLayout.razor:82–95` + `ConsoleRouteMap` | IA change (§5.1) + the route delta (§5.2). |
 
 No server contract changes: the flow calls the **same** import/publish/style
 endpoints these pages already bind (`IConsoleFileImportOperation`,
 `IServiceLayerPublishOperation`, `IConsoleServiceImportOperation`,
-`IStudioMapStyleCatalogDataSource`). This keeps the change Console-side and
-governed by the Patterns Charter.
+`IStudioMapStyleCatalogDataSource`). The protocol-toggle step writes Publications via
+the existing publish operation per enabled protocol — resource-first, no new contract.
+This keeps the change Console-side and governed by the Patterns Charter.
 
 ### 6.2 Phased implementation
 
 **Phase 0 — this doc.** Design approval (founder + console route-map reconcile).
 
-**Phase 1 — highest-impact slice: the unified manual wizard (`/operate/data/new`).**
-Build `DataToLayerFlow.razor` + `AddDataIntake.razor` (generalize `EsriImportIntake`),
-wire the existing import/publish/style step bodies into the five-step rail, end on
-the layer detail (B4). Redirect the five old entry points into `?source=`. *This one
-slice delivers the founder's "add a service and import data" and "use an existing
-resource to create a layer" journeys.* Manual driver only.
+**Phase 1 — highest-impact slice: the manual flow with the resource-first publish step
+(`/operate/data/new`).** Build `DataToPublishFlow.razor` + `AddDataIntake.razor`
+(generalize `EsriImportIntake`) + **`PublishProtocolPicker.razor`** (the step-③
+protocol/service toggle grid, §5.4b — the heart of the resource-first model). Wire the
+existing import/publish/style step bodies into the rail, end on the resource node (B4).
+Redirect the five old entry points into `?source=`. *This one slice delivers the
+founder's "add a service and import data" and "use an existing resource to create a
+layer" journeys **and** makes the resource-first publish concrete.* Manual driver only.
 
-**Phase 2 — unify the list + detail.** `OperateDataPage` (`/operate/data`, §5.3) and
-`/operate/data/:id`; redirect `/operate/resources`, `/operate/layers`,
-`/operate/services`; apply the IA nav change (§5.1). Kills the resources/layers split.
+**Phase 2 — the GeoServer-style treeview (`/operate/data`, §5.3).** Build
+`ResourcePublicationsTree.razor` + `LayerPreviewPane`: resource nodes expanding to
+protocol-publication toggles, the served-endpoint Layer Preview, context-sensitive
+node actions. Redirect `/operate/resources`, `/operate/layers`, `/operate/services`;
+apply the IA nav change (§5.1). **This is what actually cures the
+"resources separate from layers" split** — promote it ahead of the AI driver, since
+it is the structural fix. Reuse `PublishProtocolPicker` for the tree's
+`[ + expose ▾ ]`.
 
-**Phase 3 — AI driver + approval.** Add `StudioAiConversation` as the flow's AI rail,
-the per-step plan/dry-run cards, the driver toggle (§4.3), and the
-clarification→manual-edit handoff. Wire approved steps to the devops console-bridge
-proposal/operation surface (console#193).
+**Phase 3 — AI driver: outcome + one approval (§5.5).** Add the
+`AiOutcomeApprovalCard` over `StudioAiConversation`, defaulting to the outcome
+statement + single Approve/Edit/Reject with the plan behind *Details ▸* (the
+plumbing-hidden surface, §4.1). Driver toggle (§4.3); Edit drops to the relevant
+manual step. Wire Approve to the devops console-bridge proposal/operation surface
+(console#193); the plan/diff is the *Details* body.
 
-**Phase 4 — preview + polish.** One-click layer preview via the served FeatureServer
-endpoint (B8, reuse the MapPreview target the Esri-import pages use); empty-state
-onboarding that teaches the flow (B5); determinate ingest progress everywhere (B7).
+**Phase 4 — preview + polish.** Per-protocol preview via each served endpoint (B8,
+reuse the MapPreview target the Esri-import pages use); empty-state onboarding that
+teaches resource→publish→expose (B5); determinate ingest progress everywhere (B7).
 
 ### 6.3 Risks / constraints
 
 - **Route governance:** `/operate/data*` and the redirects must be reconciled into
   `docs/console-route-map.md` (its §1 taxonomy + §5 disposition tables) before
   Phase 2 lands — this proposal is additive but the route map is the source of truth.
+- **Stay true to the resource-first model** — the publish step toggles
+  protocols/services on a *resource* and writes Publications (§3.0). Do **not** revert
+  to a service-first "name a service, then add layers" form; that is BlueSpatial's
+  inverted model and the founder's explicit non-goal.
 - **Dual-mode style must not regress** — step ④ embeds the existing editor; do not
   fork it.
-- **No fabricated state** — every step renders missing-binding/capability states
-  when the server base URL is unset, exactly as the current pages do.
+- **No fabricated state** — every step and every tree node renders
+  missing-binding/capability states when the server base URL is unset, exactly as the
+  current pages do; the treeview must not invent resources or publications.
+- **Keep the plumbing hidden in AI mode** — the default AI surface is the outcome
+  card; the plan/spec/dry-run stays behind *Details* (§4.1/§5.5). Don't re-expose
+  `StudioAiConversation`'s full plan columns as the default, which is the exact
+  founder critique.
 - **console#193 posture** — keep forms minimal; the manual wizard is the fallback,
   the AI+approval driver is the headline. Don't let Phase 1 ossify into a
   forms-first product.
@@ -442,8 +652,22 @@ onboarding that teaches the flow (B5); determinate ingest progress everywhere (B
   `Components/{EsriImportIntake,StudioAiConversation}.razor`,
   `Pages/StudioStyleEditorPage.razor`, `docs/console-route-map.md`,
   `docs/design-handoff/`.
-- BlueSpatial (old UI): `BlueSpatial.Web/Views/Admin/manage-metadata-component.*`,
+- **Resource-first model (metadata-v2, honua-server):**
+  `Honua.Core.Abstractions/Features/Metadata/Domain/V2/MetadataReleaseEnums.cs`
+  (`MetadataSemanticArtifactKind`: Resource / Service / Publication),
+  `MetadataV2Graph.cs` (`MetadataV2Resource:135` + `schemaFields:189`;
+  `MetadataV2Service:560` + `Protocols:619`; `MetadataV2Publication:743` +
+  `resourceId:758`/`serviceId:765`; graph comments at `:65`, `:89`),
+  `MetadataV2Enums.cs:255` (`MetadataV2ServiceType`), `ServiceProtocols.cs`
+  (protocol string constants).
+- GeoServer webadmin (IA reference): the Stores → Layers tree, the Layer Preview
+  page, and the quickstart "publish a store, see it rendered fast" onboarding — the
+  model for §5.1/§5.3.
+- BlueSpatial (old UI, *service-first* — the inverted model we reject for §3.0):
+  `BlueSpatial.Web/Views/Admin/manage-metadata-component.*`,
   `create-layer-modal-component.*`, `add-layer-from-{file,database}-component.*`,
   `import-service-modal-component.*`, `manage-connection-component.*`,
   `Renderer/create-renderer-component.*`; preview `PreviewPlugin/MapPreview/map.js`.
-- Founder direction: console#193 (information + approval, forms-light, agent-first).
+- Founder direction: console#193 (information + approval, forms-light, agent-first);
+  post-#198 direction (resource-first publication, GeoServer-style treeview, hide the
+  plumbing in AI mode).

@@ -3,21 +3,28 @@
 @*
     DESIGN SKETCH (docs/design/console-ux-redesign.md, Phase 1, step ① "Add data").
 
-    The single intake bar that anchors the unified "Add data → layer" flow. It generalizes the
-    Esri-only Components/EsriImportIntake.razor "intake bar" pattern into the five data sources the
-    redesign calls for:
+    The single intake bar that anchors the unified, RESOURCE-FIRST "data -> publish" flow
+    (redesign sections 3.0 and 3). It generalizes the Esri-only Components/EsriImportIntake.razor
+    "intake bar" pattern into the five data sources the redesign calls for:
 
-        Upload file · Connect a table · Remote service · Existing resource · Describe it (AI)
+        Upload file - Connect a table - Remote service - Existing resource - Describe it (AI)
 
     This is a presentational sketch: it owns the mode selection + source description and raises the
-    chosen DataSourceIntake to the host flow (Components/Operate DataToLayerFlow, not yet built) via
+    chosen DataSourceIntake to the host flow (Components/Operate DataToPublishFlow, not yet built) via
     OnSourceChosen. It binds no services and fabricates no data, so it builds clean and renders the
     same missing-binding/binding-required posture the existing intake uses for server-only modes.
 
+    Where this sits in the resource-first model (redesign section 3.0): every mode here produces (or
+    selects) a canonical RESOURCE. The next step is not "name a service" but the resource-first
+    PUBLISH step -- a protocol/service toggle grid (sketched companion: PublishProtocolPicker, step
+    (3), redesign section 5.4b) where each enabled protocol (FeatureServer / MapServer / STAC / WMS /
+    WFS / WMTS / OGC API / OData) becomes a metadata-v2 Publication.
+
     The "Existing resource" mode is the explicit answer to the founder's "use an existing resource to
     create a layer" gap: choosing it lets the flow skip the ingest/Resource step and jump straight to
-    the Layer step. "Describe it (AI)" hands the source description to the AI driver
-    (Components/StudioAiConversation) rather than a parser.
+    the resource-first PUBLISH step. "Describe it (AI)" hands the source description to the AI driver,
+    which surfaces an outcome + single approval (plumbing hidden; redesign section 4.1/5.5) rather
+    than the existing StudioAiConversation plan/spec columns.
 *@
 <div class="add-data-intake" data-add-data-intake>
     <div class="add-data-intake__bar">
@@ -49,7 +56,7 @@
                         <small class="console-muted">Supported: @string.Join(", ", SupportedExtensions)</small>
                     }
                 </label>
-                <p class="console-muted">The file is ingested into a canonical resource, then exposed as a layer.</p>
+                <p class="console-muted">The file is ingested into a canonical resource; the next step publishes it — pick which services/protocols expose it.</p>
             </div>
             break;
 
@@ -110,7 +117,8 @@
                     </select>
                 </label>
                 <p class="console-muted">
-                    Skips ingest — the flow jumps straight to creating a layer/service from this resource.
+                    Skips ingest — the flow jumps straight to the resource-first publish step (pick the
+                    services/protocols that expose this resource).
                 </p>
             </div>
             break;
