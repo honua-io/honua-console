@@ -1,0 +1,181 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleServerVersionClient ServerVersionClient
+
+@* Server version upgrade — outcome-first surface that hides the GitOps plumbing.
+   It detects the target environment's CURRENT running Honua version (capability
+   manifest), shows the upgrade path to the requested version, and GATES the
+   upgrade when the target is already current, newer (downgrade), or unknown —
+   including the case where the target env is on an OLDER Honua version (the only
+   case that proceeds). When an upgrade is in flight as a deploy-control operation,
+   the governed approve / outcome / rollback surface is the OperateDeploymentApprovalPanel.
+   Raw gitops/PR mechanics live behind the panel's evidence + a Details toggle, never
+   on the primary surface. *@
+
+<section class="console-panel operate-upgrade-card" aria-labelledby="upgrade-heading">
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">Server upgrade</p>
+            <h3 id="upgrade-heading">Upgrade the target environment</h3>
+            <p class="console-muted">
+                Detect the environment's running Honua version and upgrade it to a newer container version.
+                The upgrade is a governed deploy operation — approve the outcome here; the gitops details stay hidden.
+            </p>
+        </div>
+        @if (_versionResult is { IsAllowed: true, Value: { } headerVersion })
+        {
+            <span class="console-status console-state-neutral" data-current-version>
+                current @headerVersion.ServerVersion
+            </span>
+        }
+    </div>
+
+    @if (!_versionLoaded)
+    {
+        <OperateSectionStatusPanel Heading="Server version" Loading="true" />
+    }
+    else if (_versionResult is not { IsAllowed: true, Value: { } detected })
+    {
+        @* The current version could not be detected. The upgrade stays gated; we surface the
+           honest missing/forbidden/unsupported binding rather than offering an upgrade against
+           unknown data. *@
+        <OperateSectionStatusPanel Heading="Server version"
+            Status="@(_versionResult?.Status ?? OperateSectionStatus.Unavailable)"
+            Message="@(_versionResult?.Message ?? string.Empty)" />
+    }
+    else
+    {
+        var current = detected;
+        var plan = ServerUpgradePlan.Create(current, _requestedVersion);
+
+        <dl class="console-definition-list operate-upgrade-facts">
+            <dt>Environment</dt>
+            <dd class="console-mono">@(string.IsNullOrWhiteSpace(current.DeploymentEnvironment) ? "—" : current.DeploymentEnvironment)</dd>
+            <dt>Current version</dt>
+            <dd class="console-mono" data-detected-version>@current.ServerVersion</dd>
+            <dt>API version</dt>
+            <dd class="console-mono">@(string.IsNullOrWhiteSpace(current.ApiVersion) ? "—" : current.ApiVersion)</dd>
+        </dl>
+
+        <div class="operate-upgrade-target">
+            <label class="console-field">
+                <span class="console-field-label">Upgrade to version</span>
+                <input class="console-input operate-upgrade-version-input"
+                       type="text"
+                       placeholder="e.g. 1.5.0"
+                       data-target-version
+                       @bind="_requestedVersion"
+                       @bind:event="oninput" />
+            </label>
+
+            @if (!string.IsNullOrWhiteSpace(_requestedVersion))
+            {
+                <div class="operate-upgrade-path" data-upgrade-path>
+                    <span class="console-mono">@current.ServerVersion</span>
+                    <span aria-hidden="true">&rarr;</span>
+                    <span class="console-mono">@plan.RequestedVersion</span>
+                    <span class="console-status @ServerUpgradePresentation.StateClass(plan.Mismatch)" data-upgrade-state>
+                        @ServerUpgradePresentation.Label(plan.Mismatch)
+                    </span>
+                </div>
+
+                @* VERSION-MISMATCH GATE — the upgrade only proceeds when the target is strictly
+                   behind the requested version. Already-current, downgrade, and unknown are gated
+                   with an explicit reason. *@
+                @if (!plan.CanProceed)
+                {
+                    <div class="console-usage-callout operate-upgrade-gate" role="status" data-upgrade-gate>
+                        <strong>Upgrade gated.</strong>
+                        <span>@plan.GateReason</span>
+                    </div>
+                }
+
+                <div class="operate-upgrade-actions">
+                    <button type="button"
+                            class="console-button"
+                            disabled="@(!plan.CanProceed)"
+                            title="@(plan.CanProceed
+                                ? "Plan the governed upgrade operation for this environment."
+                                : plan.GateReason)"
+                            data-plan-upgrade
+                            @onclick="PlanUpgrade">
+                        Plan upgrade
+                    </button>
+                </div>
+            }
+        </div>
+
+        @* GOVERNED OUTCOME — once an upgrade operation exists (created-and-paused on the server
+           by devops/agent actuation), the approve / outcome / rollback surface is the shared
+           deploy-control approval panel. The upgrade flow does not POST a new operation itself;
+           it binds the operator to the governed operation, keeping the OperatorApprovalGate the
+           authority. The deploy operation id is supplied by the caller (the Operate Deploy page
+           resolves it from the deploy-control operation list). *@
+        @if (UpgradeOperationId is { Length: > 0 } upgradeOperationId)
+        {
+            <div class="operate-upgrade-outcome" data-upgrade-outcome>
+                <OperateDeploymentApprovalPanel OperationId="@upgradeOperationId" OnActioned="OnOutcome" />
+            </div>
+        }
+        else if (_planned)
+        {
+            <div class="console-usage-callout operate-upgrade-planned" role="status" data-upgrade-planned>
+                <strong>Upgrade planned.</strong>
+                <span>
+                    A governed upgrade operation for <span class="console-mono">@plan.RequestedVersion</span>
+                    has been requested. It appears in the deploy-control approval queue once the server has
+                    created and paused it; approve the outcome there.
+                </span>
+            </div>
+        }
+
+        @* DETAILS — the gitops plumbing is hidden behind this toggle, not the primary surface. *@
+        <details class="operate-upgrade-details">
+            <summary>Details (gitops plumbing)</summary>
+            <p class="console-muted">
+                The upgrade is actuated as a governed deploy-control operation (kind: deploy) on the config
+                repository: a PR sets the target environment's container image revision, CI runs the
+                compatibility preflight, and on approval the new revision reconciles with an open rollback
+                window. The approve / rollback actions above route through the server's deploy-control
+                endpoints and its OperatorApprovalGate — Console never edits the config repo directly.
+            </p>
+            <dl class="console-definition-list">
+                <dt>Detected version source</dt>
+                <dd class="console-mono">GET /api/v1/capabilities/manifest</dd>
+                <dt>Metadata API / schema</dt>
+                <dd class="console-mono">@current.MetadataApiVersion / @current.MetadataSchemaVersion</dd>
+                <dt>Observed at</dt>
+                <dd>@current.ObservedAt.ToString("u")</dd>
+            </dl>
+        </details>
+    }
+</section>
+
+@code {
+    /// <summary>
+    /// The durable deploy-control operation id of the in-flight upgrade, when one exists.
+    /// Supplied by the parent (resolved from the deploy-control operation queue). When null,
+    /// the card surfaces detection + planning; when set, it surfaces the governed outcome panel.
+    /// </summary>
+    [Parameter]
+    public string? UpgradeOperationId { get; set; }
+
+    /// <summary>Raised when the operator approves/rolls back the governed upgrade outcome.</summary>
+    [Parameter]
+    public EventCallback<DeployOperationProposal> OnUpgradeActioned { get; set; }
+
+    private OperateSectionResult<ServerVersionInfo>? _versionResult;
+    private bool _versionLoaded;
+    private string _requestedVersion = string.Empty;
+    private bool _planned;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _versionResult = await ServerVersionClient.GetServerVersionAsync();
+        _versionLoaded = true;
+    }
+
+    private void PlanUpgrade() => _planned = true;
+
+    private Task OnOutcome(DeployOperationProposal proposal) => OnUpgradeActioned.InvokeAsync(proposal);
+}

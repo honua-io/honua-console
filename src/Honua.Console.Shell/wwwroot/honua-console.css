@@ -8552,3 +8552,44 @@ p {
     background: rgba(217, 119, 6, 0.16);
     font-weight: 700;
 }
+
+/* ── Operate → Deploy (server upgrade + cross-env promotion) ─────────────────
+   The cards lean on the shared console-* primitives (panel, status, field,
+   usage-callout) like the #197 deploy approval surface; only the upgrade-path
+   row, the version input, and the details toggle need bespoke layout. */
+.operate-upgrade-target {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.operate-upgrade-version-input {
+    max-width: 16rem;
+}
+
+.operate-upgrade-path {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.operate-upgrade-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.operate-upgrade-details {
+    margin-top: 1rem;
+}
+
+.operate-upgrade-details > summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--console-muted, #64748b);
+}
+
+.operate-deploy-track {
+    align-items: flex-end;
+}

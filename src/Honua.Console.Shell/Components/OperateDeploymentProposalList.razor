@@ -1,0 +1,77 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+
+@* Lists pending/active deploy-control operations for the human-in-the-loop approval
+   surface, filtered by lifecycle status (AwaitingApproval first, then other non-terminal
+   states). Selecting a proposal raises OnSelect so the parent can show the approval
+   panel. Server-owned data only (Charter section 11): missing/unsupported/unavailable
+   reads render the shared status surface, never seeded data. *@
+
+@if (!Result.IsAllowed)
+{
+    <OperateSectionStatusPanel Heading="Deploy approvals" Status="Result.Status" Message="@Result.Message" />
+}
+else if (Proposals.Count == 0)
+{
+    <OperateSectionStatusPanel Heading="Deploy approvals" Empty="true"
+        EmptyTitle="No pending deploy operations"
+        EmptyMessage="No paused or in-flight deploy-control operations are awaiting an approval decision." />
+}
+else
+{
+    @if (Result.PartialResult && !string.IsNullOrWhiteSpace(Result.Message))
+    {
+        <p class="console-muted operate-deploy-partial">@Result.Message</p>
+    }
+    <ul class="operate-deploy-proposal-list" aria-label="Pending deploy operations">
+        @foreach (var proposal in Proposals)
+        {
+            <li class="operate-deploy-proposal-row @(IsSelected(proposal) ? "is-selected" : null)">
+                <button type="button"
+                        class="operate-deploy-proposal-select"
+                        aria-pressed="@(IsSelected(proposal) ? "true" : "false")"
+                        @onclick="() => Select(proposal)">
+                    <span class="operate-deploy-proposal-head">
+                        <span class="console-mono operate-deploy-proposal-id">@proposal.OperationId</span>
+                        <span class="console-status @DeployOperationPresentation.StateClass(proposal.Lifecycle)">
+                            @DeployOperationPresentation.Label(proposal.Lifecycle)
+                        </span>
+                    </span>
+                    <span class="console-muted operate-deploy-proposal-sub">
+                        <span class="console-mono">@proposal.Service</span>
+                        &rarr;
+                        <span class="console-mono">@proposal.Environment</span>
+                        &middot; @proposal.Action @@ <span class="console-mono">@proposal.DesiredRevision</span>
+                    </span>
+                    @if (proposal.BlockingReasons.Count > 0)
+                    {
+                        <span class="console-status console-state-danger operate-deploy-proposal-blocked">
+                            @proposal.BlockingReasons.Count blocker@(proposal.BlockingReasons.Count == 1 ? "" : "s")
+                        </span>
+                    }
+                </button>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>The list read result projected by <see cref="IConsoleDeployApprovalClient"/>.</summary>
+    [Parameter, EditorRequired]
+    public required OperateSectionResult<IReadOnlyList<DeployOperationProposal>> Result { get; set; }
+
+    /// <summary>The currently selected operation id, used to highlight the active row.</summary>
+    [Parameter]
+    public string? SelectedOperationId { get; set; }
+
+    /// <summary>Raised when an operator selects a proposal row.</summary>
+    [Parameter]
+    public EventCallback<DeployOperationProposal> OnSelect { get; set; }
+
+    private IReadOnlyList<DeployOperationProposal> Proposals => Result.Value ?? [];
+
+    private bool IsSelected(DeployOperationProposal proposal) =>
+        string.Equals(proposal.OperationId, SelectedOperationId, StringComparison.Ordinal);
+
+    private Task Select(DeployOperationProposal proposal) => OnSelect.InvokeAsync(proposal);
+}

@@ -96,7 +96,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)
 /operate/releases/:id          Release detail: proposal/semantic diff, environment matrix + drift, Git PR preview, CI/GitOps timeline, rollback readiness (bound to honua-server release package #1163 + release-operation lifecycle #1165)
-/operate/deploy                Deploy control (GitOps metadata release)
+/operate/deploy                Deploy (#201): one governed flow for two capabilities, both hiding the gitops plumbing behind an approval + outcome surface — (1) server version upgrade with current-version detection (capability manifest /api/v1/capabilities/manifest) + version-mismatch gating (only a behind target may proceed; no-op/downgrade/unknown gated), and (2) cross-environment metadata promotion (dev→staging→prod). Submit/approve/rollback route through the deploy-control admin endpoints (GET/POST /api/v1/admin/deploy/operations/{id}{,/submit,/rollback}); the server has no list-all endpoint, so the queue is projected from release-derived + operator-tracked operation ids. Gitops/PR details live behind a Details toggle. Bound to honua-server #1738 + honua-devops#97/#57, else the missing-binding state.
 /operate/environments          Environment and fleet overview
 /operate/environments/:id      Environment detail (drift, fleet tasks)
 /operate/temporal              Temporal data viewer (capability-gated)
