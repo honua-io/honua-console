@@ -21,6 +21,19 @@ public interface IServiceLayerPublishOperation
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Enables the chosen <c>ServiceProtocols</c> on a service slot through honua-server's
+    /// <c>PUT /api/v1/admin/services/{serviceName}/protocols</c> endpoint, returning the canonical set of
+    /// protocols the service actually exposes after the change. The publish flow calls this once after the
+    /// layer publish so a multi-protocol selection (FeatureServer + MapServer + STAC) is genuinely exposed on
+    /// each protocol's preview route — rather than re-posting the same layer publish per protocol and
+    /// over-reporting which publications are live (issue: resource-first publish flow review §1).
+    /// </summary>
+    Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
+        string serviceName,
+        IReadOnlyList<string> protocols,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lists the publishable (PostGIS spatial) tables on a connection so the publish-layer form can offer a
     /// real table picker. Returns an empty list when no server is configured or the connection exposes none.
     /// </summary>

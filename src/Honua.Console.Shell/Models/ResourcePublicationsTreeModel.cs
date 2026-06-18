@@ -97,18 +97,23 @@ public static class ResourcePublicationsTreeBuilder
         var nodes = new List<PublicationTreeNode>();
         foreach (var (serviceType, serviceSlot) in publications)
         {
-            var descriptor = PublishProtocolCatalog.All
-                .FirstOrDefault(d => string.Equals(d.ServiceType, serviceType, StringComparison.OrdinalIgnoreCase));
-            if (descriptor is null || !seen.Add(descriptor.Id))
+            // A service's ServiceType can arrive as a metadata-v2 string (esri-feature-service), a joined
+            // list of protocol names (FeatureServer, MapServer), or a display name (Feature service) depending
+            // on the source — resolve it to its protocol descriptors so existing published resources show as
+            // Running with previewable publications instead of falling through to Draft.
+            foreach (var descriptor in PublishProtocolCatalog.ResolveServiceTypeProtocols(serviceType))
             {
-                continue;
-            }
+                if (!seen.Add(descriptor.Id))
+                {
+                    continue;
+                }
 
-            nodes.Add(new PublicationTreeNode(
-                descriptor.Id,
-                descriptor.Label,
-                IsLive: true,
-                Route: PublishProtocolCatalog.RouteFor(descriptor.Id, serviceSlot)));
+                nodes.Add(new PublicationTreeNode(
+                    descriptor.Id,
+                    descriptor.Label,
+                    IsLive: true,
+                    Route: PublishProtocolCatalog.RouteFor(descriptor.Id, serviceSlot)));
+            }
         }
 
         // Stable protocol order (catalog order) for display.

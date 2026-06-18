@@ -80,6 +80,49 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Equal(serviceType, descriptor!.ServiceType);
     }
 
+    [Theory]
+    // metadata-v2 service-type strings.
+    [InlineData("esri-feature-service", new[] { "FeatureServer" })]
+    [InlineData("stac-api", new[] { "Stac" })]
+    // single ServiceProtocols ids.
+    [InlineData("FeatureServer", new[] { "FeatureServer" })]
+    // honua-server joins enabled protocols → catalog-ordered protocol set, never fabricated.
+    [InlineData("FeatureServer, MapServer", new[] { "FeatureServer", "MapServer" })]
+    [InlineData("MapServer, FeatureServer", new[] { "FeatureServer", "MapServer" })]
+    // display names the in-memory/demo source uses.
+    [InlineData("Feature service", new[] { "FeatureServer" })]
+    // the "Geo service" fallback maps to nothing (no protocol claimed).
+    [InlineData("Geo service", new string[0])]
+    public void ResolveServiceTypeProtocols_MapsDisplayAndProtocolValuesToProtocolIds(string serviceType, string[] expected)
+    {
+        var ids = PublishProtocolCatalog.ResolveServiceTypeProtocols(serviceType)
+            .Select(d => d.Id)
+            .ToArray();
+
+        Assert.Equal(expected, ids);
+    }
+
+    [Fact]
+    public void TreeBuilder_WithJoinedProtocolServiceType_ShowsResourceRunningWithPublications()
+    {
+        // Regression: existing server data populates ServiceType as joined protocol names ("FeatureServer,
+        // MapServer"), not the metadata-v2 strings — the tree must still mark the resource Running with its
+        // protocol publications rather than falling through to Draft.
+        IReadOnlyList<OperateResourceEditPreview> resources = [EditPreview("rsc_parcels", "parcels")];
+        IReadOnlyList<OperateServiceDetail> services =
+        [
+            Service("city/parcels", "FeatureServer, MapServer", Layer(1, "rsc_parcels")),
+        ];
+
+        var nodes = ResourcePublicationsTreeBuilder.Build(resources, services);
+
+        var parcels = nodes.Single(node => node.ResourceId == "rsc_parcels");
+        Assert.Equal("Running", parcels.Status);
+        Assert.Equal(new[] { "FeatureServer", "MapServer" }, parcels.Publications.Select(p => p.ProtocolId).ToArray());
+        Assert.Equal("/city/parcels/FeatureServer/0", parcels.Publications[0].Route);
+        Assert.Equal("/city/parcels/MapServer", parcels.Publications[1].Route);
+    }
+
     // ----------------------------------------------------------------- tree builder
 
     [Fact]
@@ -251,6 +294,80 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.EndsWith(expectedTarget, nav.Uri, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Flow_RemoteServiceSource_EmbedsTheImportSurface_NotADeadEnd()
+    {
+        using var ctx = NewContext();
+        // Remote-service import must be reachable through the unified flow (the old /operate/import/service
+        // route redirects to source=remoteservice): the AddData step embeds the import surface rather than
+        // dead-ending with "use the dedicated import surface".
+        ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
+        ctx.Services.AddSingleton<IConsoleServiceImportOperation>(new UnsupportedConsoleServiceImportOperation());
+
+        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "remoteservice"));
+
+        Assert.Contains("data-remote-service-import", cut.Markup, StringComparison.Ordinal);
+        // The embedded import surface (OperateImportServicePage) renders its discovery form.
+        Assert.Contains("Import from a service", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("use the dedicated import surface", cut.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("dedicated import surface", cut.Markup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Flow_TablePublish_ThreadsPlannedProtocols_AndReportsOnlyThoseTheServerExposes()
+    {
+        using var ctx = NewContext();
+        var publish = new RecordingPublishOperation(
+            // The server exposes only FeatureServer + Stac (MapServer was not enabled), so the flow must
+            // report exactly those as live — never over-report the un-exposed MapServer publication.
+            enabledProtocols: ["FeatureServer", "Stac"]);
+        ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn1", "Primary"));
+        ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
+
+        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "table"));
+
+        // Choose the connection so the table picker loads its single table.
+        var chosen = new AddDataIntake.DataSourceIntake(AddDataMode.Table, "conn1");
+        await cut.InvokeAsync(() => InvokePrivate(cut.Instance, "OnSourceChosen", chosen));
+        cut.Render();
+
+        // Select the table, then advance one primary action per step to Go live.
+        cut.Find("[data-table-picker]").Change("public.parcels");
+        cut.Find("[data-step-body=\"AddData\"] button.console-button").Click(); // → Resource
+        cut.WaitForElement("[data-step-body=\"Resource\"]");
+        cut.Find("[data-step-body=\"Resource\"] button.console-button").Click(); // → Publish
+        cut.WaitForElement("[data-step-body=\"Publish\"]");
+        cut.Find("[data-step-body=\"Publish\"] button.console-button").Click(); // → Style
+        cut.WaitForElement("[data-step-body=\"Style\"]");
+        cut.Find("[data-step-body=\"Style\"] button.console-button").Click(); // → Go live
+        cut.WaitForElement("[data-step-body=\"GoLive\"]");
+        cut.Find("[data-step-body=\"GoLive\"] button.console-button").Click(); // Apply & publish
+
+        // The flow lands on Done once at least one protocol is genuinely live.
+        cut.WaitForElement("[data-step-body=\"Done\"]");
+
+        // The layer publish ran exactly once (not once per protocol), and carried the planned protocol set.
+        Assert.Equal(1, publish.PublishCalls);
+        Assert.Equal(1, publish.EnableCalls);
+        Assert.Equal(new[] { "FeatureServer", "MapServer", "Stac" }, publish.LastCommand!.Protocols.ToArray());
+        // Exactly one protocol-enablement call carrying the same plan.
+        Assert.Equal(new[] { "FeatureServer", "MapServer", "Stac" }, publish.LastEnableProtocols!.ToArray());
+
+        // Only the 2 protocols the server actually exposes (FeatureServer + Stac) are reported live —
+        // the un-exposed MapServer is NOT over-reported (2 of 3 publications landed).
+        Assert.Contains("2 of 3 publications landed", cut.Markup, StringComparison.Ordinal);
+    }
+
+    private static object? InvokePrivate(object target, string method, params object[] args) =>
+        target.GetType()
+            .GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(target, args);
+
     // ----------------------------------------------------------------- helpers
 
     private static OperateResourceEditPreview EditPreview(string id, string name) =>
@@ -262,6 +379,81 @@ public sealed class ResourceFirstPublishFlowTests
 
     private static OperateServiceDetail Service(string name, string serviceType, params OperateServiceLayerProjection[] layers) =>
         new(name, name, serviceType, "Running", "managed", layers, [], []);
+
+    /// <summary>A data source advertising exactly one connection, for the table-publish flow test.</summary>
+    private sealed class OneConnectionDataSource(string connectionId, string name) : IOperateTransitionDataSource
+    {
+        private readonly OperateConnectionSummary _connection =
+            new(connectionId, name, "PostGIS", "db", "principal", "Connected", "now", null);
+
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateTransitionWorkspace([_connection], [], [], [], []));
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateConnectionSummary?>(_connection);
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateResourceEditPreview?>(null);
+
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateServiceDetail?>(null);
+    }
+
+    /// <summary>
+    /// A recording publish operation: returns one table, records the publish command (so a test can assert the
+    /// planned protocols were threaded), and reports a controllable canonical protocol set from EnableProtocols.
+    /// </summary>
+    private sealed class RecordingPublishOperation(IReadOnlyList<string> enabledProtocols) : IServiceLayerPublishOperation
+    {
+        public int PublishCalls { get; private set; }
+        public int EnableCalls { get; private set; }
+        public ServiceLayerPublishCommand? LastCommand { get; private set; }
+        public IReadOnlyList<string>? LastEnableProtocols { get; private set; }
+
+        public Task<ServiceLayerPublishResult> PublishAsync(
+            ServiceLayerPublishCommand command, CancellationToken cancellationToken = default)
+        {
+            PublishCalls++;
+            LastCommand = command;
+            return Task.FromResult(new ServiceLayerPublishResult
+            {
+                Succeeded = true,
+                State = "Published",
+                LayerId = 1,
+                LayerName = command.LayerName,
+                ServiceName = command.ServiceName,
+            });
+        }
+
+        public Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
+            string serviceName, IReadOnlyList<string> protocols, CancellationToken cancellationToken = default)
+        {
+            EnableCalls++;
+            LastEnableProtocols = protocols;
+            return Task.FromResult(new ServiceProtocolEnableResult
+            {
+                Succeeded = true,
+                State = "Published",
+                EnabledProtocols = enabledProtocols,
+            });
+        }
+
+        public Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(
+            string connectionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ServiceLayerPublishTable>>(
+            [
+                new ServiceLayerPublishTable
+                {
+                    Schema = "public",
+                    Table = "parcels",
+                    GeometryColumn = "geom",
+                    GeometryType = "Polygon",
+                    Srid = 4326,
+                    EstimatedRows = 10,
+                    Columns = ["id", "name"],
+                },
+            ]);
+    }
 
     /// <summary>A minimal data source that advertises exactly one resource, for the existing-resource path test.</summary>
     private sealed class OneResourceDataSource(string resourceId, string name) : IOperateTransitionDataSource
