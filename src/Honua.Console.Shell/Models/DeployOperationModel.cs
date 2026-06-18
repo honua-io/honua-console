@@ -98,6 +98,24 @@ public sealed record DeployOperationProposal(
         DeployOperationLifecycle.Succeeded
         or DeployOperationLifecycle.Failed
         or DeployOperationLifecycle.RolledBack;
+
+    /// <summary>
+    /// Whether this operation is a server-version upgrade (or its rollback) rather than a
+    /// metadata/service cross-environment promotion. The server's WorkflowOperationKind is
+    /// <c>Deploy</c>/<c>Rollback</c> for a revision/version deploy and <c>MetadataRelease</c>
+    /// for a release-package promotion; the Operate Deploy page routes the two capabilities
+    /// from this classification. A <c>Migration</c> kind is neither and is excluded.
+    /// </summary>
+    public bool IsServerUpgrade =>
+        string.Equals(Kind, "Deploy", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Kind, "Rollback", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether this operation is a cross-environment metadata/service promotion
+    /// (WorkflowOperationKind <c>MetadataRelease</c>).
+    /// </summary>
+    public bool IsMetadataPromotion =>
+        string.Equals(Kind, "MetadataRelease", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>
