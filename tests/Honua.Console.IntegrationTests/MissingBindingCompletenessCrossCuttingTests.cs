@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
@@ -58,6 +59,27 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     }
 
     [Fact]
+    public void OperateDeploy_WithNoServer_RendersMissingBinding_AndNoFabricatedUpgrade()
+    {
+        using var ctx = new Bunit.TestContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IConsoleServerVersionClient>(new UnsupportedConsoleServerVersionClient());
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
+        ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(new UnboundReleaseClient());
+
+        var page = ctx.RenderComponent<OperateDeployPage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // The upgrade card surfaces the unsupported server-version binding, not an upgrade form.
+                Assert.Contains("not configured", page.Markup, StringComparison.OrdinalIgnoreCase);
+                Assert.Empty(page.FindAll("[data-target-version]"));
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void StudioAnalysisBuilder_WithNoServer_RendersMissingBinding_AndNoFabricatedList()
     {
         using var ctx = new Bunit.TestContext();
@@ -89,5 +111,31 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
         // No share-management panels are fabricated when unbound.
         Assert.DoesNotContain("data-share-access", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-share-panel=\"public-link\"", page.Markup, StringComparison.Ordinal);
+    }
+
+    // An unbound release client: no active profile means the server-owned release data is a
+    // missing-binding result, never fabricated. Mirrors what the production HTTP client returns
+    // when no environment profile is selected.
+    private sealed class UnboundReleaseClient : IConsoleGitOpsReleaseClient
+    {
+        public Task<OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>> GetReleaseProposalsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Denied(
+                OperateSectionStatus.Unavailable,
+                "No active environment profile is selected."));
+
+        public Task<OperateSectionResult<GitOpsReleaseProposal>> GetReleaseProposalAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<GitOpsReleaseProposal>.Denied(
+                OperateSectionStatus.Unavailable,
+                "No active environment profile is selected."));
+
+        public Task<OperateSectionResult<GitOpsReleaseDetail>> GetReleaseDetailAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<GitOpsReleaseDetail>.Denied(
+                OperateSectionStatus.Unavailable,
+                "No active environment profile is selected."));
     }
 }
