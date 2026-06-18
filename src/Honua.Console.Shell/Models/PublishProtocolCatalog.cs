@@ -81,6 +81,73 @@ public static class PublishProtocolCatalog
     public static ProtocolDescriptor? Find(string protocolId) =>
         protocolId is not null && ById.TryGetValue(protocolId, out var descriptor) ? descriptor : null;
 
+    // Display/protocol service-type aliases honua-server's Operate transition sources actually populate
+    // (HonuaServerOperateTransitionDataSource joins enabled protocol names like "FeatureServer, MapServer"
+    // or falls back to "Geo service"; the in-memory source uses display names like "Feature service"),
+    // mapped onto their ServiceProtocols ids. Lets the tree builder resolve already-published resources
+    // whose ServiceType is a display/protocol value rather than a metadata-v2 service-type string.
+    private static readonly IReadOnlyDictionary<string, string> ServiceTypeAliases =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // metadata-v2 service-type strings (the catalog's own ServiceType values).
+            ["esri-feature-service"] = Protocols.FeatureServer,
+            ["esri-map-service"] = Protocols.MapServer,
+            ["esri-image-service"] = Protocols.ImageServer,
+            ["ogc-api-features"] = Protocols.OgcFeatures,
+            ["wms"] = Protocols.Wms,
+            ["wfs"] = Protocols.Wfs20,
+            ["wmts"] = Protocols.Wmts,
+            ["odata"] = Protocols.OData,
+            ["stac-api"] = Protocols.Stac,
+            // ServiceProtocols ids as they arrive joined from honua-server runtime protocols.
+            ["FeatureServer"] = Protocols.FeatureServer,
+            ["MapServer"] = Protocols.MapServer,
+            ["ImageServer"] = Protocols.ImageServer,
+            ["OgcFeatures"] = Protocols.OgcFeatures,
+            ["Wfs20"] = Protocols.Wfs20,
+            ["Stac"] = Protocols.Stac,
+            // Display names the in-memory/demo source and human-facing projections use.
+            ["Feature service"] = Protocols.FeatureServer,
+            ["Map service"] = Protocols.MapServer,
+            ["Image service"] = Protocols.ImageServer,
+        };
+
+    /// <summary>
+    /// Resolves a service's <c>ServiceType</c> value — a metadata-v2 service-type string
+    /// (<c>esri-feature-service</c>), a single <c>ServiceProtocols</c> id, a comma-joined list of protocol
+    /// names (<c>FeatureServer, MapServer</c>), or a display name (<c>Feature service</c>) — into the protocol
+    /// descriptors it exposes, in catalog order with duplicates removed. Unknown tokens are skipped (never
+    /// fabricated). This is what lets the resource→publications tree show already-published resources as
+    /// Running rather than Draft regardless of which source populated the service type.
+    /// </summary>
+    public static IReadOnlyList<ProtocolDescriptor> ResolveServiceTypeProtocols(string? serviceType)
+    {
+        if (string.IsNullOrWhiteSpace(serviceType))
+        {
+            return [];
+        }
+
+        var resolved = new List<ProtocolDescriptor>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var token in serviceType.Split([',', ';', '+', '·', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            // Direct catalog ServiceType match (e.g. an exact metadata-v2 string), then alias fallback.
+            var descriptor = All.FirstOrDefault(d => string.Equals(d.ServiceType, token, StringComparison.OrdinalIgnoreCase));
+            if (descriptor is null && ServiceTypeAliases.TryGetValue(token, out var protocolId))
+            {
+                descriptor = Find(protocolId);
+            }
+
+            if (descriptor is not null && seen.Add(descriptor.Id))
+            {
+                resolved.Add(descriptor);
+            }
+        }
+
+        var order = All.Select((d, index) => (d.Id, index)).ToDictionary(pair => pair.Id, pair => pair.index, StringComparer.Ordinal);
+        return resolved.OrderBy(d => order[d.Id]).ToArray();
+    }
+
     /// <summary>The descriptors in a group, in catalog order.</summary>
     public static IReadOnlyList<ProtocolDescriptor> InGroup(string group) =>
         All.Where(descriptor => string.Equals(descriptor.Group, group, StringComparison.Ordinal)).ToArray();

@@ -30,6 +30,14 @@ public sealed record ServiceLayerPublishCommand
     public IReadOnlyList<string> Fields { get; init; } = [];
 
     public bool Enabled { get; init; } = true;
+
+    /// <summary>
+    /// The <c>ServiceProtocols</c> ids the resource is being exposed through on this service slot (e.g.
+    /// <c>FeatureServer</c>, <c>MapServer</c>, <c>Stac</c>). The layer publish lands the layer once; these
+    /// drive a single service-protocol enablement so each selected protocol is actually published rather than
+    /// the same layer-publish being re-posted per protocol (over-reporting live publications).
+    /// </summary>
+    public IReadOnlyList<string> Protocols { get; init; } = [];
 }
 
 /// <summary>
@@ -63,6 +71,33 @@ public sealed record ServiceLayerPublishResult
     public IReadOnlyList<ServiceLayerPublishFieldError> FieldErrors { get; init; } = [];
 
     public static ServiceLayerPublishResult MissingBinding(string detail) => new()
+    {
+        Succeeded = false,
+        State = "Missing binding",
+        Detail = detail
+    };
+}
+
+/// <summary>
+/// Outcome of enabling a set of <c>ServiceProtocols</c> on a service slot. On success
+/// <see cref="Succeeded"/> is <c>true</c> and <see cref="EnabledProtocols"/> is the canonical set the service
+/// now exposes (so the flow reports only the protocols that are genuinely live). On failure (missing binding,
+/// rejection, transport error) <see cref="Succeeded"/> is <c>false</c> and <see cref="State"/> /
+/// <see cref="Detail"/> carry the neutral state vocabulary token and reason.
+/// </summary>
+public sealed record ServiceProtocolEnableResult
+{
+    public bool Succeeded { get; init; }
+
+    /// <summary>State vocabulary token (e.g. "Published", "Missing binding", "Rejected", "Unavailable").</summary>
+    public required string State { get; init; }
+
+    public string? Detail { get; init; }
+
+    /// <summary>The protocols the service exposes after the change (the canonical post-change set).</summary>
+    public IReadOnlyList<string> EnabledProtocols { get; init; } = [];
+
+    public static ServiceProtocolEnableResult MissingBinding(string detail) => new()
     {
         Succeeded = false,
         State = "Missing binding",
