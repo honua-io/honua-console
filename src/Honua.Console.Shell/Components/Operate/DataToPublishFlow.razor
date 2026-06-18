@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Pages
 @using Honua.Console.Shell.Services
 @inject IConsoleFileImportOperation FileImport
 @inject IServiceLayerPublishOperation PublishOperation
@@ -106,7 +107,7 @@
                     {
                         <label class="studio-form-label">
                             <span>Table</span>
-                            <select class="console-input" @bind="_flow.Source.TableKey" disabled="@(_tables.Count == 0)">
+                            <select class="console-input" data-table-picker @bind="_flow.Source.TableKey" disabled="@(_tables.Count == 0)">
                                 <option value="">@(_loadingTables ? "Loading tables…" : _tables.Count == 0 ? "No publishable tables" : "Select a table…")</option>
                                 @foreach (var table in _tables)
                                 {
@@ -115,12 +116,26 @@
                             </select>
                         </label>
                     }
+                    @if (_flow.Source.Mode == AddDataMode.RemoteService)
+                    {
+                        @* Remote-service import owns its own discovery → select → import surface; embedding it here
+                           keeps it reachable through the unified flow (the old /operate/import/service route now
+                           redirects to source=remoteservice). Imported services land as resources you then publish
+                           from the tree. *@
+                        <div data-remote-service-import>
+                            <OperateImportServicePage />
+                            <p class="console-muted">Imported services land as resources — <a href="/operate/data">open the resource tree</a> to publish them as the protocols you want.</p>
+                        </div>
+                    }
                     @StepError()
                     <div class="console-action-row">
                         <a href="/operate/data">Cancel</a>
-                        <button type="button" class="console-button" disabled="@(_busy || !CanContinueFromAddData())" @onclick="ContinueFromAddData">
-                            @(_busy ? "Working…" : "Continue →")
-                        </button>
+                        @if (_flow.Source.Mode != AddDataMode.RemoteService)
+                        {
+                            <button type="button" class="console-button" disabled="@(_busy || !CanContinueFromAddData())" @onclick="ContinueFromAddData">
+                                @(_busy ? "Working…" : "Continue →")
+                            </button>
+                        }
                     </div>
                 </article>
                 break;
@@ -416,7 +431,9 @@
                     StageExistingResource();
                     break;
                 case AddDataMode.RemoteService:
-                    _stepError = "Remote-service import runs through the dedicated import surface. Use Upload file, Connect a table, or Existing resource here.";
+                    // Remote-service import is driven by the embedded import surface (rendered in the AddData
+                    // step body); there is no separate Continue action for it. Imported services land as
+                    // resources the operator then publishes from the tree.
                     return;
                 default:
                     _stepError = "This source isn't drivable in manual mode.";
@@ -555,22 +572,7 @@
         _busy = true;
         try
         {
-            foreach (var plan in _flow.PlannedPublications)
-            {
-                var result = await PublishProtocolAsync(plan, table);
-                if (string.Equals(result.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
-                {
-                    _missingBinding = result.Detail ?? "Configure a honua-server base URL to publish.";
-                    _publishResults.Clear();
-                    return;
-                }
-
-                _publishResults.Add(result);
-                if (result.Succeeded)
-                {
-                    _successPublicationCount++;
-                }
-            }
+            await PublishTableResourceAsync(table);
 
             if (_successPublicationCount > 0)
             {
@@ -587,17 +589,35 @@
         }
     }
 
-    private async Task<PublishResultEntry> PublishProtocolAsync(PublishProtocolPlan plan, ServiceLayerPublishTable? table)
+    /// <summary>
+    /// Publishes the selected table once, then enables the planned protocols on its service slot in a single
+    /// admin call, and reports one result per planned protocol from the protocols the server actually exposes.
+    /// Publishing the layer once + enabling the protocol set (rather than re-posting the same layer publish per
+    /// protocol) is what makes a multi-protocol selection genuinely live on each protocol's preview route, and
+    /// stops the UI over-reporting publications that were never created.
+    /// </summary>
+    private async Task PublishTableResourceAsync(ServiceLayerPublishTable? table)
     {
+        var plans = _flow.PlannedPublications;
+        if (plans.Count == 0)
+        {
+            return;
+        }
+
         if (table is null)
         {
             // Existing-resource / file sources don't carry a connection+table to drive the admin
             // publish-layer operation from the console; surface that honestly rather than faking a publish.
-            return new PublishResultEntry(
-                plan.Label,
-                Succeeded: false,
-                State: "Unsupported here",
-                Detail: "Publishing this source's protocols runs server-side after ingest; the console publishes table sources directly. (Resource is staged; protocol bindings pending server materialization.)");
+            foreach (var plan in plans)
+            {
+                _publishResults.Add(new PublishResultEntry(
+                    plan.Label,
+                    Succeeded: false,
+                    State: "Unsupported here",
+                    Detail: "Publishing this source's protocols runs server-side after ingest; the console publishes table sources directly. (Resource is staged; protocol bindings pending server materialization.)"));
+            }
+
+            return;
         }
 
         var serviceName = $"{_flow.ServiceSlot.Trim('/')}".Replace(" ", "-");
@@ -613,13 +633,63 @@
             Srid = table.Srid,
             Fields = table.Columns,
             Enabled = _flow.Visibility != PublishVisibility.Private,
+            Protocols = plans.Select(plan => plan.ProtocolId).ToArray(),
         };
 
-        var result = await PublishOperation.PublishAsync(command);
-        var detail = result.Succeeded
-            ? $"Published on {plan.Route}"
-            : (result.Detail ?? "Publish rejected.");
-        return new PublishResultEntry(plan.Label, result.Succeeded, result.State, detail);
+        // Step 1: land the layer once.
+        var publish = await PublishOperation.PublishAsync(command);
+        if (string.Equals(publish.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+        {
+            _missingBinding = publish.Detail ?? "Configure a honua-server base URL to publish.";
+            return;
+        }
+
+        if (!publish.Succeeded)
+        {
+            // The layer publish failed → no protocol is live; report the failure against every planned protocol.
+            foreach (var plan in plans)
+            {
+                _publishResults.Add(new PublishResultEntry(
+                    plan.Label, Succeeded: false, publish.State, publish.Detail ?? "Publish rejected."));
+            }
+
+            return;
+        }
+
+        // Step 2: enable the selected protocols on the service in one call, then report each plan from the
+        // protocols the server actually exposes (so MapServer/STAC/OGC are only reported when truly live).
+        var enable = await PublishOperation.EnableProtocolsAsync(
+            command.ServiceName,
+            command.Protocols);
+        if (string.Equals(enable.State, "Missing binding", StringComparison.OrdinalIgnoreCase))
+        {
+            _missingBinding = enable.Detail ?? "Configure a honua-server base URL to publish.";
+            _publishResults.Clear();
+            return;
+        }
+
+        var liveProtocols = enable.Succeeded
+            ? enable.EnabledProtocols.ToHashSet(StringComparer.Ordinal)
+            : [];
+        foreach (var plan in plans)
+        {
+            var isLive = liveProtocols.Contains(plan.ProtocolId);
+            var entry = isLive
+                ? new PublishResultEntry(plan.Label, Succeeded: true, "Published", $"Published on {plan.Route}")
+                : new PublishResultEntry(
+                    plan.Label,
+                    Succeeded: false,
+                    enable.Succeeded ? "Not exposed" : enable.State,
+                    enable.Succeeded
+                        ? "The service did not expose this protocol after publishing."
+                        : enable.Detail ?? "Protocol enablement rejected.");
+
+            _publishResults.Add(entry);
+            if (isLive)
+            {
+                _successPublicationCount++;
+            }
+        }
     }
 
     private void GoToStep(FlowStep step)
