@@ -342,7 +342,7 @@ public sealed class ResourceFirstPublishFlowTests
     public async Task AiFlow_Approve_AppliesThroughTheSameWiredPublishPath()
     {
         using var ctx = NewContext();
-        var publish = new RecordingPublishOperation();
+        var publish = new AiModeRecordingPublishOperation();
         RegisterAiServer(ctx, FakeAiPublishDriver.Enabled(), publish);
 
         var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
@@ -515,10 +515,10 @@ public sealed class ResourceFirstPublishFlowTests
     {
         FakeAiPublishDriver.LastDecision = null;
         ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
-        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish ?? new RecordingPublishOperation());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish ?? new AiModeRecordingPublishOperation());
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
         ctx.Services.AddSingleton<IAiPublishDriver>(driver);
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new AiModeOneConnectionDataSource());
     }
 
     /// <summary>A scripted AI driver: enabled-with-proposal, AI-off, or blocked — for the AI-mode flow tests.</summary>
@@ -577,7 +577,7 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     /// <summary>A publish op that advertises one "parcels" table and records the publish command on Approve.</summary>
-    private sealed class RecordingPublishOperation : IServiceLayerPublishOperation
+    private sealed class AiModeRecordingPublishOperation : IServiceLayerPublishOperation
     {
         public bool PublishCalled { get; private set; }
         public ServiceLayerPublishCommand? LastCommand { get; private set; }
@@ -597,6 +597,17 @@ public sealed class ResourceFirstPublishFlowTests
             });
         }
 
+        public Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
+            string serviceName,
+            IReadOnlyList<string> protocols,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ServiceProtocolEnableResult
+            {
+                Succeeded = true,
+                State = "Published",
+                EnabledProtocols = protocols,
+            });
+
         public Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(
             string connectionId,
             CancellationToken cancellationToken = default) =>
@@ -615,7 +626,7 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     /// <summary>A data source advertising one connection so AI mode can load publishable tables.</summary>
-    private sealed class OneConnectionDataSource : IOperateTransitionDataSource
+    private sealed class AiModeOneConnectionDataSource : IOperateTransitionDataSource
     {
         private static readonly OperateConnectionSummary Connection =
             new("conn1", "PostGIS", "postgis", "db", "app", "Connected", "now", null);
