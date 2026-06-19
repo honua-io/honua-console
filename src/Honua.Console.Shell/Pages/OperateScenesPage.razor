@@ -1,0 +1,282 @@
+@page "/operate/scenes"
+@page "/operate/scenes/{SceneId}"
+@using System.Globalization
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject IConsoleSceneClient Scenes
+
+<section class="console-page" data-scenes-page>
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / 3D Scenes</p>
+        <h1>Point clouds &amp; 3D scenes</h1>
+        <p>
+            Discover the connected server's renderable 3D Tiles scenes, ingest a LAS point cloud into a
+            servable tileset, and view the result in the 3D viewer. The server generates the tileset and
+            serves it from <code>/scenes/{id}/tileset.json</code>.
+        </p>
+    </div>
+
+    @* ---- Selected scene: 3D Tiles viewer ---- *@
+    @if (!string.IsNullOrWhiteSpace(SceneId))
+    {
+        <section class="console-section" data-scene-viewer-section>
+            <h2>Scene @SceneId</h2>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="/operate/scenes" data-scenes-back>Back to scenes</a>
+            </div>
+            <SceneViewer TilesetUrl="@_viewerTilesetUrl" AriaLabel="@($"3D Tiles viewer for scene {SceneId}")" />
+        </section>
+    }
+
+    @* ---- Ingest a LAS point cloud ---- *@
+    <section class="console-section" data-pointcloud-ingest>
+        <h2>Ingest a LAS point cloud</h2>
+        <p class="console-muted">
+            Upload a <code>.las</code> / <code>.laz</code> file (Enterprise). The server decodes it into a
+            3D Tiles point tileset and returns the servable scene.
+        </p>
+
+        <div class="console-field-grid">
+            <label class="console-field">
+                <span>Display name</span>
+                <input class="console-input" @bind="_displayName" aria-label="Scene display name"
+                       placeholder="Survey point cloud" data-pointcloud-display-name />
+            </label>
+            <label class="console-field">
+                <span>Description</span>
+                <input class="console-input" @bind="_description" aria-label="Scene description"
+                       placeholder="Optional description" data-pointcloud-description />
+            </label>
+            <label class="console-field">
+                <span>Source CRS (EPSG, optional)</span>
+                <input class="console-input" type="number" @bind="_sourceCrs" aria-label="Source CRS EPSG code"
+                       placeholder="e.g. 26910" data-pointcloud-source-crs />
+            </label>
+        </div>
+
+        <div class="console-field">
+            <InputFile OnChange="OnFileSelected" accept=".las,.laz" data-pointcloud-file />
+            @if (_selectedFile is not null)
+            {
+                <p class="console-muted" data-pointcloud-selected>
+                    Selected: @_selectedFile.Name (@FormatBytes(_selectedFile.Size))
+                </p>
+            }
+        </div>
+
+        <div class="console-detail-actions">
+            <button type="button" class="console-button" disabled="@(_selectedFile is null || _ingesting)"
+                    @onclick="IngestAsync" data-pointcloud-ingest-button>
+                @(_ingesting ? "Ingesting..." : "Ingest point cloud")
+            </button>
+        </div>
+
+        @if (_ingestResult is not null)
+        {
+            @if (_ingestResult.IsOk)
+            {
+                var result = _ingestResult.Value!;
+                <article class="console-panel console-state-success" role="status" data-pointcloud-ingest-success>
+                    <p class="console-kicker">Ingested</p>
+                    <p>
+                        Scene <strong>@result.SceneId</strong> created with
+                        @result.PointCount.ToString("N0", CultureInfo.InvariantCulture) points across
+                        @result.TileCount.ToString(CultureInfo.InvariantCulture) tiles
+                        (@(result.HasColor ? "with color" : "no color")).
+                    </p>
+                    <div class="console-detail-actions">
+                        <a class="console-button-link"
+                           href="@($"/operate/scenes/{result.SceneId}")"
+                           data-pointcloud-view-link="@result.SceneId">
+                            View 3D scene
+                        </a>
+                    </div>
+                </article>
+            }
+            else
+            {
+                <article class="console-panel console-state-warning" role="status" data-pointcloud-ingest-error>
+                    <p class="console-kicker">@ScenePresentation.Title(_ingestResult.Status)</p>
+                    <p>@IngestMessage</p>
+                </article>
+            }
+        }
+    </section>
+
+    @* ---- Discover scenes from the catalog ---- *@
+    <section class="console-section" data-scenes-discovery>
+        <h2>Scenes</h2>
+        @if (_scenes is null)
+        {
+            <OperateSectionStatusPanel Heading="Scenes" Loading="true" />
+        }
+        else if (!_scenes.IsOk)
+        {
+            <OperateSectionStatusPanel Heading="Scenes"
+                Status="MapStatus(_scenes.Status)"
+                Message="@DiscoveryMessage" />
+        }
+        else if (_scenes.Value!.Scenes.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Scenes" Empty="true"
+                EmptyTitle="No scenes published"
+                EmptyMessage="The connected server has no renderable 3D scenes. Ingest a LAS point cloud above to create one." />
+        }
+        else
+        {
+            <table class="console-table" data-scenes-table>
+                <thead>
+                    <tr><th>Id</th><th>Name</th><th>Capabilities</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var scene in _scenes.Value.Scenes)
+                    {
+                        <tr data-scene-id="@scene.Id">
+                            <td><code>@scene.Id</code></td>
+                            <td>
+                                @scene.Name
+                                @if (!string.IsNullOrWhiteSpace(scene.Description))
+                                {
+                                    <div class="console-muted">@scene.Description</div>
+                                }
+                            </td>
+                            <td class="console-muted">@(scene.Capabilities.Count == 0 ? "—" : string.Join(", ", scene.Capabilities))</td>
+                            <td>
+                                <a class="console-button-link"
+                                   href="@($"/operate/scenes/{scene.Id}")"
+                                   data-scene-open="@scene.Id">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+@code {
+    private const long MaxFileBytes = 256L * 1024 * 1024;
+
+    [Parameter]
+    public string? SceneId { get; set; }
+
+    private SceneReadResult<SceneListResponse>? _scenes;
+    private SceneReadResult<PointCloudIngestResult>? _ingestResult;
+    private string? _viewerTilesetUrl;
+    private string? _resolvedViewerFor;
+
+    private IBrowserFile? _selectedFile;
+    private string _displayName = string.Empty;
+    private string _description = string.Empty;
+    private int? _sourceCrs;
+    private bool _ingesting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scenes = await Scenes.ListScenesAsync().ConfigureAwait(false);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(SceneId) && _resolvedViewerFor != SceneId)
+        {
+            _resolvedViewerFor = SceneId;
+            _viewerTilesetUrl = await Scenes.ResolveTilesetUrlAsync(SceneId).ConfigureAwait(false);
+        }
+        else if (string.IsNullOrWhiteSpace(SceneId))
+        {
+            _viewerTilesetUrl = null;
+            _resolvedViewerFor = null;
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        _selectedFile = args.FileCount > 0 ? args.File : null;
+        _ingestResult = null;
+    }
+
+    private async Task IngestAsync()
+    {
+        if (_selectedFile is null || _ingesting)
+        {
+            return;
+        }
+
+        _ingesting = true;
+        _ingestResult = null;
+        try
+        {
+            byte[] content;
+            await using (var stream = _selectedFile.OpenReadStream(MaxFileBytes))
+            {
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer).ConfigureAwait(false);
+                content = buffer.ToArray();
+            }
+
+            var request = new PointCloudIngestRequest
+            {
+                Content = content,
+                FileName = _selectedFile.Name,
+                DisplayName = string.IsNullOrWhiteSpace(_displayName) ? null : _displayName,
+                Description = string.IsNullOrWhiteSpace(_description) ? null : _description,
+                SourceCrs = _sourceCrs
+            };
+
+            _ingestResult = await Scenes.IngestPointCloudAsync(request).ConfigureAwait(false);
+
+            if (_ingestResult.IsOk)
+            {
+                // Refresh discovery so the new scene appears in the list.
+                _scenes = await Scenes.ListScenesAsync().ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            _ingestResult = SceneReadResult<PointCloudIngestResult>.Denied(
+                SceneReadStatus.InvalidInput,
+                "The selected file could not be read for upload.");
+        }
+        finally
+        {
+            _ingesting = false;
+        }
+    }
+
+    private static OperateSectionStatus MapStatus(SceneReadStatus status) => status switch
+    {
+        SceneReadStatus.Missing => OperateSectionStatus.Missing,
+        SceneReadStatus.Forbidden => OperateSectionStatus.Forbidden,
+        SceneReadStatus.Unsupported => OperateSectionStatus.Unsupported,
+        _ => OperateSectionStatus.Unavailable
+    };
+
+    private string DiscoveryMessage =>
+        _scenes is null || string.IsNullOrWhiteSpace(_scenes.Message)
+            ? ScenePresentation.FallbackMessage(_scenes?.Status ?? SceneReadStatus.Unavailable)
+            : _scenes.Message;
+
+    private string IngestMessage =>
+        _ingestResult is null || string.IsNullOrWhiteSpace(_ingestResult.Message)
+            ? ScenePresentation.FallbackMessage(_ingestResult?.Status ?? SceneReadStatus.Unavailable)
+            : _ingestResult.Message;
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        return $"{size.ToString("0.#", CultureInfo.InvariantCulture)} {units[unit]}";
+    }
+}

@@ -1,0 +1,172 @@
+@namespace Honua.Console.Shell.Components
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@*
+    Shared 3D Tiles scene viewer.
+
+    Rendering: an inline SVG schematic ALWAYS renders first as a no-backend
+    placeholder, so the component is fully usable in bUnit and in the
+    missing-binding (no tileset) state. When a TilesetUrl is supplied AND a
+    browser CesiumJS runtime is reachable, a live 3D Tiles viewer mounts on top
+    of the placeholder via JS interop (scene-viewer.js); otherwise the schematic
+    stays. This preserves the no-mock contract — a live scene appears only when a
+    real tileset is bound.
+*@
+<figure class="scene-viewer" style="@HeightStyle"
+        data-scene-viewer
+        data-scene-bound="@(_liveBound ? "true" : "false")"
+        aria-label="@AriaLabel">
+    <div class="scene-viewer-stage">
+        <div class="scene-viewer-canvas" @ref="_canvas" data-scene-viewer-canvas></div>
+
+        @* No-backend schematic placeholder. Always present; hidden by the live viewer when one mounts. *@
+        <svg class="scene-viewer-schematic"
+             viewBox="0 0 800 420"
+             preserveAspectRatio="xMidYMid slice"
+             role="img"
+             aria-hidden="true"
+             focusable="false">
+            <defs>
+                <radialGradient id="@_glowId" cx="50%" cy="40%" r="60%">
+                    <stop offset="0%" stop-color="#1c2b3a" />
+                    <stop offset="100%" stop-color="#0a121b" />
+                </radialGradient>
+            </defs>
+            <rect width="800" height="420" fill="url(#@_glowId)" />
+            @foreach (var p in SchematicPoints)
+            {
+                <circle cx="@p.X" cy="@p.Y" r="@p.R" fill="@p.Fill" opacity="@p.Opacity" />
+            }
+        </svg>
+
+        @if (!string.IsNullOrWhiteSpace(TilesetUrl))
+        {
+            <div class="scene-viewer-source" data-scene-tileset-url>
+                <span>Tileset</span>
+                <code>@TilesetUrl</code>
+            </div>
+        }
+    </div>
+</figure>
+
+@code {
+    private readonly string _glowId = $"sv-glow-{Guid.NewGuid():N}";
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private bool _liveBound;
+    private string? _boundTilesetUrl;
+
+    /// <summary>
+    /// Absolute tileset.json URL. When set AND a browser Cesium runtime is
+    /// reachable, a live 3D Tiles viewer mounts over the schematic. When null
+    /// (the default / missing-binding state) the schematic placeholder is used
+    /// and no viewer backend is contacted.
+    /// </summary>
+    [Parameter]
+    public string? TilesetUrl { get; set; }
+
+    /// <summary>Pixel height of the viewer stage.</summary>
+    [Parameter]
+    public int Height { get; set; } = 420;
+
+    /// <summary>Accessible label for the whole figure.</summary>
+    [Parameter]
+    public string AriaLabel { get; set; } = "3D scene viewer";
+
+    private string HeightStyle => $"--scene-viewer-height:{Height}px;";
+
+    private sealed record SchematicPoint(double X, double Y, double R, string Fill, double Opacity);
+
+    private static readonly SchematicPoint[] SchematicPointSet = BuildSchematic();
+
+    private static SchematicPoint[] BuildSchematic()
+    {
+        // A static, deterministic point-cloud-looking scatter for the placeholder.
+        var rng = new Random(8675309);
+        var points = new SchematicPoint[160];
+        string[] palette = ["#6fb1ff", "#9fd6ff", "#c7e7ff", "#4f8fd6"];
+        for (var i = 0; i < points.Length; i++)
+        {
+            var x = 120 + (rng.NextDouble() * 560);
+            var depth = rng.NextDouble();
+            var y = 120 + (depth * 220) + (Math.Sin(x / 60.0) * 18);
+            points[i] = new SchematicPoint(
+                Math.Round(x, 1),
+                Math.Round(y, 1),
+                Math.Round(1.4 + (depth * 2.2), 1),
+                palette[i % palette.Length],
+                Math.Round(0.4 + (depth * 0.5), 2));
+        }
+
+        return points;
+    }
+
+    private static IReadOnlyList<SchematicPoint> SchematicPoints => SchematicPointSet;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (string.IsNullOrWhiteSpace(TilesetUrl) || string.Equals(TilesetUrl, _boundTilesetUrl, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/Honua.Console.Shell/scene-viewer.js");
+
+            if (_liveBound)
+            {
+                try
+                {
+                    await _module.InvokeVoidAsync("dispose", _canvas);
+                }
+                catch (JSException)
+                {
+                    // Ignore teardown failures; the re-init below replaces the canvas state.
+                }
+
+                _liveBound = false;
+            }
+
+            var bound = await _module.InvokeAsync<bool>("init", _canvas, TilesetUrl);
+            if (bound)
+            {
+                _boundTilesetUrl = TilesetUrl;
+                _liveBound = true;
+                StateHasChanged();
+            }
+        }
+        catch (JSException)
+        {
+            // No browser Cesium runtime (offline, blocked CDN, or non-interactive render):
+            // keep the schematic placeholder. Never throw.
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop unavailable (prerender / bUnit without a JS runtime): keep the placeholder.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("dispose", _canvas);
+                await _module.DisposeAsync();
+            }
+            catch (JSException)
+            {
+                // Ignore teardown failures.
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore teardown failures during prerender.
+            }
+        }
+    }
+}

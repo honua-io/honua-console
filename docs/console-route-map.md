@@ -99,6 +99,10 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/catalogs              Catalogs · discovery-endpoints surface (Esri/OGC/OData/STAC/DCAT endpoint cards, auto-default-on vs opt-in, feeders, per-endpoint issues; bound to the catalog discovery-endpoints registry honua-server#1279, else missing-binding). DISTINCT from the singular content catalog at /catalog.
 /operate/catalogs/:key         Catalogs · one discovery endpoint drill-down (Items/Settings/Access/Activity/Validation tabs + mirrored-items table; honua-server#1279)
 /operate/catalogs/:key/items/:itemId  Catalogs · single catalog item editor (auto-mirror item: derived identity, catalog-only presentation, service bindings, standards mapping; honua-server#1279)
+/operate/sensors               SensorThings (STA v1.1) browser · list Things/Datastreams/Observations read-only, discover datastreams via the /sta/v1.1 collections (bound to honua-server #1842 / #1747, else missing-binding)
+/operate/sensors/datastreams/:datastreamId  SensorThings · datastream detail with $expand observation navigation + a time-series chart of the datastream's observations
+/operate/scenes                3D Scenes · discover renderable scenes (GET /api/scenes) and ingest a LAS point cloud into a servable 3D Tiles tileset (POST /api/v1/admin/scenes/ingest/pointcloud; bound to honua-server #1840 / #1201, else missing-binding)
+/operate/scenes/:sceneId       3D Scenes · view a scene's 3D Tiles tileset (/scenes/{id}/tileset.json) in the Cesium-backed scene viewer
 /operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162)
 /operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)

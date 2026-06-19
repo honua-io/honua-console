@@ -1,0 +1,200 @@
+using System.Text.Json.Serialization;
+
+namespace Honua.Console.Shell.Models;
+
+// Console-side projections of the OGC SensorThings API (STA v1.1) read surface
+// served by honua-server under /sta/v1.1 (PR #1842 / #1747). These records mirror
+// the conformance-shaped wire contract (@iot.id / @iot.selfLink /
+// @iot.navigationLink, `value` arrays, @iot.nextLink paging) so the console can
+// browse Things/Datastreams/Observations and chart a datastream's time series
+// without standing up a bespoke STA parser. The server module is the source of
+// truth; these stay a thin read-only projection (the temporary Contracts-shim
+// boundary the repo uses until honua-sdk-dotnet projects STA).
+
+/// <summary>
+/// STA entity-collection envelope: a <c>value</c> array plus optional
+/// <c>@iot.count</c> and <c>@iot.nextLink</c> paging members.
+/// </summary>
+public sealed record StaEntitySet<T>
+{
+    [JsonPropertyName("@iot.count")]
+    public long? Count { get; init; }
+
+    [JsonPropertyName("value")]
+    public IReadOnlyList<T> Value { get; init; } = [];
+
+    [JsonPropertyName("@iot.nextLink")]
+    public string? NextLink { get; init; }
+}
+
+/// <summary>STA v1.1 <c>Thing</c> entity.</summary>
+public sealed record StaThing
+{
+    [JsonPropertyName("@iot.id")]
+    public long IotId { get; init; }
+
+    [JsonPropertyName("@iot.selfLink")]
+    public string IotSelfLink { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string Description { get; init; } = string.Empty;
+
+    [JsonPropertyName("properties")]
+    public IReadOnlyDictionary<string, string>? Properties { get; init; }
+
+    [JsonPropertyName("Datastreams@iot.navigationLink")]
+    public string? DatastreamsNavigationLink { get; init; }
+}
+
+/// <summary>STA v1.1 unit-of-measurement object embedded in a Datastream.</summary>
+public sealed record StaUnitOfMeasurement
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("symbol")]
+    public string Symbol { get; init; } = string.Empty;
+
+    [JsonPropertyName("definition")]
+    public string Definition { get; init; } = string.Empty;
+}
+
+/// <summary>STA v1.1 <c>Datastream</c> entity.</summary>
+public sealed record StaDatastream
+{
+    [JsonPropertyName("@iot.id")]
+    public long IotId { get; init; }
+
+    [JsonPropertyName("@iot.selfLink")]
+    public string IotSelfLink { get; init; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string Description { get; init; } = string.Empty;
+
+    [JsonPropertyName("observationType")]
+    public string ObservationType { get; init; } = string.Empty;
+
+    [JsonPropertyName("unitOfMeasurement")]
+    public StaUnitOfMeasurement? UnitOfMeasurement { get; init; }
+
+    [JsonPropertyName("phenomenonTime")]
+    public string? PhenomenonTime { get; init; }
+
+    [JsonPropertyName("Observations@iot.navigationLink")]
+    public string? ObservationsNavigationLink { get; init; }
+
+    [JsonPropertyName("Thing@iot.navigationLink")]
+    public string? ThingNavigationLink { get; init; }
+
+    [JsonPropertyName("Sensor@iot.navigationLink")]
+    public string? SensorNavigationLink { get; init; }
+
+    [JsonPropertyName("ObservedProperty@iot.navigationLink")]
+    public string? ObservedPropertyNavigationLink { get; init; }
+
+    [JsonPropertyName("Observations")]
+    public IReadOnlyList<StaObservation>? Observations { get; init; }
+
+    [JsonPropertyName("Thing")]
+    public StaThing? Thing { get; init; }
+}
+
+/// <summary>STA v1.1 <c>Observation</c> entity.</summary>
+public sealed record StaObservation
+{
+    [JsonPropertyName("@iot.id")]
+    public long IotId { get; init; }
+
+    [JsonPropertyName("@iot.selfLink")]
+    public string IotSelfLink { get; init; } = string.Empty;
+
+    [JsonPropertyName("phenomenonTime")]
+    public string PhenomenonTime { get; init; } = string.Empty;
+
+    [JsonPropertyName("resultTime")]
+    public string? ResultTime { get; init; }
+
+    [JsonPropertyName("result")]
+    public double Result { get; init; }
+
+    [JsonPropertyName("Datastream@iot.navigationLink")]
+    public string? DatastreamNavigationLink { get; init; }
+}
+
+/// <summary>
+/// Read-status vocabulary for the SensorThings surface, mirroring the Operate
+/// section-status pattern so missing/forbidden/unsupported/unavailable all
+/// degrade through one shared surface (per the Console exception constraint).
+/// </summary>
+public enum SensorThingsReadStatus
+{
+    Ok,
+    Missing,
+    Forbidden,
+    Unsupported,
+    Unavailable
+}
+
+/// <summary>Read envelope carrying a status that drives the shared empty/denied surfaces.</summary>
+public sealed record SensorThingsReadResult<T>
+{
+    public SensorThingsReadStatus Status { get; init; }
+
+    public T? Value { get; init; }
+
+    public string Message { get; init; } = string.Empty;
+
+    public bool IsOk => Status == SensorThingsReadStatus.Ok;
+
+    public static SensorThingsReadResult<T> Ok(T value) =>
+        new() { Status = SensorThingsReadStatus.Ok, Value = value };
+
+    public static SensorThingsReadResult<T> Denied(SensorThingsReadStatus status, string message) =>
+        new() { Status = status, Message = message };
+}
+
+/// <summary>Consistent titles/copy for non-ok SensorThings read states.</summary>
+public static class SensorThingsPresentation
+{
+    public const string MissingBindingMessage =
+        "Connect a honua-server environment (Honua:Server:BaseUrl) to browse SensorThings entities.";
+
+    public static string Title(SensorThingsReadStatus status) => status switch
+    {
+        SensorThingsReadStatus.Missing => "Not found",
+        SensorThingsReadStatus.Forbidden => "Permission required",
+        SensorThingsReadStatus.Unsupported => "Unsupported by this server",
+        _ => "Temporarily unavailable"
+    };
+
+    public static string FallbackMessage(SensorThingsReadStatus status) => status switch
+    {
+        SensorThingsReadStatus.Missing => "This server build does not expose the requested SensorThings entity.",
+        SensorThingsReadStatus.Forbidden => "The active environment profile is not permitted to read SensorThings.",
+        SensorThingsReadStatus.Unsupported => "The connected server does not advertise the SensorThings (STA v1.1) API.",
+        _ => "The honua-server SensorThings API could not be reached. Retry once the environment is connected."
+    };
+}
+
+/// <summary>A single charted point of a datastream time series (phenomenon time + numeric result).</summary>
+public sealed record SensorThingsTimeSeriesPoint(DateTimeOffset PhenomenonTime, double Result);
+
+/// <summary>A datastream's observations projected for time-series charting.</summary>
+public sealed record SensorThingsTimeSeries(
+    long DatastreamId,
+    string DatastreamName,
+    string UnitSymbol,
+    IReadOnlyList<SensorThingsTimeSeriesPoint> Points)
+{
+    public bool HasPoints => Points.Count > 0;
+
+    public double Minimum => HasPoints ? Points.Min(p => p.Result) : 0;
+
+    public double Maximum => HasPoints ? Points.Max(p => p.Result) : 0;
+}
