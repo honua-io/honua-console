@@ -49,6 +49,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioDashboardPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddAiPublishDriver(services, honuaServerBaseUrl);
         AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddRbacAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddCatalogDiscoveryDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
@@ -590,6 +591,24 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioWorkflowPackageClient, UnsupportedStudioWorkflowPackageClient>();
+    }
+
+    // Binds the resource-first publish flow's AI driver (redesign Phase 3) to the honua-server AI generation
+    // surface. The driver reuses the same IWorkflowPackageApiClient (the Bedrock-capable WorkflowGeneration
+    // providers — honua-server #1737) AddStudioWorkflowPackageClient registers when a server is configured, so
+    // there is no second HttpClient. With no server bound it falls back to the UnsupportedAiPublishDriver,
+    // which surfaces an honest "AI unavailable" state in AI mode (never a fabricated proposal, never a crash —
+    // Console Patterns Charter §11). Manual mode is unaffected and drives without an AI binding.
+    private static void AddAiPublishDriver(IServiceCollection services, string? honuaServerBaseUrl)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IAiPublishDriver, ServerAiPublishDriver>();
+            return;
+        }
+
+        services.TryAddSingleton<IAiPublishDriver, UnsupportedAiPublishDriver>();
     }
 
     // Binds the server-owned catalog/content metadata surfaces (Catalog list/search/detail, Share map
