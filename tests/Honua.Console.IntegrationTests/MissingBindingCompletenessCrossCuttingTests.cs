@@ -67,7 +67,7 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(new UnboundReleaseClient());
 
-        var page = ctx.RenderComponent<OperateDeployPage>();
+        var page = ctx.Render<OperateDeployPage>();
 
         page.WaitForAssertion(
             () =>

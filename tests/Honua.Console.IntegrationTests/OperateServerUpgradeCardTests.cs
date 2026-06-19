@@ -41,7 +41,7 @@ public sealed class OperateServerUpgradeCardTests
     {
         using var ctx = NewContext(new InMemoryConsoleServerVersionClient(Version("1.4.2")));
 
-        var card = ctx.RenderComponent<OperateServerUpgradeCard>();
+        var card = ctx.Render<OperateServerUpgradeCard>();
 
         card.WaitForAssertion(
             () => Assert.Contains("1.4.2", card.Find("[data-detected-version]").TextContent, StringComparison.Ordinal),
@@ -66,7 +66,7 @@ public sealed class OperateServerUpgradeCardTests
     {
         using var ctx = NewContext(new InMemoryConsoleServerVersionClient(Version("1.5.0")));
 
-        var card = ctx.RenderComponent<OperateServerUpgradeCard>();
+        var card = ctx.Render<OperateServerUpgradeCard>();
 
         card.WaitForAssertion(
             () => Assert.NotNull(card.Find("[data-target-version]")),
@@ -90,7 +90,7 @@ public sealed class OperateServerUpgradeCardTests
     {
         using var ctx = NewContext(new InMemoryConsoleServerVersionClient(Version("1.6.0")));
 
-        var card = ctx.RenderComponent<OperateServerUpgradeCard>();
+        var card = ctx.Render<OperateServerUpgradeCard>();
 
         card.WaitForAssertion(
             () => Assert.NotNull(card.Find("[data-target-version]")),
@@ -115,7 +115,7 @@ public sealed class OperateServerUpgradeCardTests
             OperateSectionStatus.Unsupported,
             "Server-version detection is not configured for this Console build."));
 
-        var card = ctx.RenderComponent<OperateServerUpgradeCard>();
+        var card = ctx.Render<OperateServerUpgradeCard>();
 
         card.WaitForAssertion(
             () =>
@@ -132,7 +132,7 @@ public sealed class OperateServerUpgradeCardTests
     {
         using var ctx = NewContext(new InMemoryConsoleServerVersionClient(Version("1.4.2")));
 
-        var card = ctx.RenderComponent<OperateServerUpgradeCard>();
+        var card = ctx.Render<OperateServerUpgradeCard>();
 
         card.WaitForAssertion(
             () =>
@@ -151,7 +151,7 @@ public sealed class OperateServerUpgradeCardTests
         var approvalClient = new InMemoryConsoleDeployApprovalClient([SubmittedUpgrade("upgrade-op")]);
         using var ctx = NewContext(new InMemoryConsoleServerVersionClient(Version("1.4.2")), approvalClient);
 
-        var card = ctx.RenderComponent<OperateServerUpgradeCard>(p => p
+        var card = ctx.Render<OperateServerUpgradeCard>(p => p
             .Add(x => x.UpgradeOperationId, "upgrade-op"));
 
         // The governed outcome surface (the shared approval panel) is shown for the in-flight
