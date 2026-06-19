@@ -40,6 +40,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /auth/signed-out               Post-signout landing (anonymous)
 
 /studio                        Studio entry (AI-assisted creation)
+/studio/ai                     Omni-prompt AI console alias (one prompt; AI infers intent + routes Studio↔DevOps; honua-console#203)
 /studio/query                  Generated query.package editor
 /studio/analysis               Server-bound spatial analysis builder (honua-server#1182 closed; list + cost-estimate degraded until honua-server#1237)
 /studio/map                    Generated map.package editor
@@ -66,6 +67,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/connections/new       Create
 /operate/connections/:id       Detail
 /operate/connections/:id/diagnostics
+/operate/ai                    Omni-prompt AI console — one free-text prompt routes Studio (GIS authoring → AI publish outcome card #200) vs DevOps (ops → deploy approval queue #197); AI infers intent, human approves (honua-console#203). Alias: /studio/ai
 /operate/data                  Data & Layers — resource→publications treeview + Layer Preview (the resource-first spine; merges Resources/Layers/Services lists; console-ux-redesign §5.3)
 /operate/data/new              Add data → publish flow host (?source=file|table|remoteservice|existingresource|ai, ?driver=manual|ai; console-ux-redesign §5.2/§5.4)
 /operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
