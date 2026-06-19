@@ -1,0 +1,250 @@
+@page "/operate/ai"
+@page "/studio/ai"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Components.Operate
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IOmniPromptIntentClassifier Classifier
+@inject IConsoleGitOpsReleaseClient ReleaseClient
+@inject IConsoleDeployApprovalClient ApprovalClient
+
+@*
+    The omni-prompt AI console (honua-console#203). ONE free-text box handles BOTH lanes:
+
+      • Studio (GIS authoring: publish / map / dashboard / analysis / ETL / style) — the within-Studio sub-type
+        is already inferred by the server generator, so there is NO workflow-type picker here. The prompt is
+        handed to the unified data→publish flow in AI mode, which proposes a resource + protocols + style and
+        lands a single OUTCOME + approval card (#200). Nothing publishes until the human approves.
+
+      • DevOps (ops: deploy / roll back / upgrade) — the prompt routes to the deploy-control approval lane. The
+        paused deploy-control operations awaiting a decision are projected from the GitOps release operations in
+        view (the server exposes no list-all endpoint), and the operator approves / rejects / rolls back through
+        the server's governed OperatorApprovalGate (#197). Nothing actuates until the human approves.
+
+    The router is a thin, console-side classifier (IOmniPromptIntentClassifier): no server intent-classify or
+    operations-catalog endpoint exists yet, so a deterministic keyword heuristic picks the lane and surfaces a
+    confirm chip when the signal is weak. Power users can force a lane with the lane override. The surface is
+    unified; the EXECUTION still routes to the existing Studio generate / deploy-control drivers — this page
+    re-homes neither.
+*@
+
+<section class="console-page omni-prompt-page" data-omni-prompt-page>
+    <div class="console-page-heading">
+        <p class="console-kicker">AI console</p>
+        <h1>Ask Honua</h1>
+        <p>
+            One prompt for everything — publish a layer, build a map or dashboard, run an analysis, or deploy /
+            roll back / upgrade a server. Describe it in plain language; Honua infers what you mean and routes it
+            to the right place. You always approve before anything happens.
+        </p>
+    </div>
+
+    <article class="console-panel omni-prompt-composer" data-omni-prompt-composer>
+        <label class="studio-form-label">
+            <span>What do you want to do?</span>
+            <textarea class="console-input"
+                      rows="3"
+                      placeholder="publish Maui parcels as a feature service · or · roll back staging to the last good revision"
+                      @bind="_prompt"
+                      @bind:event="oninput"
+                      data-omni-prompt-input></textarea>
+        </label>
+
+        <div class="console-action-row omni-prompt-actions">
+            <button type="button"
+                    class="console-button"
+                    disabled="@string.IsNullOrWhiteSpace(_prompt)"
+                    @onclick="RouteAsync"
+                    data-omni-prompt-submit>
+                Route &rarr;
+            </button>
+
+            @* Power-user lane override (honua-console#203 scope: keep an explicit mode to force a lane). *@
+            <span class="omni-prompt-lane-override" role="group" aria-label="Force lane">
+                <span class="console-muted">Force lane:</span>
+                <button type="button"
+                        class="console-link"
+                        disabled="@string.IsNullOrWhiteSpace(_prompt)"
+                        @onclick="@(() => RouteTo(OmniPromptIntent.Studio))"
+                        data-omni-force-studio>Studio</button>
+                <button type="button"
+                        class="console-link"
+                        disabled="@string.IsNullOrWhiteSpace(_prompt)"
+                        @onclick="@(() => RouteTo(OmniPromptIntent.DevOps))"
+                        data-omni-force-devops>DevOps</button>
+            </span>
+        </div>
+
+        @if (_classification is { Confidence: OmniPromptConfidence.Low } lowConfidence && _routedIntent is null)
+        {
+            @* CONFIRM CHIP — low-confidence / ambiguous prompt. The classifier never silently routes into the
+               wrong lane; the human picks. *@
+            <div class="console-panel console-state-info omni-prompt-confirm" role="note" data-omni-prompt-confirm>
+                <p class="console-kicker">Which lane?</p>
+                <p>@lowConfidence.Rationale</p>
+                <div class="console-action-row">
+                    <button type="button" class="console-button" @onclick="@(() => RouteTo(OmniPromptIntent.Studio))" data-omni-confirm-studio>
+                        Studio — publish / map / analyze
+                    </button>
+                    <button type="button" class="console-button console-button-secondary" @onclick="@(() => RouteTo(OmniPromptIntent.DevOps))" data-omni-confirm-devops>
+                        DevOps — deploy / roll back / upgrade
+                    </button>
+                </div>
+            </div>
+        }
+        else if (_routedIntent is { } routed)
+        {
+            <p class="console-muted omni-prompt-routed" role="status" data-omni-prompt-routed>
+                Routed to <strong>@(routed == OmniPromptIntent.Studio ? "Studio" : "DevOps")</strong>.
+                @_classification?.Rationale
+                <button type="button" class="console-link" @onclick="Reset" data-omni-prompt-reset>Start over</button>
+            </p>
+        }
+    </article>
+
+    @if (_routedIntent == OmniPromptIntent.Studio)
+    {
+        @* STUDIO LANE — the prompt seeds the AI driver of the unified data→publish flow; the outcome card +
+           human approval gate are unchanged (nothing publishes until Approve). No workflow-type picker. *@
+        <DataToPublishFlow InitialDriver="ai" InitialAiIntent="@_routedPrompt" />
+    }
+    else if (_routedIntent == OmniPromptIntent.DevOps)
+    {
+        @* DEVOPS LANE — the deploy-control approval queue. Paused operations are projected from the release
+           operations in view (no server list-all endpoint); the operator approves / rejects / rolls back
+           through the server's governed gate. Nothing actuates until Approve. *@
+        <section class="console-operate-page omni-prompt-devops" aria-labelledby="omni-devops-heading" data-omni-devops-surface>
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Human-in-the-loop</p>
+                    <h2 id="omni-devops-heading">Deploy approvals</h2>
+                    <p class="console-muted">
+                        Paused deploy-control operations awaiting a decision. Review and approve, reject, or roll
+                        back — routed through the server's deploy-control approval gate.
+                        <a class="console-link" href="@GitOpsReleaseRoutes.Releases">Open the full GitOps releases view &rarr;</a>
+                    </p>
+                </div>
+            </div>
+
+            @if (!_pendingApprovalsLoaded)
+            {
+                <OperateSectionStatusPanel Heading="Deploy approvals" Loading="true" />
+            }
+            else
+            {
+                <OperateDeploymentProposalList Result="_pendingApprovals"
+                    SelectedOperationId="@_selectedApprovalOperationId"
+                    OnSelect="OnApprovalSelectedFromList" />
+
+                @if (_selectedApprovalOperationId is { Length: > 0 } selected)
+                {
+                    <OperateDeploymentApprovalPanel OperationId="@selected" OnActioned="OnApprovalActioned" />
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private string _prompt = string.Empty;
+    private string _routedPrompt = string.Empty;
+    private OmniPromptClassification? _classification;
+    private OmniPromptIntent? _routedIntent;
+
+    private bool _pendingApprovalsLoaded;
+    private OperateSectionResult<IReadOnlyList<DeployOperationProposal>> _pendingApprovals =
+        OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
+    private string? _selectedApprovalOperationId;
+
+    // Classify the prompt and, on a confident verdict, route straight to that lane's surface. A low-confidence
+    // verdict stops at the confirm chip (rendered above) so the human picks the lane — never a silent misroute.
+    private Task RouteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_prompt))
+        {
+            return Task.CompletedTask;
+        }
+
+        _routedIntent = null;
+        var classification = Classifier.Classify(_prompt);
+        _classification = classification;
+
+        if (classification.Confidence == OmniPromptConfidence.High)
+        {
+            return RouteTo(classification.Intent);
+        }
+
+        // Low confidence: the confirm chip renders; wait for the human's lane choice.
+        return Task.CompletedTask;
+    }
+
+    // Commit a lane (from a confident classify, a confirm chip, or the power-user override) and hand the prompt
+    // to that lane's existing approval surface. The DevOps lane loads its pending-approval queue on entry.
+    private async Task RouteTo(OmniPromptIntent intent)
+    {
+        _routedPrompt = _prompt;
+        _routedIntent = intent;
+        _classification ??= Classifier.Classify(_prompt);
+
+        if (intent == OmniPromptIntent.DevOps)
+        {
+            await LoadPendingApprovalsAsync();
+        }
+    }
+
+    private void Reset()
+    {
+        _routedIntent = null;
+        _classification = null;
+        _selectedApprovalOperationId = null;
+        _pendingApprovalsLoaded = false;
+        _pendingApprovals = OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
+    }
+
+    // Projects the deploy-approval queue from the deploy operation ids discovered on the GitOps release
+    // operations in view — the same honest projection OperateReleasesPage uses (the server exposes no list-all
+    // deploy-control endpoint). Never fabricates operation ids.
+    private async Task LoadPendingApprovalsAsync()
+    {
+        _pendingApprovalsLoaded = false;
+        try
+        {
+            var proposals = await ReleaseClient.GetReleaseProposalsAsync();
+            if (proposals is not { IsAllowed: true, Value: { } releaseProposals })
+            {
+                _pendingApprovals = proposals.IsAllowed
+                    ? OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([])
+                    : OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Denied(proposals.Status, proposals.Message);
+                return;
+            }
+
+            var details = await Task.WhenAll(
+                releaseProposals.Select(p => ReleaseClient.GetReleaseDetailAsync(p.ReleasePackageId)));
+
+            var operationIds = details
+                .Where(d => d.IsAllowed && d.Value?.Operation is not null)
+                .Select(d => d.Value!.Operation!.DeployOperationId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id!)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            _pendingApprovals = await ApprovalClient.ListPendingAsync(operationIds);
+        }
+        finally
+        {
+            _pendingApprovalsLoaded = true;
+        }
+    }
+
+    private void OnApprovalSelectedFromList(DeployOperationProposal proposal)
+    {
+        _selectedApprovalOperationId = proposal.OperationId;
+    }
+
+    private async Task OnApprovalActioned(DeployOperationProposal proposal)
+    {
+        // After an approve/reject/rollback, refresh the queue so a now-terminal operation drops out.
+        await LoadPendingApprovalsAsync();
+    }
+}

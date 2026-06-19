@@ -10,25 +10,15 @@ namespace Honua.Console.IntegrationTests;
 
 /// <summary>
 /// Docker-free render coverage for the Studio home landing (issue #123), built to the StudioHome mockup in
-/// docs/design-handoff/console-canvas/screens-studio.jsx. Asserts the hero prompt, the eight content-type
-/// cards (each linking to its existing builder route), and the recent-projects region across the live-bound,
-/// empty, and missing-binding states. Recent projects bind to <see cref="IConsoleCatalogClient"/>; the
-/// missing-binding path is the explicit ConsoleStateView (Charter §11), never seeded rows.
+/// docs/design-handoff/console-canvas/screens-studio.jsx. Asserts the hero prompt and the recent-projects
+/// region across the live-bound, empty, and missing-binding states. Recent projects bind to
+/// <see cref="IConsoleCatalogClient"/>; the missing-binding path is the explicit ConsoleStateView (Charter §11),
+/// never seeded rows. The within-Studio content-type picker was removed in honua-console#203 (the omni-prompt AI
+/// console infers the sub-type), so the home leads with the prompt + the "Ask Honua anything" omni entry instead
+/// of an eight-card type grid.
 /// </summary>
 public sealed class StudioHomeRenderTests
 {
-    private static readonly IReadOnlyDictionary<string, string> ExpectedRoutes = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["map"] = "/studio/map",
-        ["dashboard"] = "/studio/dashboard",
-        ["report"] = "/studio/report",
-        ["form"] = "/studio/form",
-        ["app"] = "/studio/app",
-        ["query"] = "/studio/query",
-        ["analysis"] = "/studio/analysis",
-        ["workflow"] = "/studio/workflows/new"
-    };
-
     [Fact]
     public void StudioHome_RendersHeroPromptWithSuggestionChips()
     {
@@ -72,23 +62,24 @@ public sealed class StudioHomeRenderTests
     }
 
     [Fact]
-    public void StudioHome_RendersEightContentTypeCards_LinkingToExistingBuilderRoutes()
+    public void StudioHome_DropsContentTypePicker_AndLeadsWithOmniPromptEntry()
     {
+        // honua-console#203: the redundant within-Studio content-type selector is removed — the AI infers the
+        // sub-type from the prompt. The home keeps the hero prompt and adds the omni-prompt AI console entry.
         using var ctx = NewContext(new StubCatalogClient([]));
 
         var page = ctx.Render<StudioHome>();
         page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll("[data-studio-home-types='true']")),
+            () => Assert.NotEmpty(page.FindAll("[data-studio-home-hero='true']")),
             TimeSpan.FromSeconds(5));
 
-        var cards = page.FindAll("[data-content-type]");
-        Assert.Equal(8, cards.Count);
+        // No content-type picker grid.
+        Assert.Empty(page.FindAll("[data-content-type]"));
+        Assert.Empty(page.FindAll("[data-studio-home-types='true']"));
 
-        foreach (var (key, route) in ExpectedRoutes)
-        {
-            var card = page.Find($"[data-content-type='{key}']");
-            Assert.Equal(route, card.GetAttribute("href"));
-        }
+        // The omni-prompt AI console is the single entry that replaces the type grid.
+        var omni = page.Find("[data-studio-home-omni='true']");
+        Assert.Equal("/studio/ai", omni.GetAttribute("href"));
     }
 
     [Fact]
@@ -150,8 +141,9 @@ public sealed class StudioHomeRenderTests
 
         Assert.Contains("No recent projects", page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-recent-project]"));
-        // The home grid and hero still render around the empty recent state.
-        Assert.NotEmpty(page.FindAll("[data-content-type]"));
+        // The hero + omni-prompt entry still render around the empty recent state.
+        Assert.NotEmpty(page.FindAll("[data-studio-home-hero='true']"));
+        Assert.NotEmpty(page.FindAll("[data-studio-home-omni='true']"));
     }
 
     [Fact]
@@ -168,8 +160,9 @@ public sealed class StudioHomeRenderTests
         Assert.Contains("Recent projects are not bound", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Honua:Server:BaseUrl", page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-recent-project]"));
-        // The pure-UI hero + content-type grid remain available even without a server binding.
-        Assert.Equal(8, page.FindAll("[data-content-type]").Count);
+        // The pure-UI hero + omni-prompt entry remain available even without a server binding.
+        Assert.NotEmpty(page.FindAll("[data-studio-home-hero='true']"));
+        Assert.NotEmpty(page.FindAll("[data-studio-home-omni='true']"));
     }
 
     [Fact]
@@ -188,7 +181,9 @@ public sealed class StudioHomeRenderTests
 
         // The home landing exposes the inline-authoring shell as a secondary entry.
         Assert.NotEmpty(page.FindAll("a[href='/studio/proof']"));
-        Assert.Equal(8, page.FindAll("[data-content-type]").Count);
+        // The content-type picker is gone; the omni-prompt AI console is the single entry (honua-console#203).
+        Assert.Empty(page.FindAll("[data-content-type]"));
+        Assert.NotEmpty(page.FindAll("[data-studio-home-omni='true']"));
     }
 
     private static Bunit.BunitContext NewContext(IConsoleCatalogClient catalog)
