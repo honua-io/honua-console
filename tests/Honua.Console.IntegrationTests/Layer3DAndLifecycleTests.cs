@@ -359,11 +359,11 @@ public sealed class Layer3DAndLifecycleTests
     [Fact]
     public void Page_MergedBuild_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
 
-        var page = ctx.RenderComponent<OperateLayer3DPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        var page = ctx.Render<OperateLayer3DPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
         page.WaitForAssertion(
             () => Assert.Contains("data-extrusion-unbound", page.Markup, StringComparison.Ordinal),
@@ -374,10 +374,10 @@ public sealed class Layer3DAndLifecycleTests
 
     private static IRenderedComponent<OperateLayer3DPage> RenderPage(FakeLayer3D fake)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayer3DOperation>(fake);
-        return ctx.RenderComponent<OperateLayer3DPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        return ctx.Render<OperateLayer3DPage>(p => p.Add(x => x.ResourceId, ResourceId));
     }
 
     private static HttpResponseMessage Ok<T>(T data) =>

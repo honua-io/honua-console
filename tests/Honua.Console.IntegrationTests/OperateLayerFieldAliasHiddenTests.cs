@@ -34,14 +34,14 @@ public sealed class OperateLayerFieldAliasHiddenTests
             ],
         });
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // The page hosts a <MapPreview/> that imports a JS module on render; the fields panel under test
         // needs no JS, so let unmatched interop calls no-op instead of failing the render.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeLayersDataSource(ResourceId, LayerId));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(fields);
 
-        var page = ctx.RenderComponent<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, ResourceId));
+        var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, ResourceId));
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-field-row]")),

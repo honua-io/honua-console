@@ -40,11 +40,11 @@ public sealed class OperateLayerStylePageRenderTests
     [Fact]
     public void StyleEditor_MergedBuildPage_RendersOverrideMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<OperateLayerStylePage>(parameters =>
+        var page = ctx.Render<OperateLayerStylePage>(parameters =>
             parameters.Add(p => p.ResourceId, "res-1"));
 
         page.WaitForAssertion(
@@ -79,10 +79,10 @@ public sealed class OperateLayerStylePageRenderTests
         IOperateLayerStyleOverrideDataSource overrides,
         IStudioMapStyleCatalogDataSource catalog)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(overrides);
         ctx.Services.AddSingleton(catalog);
-        return ctx.RenderComponent<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
+        return ctx.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
     }
 
     private static readonly OperateLayerStyleBindingState OverrideMissing = new(

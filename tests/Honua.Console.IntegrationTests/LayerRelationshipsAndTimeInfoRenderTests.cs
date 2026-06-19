@@ -77,11 +77,11 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
     [Fact]
     public void Relationships_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
 
-        var page = ctx.RenderComponent<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        var page = ctx.Render<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
         page.WaitForAssertion(
             () => Assert.Contains("data-relationships-unbound", page.Markup, StringComparison.Ordinal),
@@ -95,8 +95,8 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
     public void TimeInfo_WhenOperationMissing_RendersMissingBindingOnSave()
     {
         // No IConsoleTimeInfoOperation registered: the component must still render and degrade honestly.
-        using var ctx = new Bunit.TestContext();
-        var component = ctx.RenderComponent<ServiceTimeInfoSetter>();
+        using var ctx = new Bunit.BunitContext();
+        var component = ctx.Render<ServiceTimeInfoSetter>();
 
         component.Find("[data-timeinfo-service]").Change("svc");
         component.Find("[data-timeinfo-save]").Click();
@@ -122,9 +122,9 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
                 TrackIdField = "vehicle_id",
             },
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleTimeInfoOperation>(fake);
-        var component = ctx.RenderComponent<ServiceTimeInfoSetter>();
+        var component = ctx.Render<ServiceTimeInfoSetter>();
 
         component.Find("[data-timeinfo-service]").Change("svc");
         component.Find("[data-timeinfo-start]").Change("observed_at");
@@ -145,10 +145,10 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
 
     private static IRenderedComponent<OperateLayerRelationshipsPage> RenderRelationships(FakeRelationships relationships)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation>(relationships);
-        return ctx.RenderComponent<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        return ctx.Render<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));
     }
 
     private sealed class FakeTransition : IOperateTransitionDataSource

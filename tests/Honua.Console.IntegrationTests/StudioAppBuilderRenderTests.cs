@@ -24,11 +24,11 @@ public sealed class StudioAppBuilderRenderTests
         {
             Load = new StudioAppEditorLoad(null, [MissingBinding])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("App package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
@@ -43,11 +43,11 @@ public sealed class StudioAppBuilderRenderTests
         {
             Load = new StudioAppEditorLoad(StudioAppPackageMapper.CreateTemplate(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-app-builder", page.Markup, StringComparison.Ordinal),
@@ -70,11 +70,11 @@ public sealed class StudioAppBuilderRenderTests
         {
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Single(page.FindAll("[data-app-toolbar]")),
@@ -124,11 +124,11 @@ public sealed class StudioAppBuilderRenderTests
             ContentBinding = "content:inspection@v4"
         });
         var data = new FakeAppDataSource { Load = new StudioAppEditorLoad(state, []) };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
         page.WaitForAssertion(
             () => Assert.Equal(2, page.FindAll("[data-app-rail] .studio-app-page-node").Count),
             TimeSpan.FromSeconds(5));
@@ -151,11 +151,11 @@ public sealed class StudioAppBuilderRenderTests
         {
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.False(FindButton(page, "Publish").HasAttribute("disabled")),
@@ -183,11 +183,11 @@ public sealed class StudioAppBuilderRenderTests
                 new StudioAppVersionItem(Guid.NewGuid(), 1, "First", IsPublished: false, IsCurrent: false, DateTimeOffset.UtcNow.AddDays(-1))
             ])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-app-history", page.Markup, StringComparison.Ordinal),
@@ -217,11 +217,11 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(existing, []),
             PreviewResult = new StudioAppCommandResult(true, "Preview plan ready (inline). Steps: validate-envelope.", existing)
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
         page.WaitForAssertion(
             () => Assert.False(FindButton(page, "Live preview").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
@@ -241,11 +241,11 @@ public sealed class StudioAppBuilderRenderTests
         {
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
         FindButton(page, "New from prompt").Click();
 
@@ -291,13 +291,13 @@ public sealed class StudioAppBuilderRenderTests
                 };
             }
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // A generated outcome marks the editor dirty, so the UnsavedChangesGuard syncs its beforeunload
         // handler over JS interop; loose mode lets that no-op in the renderer harness.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
         FindButton(page, "New from prompt").Click();
         page.WaitForAssertion(() => page.Find(".studio-ai-refine-input"), TimeSpan.FromSeconds(5));

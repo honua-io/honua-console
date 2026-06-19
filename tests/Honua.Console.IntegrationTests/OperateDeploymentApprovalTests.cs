@@ -24,7 +24,7 @@ public sealed class OperateDeploymentApprovalTests
             "Deploy approvals are not configured for this Console build.");
 
         using var ctx = new Bunit.TestContext();
-        var list = ctx.RenderComponent<OperateDeploymentProposalList>(p => p.Add(x => x.Result, result));
+        var list = ctx.Render<OperateDeploymentProposalList>(p => p.Add(x => x.Result, result));
 
         Assert.Contains("not configured", list.Markup, StringComparison.OrdinalIgnoreCase);
     }
@@ -37,7 +37,7 @@ public sealed class OperateDeploymentApprovalTests
         var result = OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed(proposals);
 
         using var ctx = new Bunit.TestContext();
-        var list = ctx.RenderComponent<OperateDeploymentProposalList>(p => p
+        var list = ctx.Render<OperateDeploymentProposalList>(p => p
             .Add(x => x.Result, result)
             .Add(x => x.OnSelect, EventCallback.Factory.Create<DeployOperationProposal>(this, p2 => selected = p2)));
 
@@ -57,7 +57,7 @@ public sealed class OperateDeploymentApprovalTests
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
-        var panel = ctx.RenderComponent<OperateDeploymentApprovalPanel>(p => p
+        var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
             .Add(x => x.OperationId, "op-approve")
             .Add(x => x.PollInterval, (TimeSpan?)null));
 
@@ -84,7 +84,7 @@ public sealed class OperateDeploymentApprovalTests
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
-        var panel = ctx.RenderComponent<OperateDeploymentApprovalPanel>(p => p
+        var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
             .Add(x => x.OperationId, "op-rollback")
             .Add(x => x.PollInterval, (TimeSpan?)null));
 
@@ -119,7 +119,7 @@ public sealed class OperateDeploymentApprovalTests
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
-        var panel = ctx.RenderComponent<OperateDeploymentApprovalPanel>(p => p
+        var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
             .Add(x => x.OperationId, "op-reject")
             .Add(x => x.PollInterval, (TimeSpan?)null));
 
@@ -148,7 +148,7 @@ public sealed class OperateDeploymentApprovalTests
         using var ctx = new Bunit.TestContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
-        var panel = ctx.RenderComponent<OperateDeploymentApprovalPanel>(p => p
+        var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
             .Add(x => x.OperationId, "does-not-exist")
             .Add(x => x.PollInterval, (TimeSpan?)null));
 

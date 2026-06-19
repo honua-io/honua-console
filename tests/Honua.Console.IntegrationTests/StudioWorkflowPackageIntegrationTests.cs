@@ -83,9 +83,9 @@ public sealed class StudioWorkflowPackageIntegrationTests
         Assert.Contains(reloaded.Nodes, node => node.Type == nodeType);
 
         // 4. The actual editor page renders the live package (not a mock / not the blocked surface).
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(client);
-        var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
+        var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(component => component.DraftId, save.ContentItemId));
 
         page.WaitForAssertion(

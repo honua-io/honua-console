@@ -168,7 +168,7 @@ public sealed class ResourceFirstPublishFlowTests
             new("rsc_zoning", "zoning", "table", "Draft", 0, null, []),
         ];
 
-        var cut = ctx.RenderComponent<ResourcePublicationsTree>(p => p.Add(c => c.Nodes, nodes));
+        var cut = ctx.Render<ResourcePublicationsTree>(p => p.Add(c => c.Nodes, nodes));
 
         Assert.Contains("data-resource-node=\"rsc_parcels\"", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-resource-node=\"rsc_zoning\"", cut.Markup, StringComparison.Ordinal);
@@ -183,7 +183,7 @@ public sealed class ResourceFirstPublishFlowTests
     {
         using var ctx = NewContext();
 
-        var cut = ctx.RenderComponent<PublishProtocolPicker>(p => p
+        var cut = ctx.Render<PublishProtocolPicker>(p => p
             .Add(c => c.Enabled, PublishProtocolCatalog.DefaultEnabled)
             .Add(c => c.ServiceSlot, "city/parcels"));
 
@@ -199,7 +199,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         IReadOnlyCollection<string>? raised = null;
 
-        var cut = ctx.RenderComponent<PublishProtocolPicker>(p => p
+        var cut = ctx.Render<PublishProtocolPicker>(p => p
             .Add(c => c.Enabled, new[] { "FeatureServer" })
             .Add(c => c.EnabledChanged, set => raised = set));
 
@@ -218,7 +218,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>();
+        var cut = ctx.Render<DataToPublishFlow>();
 
         Assert.Contains("data-step-rail", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-step=\"AddData\"", cut.Markup, StringComparison.Ordinal);
@@ -233,7 +233,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
 
         // AI mode with no server bound is an honest "AI unavailable" surface (Charter §11) — never a crash,
         // never a fabricated proposal, with a manual-mode escape hatch.
@@ -255,7 +255,7 @@ public sealed class ResourceFirstPublishFlowTests
         ctx.Services.AddSingleton<IAiPublishDriver>(new UnsupportedAiPublishDriver());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneResourceDataSource("rsc_parcels", "parcels"));
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "existingresource"));
 
         // Choose the existing resource, then continue — the flow must skip ② Resource and land on ③ Publish.
         cut.Find("select[aria-label=\"Existing resource\"]").Change("rsc_parcels");
@@ -271,7 +271,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "file"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "file"));
 
         // Upload a file, then continue: the Unsupported import returns a missing-binding result, which the
         // host renders as a first-class "unsupported" panel — never a fabricated successful ingest.
@@ -326,7 +326,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         RegisterAiServer(ctx, FakeAiPublishDriver.Enabled());
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
 
         cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service and a STAC catalog, styled by zoning");
         await cut.Find("button[data-ai-propose]").ClickAsync(new());
@@ -349,7 +349,7 @@ public sealed class ResourceFirstPublishFlowTests
         var publish = new AiModeRecordingPublishOperation();
         RegisterAiServer(ctx, FakeAiPublishDriver.Enabled(), publish);
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
 
         cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service");
         await cut.Find("button[data-ai-propose]").ClickAsync(new());
@@ -369,7 +369,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         RegisterAiServer(ctx, FakeAiPublishDriver.Enabled());
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
 
         cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service");
         await cut.Find("button[data-ai-propose]").ClickAsync(new());
@@ -388,7 +388,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         RegisterAiServer(ctx, FakeAiPublishDriver.Enabled());
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
 
         cut.Find("textarea[data-ai-intent]").Input("publish parcels as a feature service");
         await cut.Find("button[data-ai-propose]").ClickAsync(new());
@@ -405,7 +405,7 @@ public sealed class ResourceFirstPublishFlowTests
         using var ctx = NewContext();
         RegisterAiServer(ctx, FakeAiPublishDriver.AiOff("AI generation is switched off on this server."));
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
 
         Assert.Contains("data-ai-unavailable", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("switched off", cut.Markup, StringComparison.Ordinal);
@@ -425,10 +425,10 @@ public sealed class ResourceFirstPublishFlowTests
     public void Redirects_FoldOldEntryPointsIntoTheUnifiedFlow(string from, string expectedTarget)
     {
         using var ctx = NewContext();
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
         nav.NavigateTo(from);
 
-        ctx.RenderComponent<OperateDataRedirects>();
+        ctx.Render<OperateDataRedirects>();
 
         Assert.EndsWith(expectedTarget, nav.Uri, StringComparison.Ordinal);
     }
@@ -446,7 +446,7 @@ public sealed class ResourceFirstPublishFlowTests
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
         ctx.Services.AddSingleton<IConsoleServiceImportOperation>(new UnsupportedConsoleServiceImportOperation());
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "remoteservice"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "remoteservice"));
 
         Assert.Contains("data-remote-service-import", cut.Markup, StringComparison.Ordinal);
         // The embedded import surface (OperateImportServicePage) renders its discovery form.
@@ -468,7 +468,7 @@ public sealed class ResourceFirstPublishFlowTests
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn1", "Primary"));
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
 
-        var cut = ctx.RenderComponent<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "table"));
+        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "table"));
 
         // Choose the connection so the table picker loads its single table.
         var chosen = new AddDataIntake.DataSourceIntake(AddDataMode.Table, "conn1");

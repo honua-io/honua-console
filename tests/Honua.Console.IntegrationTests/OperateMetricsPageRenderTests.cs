@@ -20,10 +20,10 @@ public sealed class OperateMetricsPageRenderTests
     {
         var stub = new StubMetricsDataSource { Snapshot = BuildLiveSnapshot() };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateMetricsDataSource>(stub);
 
-        var page = ctx.RenderComponent<OperateMetricsPage>();
+        var page = ctx.Render<OperateMetricsPage>();
 
         page.WaitForAssertion(
             () =>
@@ -70,10 +70,10 @@ public sealed class OperateMetricsPageRenderTests
             "No active environment profile is selected. Connect an environment to load server metrics.");
         var stub = new StubMetricsDataSource { Snapshot = unavailable };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateMetricsDataSource>(stub);
 
-        var page = ctx.RenderComponent<OperateMetricsPage>();
+        var page = ctx.Render<OperateMetricsPage>();
 
         page.WaitForAssertion(
             () =>

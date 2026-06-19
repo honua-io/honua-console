@@ -26,12 +26,12 @@ public sealed class StudioMapBuilderRenderTests
         {
             Workspace = new StudioMapWorkspace([], [MissingBinding])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Map package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
@@ -49,12 +49,12 @@ public sealed class StudioMapBuilderRenderTests
                 []),
             EditorLoad = new StudioMapEditorLoad(ReadyEditor(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
         FindButton(page, "Public works").Click();
 
@@ -108,12 +108,12 @@ public sealed class StudioMapBuilderRenderTests
                 []),
             EditorLoad = new StudioMapEditorLoad(incomplete, [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Incomplete"), TimeSpan.FromSeconds(5));
         FindButton(page, "Incomplete").Click();
 
@@ -142,12 +142,12 @@ public sealed class StudioMapBuilderRenderTests
                 []),
             EditorLoad = new StudioMapEditorLoad(PublishedEditor(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
         FindButton(page, "Public works").Click();
 
@@ -175,12 +175,12 @@ public sealed class StudioMapBuilderRenderTests
             httpClient,
             new StudioPackageLifecycleClientOptions(baseUri, "key"));
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource()));
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
 
         // The list view renders from the live package-draft list route (empty here); a new map can be
         // authored from its toolbar.
@@ -258,12 +258,12 @@ public sealed class StudioMapBuilderRenderTests
                 Rationale = "Proposed a parcels map coloured by use code."
             }
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
         FindButton(page, "New from prompt").Click();
 
@@ -323,12 +323,12 @@ public sealed class StudioMapBuilderRenderTests
                 []),
             EditorLoad = new StudioMapEditorLoad(incomplete, [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Incomplete"), TimeSpan.FromSeconds(5));
         FindButton(page, "Incomplete").Click();
         page.WaitForAssertion(
@@ -369,12 +369,12 @@ public sealed class StudioMapBuilderRenderTests
                 return new StudioMapCommandResult(true, "Publication request accepted.", state);
             }
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
         FindButton(page, "Public works").Click();
         page.WaitForAssertion(
@@ -423,7 +423,7 @@ public sealed class StudioMapBuilderRenderTests
                 []),
             EditorLoad = new StudioMapEditorLoad(editor, [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new StubStyleCatalog(new StudioMapStyleCatalog(
@@ -431,7 +431,7 @@ public sealed class StudioMapBuilderRenderTests
             "topographic",
             null)));
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
         FindButton(page, "Public works").Click();
         page.WaitForAssertion(
@@ -467,12 +467,12 @@ public sealed class StudioMapBuilderRenderTests
                 []),
             EditorLoad = new StudioMapEditorLoad(ReadyEditor(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(data);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Public works"), TimeSpan.FromSeconds(5));
         FindButton(page, "Public works").Click();
         page.WaitForAssertion(

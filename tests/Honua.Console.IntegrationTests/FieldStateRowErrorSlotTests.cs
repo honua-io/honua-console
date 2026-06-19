@@ -23,9 +23,9 @@ public sealed class FieldStateRowErrorSlotTests
     [Fact]
     public void NoErrors_RendersNoInlineErrorAndNotInvalid()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Input)
             .Add(p => p.Label, "Title")
             .Add(p => p.ChildContent, Control("title")));
@@ -39,14 +39,14 @@ public sealed class FieldStateRowErrorSlotTests
     [Fact]
     public void WithErrors_RendersInlineMessageAndAriaInvalid()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         var errors = new List<ConsoleFieldError>
         {
             new("map.initialExtent", "bbox.order", ConsoleValidationSeverity.Blocker, "minX must be <= maxX"),
         };
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Input)
             .Add(p => p.Label, "Initial extent")
             .Add(p => p.ChildContent, Control("extent"))
@@ -64,9 +64,9 @@ public sealed class FieldStateRowErrorSlotTests
     [Fact]
     public void Errors_RenderAtRowLevelOutsideTheLabel()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Input)
             .Add(p => p.Label, "Field")
             .Add(p => p.ChildContent, Control("field"))
@@ -87,9 +87,9 @@ public sealed class FieldStateRowErrorSlotTests
     [Fact]
     public void MultipleErrors_AllRender()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Input)
             .Add(p => p.Label, "Field")
             .Add(p => p.ChildContent, Control("field"))
@@ -105,9 +105,9 @@ public sealed class FieldStateRowErrorSlotTests
     [Fact]
     public void InvalidFlagWithoutErrors_StillMarksInvalid()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.Input)
             .Add(p => p.Label, "Field")
             .Add(p => p.ChildContent, Control("field"))
@@ -123,9 +123,9 @@ public sealed class FieldStateRowErrorSlotTests
     [Fact]
     public void ReadonlyState_AlsoRendersErrors()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
-        var cut = ctx.RenderComponent<FieldStateRow>(parameters => parameters
+        var cut = ctx.Render<FieldStateRow>(parameters => parameters
             .Add(p => p.State, FieldState.System)
             .Add(p => p.Label, "Form id")
             .Add(p => p.Value, "form-123")

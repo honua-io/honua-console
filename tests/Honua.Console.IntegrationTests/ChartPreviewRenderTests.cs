@@ -18,10 +18,10 @@ public sealed class ChartPreviewRenderTests
     [Fact]
     public void ChartPreview_WithoutSpec_RendersSchematicPlaceholderUnbound()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var cut = ctx.RenderComponent<ChartPreview>(parameters => parameters
+        var cut = ctx.Render<ChartPreview>(parameters => parameters
             .Add(p => p.Title, "Features by name"));
 
         // No-binding placeholder is present and no live chart is bound.

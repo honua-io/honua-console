@@ -23,10 +23,10 @@ public sealed class StudioDashboardBuilderRenderTests
         {
             Workspace = new StudioDashboardWorkspace([], [MissingBinding])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Dashboard package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
@@ -44,10 +44,10 @@ public sealed class StudioDashboardBuilderRenderTests
                 []),
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Operations dashboard"), TimeSpan.FromSeconds(5));
         FindButton(page, "Operations dashboard").Click();
 
@@ -87,13 +87,13 @@ public sealed class StudioDashboardBuilderRenderTests
                 []),
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // Switching the breakpoint marks the editor dirty, arming the <UnsavedChangesGuard/> (a JS module
         // import); run Loose JSInterop so bUnit auto-handles that import.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Operations dashboard"), TimeSpan.FromSeconds(5));
         FindButton(page, "Operations dashboard").Click();
 
@@ -118,10 +118,10 @@ public sealed class StudioDashboardBuilderRenderTests
                 []),
             EditorLoad = new StudioDashboardEditorLoad(editor, [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Incomplete"), TimeSpan.FromSeconds(5));
         FindButton(page, "Incomplete").Click();
 
@@ -140,10 +140,10 @@ public sealed class StudioDashboardBuilderRenderTests
             Workspace = new StudioDashboardWorkspace([], []),
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
         FindButton(page, "New from prompt").Click();
 
@@ -188,13 +188,13 @@ public sealed class StudioDashboardBuilderRenderTests
                 Rationale = "Added a county filter panel to the dashboard."
             }
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // A generated outcome marks the editor dirty, so the UnsavedChangesGuard syncs its beforeunload
         // handler over JS interop; loose mode lets that no-op in the renderer harness.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "New from prompt"), TimeSpan.FromSeconds(5));
         FindButton(page, "New from prompt").Click();
         page.WaitForAssertion(() => page.Find(".studio-ai-refine-input"), TimeSpan.FromSeconds(5));
@@ -222,10 +222,10 @@ public sealed class StudioDashboardBuilderRenderTests
                 []),
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(() => FindButton(page, "Operations dashboard"), TimeSpan.FromSeconds(5));
         FindButton(page, "Operations dashboard").Click();
         page.WaitForAssertion(() => FindButton(page, "Publish…"), TimeSpan.FromSeconds(5));

@@ -199,10 +199,10 @@ public sealed class StudioMapCollaborationDataSourceTests
             }
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioMapCollaborationDataSource>(new HonuaServerStudioMapCollaborationDataSource(client));
 
-        var component = ctx.RenderComponent<StudioMapCollaboration>(parameters => parameters
+        var component = ctx.Render<StudioMapCollaboration>(parameters => parameters
             .Add(p => p.MapId, "map-1")
             .Add(p => p.Section, "activity"));
 
@@ -252,10 +252,10 @@ public sealed class StudioMapCollaborationDataSourceTests
                 404)
         };
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioMapCollaborationDataSource>(new HonuaServerStudioMapCollaborationDataSource(client));
 
-        var component = ctx.RenderComponent<StudioMapCollaboration>(parameters => parameters
+        var component = ctx.Render<StudioMapCollaboration>(parameters => parameters
             .Add(p => p.MapId, "map-1")
             .Add(p => p.Section, "comments"));
 

@@ -90,11 +90,11 @@ public sealed class StudioAppBuilderIntegrationTests
 
         var source = new HonuaServerStudioAppPackageDataSource(client);
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(source);
 
-        var page = ctx.RenderComponent<StudioAppBuilderPage>();
+        var page = ctx.Render<StudioAppBuilderPage>();
 
         // A new app opens the Console-owned scaffold (the server draft is created on first save), so the
         // editor renders from the live binding rather than the missing-binding surface.

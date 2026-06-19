@@ -52,12 +52,12 @@ public sealed class OperateTemporalPageRenderTests
     [Fact]
     public void TemporalViewer_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // Register exactly what the merged build registers — the unsupported client — and prove the page
         // renders the capability explanation rather than an empty viewer, with no fabricated source rows.
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
 
-        var page = ctx.RenderComponent<OperateTemporalPage>();
+        var page = ctx.Render<OperateTemporalPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Temporal capability is not bound", page.Markup, StringComparison.Ordinal),
@@ -550,9 +550,9 @@ public sealed class OperateTemporalPageRenderTests
 
     private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(client);
-        return ctx.RenderComponent<OperateTemporalPage>();
+        return ctx.Render<OperateTemporalPage>();
     }
 
     private static void InspectFirstSource(IRenderedComponent<OperateTemporalPage> page)

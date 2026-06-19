@@ -15,12 +15,12 @@ public sealed class ValidationMessageInlineTests
     [Fact]
     public void RendersNothing_WhenFieldClean()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         var state = new ValidationState();
         state.SetServerErrors([new ConsoleFieldError("other", "c", ConsoleValidationSeverity.Error, "boom")]);
 
-        var cut = ctx.RenderComponent<ValidationMessageInline>(parameters => parameters
+        var cut = ctx.Render<ValidationMessageInline>(parameters => parameters
             .Add(p => p.FieldKey, "title")
             .Add(p => p.State, state));
 
@@ -30,12 +30,12 @@ public sealed class ValidationMessageInlineTests
     [Fact]
     public void RendersFieldMessages_WhenPresent()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
 
         var state = new ValidationState();
         state.SetClientErrors([new ConsoleFieldError("title", "required", ConsoleValidationSeverity.Error, "Title is required")]);
 
-        var cut = ctx.RenderComponent<ValidationMessageInline>(parameters => parameters
+        var cut = ctx.Render<ValidationMessageInline>(parameters => parameters
             .Add(p => p.FieldKey, "title")
             .Add(p => p.State, state));
 

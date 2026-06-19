@@ -20,13 +20,13 @@ public sealed class StudioWorkflowEditorPageTests
     public void Publish_AfterValidationFailedSave_DoesNotShipStalePriorVersion()
     {
         var client = new RecordingWorkflowPackageClient();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
         // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
 
-        var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
+        var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(p => p.DraftId, RecordingWorkflowPackageClient.PackageId));
 
         // The draft (with a prior valid version) has loaded once the package-metadata form renders.
@@ -65,13 +65,13 @@ public sealed class StudioWorkflowEditorPageTests
     public void Editor_RendersRunHistoryPanel_WithStateRejectedRowsAndProvenance()
     {
         var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
         // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
 
-        var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
+        var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(p => p.DraftId, InMemoryStudioWorkflowPackageClient.SeedDraftId));
 
         // Before any run, the panel renders its empty prompt rather than fabricated history.
@@ -99,13 +99,13 @@ public sealed class StudioWorkflowEditorPageTests
     public void Editor_RendersDesignLandmarks_HeaderTabsPaletteAndDagCanvas()
     {
         var client = InMemoryStudioWorkflowPackageClient.CreateSeeded();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         // The page renders <UnsavedChangesGuard/>, which imports a JS module on dirty transitions; allow the
         // bUnit JSInterop to no-op those calls (the guard is exercised directly in UnsavedChangesGuardTests).
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(client);
 
-        var page = ctx.RenderComponent<StudioWorkflowEditorPage>(
+        var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(p => p.DraftId, InMemoryStudioWorkflowPackageClient.SeedDraftId));
 
         page.WaitForAssertion(

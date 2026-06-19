@@ -34,10 +34,10 @@ public sealed class OperateAlertRulesPageRenderTests
     [Fact]
     public void RulesList_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
 
-        var page = ctx.RenderComponent<OperateAlertRulesPage>();
+        var page = ctx.Render<OperateAlertRulesPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Alert rules are not bound", page.Markup, StringComparison.Ordinal),
@@ -72,10 +72,10 @@ public sealed class OperateAlertRulesPageRenderTests
     [Fact]
     public void RuleDetail_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
 
-        var page = ctx.RenderComponent<OperateAlertRuleDetailPage>(parameters =>
+        var page = ctx.Render<OperateAlertRuleDetailPage>(parameters =>
             parameters.Add(p => p.RuleId, "rule-1"));
 
         page.WaitForAssertion(
@@ -99,16 +99,16 @@ public sealed class OperateAlertRulesPageRenderTests
 
     private static IRenderedComponent<OperateAlertRulesPage> RenderList(IOperateAlertRulesDataSource data)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(data);
-        return ctx.RenderComponent<OperateAlertRulesPage>();
+        return ctx.Render<OperateAlertRulesPage>();
     }
 
     private static IRenderedComponent<OperateAlertRuleDetailPage> RenderDetail(IOperateAlertRulesDataSource data, string ruleId)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(data);
-        return ctx.RenderComponent<OperateAlertRuleDetailPage>(parameters => parameters.Add(p => p.RuleId, ruleId));
+        return ctx.Render<OperateAlertRuleDetailPage>(parameters => parameters.Add(p => p.RuleId, ruleId));
     }
 
     private static readonly OperateAlertRule SampleRule = new(

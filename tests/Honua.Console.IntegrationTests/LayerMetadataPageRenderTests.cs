@@ -130,11 +130,11 @@ public sealed class LayerMetadataPageRenderTests
     [Fact]
     public void Page_MergedBuild_RendersMissingBindingThroughRealDi()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
 
-        var page = ctx.RenderComponent<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        var page = ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
         page.WaitForAssertion(
             () => Assert.Contains("data-display-unbound", page.Markup, StringComparison.Ordinal),
@@ -146,10 +146,10 @@ public sealed class LayerMetadataPageRenderTests
 
     private static IRenderedComponent<OperateLayerMetadataPage> RenderPage(FakeMetadata metadata)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerMetadataOperation>(metadata);
-        return ctx.RenderComponent<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        return ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));
     }
 
     private sealed class FakeTransition : IOperateTransitionDataSource

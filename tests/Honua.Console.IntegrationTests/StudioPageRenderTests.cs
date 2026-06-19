@@ -20,12 +20,12 @@ public sealed class StudioPageRenderTests
     public void StudioPage_DuringAsyncSessionLoad_RendersLoadingStateThenBoundShell()
     {
         var shell = new ControllableStudioAuthoringShell();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
 
         // CreateInitialSessionAsync is still pending here: the first render must show the loading view
         // without throwing (the prior bug dereferenced a null _session in the heading lifecycle rail).
-        var page = ctx.RenderComponent<StudioPage>();
+        var page = ctx.Render<StudioPage>();
         Assert.Contains("Loading package shell", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-authoring-contract", page.Markup, StringComparison.Ordinal);
 
@@ -47,10 +47,10 @@ public sealed class StudioPageRenderTests
     public void StudioPage_WhenSessionBindingStateSet_RendersMissingBindingWithoutNullDeref()
     {
         var shell = new ControllableStudioAuthoringShell();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
 
-        var page = ctx.RenderComponent<StudioPage>();
+        var page = ctx.Render<StudioPage>();
 
         // Resolve to a missing-binding session (server unreachable / unconfigured): the page must render the
         // shared error surface, not the lifecycle rail or a fabricated package.
@@ -73,10 +73,10 @@ public sealed class StudioPageRenderTests
     public void StudioPage_WithOpenClarifications_DisablesTerminalPackageActions()
     {
         var shell = new ControllableStudioAuthoringShell();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
 
-        var page = ctx.RenderComponent<StudioPage>();
+        var page = ctx.Render<StudioPage>();
         shell.CompleteInitialSession(CreateSessionWithOpenClarification());
 
         page.WaitForAssertion(
@@ -96,17 +96,17 @@ public sealed class StudioPageRenderTests
         // The seeded prompt must still be applied (now via OnParametersSetAsync) instead of leaving the
         // authoring shell on its default prompt.
         var shell = new ControllableStudioAuthoringShell();
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
         // The /studio home landing renders <StudioHome />, which binds recent projects to the catalog.
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new EmptyCatalogClient());
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new AuthenticatedReadContextResolver());
 
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
         nav.NavigateTo("studio");
 
         // First render lands on the home landing (no authoring session is read there).
-        var page = ctx.RenderComponent<StudioPage>();
+        var page = ctx.Render<StudioPage>();
 
         // Same-component client-side navigation into the inline authoring shell with a seeded prompt.
         const string seededPrompt = "Map flood risk near hospitals";

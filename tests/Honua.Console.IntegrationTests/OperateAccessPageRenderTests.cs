@@ -280,16 +280,16 @@ public sealed class OperateAccessPageRenderTests
 
     private static IRenderedComponent<OperateAccessRolesPage> RenderRoles(FakeRbacDataSource data)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
-        return ctx.RenderComponent<OperateAccessRolesPage>();
+        return ctx.Render<OperateAccessRolesPage>();
     }
 
     private static IRenderedComponent<OperateAccessMembersPage> RenderMembers(FakeRbacDataSource data)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
-        return ctx.RenderComponent<OperateAccessMembersPage>();
+        return ctx.Render<OperateAccessMembersPage>();
     }
 
     private static RbacOverviewView SampleOverview() => RbacAccessMapper.ToView(new HonuaConsoleRbacOverview

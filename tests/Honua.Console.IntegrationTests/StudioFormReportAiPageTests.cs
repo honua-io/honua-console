@@ -18,10 +18,10 @@ public sealed class StudioFormReportAiPageTests
     [Fact]
     public void FormAi_WhenGenerationOff_RendersHonestUnavailableState_AndDisablesChat()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(new FakeFormData());
 
-        var page = ctx.RenderComponent<StudioFormAiPage>();
+        var page = ctx.Render<StudioFormAiPage>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-form-ai-unavailable]")),
@@ -33,10 +33,10 @@ public sealed class StudioFormReportAiPageTests
     [Fact]
     public void FormAi_WhenUnbound_RendersSharedMissingBindingSurface()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(new FakeFormData { Unbound = true });
 
-        var page = ctx.RenderComponent<StudioFormAiPage>();
+        var page = ctx.Render<StudioFormAiPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Form authoring is not bound", page.Markup, StringComparison.Ordinal),
@@ -47,10 +47,10 @@ public sealed class StudioFormReportAiPageTests
     [Fact]
     public void ReportAi_WhenGenerationOff_RendersHonestUnavailableState_AndDisablesChat()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(new FakeReportData());
 
-        var page = ctx.RenderComponent<StudioReportAiPage>();
+        var page = ctx.Render<StudioReportAiPage>();
 
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-report-ai-unavailable]")),
@@ -61,10 +61,10 @@ public sealed class StudioFormReportAiPageTests
     [Fact]
     public void ReportAi_WhenUnbound_RendersSharedMissingBindingSurface()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(new FakeReportData { Unbound = true });
 
-        var page = ctx.RenderComponent<StudioReportAiPage>();
+        var page = ctx.Render<StudioReportAiPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Report authoring is not bound", page.Markup, StringComparison.Ordinal),

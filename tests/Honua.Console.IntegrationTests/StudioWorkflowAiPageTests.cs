@@ -118,10 +118,10 @@ public sealed class StudioWorkflowAiPageTests
     [Fact]
     public void Unbound_RendersSharedMissingBindingSurface_NotSeededWorkflow()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
 
-        var page = ctx.RenderComponent<StudioWorkflowAiPage>();
+        var page = ctx.Render<StudioWorkflowAiPage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Workflow authoring is not bound", page.Markup, StringComparison.Ordinal),
@@ -134,10 +134,10 @@ public sealed class StudioWorkflowAiPageTests
 
     private static IRenderedComponent<StudioWorkflowAiPage> RenderWith(IStudioWorkflowPackageClient client)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(client);
 
-        var page = ctx.RenderComponent<StudioWorkflowAiPage>();
+        var page = ctx.Render<StudioWorkflowAiPage>();
         page.WaitForAssertion(
             () => Assert.NotEmpty(page.FindAll("[data-studio-ai-pane]")),
             TimeSpan.FromSeconds(5));

@@ -37,7 +37,7 @@ public sealed class OperateDeployPageRenderTests
     {
         using var ctx = NewContext(new InMemoryConsoleDeployApprovalClient());
 
-        var page = ctx.RenderComponent<OperateDeployPage>();
+        var page = ctx.Render<OperateDeployPage>();
 
         page.WaitForAssertion(
             () =>
@@ -60,7 +60,7 @@ public sealed class OperateDeployPageRenderTests
             versionClient: new InMemoryConsoleServerVersionClient(new ServerVersionInfo(
                 "1.4.2", "v1", "v2", "2", "staging", DateTimeOffset.UtcNow)));
 
-        var page = ctx.RenderComponent<OperateDeployPage>();
+        var page = ctx.Render<OperateDeployPage>();
 
         // Track the upgrade operation id (the server has no list-all endpoint).
         page.WaitForAssertion(
@@ -92,7 +92,7 @@ public sealed class OperateDeployPageRenderTests
         var approvalClient = new InMemoryConsoleDeployApprovalClient([AwaitingPromotion("promo-op")]);
         using var ctx = NewContext(approvalClient);
 
-        var page = ctx.RenderComponent<OperateDeployPage>();
+        var page = ctx.Render<OperateDeployPage>();
 
         page.WaitForAssertion(
             () => Assert.NotNull(page.Find("[data-track-operation-id]")),

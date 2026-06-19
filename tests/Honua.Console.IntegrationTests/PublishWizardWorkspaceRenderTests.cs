@@ -16,9 +16,9 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class PublishWizardWorkspaceRenderTests
 {
-    private static Bunit.TestContext NewContext()
+    private static Bunit.BunitContext NewContext()
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         // The Projection step embeds MapPreview, which probes JS interop; loose mode keeps the
         // schematic placeholder without a real browser runtime.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -32,7 +32,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void QuickFlow_StartsOnServiceStep_WithTreePickerAndPublishingIntoRail()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         // Quick mode is the default and its stepper reads Service → Layer → Review.
         var stepper = cut.Find("ol.publish-stepper");
@@ -59,7 +59,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void QuickFlow_CreateNewService_SwapsToCrsCapabilitiesLimitsCatalogCards()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         // Switch the service step into "Create new service" mode.
         var createNew = cut.FindAll("[data-quick-step=\"service\"] .publish-segment-option")
@@ -82,7 +82,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void QuickFlow_ForwardNav_AdvancesToLayerStepWithResourceTableAndPiiFlags()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         // A service is pre-selected, so the forward control is enabled. Advance to the Layer step.
         var next = cut.Find(".publish-wizard-next");
@@ -110,8 +110,8 @@ public sealed class PublishWizardWorkspaceRenderTests
         // The "+ Create from …" affordances under the resource picker were dead buttons; each now navigates
         // to the real Operate authoring flow that owns that create contract. (Charter §11.)
         using var ctx = NewContext();
-        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
         cut.Find(".publish-wizard-next").Click();
 
         var actions = cut.Find(".publish-resource-actions");
@@ -135,7 +135,7 @@ public sealed class PublishWizardWorkspaceRenderTests
         using var ctx = NewContext();
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
         module.Setup<bool>("copyText", _ => true).SetResult(true);
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         var createNew = cut.FindAll("[data-quick-step=\"service\"] .publish-segment-option")
             .Single(b => b.TextContent.Contains("Create new service", StringComparison.Ordinal));
@@ -155,7 +155,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void QuickFlow_ReviewStep_ShowsCreationStackAndFinishPublishes()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         // Walk Service -> Layer -> Review.
         cut.Find(".publish-wizard-next").Click();
@@ -179,7 +179,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void ModeToggle_SwapsToAuthorFirstSevenStepFlow()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         // Switch to the advanced author-first mode.
         var authorFirst = cut.FindAll("button.publish-mode-option")
@@ -203,7 +203,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void AuthorFirst_TargetGating_DisablesForwardWhenNoTargetSelected()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         cut.FindAll("button.publish-mode-option")
             .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))
@@ -221,7 +221,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void AuthorFirst_ProjectionStep_RendersLiveMapPreviewWithLegendAndChips()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         cut.FindAll("button.publish-mode-option")
             .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))
@@ -254,7 +254,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     public void AuthorFirst_ProjectionLabelChip_TogglesLabelLandmark()
     {
         using var ctx = NewContext();
-        var cut = ctx.RenderComponent<PublishWizardWorkspace>();
+        var cut = ctx.Render<PublishWizardWorkspace>();
 
         cut.FindAll("button.publish-mode-option")
             .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal))

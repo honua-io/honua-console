@@ -121,7 +121,7 @@ public sealed class StudioMapQueryValidationRenderTests
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
 
         var page = OpenMap(ctx, data);
-        var nav = ctx.Services.GetRequiredService<FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<BunitNavigationManager>();
 
         nav.NavigateTo("catalog");
         Assert.EndsWith("catalog", nav.Uri, StringComparison.Ordinal);
@@ -212,7 +212,7 @@ public sealed class StudioMapQueryValidationRenderTests
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
 
         var page = OpenQuery(ctx, data);
-        var nav = ctx.Services.GetRequiredService<FakeNavigationManager>();
+        var nav = ctx.Services.GetRequiredService<BunitNavigationManager>();
 
         nav.NavigateTo("catalog");
         Assert.EndsWith("catalog", nav.Uri, StringComparison.Ordinal);
@@ -236,9 +236,9 @@ public sealed class StudioMapQueryValidationRenderTests
             TimeSpan.FromSeconds(5));
     }
 
-    private static Bunit.TestContext NewContext()
+    private static Bunit.BunitContext NewContext()
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         // The map builder injects the style-picker catalog source (#161). Register the unsupported (no-server)
         // implementation so the inspector degrades to the legacy free-form style input under render tests.
@@ -246,9 +246,9 @@ public sealed class StudioMapQueryValidationRenderTests
         return ctx;
     }
 
-    private static IRenderedComponent<StudioMapBuilderPage> OpenMap(Bunit.TestContext ctx, FakeMapDataSource data)
+    private static IRenderedComponent<StudioMapBuilderPage> OpenMap(Bunit.BunitContext ctx, FakeMapDataSource data)
     {
-        var page = ctx.RenderComponent<StudioMapBuilderPage>();
+        var page = ctx.Render<StudioMapBuilderPage>();
         page.WaitForAssertion(() => FindButtonGeneric(page, FakeMapDataSource.OpenLabel), TimeSpan.FromSeconds(5));
         FindButton(page, FakeMapDataSource.OpenLabel).Click();
         page.WaitForAssertion(
@@ -257,9 +257,9 @@ public sealed class StudioMapQueryValidationRenderTests
         return page;
     }
 
-    private static IRenderedComponent<StudioQueryBuilderPage> OpenQuery(Bunit.TestContext ctx, FakeQueryDataSource data)
+    private static IRenderedComponent<StudioQueryBuilderPage> OpenQuery(Bunit.BunitContext ctx, FakeQueryDataSource data)
     {
-        var page = ctx.RenderComponent<StudioQueryBuilderPage>();
+        var page = ctx.Render<StudioQueryBuilderPage>();
         page.WaitForAssertion(() => FindButtonGeneric(page, FakeQueryDataSource.OpenLabel), TimeSpan.FromSeconds(5));
         FindButton(page, FakeQueryDataSource.OpenLabel).Click();
         page.WaitForAssertion(

@@ -16,16 +16,16 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class UnsavedChangesGuardTests
 {
-    private static Bunit.TestContext CreateContext()
+    private static Bunit.BunitContext CreateContext()
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new Bunit.BunitContext();
         // Loose mode: the beforeunload module import + enable/disable void calls resolve to no-ops.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         return ctx;
     }
 
-    private static FakeNavigationManager Nav(Bunit.TestContext ctx) =>
-        (FakeNavigationManager)ctx.Services.GetRequiredService<NavigationManager>();
+    private static BunitNavigationManager Nav(Bunit.BunitContext ctx) =>
+        (BunitNavigationManager)ctx.Services.GetRequiredService<NavigationManager>();
 
     [Fact]
     public void Dirty_AndOperatorDeclines_PreventsNavigation()
@@ -34,7 +34,7 @@ public sealed class UnsavedChangesGuardTests
         // confirm() returns false => operator chose to stay.
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
 
-        ctx.RenderComponent<UnsavedChangesGuard>(parameters => parameters
+        ctx.Render<UnsavedChangesGuard>(parameters => parameters
             .Add(p => p.IsDirty, true));
 
         var nav = Nav(ctx);
@@ -50,7 +50,7 @@ public sealed class UnsavedChangesGuardTests
         // confirm() returns true => operator chose to leave.
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
 
-        ctx.RenderComponent<UnsavedChangesGuard>(parameters => parameters
+        ctx.Render<UnsavedChangesGuard>(parameters => parameters
             .Add(p => p.IsDirty, true));
 
         var nav = Nav(ctx);
@@ -65,7 +65,7 @@ public sealed class UnsavedChangesGuardTests
         using var ctx = CreateContext();
         // No confirm handler configured: if the guard prompted, the strict-by-default invocation would
         // surface. With clean state it must not invoke confirm at all.
-        ctx.RenderComponent<UnsavedChangesGuard>(parameters => parameters
+        ctx.Render<UnsavedChangesGuard>(parameters => parameters
             .Add(p => p.IsDirty, false));
 
         var nav = Nav(ctx);
@@ -80,13 +80,13 @@ public sealed class UnsavedChangesGuardTests
     {
         using var ctx = CreateContext();
 
-        var cut = ctx.RenderComponent<UnsavedChangesGuard>(parameters => parameters
+        var cut = ctx.Render<UnsavedChangesGuard>(parameters => parameters
             .Add(p => p.IsDirty, true));
 
         // The beforeunload module is imported and enable() invoked when dirty.
         Assert.Contains(ctx.JSInterop.Invocations, i => i.Identifier == "enable");
 
-        cut.SetParametersAndRender(parameters => parameters.Add(p => p.IsDirty, false));
+        cut.Render(parameters => parameters.Add(p => p.IsDirty, false));
         Assert.Contains(ctx.JSInterop.Invocations, i => i.Identifier == "disable");
     }
 
@@ -96,7 +96,7 @@ public sealed class UnsavedChangesGuardTests
         using var ctx = CreateContext();
         ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
 
-        var cut = ctx.RenderComponent<UnsavedChangesGuard>(parameters => parameters
+        var cut = ctx.Render<UnsavedChangesGuard>(parameters => parameters
             .Add(p => p.IsDirty, true));
 
         await cut.Instance.DisposeAsync();

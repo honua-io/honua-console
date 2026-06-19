@@ -62,10 +62,10 @@ public sealed class StudioDashboardBuilderIntegrationTests
         Assert.NotEqual(saved.State.DraftId, reopened.State.DraftId);
 
         // 5. The page renders the live-loaded draft editor (not the missing-binding surface).
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(dataSource);
 
-        var page = ctx.RenderComponent<StudioDashboardBuilderPage>();
+        var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(
             () => Assert.DoesNotContain("Dashboard package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
