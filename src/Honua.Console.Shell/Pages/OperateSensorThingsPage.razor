@@ -1,0 +1,204 @@
+@page "/operate/sensors"
+@page "/operate/sensors/datastreams/{DatastreamId:long}"
+@using System.Globalization
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleSensorThingsClient SensorThings
+
+<section class="console-page" data-sensorthings-page>
+    <div class="console-page-heading">
+        <p class="console-kicker">Operate / SensorThings</p>
+        <h1>SensorThings browser</h1>
+        <p>
+            Browse the connected server's OGC SensorThings (STA v1.1) Things, Datastreams, and
+            Observations, navigate a datastream to its observations, and chart a datastream's
+            observations over time. Read-only (Phase 1); the server serves the conformance-shaped
+            <code>/sta/v1.1</code> API.
+        </p>
+    </div>
+
+    @* ---- Things ---- *@
+    <section class="console-section" data-sensorthings-things>
+        <h2>Things</h2>
+        @if (_things is null)
+        {
+            <OperateSectionStatusPanel Heading="Things" Loading="true" />
+        }
+        else if (!_things.IsOk)
+        {
+            <OperateSectionStatusPanel Heading="Things"
+                Status="MapStatus(_things.Status)"
+                Message="@Message(_things)" />
+        }
+        else if (_things.Value!.Value.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Things" Empty="true"
+                EmptyTitle="No Things published"
+                EmptyMessage="The connected server has no SensorThings Things." />
+        }
+        else
+        {
+            <table class="console-table" data-sensorthings-things-table>
+                <thead>
+                    <tr><th>@IotIdLabel</th><th>Name</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var thing in _things.Value.Value)
+                    {
+                        <tr data-thing-id="@thing.IotId">
+                            <td>@thing.IotId</td>
+                            <td>@thing.Name</td>
+                            <td class="console-muted">@thing.Description</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    @* ---- Datastreams (the browseable catalog of chartable series) ---- *@
+    <section class="console-section" data-sensorthings-datastreams>
+        <h2>Datastreams</h2>
+        @if (_datastreams is null)
+        {
+            <OperateSectionStatusPanel Heading="Datastreams" Loading="true" />
+        }
+        else if (!_datastreams.IsOk)
+        {
+            <OperateSectionStatusPanel Heading="Datastreams"
+                Status="MapStatus(_datastreams.Status)"
+                Message="@Message(_datastreams)" />
+        }
+        else if (_datastreams.Value!.Value.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Datastreams" Empty="true"
+                EmptyTitle="No Datastreams published"
+                EmptyMessage="The connected server has no SensorThings Datastreams to chart." />
+        }
+        else
+        {
+            <table class="console-table" data-sensorthings-datastreams-table>
+                <thead>
+                    <tr><th>@IotIdLabel</th><th>Name</th><th>Unit</th><th>Observations</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var datastream in _datastreams.Value.Value)
+                    {
+                        <tr data-datastream-id="@datastream.IotId">
+                            <td>@datastream.IotId</td>
+                            <td>@datastream.Name</td>
+                            <td class="console-muted">@(datastream.UnitOfMeasurement?.Symbol ?? "—")</td>
+                            <td>
+                                <a class="console-button-link"
+                                   href="@($"/operate/sensors/datastreams/{datastream.IotId.ToString(CultureInfo.InvariantCulture)}")"
+                                   data-datastream-open="@datastream.IotId">
+                                    Observations &amp; chart
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    @* ---- Selected datastream: $expand navigation + time-series chart ---- *@
+    @if (DatastreamId is { } selectedId)
+    {
+        <section class="console-section" data-sensorthings-detail>
+            <h2>Datastream @selectedId.ToString(CultureInfo.InvariantCulture)</h2>
+            <div class="console-detail-actions">
+                <a class="console-button-link" href="/operate/sensors" data-sensorthings-back>Back to browser</a>
+            </div>
+
+            @if (_series is null)
+            {
+                <OperateSectionStatusPanel Heading="Observations" Loading="true" />
+            }
+            else if (!_series.IsOk)
+            {
+                <OperateSectionStatusPanel Heading="Observations"
+                    Status="MapStatus(_series.Status)"
+                    Message="@Message(_series)" />
+            }
+            else
+            {
+                var series = _series.Value!;
+                <h3 data-series-name>@series.DatastreamName</h3>
+                <SensorThingsTimeSeriesChart Series="series" />
+
+                @if (series.HasPoints)
+                {
+                    <details class="console-detail">
+                        <summary>Observations (@series.Points.Count.ToString(CultureInfo.InvariantCulture))</summary>
+                        <table class="console-table" data-sensorthings-observations-table>
+                            <thead>
+                                <tr><th>Phenomenon time</th><th>Result @series.UnitSymbol</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var point in series.Points)
+                                {
+                                    <tr>
+                                        <td>@point.PhenomenonTime.ToString("u", CultureInfo.InvariantCulture)</td>
+                                        <td>@point.Result.ToString("0.##", CultureInfo.InvariantCulture)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </details>
+                }
+            }
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public long? DatastreamId { get; set; }
+
+    private const string IotIdLabel = "@iot.id";
+
+    private SensorThingsReadResult<StaEntitySet<StaThing>>? _things;
+    private SensorThingsReadResult<StaEntitySet<StaDatastream>>? _datastreams;
+    private SensorThingsReadResult<SensorThingsTimeSeries>? _series;
+    private long? _loadedSeriesFor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Fan-out the browse reads (no waterfall).
+        var thingsTask = SensorThings.ListThingsAsync();
+        var datastreamsTask = SensorThings.ListDatastreamsAsync();
+        await Task.WhenAll(thingsTask, datastreamsTask).ConfigureAwait(false);
+        _things = await thingsTask.ConfigureAwait(false);
+        _datastreams = await datastreamsTask.ConfigureAwait(false);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (DatastreamId is { } id && _loadedSeriesFor != id)
+        {
+            _series = null;
+            _loadedSeriesFor = id;
+            _series = await SensorThings.GetDatastreamTimeSeriesAsync(id).ConfigureAwait(false);
+        }
+        else if (DatastreamId is null)
+        {
+            _series = null;
+            _loadedSeriesFor = null;
+        }
+    }
+
+    private static OperateSectionStatus MapStatus(SensorThingsReadStatus status) => status switch
+    {
+        SensorThingsReadStatus.Missing => OperateSectionStatus.Missing,
+        SensorThingsReadStatus.Forbidden => OperateSectionStatus.Forbidden,
+        SensorThingsReadStatus.Unsupported => OperateSectionStatus.Unsupported,
+        _ => OperateSectionStatus.Unavailable
+    };
+
+    private static string Message<T>(SensorThingsReadResult<T> result) =>
+        string.IsNullOrWhiteSpace(result.Message)
+            ? SensorThingsPresentation.FallbackMessage(result.Status)
+            : result.Message;
+}

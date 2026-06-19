@@ -58,6 +58,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddEsriMigrationRunDataSource(services);
         AddPublishingWorkspaceDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey, honuaServerPublicationIds);
         AddConsoleCatalogClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddConsoleSensorThingsClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddConsoleSceneClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateAlertRulesDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddVersionManagementOperation(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddOperateLayerStyleOverrideDataSource(services, honuaServerBaseUrl);
@@ -640,6 +642,60 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IConsoleCatalogClient, UnsupportedConsoleCatalogClient>();
+    }
+
+    // SensorThings (STA v1.1) browse surface binds to a real honua-server through
+    // the conformance-shaped /sta/v1.1 read API (honua-server #1842 / #1747) via a
+    // thin typed HttpClient. No standing in-memory data source is registered
+    // (Console Patterns Charter section 11); when an environment is connected the
+    // browse + chart views read live data, else they render the missing-binding
+    // state. The InMemory client stays test/demo-only.
+    private static void AddConsoleSensorThingsClient(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IConsoleSensorThingsClient>(serviceProvider =>
+                new HttpConsoleSensorThingsClient(
+                    CreateOperateObservabilityHttpClient(),
+                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                    honuaServerAdminApiKey));
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleSensorThingsClient, UnsupportedConsoleSensorThingsClient>();
+    }
+
+    // 3D scene surface binds to a real honua-server: scene discovery
+    // (GET /api/scenes), LAS point-cloud ingest
+    // (POST /api/v1/admin/scenes/ingest/pointcloud, honua-server #1840 / #1201),
+    // and tileset URL resolution (/scenes/{id}/tileset.json) via a thin typed
+    // HttpClient. No standing in-memory data source is registered (Console
+    // Patterns Charter section 11); when an environment is connected the discover
+    // + ingest + view flow reads live data, else it renders missing-binding. The
+    // admin API key is sent as X-API-Key (admin-authorized ingest endpoint).
+    private static void AddConsoleSceneClient(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        string? honuaServerAdminApiKey)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<IConsoleSceneClient>(serviceProvider =>
+                new HttpConsoleSceneClient(
+                    CreateOperateObservabilityHttpClient(),
+                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                    honuaServerAdminApiKey));
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleSceneClient, UnsupportedConsoleSceneClient>();
     }
 
     // Binds the Share management surface (/share/manage, honua-console#35) to honua-server's Console Share

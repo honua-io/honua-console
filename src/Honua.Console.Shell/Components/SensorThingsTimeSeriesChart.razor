@@ -1,0 +1,88 @@
+@using System.Globalization
+@using Honua.Console.Shell.Models
+
+@* Dependency-free inline SVG line chart for a datastream's observations over
+   time. Renders server-side (no JS interop) so render/integration tests can
+   assert on the markup, mirroring the schematic-first approach used by
+   ChartPreview/MapPreview. *@
+<figure class="console-timeseries-chart" data-timeseries-chart>
+    @if (Series is null || !Series.HasPoints)
+    {
+        <figcaption class="console-muted" data-timeseries-empty>
+            No observations to chart for this datastream yet.
+        </figcaption>
+    }
+    else
+    {
+        <svg viewBox="0 0 @Width @Height" role="img"
+             aria-label="@($"Time series of {Series.DatastreamName} ({Series.Points.Count} observations)")"
+             data-timeseries-svg preserveAspectRatio="none">
+            <polyline fill="none" stroke="currentColor" stroke-width="2"
+                      points="@Polyline" data-timeseries-line />
+            @foreach (var (x, y) in PlottedPoints)
+            {
+                <circle cx="@Format(x)" cy="@Format(y)" r="2" fill="currentColor" />
+            }
+        </svg>
+        <figcaption class="console-muted" data-timeseries-caption>
+            @Series.Points.Count.ToString(CultureInfo.InvariantCulture) observations ·
+            min @Format(Series.Minimum) · max @Format(Series.Maximum)
+            @if (!string.IsNullOrWhiteSpace(Series.UnitSymbol))
+            {
+                <text> @Series.UnitSymbol</text>
+            }
+        </figcaption>
+    }
+</figure>
+
+@code {
+    [Parameter]
+    public SensorThingsTimeSeries? Series { get; set; }
+
+    [Parameter]
+    public int Width { get; set; } = 640;
+
+    [Parameter]
+    public int Height { get; set; } = 220;
+
+    private const int PadX = 8;
+    private const int PadY = 12;
+
+    private IReadOnlyList<(double X, double Y)> PlottedPoints
+    {
+        get
+        {
+            if (Series is null || !Series.HasPoints)
+            {
+                return [];
+            }
+
+            var points = Series.Points;
+            var minTime = points.Min(p => p.PhenomenonTime).ToUnixTimeMilliseconds();
+            var maxTime = points.Max(p => p.PhenomenonTime).ToUnixTimeMilliseconds();
+            var timeSpan = Math.Max(1, maxTime - minTime);
+            var min = Series.Minimum;
+            var range = Math.Max(1e-9, Series.Maximum - min);
+
+            var plotWidth = Width - (2 * PadX);
+            var plotHeight = Height - (2 * PadY);
+
+            var plotted = new List<(double X, double Y)>(points.Count);
+            foreach (var point in points)
+            {
+                var x = PadX + (plotWidth * (point.PhenomenonTime.ToUnixTimeMilliseconds() - minTime) / (double)timeSpan);
+                // SVG y grows downward: invert so larger results sit higher.
+                var y = PadY + (plotHeight * (1 - ((point.Result - min) / range)));
+                plotted.Add((x, y));
+            }
+
+            return plotted;
+        }
+    }
+
+    private string Polyline =>
+        string.Join(" ", PlottedPoints.Select(p => $"{Format(p.X)},{Format(p.Y)}"));
+
+    private static string Format(double value) =>
+        value.ToString("0.##", CultureInfo.InvariantCulture);
+}
