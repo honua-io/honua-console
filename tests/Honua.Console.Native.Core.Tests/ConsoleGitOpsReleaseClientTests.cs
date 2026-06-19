@@ -198,6 +198,55 @@ public sealed class ConsoleGitOpsReleaseClientTests
     }
 
     [Fact]
+    public async Task CoordinatedReleaseBindsLiveCoordinatedOperationEndpoint()
+    {
+        var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/coordinated-releases/" + PackageId.ToString("D") + "/operation", StringComparison.Ordinal)
+                ? JsonResponse(BuildCoordinated(), MetadataReleaseJsonContext.Default.CoordinatedReleaseOperationResponse)
+                : new HttpResponseMessage(HttpStatusCode.NotFound));
+        var client = CreateClient(handler, adminApiKey: "admin-key");
+
+        var result = await client.GetCoordinatedReleaseAsync(PackageId.ToString("D"));
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var coordinated = result.Value!;
+
+        // The three artifact kinds map across.
+        Assert.Equal(3, coordinated.Artifacts.Count);
+        Assert.Contains(coordinated.Artifacts, a => a.Kind == GitOpsCoordinatedArtifactKind.ContainerImage);
+        Assert.Contains(coordinated.Artifacts, a => a.Kind == GitOpsCoordinatedArtifactKind.DatabaseSchema);
+        Assert.Contains(coordinated.Artifacts, a => a.Kind == GitOpsCoordinatedArtifactKind.Metadata);
+
+        // The ordered step ledger + gate/reversible flags map across.
+        Assert.Equal(6, coordinated.Steps.Count);
+        var dataGate = Assert.Single(coordinated.Steps, s => s.Step == "MetadataAndSchema");
+        Assert.True(dataGate.RequiresApproval);
+        Assert.True(dataGate.IsReversible);
+        Assert.Equal(GitOpsCoordinatedStepStatus.AwaitingApproval, dataGate.Status);
+
+        // The op is parked at the data gate and rollback is ready.
+        Assert.True(coordinated.IsAwaitingApproval);
+        Assert.Equal("MetadataAndSchema", coordinated.PendingGate!.Step);
+        Assert.True(coordinated.RollbackReady);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.True(request.Headers.TryGetValues("X-API-Key", out var keys) && keys.Single() == "admin-key");
+    }
+
+    [Fact]
+    public async Task CoordinatedReleaseSurfacesMissingOperationHonestly()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var client = CreateClient(handler);
+
+        var result = await client.GetCoordinatedReleaseAsync(PackageId.ToString("D"));
+
+        Assert.Equal(OperateSectionStatus.Missing, result.Status);
+        Assert.Null(result.Value);
+        Assert.Contains("No coordinated platform-upgrade release has been started", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReadsReturnMissingBindingWhenNoEnvironmentIsConnected()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
@@ -206,11 +255,43 @@ public sealed class ConsoleGitOpsReleaseClientTests
 
         var list = await client.GetReleaseProposalsAsync();
         var detail = await client.GetReleaseDetailAsync(PackageId.ToString("D"));
+        var coordinated = await client.GetCoordinatedReleaseAsync(PackageId.ToString("D"));
 
         Assert.Equal(OperateSectionStatus.Unavailable, list.Status);
         Assert.Equal(OperateSectionStatus.Unavailable, detail.Status);
+        Assert.Equal(OperateSectionStatus.Unavailable, coordinated.Status);
         Assert.Empty(handler.Requests);
     }
+
+    private static CoordinatedReleaseOperationResponse BuildCoordinated() => new()
+    {
+        OperationId = "coordinated-release-pkg-democ",
+        PackageId = PackageId.ToString("D"),
+        Status = "AwaitingApproval",
+        CurrentStep = "MetadataAndSchema",
+        TargetEnvironment = "production",
+        CurrentPhase = "Awaiting explicit approval to apply the DB schema change.",
+        Artifacts =
+        [
+            new CoordinatedReleaseArtifactResponse { Kind = "ContainerImage", Title = "Container rollout · prod-ecs", Desired = "honua/server:v21", Current = "honua/server:v20" },
+            new CoordinatedReleaseArtifactResponse { Kind = "DatabaseSchema", Title = "DB schema · add-owner-email", Desired = "Add nullable field 'owner_email' to parcels" },
+            new CoordinatedReleaseArtifactResponse { Kind = "Metadata", Title = "Metadata · pkg", Desired = "Activate new metadata revision in production" }
+        ],
+        Steps =
+        [
+            new CoordinatedReleaseStepResponse { Step = "Preflight", Status = "Succeeded" },
+            new CoordinatedReleaseStepResponse { Step = "Backup", Status = "Succeeded" },
+            new CoordinatedReleaseStepResponse { Step = "ContainerRollout", Status = "Succeeded", RequiresApproval = true, IsReversible = true },
+            new CoordinatedReleaseStepResponse { Step = "MetadataAndSchema", Status = "AwaitingApproval", RequiresApproval = true, IsReversible = true },
+            new CoordinatedReleaseStepResponse { Step = "Smoke", Status = "Pending" },
+            new CoordinatedReleaseStepResponse { Step = "Promote", Status = "Pending" }
+        ],
+        ContainerGateApproved = true,
+        DataGateApproved = false,
+        RollbackReady = true,
+        CreatedAt = DateTimeOffset.Parse("2026-05-24T19:00:00Z"),
+        UpdatedAt = DateTimeOffset.Parse("2026-05-24T19:30:00Z")
+    };
 
     private static HttpConsoleGitOpsReleaseClient CreateClient(HttpMessageHandler handler, string? adminApiKey = null)
     {

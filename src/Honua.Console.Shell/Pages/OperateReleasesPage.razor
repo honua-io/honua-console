@@ -181,6 +181,7 @@
            whole governed release reads top-to-bottom without losing the design's IA. *@
         <nav class="console-tab-row operate-release-tabs" aria-label="Release sections">
             <a href="#semantic-diff" class="active">Semantic diff <small>@changeCount</small></a>
+            <a href="#coordinated">Coordinated upgrade</a>
             <a href="#env-matrix">Environment matrix</a>
             <a href="#preflight">Compatibility preflight</a>
             <a href="#scripts">Data scripts <small>@detail.Scripts.Count</small></a>
@@ -237,6 +238,130 @@
                                 </tbody>
                             </table>
                         </div>
+                    }
+                </section>
+
+                @* COORDINATED PLATFORM UPGRADE (Demo C, honua-server#97) — the container image +
+                   DB/schema change + metadata semantic diff promoted as ONE ordered, gated,
+                   rollback-able op. Renders the three artifact kinds, the ordered step timeline with
+                   per-step gate/approve status, and the rollback readiness for the whole op. An
+                   independent sub-read; when no coordinated op exists, the established missing state
+                   shows instead of fabricated data. *@
+                <section id="coordinated" class="console-panel operate-table-panel" aria-labelledby="coordinated-heading">
+                    <div class="console-panel-heading operate-release-card-head">
+                        <div>
+                            <h3 id="coordinated-heading">Coordinated platform upgrade</h3>
+                            <p class="console-muted">Container image + DB/schema change + metadata as one ordered, gated, rollback-able op.</p>
+                        </div>
+                        @if (_coordinated is { IsAllowed: true, Value: { } coordinatedBadge })
+                        {
+                            <span class="console-status @(coordinatedBadge.RollbackReady ? "console-state-info" : "console-state-neutral")">
+                                @coordinatedBadge.Status
+                            </span>
+                        }
+                    </div>
+                    @if (_coordinated is null || !_coordinated.IsAllowed)
+                    {
+                        <OperateSectionStatusPanel Heading="Coordinated release"
+                            Status="_coordinated?.Status ?? OperateSectionStatus.Unavailable"
+                            Message="@(_coordinated?.Message ?? "The coordinated release operation is temporarily unavailable.")" />
+                    }
+                    else
+                    {
+                        var coordinated = _coordinated.Value!;
+
+                        @* Three artifact kinds side by side. *@
+                        <div class="operate-table-scroll">
+                            <table class="operate-table operate-diff-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Artifact</th>
+                                        <th scope="col">Kind</th>
+                                        <th scope="col">Desired</th>
+                                        <th scope="col">Current</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var artifact in coordinated.Artifacts)
+                                    {
+                                        <tr>
+                                            <td><strong>@artifact.Title</strong></td>
+                                            <td>@GitOpsReleasePresentation.Label(artifact.Kind)</td>
+                                            <td class="console-mono">@artifact.Desired</td>
+                                            <td class="console-mono">@(string.IsNullOrWhiteSpace(artifact.Current) ? "—" : artifact.Current)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @* Ordered step timeline with per-step gate / approve / rollback status. *@
+                        <h4 class="operate-coordinated-subhead">Ordered steps</h4>
+                        <ol class="operate-timeline operate-coordinated-timeline">
+                            @foreach (var step in coordinated.Steps)
+                            {
+                                <li class="operate-timeline-step @GitOpsReleasePresentation.StateClass(step.Status)">
+                                    <span class="operate-timeline-marker" aria-hidden="true"></span>
+                                    <div class="operate-timeline-body">
+                                        <strong>@step.Step</strong>
+                                        @if (step.RequiresApproval)
+                                        {
+                                            <span class="console-chip-row"><span>gate</span></span>
+                                        }
+                                        @if (step.IsReversible)
+                                        {
+                                            <span class="console-chip-row"><span>reversible</span></span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(step.Detail))
+                                        {
+                                            <span class="console-muted">@step.Detail</span>
+                                        }
+                                    </div>
+                                    <span class="console-status @GitOpsReleasePresentation.StateClass(step.Status)">
+                                        @GitOpsReleasePresentation.Label(step.Status)
+                                    </span>
+                                </li>
+                            }
+                        </ol>
+
+                        @if (coordinated.PendingGate is { } pendingGate)
+                        {
+                            <div class="console-usage-callout operate-release-callout-warn">
+                                <strong>Awaiting approval.</strong>
+                                The coordinated upgrade is parked at the <span class="console-mono">@pendingGate.Step</span> gate.
+                                Approve it through the server's coordinated-release approve endpoint to proceed.
+                            </div>
+                        }
+
+                        <dl class="console-definition-list operate-coordinated-meta">
+                            <dt>Operation id</dt>
+                            <dd class="console-mono">@coordinated.OperationId</dd>
+                            <dt>Current step</dt>
+                            <dd>@coordinated.CurrentStep</dd>
+                            <dt>Container gate</dt>
+                            <dd>@(coordinated.ContainerGateApproved ? "approved" : "pending")</dd>
+                            <dt>Data / metadata gate</dt>
+                            <dd>@(coordinated.DataGateApproved ? "approved" : "pending")</dd>
+                            <dt>Coordinated rollback</dt>
+                            <dd>
+                                <span class="console-status @(coordinated.RollbackReady ? "console-state-success" : "console-state-neutral")">
+                                    @(coordinated.RollbackReady ? "ready — unwinds completed steps in reverse" : "nothing to unwind yet")
+                                </span>
+                            </dd>
+                        </dl>
+
+                        @if (coordinated.Blockers.Count > 0)
+                        {
+                            <div class="operate-blocker-list">
+                                <h4>Blockers</h4>
+                                <ul class="operate-note-list">
+                                    @foreach (var blocker in coordinated.Blockers)
+                                    {
+                                        <li class="console-state-danger">@blocker</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
                     }
                 </section>
 
@@ -649,6 +774,11 @@
     private OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>? _proposals;
     private OperateSectionResult<GitOpsReleaseDetail>? _detail;
 
+    // The coordinated platform-upgrade release op (Demo C, honua-server#97) is an independent
+    // sub-read of the detail surface: its absence surfaces its own state rather than failing the
+    // whole detail read, mirroring the release-operation lifecycle sub-read.
+    private OperateSectionResult<GitOpsCoordinatedRelease>? _coordinated;
+
     private bool _pendingApprovalsLoaded;
     private OperateSectionResult<IReadOnlyList<DeployOperationProposal>> _pendingApprovals =
         OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
@@ -671,7 +801,11 @@
         if (HasSelectedReleaseRoute)
         {
             _detailLoaded = false;
-            _detail = await ReleaseClient.GetReleaseDetailAsync(SelectedReleaseId!.Trim());
+            _coordinated = null;
+            var releaseId = SelectedReleaseId!.Trim();
+            _detail = await ReleaseClient.GetReleaseDetailAsync(releaseId);
+            // Independent sub-read: a missing coordinated op surfaces its own state.
+            _coordinated = await ReleaseClient.GetCoordinatedReleaseAsync(releaseId);
             _detailLoaded = true;
         }
         else if (!_listLoaded)

@@ -126,7 +126,7 @@ public sealed class OperateReleasesPageRenderTests
                 // Design section tab strip is present for the major views, including the
                 // dedicated Data scripts and Git PR preview tabs (design fidelity).
                 var tabs = page.FindAll(".operate-release-tabs a");
-                Assert.Equal(7, tabs.Count);
+                Assert.Equal(8, tabs.Count);
                 Assert.Contains(tabs, t => t.TextContent.Contains("Semantic diff", StringComparison.Ordinal));
                 Assert.Contains(tabs, t => t.TextContent.Contains("Environment matrix", StringComparison.Ordinal));
                 Assert.Contains(tabs, t => t.TextContent.Contains("Data scripts", StringComparison.Ordinal));
@@ -286,6 +286,101 @@ public sealed class OperateReleasesPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void ReleaseDetail_WhenCoordinatedReleaseExists_RendersThreeArtifactsTimelineAndRollback()
+    {
+        var stub = new StubReleaseClient
+        {
+            Detail = _ => OperateSectionResult<GitOpsReleaseDetail>.Allowed(BuildDetail(blocked: false)),
+            Coordinated = _ => OperateSectionResult<GitOpsCoordinatedRelease>.Allowed(BuildCoordinated()),
+        };
+
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
+
+        var page = ctx.Render<OperateReleasesPage>(parameters =>
+            parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // The coordinated section renders with the three artifact kinds side by side.
+                Assert.NotNull(page.Find("#coordinated"));
+                Assert.Contains("container image", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("DB / schema change", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("metadata semantic diff", page.Markup, StringComparison.Ordinal);
+                // The ordered step timeline renders all coordinated steps.
+                var steps = page.FindAll("#coordinated .operate-coordinated-timeline li");
+                Assert.Equal(6, steps.Count);
+                // The data-affecting gate is parked awaiting approval, and rollback is ready.
+                Assert.Contains("Awaiting approval", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("unwinds completed steps in reverse", page.Markup, StringComparison.Ordinal);
+                // The coordinated tab is present in the strip.
+                Assert.Contains("Coordinated upgrade", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void ReleaseDetail_WhenNoCoordinatedRelease_RendersMissingState()
+    {
+        var stub = new StubReleaseClient
+        {
+            Detail = _ => OperateSectionResult<GitOpsReleaseDetail>.Allowed(BuildDetail(blocked: false)),
+            Coordinated = _ => OperateSectionResult<GitOpsCoordinatedRelease>.Denied(
+                OperateSectionStatus.Missing,
+                "No coordinated platform-upgrade release has been started for this package yet."),
+        };
+
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(stub);
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
+
+        var page = ctx.Render<OperateReleasesPage>(parameters =>
+            parameters.Add(p => p.SelectedReleaseId, "11111111-2222-3333-4444-555555555555"));
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // The coordinated section renders the established missing-state surface, not mock data.
+                Assert.NotNull(page.Find("#coordinated"));
+                Assert.Contains("No coordinated platform-upgrade release has been started", page.Markup, StringComparison.Ordinal);
+                Assert.Empty(page.FindAll("#coordinated .operate-coordinated-timeline li"));
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    private static GitOpsCoordinatedRelease BuildCoordinated() =>
+        new(
+            OperationId: "coordinated-release-pkg-democ",
+            PackageId: "11111111-2222-3333-4444-555555555555",
+            Status: "AwaitingApproval",
+            CurrentStep: "MetadataAndSchema",
+            TargetEnvironment: "production",
+            CurrentPhase: "Awaiting explicit approval to apply the DB schema change.",
+            Artifacts:
+            [
+                new GitOpsCoordinatedArtifact(GitOpsCoordinatedArtifactKind.ContainerImage, "Container rollout · prod-ecs", "honua/server:v21", "honua/server:v20"),
+                new GitOpsCoordinatedArtifact(GitOpsCoordinatedArtifactKind.DatabaseSchema, "DB schema · add-owner-email", "Add nullable field 'owner_email' to parcels", null),
+                new GitOpsCoordinatedArtifact(GitOpsCoordinatedArtifactKind.Metadata, "Metadata · pkg", "Activate new metadata revision in production", null),
+            ],
+            Steps:
+            [
+                new GitOpsCoordinatedStep("Preflight", GitOpsCoordinatedStepStatus.Succeeded, false, false, "Preflight passed."),
+                new GitOpsCoordinatedStep("Backup", GitOpsCoordinatedStepStatus.Succeeded, false, false, "No-op for additive path."),
+                new GitOpsCoordinatedStep("ContainerRollout", GitOpsCoordinatedStepStatus.Succeeded, true, true, "Container rollout promoted."),
+                new GitOpsCoordinatedStep("MetadataAndSchema", GitOpsCoordinatedStepStatus.AwaitingApproval, true, true, "Awaiting approval to apply the DB schema change."),
+                new GitOpsCoordinatedStep("Smoke", GitOpsCoordinatedStepStatus.Pending, false, false, null),
+                new GitOpsCoordinatedStep("Promote", GitOpsCoordinatedStepStatus.Pending, false, false, null),
+            ],
+            ContainerGateApproved: true,
+            DataGateApproved: false,
+            RollbackReady: true,
+            Blockers: [],
+            Warnings: [],
+            ErrorMessage: null);
+
     private static GitOpsReleaseDetail BuildDetail(bool blocked)
     {
         var rollback = new GitOpsRollbackPlan(
@@ -363,6 +458,9 @@ public sealed class OperateReleasesPageRenderTests
         public Func<string, OperateSectionResult<GitOpsReleaseDetail>> Detail { get; init; } =
             _ => OperateSectionResult<GitOpsReleaseDetail>.Denied(OperateSectionStatus.Missing, "Release not found.");
 
+        public Func<string, OperateSectionResult<GitOpsCoordinatedRelease>> Coordinated { get; init; } =
+            _ => OperateSectionResult<GitOpsCoordinatedRelease>.Denied(OperateSectionStatus.Missing, "No coordinated release.");
+
         public Task<OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>> GetReleaseProposalsAsync(
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Proposals);
@@ -381,5 +479,10 @@ public sealed class OperateReleasesPageRenderTests
             string releasePackageId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail(releasePackageId));
+
+        public Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Coordinated(releasePackageId));
     }
 }

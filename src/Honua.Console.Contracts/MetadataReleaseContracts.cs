@@ -40,6 +40,13 @@ public static class MetadataReleaseAdminRoutes
 
     public static string ReleaseOperation(string packageId) =>
         $"{Prefix}/releases/{Uri.EscapeDataString(packageId)}/operation";
+
+    /// <summary>
+    /// Coordinated platform-upgrade release operation read (Demo C, honua-server#97):
+    /// the container + DB-change + metadata op for a release package id.
+    /// </summary>
+    public static string CoordinatedReleaseOperation(string packageId) =>
+        $"{Prefix}/coordinated-releases/{Uri.EscapeDataString(packageId)}/operation";
 }
 
 /// <summary>
@@ -499,6 +506,108 @@ public sealed record MetadataEvidenceRefResponse
 }
 
 /// <summary>
+/// One artifact carried by a coordinated platform-upgrade release (Demo C): the container image, the
+/// DB/schema change, or the metadata semantic diff, shown side by side in the console.
+/// </summary>
+public sealed record CoordinatedReleaseArtifactResponse
+{
+    [JsonPropertyName("kind")]
+    public string Kind { get; init; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; init; } = string.Empty;
+
+    [JsonPropertyName("desired")]
+    public string Desired { get; init; } = string.Empty;
+
+    [JsonPropertyName("current")]
+    public string? Current { get; init; }
+}
+
+/// <summary>One step in the coordinated ordered step timeline (with gate/rollback status).</summary>
+public sealed record CoordinatedReleaseStepResponse
+{
+    [JsonPropertyName("step")]
+    public string Step { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = string.Empty;
+
+    [JsonPropertyName("requiresApproval")]
+    public bool RequiresApproval { get; init; }
+
+    [JsonPropertyName("isReversible")]
+    public bool IsReversible { get; init; }
+
+    [JsonPropertyName("detail")]
+    public string? Detail { get; init; }
+}
+
+/// <summary>
+/// Coordinated platform-upgrade release operation (Demo C, honua-server#97): the three artifact kinds,
+/// the ordered step timeline with per-step gate/approve status, and the rollback readiness for the op.
+/// </summary>
+public sealed record CoordinatedReleaseOperationResponse
+{
+    [JsonPropertyName("operationId")]
+    public string OperationId { get; init; } = string.Empty;
+
+    [JsonPropertyName("packageId")]
+    public string PackageId { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = string.Empty;
+
+    [JsonPropertyName("currentStep")]
+    public string CurrentStep { get; init; } = string.Empty;
+
+    [JsonPropertyName("targetEnvironment")]
+    public string TargetEnvironment { get; init; } = string.Empty;
+
+    [JsonPropertyName("currentPhase")]
+    public string? CurrentPhase { get; init; }
+
+    [JsonPropertyName("artifacts")]
+    public IReadOnlyList<CoordinatedReleaseArtifactResponse> Artifacts { get; init; } = [];
+
+    [JsonPropertyName("steps")]
+    public IReadOnlyList<CoordinatedReleaseStepResponse> Steps { get; init; } = [];
+
+    [JsonPropertyName("containerGateApproved")]
+    public bool ContainerGateApproved { get; init; }
+
+    [JsonPropertyName("dataGateApproved")]
+    public bool DataGateApproved { get; init; }
+
+    [JsonPropertyName("containerOperationId")]
+    public string? ContainerOperationId { get; init; }
+
+    [JsonPropertyName("metadataOperationId")]
+    public string? MetadataOperationId { get; init; }
+
+    [JsonPropertyName("rollbackReady")]
+    public bool RollbackReady { get; init; }
+
+    [JsonPropertyName("blockers")]
+    public IReadOnlyList<string> Blockers { get; init; } = [];
+
+    [JsonPropertyName("warnings")]
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; init; }
+
+    [JsonPropertyName("createdAt")]
+    public DateTimeOffset CreatedAt { get; init; }
+
+    [JsonPropertyName("updatedAt")]
+    public DateTimeOffset UpdatedAt { get; init; }
+
+    [JsonPropertyName("completedAt")]
+    public DateTimeOffset? CompletedAt { get; init; }
+}
+
+/// <summary>
 /// Source-generated JSON context for the GitOps metadata release wire contracts
 /// (trim/AOT safe), mirroring OperateObservabilityJsonContext.
 /// </summary>
@@ -509,6 +618,7 @@ public sealed record MetadataEvidenceRefResponse
 [JsonSerializable(typeof(MetadataReleasePackageResponse))]
 [JsonSerializable(typeof(GitOpsMetadataReleaseManifestResponse))]
 [JsonSerializable(typeof(DeployOperationResponse))]
+[JsonSerializable(typeof(CoordinatedReleaseOperationResponse))]
 public sealed partial class MetadataReleaseJsonContext : JsonSerializerContext
 {
 }
