@@ -50,6 +50,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddAiPublishDriver(services, honuaServerBaseUrl);
+
+        // The omni-prompt AI console (honua-console#203) routes one free-text prompt to the right lane —
+        // Studio (GIS authoring → the AI publish outcome card) or DevOps (ops → the deploy approval panel).
+        // The classifier is a thin, deterministic, server-independent heuristic (no server classify endpoint
+        // exists yet); it only chooses the lane and never actuates, so a singleton is safe.
+        services.TryAddSingleton<IOmniPromptIntentClassifier, OmniPromptIntentClassifier>();
         AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddRbacAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddCatalogDiscoveryDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);

@@ -373,6 +373,13 @@
     [Parameter] public string? InitialSource { get; set; }
     [Parameter] public string? InitialDriver { get; set; }
 
+    /// <summary>
+    /// A plain-language publish intent handed in by the omni-prompt AI console (honua-console#203). When set, it
+    /// seeds the AI driver's intent box so the operator continues from the omni-prompt without retyping; the
+    /// outcome card + human approval gate are unchanged (nothing publishes until the operator approves).
+    /// </summary>
+    [Parameter] public string? InitialAiIntent { get; set; }
+
     private readonly DataToPublishFlowState _flow = new();
 
     private IReadOnlyList<AddDataIntake.IntakeOption> _connectionOptions = [];
@@ -416,6 +423,13 @@
         if (Enum.TryParse<FlowDriver>(InitialDriver, ignoreCase: true, out var driver))
         {
             _flow.Driver = driver;
+        }
+
+        // An omni-prompt-seeded intent lands the operator straight in the AI driver with their words pre-filled.
+        if (!string.IsNullOrWhiteSpace(InitialAiIntent))
+        {
+            _aiIntent = InitialAiIntent;
+            _flow.Driver = FlowDriver.Ai;
         }
 
         ApplyInitialSource(InitialSource);
