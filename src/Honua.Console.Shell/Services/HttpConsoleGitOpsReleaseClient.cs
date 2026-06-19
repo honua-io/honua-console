@@ -181,6 +181,50 @@ public sealed class HttpConsoleGitOpsReleaseClient : IConsoleGitOpsReleaseClient
         return OperateSectionResult<GitOpsReleaseDetail>.Allowed(detail);
     }
 
+    public async Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
+        string releasePackageId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(releasePackageId);
+
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (profile is null)
+        {
+            return OperateSectionResult<GitOpsCoordinatedRelease>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
+        }
+
+        var trimmed = releasePackageId.Trim();
+        var fetch = await FetchAsync(
+            profile.ServerBaseUri,
+            MetadataReleaseAdminRoutes.CoordinatedReleaseOperation(trimmed),
+            MetadataReleaseJsonContext.Default.CoordinatedReleaseOperationResponse,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!fetch.Ok)
+        {
+            return OperateSectionResult<GitOpsCoordinatedRelease>.Denied(
+                fetch.Status,
+                CoordinatedReleaseMessage(fetch.Status, fetch.Message));
+        }
+
+        return OperateSectionResult<GitOpsCoordinatedRelease>.Allowed(
+            GitOpsReleaseMapper.MapCoordinatedRelease(fetch.Value!));
+    }
+
+    private static string CoordinatedReleaseMessage(OperateSectionStatus status, string message) => status switch
+    {
+        OperateSectionStatus.Missing =>
+            "No coordinated platform-upgrade release has been started for this package yet. The " +
+            "coordinated container + DB-change + metadata op appears once one is created (honua-server#97).",
+        OperateSectionStatus.Forbidden =>
+            "The active environment profile is not permitted to read the coordinated release operation.",
+        OperateSectionStatus.Unsupported =>
+            "The connected server does not expose the coordinated release operation (honua-server#97).",
+        _ => string.IsNullOrWhiteSpace(message)
+            ? "The coordinated release operation is temporarily unavailable."
+            : message
+    };
+
     private static string OperationMessage(OperateSectionStatus status, string message) => status switch
     {
         OperateSectionStatus.Missing =>

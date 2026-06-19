@@ -170,5 +170,12 @@ public sealed class OperateDeployPageRenderTests
             Task.FromResult(OperateSectionResult<GitOpsReleaseDetail>.Denied(
                 OperateSectionStatus.Missing,
                 "Release not found."));
+
+        public Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<GitOpsCoordinatedRelease>.Denied(
+                OperateSectionStatus.Missing,
+                "No coordinated release."));
     }
 }

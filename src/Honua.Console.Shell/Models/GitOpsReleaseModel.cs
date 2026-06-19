@@ -364,4 +364,117 @@ public static class GitOpsReleasePresentation
         GitOpsTimelineStatus.Running => "console-state-info",
         _ => "console-state-neutral"
     };
+
+    /// <summary>Neutral label for a coordinated-release artifact kind.</summary>
+    public static string Label(GitOpsCoordinatedArtifactKind kind) => kind switch
+    {
+        GitOpsCoordinatedArtifactKind.ContainerImage => "container image",
+        GitOpsCoordinatedArtifactKind.DatabaseSchema => "DB / schema change",
+        GitOpsCoordinatedArtifactKind.Metadata => "metadata semantic diff",
+        _ => "artifact"
+    };
+
+    /// <summary>Neutral label for a coordinated-release step status.</summary>
+    public static string Label(GitOpsCoordinatedStepStatus status) => status switch
+    {
+        GitOpsCoordinatedStepStatus.Pending => "pending",
+        GitOpsCoordinatedStepStatus.AwaitingApproval => "awaiting approval",
+        GitOpsCoordinatedStepStatus.Running => "running",
+        GitOpsCoordinatedStepStatus.Succeeded => "succeeded",
+        GitOpsCoordinatedStepStatus.Failed => "failed",
+        GitOpsCoordinatedStepStatus.RolledBack => "rolled back",
+        _ => "unknown"
+    };
+
+    /// <summary>Neutral CSS state class for a coordinated-release step status.</summary>
+    public static string StateClass(GitOpsCoordinatedStepStatus status) => status switch
+    {
+        GitOpsCoordinatedStepStatus.Succeeded => "console-state-success",
+        GitOpsCoordinatedStepStatus.Failed => "console-state-danger",
+        GitOpsCoordinatedStepStatus.RolledBack => "console-state-warning",
+        GitOpsCoordinatedStepStatus.Running => "console-state-info",
+        GitOpsCoordinatedStepStatus.AwaitingApproval => "console-state-warning",
+        _ => "console-state-neutral"
+    };
+}
+
+/// <summary>
+/// Artifact kind carried by a coordinated platform-upgrade release (Demo C): the container image, the
+/// DB/schema change, or the metadata semantic diff, shown side by side in the coordinated proposal.
+/// </summary>
+public enum GitOpsCoordinatedArtifactKind
+{
+    Unknown,
+    ContainerImage,
+    DatabaseSchema,
+    Metadata
+}
+
+/// <summary>
+/// Status of one step in the coordinated ordered timeline. Mirrors the server
+/// <c>CoordinatedReleaseStepStatus</c> so the per-step gate/approve and rollback state render.
+/// </summary>
+public enum GitOpsCoordinatedStepStatus
+{
+    Pending,
+    AwaitingApproval,
+    Running,
+    Succeeded,
+    Failed,
+    RolledBack
+}
+
+/// <summary>
+/// One coordinated-release artifact (container image vs current, DB/schema change, or metadata diff).
+/// </summary>
+public sealed record GitOpsCoordinatedArtifact(
+    GitOpsCoordinatedArtifactKind Kind,
+    string Title,
+    string Desired,
+    string? Current);
+
+/// <summary>
+/// One step in the coordinated ordered step timeline, including whether it is an approval gate and
+/// whether it is reversible (and thus unwound by the single coordinated rollback).
+/// </summary>
+public sealed record GitOpsCoordinatedStep(
+    string Step,
+    GitOpsCoordinatedStepStatus Status,
+    bool RequiresApproval,
+    bool IsReversible,
+    string? Detail);
+
+/// <summary>
+/// The coordinated platform-upgrade release (Demo C, honua-server#97): the three artifact kinds, the
+/// ordered step timeline with per-step gate/approve status, and the rollback readiness for the whole
+/// op. A server-owned projection; the console never synthesizes it from a standing mock.
+/// </summary>
+public sealed record GitOpsCoordinatedRelease(
+    string OperationId,
+    string PackageId,
+    string Status,
+    string CurrentStep,
+    string TargetEnvironment,
+    string? CurrentPhase,
+    IReadOnlyList<GitOpsCoordinatedArtifact> Artifacts,
+    IReadOnlyList<GitOpsCoordinatedStep> Steps,
+    bool ContainerGateApproved,
+    bool DataGateApproved,
+    bool RollbackReady,
+    IReadOnlyList<string> Blockers,
+    IReadOnlyList<string> Warnings,
+    string? ErrorMessage)
+{
+    /// <summary>Whether the coordinated op is in a terminal state.</summary>
+    public bool IsTerminal =>
+        Status is "Succeeded" or "Failed" or "RolledBack" or "ManualInterventionRequired";
+
+    /// <summary>Whether the coordinated op is currently parked at an approval gate.</summary>
+    public bool IsAwaitingApproval => Status == "AwaitingApproval";
+
+    /// <summary>The step the operator must approve, when parked at a gate.</summary>
+    public GitOpsCoordinatedStep? PendingGate =>
+        IsAwaitingApproval
+            ? Steps.FirstOrDefault(s => s.Status == GitOpsCoordinatedStepStatus.AwaitingApproval)
+            : null;
 }

@@ -44,4 +44,15 @@ public interface IConsoleGitOpsReleaseClient
     Task<OperateSectionResult<GitOpsReleaseDetail>> GetReleaseDetailAsync(
         string releasePackageId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the coordinated platform-upgrade release operation for a release package id (Demo C,
+    /// honua-server#97): the container image + DB/schema change + metadata semantic diff as one
+    /// ordered, gated, rollback-able op, with its ordered step timeline and rollback readiness. This
+    /// is an independent sub-read of the release detail surface, so a missing coordinated op surfaces
+    /// its own state rather than failing the whole detail read.
+    /// </summary>
+    Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
+        string releasePackageId,
+        CancellationToken cancellationToken = default);
 }

@@ -293,6 +293,68 @@ internal static class GitOpsReleaseMapper
         _ => "resource"
     };
 
+    /// <summary>
+    /// Maps the coordinated platform-upgrade release operation wire contract (Demo C,
+    /// honua-server#97) into the Console coordinated-release view model.
+    /// </summary>
+    public static GitOpsCoordinatedRelease MapCoordinatedRelease(CoordinatedReleaseOperationResponse operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        var artifacts = (operation.Artifacts ?? [])
+            .Select(a => new GitOpsCoordinatedArtifact(
+                MapCoordinatedArtifactKind(a.Kind),
+                FirstNonBlank(a.Title, a.Kind),
+                a.Desired ?? string.Empty,
+                NullIfBlank(a.Current)))
+            .ToArray();
+
+        var steps = (operation.Steps ?? [])
+            .Select(s => new GitOpsCoordinatedStep(
+                FirstNonBlank(s.Step, "step"),
+                MapCoordinatedStepStatus(s.Status),
+                s.RequiresApproval,
+                s.IsReversible,
+                NullIfBlank(s.Detail)))
+            .ToArray();
+
+        return new GitOpsCoordinatedRelease(
+            OperationId: operation.OperationId,
+            PackageId: operation.PackageId,
+            Status: FirstNonBlank(operation.Status, "Unknown"),
+            CurrentStep: FirstNonBlank(operation.CurrentStep, "Preflight"),
+            TargetEnvironment: operation.TargetEnvironment ?? string.Empty,
+            CurrentPhase: NullIfBlank(operation.CurrentPhase),
+            Artifacts: artifacts,
+            Steps: steps,
+            ContainerGateApproved: operation.ContainerGateApproved,
+            DataGateApproved: operation.DataGateApproved,
+            RollbackReady: operation.RollbackReady,
+            Blockers: operation.Blockers ?? [],
+            Warnings: operation.Warnings ?? [],
+            ErrorMessage: NullIfBlank(operation.ErrorMessage));
+    }
+
+    private static GitOpsCoordinatedArtifactKind MapCoordinatedArtifactKind(string? value) =>
+        (value ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "containerimage" => GitOpsCoordinatedArtifactKind.ContainerImage,
+            "databaseschema" => GitOpsCoordinatedArtifactKind.DatabaseSchema,
+            "metadata" => GitOpsCoordinatedArtifactKind.Metadata,
+            _ => GitOpsCoordinatedArtifactKind.Unknown
+        };
+
+    private static GitOpsCoordinatedStepStatus MapCoordinatedStepStatus(string? value) =>
+        (value ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "awaitingapproval" => GitOpsCoordinatedStepStatus.AwaitingApproval,
+            "running" => GitOpsCoordinatedStepStatus.Running,
+            "succeeded" => GitOpsCoordinatedStepStatus.Succeeded,
+            "failed" => GitOpsCoordinatedStepStatus.Failed,
+            "rolledback" => GitOpsCoordinatedStepStatus.RolledBack,
+            _ => GitOpsCoordinatedStepStatus.Pending
+        };
+
     private static string FirstNonBlank(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
 

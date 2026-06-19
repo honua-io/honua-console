@@ -137,5 +137,12 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
             Task.FromResult(OperateSectionResult<GitOpsReleaseDetail>.Denied(
                 OperateSectionStatus.Unavailable,
                 "No active environment profile is selected."));
+
+        public Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<GitOpsCoordinatedRelease>.Denied(
+                OperateSectionStatus.Unavailable,
+                "No active environment profile is selected."));
     }
 }
