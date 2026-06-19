@@ -1,0 +1,84 @@
+@namespace Honua.Console.Shell.Components.Operate
+@using Honua.Console.Shell.Models
+
+@*
+    The GeoServer-style Layer Preview pane (redesign §5.3, pattern B8). It targets the SERVED endpoint of
+    the selected publication ("what I preview is what I publish") so a user sees a rendered result fast
+    rather than only catalog rows. When nothing is selected it shows the empty prompt; when a publication is
+    selected it shows the served route + the open-in protocol picker. The rendered tile itself is drawn by
+    the map host the Esri-import preview already uses; here we surface the endpoint contract and the
+    selection so the preview never fabricates imagery for an unpublished node.
+*@
+<aside class="layer-preview-pane" data-layer-preview aria-label="Layer preview">
+    <div class="layer-preview-pane__heading">
+        <p class="console-kicker">Layer preview</p>
+        @if (Selection is { } selection)
+        {
+            <h2>@selection.ResourceName · @selection.ProtocolLabel</h2>
+        }
+        else
+        {
+            <h2>Select a publication</h2>
+        }
+    </div>
+
+    @if (Selection is { } sel)
+    {
+        <div class="layer-preview-pane__frame" data-preview-frame>
+            <div class="layer-preview-pane__tile" aria-hidden="true">▢▢▢</div>
+            <p class="console-muted">Rendered from the served endpoint.</p>
+        </div>
+        <dl class="console-definition-list">
+            <dt>Route</dt>
+            <dd class="console-mono" data-preview-route>@sel.Route</dd>
+        </dl>
+        @if (Protocols.Count > 1)
+        {
+            <label class="studio-form-label">
+                <span>Open in</span>
+                <select class="console-input" value="@sel.ProtocolId" @onchange="OnProtocolChanged" data-preview-open-in>
+                    @foreach (var protocol in Protocols)
+                    {
+                        <option value="@protocol.ProtocolId">@protocol.ProtocolLabel</option>
+                    }
+                </select>
+            </label>
+        }
+        <div class="console-action-row">
+            <a class="console-button" href="@sel.Route" target="_blank" data-preview-open-route>Open route</a>
+        </div>
+    }
+    else
+    {
+        <p class="console-muted" data-preview-empty>
+            Pick a resource&rsquo;s publication in the tree to preview its served endpoint here.
+        </p>
+    }
+</aside>
+
+@code {
+    /// <summary>The currently-previewed publication, or null when nothing is selected.</summary>
+    [Parameter] public PreviewSelection? Selection { get; set; }
+
+    /// <summary>The other publications on the same resource, for the "open in" protocol picker.</summary>
+    [Parameter] public IReadOnlyList<PreviewSelection> Protocols { get; set; } = [];
+
+    /// <summary>Raised when the user switches which protocol to preview the selected resource in.</summary>
+    [Parameter] public EventCallback<string> OnProtocolSelected { get; set; }
+
+    private async Task OnProtocolChanged(ChangeEventArgs args)
+    {
+        if (args.Value is string protocolId && OnProtocolSelected.HasDelegate)
+        {
+            await OnProtocolSelected.InvokeAsync(protocolId);
+        }
+    }
+
+    /// <summary>A previewable publication: the resource it belongs to, the protocol, and the served route.</summary>
+    public sealed record PreviewSelection(
+        string ResourceId,
+        string ResourceName,
+        string ProtocolId,
+        string ProtocolLabel,
+        string Route);
+}

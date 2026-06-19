@@ -76,6 +76,52 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
         };
     }
 
+    public async Task<ServiceProtocolEnableResult> EnableProtocolsAsync(
+        string serviceName,
+        IReadOnlyList<string> protocols,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentNullException.ThrowIfNull(protocols);
+
+        var requested = protocols
+            .Where(protocol => !string.IsNullOrWhiteSpace(protocol))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requested.Length == 0)
+        {
+            return new ServiceProtocolEnableResult
+            {
+                Succeeded = false,
+                State = "Rejected",
+                Detail = "No protocols were selected to enable on the service."
+            };
+        }
+
+        var result = await _client
+            .UpdateServiceProtocolsAsync(serviceName, requested, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Data is { } settings)
+        {
+            return new ServiceProtocolEnableResult
+            {
+                Succeeded = true,
+                State = "Published",
+                Detail = "The service now exposes the selected protocols on honua-server.",
+                EnabledProtocols = settings.EnabledProtocols
+            };
+        }
+
+        var issue = result.Issue;
+        return new ServiceProtocolEnableResult
+        {
+            Succeeded = false,
+            State = issue?.State ?? "Unavailable",
+            Detail = issue?.Detail ?? "The Honua server did not accept the protocol-enablement request."
+        };
+    }
+
     public async Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(
         string connectionId,
         CancellationToken cancellationToken = default)
