@@ -33,6 +33,7 @@ public enum EsriContentKind
     WebMap,
     Dashboard,
     StoryMap,
+    InstantApp,
 }
 
 /// <summary>

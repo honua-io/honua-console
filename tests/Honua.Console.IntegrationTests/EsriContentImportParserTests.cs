@@ -147,10 +147,107 @@ public sealed class EsriContentImportParserTests
     }
 
     [Fact]
+    public void ParseInstantApp_SidebarTemplate_MapsCapabilitiesAndClassifiesFidelity()
+    {
+        const string json = """
+        {
+          "templateId": "instant/sidebar",
+          "title": "Public Works Viewer",
+          "values": {
+            "webmap": "9f8e7d6c",
+            "search": true,
+            "legend": true,
+            "sidebarPanel": true,
+            "expressions": true,
+            "theme": { "themeColor": "#0a7" },
+            "splash": { "title": "Welcome" },
+            "share": false
+          }
+        }
+        """;
+
+        var outcome = _parser.ParseInstantApp(json, "app.json");
+
+        Assert.True(outcome.Succeeded, outcome.Error);
+        var result = outcome.Result!;
+        Assert.Equal(EsriContentKind.InstantApp, result.Kind);
+        Assert.Equal("honua.app-package.v1", result.TargetSchema);
+        Assert.Equal("public-works-viewer", result.SuggestedName);
+        Assert.Contains("Sidebar", result.SourceLabel, StringComparison.Ordinal);
+
+        // Primary web map is a manual binding row (it imports via the Web Map surface).
+        var map = result.Rows.Single(r => r.SourceType == "webmap");
+        Assert.Equal(ImportFidelity.Manual, map.Fidelity);
+        Assert.Equal("9f8e7d6c", map.BoundResource);
+
+        // Core viewer capabilities convert clean.
+        Assert.Equal(ImportFidelity.Clean, result.Rows.Single(r => r.SourceName == "Search").Fidelity);
+        Assert.Equal(ImportFidelity.Clean, result.Rows.Single(r => r.SourceName == "Legend").Fidelity);
+
+        // Sidebar-specific extras: panel converts clean, Arcade info degrades.
+        Assert.Equal(ImportFidelity.Clean, result.Rows.Single(r => r.SourceName == "Sidebar panel").Fidelity);
+        Assert.Equal(ImportFidelity.Degrade, result.Rows.Single(r => r.SourceName == "Arcade info").Fidelity);
+
+        // Theme degrades; custom splash drops.
+        Assert.Equal(ImportFidelity.Degrade, result.Rows.Single(r => r.SourceName == "Theme").Fidelity);
+        var splash = result.Rows.Single(r => r.SourceName == "Splash screen");
+        Assert.Equal(ImportFidelity.Drop, splash.Fidelity);
+        Assert.False(splash.Included);
+
+        // A disabled toggle (share=false) is skipped entirely.
+        Assert.DoesNotContain(result.Rows, r => r.SourceName == "Share");
+
+        Assert.True(result.DropCount >= 1);
+        Assert.True(result.DegradeCount >= 2);
+    }
+
+    [Fact]
+    public void ParseInstantApp_UnknownTemplate_DegradesToBasicViewer()
+    {
+        const string json = """
+        { "templateId": "instant/nearby", "title": "Find Nearby", "values": { "webmap": "abc", "search": true } }
+        """;
+
+        var outcome = _parser.ParseInstantApp(json, "app.json");
+
+        Assert.True(outcome.Succeeded, outcome.Error);
+        var result = outcome.Result!;
+        Assert.Contains("Basic", result.SourceLabel, StringComparison.Ordinal);
+        // Basic viewer has no sidebar-specific rows.
+        Assert.DoesNotContain(result.Rows, r => r.SourceName == "Sidebar panel");
+        Assert.Equal(ImportFidelity.Clean, result.Rows.Single(r => r.SourceName == "Search").Fidelity);
+    }
+
+    [Fact]
+    public void ParseInstantApp_WebScene_DropsAsUnsupportedPrimaryContent()
+    {
+        const string json = """
+        { "templateId": "instant/basic", "title": "3D Viewer", "values": { "webscene": "scene123", "search": true } }
+        """;
+
+        var outcome = _parser.ParseInstantApp(json);
+
+        Assert.True(outcome.Succeeded, outcome.Error);
+        var scene = outcome.Result!.Rows.Single(r => r.SourceType == "webscene");
+        Assert.Equal(ImportFidelity.Drop, scene.Fidelity);
+        Assert.False(scene.Included);
+    }
+
+    [Fact]
+    public void ParseInstantApp_InvalidJson_ReturnsFailure()
+    {
+        var outcome = _parser.ParseInstantApp("{ not json", "bad.json");
+
+        Assert.False(outcome.Succeeded);
+        Assert.NotNull(outcome.Error);
+    }
+
+    [Fact]
     public void BundledSamples_ParseSuccessfullyThroughTheRealParser()
     {
         Assert.True(_parser.ParseWebMap(EsriImportSampleDocuments.WebMap, EsriImportSampleDocuments.WebMapFileName).Succeeded);
         Assert.True(_parser.ParseDashboard(EsriImportSampleDocuments.Dashboard, EsriImportSampleDocuments.DashboardFileName).Succeeded);
         Assert.True(_parser.ParseStoryMap(EsriImportSampleDocuments.StoryMap, EsriImportSampleDocuments.StoryMapFileName).Succeeded);
+        Assert.True(_parser.ParseInstantApp(EsriImportSampleDocuments.InstantApp, EsriImportSampleDocuments.InstantAppFileName).Succeeded);
     }
 }

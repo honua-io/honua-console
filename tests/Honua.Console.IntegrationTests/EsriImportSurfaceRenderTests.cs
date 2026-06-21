@@ -188,6 +188,38 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("esri-story-preview", page.Markup, StringComparison.Ordinal);
     }
 
+    // ---- #158 Instant App ----
+
+    [Fact]
+    public void InstantAppPage_RendersCapabilityMappingShellPreviewAndBindingBanner()
+    {
+        using var ctx = NewContext();
+
+        var page = ctx.Render<ImportEsriInstantAppPage>();
+
+        // Default state is the empty intake — the sample is not preloaded as the user's import.
+        Assert.Contains("Paste or upload an Instant App configuration", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Capability → app element mapping", page.Markup, StringComparison.Ordinal);
+
+        // Loading the bundled sample parses it through the real parser and populates the surface.
+        page.Find("[data-intake-sample]").Click();
+
+        Assert.Contains("Capability → app element mapping", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("honua.app-package.v1", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("esri-app-preview", page.Markup, StringComparison.Ordinal);
+
+        // The Sidebar sample exercises each Fid state: theme/Arcade degrade, splash drops, primary map manual.
+        Assert.Contains("esri-mapping__row--clean", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("esri-mapping__row--degrade", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("esri-mapping__row--drop", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("esri-mapping__row--manual", page.Markup, StringComparison.Ordinal);
+
+        // The primary web map imports separately -> inline binding banner.
+        var banner = page.Find("[data-esri-binding-banner]");
+        Assert.Contains("binding required", banner.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Web Map", banner.TextContent, StringComparison.Ordinal);
+    }
+
     // ---- #102 Wizard / Run / Scorecard ----
 
     [Fact]

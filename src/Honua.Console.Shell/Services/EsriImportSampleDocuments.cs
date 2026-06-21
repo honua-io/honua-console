@@ -73,4 +73,39 @@ public static class EsriImportSampleDocuments
       }
     }
     """;
+
+    /// <summary>
+    /// An ArcGIS Instant App (Sidebar template) configuration sample exercising clean / degrade / drop
+    /// capability fidelity, a primary web map binding row, and the Sidebar-specific panel/Arcade extras.
+    /// </summary>
+    public const string InstantAppFileName = "public-works-instant-app.json";
+
+    public const string InstantApp = """
+    {
+      "templateId": "instant/sidebar",
+      "appItemId": "a1b2c3d4e5f6",
+      "title": "Public Works Viewer",
+      "values": {
+        "webmap": "9f8e7d6c5b4a",
+        "header": true,
+        "search": true,
+        "legend": true,
+        "home": true,
+        "zoom": true,
+        "basemapToggle": true,
+        "share": true,
+        "measure": true,
+        "bookmarks": true,
+        "layerList": true,
+        "popup": true,
+        "sidebarPanel": true,
+        "expressions": true,
+        "filter": true,
+        "theme": { "themeColor": "#0a7" },
+        "splash": { "title": "Welcome", "content": "<b>Custom HTML splash</b>" },
+        "customUrlParam": true,
+        "measureUnsupportedExample": false
+      }
+    }
+    """;
 }

@@ -7908,6 +7908,59 @@ p {
     border-radius: 4px;
 }
 
+/* Instant App shell preview (#158) ---------------------------------------- */
+.esri-app-preview {
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--honua-surface);
+}
+
+.esri-app-preview__header {
+    padding: 6px 8px;
+    background: var(--honua-surface-strong);
+    border-bottom: 1px solid var(--honua-border);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.esri-app-preview__body {
+    display: grid;
+    grid-template-columns: 1fr 1.8fr;
+    gap: 6px;
+    padding: 8px;
+}
+
+.esri-app-preview__panel {
+    display: grid;
+    place-items: center;
+    background: var(--honua-surface-strong);
+    border-radius: 4px;
+    font-size: 0.72rem;
+    color: var(--honua-muted);
+    min-height: 88px;
+}
+
+.esri-app-preview__map {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    align-items: flex-start;
+    padding: 6px;
+    background: var(--honua-surface-strong);
+    border-radius: 4px;
+    min-height: 88px;
+}
+
+.esri-app-preview__tool {
+    background: var(--honua-surface);
+    border: 1px solid var(--honua-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.68rem;
+    color: var(--honua-muted);
+}
+
 /* Wizard (#102) ----------------------------------------------------------- */
 .esri-wizard__context {
     flex-wrap: wrap;
