@@ -118,6 +118,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/import/esri/web-map   Import Esri Web Map JSON → honua.map-package.v1 (#100): paste/upload/URL/connected-ArcGIS intake, layer→layer mapping with per-layer fidelity badge, MapPreview target, Create map package CTA → /operate/publishing, inline missing-binding banner when a layer has no resource
 /operate/import/esri/dashboard Import Esri Dashboard JSON → dashboard package (#101): element→widget mapping grid with supported/unsupported callouts, target layout preview, create CTA
 /operate/import/esri/storymap  Import StoryMap / Hub → report content (#104, P4): section→content-block mapping with fidelity badges, target content preview, create CTA
+/operate/import/esri/instant-app Import Esri Instant App → honua.app-package.v1 (#158): Sidebar/Basic template + capability→app-element mapping with per-capability fidelity badges, target app-shell preview, create CTA. The app's primary web map imports via the Web Map surface (shown as a binding row).
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
 /operate/events                Event evidence view (?jobId=<id>)

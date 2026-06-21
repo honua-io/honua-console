@@ -453,6 +453,214 @@ public sealed class EsriContentImportParser
         }
     }
 
+    /// <summary>
+    /// Parses an Esri Instant App configuration into a <c>honua.app-package.v1</c> conversion preview (#158).
+    /// The two most common templates — <c>instant/sidebar</c> and <c>instant/basic</c> — are recognised by
+    /// <c>templateId</c>; an unknown template degrades to the Basic mapping. The app's bound web map / scene /
+    /// group becomes the app's primary content (a <see cref="ImportFidelity.Manual"/> binding row — the map
+    /// itself imports through the Web Map surface), and each enabled <c>values.*</c> capability toggle maps to
+    /// a Console app panel/tool. Capabilities Honua can't represent (custom Arcade splash, express locate,
+    /// theme CSS) drop or degrade with the reason named. This is deterministic, Console-side work derived only
+    /// from the supplied JSON — it contacts no server and fabricates no data (Console Patterns Charter §11).
+    /// </summary>
+    public EsriParseOutcome ParseInstantApp(string json, string? fileName = null)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return EsriParseOutcome.Failure("Paste or upload an Instant App configuration to see the capability mapping.");
+        }
+
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(json, DocOptions);
+        }
+        catch (JsonException ex)
+        {
+            return EsriParseOutcome.Failure($"Not valid JSON: {ex.Message}");
+        }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return EsriParseOutcome.Failure("Instant App configuration must be a JSON object with a values object.");
+            }
+
+            // An Instant App stores its template-specific config under "values"; some exports nest it under
+            // "config". The template id distinguishes Sidebar/Basic/etc.; the values carry the capabilities.
+            var values = root.TryGetProperty("values", out var v) && v.ValueKind == JsonValueKind.Object
+                ? v
+                : (root.TryGetProperty("config", out var c) && c.ValueKind == JsonValueKind.Object ? c : root);
+
+            var templateId = ReadString(root, "templateId")
+                ?? ReadString(root, "template")
+                ?? ReadString(values, "templateId");
+            var template = ResolveInstantAppTemplate(templateId);
+
+            var rows = new List<EsriMappingRow>();
+
+            // The app's primary content: web map, web scene, or a group. The map/scene itself converts via
+            // the Web Map surface, so here it is a manual binding row (pick/import the converted map first).
+            var webmap = ReadString(values, "webmap") ?? ReadString(root, "webmap");
+            var webscene = ReadString(values, "webscene") ?? ReadString(root, "webscene");
+            var group = ReadString(values, "group") ?? ReadString(root, "group");
+            if (!string.IsNullOrWhiteSpace(webscene))
+            {
+                rows.Add(new EsriMappingRow(
+                    "Web Scene", "webscene", null, ImportFidelity.Drop,
+                    "3D web scenes not supported in app-package.v1", Included: false));
+            }
+            else if (!string.IsNullOrWhiteSpace(group))
+            {
+                rows.Add(new EsriMappingRow(
+                    "Group gallery", "group", "app content (gallery)", ImportFidelity.Manual,
+                    "bind the migrated group / maps", BoundResource: group));
+            }
+            else
+            {
+                rows.Add(new EsriMappingRow(
+                    "Web Map", "webmap", "app primary map", ImportFidelity.Manual,
+                    string.IsNullOrWhiteSpace(webmap) ? "no webmap set · bind a map package" : "import via Web Map, then bind",
+                    BoundResource: webmap));
+            }
+
+            // Each enabled capability toggle maps to a Console app panel/tool; disabled toggles are skipped.
+            foreach (var capability in template.Capabilities)
+            {
+                if (!IsCapabilityEnabled(values, capability.Key))
+                {
+                    continue;
+                }
+
+                rows.Add(new EsriMappingRow(
+                    capability.SourceName,
+                    capability.SourceType,
+                    capability.TargetName,
+                    capability.Fidelity,
+                    capability.Note,
+                    Included: capability.Fidelity != ImportFidelity.Drop));
+            }
+
+            var enabledCount = rows.Count(r => r.SourceType != "webmap" && r.SourceType != "webscene" && r.SourceType != "group");
+
+            var carryOver = new List<EsriCarryOver>
+            {
+                new("primary map → app content", true),
+                new($"{enabledCount} capabilities", enabledCount > 0),
+                new("layout → Console app shell", true),
+                new("theme → Console theme tokens", IsCapabilityEnabled(values, "theme") || values.TryGetProperty("theme", out _)),
+            };
+
+            var summary = new List<string>
+            {
+                template.DisplayName,
+                $"{enabledCount} capabilities",
+            };
+            var dropped = rows.Count(r => r.Fidelity == ImportFidelity.Drop);
+            if (dropped > 0)
+            {
+                summary.Add($"{dropped} unsupported");
+            }
+
+            var title = ReadString(root, "title")
+                ?? ReadString(values, "title")
+                ?? (root.TryGetProperty("item", out var item) ? ReadString(item, "title") : null);
+
+            var result = new EsriConversionResult(
+                EsriContentKind.InstantApp,
+                $"Esri Instant App · {template.DisplayName}",
+                fileName ?? "instant-app.json",
+                "honua.app-package.v1",
+                Slugify(title ?? "imported-instant-app"),
+                summary,
+                rows,
+                carryOver);
+
+            return EsriParseOutcome.Success(result);
+        }
+    }
+
+    /// <summary>A single Instant App capability toggle and how it maps to a Console app element.</summary>
+    private readonly record struct InstantAppCapability(
+        string Key,
+        string SourceName,
+        string SourceType,
+        string? TargetName,
+        ImportFidelity Fidelity,
+        string Note);
+
+    /// <summary>A recognised Instant App template and its capability -> Console element mapping.</summary>
+    private readonly record struct InstantAppTemplate(
+        string DisplayName,
+        IReadOnlyList<InstantAppCapability> Capabilities);
+
+    // The two most common Instant App templates. Sidebar adds a docked panel + expression-driven info; Basic
+    // is the minimal viewer. Both share the core viewer tools (search, legend, home, zoom, basemap, share).
+    private static readonly IReadOnlyList<InstantAppCapability> CoreCapabilities =
+    [
+        new("search", "Search", "search widget", "app search tool", ImportFidelity.Clean, "address + feature search"),
+        new("legend", "Legend", "legend widget", "app legend panel", ImportFidelity.Clean, "—"),
+        new("home", "Home", "home widget", "app home/extent tool", ImportFidelity.Clean, "initial extent"),
+        new("zoom", "Zoom controls", "zoom widget", "app zoom controls", ImportFidelity.Clean, "—"),
+        new("mapZoom", "Zoom controls", "zoom widget", "app zoom controls", ImportFidelity.Clean, "—"),
+        new("basemapToggle", "Basemap toggle", "basemapToggle widget", "app basemap switcher", ImportFidelity.Clean, "—"),
+        new("basemapSelector", "Basemap selector", "basemapGallery widget", "app basemap switcher", ImportFidelity.Clean, "basemap gallery → switcher"),
+        new("share", "Share", "share widget", "app share/embed", ImportFidelity.Clean, "→ Share links"),
+        new("scalebar", "Scale bar", "scalebar widget", "app scale bar", ImportFidelity.Clean, "—"),
+        new("measure", "Measure", "measurement widget", "app measure tool", ImportFidelity.Clean, "distance + area"),
+        new("bookmarks", "Bookmarks", "bookmarks widget", "app bookmarks panel", ImportFidelity.Clean, "from web map"),
+        new("layerList", "Layer list", "layerList widget", "app layers panel", ImportFidelity.Clean, "—"),
+        new("popup", "Pop-ups", "popup", "app pop-up templates", ImportFidelity.Clean, "from web map"),
+        new("header", "Header", "header", "app header bar", ImportFidelity.Clean, "title + logo"),
+        new("splash", "Splash screen", "splash", null, ImportFidelity.Drop, "custom splash HTML not supported · re-add in Studio"),
+        new("customUrlParam", "Custom URL params", "urlParams", null, ImportFidelity.Drop, "custom URL parameter handling dropped"),
+        new("theme", "Theme", "theme", "app theme tokens", ImportFidelity.Degrade, "Esri theme → nearest Console theme tokens"),
+    ];
+
+    private static readonly IReadOnlyList<InstantAppCapability> SidebarExtraCapabilities =
+    [
+        new("sidebarPanel", "Sidebar panel", "panel", "app side panel", ImportFidelity.Clean, "docked side panel"),
+        new("expressions", "Arcade info", "arcade", "app info panel (static)", ImportFidelity.Degrade, "Arcade expression → static info text"),
+        new("filter", "Interactive filter", "filter", "app filter panel", ImportFidelity.Degrade, "interactive filter → static filter chips"),
+    ];
+
+    private static InstantAppTemplate ResolveInstantAppTemplate(string? templateId)
+    {
+        var id = templateId?.ToLowerInvariant() ?? string.Empty;
+
+        if (id.Contains("sidebar", StringComparison.Ordinal))
+        {
+            return new InstantAppTemplate("Sidebar", [.. CoreCapabilities, .. SidebarExtraCapabilities]);
+        }
+
+        // "instant/basic", "basic", empty, or any other template degrade to the Basic viewer mapping.
+        return new InstantAppTemplate("Basic", CoreCapabilities);
+    }
+
+    // A capability is enabled when its toggle is a JSON true, a non-empty string, or a non-empty object/array
+    // (Instant Apps express widgets as booleans, config objects, or string ids depending on the widget).
+    private static bool IsCapabilityEnabled(JsonElement values, string key)
+    {
+        if (values.ValueKind != JsonValueKind.Object || !values.TryGetProperty(key, out var element))
+        {
+            return false;
+        }
+
+        return element.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => false,
+            JsonValueKind.String => !string.IsNullOrWhiteSpace(element.GetString()),
+            JsonValueKind.Array => element.GetArrayLength() > 0,
+            JsonValueKind.Object => element.EnumerateObject().Any(),
+            JsonValueKind.Number => element.TryGetDouble(out var n) && n != 0,
+            _ => false,
+        };
+    }
+
     // ---- helpers (pure, deterministic) ----
 
     private static string? ReadRendererType(JsonElement layer)
