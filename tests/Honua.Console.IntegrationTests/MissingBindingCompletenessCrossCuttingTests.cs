@@ -61,7 +61,7 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     [Fact]
     public void OperateDeploy_WithNoServer_RendersMissingBinding_AndNoFabricatedUpgrade()
     {
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleServerVersionClient>(new UnsupportedConsoleServerVersionClient());
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
