@@ -17,9 +17,9 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class ResourceFirstPublishFlowTests
 {
-    private static Bunit.TestContext NewContext()
+    private static BunitContext NewContext()
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         // DataToPublishFlow injects IAiPublishDriver; provide the missing-binding default so
         // every render resolves. Tests that exercise AI mode register their own driver after
@@ -28,7 +28,7 @@ public sealed class ResourceFirstPublishFlowTests
         return ctx;
     }
 
-    private static void RegisterMissingBinding(Bunit.TestContext ctx)
+    private static void RegisterMissingBinding(BunitContext ctx)
     {
         ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
@@ -513,7 +513,7 @@ public sealed class ResourceFirstPublishFlowTests
     // advertises a "parcels" table so a proposal can resolve to a real publishable table and Approve can
     // publish through the SAME wired IServiceLayerPublishOperation path manual mode uses.
     private static void RegisterAiServer(
-        Bunit.TestContext ctx,
+        BunitContext ctx,
         FakeAiPublishDriver driver,
         IServiceLayerPublishOperation? publish = null)
     {

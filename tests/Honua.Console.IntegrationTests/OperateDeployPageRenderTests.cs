@@ -17,12 +17,12 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class OperateDeployPageRenderTests
 {
-    private static Bunit.TestContext NewContext(
+    private static BunitContext NewContext(
         IConsoleDeployApprovalClient approvalClient,
         IConsoleServerVersionClient? versionClient = null,
         IConsoleGitOpsReleaseClient? releaseClient = null)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new BunitContext();
         ctx.Services.AddSingleton(approvalClient);
         ctx.Services.AddSingleton(versionClient
             ?? new InMemoryConsoleServerVersionClient(

@@ -26,11 +26,11 @@ public sealed class OperateServerUpgradeCardTests
         DeploymentEnvironment: "staging",
         ObservedAt: DateTimeOffset.UtcNow);
 
-    private static Bunit.TestContext NewContext(
+    private static BunitContext NewContext(
         IConsoleServerVersionClient versionClient,
         IConsoleDeployApprovalClient? approvalClient = null)
     {
-        var ctx = new Bunit.TestContext();
+        var ctx = new BunitContext();
         ctx.Services.AddSingleton(versionClient);
         ctx.Services.AddSingleton(approvalClient ?? new InMemoryConsoleDeployApprovalClient());
         return ctx;

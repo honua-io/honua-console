@@ -23,7 +23,7 @@ public sealed class OperateDeploymentApprovalTests
             OperateSectionStatus.Unsupported,
             "Deploy approvals are not configured for this Console build.");
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var list = ctx.Render<OperateDeploymentProposalList>(p => p.Add(x => x.Result, result));
 
         Assert.Contains("not configured", list.Markup, StringComparison.OrdinalIgnoreCase);
@@ -36,7 +36,7 @@ public sealed class OperateDeploymentApprovalTests
         var proposals = new[] { Awaiting("op-1"), Awaiting("op-2") };
         var result = OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed(proposals);
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         var list = ctx.Render<OperateDeploymentProposalList>(p => p
             .Add(x => x.Result, result)
             .Add(x => x.OnSelect, EventCallback.Factory.Create<DeployOperationProposal>(this, p2 => selected = p2)));
@@ -54,7 +54,7 @@ public sealed class OperateDeploymentApprovalTests
     {
         var client = new InMemoryConsoleDeployApprovalClient([Awaiting("op-approve")]);
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
@@ -81,7 +81,7 @@ public sealed class OperateDeploymentApprovalTests
     {
         var client = new InMemoryConsoleDeployApprovalClient([Submitted("op-rollback", dataAffecting: true)]);
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
@@ -116,7 +116,7 @@ public sealed class OperateDeploymentApprovalTests
     {
         var client = new InMemoryConsoleDeployApprovalClient([Awaiting("op-reject")]);
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
@@ -145,7 +145,7 @@ public sealed class OperateDeploymentApprovalTests
     {
         var client = new InMemoryConsoleDeployApprovalClient();
 
-        using var ctx = new Bunit.TestContext();
+        using var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p

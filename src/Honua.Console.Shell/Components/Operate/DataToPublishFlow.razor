@@ -1054,10 +1054,20 @@
         return string.IsNullOrWhiteSpace(sanitized) ? "imported_resource" : sanitized;
     }
 
-    private static string FormatSize(long bytes) => bytes switch
+    private static string FormatSize(long bytes)
     {
-        < 1024 => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
-        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB",
-    };
+        const long kib = 1024L;
+        const long mib = 1024L * 1024L;
+        if (bytes < kib)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < mib)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
 }
