@@ -254,6 +254,11 @@
     private readonly List<ImportJobRow> _jobs = new();
     private Timer? _pollTimer;
     private bool _polling;
+    private int _pollFailureCount;
+
+    // Stop the live poll after this many consecutive transient failures so a sustained server outage
+    // doesn't spin a failing background timer forever (honua-console#212).
+    private const int MaxConsecutivePollFailures = 5;
 
     private void ClearResult()
     {
@@ -583,6 +588,7 @@
             return;
         }
 
+        _pollFailureCount = 0;
         _pollTimer = new Timer(_ => _ = PollAsync(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
     }
 
@@ -603,15 +609,34 @@
                 return;
             }
 
-            foreach (var row in active)
+            try
             {
-                var job = await ServiceImport.GetImportJobAsync(row.JobId!);
-                row.Status = job.Status;
-                row.Terminal = job.Terminal;
-                row.Succeeded = job.Succeeded;
-                row.Features = job.FeaturesProcessed;
-                row.PublishedLayerId = job.PublishedLayerId;
-                row.Detail = job.Detail;
+                foreach (var row in active)
+                {
+                    var job = await ServiceImport.GetImportJobAsync(row.JobId!);
+                    row.Status = job.Status;
+                    row.Terminal = job.Terminal;
+                    row.Succeeded = job.Succeeded;
+                    row.Features = job.FeaturesProcessed;
+                    row.PublishedLayerId = job.PublishedLayerId;
+                    row.Detail = job.Detail;
+                }
+
+                // A successful sweep clears the transient-failure backoff.
+                _pollFailureCount = 0;
+            }
+            catch (Exception)
+            {
+                // A transient HTTP/server failure must not leave the discarded poll task's exception
+                // unobserved nor let the timer spin forever (honua-console#212). Count consecutive
+                // failures; keep retrying for a few cycles, then stop polling so the UI stops churning.
+                _pollFailureCount++;
+                if (_pollFailureCount >= MaxConsecutivePollFailures)
+                {
+                    StopPolling();
+                }
+
+                return;
             }
 
             await InvokeAsync(StateHasChanged);

@@ -191,22 +191,41 @@
 
         _assistantBusy = true;
         _assistantError = string.Empty;
-        _turns.Add(new ChatCompletionMessage { Role = "user", Content = _assistantInput.Trim() });
+        var userTurn = new ChatCompletionMessage { Role = "user", Content = _assistantInput.Trim() };
+        _turns.Add(userTurn);
         _assistantInput = string.Empty;
 
-        var result = await Assistant.AskAsync(_turns);
-        if (result.IsAllowed)
+        try
         {
-            _turns.Add(new ChatCompletionMessage { Role = "assistant", Content = result.Reply! });
+            var result = await Assistant.AskAsync(_turns);
+            if (result.IsAllowed)
+            {
+                _turns.Add(new ChatCompletionMessage { Role = "assistant", Content = result.Reply! });
+            }
+            else
+            {
+                // The turn was answered (refused/declined), so keep it in history but surface the message.
+                _assistantError = string.IsNullOrWhiteSpace(result.Message)
+                    ? "The assistant is unavailable right now."
+                    : result.Message;
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _assistantError = string.IsNullOrWhiteSpace(result.Message)
+            // A throwing client must not wedge the assistant box (the early-return guard above keys off
+            // _assistantBusy). Reset the flag in finally, and roll back the appended user turn here so a
+            // failed send doesn't pollute the conversation sent on the next attempt (honua-console#214).
+            _turns.Remove(userTurn);
+            _assistantInput = userTurn.Content;
+            _assistantError = string.IsNullOrWhiteSpace(ex.Message)
                 ? "The assistant is unavailable right now."
-                : result.Message;
+                : ex.Message;
+        }
+        finally
+        {
+            _assistantBusy = false;
         }
 
-        _assistantBusy = false;
         await RaiseContextAsync();
     }
 

@@ -92,6 +92,14 @@ app.MapRazorComponents<App>()
 // exposed to the browser. These same-origin endpoints stream them from honua-server with the key injected
 // server-side, and rewrite the style's tile URLs to flow back through this proxy. The browser (MapLibre GL)
 // only ever talks to the console origin and never sees the admin key.
+//
+// SECURITY (honua-console#210): because these endpoints act with the server's admin privileges, every one
+// of them MUST first verify an authenticated console session. The console host has no ASP.NET authentication
+// middleware; "authenticated" here means an active environment profile with a non-Anonymous account and a
+// valid session access token — the same definition used by ConsoleCatalogReadContextResolver. Unauthenticated
+// callers receive 401. Known gap: this gates *whether* a session exists, but does not yet scope the proxied
+// request to that caller's identity (the proxy still uses the shared admin key); per-identity scoping is
+// tracked separately and depends on honua-server exposing a session-scoped style/tile/feature contract.
 var mapProxyServerUrl =
     (app.Configuration["Honua:Server:BaseUrl"] ?? app.Configuration["HONUA_SERVER_BASE_URL"])?.TrimEnd('/');
 var mapProxyAdminKey = app.Configuration["Honua:Server:AdminApiKey"] ?? app.Configuration["HONUA_ADMIN_API_KEY"];
@@ -102,8 +110,16 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         int layerId,
         HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
+        Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
+        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
+        if (!await Honua.Console.Web.MapProxySupport.HasAuthenticatedConsoleSessionAsync(
+                profileStore, sessionStore, cancellationToken))
+        {
+            return Results.StatusCode(StatusCodes.Status401Unauthorized);
+        }
+
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{mapProxyServerUrl}/api/styles/{layerId}.json");
         if (!string.IsNullOrWhiteSpace(mapProxyAdminKey))
@@ -118,13 +134,14 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         }
 
         var styleJson = await response.Content.ReadAsStringAsync(cancellationToken);
-        // The server returns tile URLs as /tiles/{id}/... — route them back through this proxy so the browser
-        // fetches tiles with the admin key injected here, not in the page. The URL MUST be ABSOLUTE:
-        // MapLibre loads vector tiles in a web worker that calls new Request(url) with no document base, so a
-        // root-relative "/map-proxy/tiles/..." throws "Failed to parse URL" and no feature tile ever loads.
-        // Build the absolute origin from the incoming request so it works behind any host/scheme.
+        // Route tile URLs back through this proxy so the browser fetches tiles with the admin key injected
+        // here, not in the page. The URL MUST be ABSOLUTE: MapLibre loads vector tiles in a web worker that
+        // calls new Request(url) with no document base, so a root-relative "/map-proxy/tiles/..." throws
+        // "Failed to parse URL" and no feature tile ever loads. Build the absolute origin from the incoming
+        // request so it works behind any host/scheme. Parse the style sources rather than string-replacing a
+        // single prefix, so absolute server-emitted tile URLs are rewritten too (honua-console#213).
         var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/map-proxy/tiles/";
-        styleJson = styleJson.Replace("\"/tiles/", $"\"{absoluteTileBase}", StringComparison.Ordinal);
+        styleJson = Honua.Console.Web.MapProxySupport.RewriteTileUrls(styleJson, absoluteTileBase);
         return Results.Content(styleJson, "application/json");
     });
 
@@ -134,8 +151,16 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         int x,
         int y,
         IHttpClientFactory httpClientFactory,
+        Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
+        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
+        if (!await Honua.Console.Web.MapProxySupport.HasAuthenticatedConsoleSessionAsync(
+                profileStore, sessionStore, cancellationToken))
+        {
+            return Results.StatusCode(StatusCodes.Status401Unauthorized);
+        }
+
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
@@ -171,8 +196,16 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         int layerId,
         int? limit,
         IHttpClientFactory httpClientFactory,
+        Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
+        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
+        if (!await Honua.Console.Web.MapProxySupport.HasAuthenticatedConsoleSessionAsync(
+                profileStore, sessionStore, cancellationToken))
+        {
+            return Results.StatusCode(StatusCodes.Status401Unauthorized);
+        }
+
         var count = limit is > 0 and <= 2000 ? limit.Value : 200;
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         var url = $"{mapProxyServerUrl}/rest/services/{Uri.EscapeDataString(serviceId)}/FeatureServer/{layerId}/query"
