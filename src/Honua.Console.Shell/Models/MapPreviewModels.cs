@@ -38,7 +38,13 @@ public enum MapPreviewTimeFrame
 /// </summary>
 /// <param name="Id">Stable identifier emitted to the basemap-changed callback.</param>
 /// <param name="Label">Human-readable chip label.</param>
-public sealed record MapPreviewBasemap(string Id, string Label);
+/// <param name="StyleUrl">
+/// Optional MapLibre style URL (or inline style document URL) applied to the live map when the chip
+/// is selected. This is what gets handed to <c>map.setStyle(...)</c> — never the chip <see cref="Id"/>,
+/// which is a stable identifier, not a fetchable style. When null/blank, selecting the chip updates the
+/// active selection and raises the callback but does not swap the live map style (honua-console#211).
+/// </param>
+public sealed record MapPreviewBasemap(string Id, string Label, string? StyleUrl = null);
 
 /// <summary>
 /// A single class-break (or categorical) legend entry for the optional style legend.
