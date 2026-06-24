@@ -382,11 +382,15 @@
     private async Task SelectBasemap(MapPreviewBasemap basemap)
     {
         _activeBasemapId = basemap.Id;
-        if (_liveMapBound && _module is not null && !string.IsNullOrWhiteSpace(basemap.Id))
+        // setBasemap calls map.setStyle(styleUrl), which is destructive: it tears down the current style
+        // and sources before fetching the new one. We MUST pass the basemap's style URL — never its Id (a
+        // stable chip identifier like "streets" that setStyle cannot fetch, which would blank the live map;
+        // honua-console#211). When no StyleUrl is supplied, skip the swap entirely.
+        if (_liveMapBound && _module is not null && !string.IsNullOrWhiteSpace(basemap.StyleUrl))
         {
             try
             {
-                await _module.InvokeAsync<bool>("setBasemap", _canvas, basemap.Id);
+                await _module.InvokeAsync<bool>("setBasemap", _canvas, basemap.StyleUrl);
             }
             catch (JSException)
             {
