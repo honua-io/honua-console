@@ -16,9 +16,9 @@ permissions:
 
 jobs:
   trivy:
-    uses: honua-io/.github/.github/workflows/reusable-trivy.yml@main
+    uses: honua-io/.github/.github/workflows/reusable-trivy.yml@aebfacd3f3c6b551fa9bf703501c0a12a050faf3 # main
     with:
       scan-type: fs
 
   scorecard:
-    uses: honua-io/.github/.github/workflows/reusable-scorecard.yml@main
+    uses: honua-io/.github/.github/workflows/reusable-scorecard.yml@aebfacd3f3c6b551fa9bf703501c0a12a050faf3 # main
