@@ -12,6 +12,45 @@ public static class OperateObservabilityRoutes
     public static string AlertDetail(string alertId) => $"/operate/alerts/{Uri.EscapeDataString(alertId)}";
 
     public static string JobDetail(string jobRunId) => $"/operate/jobs/{Uri.EscapeDataString(jobRunId)}";
+
+    public const string Geoprocessing = "/operate/geoprocessing";
+
+    public static string GeoprocessingJobDetail(string jobRunId) =>
+        $"/operate/geoprocessing/{Uri.EscapeDataString(jobRunId)}";
+}
+
+/// <summary>
+/// The execution job kind wire values used as the <c>kind</c> filter on the
+/// admin jobs endpoint. The server parses this against its <c>ExecutionJobKind</c>
+/// enum (case-insensitive member name), so the value is the enum member name.
+/// </summary>
+public static class OperateJobKinds
+{
+    public const string Geoprocessing = "Geoprocessing";
+}
+
+/// <summary>
+/// Helpers over the Operate job status vocabulary. The status state is the
+/// server's <c>ExecutionJobStatus</c> name (Queued/Provisioning/Running/Succeeded/
+/// Failed/Cancelled), surfaced verbatim on <see cref="OperateStatus.State"/>.
+/// </summary>
+public static class OperateJobStatuses
+{
+    public const string Queued = "Queued";
+    public const string Provisioning = "Provisioning";
+    public const string Running = "Running";
+    public const string Succeeded = "Succeeded";
+    public const string Failed = "Failed";
+    public const string Cancelled = "Cancelled";
+
+    /// <summary>
+    /// A job in a terminal state no longer changes, so polling can stop once the
+    /// open job reaches Succeeded/Failed/Cancelled.
+    /// </summary>
+    public static bool IsTerminal(string? state) =>
+        string.Equals(state, Succeeded, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(state, Failed, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(state, Cancelled, StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed record OperateObservabilitySnapshot(

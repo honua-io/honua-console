@@ -88,6 +88,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/alerts/rules          Realtime/geofence rule list
 /operate/alerts/rules/:ruleId  Rule detail and condition builder
 /operate/jobs/:jobRunId        Unified job-run detail deep link
+/operate/geoprocessing         Geoprocessing jobs dashboard · durable GP runs (state/phase/progress/requester) filtered to the Geoprocessing execution kind (GET /api/v1/admin/jobs?kind=Geoprocessing), client-side state filter, ~4s poll that stops on a terminal job; read-only (cancel deferred with the Console's mutation stance), else missing-binding
+/operate/geoprocessing/:jobRunId  Geoprocessing job detail · state/progress/phase/stages/logs/artifacts via the shared JobDetailPanel (GET /api/v1/admin/jobs/{id}{,/logs,/artifacts})
 /operate/operations            Operations console
 /operate/control-center        Control center
 /operate/services              REDIRECT → /operate/data?view=services (services fold into the treeview)

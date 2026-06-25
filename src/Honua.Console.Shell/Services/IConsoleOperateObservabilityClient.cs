@@ -32,6 +32,27 @@ public interface IConsoleOperateObservabilityClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads the durable job list filtered to a single execution job kind
+    /// (<c>GET /api/v1/admin/jobs?kind=…</c>), so a kind-scoped dashboard (e.g.
+    /// the Geoprocessing jobs surface) does not pull the whole fleet job page and
+    /// filter client-side. <paramref name="kind"/> is the wire enum name the
+    /// server's <c>kind</c> query parser accepts (e.g. <c>Geoprocessing</c>);
+    /// a null/blank value loads the unfiltered list like
+    /// <see cref="GetJobsAsync(CancellationToken)"/>.
+    /// </summary>
+    Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
+        string? kind,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Convenience over <see cref="GetJobsAsync(string?, CancellationToken)"/>
+    /// scoped to the <c>Geoprocessing</c> execution job kind, backing the
+    /// Operate &gt; Geoprocessing jobs dashboard.
+    /// </summary>
+    Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Loads a single job's stages, logs, artifacts, and server-declared
     /// actions on demand (the list endpoint omits these), so the jobs viewer
     /// does not fan out a detail/log/artifact request per row up front.

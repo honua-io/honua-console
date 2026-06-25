@@ -298,6 +298,74 @@ public sealed class ConsoleOperateObservabilityClientTests
     }
 
     [Fact]
+    public async Task GetGeoprocessingJobsAppendsKindFilterAndMapsItems()
+    {
+        var now = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/jobs" => JsonResponse(
+                new ConsoleJobListResponse
+                {
+                    Items =
+                    [
+                        new ConsoleJobSummary
+                        {
+                            JobId = "gp-job-1",
+                            Kind = "Geoprocessing",
+                            Backend = "postgis",
+                            TargetKind = "dataset",
+                            WorkloadName = "Buffer roads",
+                            Status = "Running",
+                            RequestedBy = "analyst.live",
+                            CreatedAt = now,
+                            UpdatedAt = now.AddMinutes(1),
+                            PercentComplete = 0.4,
+                            CurrentPhase = "Executing",
+                            ArtifactCount = 0
+                        }
+                    ]
+                },
+                OperateObservabilityJsonContext.Default.ConsoleJobListResponse),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetGeoprocessingJobsAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var job = Assert.Single(result.Value!);
+        Assert.Equal("gp-job-1", job.JobRunId);
+        Assert.Equal("Geoprocessing", job.Source);
+        Assert.Equal("analyst.live", job.SubmittedBy);
+
+        var request = Assert.Single(handler.Requests);
+        var query = ConsoleUrlQuery.Parse(request.RequestUri!.Query);
+        Assert.Equal("Geoprocessing", query["kind"]);
+        Assert.Equal("50", query["limit"]);
+    }
+
+    [Fact]
+    public async Task GetJobsWithoutKindOmitsKindFilter()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/jobs" => JsonResponse(
+                new ConsoleJobListResponse { Items = [] },
+                OperateObservabilityJsonContext.Default.ConsoleJobListResponse),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetJobsAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var request = Assert.Single(handler.Requests);
+        var query = ConsoleUrlQuery.Parse(request.RequestUri!.Query);
+        Assert.False(query.ContainsKey("kind"));
+        Assert.Equal("50", query["limit"]);
+    }
+
+    [Fact]
     public async Task JobDetailPanelRendersSubresourceFailureStatus()
     {
         var services = new ServiceCollection();
@@ -648,6 +716,12 @@ public sealed class ConsoleOperateObservabilityClientTests
 
         public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([BuildRenderingJob(stages: [], logs: [], artifacts: [])]));
+
+        public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(string? kind, CancellationToken cancellationToken = default) =>
+            GetJobsAsync(cancellationToken);
+
+        public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(CancellationToken cancellationToken = default) =>
+            GetJobsAsync(cancellationToken);
 
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateJobRun>.Allowed(BuildRenderingJob(
