@@ -253,11 +253,29 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             zonesMessage));
     }
 
+    public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
+        CancellationToken cancellationToken = default) =>
+        GetJobsAsync(kind: null, cancellationToken);
+
+    public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(
+        CancellationToken cancellationToken = default) =>
+        GetJobsAsync(OperateJobKinds.Geoprocessing, cancellationToken);
+
     public async Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
+        string? kind,
         CancellationToken cancellationToken = default)
     {
+        // The server's jobs endpoint applies the kind filter (parsing the wire
+        // enum name), so a kind-scoped surface stays a single server read rather
+        // than loading the whole fleet page and filtering client-side.
+        var path = $"{OperateAdminRoutes.Jobs}?limit={DefaultPageSize}";
+        if (!string.IsNullOrWhiteSpace(kind))
+        {
+            path += $"&kind={Uri.EscapeDataString(kind.Trim())}";
+        }
+
         var fetch = await FetchAsync(
-            $"{OperateAdminRoutes.Jobs}?limit={DefaultPageSize}",
+            path,
             OperateObservabilityJsonContext.Default.ConsoleJobListResponse,
             cancellationToken).ConfigureAwait(false);
 
