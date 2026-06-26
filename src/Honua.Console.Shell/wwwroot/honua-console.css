@@ -3823,6 +3823,146 @@ p {
     margin-bottom: 16px;
 }
 
+/* Collect automation authoring + versioning (honua-console#219) */
+.automation-list-actions {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 16px;
+}
+
+.automation-grid,
+.automation-version-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.automation-editor-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.automation-editor-glyph {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.automation-title-input {
+    flex: 1 1 220px;
+    min-width: 200px;
+    font-weight: 700;
+}
+
+.automation-editor-header-spacer {
+    flex: 1 1 auto;
+}
+
+.automation-tab-row {
+    margin-bottom: 16px;
+}
+
+.automation-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 12px;
+}
+
+.automation-form-grid-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.automation-form-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.automation-form-wide {
+    grid-column: 1 / -1;
+}
+
+.automation-checkbox {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px;
+}
+
+.automation-rule-card {
+    margin: 0 0 14px;
+}
+
+.automation-rule-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 10px;
+}
+
+.automation-rule-name {
+    flex: 1 1 auto;
+    font-weight: 700;
+}
+
+.automation-section-heading {
+    margin: 12px 0 8px;
+}
+
+.automation-action-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(160px, 2fr) auto;
+    gap: 8px;
+    align-items: center;
+    margin: 0 0 8px;
+}
+
+.automation-action-row .console-validation-inline {
+    grid-column: 1 / -1;
+}
+
+.automation-compact-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.automation-version-item {
+    margin: 0 0 12px;
+}
+
+.automation-version-current {
+    border-color: var(--honua-accent);
+}
+
+.automation-version-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.automation-version-preview {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--honua-border);
+}
+
+@media (max-width: 720px) {
+    .automation-form-grid,
+    .automation-form-grid-compact {
+        grid-template-columns: 1fr;
+    }
+
+    .automation-action-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 .workflow-step-glyph,
 .workflow-node-glyph {
     font-size: 1rem;

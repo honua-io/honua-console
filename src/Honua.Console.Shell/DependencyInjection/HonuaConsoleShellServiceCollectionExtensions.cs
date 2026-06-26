@@ -49,6 +49,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         AddStudioDashboardPackageDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioReportPublicationDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddStudioWorkflowPackageClient(services, honuaServerBaseUrl, honuaServerAdminApiKey);
+        AddCollectAutomationClient(services);
         AddAiPublishDriver(services, honuaServerBaseUrl);
 
         // The omni-prompt AI console (honua-console#203) routes one free-text prompt to the right lane —
@@ -269,6 +270,21 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.Replace(ServiceDescriptor.Singleton<IStudioWorkflowPackageClient>(
             _ => InMemoryStudioWorkflowPackageClient.CreateSeeded()));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Swaps the Collect automation client for the local in-memory seeded simulator. For explicit demo/local
+    /// composition only — never the merged runtime path for server/Collect-owned automation content
+    /// (honua-console#219). Mirrors <see cref="AddHonuaConsoleDemoStudioWorkflowPackages"/>.
+    /// </summary>
+    public static IServiceCollection AddHonuaConsoleDemoCollectAutomations(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Singleton<ICollectAutomationClient>(
+            _ => InMemoryCollectAutomationClient.CreateSeeded()));
 
         return services;
     }
@@ -599,6 +615,18 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<IStudioWorkflowPackageClient, UnsupportedStudioWorkflowPackageClient>();
+    }
+
+    // Binds the Collect automation authoring + versioning surface (/studio/automations, honua-console#219) to
+    // the server/Collect-owned automation content + version projection over the shipped Data Events engine
+    // (Honua.Collect.Core, honua-collect PRs #58/#84/#94). That projection is not yet exposed to Console, so
+    // the merged runtime registers the missing-binding client and the surface renders the shared blocked
+    // state (Console Patterns Charter §11) instead of seeded automation data. The seeded in-memory client
+    // (AddHonuaConsoleDemoCollectAutomations) stays test/demo-only — never the DI default. TryAdd keeps an
+    // explicit test/demo provider overridable.
+    private static void AddCollectAutomationClient(IServiceCollection services)
+    {
+        services.TryAddSingleton<ICollectAutomationClient, UnsupportedCollectAutomationClient>();
     }
 
     // Binds the resource-first publish flow's AI driver (redesign Phase 3) to the honua-server AI generation
