@@ -8647,6 +8647,48 @@ p {
     align-items: flex-end;
 }
 
+/* Available-to-promote list on the Deploy page: the dev → staging → prod release
+   proposals the operator can start, each linking into the governed release detail. */
+.operate-deploy-promote-list {
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.operate-deploy-promote-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--console-border, #e2e8f0);
+    border-radius: 0.5rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.operate-deploy-promote-link:hover,
+.operate-deploy-promote-link:focus-visible {
+    border-color: var(--console-accent, #2563eb);
+    background: var(--console-surface-muted, #f8fafc);
+}
+
+.operate-deploy-promote-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.operate-deploy-promote-route {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+}
+
 /* ------------------------------------------------------------------------- */
 /* Resource-first publish flow + resource→publications treeview (redesign).  */
 /* ------------------------------------------------------------------------- */
