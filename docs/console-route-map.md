@@ -47,6 +47,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /studio/dashboard              Generated dashboard.package editor
 /studio/report                 Generated report.package editor
 /studio/form                   Server-bound form package builder (honua-server#1184)
+/studio/form/import            XLSForm (ODK Collect) import surface over Honua.Collect.Core XlsFormImporter (honua-console#220)
 /studio/app                    Server-bound app.package builder (honua-server#1180/#1183)
 /studio/proof                  Legacy alias for current proof flow
 /studio/drafts                 Source-scoped draft start (source, id)
@@ -88,6 +89,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/alerts/rules          Realtime/geofence rule list
 /operate/alerts/rules/:ruleId  Rule detail and condition builder
 /operate/jobs/:jobRunId        Unified job-run detail deep link
+/operate/geoprocessing         Geoprocessing jobs dashboard · durable GP runs (state/phase/progress/requester) filtered to the Geoprocessing execution kind (GET /api/v1/admin/jobs?kind=Geoprocessing), client-side state filter, ~4s poll that stops on a terminal job; read-only (cancel deferred with the Console's mutation stance), else missing-binding
+/operate/geoprocessing/:jobRunId  Geoprocessing job detail · state/progress/phase/stages/logs/artifacts via the shared JobDetailPanel (GET /api/v1/admin/jobs/{id}{,/logs,/artifacts})
 /operate/operations            Operations console
 /operate/control-center        Control center
 /operate/services              REDIRECT → /operate/data?view=services (services fold into the treeview)
@@ -694,6 +697,7 @@ until `honua-sdk-dotnet#166` is consumable.
 | `/studio/dashboard` | `auth` | missing-binding when no server base address; server-bound builder (honua-console#55) on the honua-server Studio package lifecycle + publication registry (#1180/#1181/#1183) — save draft, server validate, publish (save content version then publish request), and reopen against the live `dashboard` family; data bindings, layout panels, Vega-Lite charts, filters, narrative, version pinning, and responsive preview; publish blocked until every chart declares a Vega-Lite spec and every panel binds to a declared data binding; package-list surface is empty with an "Unsupported" capability state until honua-server exposes a Studio content-item listing endpoint (New/open-by-id is live) | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/report` | `auth` | missing-binding when no server base address; server-bound report builder (honua-console#56) on the content publication registry (honua-server#1183) — author a report (outline/sections, narrative, data bindings with version pins, Vega-Lite charts, map/table/filter panels, responsive preview), then publish (claims a route), republish (advances the active version), update visibility/embed policy, and roll back (pin) to an earlier immutable version; publish blocked until the report has a title, at least one panel bound to a declared data binding, and every chart declares a Vega-Lite spec | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/form` | `auth` | missing-binding when no server base address; empty form-package list when bound; publish blocked until the offline/sync policy is reviewed and the submit target validates | unauth-redirect / missing-permission (server RBAC) | studio |
+| `/studio/form/import` | `auth` | missing-binding when no server base address; XLSForm (ODK Collect) upload converted server-side via `Honua.Collect.Core` `XlsFormImporter` into a proposed draft (live preview + importer diagnostics), saved as a real draft then opened in the builder; honest "import unavailable" when the server lacks the import contract (honua-console#220) | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/app` | `auth` | missing-binding when no server base address; server-bound app.package builder (honua-console#58) on the Studio package lifecycle (honua-server#1180) and publication registry (honua-server#1183) — author pages/components/navigation/bindings/actions/permissions, review the share/embed policy, validate, preview, then save versions and publish; version history offers preview/reopen and rollback, and reopened edits create new content versions rather than mutating published state; publish blocked until a page binds content, every action declares a permission, and the share/embed policy is reviewed | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/proof` | `auth` | inline-authoring shell (prompt → clarification → server package draft → validate → preview-plan → save → publish); accepts `?prompt=…` to seed the prompt from the `/studio` home hero | unauth-redirect | studio |
 | `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
@@ -1071,7 +1075,7 @@ constraint).
 | Chunk | Routes |
 |---|---|
 | shell + auth | `/`, `/auth/*`, `/groups`, `*` |
-| studio | `/studio`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/studio/proof`, `/studio/apps/:itemId/preview` |
+| studio | `/studio`, `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/form/import`, `/studio/app`, `/studio/proof`, `/studio/apps/:itemId/preview` |
 | catalog | `/catalog`, `/catalog/:idOrSlug` |
 | viewer | `/maps/:mapId`, `/maps/new` |
 | operate | all `/operate/*` |

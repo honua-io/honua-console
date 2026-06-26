@@ -281,6 +281,9 @@ public sealed class StudioFormBuilderRenderTests
             StudioFormEditorState currentState, StudioFormGenerationRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioFormGenerationOutcome { Status = StudioFormGenerationStatuses.Unsupported });
 
+        public Task<StudioFormImportOutcome> ImportXlsFormAsync(StudioFormImportRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioFormImportOutcome.Failed(StudioFormImportStatuses.Unsupported, "Not exercised by this fake."));
+
         public StudioFormWorkspace Workspace { get; set; } = new([], []);
 
         public StudioFormEditorLoad EditorLoad { get; set; } = new(null, []);

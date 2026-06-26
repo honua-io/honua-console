@@ -23,6 +23,10 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 {
     private const int DefaultPageSize = 50;
 
+    // Bound the cursor-following job read so a very large board cannot fan out an
+    // unbounded number of admin reads. Past this cap the result is flagged partial.
+    private const int MaxJobPages = 5;
+
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
@@ -253,23 +257,124 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             zonesMessage));
     }
 
+    public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
+        CancellationToken cancellationToken = default) =>
+        GetJobsAsync(kind: null, cancellationToken);
+
+    public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(
+        CancellationToken cancellationToken = default) =>
+        GetJobsAsync(OperateJobKinds.Geoprocessing, cancellationToken);
+
     public async Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
+        string? kind,
         CancellationToken cancellationToken = default)
     {
-        var fetch = await FetchAsync(
-            $"{OperateAdminRoutes.Jobs}?limit={DefaultPageSize}",
-            OperateObservabilityJsonContext.Default.ConsoleJobListResponse,
+        // The server's jobs endpoint applies the kind filter (parsing the wire
+        // enum name), so a kind-scoped surface stays a single server read rather
+        // than loading the whole fleet page and filtering client-side. The list
+        // is cursor-paginated; follow NextCursor up to a bounded number of pages
+        // so boards with more than one page aren't silently truncated at 50, and
+        // signal (PartialResult + message) when more pages remain past the cap.
+        var jobs = new List<OperateJobRun>();
+        string? cursor = null;
+        ConsoleEnvironmentProfile? profile = null;
+        var truncated = false;
+
+        for (var page = 0; page < MaxJobPages; page++)
+        {
+            var path = $"{OperateAdminRoutes.Jobs}?limit={DefaultPageSize}";
+            if (!string.IsNullOrWhiteSpace(kind))
+            {
+                path += $"&kind={Uri.EscapeDataString(kind.Trim())}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(cursor))
+            {
+                path += $"&cursor={Uri.EscapeDataString(cursor)}";
+            }
+
+            var fetch = await FetchAsync(
+                path,
+                OperateObservabilityJsonContext.Default.ConsoleJobListResponse,
+                cancellationToken).ConfigureAwait(false);
+
+            if (!fetch.Ok)
+            {
+                // A first-page failure denies the section; a later-page failure
+                // keeps the pages already read and flags the result as partial.
+                if (jobs.Count == 0)
+                {
+                    return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Denied(fetch.Status, fetch.Message);
+                }
+
+                truncated = true;
+                break;
+            }
+
+            profile ??= fetch.Profile;
+            foreach (var summary in fetch.Value!.Items ?? [])
+            {
+                jobs.Add(OperateObservabilityMapper.MapJobSummary(summary, fetch.Profile!));
+            }
+
+            cursor = fetch.Value!.NextCursor;
+            if (string.IsNullOrWhiteSpace(cursor))
+            {
+                break;
+            }
+
+            if (page == MaxJobPages - 1)
+            {
+                // More pages exist past the page cap; surface that rather than
+                // silently cutting the board off.
+                truncated = true;
+            }
+        }
+
+        return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
+            jobs,
+            partialResult: truncated,
+            message: truncated
+                ? $"Showing the most recent {jobs.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} jobs; more exist on the server."
+                : string.Empty);
+    }
+
+    public Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default) =>
+        ControlJobAsync(jobRunId, OperateAdminRoutes.JobCancel, "cancel", cancellationToken);
+
+    public Task<OperateSectionResult<OperateJobControlOutcome>> RetryJobAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default) =>
+        ControlJobAsync(jobRunId, OperateAdminRoutes.JobRetry, "retry", cancellationToken);
+
+    private async Task<OperateSectionResult<OperateJobControlOutcome>> ControlJobAsync(
+        string jobRunId,
+        Func<string, string> routeFactory,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobRunId);
+
+        var fetch = await PostAsync(
+            routeFactory(jobRunId.Trim()),
+            OperateObservabilityJsonContext.Default.ConsoleJobControlResponse,
+            action,
             cancellationToken).ConfigureAwait(false);
 
         if (!fetch.Ok)
         {
-            return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Denied(fetch.Status, fetch.Message);
+            return OperateSectionResult<OperateJobControlOutcome>.Denied(fetch.Status, fetch.Message);
         }
 
-        var jobs = (fetch.Value!.Items ?? [])
-            .Select(summary => OperateObservabilityMapper.MapJobSummary(summary, fetch.Profile!))
-            .ToArray();
-        return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(jobs);
+        var response = fetch.Value!;
+        return OperateSectionResult<OperateJobControlOutcome>.Allowed(new OperateJobControlOutcome(
+            JobRunId: string.IsNullOrWhiteSpace(response.JobId) ? jobRunId.Trim() : response.JobId,
+            Action: string.IsNullOrWhiteSpace(response.Action) ? action : response.Action,
+            Status: response.Status,
+            Message: response.Message,
+            CorrelationId: response.CorrelationId ?? string.Empty));
     }
 
     public async Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(
@@ -320,6 +425,22 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 logsFetch.Message,
                 artifactsFetch.Status,
                 artifactsFetch.Message));
+    }
+
+    public async Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobRunId);
+
+        var fetch = await FetchAsync(
+            OperateAdminRoutes.JobSteps(jobRunId),
+            OperateObservabilityJsonContext.Default.ConsoleJobStepsResponse,
+            cancellationToken).ConfigureAwait(false);
+
+        return fetch.Ok
+            ? OperateSectionResult<OperateJobStepsView>.Allowed(OperateObservabilityMapper.MapJobSteps(fetch.Value!))
+            : OperateSectionResult<OperateJobStepsView>.Denied(fetch.Status, fetch.Message);
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
@@ -977,6 +1098,109 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 profile);
         }
     }
+
+    private async Task<FetchResult<T>> PostAsync<T>(
+        string relativePath,
+        JsonTypeInfo<T> typeInfo,
+        string action,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (profile is null)
+        {
+            return FetchResult<T>.Failed(
+                OperateSectionStatus.Unavailable,
+                "No active environment profile is selected. Connect an environment to control Operate jobs.",
+                profile: null);
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(profile.ServerBaseUri, relativePath));
+        var token = await ResolveTokenAsync(profile, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+        else if (!string.IsNullOrWhiteSpace(_adminApiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
+        }
+
+        // The control endpoints take no body; send an empty JSON object so the
+        // request advertises application/json consistently with the other writes.
+        request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+
+        try
+        {
+            using var response = await _http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await ReadBodySafelyAsync(response, cancellationToken).ConfigureAwait(false);
+                return FetchResult<T>.Failed(
+                    MapStatus(response.StatusCode),
+                    MapControlErrorMessage(response.StatusCode, action, body),
+                    profile);
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            var value = await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken).ConfigureAwait(false);
+            return value is null
+                ? FetchResult<T>.Failed(OperateSectionStatus.Unavailable, "The honua-server admin API returned an empty response.", profile)
+                : FetchResult<T>.Succeeded(value, profile);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException)
+        {
+            return FetchResult<T>.Failed(
+                OperateSectionStatus.Unavailable,
+                "The honua-server admin API is unreachable or returned an unreadable response.",
+                profile);
+        }
+    }
+
+    private static async Task<string> ReadBodySafelyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string MapControlErrorMessage(HttpStatusCode code, string action, string body) => code switch
+    {
+        // The server's approval gate returns 403 for both "approval required" and
+        // plain "not permitted". The approval-required case carries an
+        // application/problem+json body whose title is "Approval required"; detect
+        // it so the operator sees that approval (not a missing role) is the blocker.
+        HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized when IsApprovalRequired(body) =>
+            "This action requires approval. The server's approval gate is holding it pending an approver; "
+            + "it has not run.",
+        HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized =>
+            $"The active environment profile is not permitted to {action} this job.",
+        HttpStatusCode.Conflict =>
+            $"This job cannot be {(string.Equals(action, "retry", StringComparison.Ordinal) ? "retried" : "cancelled")} in its current state "
+            + "(it may already be terminal, running past the cancellable point, or not in a retryable state).",
+        HttpStatusCode.NotFound =>
+            "The job was not found on the connected server.",
+        HttpStatusCode.NotImplemented =>
+            "The connected server does not expose the job control endpoints.",
+        _ => $"The honua-server admin API returned {(int)code} {(string.IsNullOrWhiteSpace(action) ? "for the control action" : $"for the {action} action")}.",
+    };
+
+    private static bool IsApprovalRequired(string body) =>
+        !string.IsNullOrWhiteSpace(body)
+        && (body.Contains("approval-required", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("Approval required", StringComparison.OrdinalIgnoreCase));
 
     private async Task<string?> ResolveTokenAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
     {

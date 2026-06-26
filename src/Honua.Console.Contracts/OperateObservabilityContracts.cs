@@ -66,9 +66,15 @@ public static class OperateAdminRoutes
 
     public static string JobLogs(string jobId) => $"{JobDetail(jobId)}/logs";
 
+    public static string JobSteps(string jobId) => $"{JobDetail(jobId)}/steps";
+
     public static string JobArtifacts(string jobId) => $"{JobDetail(jobId)}/artifacts";
 
     public static string JobActions(string jobId) => $"{JobDetail(jobId)}/actions";
+
+    public static string JobCancel(string jobId) => $"{JobDetail(jobId)}/cancel";
+
+    public static string JobRetry(string jobId) => $"{JobDetail(jobId)}/retry";
 
     public static string InvestigationDetail(string investigationId) => $"{Investigations}/{Uri.EscapeDataString(investigationId)}";
 }
@@ -794,6 +800,78 @@ public sealed record ConsoleJobActionsResponse
     public ConsoleJobActionDescriptor[] Actions { get; init; } = [];
 }
 
+/// <summary>
+/// Result of a durable-job control action (<c>POST /jobs/{id}/cancel</c> or
+/// <c>POST /jobs/{id}/retry</c>). The server returns the action that ran, the
+/// job's resulting status, and an operator-facing message. The server's
+/// Execute + destructive-approval gate is the authority: a denied action returns
+/// 403 (forbidden / approval-required) rather than this envelope.
+/// </summary>
+public sealed record ConsoleJobControlResponse
+{
+    public string JobId { get; init; } = string.Empty;
+
+    public string? CorrelationId { get; init; }
+
+    public string Action { get; init; } = string.Empty;
+
+    public string Status { get; init; } = string.Empty;
+
+    public string Message { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// The sanitized per-step glass-box for a durable execution job
+/// (<c>GET /api/v1/admin/jobs/{id}/steps</c>, honua-server #2182). Each step is a
+/// projection of one durable execution-log entry: its phase, timeline, status,
+/// the sanitized provider command (e.g. the GDAL command with
+/// <c>&lt;scratch&gt;</c>/<c>&lt;path&gt;</c> redacted server-side), an artifact
+/// summary, and metadata. The server has already sanitized <see cref="ConsoleJobStep.Command"/>;
+/// the Console renders it verbatim and must not re-sanitize it.
+/// </summary>
+public sealed record ConsoleJobStepsResponse
+{
+    public string JobId { get; init; } = string.Empty;
+
+    public string? CorrelationId { get; init; }
+
+    public string State { get; init; } = string.Empty;
+
+    public ConsoleJobStep[] Steps { get; init; } = [];
+}
+
+public sealed record ConsoleJobStep
+{
+    public int Ordinal { get; init; }
+
+    public string Phase { get; init; } = string.Empty;
+
+    public string Status { get; init; } = string.Empty;
+
+    public DateTimeOffset StartedAt { get; init; }
+
+    public DateTimeOffset? CompletedAt { get; init; }
+
+    public long? DurationMs { get; init; }
+
+    public string Message { get; init; } = string.Empty;
+
+    public string? Command { get; init; }
+
+    public ConsoleJobStepArtifact[]? Artifacts { get; init; }
+
+    public Dictionary<string, string>? Metadata { get; init; }
+}
+
+public sealed record ConsoleJobStepArtifact
+{
+    public string Label { get; init; } = string.Empty;
+
+    public string? Kind { get; init; }
+
+    public long? SizeBytes { get; init; }
+}
+
 // --- Investigations -----------------------------------------------------------
 
 public sealed record InvestigationPageResponse
@@ -899,6 +977,8 @@ public sealed record InvestigationLinkResponse
 [JsonSerializable(typeof(ConsoleJobLogPageResponse))]
 [JsonSerializable(typeof(ConsoleJobArtifactPageResponse))]
 [JsonSerializable(typeof(ConsoleJobActionsResponse))]
+[JsonSerializable(typeof(ConsoleJobControlResponse))]
+[JsonSerializable(typeof(ConsoleJobStepsResponse))]
 [JsonSerializable(typeof(InvestigationPageResponse))]
 [JsonSerializable(typeof(InvestigationResponse))]
 public sealed partial class OperateObservabilityJsonContext : JsonSerializerContext;

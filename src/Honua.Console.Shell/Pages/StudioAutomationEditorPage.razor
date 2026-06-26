@@ -1,0 +1,452 @@
+@page "/studio/automations/new"
+@page "/studio/automations/{DraftId}"
+@using Honua.Console.Shell.Validation
+@inject ICollectAutomationClient Automations
+@inject NavigationManager Navigation
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved automation changes. Leave this page and discard them?" />
+
+<section class="console-page automation-page automation-editor-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio collect.automation</p>
+        <h1>Automation Editor</h1>
+        <p>Author trigger-bound rules and engine actions over Collect's shipped Data Events engine, then save a versioned content item alongside the form definition.</p>
+    </div>
+
+    @if (_binding is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_binding.State"
+                          Title="Automation authoring is not bound"
+                          Message="@($"{_binding.Detail} (contract: {_binding.Contract})")"
+                          ActionHref="/studio/automations"
+                          ActionLabel="Back to automations" />
+    }
+    else if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Automation"
+                          Title="Loading automation draft"
+                          Message="Resolving the Collect automation projection." />
+    }
+    else if (_draft is null)
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Automation"
+                          Title="Automation draft unavailable"
+                          Message="The requested automation draft was not found or cannot be opened in this workspace."
+                          ActionHref="/studio/automations/new"
+                          ActionLabel="Create automation" />
+    }
+    else
+    {
+        <header class="automation-editor-header" aria-label="Automation header">
+            <span class="automation-editor-glyph" aria-hidden="true">⚡</span>
+            <input class="console-input automation-title-input" aria-label="Automation name" @bind="_draft.Name" @bind:event="oninput" @bind:after="OnEdit" />
+            <span class="console-status automation-badge-draft">@DraftStatusBadge(_draft)</span>
+            <span class="console-status @(_draft.Enabled ? string.Empty : "console-status-warning")">@(_draft.Enabled ? "enabled" : "disabled")</span>
+            <div class="automation-editor-header-spacer"></div>
+            @if (_busy)
+            {
+                <span class="console-status" role="status" aria-live="polite">@(_busyLabel ?? "Working…")</span>
+            }
+            <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="SaveAsync">Save version</button>
+            <a class="console-button-link console-button-secondary" href="@VersionsHref">Versions</a>
+            <a class="console-button-link console-button-secondary" href="/studio/automations">Automations</a>
+        </header>
+
+        @if (_errorMessage is not null)
+        {
+            <div class="console-warning" role="alert" data-automation-error="true">
+                <p>@_errorMessage</p>
+            </div>
+        }
+
+        @if (_validation.HasBlockingClientErrors)
+        {
+            <div class="console-warning automation-validation-summary" role="alert" data-automation-validation="blocking">
+                <p>Resolve these before saving a version:</p>
+                <ul class="automation-compact-list">
+                    @foreach (var error in _validation.Summary.Where(e => e.IsBlocking))
+                    {
+                        <li>@error.Message</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_lastSave is not null && !SaveProducedVersion(_lastSave) && _lastSave.BindingState is null)
+        {
+            <div class="console-warning" role="alert" data-automation-save="blocked">
+                <p>Save blocked: validation requires attention</p>
+                <ul class="automation-compact-list">
+                    @foreach (var issue in _lastSave.ValidationIssues)
+                    {
+                        <li><span>@issue.Severity</span> <strong>@issue.Scope</strong> <small>@issue.Message</small></li>
+                    }
+                </ul>
+            </div>
+        }
+        else if (_lastSave is not null && SaveProducedVersion(_lastSave))
+        {
+            <div class="console-status" role="status" aria-live="polite" data-automation-save="committed">
+                Saved version @_lastSave.VersionId
+            </div>
+        }
+
+        <nav class="console-tab-row automation-tab-row" aria-label="Automation editor sections">
+            @foreach (var tab in Tabs)
+            {
+                <button type="button"
+                        class="@(IsActiveTab(tab.Key) ? "active" : string.Empty)"
+                        aria-pressed="@IsActiveTab(tab.Key)"
+                        @onclick="() => SelectTab(tab.Key)">
+                    @tab.Label
+                </button>
+            }
+        </nav>
+
+        @if (IsActiveTab(TabRules))
+        {
+            <section class="automation-rules" aria-label="Automation rules">
+                <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.Rules" State="_validation" />
+
+                @for (var ruleIndex = 0; ruleIndex < _draft.Rules.Count; ruleIndex++)
+                {
+                    var ri = ruleIndex;
+                    var rule = _draft.Rules[ri];
+                    <article class="console-panel automation-rule-card" aria-label="@($"Rule {ri + 1}")">
+                        <div class="automation-rule-head">
+                            <input class="console-input automation-rule-name" aria-label="Rule name" @bind="rule.Name" @bind:event="oninput" @bind:after="OnEdit" />
+                            <button class="console-button console-button-secondary automation-rule-remove" type="button" disabled="@_busy" @onclick="() => RemoveRule(ri)">Remove rule</button>
+                        </div>
+
+                        <div class="automation-form-grid automation-form-grid-compact">
+                            <label>
+                                <span>Trigger</span>
+                                <select class="console-input" @bind="rule.Trigger" @bind:after="OnEdit">
+                                    @foreach (var trigger in CollectAutomationContractValues.TriggerKinds)
+                                    {
+                                        <option value="@trigger">@trigger</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                <span>Trigger field</span>
+                                <input class="console-input" aria-label="Trigger field" @bind="rule.TriggerField" @bind:event="oninput" @bind:after="OnEdit" />
+                                <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.RuleTriggerField(ri)" State="_validation" />
+                            </label>
+                            <label class="automation-form-wide">
+                                <span>Condition (sandboxed expression — empty means always)</span>
+                                <input class="console-input" aria-label="Condition" @bind="rule.Condition" @bind:event="oninput" @bind:after="OnEdit" />
+                            </label>
+                        </div>
+
+                        <div class="automation-actions" aria-label="Rule actions">
+                            <div class="automation-section-heading">
+                                <p class="console-kicker">Actions</p>
+                                <h3>Engine actions (ordered)</h3>
+                            </div>
+                            @for (var actionIndex = 0; actionIndex < rule.Actions.Count; actionIndex++)
+                            {
+                                var ai = actionIndex;
+                                var action = rule.Actions[ai];
+                                <div class="automation-action-row">
+                                    <select class="console-input" aria-label="Action kind" @bind="action.Kind" @bind:after="OnEdit">
+                                        @foreach (var kind in CollectAutomationContractValues.ActionKinds)
+                                        {
+                                            <option value="@kind">@kind</option>
+                                        }
+                                    </select>
+                                    <input class="console-input" aria-label="Action target" placeholder="target" @bind="action.Target" @bind:event="oninput" @bind:after="OnEdit" />
+                                    <input class="console-input" aria-label="Action expression" placeholder="expression" @bind="action.Expression" @bind:event="oninput" @bind:after="OnEdit" />
+                                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemoveAction(ri, ai)">Remove</button>
+                                    <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.ActionTarget(ri, ai)" State="_validation" />
+                                </div>
+                            }
+                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => AddAction(ri)">Add action</button>
+                        </div>
+                    </article>
+                }
+
+                <button class="console-button" type="button" disabled="@_busy" @onclick="AddRule">Add rule</button>
+            </section>
+        }
+        else if (IsActiveTab(TabSettings))
+        {
+            <section class="console-panel automation-settings" aria-label="Automation settings">
+                <div class="automation-form-grid">
+                    <label>
+                        <span>Name</span>
+                        <input class="console-input" @bind="_draft.Name" @bind:event="oninput" @bind:after="OnEdit" />
+                        <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.Name" State="_validation" />
+                    </label>
+                    <label>
+                        <span>Bound form id</span>
+                        <input class="console-input" @bind="_draft.FormId" @bind:event="oninput" @bind:after="OnEdit" />
+                        <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.FormId" State="_validation" />
+                    </label>
+                    <label class="automation-form-wide">
+                        <span>Description</span>
+                        <textarea class="console-input" rows="3" @bind="_draft.Description" @bind:event="oninput" @bind:after="OnEdit"></textarea>
+                    </label>
+                    <label>
+                        <span>Cascade depth (engine loop guard)</span>
+                        <input class="console-input" type="number" min="1" max="32" @bind="_draft.MaxCascadeDepth" @bind:after="OnEdit" />
+                        <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.MaxCascadeDepth" State="_validation" />
+                    </label>
+                    <label class="automation-checkbox">
+                        <input type="checkbox" @bind="_draft.Enabled" @bind:after="OnEdit" />
+                        <span>Enabled</span>
+                    </label>
+                </div>
+                <dl class="console-definition-list">
+                    <dt>Package</dt>
+                    <dd>@_draft.PackageType</dd>
+                    <dt>Schema</dt>
+                    <dd>@_draft.SchemaVersion</dd>
+                    <dt>Content item</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(_draft.ContentItemId) ? "not saved" : _draft.ContentItemId)</dd>
+                    <dt>Current version</dt>
+                    <dd>@DescribeCurrentVersion(_draft)</dd>
+                </dl>
+            </section>
+        }
+        else
+        {
+            <section class="console-panel automation-raw" aria-label="Automation contract summary">
+                <div class="automation-section-heading">
+                    <p class="console-kicker">Package · raw</p>
+                    <h2>Generated Contract</h2>
+                </div>
+                <p class="console-muted">Inspectable summary of the automation body the Data Events engine runs.</p>
+                <dl class="console-definition-list">
+                    <dt>Bound form</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(_draft.FormId) ? "none" : _draft.FormId)</dd>
+                    <dt>Rules</dt>
+                    <dd>@_draft.Rules.Count</dd>
+                    <dt>Actions</dt>
+                    <dd>@_draft.Rules.Sum(rule => rule.Actions.Count)</dd>
+                    <dt>Cascade depth</dt>
+                    <dd>@_draft.MaxCascadeDepth</dd>
+                </dl>
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private const string TabRules = "rules";
+    private const string TabSettings = "settings";
+    private const string TabRaw = "raw";
+
+    private static readonly (string Key, string Label)[] Tabs =
+    [
+        (TabRules, "Rules"),
+        (TabSettings, "Settings"),
+        (TabRaw, "Package · raw"),
+    ];
+
+    [Parameter]
+    public string? DraftId { get; set; }
+
+    private bool _loading = true;
+    private bool _busy;
+    private string? _busyLabel;
+    private string? _errorMessage;
+    private string _activeTab = TabRules;
+    private CollectAutomationDraft? _draft;
+    private CollectAutomationBindingState? _binding;
+    private CollectAutomationSaveResult? _lastSave;
+    private string? _activeDraftRouteId;
+    private string? _savedFingerprint;
+    private readonly ValidationState _validation = new();
+    private readonly FormDirtyState _dirty = new();
+
+    private bool IsActiveTab(string key) => string.Equals(_activeTab, key, StringComparison.Ordinal);
+
+    private void SelectTab(string key) => _activeTab = key;
+
+    private string VersionsHref =>
+        _draft is null || string.IsNullOrWhiteSpace(_draft.DraftId)
+            ? "/studio/automations"
+            : $"/studio/automations/{_draft.DraftId}/versions";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        var draftRouteId = string.IsNullOrWhiteSpace(DraftId) ? "new" : DraftId;
+        if (!string.Equals(_activeDraftRouteId, draftRouteId, StringComparison.Ordinal))
+        {
+            _lastSave = null;
+            _errorMessage = null;
+            _binding = null;
+            _activeDraftRouteId = draftRouteId;
+        }
+
+        var context = await Automations.OpenEditorAsync(DraftId);
+        _binding = context.BindingState;
+        _draft = context.Draft;
+        _savedFingerprint = _draft is null ? null : CollectAutomationDraftContent.CreateFingerprint(_draft);
+        _loading = false;
+
+        _validation.Clear();
+        _dirty.MarkClean();
+        RecomputeClientErrors();
+    }
+
+    private void OnEdit()
+    {
+        _dirty.MarkDirty();
+        // Any edit makes the last save-time issues stale; recompute the client channel and drop the prior save.
+        _lastSave = null;
+        RecomputeClientErrors();
+    }
+
+    private void RecomputeClientErrors() =>
+        _validation.SetClientErrors(_draft is null
+            ? Array.Empty<ConsoleFieldError>()
+            : CollectAutomationValidator.Instance.Evaluate(_draft));
+
+    private async Task SaveAsync()
+    {
+        if (_draft is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _busyLabel = "Saving version…";
+        _errorMessage = null;
+        try
+        {
+            _lastSave = await Automations.SaveVersionAsync(_draft, "Saved from Studio automation editor.");
+            if (_lastSave.BindingState is not null)
+            {
+                _binding = _lastSave.BindingState;
+                return;
+            }
+
+            RecomputeClientErrors();
+
+            // A save that fails validation creates no version; keep the draft dirty so a later restore/save
+            // does not reuse a stale prior version.
+            if (!SaveProducedVersion(_lastSave))
+            {
+                return;
+            }
+
+            _savedFingerprint = CollectAutomationDraftContent.CreateFingerprint(_draft);
+            _dirty.MarkClean();
+            NavigateToPersistedDraft();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            _errorMessage = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            _busyLabel = null;
+        }
+    }
+
+    private void NavigateToPersistedDraft()
+    {
+        if (_draft is null || string.IsNullOrWhiteSpace(_draft.DraftId))
+        {
+            return;
+        }
+
+        if (!string.Equals(_activeDraftRouteId, _draft.DraftId, StringComparison.Ordinal))
+        {
+            Navigation.NavigateTo($"/studio/automations/{_draft.DraftId}", replace: true);
+        }
+    }
+
+    private void AddRule()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        var index = _draft.Rules.Count + 1;
+        _draft.Rules.Add(new CollectAutomationRule
+        {
+            Id = $"rule-{index}-{Guid.NewGuid():N}",
+            Name = $"Rule {index}",
+            Trigger = CollectAutomationContractValues.TriggerFieldChange,
+            Actions =
+            [
+                new CollectAutomationAction
+                {
+                    Id = $"action-{Guid.NewGuid():N}",
+                    Kind = CollectAutomationContractValues.ActionSet
+                }
+            ]
+        });
+
+        OnEdit();
+    }
+
+    private void RemoveRule(int ruleIndex)
+    {
+        if (_draft is null || ruleIndex < 0 || ruleIndex >= _draft.Rules.Count)
+        {
+            return;
+        }
+
+        _draft.Rules.RemoveAt(ruleIndex);
+        OnEdit();
+    }
+
+    private void AddAction(int ruleIndex)
+    {
+        if (_draft is null || ruleIndex < 0 || ruleIndex >= _draft.Rules.Count)
+        {
+            return;
+        }
+
+        _draft.Rules[ruleIndex].Actions.Add(new CollectAutomationAction
+        {
+            Id = $"action-{Guid.NewGuid():N}",
+            Kind = CollectAutomationContractValues.ActionSet
+        });
+
+        OnEdit();
+    }
+
+    private void RemoveAction(int ruleIndex, int actionIndex)
+    {
+        if (_draft is null || ruleIndex < 0 || ruleIndex >= _draft.Rules.Count)
+        {
+            return;
+        }
+
+        var actions = _draft.Rules[ruleIndex].Actions;
+        if (actionIndex < 0 || actionIndex >= actions.Count)
+        {
+            return;
+        }
+
+        actions.RemoveAt(actionIndex);
+        OnEdit();
+    }
+
+    private static bool SaveProducedVersion(CollectAutomationSaveResult save) =>
+        save.BindingState is null && !string.IsNullOrWhiteSpace(save.VersionId);
+
+    private static string DraftStatusBadge(CollectAutomationDraft draft) =>
+        draft.VersionNumber > 0 ? $"v{draft.VersionNumber}" : "draft";
+
+    private static string DescribeCurrentVersion(CollectAutomationDraft draft)
+    {
+        if (!string.IsNullOrWhiteSpace(draft.CurrentVersionId))
+        {
+            return draft.CurrentVersionId;
+        }
+
+        return draft.VersionNumber > 0 ? $"v{draft.VersionNumber} (latest committed)" : "draft only";
+    }
+}

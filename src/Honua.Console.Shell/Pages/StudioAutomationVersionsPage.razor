@@ -1,0 +1,255 @@
+@page "/studio/automations/{DraftId}/versions"
+@using Microsoft.JSInterop
+@inject ICollectAutomationClient Automations
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<section class="console-page automation-page automation-versions-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio collect.automation</p>
+        <h1>Automation Versions</h1>
+        <p>Review the append-only version history for this automation and restore a prior version. Restoring never rewrites history — it commits a new version that re-instates the chosen one.</p>
+    </div>
+
+    <div class="automation-list-actions">
+        <a class="console-button-link console-button-secondary" href="@EditorHref">Back to editor</a>
+    </div>
+
+    @if (_errorMessage is not null)
+    {
+        <div class="console-warning" role="alert" data-automation-error="true">
+            <p>@_errorMessage</p>
+        </div>
+    }
+
+    @if (_restoreMessage is not null)
+    {
+        <div class="console-status" role="status" aria-live="polite" data-automation-restore="committed">
+            @_restoreMessage
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Versions"
+                          Title="Loading version history"
+                          Message="Reading the automation version projection." />
+    }
+    else if (_binding is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_binding.State"
+                          Title="Automation versioning is not bound"
+                          Message="@($"{_binding.Detail} (contract: {_binding.Contract})")"
+                          ActionHref="/studio/automations"
+                          ActionLabel="Back to automations" />
+    }
+    else if (_versions.Count == 0)
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Versions"
+                          Title="No versions yet"
+                          Message="Save the automation from the editor to commit its first immutable version."
+                          ActionHref="@EditorHref"
+                          ActionLabel="Open editor" />
+    }
+    else
+    {
+        <ol class="automation-version-list" aria-label="Automation version history">
+            @foreach (var version in _versions)
+            {
+                <li class="console-panel automation-version-item @(version.IsCurrent ? "automation-version-current" : string.Empty)">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h2>v@version.VersionNumber</h2>
+                            <p class="console-muted">@version.VersionId</p>
+                        </div>
+                        @if (version.IsCurrent)
+                        {
+                            <span class="console-status">current</span>
+                        }
+                    </div>
+                    <dl class="console-definition-list">
+                        <dt>Change note</dt>
+                        <dd>@version.ChangeNote</dd>
+                        <dt>Author</dt>
+                        <dd>@version.Author</dd>
+                        <dt>Rules / actions</dt>
+                        <dd>@version.RuleCount rules · @version.ActionCount actions</dd>
+                        <dt>Committed</dt>
+                        <dd>@version.CommittedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</dd>
+                    </dl>
+                    <div class="automation-version-actions">
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => PreviewAsync(version.VersionId)">View body</button>
+                        @if (!version.IsCurrent)
+                        {
+                            <button class="console-button" type="button" disabled="@_busy" @onclick="() => RestoreAsync(version)">Restore</button>
+                        }
+                    </div>
+
+                    @if (string.Equals(_previewVersionId, version.VersionId, StringComparison.Ordinal) && _preview is not null)
+                    {
+                        <div class="automation-version-preview" aria-label="@($"Version {version.VersionNumber} body")">
+                            <p class="console-kicker">Bound form: @(_preview.FormId)</p>
+                            <ul class="automation-compact-list">
+                                @foreach (var rule in _preview.Rules)
+                                {
+                                    <li>
+                                        <strong>@rule.Name</strong>
+                                        <small>@rule.Trigger@(string.IsNullOrWhiteSpace(rule.TriggerField) ? string.Empty : $" · {rule.TriggerField}")</small>
+                                        <span>@(rule.Actions.Count) action(s): @string.Join(", ", rule.Actions.Select(a => a.Kind))</span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                </li>
+            }
+        </ol>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string? DraftId { get; set; }
+
+    private bool _loading = true;
+    private bool _busy;
+    private string? _errorMessage;
+    private string? _restoreMessage;
+    private string? _contentItemId;
+    private CollectAutomationBindingState? _binding;
+    private IReadOnlyList<CollectAutomationVersion> _versions = [];
+    private string? _previewVersionId;
+    private CollectAutomationDraft? _preview;
+
+    private string EditorHref => $"/studio/automations/{DraftId}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var context = await Automations.OpenEditorAsync(DraftId);
+            _binding = context.BindingState;
+            if (_binding is not null)
+            {
+                _versions = [];
+                return;
+            }
+
+            _contentItemId = context.Draft?.ContentItemId ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(_contentItemId))
+            {
+                _versions = [];
+                return;
+            }
+
+            var history = await Automations.ListVersionsAsync(_contentItemId);
+            _binding = history.BindingState;
+            _versions = history.Versions;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PreviewAsync(string versionId)
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_contentItemId))
+        {
+            return;
+        }
+
+        // Toggle the preview off when the same version is clicked again.
+        if (string.Equals(_previewVersionId, versionId, StringComparison.Ordinal))
+        {
+            _previewVersionId = null;
+            _preview = null;
+            return;
+        }
+
+        _busy = true;
+        _errorMessage = null;
+        try
+        {
+            _preview = await Automations.GetVersionAsync(_contentItemId, versionId);
+            _previewVersionId = _preview is null ? null : versionId;
+            if (_preview is null)
+            {
+                _errorMessage = "Could not read that version's body.";
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            _errorMessage = $"Could not read version: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RestoreAsync(CollectAutomationVersion version)
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_contentItemId))
+        {
+            return;
+        }
+
+        // Restore re-instates an older body as a new version: confirm before committing.
+        var confirmed = await ConfirmAsync(
+            $"Restore v{version.VersionNumber}? This commits a new version that re-instates that body.");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _busy = true;
+        _errorMessage = null;
+        _restoreMessage = null;
+        try
+        {
+            var result = await Automations.RestoreVersionAsync(_contentItemId, version.VersionId);
+            if (result.BindingState is not null)
+            {
+                _binding = result.BindingState;
+                return;
+            }
+
+            _restoreMessage =
+                $"Restored v{version.VersionNumber} as new version {result.NewVersionId} (v{result.NewVersionNumber}).";
+            _previewVersionId = null;
+            _preview = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            _errorMessage = $"Restore failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task<bool> ConfirmAsync(string message)
+    {
+        try
+        {
+            return await JS.InvokeAsync<bool>("confirm", message);
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        {
+            // No JS runtime (prerender / bUnit): fail safe by not restoring.
+            return false;
+        }
+    }
+}

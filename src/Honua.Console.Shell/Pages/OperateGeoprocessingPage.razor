@@ -1,0 +1,437 @@
+@page "/operate/geoprocessing"
+@page "/operate/geoprocessing/{SelectedJobRunId}"
+@implements IDisposable
+@inject IConsoleOperateObservabilityClient OperateClient
+
+<section class="console-page console-operate-page">
+    <div class="console-page-heading operate-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Geoprocessing Jobs</h1>
+        <p>
+            Live durable geoprocessing jobs from the connected honua-server: state, current phase,
+            progress, who requested each run, and per-job logs/artifacts. Bound to the admin jobs
+            contract filtered to the <span class="console-mono">Geoprocessing</span> kind; the surface
+            polls the server (no realtime stream is exposed) and stops once the open job is terminal.
+        </p>
+    </div>
+
+    @if (!HasSelectedJobRoute)
+    {
+        <section class="operate-section" aria-labelledby="gp-jobs-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Geoprocessing</p>
+                    <h2 id="gp-jobs-heading">Job board</h2>
+                </div>
+                <div class="operate-action-row" role="group" aria-label="Filter by state">
+                    @foreach (var option in StateFilters)
+                    {
+                        <button type="button"
+                            class="console-button @(string.Equals(_stateFilter, option.Value, StringComparison.Ordinal) ? "" : "console-button-secondary")"
+                            @onclick="() => SetStateFilter(option.Value)">
+                            @option.Label
+                            @if (option.Value.Length > 0)
+                            {
+                                <span class="console-chip-row"><span>@CountForState(option.Value)</span></span>
+                            }
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (!_listLoaded || _jobs is null)
+            {
+                <OperateSectionStatusPanel Heading="Geoprocessing jobs" Loading="true" />
+            }
+            else if (!_jobs.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Geoprocessing jobs" Status="_jobs.Status" Message="@_jobs.Message" />
+            }
+            else if (AllJobs.Count == 0)
+            {
+                <OperateSectionStatusPanel Heading="Geoprocessing jobs" Empty="true"
+                    EmptyTitle="No geoprocessing jobs"
+                    EmptyMessage="The connected server reported no Geoprocessing jobs." />
+            }
+            else if (FilteredJobs.Count == 0)
+            {
+                <OperateSectionStatusPanel Heading="Geoprocessing jobs" Empty="true"
+                    EmptyTitle="No matching jobs"
+                    EmptyMessage="No Geoprocessing jobs match the selected state filter." />
+            }
+            else
+            {
+                @if (_jobs.PartialResult && !string.IsNullOrWhiteSpace(_jobs.Message))
+                {
+                    <p class="console-usage-callout console-state-warning" role="status">@_jobs.Message</p>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_actionMessage))
+                {
+                    <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
+                }
+
+                <div class="console-panel operate-table-panel">
+                    <div class="operate-table-scroll">
+                        <table class="operate-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Job</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Phase</th>
+                                    <th scope="col">Progress</th>
+                                    <th scope="col">Requested by</th>
+                                    <th scope="col">Created</th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var job in FilteredJobs)
+                                {
+                                    <tr>
+                                        <td><a href="@OperateObservabilityRoutes.GeoprocessingJobDetail(job.JobRunId)">@job.JobRunId</a></td>
+                                        <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(job.Status.Description) ? "—" : job.Status.Description)</td>
+                                        <td>
+                                            <div class="operate-progress" aria-label="@($"{job.ProgressPercent} percent complete")">
+                                                <span style="@($"width: {job.ProgressPercent}%")"></span>
+                                            </div>
+                                        </td>
+                                        <td>@job.SubmittedBy</td>
+                                        <td>@job.SubmittedAt</td>
+                                        <td>
+                                            <div class="operate-action-row">
+                                                @if (job.CanCancel)
+                                                {
+                                                    <button type="button"
+                                                        class="console-button console-button-secondary"
+                                                        disabled="@_actionBusy"
+                                                        @onclick="() => CancelJobAsync(job.JobRunId)">
+                                                        Cancel
+                                                    </button>
+                                                }
+                                                @if (job.CanRetry)
+                                                {
+                                                    <button type="button"
+                                                        class="console-button console-button-secondary"
+                                                        disabled="@_actionBusy"
+                                                        @onclick="() => RetryJobAsync(job.JobRunId)">
+                                                        Retry
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <div class="operate-release-detail-head">
+            <p class="console-kicker">
+                <a class="console-link" href="@OperateObservabilityRoutes.Geoprocessing">Geoprocessing jobs</a>
+                <span class="operate-crumb-sep">/</span>
+            </p>
+            <div class="operate-release-title-row">
+                <h2>Job @SelectedJobRunId?.Trim()</h2>
+                <a class="console-link" href="@OperateObservabilityRoutes.Geoprocessing">Back to jobs</a>
+            </div>
+        </div>
+
+        @if (!_detailLoaded || _detail is null)
+        {
+            <OperateSectionStatusPanel Heading="Job detail" Loading="true" />
+        }
+        else if (!_detail.IsAllowed || _detail.Value is null)
+        {
+            <OperateSectionStatusPanel Heading="Job detail" Status="_detail.Status" Message="@_detail.Message" />
+        }
+        else
+        {
+            var job = _detail.Value;
+            @if (job.CanCancel || job.CanRetry || !string.IsNullOrWhiteSpace(_actionMessage))
+            {
+                <section class="operate-section" aria-label="Job controls">
+                    <div class="operate-action-row">
+                        @if (job.CanCancel)
+                        {
+                            <button type="button"
+                                class="console-button"
+                                disabled="@_actionBusy"
+                                @onclick="() => CancelJobAsync(job.JobRunId)">
+                                Cancel job
+                            </button>
+                        }
+                        @if (job.CanRetry)
+                        {
+                            <button type="button"
+                                class="console-button"
+                                disabled="@_actionBusy"
+                                @onclick="() => RetryJobAsync(job.JobRunId)">
+                                Retry job
+                            </button>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_actionMessage))
+                    {
+                        <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
+                    }
+                    <p class="console-state-danger">
+                        Governed action &middot; routed through the server's Execute + destructive-approval gate;
+                        the console never bypasses it.
+                    </p>
+                </section>
+            }
+
+            <div class="operate-detail-grid">
+                <JobDetailPanel Job="job" />
+            </div>
+
+            @if (!_stepsLoaded || _steps is null)
+            {
+                <OperateSectionStatusPanel Heading="Steps" Loading="true" />
+            }
+            else if (!_steps.IsAllowed || _steps.Value is null)
+            {
+                <OperateSectionStatusPanel Heading="Steps" Status="_steps.Status" Message="@_steps.Message" />
+            }
+            else
+            {
+                <JobStepsPanel View="_steps.Value" />
+            }
+        }
+    }
+</section>
+
+@code {
+    // Poll cadence for the live list/detail. No realtime stream is exposed by the
+    // server (admin job reads are no-store poll-only), so the surface re-reads on a
+    // short interval and stops once the open job is terminal.
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(4);
+
+    private static readonly (string Value, string Label)[] StateFilters =
+    [
+        ("", "All"),
+        (OperateJobStatuses.Running, "Running"),
+        (OperateJobStatuses.Queued, "Queued"),
+        (OperateJobStatuses.Succeeded, "Succeeded"),
+        (OperateJobStatuses.Failed, "Failed"),
+        (OperateJobStatuses.Cancelled, "Cancelled"),
+    ];
+
+    [Parameter]
+    public string? SelectedJobRunId { get; set; }
+
+    private bool _listLoaded;
+    private bool _detailLoaded;
+    private bool _stepsLoaded;
+    private OperateSectionResult<IReadOnlyList<OperateJobRun>>? _jobs;
+    private OperateSectionResult<OperateJobRun>? _detail;
+    private OperateSectionResult<OperateJobStepsView>? _steps;
+    private string? _loadedDetailFor;
+    private string _stateFilter = string.Empty;
+
+    // Tracks whether the current render is the list or detail surface so a return
+    // to the board triggers an immediate reload (the poll loop alone leaves the
+    // pre-navigation list visible for up to one interval).
+    private bool _wasDetailRoute;
+
+    // Live cancel/retry action state. The server gate is the authority; the page
+    // only invokes the action and surfaces the result (incl. "approval required").
+    private bool _actionBusy;
+    private string? _actionMessage;
+    private string _actionMessageClass = string.Empty;
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _pollCts;
+
+    private bool HasSelectedJobRoute => !string.IsNullOrWhiteSpace(SelectedJobRunId);
+
+    private IReadOnlyList<OperateJobRun> AllJobs => _jobs?.Value ?? [];
+
+    private IReadOnlyList<OperateJobRun> FilteredJobs =>
+        string.IsNullOrEmpty(_stateFilter)
+            ? AllJobs
+            : AllJobs.Where(job => StatusMatches(job, _stateFilter)).ToArray();
+
+    private int CountForState(string state) => AllJobs.Count(job => StatusMatches(job, state));
+
+    private static bool StatusMatches(OperateJobRun job, string state) =>
+        string.Equals(job.Status.State, state, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (HasSelectedJobRoute)
+        {
+            var jobId = SelectedJobRunId!.Trim();
+            if (!string.Equals(_loadedDetailFor, jobId, StringComparison.Ordinal) || _detail is null)
+            {
+                _loadedDetailFor = jobId;
+                _detailLoaded = false;
+                _stepsLoaded = false;
+                _actionMessage = null;
+                _detail = await OperateClient.GetJobDetailAsync(jobId);
+                _detailLoaded = true;
+
+                // Per-step glass-box is a separate endpoint; fetch it lazily once
+                // the detail opens rather than fanning it out from the list.
+                _steps = await OperateClient.GetJobStepsAsync(jobId);
+                _stepsLoaded = true;
+            }
+
+            _wasDetailRoute = true;
+        }
+        else
+        {
+            // Returning to the board (or first load): reload immediately so the
+            // list reflects any change made while the detail was open, rather than
+            // showing pre-navigation data until the next poll tick.
+            if (!_listLoaded || _wasDetailRoute)
+            {
+                _actionMessage = null;
+                _jobs = await OperateClient.GetGeoprocessingJobsAsync();
+                _listLoaded = true;
+            }
+
+            _wasDetailRoute = false;
+        }
+
+        StartPolling();
+    }
+
+    private Task CancelJobAsync(string jobRunId) =>
+        RunJobActionAsync(jobRunId, OperateClient.CancelJobAsync, "Cancel requested.");
+
+    private Task RetryJobAsync(string jobRunId) =>
+        RunJobActionAsync(jobRunId, OperateClient.RetryJobAsync, "Retry requested.");
+
+    private async Task RunJobActionAsync(
+        string jobRunId,
+        Func<string, CancellationToken, Task<OperateSectionResult<OperateJobControlOutcome>>> action,
+        string successFallback)
+    {
+        if (_actionBusy)
+        {
+            return;
+        }
+
+        _actionBusy = true;
+        _actionMessage = null;
+        try
+        {
+            var result = await action(jobRunId, CancellationToken.None);
+            if (result.IsAllowed && result.Value is not null)
+            {
+                _actionMessage = string.IsNullOrWhiteSpace(result.Value.Message)
+                    ? successFallback
+                    : result.Value.Message;
+                _actionMessageClass = "console-state-success";
+
+                // Reflect the transition: refresh the open detail (if any) and the
+                // board so the new status/eligibility shows immediately.
+                if (HasSelectedJobRoute && string.Equals(_loadedDetailFor, jobRunId.Trim(), StringComparison.Ordinal))
+                {
+                    _detail = await OperateClient.GetJobDetailAsync(jobRunId);
+                }
+                else
+                {
+                    _jobs = await OperateClient.GetGeoprocessingJobsAsync();
+                }
+
+                StartPolling();
+            }
+            else
+            {
+                _actionMessage = string.IsNullOrWhiteSpace(result.Message)
+                    ? OperateSectionPresentation.FallbackMessage(result.Status)
+                    : result.Message;
+                _actionMessageClass = "console-state-danger";
+            }
+        }
+        finally
+        {
+            _actionBusy = false;
+        }
+    }
+
+    private void SetStateFilter(string state) => _stateFilter = state;
+
+    private void StartPolling()
+    {
+        StopPolling();
+
+        // Detail mode: stop once the open job is terminal (nothing further changes).
+        if (HasSelectedJobRoute && _detail is { IsAllowed: true, Value: { } job } && OperateJobStatuses.IsTerminal(job.Status.State))
+        {
+            return;
+        }
+
+        _pollCts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(PollInterval);
+        _ = PollLoopAsync(_timer, _pollCts.Token);
+    }
+
+    private async Task PollLoopAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (HasSelectedJobRoute)
+                {
+                    if (string.IsNullOrWhiteSpace(_loadedDetailFor))
+                    {
+                        break;
+                    }
+
+                    var detail = await OperateClient.GetJobDetailAsync(_loadedDetailFor, cancellationToken);
+                    // Refresh the per-step glass-box alongside the detail so a running
+                    // job's newly emitted steps appear on the same poll cadence.
+                    var steps = await OperateClient.GetJobStepsAsync(_loadedDetailFor, cancellationToken);
+                    await InvokeAsync(() =>
+                    {
+                        _detail = detail;
+                        _steps = steps;
+                        _stepsLoaded = true;
+                        StateHasChanged();
+                    });
+
+                    // Terminal jobs no longer change; stop polling.
+                    if (detail is { IsAllowed: true, Value: { } job } && OperateJobStatuses.IsTerminal(job.Status.State))
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    var jobs = await OperateClient.GetGeoprocessingJobsAsync(cancellationToken);
+                    await InvokeAsync(() =>
+                    {
+                        _jobs = jobs;
+                        StateHasChanged();
+                    });
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Component disposed or navigated away; expected.
+        }
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    public void Dispose() => StopPolling();
+}

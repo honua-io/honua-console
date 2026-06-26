@@ -12,6 +12,45 @@ public static class OperateObservabilityRoutes
     public static string AlertDetail(string alertId) => $"/operate/alerts/{Uri.EscapeDataString(alertId)}";
 
     public static string JobDetail(string jobRunId) => $"/operate/jobs/{Uri.EscapeDataString(jobRunId)}";
+
+    public const string Geoprocessing = "/operate/geoprocessing";
+
+    public static string GeoprocessingJobDetail(string jobRunId) =>
+        $"/operate/geoprocessing/{Uri.EscapeDataString(jobRunId)}";
+}
+
+/// <summary>
+/// The execution job kind wire values used as the <c>kind</c> filter on the
+/// admin jobs endpoint. The server parses this against its <c>ExecutionJobKind</c>
+/// enum (case-insensitive member name), so the value is the enum member name.
+/// </summary>
+public static class OperateJobKinds
+{
+    public const string Geoprocessing = "Geoprocessing";
+}
+
+/// <summary>
+/// Helpers over the Operate job status vocabulary. The status state is the
+/// server's <c>ExecutionJobStatus</c> name (Queued/Provisioning/Running/Succeeded/
+/// Failed/Cancelled), surfaced verbatim on <see cref="OperateStatus.State"/>.
+/// </summary>
+public static class OperateJobStatuses
+{
+    public const string Queued = "Queued";
+    public const string Provisioning = "Provisioning";
+    public const string Running = "Running";
+    public const string Succeeded = "Succeeded";
+    public const string Failed = "Failed";
+    public const string Cancelled = "Cancelled";
+
+    /// <summary>
+    /// A job in a terminal state no longer changes, so polling can stop once the
+    /// open job reaches Succeeded/Failed/Cancelled.
+    /// </summary>
+    public static bool IsTerminal(string? state) =>
+        string.Equals(state, Succeeded, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(state, Failed, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(state, Cancelled, StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed record OperateObservabilitySnapshot(
@@ -284,6 +323,50 @@ public sealed record OperateJobMetric(
     string Value,
     OperateStatus Status);
 
+/// <summary>
+/// One sanitized step of a job's per-step glass-box (honua-server #2182):
+/// its ordinal, phase, status, timeline, the sanitized provider command
+/// (already <c>&lt;scratch&gt;</c>/<c>&lt;path&gt;</c>-redacted server-side),
+/// produced artifacts, and metadata. <see cref="Command"/> is rendered verbatim;
+/// the Console must not re-sanitize it.
+/// </summary>
+public sealed record OperateJobStep(
+    int Ordinal,
+    string Phase,
+    OperateStatus Status,
+    string Timing,
+    string Duration,
+    string Message,
+    string Command,
+    IReadOnlyList<OperateJobStepArtifact> Artifacts,
+    IReadOnlyList<OperateJobStepMetadata> Metadata)
+{
+    public bool HasCommand => !string.IsNullOrWhiteSpace(Command);
+}
+
+public sealed record OperateJobStepArtifact(
+    string Label,
+    string Kind,
+    string Size);
+
+public sealed record OperateJobStepMetadata(
+    string Key,
+    string Value);
+
+/// <summary>
+/// The per-step glass-box view for a single job, surfaced through the shared
+/// <see cref="OperateSectionResult{T}"/> envelope so the panel degrades through
+/// the standard loading/forbidden/unavailable surfaces.
+/// </summary>
+public sealed record OperateJobStepsView(
+    string JobRunId,
+    string CorrelationId,
+    OperateStatus State,
+    IReadOnlyList<OperateJobStep> Steps)
+{
+    public static OperateJobStepsView Empty { get; } = new(string.Empty, string.Empty, new OperateStatus("unknown", string.Empty), []);
+}
+
 public sealed record OperateJobAction(
     string Label,
     bool IsAllowed,
@@ -322,7 +405,34 @@ public sealed record OperateJobRun(
     public bool LogsAllowed => LogsStatus == OperateSectionStatus.Allowed;
 
     public bool ArtifactsAllowed => ArtifactsStatus == OperateSectionStatus.Allowed;
+
+    /// <summary>
+    /// Cancel is offered while the job is non-terminal. The server's Execute +
+    /// destructive-approval gate is the real authority and 403s a denied cancel;
+    /// this only decides whether to surface the affordance.
+    /// </summary>
+    public bool CanCancel => !OperateJobStatuses.IsTerminal(Status.State);
+
+    /// <summary>
+    /// Retry is offered only for Failed/Cancelled jobs, matching the server's
+    /// retry contract (other states return 409 Conflict).
+    /// </summary>
+    public bool CanRetry =>
+        string.Equals(Status.State, OperateJobStatuses.Failed, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Status.State, OperateJobStatuses.Cancelled, StringComparison.OrdinalIgnoreCase);
 }
+
+/// <summary>
+/// Outcome of a durable-job control action (cancel/retry) projected from the
+/// server's control response. <see cref="Status"/> is the job's resulting state
+/// so the surface can refresh and reflect the transition.
+/// </summary>
+public sealed record OperateJobControlOutcome(
+    string JobRunId,
+    string Action,
+    string Status,
+    string Message,
+    string CorrelationId);
 
 public static class OperateActionPresentation
 {

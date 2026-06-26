@@ -225,6 +225,9 @@ public sealed class StudioFormBuilderValidationRenderTests
             StudioFormEditorState currentState, StudioFormGenerationRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioFormGenerationOutcome { Status = StudioFormGenerationStatuses.Unsupported });
 
+        public Task<StudioFormImportOutcome> ImportXlsFormAsync(StudioFormImportRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(StudioFormImportOutcome.Failed(StudioFormImportStatuses.Unsupported, "Not exercised by this fake."));
+
         /// <summary>Stable list-button label so tests can open the editor regardless of the editor's title.</summary>
         public const string OpenLabel = "Open form";
 

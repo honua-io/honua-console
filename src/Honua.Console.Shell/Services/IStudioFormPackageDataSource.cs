@@ -64,4 +64,17 @@ public interface IStudioFormPackageDataSource
         StudioFormEditorState currentState,
         StudioFormGenerationRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Converts an uploaded XLSForm (ODK Collect) workbook into a fresh, unsaved form-builder draft by
+    /// running the server-side Collect import path (Honua.Collect.Core XlsFormImporter). The console never
+    /// reimplements the importer: it ships the workbook bytes to the admin import endpoint and maps the
+    /// server-produced package document into editor state, surfacing the importer's diagnostics (unsupported
+    /// question types, dropped constructs) rather than dropping them. Returns an unsupported/rejected status
+    /// when the server lacks the import contract or rejects the workbook, or a binding state when unbound —
+    /// never a fabricated form.
+    /// </summary>
+    Task<StudioFormImportOutcome> ImportXlsFormAsync(
+        StudioFormImportRequest request,
+        CancellationToken cancellationToken = default);
 }

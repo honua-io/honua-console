@@ -32,11 +32,68 @@ public interface IConsoleOperateObservabilityClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads the durable job list filtered to a single execution job kind
+    /// (<c>GET /api/v1/admin/jobs?kind=…</c>), so a kind-scoped dashboard (e.g.
+    /// the Geoprocessing jobs surface) does not pull the whole fleet job page and
+    /// filter client-side. <paramref name="kind"/> is the wire enum name the
+    /// server's <c>kind</c> query parser accepts (e.g. <c>Geoprocessing</c>);
+    /// a null/blank value loads the unfiltered list like
+    /// <see cref="GetJobsAsync(CancellationToken)"/>.
+    /// </summary>
+    Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(
+        string? kind,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Convenience over <see cref="GetJobsAsync(string?, CancellationToken)"/>
+    /// scoped to the <c>Geoprocessing</c> execution job kind, backing the
+    /// Operate &gt; Geoprocessing jobs dashboard.
+    /// </summary>
+    Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Loads a single job's stages, logs, artifacts, and server-declared
     /// actions on demand (the list endpoint omits these), so the jobs viewer
     /// does not fan out a detail/log/artifact request per row up front.
     /// </summary>
     Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancels a non-terminal durable job through the gated control endpoint
+    /// (<c>POST /api/v1/admin/jobs/{id}/cancel</c>). The server enforces the
+    /// Execute + destructive-approval gate; a denied cancel surfaces here as a
+    /// <see cref="OperateSectionStatus.Forbidden"/> result (carrying the server's
+    /// "approval required" message when the gate asks for approval), and a job
+    /// that is no longer cancellable surfaces as a conflict
+    /// (<see cref="OperateSectionStatus.Unavailable"/>). The console never
+    /// bypasses the gate; it only invokes the action and surfaces the result.
+    /// </summary>
+    Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Requeues a Failed or Cancelled durable job through the gated control
+    /// endpoint (<c>POST /api/v1/admin/jobs/{id}/retry</c>). Same gate/result
+    /// surfacing as <see cref="CancelJobAsync"/>; the server returns 409 (mapped
+    /// to a conflict result) when the job is not in a retryable state.
+    /// </summary>
+    Task<OperateSectionResult<OperateJobControlOutcome>> RetryJobAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a single job's sanitized per-step glass-box
+    /// (<c>GET /api/v1/admin/jobs/{id}/steps</c>, honua-server #2182): the ordered
+    /// steps with phase, status, timeline/duration, the server-sanitized provider
+    /// command, the per-step artifacts, and metadata. Loaded lazily by the job
+    /// detail surface (the detail endpoint omits per-step depth). The command is
+    /// already sanitized server-side; the Console renders it verbatim.
+    /// </summary>
+    Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(
         string jobRunId,
         CancellationToken cancellationToken = default);
 

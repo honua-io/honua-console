@@ -1,0 +1,81 @@
+@using Honua.Console.Shell.Models
+
+@* Per-step glass-box (honua-server #2182): an ordered list of the job's
+   sanitized steps showing phase, status, timeline/duration, the server-sanitized
+   provider command (verbatim — never re-sanitized client-side), the per-step
+   artifacts, and the message. *@
+<section class="console-panel operate-evidence-section operate-job-steps" aria-labelledby="job-steps-heading">
+    <p class="console-kicker">Glass-box</p>
+    <h3 id="job-steps-heading">Steps</h3>
+    <p class="console-muted">
+        Sanitized per-step trace from the connected honua-server: phase, timing, the provider command,
+        and produced artifacts. Commands are redacted server-side.
+    </p>
+
+    @if (Steps.Count == 0)
+    {
+        <div class="operate-subresource-status">
+            <span class="console-status @View.State.CssClass">@View.State.Label</span>
+            <p class="console-muted">No per-step glass-box entries were reported for this job yet.</p>
+        </div>
+    }
+    else
+    {
+        <ol class="operate-step-list">
+            @foreach (var step in Steps)
+            {
+                <li class="operate-step">
+                    <div class="operate-step-head">
+                        <span class="operate-step-ordinal">@step.Ordinal</span>
+                        <span class="console-status @step.Status.CssClass">@step.Status.Label</span>
+                        <strong>@step.Phase</strong>
+                        <span class="console-muted operate-step-timing">@step.Timing</span>
+                        <span class="console-muted operate-step-duration">@step.Duration</span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(step.Message))
+                    {
+                        <p class="operate-step-message">@step.Message</p>
+                    }
+
+                    @if (step.HasCommand)
+                    {
+                        <pre class="console-mono operate-step-command">@step.Command</pre>
+                    }
+
+                    @if (step.Artifacts.Count > 0)
+                    {
+                        <ul class="operate-step-artifacts">
+                            @foreach (var artifact in step.Artifacts)
+                            {
+                                <li>
+                                    <strong>@artifact.Label</strong>
+                                    <span class="console-muted">@artifact.Kind</span>
+                                    <span class="console-muted">@artifact.Size</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+
+                    @if (step.Metadata.Count > 0)
+                    {
+                        <dl class="console-definition-list operate-step-metadata">
+                            @foreach (var entry in step.Metadata)
+                            {
+                                <dt>@entry.Key</dt>
+                                <dd>@entry.Value</dd>
+                            }
+                        </dl>
+                    }
+                </li>
+            }
+        </ol>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public required OperateJobStepsView View { get; set; }
+
+    private IReadOnlyList<OperateJobStep> Steps => View.Steps;
+}
