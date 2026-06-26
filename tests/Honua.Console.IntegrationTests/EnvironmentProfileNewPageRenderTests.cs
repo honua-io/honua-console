@@ -78,17 +78,80 @@ public sealed class EnvironmentProfileNewPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public void BrowserHost_RendersConnectForm_NoDeadEnd_AndHidesNativeOnlyFields()
+    {
+        var page = Render(new BrowserConsoleHostCapabilities());
+
+        // The web-host first-run path is no longer a "runs on the desktop host" dead-end: the connect form
+        // renders with the core fields, and the action reads "Connect and continue".
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("input[placeholder='Honua Production']")),
+            TimeSpan.FromSeconds(5));
+        Assert.DoesNotContain("runs on the desktop host", page.Markup, StringComparison.Ordinal);
+        Assert.NotNull(page.Find("input[placeholder='https://prod.honua.example']"));
+
+        // Native gRPC / mTLS / certificate selection are desktop-host only and must not render on the browser.
+        Assert.Empty(page.FindAll("#native-mtls"));
+        Assert.Empty(page.FindAll("#native-grpc"));
+        Assert.Contains("Connect and continue", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BrowserHost_ValidConnect_CreatesActivatesProfile_AndRoutesToSignIn()
+    {
+        var store = new InMemoryConsoleEnvironmentProfileStore([]);
+        var ctx = CreateContext(new BrowserConsoleHostCapabilities(), store);
+        // A successful create marks the form clean before redirecting; the guard's confirm() should not block
+        // the redirect. Allow it to proceed defensively so the assertion targets routing, not guard timing.
+        ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
+        var page = ctx.Render<EnvironmentProfileNewPage>();
+        var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("input[placeholder='Honua Production']")),
+            TimeSpan.FromSeconds(5));
+
+        page.Find("input[placeholder='Honua Production']").Change("Acme Server");
+        page.Find("input[placeholder='https://prod.honua.example']").Change("https://gis.acme.example");
+
+        var connect = page.FindAll("button").First(b => b.TextContent.Contains("Connect and continue", StringComparison.Ordinal));
+        page.WaitForAssertion(() => Assert.False(connect.HasAttribute("disabled")), TimeSpan.FromSeconds(5));
+        connect.Click();
+
+        // A browser-created profile is HTTP-only (no native gRPC / mTLS), is activated, and the user is sent
+        // straight to sign-in so the first run is not a dead-end.
+        page.WaitForAssertion(
+            () => Assert.EndsWith("/auth/signin", nav.Uri, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        var active = await store.GetActiveProfileAsync();
+        Assert.NotNull(active);
+        Assert.Equal("https://gis.acme.example/", active!.ServerBaseUri.ToString());
+        Assert.False(active.TransportCapabilities.NativeGrpc);
+        Assert.False(active.TransportCapabilities.NativeMtls);
+        Assert.False(active.ClientCertificate.Enabled);
+    }
+
     private static AngleSharp.Dom.IElement FindCreateButton(IRenderedComponent<EnvironmentProfileNewPage> page) =>
         page.FindAll("button").First(b => b.TextContent.Contains("Create environment", StringComparison.Ordinal));
 
-    private static IRenderedComponent<EnvironmentProfileNewPage> Render()
+    private static IRenderedComponent<EnvironmentProfileNewPage> Render() =>
+        Render(new NativeConsoleHostCapabilities());
+
+    private static IRenderedComponent<EnvironmentProfileNewPage> Render(IConsoleHostCapabilities host) =>
+        CreateContext(host, new InMemoryConsoleEnvironmentProfileStore([])).Render<EnvironmentProfileNewPage>();
+
+    private static Bunit.BunitContext CreateContext(
+        IConsoleHostCapabilities host,
+        IConsoleEnvironmentProfileStore store)
     {
         var ctx = new Bunit.BunitContext();
         // The page hosts an <UnsavedChangesGuard/> (Wave 5); run Loose JSInterop so its JS module import /
         // confirm() calls no-op in render tests.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([]));
-        ctx.Services.AddSingleton<IConsoleHostCapabilities>(new NativeConsoleHostCapabilities());
-        return ctx.Render<EnvironmentProfileNewPage>();
+        ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(store);
+        ctx.Services.AddSingleton<IConsoleHostCapabilities>(host);
+        return ctx;
     }
 }
