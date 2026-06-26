@@ -1,11 +1,91 @@
 @page "/"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @inject IConsoleEnvironmentProfileStore Profiles
+@inject IConsoleApprovalInboxClient Inbox
+
+@* CONSOLE HOME — the information + approval landing (#193). The console's job is to
+   witness and authorize the work agents and APIs propose, so the landing leads with the
+   approval inbox (pending agent-proposed operations the operator can act on) rather than a
+   dead grid of links. The inbox band binds to live server data through the aggregator and
+   renders an honest missing-binding / empty state when no work — never seeded data. The
+   four area work surfaces follow as the entry points into the department's tools. *@
 
 <section class="console-page">
     <div class="console-page-heading">
-        <p class="console-kicker">Shared Console shell</p>
+        <p class="console-kicker">Information + approval surface</p>
         <h1>Honua Console</h1>
-        <p>Studio, Catalog, Operate, and Share run in one route surface while preserving builder and operator workflow boundaries.</p>
+        <p>
+            Agents and APIs do the writing. The console is where you witness service status,
+            review agent-proposed plans, and authorize the outcome. Studio, Catalog, Operate,
+            and Share run in one route surface while preserving builder and operator boundaries.
+        </p>
+    </div>
+
+    <div class="console-home-band">
+        @* ── Pending approvals (the work queue at a glance) ──────────────────── *@
+        <section class="console-panel console-home-inbox" aria-labelledby="home-inbox-heading">
+            <div>
+                <p class="console-kicker">Human-in-the-loop</p>
+                <h2 id="home-inbox-heading">Approval inbox</h2>
+            </div>
+            @if (!_inboxLoaded)
+            {
+                <p class="console-muted">Reading the work queue…</p>
+            }
+            else if (!_inbox.IsAllowed)
+            {
+                <p class="console-muted">
+                    @(string.IsNullOrWhiteSpace(_inbox.Message)
+                        ? OperateSectionPresentation.FallbackMessage(_inbox.Status)
+                        : _inbox.Message)
+                </p>
+            }
+            else
+            {
+                var snapshot = _inbox.Value ?? ApprovalInboxSnapshot.Empty;
+                <div class="console-home-inbox-metrics" role="status" aria-live="polite">
+                    <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
+                          data-home-awaiting-count>
+                        <strong>@snapshot.AwaitingApprovalCount</strong>
+                        <span class="console-muted">awaiting approval</span>
+                    </span>
+                    <span class="approval-inbox-metric" data-home-total-count>
+                        <strong>@snapshot.TotalCount</strong>
+                        <span class="console-muted">in the queue</span>
+                    </span>
+                </div>
+                <p class="console-muted">
+                    @if (snapshot.AwaitingApprovalCount > 0)
+                    {
+                        <text>Agent-proposed operations are waiting for your decision.</text>
+                    }
+                    else
+                    {
+                        <text>No agent-proposed operations are awaiting a decision right now.</text>
+                    }
+                </p>
+            }
+            <a class="console-button-link console-home-inbox-cta" href="/inbox" data-open-inbox>Open inbox</a>
+        </section>
+
+        @* ── Recent activity (operation timeline) ────────────────────────────── *@
+        <section class="console-panel console-home-inbox" aria-labelledby="home-activity-heading">
+            <div>
+                <p class="console-kicker">Information</p>
+                <h2 id="home-activity-heading">Recent activity</h2>
+            </div>
+            <p class="console-muted">
+                The agent-operation timeline — what agents proposed and did, with status from
+                the deploy-control lifecycle — surfaces on the Operate observability surface and
+                the release timeline. A consolidated cross-source activity feed is tracked for
+                #193.
+            </p>
+            <a class="console-button-link console-home-inbox-cta" href="/operate/observability" data-open-activity>
+                View observability
+            </a>
+        </section>
     </div>
 
     <div class="console-panel-grid console-panel-grid-wide">
@@ -33,8 +113,23 @@
 @code {
     private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
 
+    private bool _inboxLoaded;
+    private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
+        OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
+
     protected override async Task OnInitializedAsync()
     {
         _profiles = await Profiles.ListProfilesAsync();
+
+        try
+        {
+            // The landing only knows release-derived ids (it tracks none of its own); the
+            // inbox page is where operators pin operations by id.
+            _inbox = await Inbox.GetInboxAsync([]);
+        }
+        finally
+        {
+            _inboxLoaded = true;
+        }
     }
 }

@@ -1,0 +1,253 @@
+@page "/inbox"
+@page "/approvals"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleApprovalInboxClient Inbox
+
+@* APPROVAL INBOX (#193) — the GIS department's work queue as one human-in-the-loop
+   surface. The console's job is not form-work: it WITNESSES and AUTHORIZES the operations
+   agents and APIs propose. This page aggregates the pending/active agent-proposed
+   operations Console can act on (deploy-control operations derived from the GitOps release
+   operations in view, plus any operator-tracked ids), classifies each onto a GIS-desk
+   ticket type, and lets an operator review the plan / diff / rollback and approve, reject,
+   or roll back — all through the server's governed endpoints (the OperatorApprovalGate
+   stays the only real gate; this surface never bypasses it).
+
+   Server-owned data only (Console Patterns Charter section 11): a missing / unsupported /
+   forbidden / unavailable read renders the shared status surface, never seeded data. The
+   server exposes no list-all endpoint, so an operator can track a paused operation by its
+   durable id to bind it into the queue. *@
+
+<section class="console-page console-operate-page approval-inbox-page">
+    <div class="console-page-heading operate-heading">
+        <p class="console-kicker">Human-in-the-loop</p>
+        <h1>Approval inbox</h1>
+        <p>
+            The work queue for agent-proposed operations. Agents and APIs do the writing;
+            you review the plan, diff, and rollback readiness here and authorize the outcome.
+            Approve, reject, or roll back through the server's governed deploy-control endpoints.
+        </p>
+    </div>
+
+    @if (!_loaded)
+    {
+        <OperateSectionStatusPanel Heading="Approval inbox" Loading="true" />
+    }
+    else if (!_result.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Approval inbox" Status="_result.Status" Message="@_result.Message" />
+    }
+    else
+    {
+        var snapshot = _result.Value ?? ApprovalInboxSnapshot.Empty;
+
+        <div class="approval-inbox-summary" role="status" aria-live="polite">
+            <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
+                  data-awaiting-count>
+                <strong>@snapshot.AwaitingApprovalCount</strong>
+                <span class="console-muted">awaiting approval</span>
+            </span>
+            <span class="approval-inbox-metric" data-total-count>
+                <strong>@snapshot.TotalCount</strong>
+                <span class="console-muted">in the queue</span>
+            </span>
+        </div>
+
+        @if (_result.PartialResult && !string.IsNullOrWhiteSpace(_result.Message))
+        {
+            <p class="console-muted approval-inbox-partial" role="note">@_result.Message</p>
+        }
+
+        @if (snapshot.TotalCount > 0)
+        {
+            <div class="approval-inbox-filters" role="group" aria-label="Filter the queue by ticket type">
+                <button type="button"
+                        class="console-chip @(_filter is null ? "is-selected" : null)"
+                        aria-pressed="@(_filter is null ? "true" : "false")"
+                        data-filter="all"
+                        @onclick="() => SetFilter(null)">
+                    All <span class="console-muted">@snapshot.TotalCount</span>
+                </button>
+                @foreach (var type in snapshot.PresentTicketTypes)
+                {
+                    var count = snapshot.ForTicketType(type).Count;
+                    <button type="button"
+                            class="console-chip @(_filter == type ? "is-selected" : null)"
+                            aria-pressed="@(_filter == type ? "true" : "false")"
+                            data-filter="@type"
+                            title="@ApprovalTicketPresentation.Description(type)"
+                            @onclick="() => SetFilter(type)">
+                        @ApprovalTicketPresentation.Label(type) <span class="console-muted">@count</span>
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="approval-inbox-layout">
+            <div class="approval-inbox-queue">
+                @if (VisibleItems.Count == 0)
+                {
+                    <OperateSectionStatusPanel Heading="Approval inbox" Empty="true"
+                        EmptyTitle="No work in the queue"
+                        EmptyMessage="No agent-proposed operations are awaiting a decision. Track a paused operation by its durable id, or wait for an agent to propose one." />
+                }
+                else
+                {
+                    <ul class="approval-inbox-list" aria-label="Pending agent-proposed operations">
+                        @foreach (var item in VisibleItems)
+                        {
+                            <li class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
+                                <button type="button"
+                                        class="approval-inbox-select"
+                                        aria-pressed="@(IsSelected(item) ? "true" : "false")"
+                                        data-operation-id="@item.OperationId"
+                                        @onclick="() => Select(item)">
+                                    <span class="approval-inbox-row-head">
+                                        <span class="console-chip approval-inbox-ticket" data-ticket-type="@item.TicketType">
+                                            @ApprovalTicketPresentation.Label(item.TicketType)
+                                        </span>
+                                        <span class="console-status @DeployOperationPresentation.StateClass(item.Proposal.Lifecycle)">
+                                            @DeployOperationPresentation.Label(item.Proposal.Lifecycle)
+                                        </span>
+                                    </span>
+                                    <span class="console-mono approval-inbox-row-id">@item.OperationId</span>
+                                    <span class="console-muted approval-inbox-row-sub">
+                                        <span class="console-mono">@item.Proposal.Service</span>
+                                        &rarr;
+                                        <span class="console-mono">@item.Proposal.Environment</span>
+                                        &middot; @item.Proposal.Action
+                                    </span>
+                                    @if (item.Proposal.BlockingReasons.Count > 0)
+                                    {
+                                        <span class="console-status console-state-danger approval-inbox-row-blocked">
+                                            @item.Proposal.BlockingReasons.Count blocker@(item.Proposal.BlockingReasons.Count == 1 ? "" : "s")
+                                        </span>
+                                    }
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <div class="approval-inbox-track">
+                    <label class="console-field">
+                        <span class="console-field-label">Track an operation by id</span>
+                        <input class="console-input" type="text" placeholder="e.g. deploy-op-2f8c"
+                               data-track-operation-id
+                               @bind="_trackOperationIdInput" />
+                    </label>
+                    <button class="console-button console-button-secondary" type="button"
+                            disabled="@(string.IsNullOrWhiteSpace(_trackOperationIdInput) || _busy)"
+                            data-track-operation
+                            @onclick="TrackOperationAsync">
+                        Track
+                    </button>
+                </div>
+            </div>
+
+            <div class="approval-inbox-detail" aria-live="polite">
+                @if (_selectedOperationId is { Length: > 0 } operationId)
+                {
+                    <OperateDeploymentApprovalPanel OperationId="@operationId"
+                        OnActioned="OnApprovalActioned" />
+                }
+                else
+                {
+                    <OperateSectionStatusPanel Heading="Review" Empty="true"
+                        EmptyTitle="Select a work item"
+                        EmptyMessage="Choose an operation from the queue to review its plan, diff, evidence, and rollback readiness before you authorize it." />
+                }
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    // The operator-tracked deploy-control operation ids (the server has no list endpoint),
+    // unioned with the ids derived from the release operations in view by the aggregator.
+    private readonly List<string> _trackedOperationIds = new();
+    private string _trackOperationIdInput = string.Empty;
+
+    private bool _loaded;
+    private bool _busy;
+    private OperateSectionResult<ApprovalInboxSnapshot> _result =
+        OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
+
+    private ApprovalTicketType? _filter;
+    private string? _selectedOperationId;
+
+    private IReadOnlyList<ApprovalInboxItem> VisibleItems
+    {
+        get
+        {
+            var snapshot = _result.Value ?? ApprovalInboxSnapshot.Empty;
+            return _filter is { } type ? snapshot.ForTicketType(type) : snapshot.Items;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _result = await Inbox.GetInboxAsync(_trackedOperationIds);
+
+            // Drop a stale selection / filter that no longer maps onto a queue item.
+            if (_selectedOperationId is { Length: > 0 } selected
+                && _result.Value?.Items.All(item => !string.Equals(item.OperationId, selected, StringComparison.Ordinal)) == true)
+            {
+                _selectedOperationId = null;
+            }
+
+            if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
+            {
+                _filter = null;
+            }
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private async Task TrackOperationAsync()
+    {
+        var id = _trackOperationIdInput.Trim();
+        if (id.Length == 0)
+        {
+            return;
+        }
+
+        if (!_trackedOperationIds.Contains(id, StringComparer.Ordinal))
+        {
+            _trackedOperationIds.Add(id);
+        }
+
+        _trackOperationIdInput = string.Empty;
+        _busy = true;
+        try
+        {
+            await RefreshAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void SetFilter(ApprovalTicketType? type) => _filter = type;
+
+    private bool IsSelected(ApprovalInboxItem item) =>
+        string.Equals(item.OperationId, _selectedOperationId, StringComparison.Ordinal);
+
+    private void Select(ApprovalInboxItem item) => _selectedOperationId = item.OperationId;
+
+    private async Task OnApprovalActioned(DeployOperationProposal proposal)
+    {
+        // After an approve / reject / rollback, refresh the queue so a now-terminal /
+        // submitted operation drops out of the pending set.
+        await RefreshAsync();
+    }
+}
