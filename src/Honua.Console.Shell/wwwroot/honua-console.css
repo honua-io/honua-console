@@ -8150,6 +8150,34 @@ p {
     color: var(--honua-muted);
 }
 
+/* Notebook (#159) target preview ------------------------------------------ */
+.esri-notebook-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.esri-notebook-preview__cell {
+    border: 1px solid var(--honua-border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+    background: var(--honua-surface-strong);
+    color: var(--honua-muted);
+}
+
+.esri-notebook-preview__cell--code {
+    font-family: var(--honua-font-mono, monospace);
+}
+
+.esri-notebook-preview__cell--md {
+    border-left: 3px solid var(--honua-accent, #0a7);
+}
+
 /* Wizard (#102) ----------------------------------------------------------- */
 .esri-wizard__context {
     flex-wrap: wrap;

@@ -1,0 +1,118 @@
+@page "/operate/import/esri/notebook"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@using Honua.Console.Shell.Validation
+@implements IDisposable
+
+@* #159 · Import ArcGIS Notebook (hosted arcpy) → notebook package (honua.notebook-package.v1).
+   Notebook .ipynb intake → cell / parameter / schedule inventory → source → target mapping with per-row
+   fidelity badges, target notebook-package preview, "Create notebook package →" CTA. The .ipynb parse is
+   deterministic Console-side work (Console Patterns Charter §11).
+
+   SCOPE BOUNDARY (#159): Console represents/imports the notebook DEFINITION only. Executing hosted arcpy
+   needs a server-side notebook/arcpy runtime, which is out of Console scope and tracked as a dependency, so
+   execution is explicitly gated behind a missing-binding state — Console never offers a "Run" action it
+   cannot honour, and never fabricates run output. *@
+
+<UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Notebook import. Leave this page and discard it?" />
+
+<section class="console-page esri-import" data-esri-import="notebook">
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">Operate <span class="console-crumb-sep">/</span> Import from Esri <span class="console-crumb-sep">/</span> Notebook</p>
+            <h1>Import ArcGIS Notebook</h1>
+            <p class="console-muted">
+                Convert an ArcGIS Notebook (hosted arcpy) <code>.ipynb</code> definition into a Honua notebook
+                package (<code>honua.notebook-package.v1</code>). Cells, parameters, and the schedule import;
+                execution stays gated to a server hosted-arcpy runtime.
+            </p>
+        </div>
+        <div class="console-button-row">
+            <a class="console-button-ghost" href="/operate/import/esri">Discard</a>
+            <button type="button" class="console-button" disabled="@(_result is null)">Create notebook package →</button>
+        </div>
+    </div>
+
+    <EsriImportIntake Noun="Notebook"
+                      Kind="EsriContentKind.Notebook"
+                      Result="_result"
+                      Parse="ParseNotebook"
+                      OnParsed="OnParsed"
+                      Dirty="_dirty"
+                      SampleJson="@EsriImportSampleDocuments.Notebook"
+                      SampleFileName="@EsriImportSampleDocuments.NotebookFileName" />
+
+    @if (_result is { } result)
+    {
+        <div class="esri-import__split">
+            <div class="esri-import__mapping">
+                <SourceTargetMappingTable Rows="result.Rows"
+                                          Heading="Cell → notebook-package mapping"
+                                          Subhead="ArcGIS Notebook cell / parameter / schedule → Honua notebook package element"
+                                          SourceHeader="Notebook element"
+                                          SourceTypeHeader="Kind"
+                                          TargetHeader="→ Honua element"
+                                          BoundHeader="Binding"
+                                          ShowBoundColumn="true"
+                                          CarryOver="result.CarryOver" />
+            </div>
+
+            <aside class="esri-import__preview" data-esri-target-preview>
+                <div class="esri-import__preview-head">
+                    <span class="console-kicker">Target notebook package</span>
+                    <strong><code>@result.TargetSchema</code></strong>
+                </div>
+                <div class="esri-notebook-preview" aria-label="Approximated notebook layout">
+                    <div class="esri-notebook-preview__cell esri-notebook-preview__cell--md">markdown</div>
+                    <div class="esri-notebook-preview__cell esri-notebook-preview__cell--code">code</div>
+                    <div class="esri-notebook-preview__cell esri-notebook-preview__cell--code">arcpy · gated</div>
+                </div>
+                <dl class="esri-import__facts">
+                    <dt>Name</dt>
+                    <dd><code>@result.SuggestedName</code></dd>
+                    <dt>Cells in</dt>
+                    <dd>@result.MappedCount of @result.Rows.Count (@result.DropCount dropped)</dd>
+                    <dt>Execution</dt>
+                    <dd>gated · server hosted-arcpy runtime</dd>
+                </dl>
+                <p class="esri-callout esri-callout--warn" data-esri-summary>
+                    <strong>@result.MappedCount of @result.Rows.Count elements import.</strong>
+                    The definition imports now. @result.DropCount raw cell@(result.DropCount == 1 ? string.Empty : "s") dropped.
+                    Running the notebook needs a server hosted-arcpy runtime.
+                </p>
+            </aside>
+        </div>
+
+        @* #159 scope boundary: execution is deferred to a server-side hosted-arcpy runtime that does not
+           exist in Console. This is surfaced as an honest missing-binding state — not a disabled "Run"
+           button pretending the capability is one binding away, and never fabricated run output. *@
+        <ConsoleStateView Kind="missing"
+                          Kicker="Execution gated"
+                          Title="Running this notebook needs a server hosted-arcpy runtime"
+                          Message="Console imports and represents the ArcGIS Notebook definition (cells, parameters, schedule). Executing hosted arcpy requires a server-side notebook / arcpy runtime, which is out of Console scope and tracked as a dependency. The package and its schedule import as a draft; runs become available once a hosted-arcpy runtime is bound." />
+    }
+    else
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Import from Esri"
+                          Title="Paste or upload an ArcGIS Notebook (.ipynb)"
+                          Message="Choose an intake mode above to convert an ArcGIS Notebook definition into a honua.notebook-package.v1 preview. Execution stays gated to a server hosted-arcpy runtime." />
+    }
+</section>
+
+@code {
+    private static readonly EsriContentImportParser Parser = new();
+
+    private EsriConversionResult? _result;
+    private readonly FormDirtyState _dirty = new();
+
+    // The dirty flag is flipped by the child intake; re-render so the hosted <UnsavedChangesGuard/> sees it.
+    protected override void OnInitialized() => _dirty.Changed += StateHasChanged;
+
+    public void Dispose() => _dirty.Changed -= StateHasChanged;
+
+    private static EsriParseOutcome ParseNotebook(string json, string? fileName) => Parser.ParseNotebook(json, fileName);
+
+    private void OnParsed(EsriConversionResult result) => _result = result;
+}

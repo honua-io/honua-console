@@ -122,6 +122,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/import/esri/dashboard Import Esri Dashboard JSON → dashboard package (#101): element→widget mapping grid with supported/unsupported callouts, target layout preview, create CTA
 /operate/import/esri/storymap  Import StoryMap / Hub → report content (#104, P4): section→content-block mapping with fidelity badges, target content preview, create CTA
 /operate/import/esri/instant-app Import Esri Instant App → honua.app-package.v1 (#158): Sidebar/Basic template + capability→app-element mapping with per-capability fidelity badges, target app-shell preview, create CTA. The app's primary web map imports via the Web Map surface (shown as a binding row).
+/operate/import/esri/notebook  Import ArcGIS Notebook (hosted arcpy) → honua.notebook-package.v1 (#159): .ipynb intake, cell/parameter/schedule→notebook-package mapping with per-row fidelity badges, target notebook preview, create CTA. The DEFINITION imports; execution is explicitly gated to a server hosted-arcpy runtime (missing-binding state, out of Console scope — Console Patterns Charter §11).
 /operate/server-info           Server info
 /operate/analytics             Usage analytics
 /operate/events                Event evidence view (?jobId=<id>)
