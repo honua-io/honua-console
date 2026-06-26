@@ -20,6 +20,7 @@ public sealed class ResourceFirstPublishFlowTests
     private static BunitContext NewContext()
     {
         var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         // DataToPublishFlow injects IAiPublishDriver; provide the missing-binding default so
         // every render resolves. Tests that exercise AI mode register their own driver after

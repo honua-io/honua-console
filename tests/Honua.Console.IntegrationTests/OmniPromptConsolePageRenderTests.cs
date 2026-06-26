@@ -153,6 +153,7 @@ public sealed class OmniPromptConsolePageRenderTests
     private static BunitContext NewContext(IAiPublishDriver? aiDriver = null)
     {
         var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOmniPromptIntentClassifier>(new OmniPromptIntentClassifier());
 
         // DevOps lane backends — no operations to approve in the render harness (honest empty queue).
