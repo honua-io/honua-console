@@ -62,6 +62,30 @@ public interface IConsoleOperateObservabilityClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Cancels a non-terminal durable job through the gated control endpoint
+    /// (<c>POST /api/v1/admin/jobs/{id}/cancel</c>). The server enforces the
+    /// Execute + destructive-approval gate; a denied cancel surfaces here as a
+    /// <see cref="OperateSectionStatus.Forbidden"/> result (carrying the server's
+    /// "approval required" message when the gate asks for approval), and a job
+    /// that is no longer cancellable surfaces as a conflict
+    /// (<see cref="OperateSectionStatus.Unavailable"/>). The console never
+    /// bypasses the gate; it only invokes the action and surfaces the result.
+    /// </summary>
+    Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Requeues a Failed or Cancelled durable job through the gated control
+    /// endpoint (<c>POST /api/v1/admin/jobs/{id}/retry</c>). Same gate/result
+    /// surfacing as <see cref="CancelJobAsync"/>; the server returns 409 (mapped
+    /// to a conflict result) when the job is not in a retryable state.
+    /// </summary>
+    Task<OperateSectionResult<OperateJobControlOutcome>> RetryJobAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reads a single job's sanitized per-step glass-box
     /// (<c>GET /api/v1/admin/jobs/{id}/steps</c>, honua-server #2182): the ordered
     /// steps with phase, status, timeline/duration, the server-sanitized provider
