@@ -85,6 +85,18 @@ public interface IConsoleOperateObservabilityClient
         string jobRunId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reads a single job's sanitized per-step glass-box
+    /// (<c>GET /api/v1/admin/jobs/{id}/steps</c>, honua-server #2182): the ordered
+    /// steps with phase, status, timeline/duration, the server-sanitized provider
+    /// command, the per-step artifacts, and metadata. Loaded lazily by the job
+    /// detail surface (the detail endpoint omits per-step depth). The command is
+    /// already sanitized server-side; the Console renders it verbatim.
+    /// </summary>
+    Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default);
+
     Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
         CancellationToken cancellationToken = default);
 
