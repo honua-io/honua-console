@@ -405,7 +405,34 @@ public sealed record OperateJobRun(
     public bool LogsAllowed => LogsStatus == OperateSectionStatus.Allowed;
 
     public bool ArtifactsAllowed => ArtifactsStatus == OperateSectionStatus.Allowed;
+
+    /// <summary>
+    /// Cancel is offered while the job is non-terminal. The server's Execute +
+    /// destructive-approval gate is the real authority and 403s a denied cancel;
+    /// this only decides whether to surface the affordance.
+    /// </summary>
+    public bool CanCancel => !OperateJobStatuses.IsTerminal(Status.State);
+
+    /// <summary>
+    /// Retry is offered only for Failed/Cancelled jobs, matching the server's
+    /// retry contract (other states return 409 Conflict).
+    /// </summary>
+    public bool CanRetry =>
+        string.Equals(Status.State, OperateJobStatuses.Failed, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Status.State, OperateJobStatuses.Cancelled, StringComparison.OrdinalIgnoreCase);
 }
+
+/// <summary>
+/// Outcome of a durable-job control action (cancel/retry) projected from the
+/// server's control response. <see cref="Status"/> is the job's resulting state
+/// so the surface can refresh and reflect the transition.
+/// </summary>
+public sealed record OperateJobControlOutcome(
+    string JobRunId,
+    string Action,
+    string Status,
+    string Message,
+    string CorrelationId);
 
 public static class OperateActionPresentation
 {
