@@ -18,6 +18,17 @@
 
 <body>
     <Routes @rendermode="InteractiveServer" />
+
+    @* Visible reconnect/error banner. app.css previously hid #blazor-error-ui outright, so a dropped
+       circuit silently froze the page with no feedback. The markup is restored here and styled (visible,
+       fixed to the bottom) in honua-console.css so a lost connection / unhandled error is surfaced with a
+       reload affordance. *@
+    <div id="blazor-error-ui" data-nosnippet>
+        <span class="blazor-error-ui-text">The connection to Honua Console was interrupted.</span>
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss" role="button" tabindex="0" aria-label="Dismiss">🗙</span>
+    </div>
+
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script>
         // In-page section navigation: Blazor's interactive router intercepts same-page

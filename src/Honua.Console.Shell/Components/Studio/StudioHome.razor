@@ -27,7 +27,8 @@
                   rows="2"
                   placeholder="e.g. Show parcels coloured by use code, with a popup showing assessed value…"
                   @bind="_prompt"
-                  @bind:event="oninput"></textarea>
+                  @bind:event="oninput"
+                  @onkeydown="OnPromptKeyDown"></textarea>
         <div class="studio-home-hero-actions">
             <span class="console-muted studio-home-hero-label">Suggestions:</span>
             <div class="studio-home-suggestions" role="list">
@@ -183,6 +184,26 @@
     }
 
     private void ApplySuggestion(string suggestion) => _prompt = suggestion;
+
+    // The hero Send control advertises "Send · ⌘↵" but no keydown handler existed, so the shortcut did
+    // nothing. Ctrl+Enter / Cmd+Enter now sends the prompt by navigating to the same omni-prompt route the
+    // Send link targets (a bare Enter still inserts a newline in the multi-line textarea). An empty prompt
+    // is ignored so the shortcut never navigates to an empty proof route.
+    private void OnPromptKeyDown(KeyboardEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(_prompt))
+        {
+            return;
+        }
+
+        if ((args.CtrlKey || args.MetaKey)
+            && (string.Equals(args.Key, "Enter", StringComparison.Ordinal)
+                || string.Equals(args.Code, "Enter", StringComparison.Ordinal)
+                || string.Equals(args.Code, "NumpadEnter", StringComparison.Ordinal)))
+        {
+            Navigation.NavigateTo(PromptHref(_prompt));
+        }
+    }
 
     private static string PromptHref(string? prompt) =>
         string.IsNullOrWhiteSpace(prompt)

@@ -26,6 +26,7 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     public void OperateTemporal_WithNoServer_RendersMissingBinding_AndNoFabricatedData()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
 
@@ -42,6 +43,7 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     public void OperatePublishing_WithNoServer_RendersMissingBinding_AndNoFabricatedMatrix()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
@@ -62,6 +64,7 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     public void OperateDeploy_WithNoServer_RendersMissingBinding_AndNoFabricatedUpgrade()
     {
         using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleServerVersionClient>(new UnsupportedConsoleServerVersionClient());
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
@@ -83,6 +86,7 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     public void StudioAnalysisBuilder_WithNoServer_RendersMissingBinding_AndNoFabricatedList()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(new UnsupportedStudioAnalysisPackageDataSource());
 
@@ -97,6 +101,7 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
     public void ShareManage_WithNoServer_RendersMissingBinding_AndNoFabricatedPanels()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IShareAccessDataSource>(new UnsupportedShareAccessDataSource());
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new UnsupportedConsoleCatalogClient());
