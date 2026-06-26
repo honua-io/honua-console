@@ -84,6 +84,18 @@ public interface IHonuaFormPackageClient
     Task<HonuaAdminEndpointResult<HonuaFormGenerationResult>> GenerateFormAsync(
         GenerateFormPackageRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Converts an uploaded XLSForm (ODK Collect) workbook into a <c>honua.form-package.v1</c> document by
+    /// running the server-side Collect import path (<c>Honua.Collect.Core</c> <c>XlsFormImporter</c>): the
+    /// importer parses the <c>survey</c>/<c>choices</c>/<c>settings</c> sheets and maps types, groups/repeats,
+    /// choice lists, required, relevant-visibility, and calculate onto the package shape. The console never
+    /// reimplements the importer; it ships the bytes to the admin import endpoint and renders the returned
+    /// proposed draft plus any importer diagnostics.
+    /// </summary>
+    Task<HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>> ImportXlsFormAsync(
+        ImportXlsFormRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDisposable
@@ -269,6 +281,20 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
             HttpMethod.Post,
             $"{AdminBase}/generate",
             "POST /api/v1/admin/forms/packages/generate",
+            body: request,
+            cancellationToken: cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaFormXlsFormImportResult>> ImportXlsFormAsync(
+        ImportXlsFormRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return SendAsync<HonuaFormXlsFormImportResult>(
+            HttpMethod.Post,
+            $"{AdminBase}/import-xlsform",
+            "POST /api/v1/admin/forms/packages/import-xlsform",
             body: request,
             cancellationToken: cancellationToken);
     }
@@ -971,6 +997,71 @@ public sealed record GenerateFormPackageRequest
     [JsonPropertyName("conversation")] public HonuaFormGenerationTurn[] Conversation { get; init; } = [];
     /// <summary>Answers to a prior needs-clarification turn.</summary>
     [JsonPropertyName("answers")] public HonuaFormGenerationAnswer[] Answers { get; init; } = [];
+}
+
+#endregion
+
+#region XLSForm import DTOs (Collect import)
+
+// Wire contract for the XLSForm (ODK Collect) import path. The conversion engine already exists server-side
+// in Honua.Collect.Core (XlsFormImporter — types, groups/repeats, choice lists, required, relevant-visibility,
+// calculate); this console surface only ships the uploaded workbook bytes and renders the proposed
+// honua.form-package.v1 document plus the importer's diagnostics. Until the server exposes the admin import
+// endpoint it returns 404 -> the console renders the honest "import unavailable" state (no fabricated form).
+//
+//   POST /api/v1/admin/forms/packages/import-xlsform  -> HonuaFormXlsFormImportResult
+//
+// The workbook is base64-encoded so the request stays a plain JSON body on the shared admin client (the
+// importer accepts .xlsx/.xls workbooks and the equivalent flat .csv survey export).
+
+/// <summary>Uploads an XLSForm workbook for server-side conversion to a form package document.</summary>
+public sealed record ImportXlsFormRequest
+{
+    /// <summary>The original file name (used by the importer to pick the workbook reader and for diagnostics).</summary>
+    [JsonPropertyName("fileName")] public string FileName { get; init; } = string.Empty;
+
+    /// <summary>The workbook content type (e.g. the .xlsx OpenXML media type), when known.</summary>
+    [JsonPropertyName("contentType")] public string? ContentType { get; init; }
+
+    /// <summary>The raw workbook bytes, base64-encoded.</summary>
+    [JsonPropertyName("content")] public string Content { get; init; } = string.Empty;
+}
+
+/// <summary>One construct the XLSForm importer could not fully map, surfaced to the operator rather than dropped.</summary>
+public sealed record HonuaFormImportDiagnostic
+{
+    /// <summary>"warning" | "error" | "info".</summary>
+    [JsonPropertyName("severity")] public string Severity { get; init; } = "warning";
+
+    /// <summary>Stable code for the diagnostic (e.g. "xlsform.unsupportedType").</summary>
+    [JsonPropertyName("code")] public string Code { get; init; } = string.Empty;
+
+    /// <summary>The survey row / column the diagnostic refers to, when known.</summary>
+    [JsonPropertyName("location")] public string? Location { get; init; }
+
+    [JsonPropertyName("message")] public string Message { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Result of POST .../import-xlsform: the proposed package document (same shape POST .../packages accepts),
+/// the detected XLSForm title/form id, and the importer's diagnostics (unsupported types, dropped constructs).
+/// </summary>
+public sealed record HonuaFormXlsFormImportResult
+{
+    /// <summary>The converted package document, ready to open as a fresh draft. Null when conversion failed.</summary>
+    [JsonPropertyName("package")] public HonuaFormPackageDocument? Package { get; init; }
+
+    /// <summary>The XLSForm <c>form_title</c> from the settings sheet, when present.</summary>
+    [JsonPropertyName("title")] public string? Title { get; init; }
+
+    /// <summary>The XLSForm <c>form_id</c> from the settings sheet, when present.</summary>
+    [JsonPropertyName("formId")] public string? FormId { get; init; }
+
+    /// <summary>How many survey questions the importer mapped onto package fields.</summary>
+    [JsonPropertyName("fieldCount")] public int FieldCount { get; init; }
+
+    /// <summary>Importer diagnostics — surfaced, never silently dropped.</summary>
+    [JsonPropertyName("diagnostics")] public HonuaFormImportDiagnostic[] Diagnostics { get; init; } = [];
 }
 
 #endregion

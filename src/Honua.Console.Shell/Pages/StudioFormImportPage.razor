@@ -1,0 +1,294 @@
+@page "/studio/form/import"
+@using System.Globalization
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+@inject IStudioFormPackageDataSource FormData
+@inject NavigationManager Navigation
+
+@*
+    Studio · Form · Import XLSForm. The XLSForm (ODK Collect) conversion engine already exists server-side in
+    Honua.Collect.Core (XlsFormImporter — types, groups/repeats, choice lists, required, relevant-visibility,
+    calculate). This surface is the authoring entry point over that engine: upload a workbook, the server
+    converts it, and the page renders the proposed draft as a live preview plus the importer's diagnostics
+    (unsupported types, dropped constructs — surfaced, never dropped). The operator saves it as a real
+    server-owned draft and continues in the builder. Nothing is fabricated: with no server binding, or a
+    server without the import contract, the page renders an honest unavailable/blocked state.
+*@
+
+<section class="console-page studio-form-import-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio · Form · Import XLSForm</p>
+        <h1>Import an XLSForm</h1>
+        <p>Bring an existing ODK Collect / XLSForm workbook into Honua. The server converts the survey, choices, and settings sheets — types, groups and repeats, choice lists, required, relevant visibility, and calculate — into a form package you can review, save as a draft, and finish in the builder.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading" Kicker="Form" Title="Loading form authoring"
+                          Message="Reading the form package surface from honua-server." />
+    }
+    else if (_binding is { } binding)
+    {
+        <ConsoleStateView Kind="error" Kicker="@binding.State" Title="Form authoring is not bound"
+                          Message="@($"{binding.Detail} (contract: {binding.Contract})")" />
+    }
+    else
+    {
+        <div class="console-action-row">
+            <a class="console-button console-button-secondary" href="/studio/form">← Back to forms</a>
+        </div>
+
+        <article class="console-panel studio-form-import-intake" data-form-import>
+            <div class="console-panel-heading">
+                <div>
+                    <p class="console-kicker">Workbook</p>
+                    <h2>Upload</h2>
+                </div>
+            </div>
+            <p class="console-muted">Choose an XLSForm workbook (<code>.xlsx</code>, <code>.xls</code>) or a flat survey export (<code>.csv</code>). The file is sent to honua-server for conversion; the proposed form appears below.</p>
+
+            <label class="studio-form-label">
+                <span>XLSForm file</span>
+                <InputFile class="console-input" OnChange="OnFileSelected" disabled="@_busy"
+                           accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                           aria-label="Upload XLSForm file" data-form-import-file />
+            </label>
+
+            @if (!string.IsNullOrWhiteSpace(_fileName))
+            {
+                <p class="console-muted" data-form-import-source>Selected: @_fileName</p>
+            }
+
+            @if (_busy)
+            {
+                <p class="console-status" role="status" aria-live="polite" data-form-import-busy>@_busyMessage</p>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <p class="console-warning console-state-danger" role="status" aria-live="polite" data-form-import-error>@_error</p>
+            }
+        </article>
+
+        @if (_outcome is { IsImported: true } outcome && _imported is { } imported)
+        {
+            <article class="console-panel studio-form-import-result" data-form-import-result>
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Imported</p>
+                        <h2>@(string.IsNullOrWhiteSpace(imported.Title) ? "Untitled form" : imported.Title)</h2>
+                    </div>
+                    <span class="console-status">@imported.Fields.Count field(s)</span>
+                </div>
+                <p class="console-muted">@outcome.Message</p>
+
+                <div class="console-action-row">
+                    <button class="console-button" type="button"
+                            disabled="@(_busy || _savedFormId is not null)"
+                            @onclick="SaveAsDraft" data-form-import-save>Save as draft</button>
+                    @if (_savedFormId is not null)
+                    {
+                        <button class="console-button console-button-secondary" type="button"
+                                disabled="@_busy" @onclick="OpenInBuilder" data-form-import-open>Open in builder →</button>
+                        <span class="console-status" data-form-import-saved>Saved as draft @_savedFormId.</span>
+                    }
+                </div>
+
+                @if (outcome.Diagnostics.Count > 0)
+                {
+                    <article class="console-panel console-state-warning studio-form-import-diagnostics" role="status" data-form-import-diagnostics>
+                        <p class="console-kicker">Importer notes</p>
+                        <h3>Surfaced, not dropped</h3>
+                        <ul class="studio-compact-list">
+                            @foreach (var diagnostic in outcome.Diagnostics)
+                            {
+                                <li>
+                                    <strong>@diagnostic.Severity</strong>
+                                    @diagnostic.Message
+                                    @if (!string.IsNullOrWhiteSpace(diagnostic.Location))
+                                    {
+                                        <span class="console-muted"> (@diagnostic.Location)</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </article>
+                }
+
+                @* The result IS the form: a live preview of the real converted controls. *@
+                <article class="console-panel studio-form-preview-panel">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Result</p>
+                            <h3>Live preview</h3>
+                        </div>
+                    </div>
+                    <FormPreview Fields="imported.Fields" Title="@imported.Title" Description="@imported.Description" />
+                </article>
+            </article>
+        }
+        else if (_outcome is { } failed && !string.IsNullOrEmpty(failed.Message))
+        {
+            <article class="console-panel console-state-warning studio-form-import-failed" role="status" data-form-import-failed>
+                <p class="console-kicker">@(string.Equals(failed.Status, StudioFormImportStatuses.Unsupported, StringComparison.Ordinal) ? "Unavailable" : "Could not import")</p>
+                <p>@failed.Message</p>
+                @if (string.Equals(failed.Status, StudioFormImportStatuses.Unsupported, StringComparison.Ordinal))
+                {
+                    <p class="console-muted">You can still build this form by hand — <a href="/studio/form">open the builder</a> and add fields from the palette.</p>
+                }
+                @if (failed.Diagnostics.Count > 0)
+                {
+                    <ul class="studio-compact-list">
+                        @foreach (var diagnostic in failed.Diagnostics)
+                        {
+                            <li><strong>@diagnostic.Severity</strong> @diagnostic.Message</li>
+                        }
+                    </ul>
+                }
+            </article>
+        }
+    }
+</section>
+
+@code {
+    // 16 MiB ceiling: large enough for any realistic XLSForm workbook, small enough to fail fast on a
+    // mis-selected file instead of buffering an arbitrary upload into memory.
+    private const long MaxWorkbookBytes = 16L * 1024 * 1024;
+
+    private bool _loading = true;
+    private bool _busy;
+    private string _busyMessage = string.Empty;
+    private string? _error;
+    private string? _fileName;
+    private StudioFormCapabilityState? _binding;
+    private StudioFormImportOutcome? _outcome;
+    private StudioFormEditorState? _imported;
+    private string? _savedFormId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // A null-formId load is the cheapest bound probe: it returns a blank template when bound, or the
+        // missing-binding capability state when no server is configured (same gate the builder uses).
+        var load = await FormData.LoadAsync(null);
+        if (load.CapabilityStates.Count > 0)
+        {
+            _binding = load.CapabilityStates[0];
+        }
+
+        _loading = false;
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        if (file is null || _busy)
+        {
+            return;
+        }
+
+        _fileName = file.Name;
+        _error = null;
+        _outcome = null;
+        _imported = null;
+        _savedFormId = null;
+
+        byte[] content;
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxWorkbookBytes);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            content = buffer.ToArray();
+        }
+        catch (IOException ex)
+        {
+            // The browser stream read can fail for an oversized or interrupted upload; surface it rather than
+            // leaving the operator with a silent no-op.
+            _error = $"Could not read the file: {ex.Message}";
+            return;
+        }
+
+        var request = new StudioFormImportRequest
+        {
+            FileName = file.Name,
+            ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? null : file.ContentType,
+            Content = content
+        };
+
+        _busy = true;
+        _busyMessage = "Converting the XLSForm on honua-server…";
+        try
+        {
+            var outcome = await FormData.ImportXlsFormAsync(request);
+            if (outcome.BindingState is { } bound)
+            {
+                _binding = bound;
+                return;
+            }
+
+            _outcome = outcome;
+            _imported = outcome.IsImported ? outcome.State : null;
+            if (!outcome.IsImported && string.IsNullOrEmpty(outcome.Message))
+            {
+                _error = "The XLSForm could not be imported.";
+            }
+        }
+        catch (Exception ex)
+        {
+            // Never leave the surface in a silent half-state on an unexpected failure: surface it so the
+            // operator can retry, and let the finally block clear the busy flag.
+            _error = $"The import failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            _busyMessage = string.Empty;
+        }
+    }
+
+    private async Task SaveAsDraft()
+    {
+        if (_busy || _imported is null || _savedFormId is not null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _busyMessage = "Saving the imported draft to honua-server…";
+        _error = null;
+        try
+        {
+            var result = await FormData.SaveDraftAsync(_imported);
+            if (!result.Succeeded)
+            {
+                _error = result.Message;
+                return;
+            }
+
+            _imported = result.State ?? _imported;
+            _savedFormId = _imported.FormId;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Saving the draft failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            _busyMessage = string.Empty;
+        }
+    }
+
+    private void OpenInBuilder()
+    {
+        // Once saved, the draft is a real server-owned package; the builder loads it by id from the server.
+        if (!string.IsNullOrWhiteSpace(_savedFormId))
+        {
+            Navigation.NavigateTo($"/studio/form?formId={Uri.EscapeDataString(_savedFormId)}");
+        }
+        else
+        {
+            Navigation.NavigateTo("/studio/form");
+        }
+    }
+}

@@ -58,6 +58,11 @@ public sealed class UnsupportedStudioFormPackageDataSource : IStudioFormPackageD
         CancellationToken cancellationToken = default) =>
         Task.FromResult(StudioFormGenerationOutcome.Blocked(MissingBinding));
 
+    public Task<StudioFormImportOutcome> ImportXlsFormAsync(
+        StudioFormImportRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(StudioFormImportOutcome.Blocked(MissingBinding));
+
     private static StudioFormCommandResult BindingFailure() =>
         new(false, MissingBinding.Detail, Issue: MissingBinding);
 }
