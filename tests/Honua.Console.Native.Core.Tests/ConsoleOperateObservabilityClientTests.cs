@@ -366,6 +366,175 @@ public sealed class ConsoleOperateObservabilityClientTests
     }
 
     [Fact]
+    public async Task GetJobStepsCallsStepsEndpointAndMapsSanitizedGlassBox()
+    {
+        var started = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
+        // The server sends the command already sanitized (scratch/path redacted);
+        // the Console must surface it verbatim and never re-sanitize.
+        const string sanitizedCommand = "gdalwarp -t_srs EPSG:3857 <path>/in.tif <scratch>/out.tif";
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/jobs/gp-job-1/steps" => JsonResponse(
+                new ConsoleJobStepsResponse
+                {
+                    JobId = "gp-job-1",
+                    CorrelationId = "corr-77",
+                    State = "Running",
+                    Steps =
+                    [
+                        new ConsoleJobStep
+                        {
+                            Ordinal = 1,
+                            Phase = "Reproject",
+                            Status = "Succeeded",
+                            StartedAt = started,
+                            CompletedAt = started.AddSeconds(3),
+                            DurationMs = 3000,
+                            Message = "Reprojected to Web Mercator",
+                            Command = sanitizedCommand,
+                            Artifacts =
+                            [
+                                new ConsoleJobStepArtifact { Label = "out.tif", Kind = "raster", SizeBytes = 2_097_152 }
+                            ],
+                            Metadata = new Dictionary<string, string>(StringComparer.Ordinal) { ["driver"] = "GTiff" }
+                        },
+                        new ConsoleJobStep
+                        {
+                            Ordinal = 2,
+                            Phase = "Tile",
+                            Status = "Running",
+                            StartedAt = started.AddSeconds(3),
+                            Message = "Generating tiles"
+                        }
+                    ]
+                },
+                OperateObservabilityJsonContext.Default.ConsoleJobStepsResponse),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetJobStepsAsync("gp-job-1");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var view = result.Value!;
+        Assert.Equal("gp-job-1", view.JobRunId);
+        Assert.Equal("corr-77", view.CorrelationId);
+        Assert.Equal("Running", view.State.State);
+        Assert.Equal(2, view.Steps.Count);
+
+        var first = view.Steps[0];
+        Assert.Equal(1, first.Ordinal);
+        Assert.Equal("Reproject", first.Phase);
+        Assert.Equal("Succeeded", first.Status.State);
+        Assert.Equal(sanitizedCommand, first.Command);
+        Assert.Equal("3 s", first.Duration);
+        Assert.Contains("2026-05-24 20:00 UTC", first.Timing);
+        var artifact = Assert.Single(first.Artifacts);
+        Assert.Equal("out.tif", artifact.Label);
+        Assert.Equal("raster", artifact.Kind);
+        Assert.Equal("2 MB", artifact.Size);
+        var metadata = Assert.Single(first.Metadata);
+        Assert.Equal("driver", metadata.Key);
+        Assert.Equal("GTiff", metadata.Value);
+
+        // Steps are ordered by ordinal; the still-running step has no command/duration.
+        var second = view.Steps[1];
+        Assert.Equal(2, second.Ordinal);
+        Assert.False(second.HasCommand);
+        Assert.Equal("n/a", second.Duration);
+        Assert.StartsWith("started", second.Timing);
+
+        var path = Assert.Single(handler.Requests).RequestUri!.AbsolutePath;
+        Assert.Equal("/api/v1/admin/jobs/gp-job-1/steps", path);
+    }
+
+    [Fact]
+    public async Task GetJobStepsCarriesForbiddenStatus()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/jobs/gp-job-1/steps" => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                ReasonPhrase = "Forbidden"
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetJobStepsAsync("gp-job-1");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("403", result.Message);
+    }
+
+    [Fact]
+    public async Task JobStepsPanelRendersCommandTimelineAndArtifacts()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        var provider = services.BuildServiceProvider();
+
+        const string sanitizedCommand = "ogr2ogr -f GPKG <scratch>/out.gpkg <path>/in.shp";
+        var view = new OperateJobStepsView(
+            "gp-job-1",
+            "corr-9",
+            new OperateStatus("Running", "Running"),
+            [
+                new OperateJobStep(
+                    Ordinal: 1,
+                    Phase: "Convert",
+                    Status: new OperateStatus("Succeeded", "Converted"),
+                    Timing: "2026-05-24 20:00 UTC - 2026-05-24 20:00 UTC",
+                    Duration: "1.2 s",
+                    Message: "Converted shapefile to GeoPackage",
+                    Command: sanitizedCommand,
+                    Artifacts: [new OperateJobStepArtifact("out.gpkg", "vector", "512 KB")],
+                    Metadata: [new OperateJobStepMetadata("layers", "3")])
+            ]);
+
+        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
+        var html = await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var output = await renderer.RenderComponentAsync<JobStepsPanel>(
+                ParameterView.FromDictionary(new Dictionary<string, object?>
+                {
+                    [nameof(JobStepsPanel.View)] = view
+                }));
+            return output.ToHtmlString();
+        });
+
+        Assert.Contains("Convert", html);
+        Assert.Contains("Converted shapefile to GeoPackage", html);
+        // Command is rendered verbatim, including the server-side redaction tokens.
+        Assert.Contains("ogr2ogr -f GPKG &lt;scratch&gt;/out.gpkg &lt;path&gt;/in.shp", html);
+        Assert.Contains("2026-05-24 20:00 UTC", html);
+        Assert.Contains("1.2 s", html);
+        Assert.Contains("out.gpkg", html);
+        Assert.Contains("512 KB", html);
+    }
+
+    [Fact]
+    public async Task JobStepsPanelRendersEmptyStateWhenNoSteps()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        var provider = services.BuildServiceProvider();
+
+        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
+        var html = await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var output = await renderer.RenderComponentAsync<JobStepsPanel>(
+                ParameterView.FromDictionary(new Dictionary<string, object?>
+                {
+                    [nameof(JobStepsPanel.View)] = OperateJobStepsView.Empty
+                }));
+            return output.ToHtmlString();
+        });
+
+        Assert.Contains("No per-step glass-box entries", html);
+    }
+
+    [Fact]
     public async Task JobDetailPanelRendersSubresourceFailureStatus()
     {
         var services = new ServiceCollection();
@@ -728,6 +897,9 @@ public sealed class ConsoleOperateObservabilityClientTests
                 stages: [new OperateJobStage("Validate", new OperateStatus("succeeded", "Done"), 100, "completed")],
                 logs: ["Live job detail log"],
                 artifacts: [new OperateEvidenceLink("artifact", "Live artifact", "/operate/jobs/live-job-1#artifacts", "Live report")])));
+
+        public Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(string jobRunId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OperateJobStepsView>.Allowed(OperateJobStepsView.Empty));
 
         public Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<IReadOnlyList<OperateInvestigation>>.Allowed(

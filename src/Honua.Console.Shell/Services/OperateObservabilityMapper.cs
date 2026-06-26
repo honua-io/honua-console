@@ -402,6 +402,88 @@ public static class OperateObservabilityMapper
                 ? $"{artifact.Availability} artifact"
                 : artifact.Message!)).ToArray();
 
+    public static OperateJobStepsView MapJobSteps(ConsoleJobStepsResponse response) =>
+        new(
+            JobRunId: response.JobId,
+            CorrelationId: response.CorrelationId ?? string.Empty,
+            State: new OperateStatus(response.State, $"Job state reported as {response.State}."),
+            Steps: (response.Steps ?? [])
+                .OrderBy(step => step.Ordinal)
+                .Select(MapJobStep)
+                .ToArray());
+
+    private static OperateJobStep MapJobStep(ConsoleJobStep step)
+    {
+        var timing = step.CompletedAt is { } completed
+            ? $"{FormatTimestamp(step.StartedAt)} - {FormatTimestamp(completed)}"
+            : $"started {FormatTimestamp(step.StartedAt)}";
+
+        return new OperateJobStep(
+            Ordinal: step.Ordinal,
+            Phase: string.IsNullOrWhiteSpace(step.Phase) ? "step" : step.Phase,
+            Status: new OperateStatus(step.Status, step.Message),
+            Timing: timing,
+            Duration: FormatDuration(step.DurationMs),
+            Message: step.Message,
+            // The server already sanitized the command (scratch/path redacted);
+            // surface it verbatim — the Console must not re-sanitize or assume.
+            Command: step.Command ?? string.Empty,
+            Artifacts: (step.Artifacts ?? [])
+                .Select(artifact => new OperateJobStepArtifact(
+                    Label: string.IsNullOrWhiteSpace(artifact.Label) ? "artifact" : artifact.Label,
+                    Kind: artifact.Kind ?? "artifact",
+                    Size: FormatBytes(artifact.SizeBytes)))
+                .ToArray(),
+            Metadata: (step.Metadata ?? new Dictionary<string, string>(StringComparer.Ordinal))
+                .Select(pair => new OperateJobStepMetadata(pair.Key, pair.Value))
+                .ToArray());
+    }
+
+    private static string FormatDuration(long? milliseconds)
+    {
+        if (milliseconds is not { } ms || ms < 0)
+        {
+            return "n/a";
+        }
+
+        if (ms < 1000)
+        {
+            return $"{ms.ToString(CultureInfo.InvariantCulture)} ms";
+        }
+
+        var seconds = ms / 1000.0;
+        if (seconds < 60)
+        {
+            return $"{seconds.ToString("0.#", CultureInfo.InvariantCulture)} s";
+        }
+
+        var span = TimeSpan.FromMilliseconds(ms);
+        return span.TotalHours >= 1
+            ? $"{((int)span.TotalHours).ToString(CultureInfo.InvariantCulture)}h {span.Minutes.ToString(CultureInfo.InvariantCulture)}m"
+            : $"{span.Minutes.ToString(CultureInfo.InvariantCulture)}m {span.Seconds.ToString(CultureInfo.InvariantCulture)}s";
+    }
+
+    private static string FormatBytes(long? bytes)
+    {
+        if (bytes is not { } value || value < 0)
+        {
+            return "unknown size";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = value;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        return unit == 0
+            ? $"{value.ToString(CultureInfo.InvariantCulture)} {units[unit]}"
+            : $"{size.ToString("0.#", CultureInfo.InvariantCulture)} {units[unit]}";
+    }
+
     private static OperateJobStage MapStage(ConsoleJobStage stage)
     {
         var timing = (stage.StartedAt, stage.CompletedAt) switch

@@ -323,6 +323,50 @@ public sealed record OperateJobMetric(
     string Value,
     OperateStatus Status);
 
+/// <summary>
+/// One sanitized step of a job's per-step glass-box (honua-server #2182):
+/// its ordinal, phase, status, timeline, the sanitized provider command
+/// (already <c>&lt;scratch&gt;</c>/<c>&lt;path&gt;</c>-redacted server-side),
+/// produced artifacts, and metadata. <see cref="Command"/> is rendered verbatim;
+/// the Console must not re-sanitize it.
+/// </summary>
+public sealed record OperateJobStep(
+    int Ordinal,
+    string Phase,
+    OperateStatus Status,
+    string Timing,
+    string Duration,
+    string Message,
+    string Command,
+    IReadOnlyList<OperateJobStepArtifact> Artifacts,
+    IReadOnlyList<OperateJobStepMetadata> Metadata)
+{
+    public bool HasCommand => !string.IsNullOrWhiteSpace(Command);
+}
+
+public sealed record OperateJobStepArtifact(
+    string Label,
+    string Kind,
+    string Size);
+
+public sealed record OperateJobStepMetadata(
+    string Key,
+    string Value);
+
+/// <summary>
+/// The per-step glass-box view for a single job, surfaced through the shared
+/// <see cref="OperateSectionResult{T}"/> envelope so the panel degrades through
+/// the standard loading/forbidden/unavailable surfaces.
+/// </summary>
+public sealed record OperateJobStepsView(
+    string JobRunId,
+    string CorrelationId,
+    OperateStatus State,
+    IReadOnlyList<OperateJobStep> Steps)
+{
+    public static OperateJobStepsView Empty { get; } = new(string.Empty, string.Empty, new OperateStatus("unknown", string.Empty), []);
+}
+
 public sealed record OperateJobAction(
     string Label,
     bool IsAllowed,

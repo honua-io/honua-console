@@ -308,6 +308,9 @@ public sealed class ConsoleSupportTicketClientTests
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateJobRun>.Denied(OperateSectionStatus.Missing, "n/a"));
 
+        public Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(string jobRunId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OperateJobStepsView>.Allowed(OperateJobStepsView.Empty));
+
         public Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<IReadOnlyList<OperateInvestigation>>.Allowed([]));
 
