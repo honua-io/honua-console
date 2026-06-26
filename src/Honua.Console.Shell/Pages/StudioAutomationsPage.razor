@@ -1,0 +1,92 @@
+@page "/studio/automations"
+@inject ICollectAutomationClient Automations
+@inject NavigationManager Navigation
+
+<section class="console-page automation-page">
+    <div class="console-page-heading">
+        <p class="console-kicker">Studio collect.automation</p>
+        <h1>Automations</h1>
+        <p>Compose, edit, and version the trigger-bound rules that drive Collect's shipped Data Events engine: sandboxed-expression conditions gating set/compute/validate/tag/notify actions with a deterministic cascade and loop guard.</p>
+    </div>
+
+    <div class="automation-list-actions">
+        <a class="console-button-link" href="/studio/automations/new">New automation</a>
+    </div>
+
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Automations"
+                          Title="Loading automations"
+                          Message="Reading the Collect automation projection." />
+    }
+    else if (_binding is not null)
+    {
+        <ConsoleStateView Kind="error"
+                          Kicker="@_binding.State"
+                          Title="Automation authoring is not bound"
+                          Message="@($"{_binding.Detail} (contract: {_binding.Contract})")" />
+    }
+    else if (_automations.Count == 0)
+    {
+        <ConsoleStateView Kind="empty"
+                          Kicker="Automations"
+                          Title="No automations yet"
+                          Message="Create your first automation to bind rules to a form's Data Events."
+                          ActionHref="/studio/automations/new"
+                          ActionLabel="New automation" />
+    }
+    else
+    {
+        <div class="console-panel-grid automation-grid">
+            @foreach (var automation in _automations)
+            {
+                <a class="console-panel console-area-link automation-card" href="@EditorHref(automation)">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h2>@automation.Name</h2>
+                            <p class="console-muted">@(string.IsNullOrWhiteSpace(automation.FormId) ? "no form bound" : automation.FormId)</p>
+                        </div>
+                        <span class="console-status @(automation.Enabled ? string.Empty : "console-status-warning")">
+                            @(automation.Enabled ? "enabled" : "disabled")
+                        </span>
+                    </div>
+                    <dl class="console-definition-list">
+                        <dt>Rules</dt>
+                        <dd>@automation.RuleCount</dd>
+                        <dt>Version</dt>
+                        <dd>@(automation.VersionNumber > 0 ? $"v{automation.VersionNumber}" : "draft only")</dd>
+                        <dt>Updated</dt>
+                        <dd>@automation.UpdatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</dd>
+                    </dl>
+                </a>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private CollectAutomationBindingState? _binding;
+    private IReadOnlyList<CollectAutomationSummary> _automations = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            // The list never carries its own binding state; probe the editor-open path for the blocked surface
+            // so an unbound runtime renders the shared missing-binding state rather than a misleading "empty".
+            var context = await Automations.OpenEditorAsync("new");
+            _binding = context.BindingState;
+            _automations = _binding is null ? await Automations.ListAutomationsAsync() : [];
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string EditorHref(CollectAutomationSummary automation) =>
+        $"/studio/automations/{automation.DraftId}";
+}
