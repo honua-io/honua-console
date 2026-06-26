@@ -5,7 +5,7 @@ namespace Honua.Console.Shell.Validation;
 
 /// <summary>
 /// Stable console-owned field keys for the Esri content-import intake surfaces (#100 Web Map, #101
-/// Dashboard, #104 StoryMap, #158 Instant App) and the import wizard (#102).
+/// Dashboard, #104 StoryMap, #158 Instant App, #159 Notebook) and the import wizard (#102).
 /// </summary>
 public static class EsriImportFieldKeys
 {

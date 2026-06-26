@@ -582,6 +582,475 @@ public sealed class EsriContentImportParser
         }
     }
 
+    /// <summary>
+    /// Parses an ArcGIS Notebook (hosted arcpy) definition into a <c>honua.notebook-package.v1</c> conversion
+    /// preview (#159). ArcGIS Notebooks export as Jupyter <c>.ipynb</c> JSON: a <c>cells</c> array (code /
+    /// markdown / raw), notebook <c>metadata</c> (the kernelspec + an ArcGIS-specific runtime), injected
+    /// <c>parameters</c> (notebook parameterisation / a tagged parameters cell), and an optional task
+    /// <c>schedule</c>. Each cell, parameter, and the schedule become a row in the source -> target mapping
+    /// with per-row fidelity; raw cells and unknown kernels degrade with the reason named.
+    ///
+    /// Scope boundary (#159): Console <em>represents/imports the definition only</em>. Executing hosted arcpy
+    /// needs a server-side notebook/arcpy runtime, which is out of Console scope and tracked as a dependency,
+    /// so this parser never claims an execution capability — the page gates execution behind an explicit
+    /// missing-binding state. This is deterministic, Console-side work derived only from the supplied JSON;
+    /// it contacts no server and fabricates no data (Console Patterns Charter §11).
+    /// </summary>
+    public EsriParseOutcome ParseNotebook(string json, string? fileName = null)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return EsriParseOutcome.Failure("Paste or upload an ArcGIS Notebook (.ipynb) to see the cell mapping.");
+        }
+
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(json, DocOptions);
+        }
+        catch (JsonException ex)
+        {
+            return EsriParseOutcome.Failure($"Not valid JSON: {ex.Message}");
+        }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return EsriParseOutcome.Failure("An ArcGIS Notebook must be a JSON object with a cells array (the Jupyter .ipynb shape).");
+            }
+
+            if (!root.TryGetProperty("cells", out var cells) || cells.ValueKind != JsonValueKind.Array)
+            {
+                return EsriParseOutcome.Failure("No cells array found in the notebook. Export the ArcGIS Notebook as .ipynb and import that.");
+            }
+
+            var metadata = root.TryGetProperty("metadata", out var meta) && meta.ValueKind == JsonValueKind.Object
+                ? meta
+                : default;
+
+            var rows = new List<EsriMappingRow>();
+            var codeCount = 0;
+            var markdownCount = 0;
+            var rawCount = 0;
+            var arcpyCount = 0;
+            var index = 0;
+
+            foreach (var cell in cells.EnumerateArray())
+            {
+                index++;
+                var row = MapNotebookCell(cell, index, ref codeCount, ref markdownCount, ref rawCount, ref arcpyCount);
+                if (row is not null)
+                {
+                    rows.Add(row);
+                }
+            }
+
+            if (rows.Count == 0)
+            {
+                return EsriParseOutcome.Failure("The notebook has no cells to import.");
+            }
+
+            // Parameters: an ArcGIS notebook carries injected parameters either as a metadata "parameters"
+            // object or as a "parameters"-tagged code cell (papermill convention). Each parameter is a row.
+            var parameterCount = MapNotebookParameters(metadata, cells, rows);
+
+            // Schedule: a hosted-notebook task schedule (metadata.schedule / esriNotebook.schedule). The
+            // schedule definition imports as a draft task; running it needs the gated server runtime.
+            var hasSchedule = MapNotebookSchedule(metadata, root, rows);
+
+            // The kernel / runtime determines whether the notebook is an arcpy (hosted) notebook. An unknown
+            // or non-arcpy kernel degrades the runtime mapping (it imports, but Honua maps it to the standard
+            // Python runtime rather than the arcpy-enabled one).
+            var runtime = ReadNotebookRuntime(metadata);
+
+            var summary = new List<string>
+            {
+                $"{codeCount} code cell{(codeCount == 1 ? string.Empty : "s")}",
+            };
+            if (markdownCount > 0)
+            {
+                summary.Add($"{markdownCount} markdown");
+            }
+            if (parameterCount > 0)
+            {
+                summary.Add($"{parameterCount} parameter{(parameterCount == 1 ? string.Empty : "s")}");
+            }
+            if (hasSchedule)
+            {
+                summary.Add("scheduled");
+            }
+            summary.Add(runtime.DisplayName);
+
+            var carryOver = new List<EsriCarryOver>
+            {
+                new($"{codeCount} code cells → notebook cells", codeCount > 0),
+                new($"{markdownCount} markdown cells", markdownCount > 0),
+                new($"{parameterCount} parameters → run inputs", parameterCount > 0),
+                new("schedule → draft task", hasSchedule),
+                new("execution → server hosted-arcpy runtime (gated)", false),
+            };
+            if (rawCount > 0)
+            {
+                carryOver.Add(new EsriCarryOver($"{rawCount} raw cells dropped", false));
+            }
+
+            var title = ReadString(root, "title")
+                ?? ReadNotebookTitle(metadata)
+                ?? (fileName is not null ? StripExtension(fileName) : null);
+
+            var result = new EsriConversionResult(
+                EsriContentKind.Notebook,
+                $"ArcGIS Notebook · {runtime.DisplayName}",
+                fileName ?? "notebook.ipynb",
+                "honua.notebook-package.v1",
+                Slugify(title ?? "imported-notebook"),
+                summary,
+                rows,
+                carryOver);
+
+            return EsriParseOutcome.Success(result);
+        }
+    }
+
+    private static EsriMappingRow? MapNotebookCell(
+        JsonElement cell,
+        int index,
+        ref int codeCount,
+        ref int markdownCount,
+        ref int rawCount,
+        ref int arcpyCount)
+    {
+        if (cell.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var cellType = ReadString(cell, "cell_type") ?? "code";
+        var source = ReadCellSource(cell);
+        var label = FirstNonEmptyLine(source) ?? $"Cell {index}";
+
+        switch (cellType.ToLowerInvariant())
+        {
+            case "markdown":
+                markdownCount++;
+                return new EsriMappingRow(
+                    Truncate(label, 48),
+                    "markdown cell",
+                    "notebook markdown cell",
+                    ImportFidelity.Clean,
+                    "rendered markdown");
+            case "raw":
+                rawCount++;
+                return new EsriMappingRow(
+                    Truncate(label, 48),
+                    "raw cell",
+                    null,
+                    ImportFidelity.Drop,
+                    "raw cell not representable · re-add in Studio",
+                    Included: false);
+            case "code":
+            default:
+                codeCount++;
+                // arcpy / ArcGIS API imports are the hosted-arcpy signal; the cell imports clean as a code
+                // cell, but it can only RUN against the server hosted-arcpy runtime (gated, out of scope #159).
+                if (UsesArcpy(source))
+                {
+                    arcpyCount++;
+                    return new EsriMappingRow(
+                        Truncate(label, 48),
+                        "code cell · arcpy",
+                        "notebook code cell",
+                        ImportFidelity.Manual,
+                        "uses arcpy · runs on server hosted-arcpy runtime (gated)");
+                }
+
+                return new EsriMappingRow(
+                    Truncate(label, 48),
+                    "code cell",
+                    "notebook code cell",
+                    ImportFidelity.Clean,
+                    "Python code");
+        }
+    }
+
+    private static int MapNotebookParameters(JsonElement metadata, JsonElement cells, List<EsriMappingRow> rows)
+    {
+        var count = 0;
+
+        // (a) metadata.parameters: an object of name -> default value.
+        if (metadata.ValueKind == JsonValueKind.Object
+            && metadata.TryGetProperty("parameters", out var parameters)
+            && parameters.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var parameter in parameters.EnumerateObject())
+            {
+                count++;
+                rows.Add(new EsriMappingRow(
+                    parameter.Name,
+                    "parameter",
+                    "notebook run input",
+                    ImportFidelity.Clean,
+                    $"default {DescribeJsonValue(parameter.Value)}",
+                    BoundResource: parameter.Name));
+            }
+        }
+
+        // (b) a "parameters"-tagged code cell (papermill convention) declares each `name = value` parameter.
+        if (cells.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var cell in cells.EnumerateArray())
+            {
+                if (!IsParametersCell(cell))
+                {
+                    continue;
+                }
+
+                foreach (var name in ReadParameterNames(ReadCellSource(cell)))
+                {
+                    count++;
+                    rows.Add(new EsriMappingRow(
+                        name,
+                        "parameter (tagged cell)",
+                        "notebook run input",
+                        ImportFidelity.Clean,
+                        "from parameters-tagged cell",
+                        BoundResource: name));
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static bool MapNotebookSchedule(JsonElement metadata, JsonElement root, List<EsriMappingRow> rows)
+    {
+        var schedule = FindSchedule(metadata, root);
+        if (schedule is null)
+        {
+            return false;
+        }
+
+        rows.Add(new EsriMappingRow(
+            "Schedule",
+            "schedule",
+            "scheduled task (draft)",
+            ImportFidelity.Manual,
+            $"{schedule} · task runs once a hosted-arcpy runtime is bound (gated)",
+            BoundResource: schedule));
+        return true;
+    }
+
+    private static string? FindSchedule(JsonElement metadata, JsonElement root)
+    {
+        foreach (var container in new[] { metadata, root })
+        {
+            if (container.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            // A schedule may be a cron string, or an object carrying a cron / recurrence field.
+            if (container.TryGetProperty("schedule", out var schedule))
+            {
+                if (schedule.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(schedule.GetString()))
+                {
+                    return schedule.GetString();
+                }
+
+                if (schedule.ValueKind == JsonValueKind.Object)
+                {
+                    return ReadString(schedule, "cron")
+                        ?? ReadString(schedule, "recurrence")
+                        ?? ReadString(schedule, "expression")
+                        ?? "recurring";
+                }
+            }
+
+            // ArcGIS nests notebook metadata under "esriNotebook" / "esri".
+            foreach (var nestedKey in new[] { "esriNotebook", "esri" })
+            {
+                if (container.TryGetProperty(nestedKey, out var nested) && nested.ValueKind == JsonValueKind.Object)
+                {
+                    var nestedSchedule = FindSchedule(nested, default);
+                    if (nestedSchedule is not null)
+                    {
+                        return nestedSchedule;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private readonly record struct NotebookRuntime(string DisplayName, bool IsArcpy);
+
+    private static NotebookRuntime ReadNotebookRuntime(JsonElement metadata)
+    {
+        if (metadata.ValueKind != JsonValueKind.Object)
+        {
+            return new NotebookRuntime("Python runtime", false);
+        }
+
+        // ArcGIS stamps the hosted runtime on the notebook metadata; otherwise the kernelspec names it.
+        var esriRuntime = ReadString(metadata, "esriNotebookRuntime");
+        if (esriRuntime is null
+            && metadata.TryGetProperty("esriNotebook", out var esri) && esri.ValueKind == JsonValueKind.Object)
+        {
+            esriRuntime = ReadString(esri, "runtime") ?? ReadString(esri, "runtimeName");
+        }
+
+        if (esriRuntime is not null)
+        {
+            var isAdvanced = esriRuntime.Contains("Advanced", StringComparison.OrdinalIgnoreCase)
+                || esriRuntime.Contains("arcpy", StringComparison.OrdinalIgnoreCase)
+                || esriRuntime.Contains("Pro", StringComparison.OrdinalIgnoreCase);
+            return new NotebookRuntime(
+                isAdvanced ? "hosted arcpy runtime" : "hosted Python runtime",
+                isAdvanced);
+        }
+
+        if (metadata.TryGetProperty("kernelspec", out var kernel) && kernel.ValueKind == JsonValueKind.Object)
+        {
+            var kernelName = ReadString(kernel, "display_name") ?? ReadString(kernel, "name");
+            if (kernelName is not null)
+            {
+                var isArcgis = kernelName.Contains("ArcGIS", StringComparison.OrdinalIgnoreCase)
+                    || kernelName.Contains("arcpy", StringComparison.OrdinalIgnoreCase);
+                return new NotebookRuntime(isArcgis ? "hosted arcpy runtime" : "Python runtime", isArcgis);
+            }
+        }
+
+        return new NotebookRuntime("Python runtime", false);
+    }
+
+    private static string? ReadNotebookTitle(JsonElement metadata)
+    {
+        if (metadata.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (metadata.TryGetProperty("esriNotebook", out var esri) && esri.ValueKind == JsonValueKind.Object)
+        {
+            return ReadString(esri, "title") ?? ReadString(esri, "name");
+        }
+
+        return ReadString(metadata, "title");
+    }
+
+    private static string ReadCellSource(JsonElement cell)
+    {
+        if (!cell.TryGetProperty("source", out var source))
+        {
+            return string.Empty;
+        }
+
+        return source.ValueKind switch
+        {
+            JsonValueKind.String => source.GetString() ?? string.Empty,
+            // Jupyter stores source as an array of lines.
+            JsonValueKind.Array => string.Concat(source.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.String)
+                .Select(e => e.GetString())),
+            _ => string.Empty,
+        };
+    }
+
+    private static bool UsesArcpy(string source) =>
+        source.Contains("import arcpy", StringComparison.OrdinalIgnoreCase)
+        || source.Contains("from arcpy", StringComparison.OrdinalIgnoreCase)
+        || source.Contains("arcpy.", StringComparison.OrdinalIgnoreCase)
+        || source.Contains("arcgis.gis", StringComparison.OrdinalIgnoreCase)
+        || source.Contains("from arcgis", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsParametersCell(JsonElement cell)
+    {
+        if (cell.ValueKind != JsonValueKind.Object
+            || !cell.TryGetProperty("metadata", out var meta)
+            || meta.ValueKind != JsonValueKind.Object
+            || !meta.TryGetProperty("tags", out var tags)
+            || tags.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        foreach (var tag in tags.EnumerateArray())
+        {
+            if (tag.ValueKind == JsonValueKind.String
+                && string.Equals(tag.GetString(), "parameters", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // A parameters-tagged cell declares `name = value` assignments, one per line; collect each name.
+    private static IEnumerable<string> ReadParameterNames(string source)
+    {
+        foreach (var rawLine in source.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith('#'))
+            {
+                continue;
+            }
+
+            var eq = line.IndexOf('=', StringComparison.Ordinal);
+            if (eq <= 0)
+            {
+                continue;
+            }
+
+            var name = line[..eq].Trim();
+            // A bare identifier on the left (skip comparisons / augmented assignments / type hints).
+            if (name.Length > 0 && name.All(c => char.IsLetterOrDigit(c) || c == '_')
+                && !char.IsDigit(name[0]))
+            {
+                yield return name;
+            }
+        }
+    }
+
+    private static string DescribeJsonValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => $"\"{value.GetString()}\"",
+        JsonValueKind.Number => value.GetRawText(),
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        JsonValueKind.Null => "null",
+        JsonValueKind.Array => "[…]",
+        JsonValueKind.Object => "{…}",
+        _ => "—",
+    };
+
+    private static string? FirstNonEmptyLine(string source)
+    {
+        foreach (var line in source.Split('\n'))
+        {
+            var trimmed = line.Trim().TrimStart('#', '*', ' ');
+            if (trimmed.Length > 0)
+            {
+                return trimmed;
+            }
+        }
+
+        return null;
+    }
+
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..max].TrimEnd() + "…";
+
+    private static string StripExtension(string fileName)
+    {
+        var dot = fileName.LastIndexOf('.');
+        return dot > 0 ? fileName[..dot] : fileName;
+    }
+
     /// <summary>A single Instant App capability toggle and how it maps to a Console app element.</summary>
     private readonly record struct InstantAppCapability(
         string Key,

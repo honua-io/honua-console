@@ -119,6 +119,7 @@
             <li><input type="checkbox" checked disabled /> Q3 Ops Dashboard <span class="console-type-tag">Dashboard</span></li>
             <li><input type="checkbox" checked disabled /> Watershed StoryMap <span class="console-type-tag">StoryMap</span></li>
             <li><input type="checkbox" checked disabled /> Public Works Viewer <span class="console-type-tag">Instant App</span></li>
+            <li><input type="checkbox" checked disabled /> Nightly Parcel Sync <span class="console-type-tag">Notebook</span></li>
             <li><input type="checkbox" checked disabled /> Parcels FeatureServer <span class="console-type-tag">Feature Service</span></li>
             <li class="console-muted">+ 13 more items</li>
         </ul>
@@ -258,6 +259,7 @@
         new("Q3 Ops Dashboard", "Dashboard", "dashboard package", ImportFidelity.Degrade, "1 gauge degrades · 1 iframe dropped"),
         new("Watershed StoryMap", "StoryMap", "report", ImportFidelity.Degrade, "swipe → static · video dropped"),
         new("Public Works Viewer", "Instant App", "app package", ImportFidelity.Degrade, "Sidebar → app shell · 1 splash dropped"),
+        new("Nightly Parcel Sync", "Notebook", "notebook package", ImportFidelity.Manual, "definition imports · execution gated to server hosted-arcpy runtime"),
         new("Hydrants Web Map", "Web Map", "map package", ImportFidelity.Manual, "1 layer unbound · pick resource"),
         new("3D Scene · terrain", "Web Scene", null, ImportFidelity.Drop, "3D scenes not supported in v1", Included: false),
     ];
