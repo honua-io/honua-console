@@ -34,6 +34,7 @@ public enum EsriContentKind
     Dashboard,
     StoryMap,
     InstantApp,
+    Notebook,
 }
 
 /// <summary>

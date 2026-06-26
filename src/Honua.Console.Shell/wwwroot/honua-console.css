@@ -8,10 +8,35 @@
     --honua-muted: #5f6f68;
     --honua-accent: #0f766e;
     --honua-accent-strong: #134e4a;
+    --honua-danger: #b3261e;
+    --honua-danger-strong: #8c1d18;
+    /* Single app-wide keyboard-focus ring token. The stylesheet previously had ZERO :focus-visible
+       rules, so keyboard focus was effectively invisible across the console. */
+    --honua-focus-ring: 0 0 0 2px var(--honua-surface), 0 0 0 4px var(--honua-accent);
 }
 
 * {
     box-sizing: border-box;
+}
+
+/* Global keyboard-focus ring. Applies to interactive elements ONLY on keyboard focus
+   (:focus-visible), so mouse clicks don't get an outline but Tab navigation always shows where
+   focus is. Uses box-shadow (not outline) so the ring follows rounded corners; an outline is kept
+   as a fallback for forced-colors / high-contrast modes. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+[role="option"]:focus-visible,
+[role="tab"]:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: var(--honua-focus-ring);
+    border-radius: 4px;
 }
 
 body {
@@ -2663,6 +2688,30 @@ p {
 .operate-ai-actions {
     display: grid;
     gap: 7px;
+}
+
+/* Suggested next actions are clickable (link/button) rather than dead text. A button-styled action
+   matches the link affordance; an undeterminable action stays plain text. */
+.operate-ai-action {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--honua-accent);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.operate-ai-action:hover {
+    color: var(--honua-accent-strong);
+}
+
+.operate-ai-action-static {
+    color: var(--honua-text);
+    text-decoration: none;
+    cursor: default;
 }
 
 .operate-progress {
@@ -8101,6 +8150,34 @@ p {
     color: var(--honua-muted);
 }
 
+/* Notebook (#159) target preview ------------------------------------------ */
+.esri-notebook-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--honua-border);
+    border-radius: 8px;
+    background: var(--honua-surface);
+}
+
+.esri-notebook-preview__cell {
+    border: 1px solid var(--honua-border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+    background: var(--honua-surface-strong);
+    color: var(--honua-muted);
+}
+
+.esri-notebook-preview__cell--code {
+    font-family: var(--honua-font-mono, monospace);
+}
+
+.esri-notebook-preview__cell--md {
+    border-left: 3px solid var(--honua-accent, #0a7);
+}
+
 /* Wizard (#102) ----------------------------------------------------------- */
 .esri-wizard__context {
     flex-wrap: wrap;
@@ -9169,4 +9246,135 @@ p {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     opacity: 0.7;
+}
+
+/* ----- shell-owned toast / notification host (ConsoleNotificationHost) ----- */
+.console-toast-host {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: min(360px, calc(100vw - 2.5rem));
+    z-index: 2500;
+    pointer-events: none;
+}
+
+.console-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--honua-border);
+    background: var(--honua-surface);
+    color: var(--honua-text);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+    font-size: 0.92rem;
+    line-height: 1.35;
+}
+
+.console-toast-icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--honua-accent);
+}
+
+.console-toast-message {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.console-toast-dismiss {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    color: var(--honua-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0.1rem 0.2rem;
+    border-radius: 4px;
+}
+
+.console-toast-dismiss:hover {
+    color: var(--honua-text);
+}
+
+.console-toast-success {
+    border-left: 4px solid #2f8f4e;
+}
+
+.console-toast-success .console-toast-icon {
+    background: #2f8f4e;
+}
+
+.console-toast-info {
+    border-left: 4px solid var(--honua-accent);
+}
+
+.console-toast-warning {
+    border-left: 4px solid #d9a23a;
+}
+
+.console-toast-warning .console-toast-icon {
+    background: #d9a23a;
+    color: #3a2c00;
+}
+
+.console-toast-error {
+    border-left: 4px solid var(--honua-danger);
+}
+
+.console-toast-error .console-toast-icon {
+    background: var(--honua-danger);
+}
+
+/* ----- reusable destructive-action confirm dialog (ConsoleConfirmDialog) ----- */
+.console-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgb(15 23 21 / 45%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    z-index: 3000;
+}
+
+.console-confirm-dialog {
+    background: var(--honua-surface);
+    border: 1px solid var(--honua-border);
+    border-radius: 10px;
+    box-shadow: 0 18px 48px rgb(0 0 0 / 30%);
+    padding: 1.25rem 1.4rem;
+    width: min(440px, 100%);
+}
+
+.console-confirm-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+}
+
+.console-confirm-body {
+    margin: 0 0 1.1rem;
+    color: var(--honua-muted);
+    line-height: 1.45;
+}
+
+.console-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
 }

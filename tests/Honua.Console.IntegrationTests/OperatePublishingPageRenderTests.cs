@@ -18,6 +18,7 @@ public sealed class OperatePublishingPageRenderTests
     public void OperatePublishingPage_WhenUnbound_RendersMissingBindingWithoutMockData()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
@@ -46,6 +47,7 @@ public sealed class OperatePublishingPageRenderTests
     public void OperatePublishingPage_ModeToggle_SwapsStepperBetweenQuickAndAuthorFirst()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new UnsupportedPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
@@ -80,6 +82,7 @@ public sealed class OperatePublishingPageRenderTests
     public void OperatePublishingPage_WhenBound_RendersMatrixAndReviewSurface()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new StubPublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
@@ -123,6 +126,7 @@ public sealed class OperatePublishingPageRenderTests
     public void OperatePublishingPage_Lookup_RendersReviewVersionsAndDrivesRepublishRollback()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         var source = new InteractivePublishingWorkspaceDataSource();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(source);
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
@@ -142,8 +146,14 @@ public sealed class OperatePublishingPageRenderTests
         // Version history renders prior revisions with a rollback control.
         Assert.Contains("Roll back to rev 1", page.Markup, StringComparison.Ordinal);
 
-        // Roll back to the earlier revision: the data source records the target and the active revision moves.
+        // Roll back to the earlier revision. The destructive action is now gated behind a confirm
+        // dialog (UX hardening): clicking the rollback control only opens the dialog; accepting it runs
+        // the rollback, records the target, and moves the active revision.
         page.Find("[data-publication-lookup] button.console-button-secondary").Click();
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-console-confirm-accept]")),
+            TimeSpan.FromSeconds(5));
+        page.Find("[data-console-confirm-accept]").Click();
         page.WaitForAssertion(
             () => Assert.Equal("ver-1", source.LastRollbackTarget),
             TimeSpan.FromSeconds(5));
@@ -153,6 +163,7 @@ public sealed class OperatePublishingPageRenderTests
     public void OperatePublishingPage_MalformedLookupId_ShowsInlineError_AndGatesReview()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(new InteractivePublishingWorkspaceDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());

@@ -73,6 +73,10 @@
     <main class="console-main">
         @Body
     </main>
+
+    @* Shell-owned toast surface — rendered once so every page raises notifications through
+       IConsoleNotificationService instead of inventing its own inline status. *@
+    <ConsoleNotificationHost />
 </div>
 
 @code {

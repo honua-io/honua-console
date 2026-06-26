@@ -1,3 +1,40 @@
+/* Visible reconnect / unhandled-error banner.
+
+   Blazor toggles this element's visibility by flipping its inline `display` (hidden by default,
+   shown as a block when the circuit drops or an unhandled error occurs). Previously this rule only
+   set `display: none` with NO styling and the markup was absent from the Web host, so a dropped
+   circuit silently froze the page. The banner is now styled (fixed to the bottom, high contrast,
+   with a reload + dismiss affordance) so the reconnect state is actually surfaced. */
 #blazor-error-ui {
     display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.7rem 1.25rem;
+    background: #fff3cd;
+    color: #5c4400;
+    border-top: 2px solid #d9a23a;
+    box-shadow: 0 -2px 8px rgb(0 0 0 / 25%);
+    font-size: 0.95rem;
+    z-index: 2000;
+}
+
+#blazor-error-ui .blazor-error-ui-text {
+    margin-right: 0.75rem;
+}
+
+#blazor-error-ui .reload {
+    color: #5c4400;
+    font-weight: 600;
+    text-decoration: underline;
+    margin-right: 0.5rem;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.9rem;
+    top: 0.55rem;
 }

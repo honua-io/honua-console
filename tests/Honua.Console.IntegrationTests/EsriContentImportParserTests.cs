@@ -242,6 +242,102 @@ public sealed class EsriContentImportParserTests
         Assert.NotNull(outcome.Error);
     }
 
+    // ---- #159 ArcGIS Notebook (hosted arcpy) ----
+
+    [Fact]
+    public void ParseNotebook_ClassifiesCellsParametersAndScheduleFidelity()
+    {
+        const string json = """
+        {
+          "cells": [
+            { "cell_type": "markdown", "source": ["# Sync\n", "Refresh parcels."] },
+            { "cell_type": "code", "metadata": { "tags": ["parameters"] }, "source": ["county_url = \"https://x\"\n", "max_records = 5000\n"] },
+            { "cell_type": "code", "source": ["import arcpy\n", "arcpy.management.RepairGeometry(\"parcels\")\n"] },
+            { "cell_type": "code", "source": ["import pandas as pd\n", "df = pd.DataFrame()\n"] },
+            { "cell_type": "raw", "source": ["template directive"] }
+          ],
+          "metadata": {
+            "kernelspec": { "display_name": "ArcGIS Notebook Python 3 (Advanced)", "name": "python3" },
+            "esriNotebookRuntime": "ArcGIS Notebook Python 3 Advanced",
+            "parameters": { "county_url": "https://x", "max_records": 5000 },
+            "schedule": { "cron": "0 2 * * *" }
+          }
+        }
+        """;
+
+        var outcome = _parser.ParseNotebook(json, "parcel-sync.ipynb");
+
+        Assert.True(outcome.Succeeded, outcome.Error);
+        var result = outcome.Result!;
+        Assert.Equal(EsriContentKind.Notebook, result.Kind);
+        Assert.Equal("honua.notebook-package.v1", result.TargetSchema);
+        Assert.Contains("arcpy", result.SourceLabel, StringComparison.OrdinalIgnoreCase);
+
+        // Markdown + plain Python code import clean.
+        Assert.Contains(result.Rows, r => r.SourceType == "markdown cell" && r.Fidelity == ImportFidelity.Clean);
+        Assert.Contains(result.Rows, r => r.SourceType == "code cell" && r.Fidelity == ImportFidelity.Clean);
+
+        // An arcpy code cell imports as the definition, but is flagged manual (execution gated to the server
+        // hosted-arcpy runtime — #159 scope boundary).
+        var arcpyRow = result.Rows.Single(r => r.SourceType == "code cell · arcpy");
+        Assert.Equal(ImportFidelity.Manual, arcpyRow.Fidelity);
+        Assert.Contains("gated", arcpyRow.Note, StringComparison.OrdinalIgnoreCase);
+
+        // A raw cell drops.
+        var raw = result.Rows.Single(r => r.SourceType == "raw cell");
+        Assert.Equal(ImportFidelity.Drop, raw.Fidelity);
+        Assert.False(raw.Included);
+
+        // Parameters from both metadata and the parameters-tagged cell become run-input rows.
+        Assert.Contains(result.Rows, r => r.SourceName == "county_url" && r.SourceType.StartsWith("parameter", StringComparison.Ordinal));
+        Assert.Contains(result.Rows, r => r.SourceName == "max_records" && r.SourceType.StartsWith("parameter", StringComparison.Ordinal));
+
+        // The schedule imports as a draft task, gated.
+        var schedule = result.Rows.Single(r => r.SourceType == "schedule");
+        Assert.Equal(ImportFidelity.Manual, schedule.Fidelity);
+        Assert.Contains("0 2 * * *", schedule.Note, StringComparison.Ordinal);
+
+        // Execution is never claimed as carried-over — it is surfaced as gated.
+        Assert.Contains(result.CarryOver, c => c.Label.Contains("execution", StringComparison.OrdinalIgnoreCase) && !c.Carried);
+    }
+
+    [Fact]
+    public void ParseNotebook_NonArcpyKernel_ImportsWithoutClaimingArcpyRuntime()
+    {
+        const string json = """
+        {
+          "cells": [ { "cell_type": "code", "source": ["print('hello')\n"] } ],
+          "metadata": { "kernelspec": { "display_name": "Python 3", "name": "python3" } }
+        }
+        """;
+
+        var outcome = _parser.ParseNotebook(json, "plain.ipynb");
+
+        Assert.True(outcome.Succeeded, outcome.Error);
+        var result = outcome.Result!;
+        // Plain Python notebook: the single code cell imports clean, no arcpy/manual cell.
+        Assert.DoesNotContain(result.Rows, r => r.SourceType == "code cell · arcpy");
+        Assert.Equal(ImportFidelity.Clean, result.Rows.Single(r => r.SourceType == "code cell").Fidelity);
+    }
+
+    [Fact]
+    public void ParseNotebook_NoCells_ReturnsFailure()
+    {
+        var outcome = _parser.ParseNotebook("""{ "metadata": {} }""");
+
+        Assert.False(outcome.Succeeded);
+        Assert.Contains("cells", outcome.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ParseNotebook_InvalidJson_ReturnsFailure()
+    {
+        var outcome = _parser.ParseNotebook("{ not json", "bad.ipynb");
+
+        Assert.False(outcome.Succeeded);
+        Assert.NotNull(outcome.Error);
+    }
+
     [Fact]
     public void BundledSamples_ParseSuccessfullyThroughTheRealParser()
     {
@@ -249,5 +345,6 @@ public sealed class EsriContentImportParserTests
         Assert.True(_parser.ParseDashboard(EsriImportSampleDocuments.Dashboard, EsriImportSampleDocuments.DashboardFileName).Succeeded);
         Assert.True(_parser.ParseStoryMap(EsriImportSampleDocuments.StoryMap, EsriImportSampleDocuments.StoryMapFileName).Succeeded);
         Assert.True(_parser.ParseInstantApp(EsriImportSampleDocuments.InstantApp, EsriImportSampleDocuments.InstantAppFileName).Succeeded);
+        Assert.True(_parser.ParseNotebook(EsriImportSampleDocuments.Notebook, EsriImportSampleDocuments.NotebookFileName).Succeeded);
     }
 }

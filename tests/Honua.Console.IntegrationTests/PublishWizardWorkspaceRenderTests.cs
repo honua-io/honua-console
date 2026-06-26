@@ -19,6 +19,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     private static Bunit.BunitContext NewContext()
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         // The Projection step embeds MapPreview, which probes JS interop; loose mode keeps the
         // schematic placeholder without a real browser runtime.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
