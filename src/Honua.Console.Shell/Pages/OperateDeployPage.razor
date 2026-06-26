@@ -74,9 +74,58 @@
             </a>
         </div>
 
+        @* AVAILABLE TO PROMOTE — the dev → staging → prod release proposals the operator can
+           start, surfaced directly on the Deploy page so the promotion entry point is not hidden
+           behind a separate page (information-rich approval surface, forms-light). Each row shows
+           source → targets and the change count, and links into the governed release detail where
+           the promotion is reviewed and approved. Server-owned proposals only; a missing/empty read
+           renders the honest shared state, never seeded data. *@
         @if (!_promotionLoaded)
         {
-            <OperateSectionStatusPanel Heading="Cross-environment promotions" Loading="true" />
+            <OperateSectionStatusPanel Heading="Available to promote" Loading="true" />
+        }
+        else if (!_promotionProposals.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Available to promote"
+                Status="_promotionProposals.Status" Message="@_promotionProposals.Message" />
+        }
+        else if (PromotionProposals.Count == 0)
+        {
+            <OperateSectionStatusPanel Heading="Available to promote" Empty="true"
+                EmptyTitle="No promotions available"
+                EmptyMessage="The connected server reported no metadata release proposals to promote across environments." />
+        }
+        else
+        {
+            <ul class="operate-deploy-promote-list" data-promote-available aria-label="Release proposals available to promote">
+                @foreach (var proposal in PromotionProposals)
+                {
+                    <li class="operate-deploy-promote-row" data-promote-proposal="@proposal.ReleasePackageId">
+                        <a class="operate-deploy-promote-link" href="@GitOpsReleaseRoutes.ReleaseDetail(proposal.ReleasePackageId)">
+                            <span class="operate-deploy-promote-head">
+                                <strong>@proposal.Title</strong>
+                                <span class="console-status @(proposal.HasBlockingFindings ? "console-state-danger" : "console-state-success")">
+                                    @(proposal.HasBlockingFindings ? "blocked" : "ready")
+                                </span>
+                            </span>
+                            <span class="console-muted operate-deploy-promote-route">
+                                <span class="console-mono">@proposal.SourceEnvironmentId</span>
+                                <span aria-hidden="true">&rarr;</span>
+                                <span class="console-mono">@(proposal.TargetEnvironmentIds.Count == 0 ? "none" : string.Join(", ", proposal.TargetEnvironmentIds))</span>
+                                <span>&middot; @proposal.ChangedResources.Count semantic change@(proposal.ChangedResources.Count == 1 ? "" : "s")</span>
+                            </span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        }
+
+        @* IN-FLIGHT PROMOTIONS — the governed deploy-control operations already promoting across
+           environments (projected from release-derived + operator-tracked ids; the server has no
+           list-all endpoint). Selecting one binds its approve / outcome / rollback surface. *@
+        @if (!_promotionLoaded)
+        {
+            <OperateSectionStatusPanel Heading="In-flight promotions" Loading="true" />
         }
         else
         {
@@ -142,6 +191,14 @@
     private string _trackOperationIdInput = string.Empty;
 
     private bool _promotionLoaded;
+
+    // The dev → staging → prod release proposals available to promote, surfaced as the
+    // promotion entry point. Read from the GitOps release client; a missing/empty read renders
+    // the honest shared state. Captured from the same read that resolves release-derived deploy
+    // operation ids so the page does not double-fetch the proposal list.
+    private OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>> _promotionProposals =
+        OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Allowed([]);
+
     private OperateSectionResult<IReadOnlyList<DeployOperationProposal>> _promotions =
         OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
     private OperateSectionResult<IReadOnlyList<DeployOperationProposal>> _tracked =
@@ -227,9 +284,15 @@
         }
     }
 
+    private IReadOnlyList<GitOpsReleaseProposal> PromotionProposals => _promotionProposals.Value ?? [];
+
     private async Task<IReadOnlyList<string>> ResolveReleaseDeployOperationIdsAsync()
     {
         var proposals = await ReleaseClient.GetReleaseProposalsAsync();
+        // Capture the proposal read for the "available to promote" surface. A denied read
+        // (missing/unsupported/unavailable) is preserved so the section renders that state
+        // honestly rather than an empty list.
+        _promotionProposals = proposals;
         if (proposals is not { IsAllowed: true, Value: { } list } || list.Count == 0)
         {
             return [];

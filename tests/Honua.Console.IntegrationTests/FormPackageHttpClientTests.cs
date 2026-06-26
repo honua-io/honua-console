@@ -73,6 +73,48 @@ public sealed class FormPackageHttpClientTests
         Assert.Equal("asset_id", issue.FieldId);
     }
 
+    [Fact]
+    public async Task ImportXlsForm_PostsWorkbook_ToImportEndpoint_AndReadsResult()
+    {
+        HttpRequestMessage? captured = null;
+        var result = new HonuaFormXlsFormImportResult
+        {
+            Title = "Survey",
+            FieldCount = 1,
+            Package = new HonuaFormPackageDocument { Title = "Survey" }
+        };
+        using var client = CreateClient(new StaticResponseHandler(request =>
+        {
+            captured = request;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(result) };
+        }));
+
+        var response = await client.ImportXlsFormAsync(new ImportXlsFormRequest
+        {
+            FileName = "survey.xlsx",
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Content = Convert.ToBase64String([1, 2, 3])
+        });
+
+        Assert.NotNull(captured);
+        Assert.Equal(HttpMethod.Post, captured!.Method);
+        Assert.Equal("/api/v1/admin/forms/packages/import-xlsform", captured.RequestUri!.AbsolutePath);
+        Assert.Null(response.Issue);
+        Assert.Equal("Survey", response.Data!.Title);
+    }
+
+    [Fact]
+    public async Task ImportXlsForm_WhenServerLacksContract_MapsNotFoundToUnsupported()
+    {
+        using var client = CreateClient(new StaticResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var response = await client.ImportXlsFormAsync(new ImportXlsFormRequest { FileName = "f.xlsx", Content = "AQ==" });
+
+        Assert.NotNull(response.Issue);
+        Assert.Equal("Unsupported", response.Issue!.State);
+        Assert.Equal(404, response.Issue.StatusCode);
+    }
+
     private static HonuaFormPackageHttpClient CreateClient(HttpMessageHandler handler, TimeSpan? timeout = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };

@@ -25,6 +25,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
     private const string OfflineContract = "GET /api/v1/forms/packages/{formId}/offline-policy";
     private const string GenProvidersContract = "GET /api/v1/admin/forms/packages/generation/providers";
     private const string GenerateContract = "POST /api/v1/admin/forms/packages/generate";
+    private const string ImportXlsFormContract = "POST /api/v1/admin/forms/packages/import-xlsform";
 
     private readonly IHonuaFormPackageClient _client;
 
@@ -311,6 +312,96 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         }
 
         return MapGeneration(result.Data!);
+    }
+
+    public async Task<StudioFormImportOutcome> ImportXlsFormAsync(
+        StudioFormImportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.Content.Length == 0)
+        {
+            return StudioFormImportOutcome.Failed(
+                StudioFormImportStatuses.Rejected,
+                "The uploaded workbook was empty. Choose an XLSForm file and try again.");
+        }
+
+        var wire = new ImportXlsFormRequest
+        {
+            FileName = request.FileName,
+            ContentType = request.ContentType,
+            Content = Convert.ToBase64String(request.Content)
+        };
+
+        var result = await _client.ImportXlsFormAsync(wire, cancellationToken).ConfigureAwait(false);
+        if (result.Issue is { } issue)
+        {
+            // 404/501 = the server has the form API but not the Collect import contract: import is off here
+            // (honest "unavailable"), not a missing binding. A 400 is the importer rejecting the workbook.
+            if (issue.StatusCode is 404 or 501)
+            {
+                return StudioFormImportOutcome.Failed(
+                    StudioFormImportStatuses.Unsupported,
+                    "This server does not offer XLSForm import yet.");
+            }
+
+            if (issue.StatusCode is 400 or 415 or 422)
+            {
+                return StudioFormImportOutcome.Failed(StudioFormImportStatuses.Rejected, issue.Detail);
+            }
+
+            return StudioFormImportOutcome.Blocked(ToCapabilityState(ImportXlsFormContract, issue));
+        }
+
+        return MapImport(result.Data!);
+    }
+
+    private static StudioFormImportOutcome MapImport(HonuaFormXlsFormImportResult result)
+    {
+        // System.Text.Json overrides a non-null initializer with null when the server emits an explicit JSON
+        // null for the key, so coalesce the diagnostics before LINQ (same guard the generation path needs).
+        var diagnostics = (result.Diagnostics ?? [])
+            .Select(diagnostic => new StudioFormImportDiagnostic(
+                string.IsNullOrWhiteSpace(diagnostic.Severity) ? "warning" : diagnostic.Severity,
+                diagnostic.Code,
+                diagnostic.Location,
+                diagnostic.Message))
+            .ToArray();
+
+        if (result.Package is null)
+        {
+            return new StudioFormImportOutcome
+            {
+                Status = StudioFormImportStatuses.Rejected,
+                Message = "The XLSForm could not be converted to a form package.",
+                Diagnostics = diagnostics
+            };
+        }
+
+        // The converted document becomes a fresh, unsaved draft the operator reviews and saves; reuse the
+        // same projection a loaded version uses by wrapping the document in a new-draft version. The XLSForm
+        // form id is advisory only — the server assigns the real package id on the first save.
+        var state = StudioFormPackageMapper.ToEditorState(new HonuaFormPackageVersion
+        {
+            FormId = string.Empty,
+            Version = 0,
+            Status = HonuaFormPackageStatus.Draft,
+            Package = result.Package
+        });
+
+        var title = string.IsNullOrWhiteSpace(state.Title) ? result.Title : state.Title;
+        var summary = string.IsNullOrWhiteSpace(title)
+            ? $"Imported {state.Fields.Count.ToString(CultureInfo.InvariantCulture)} field(s) from the XLSForm."
+            : $"Imported \"{title}\" — {state.Fields.Count.ToString(CultureInfo.InvariantCulture)} field(s). Review and save the draft.";
+
+        return new StudioFormImportOutcome
+        {
+            Status = StudioFormImportStatuses.Imported,
+            State = state,
+            Message = summary,
+            Diagnostics = diagnostics
+        };
     }
 
     private static StudioFormGenerationOutcome MapGeneration(HonuaFormGenerationResult result)

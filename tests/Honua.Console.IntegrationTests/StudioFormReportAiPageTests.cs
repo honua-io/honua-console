@@ -91,6 +91,11 @@ public sealed class StudioFormReportAiPageTests
             StudioFormEditorState currentState, StudioFormGenerationRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioFormGenerationOutcome { Status = StudioFormGenerationStatuses.Unsupported });
 
+        public Task<StudioFormImportOutcome> ImportXlsFormAsync(StudioFormImportRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Unbound
+                ? StudioFormImportOutcome.Blocked(Missing)
+                : StudioFormImportOutcome.Failed(StudioFormImportStatuses.Unsupported, "Not exercised by this fake."));
+
         public Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioFormWorkspace([], []));
 

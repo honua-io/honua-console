@@ -52,6 +52,63 @@ public sealed class OperateDeployPageRenderTests
     }
 
     [Fact]
+    public void NoReleaseProposals_RendersHonestEmptyPromoteState()
+    {
+        using var ctx = NewContext(new InMemoryConsoleDeployApprovalClient());
+
+        var page = ctx.Render<OperateDeployPage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // The "available to promote" surface renders the honest empty state, not a
+                // fabricated list, when the server reports no release proposals.
+                Assert.Empty(page.FindAll("[data-promote-proposal]"));
+                Assert.Contains("No promotions available", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void AvailablePromotions_RenderSourceToTargets_AndLinkToReleaseDetail()
+    {
+        using var ctx = NewContext(
+            new InMemoryConsoleDeployApprovalClient(),
+            releaseClient: new StubReleaseClient(
+            [
+                new GitOpsReleaseProposal(
+                    ReleasePackageId: "rel-pkg-7",
+                    Title: "Promote staging metadata",
+                    Summary: "Promote 3 semantic resources from staging.",
+                    SourceEnvironmentId: "staging",
+                    TargetEnvironmentIds: ["prod"],
+                    DesiredRevision: "rev-12",
+                    ChangedResources:
+                    [
+                        new GitOpsChangedResource("svc/a", "service", "Service A", [GitOpsChangeClass.Metadata]),
+                    ],
+                    RollbackClassification: GitOpsRollbackClassification.MetadataOnly,
+                    HasBlockingFindings: false),
+            ]));
+
+        var page = ctx.Render<OperateDeployPage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                var row = page.Find("[data-promote-proposal='rel-pkg-7']");
+                // The proposal links into the governed release detail (where promotion is approved).
+                var link = row.QuerySelector("a.operate-deploy-promote-link")!;
+                Assert.Equal("/operate/releases/rel-pkg-7", link.GetAttribute("href"));
+                // Source → targets and the change count are visible directly on the Deploy page.
+                Assert.Contains("staging", row.InnerHtml, StringComparison.Ordinal);
+                Assert.Contains("prod", row.InnerHtml, StringComparison.Ordinal);
+                Assert.Contains("1 semantic change", row.InnerHtml, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void TrackingServerUpgradeOperation_BindsGovernedOutcome_AndRollsBack()
     {
         var approvalClient = new InMemoryConsoleDeployApprovalClient([SubmittedUpgrade("upgrade-op")]);
@@ -149,6 +206,37 @@ public sealed class OperateDeployPageRenderTests
         Environment = "prod",
         RollbackPlan = null,
     };
+
+    // Returns a fixed set of release proposals so the "available to promote" surface can be
+    // asserted. Detail/coordinated reads are not exercised by these promote-list tests.
+    private sealed class StubReleaseClient(IReadOnlyList<GitOpsReleaseProposal> proposals)
+        : IConsoleGitOpsReleaseClient
+    {
+        public Task<OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>> GetReleaseProposalsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Allowed(proposals));
+
+        public Task<OperateSectionResult<GitOpsReleaseProposal>> GetReleaseProposalAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<GitOpsReleaseProposal>.Denied(
+                OperateSectionStatus.Missing,
+                "Release not found."));
+
+        public Task<OperateSectionResult<GitOpsReleaseDetail>> GetReleaseDetailAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<GitOpsReleaseDetail>.Denied(
+                OperateSectionStatus.Missing,
+                "Release not found."));
+
+        public Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
+            string releasePackageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<GitOpsCoordinatedRelease>.Denied(
+                OperateSectionStatus.Missing,
+                "No coordinated release."));
+    }
 
     private sealed class EmptyReleaseClient : IConsoleGitOpsReleaseClient
     {
