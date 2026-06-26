@@ -83,7 +83,8 @@
                       aria-label="Refine or ask a follow-up"
                       disabled="@Busy"
                       @bind="_refine"
-                      @bind:event="oninput"></textarea>
+                      @bind:event="oninput"
+                      @onkeydown="OnRefineKeyDown"></textarea>
             <div class="studio-ai-refine-row">
                 <span class="console-muted studio-ai-advisory">AI suggestions are advisory · evidence linked</span>
                 <div class="studio-ai-refine-spacer"></div>
@@ -164,6 +165,21 @@
     /// <summary>Raised when a turn's evidence link is clicked.</summary>
     [Parameter]
     public EventCallback<StudioConversationTurn> OnEvidence { get; set; }
+
+    // The Send button advertises "Send ⌘↵" but no keydown handler existed, so the shortcut did nothing.
+    // Ctrl+Enter / Cmd+Enter now sends (the modifier matches the multi-line textarea convention: a bare
+    // Enter still inserts a newline). The textarea is excluded from preventDefault so the modifier combo
+    // is consumed as a send rather than a newline.
+    private async Task OnRefineKeyDown(KeyboardEventArgs args)
+    {
+        if ((args.CtrlKey || args.MetaKey)
+            && (string.Equals(args.Key, "Enter", StringComparison.Ordinal)
+                || string.Equals(args.Code, "Enter", StringComparison.Ordinal)
+                || string.Equals(args.Code, "NumpadEnter", StringComparison.Ordinal)))
+        {
+            await Send();
+        }
+    }
 
     private async Task Send()
     {

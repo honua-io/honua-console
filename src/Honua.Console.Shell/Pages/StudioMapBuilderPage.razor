@@ -5,6 +5,7 @@
 @using Honua.Console.Shell.Validation
 @inject IStudioMapPackageDataSource MapData
 @inject IStudioMapStyleCatalogDataSource StyleCatalog
+@inject Honua.Console.Shell.Services.IConsoleNotificationService Notifications
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved map changes. Leave this page and discard them?" />
 
@@ -114,7 +115,7 @@
                         <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
                         <span class="console-status @(canPublish ? string.Empty : "console-status-warning")">@(canPublish ? "validation passed" : $"{(readiness.UnmetRequirements.Count + (_validation.HasBlockingClientErrors ? _validation.Summary.Count(e => e.IsBlocking) : 0))} to resolve")</span>
                         <div class="studio-ai-preview-head-spacer"></div>
-                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Save draft</button>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="SaveDraftFromPrompt">Save draft</button>
                         <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
                         <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     </PreviewHeader>
@@ -1239,6 +1240,25 @@
     }
 
     private Task Save() => RunCommandAsync(() => MapData.SaveDraftAsync(_editor!));
+
+    // The map-from-prompt "Save draft" button previously called BackToList — which DISCARDED the generated
+    // map and navigated away (a data-loss mislabel: a button labelled "Save draft" that saved nothing).
+    // It now actually persists the draft through the same SaveDraftAsync the editor uses, then returns to
+    // the list on success so the saved draft is visible; on failure the editor stays open with the error.
+    private async Task SaveDraftFromPrompt()
+    {
+        if (_busy || _editor is null || _editor.IsPublished || _validation.HasBlockingClientErrors)
+        {
+            return;
+        }
+
+        await Save();
+        if (!_statusFailed)
+        {
+            Notifications.Success("Draft saved.");
+            await BackToList();
+        }
+    }
 
     private Task Publish()
     {

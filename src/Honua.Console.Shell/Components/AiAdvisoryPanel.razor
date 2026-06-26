@@ -1,3 +1,6 @@
+@namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Models
+
 @if (Advisory is not null)
 {
     <section class="operate-ai-advisory">
@@ -16,10 +19,30 @@
 
         <div class="operate-ai-actions">
             <strong>Suggested next actions</strong>
-            <ul>
+            @* These were dead <li> text. Each suggested action is now actionable: when a target route is
+               determinable from the action text (e.g. "open the publishing workspace", "review the import
+               job") it renders as a link to that operation; otherwise it raises OnActionSelected so a host
+               can act on the raw suggestion. Never fabricates a destination — undeterminable actions stay
+               plain text with a copy affordance rather than linking somewhere arbitrary. *@
+            <ul class="operate-ai-action-list">
                 @foreach (var action in Advisory.SuggestedActions)
                 {
-                    <li>@action</li>
+                    var href = ResolveActionHref(action);
+                    <li>
+                        @if (href is not null)
+                        {
+                            <a class="console-button-link operate-ai-action" data-ai-action href="@href">@action</a>
+                        }
+                        else if (OnActionSelected.HasDelegate)
+                        {
+                            <button type="button" class="console-button-link operate-ai-action" data-ai-action
+                                    @onclick="() => OnActionSelected.InvokeAsync(action)">@action</button>
+                        }
+                        else
+                        {
+                            <span class="operate-ai-action operate-ai-action-static" data-ai-action>@action</span>
+                        }
+                    </li>
                 }
             </ul>
         </div>
@@ -29,4 +52,59 @@
 @code {
     [Parameter]
     public OperateAiAdvisory? Advisory { get; set; }
+
+    /// <summary>
+    /// Raised with the raw suggested-action text when the operator clicks an action whose target route
+    /// can't be inferred. Lets a host page act on the suggestion (e.g. pre-fill a form, run an operation)
+    /// without this panel fabricating a destination.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnActionSelected { get; set; }
+
+    // Best-effort mapping from a free-form suggested action to a known Operate route. Only well-known
+    // verbs/nouns resolve; anything ambiguous returns null so the action never links somewhere arbitrary.
+    private static string? ResolveActionHref(string action)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+        {
+            return null;
+        }
+
+        var text = action.ToLowerInvariant();
+
+        if (Mentions(text, "publish"))
+        {
+            return "/operate/publishing";
+        }
+
+        if (Mentions(text, "import"))
+        {
+            return "/operate/import/service";
+        }
+
+        if (Mentions(text, "connection") || Mentions(text, "connector"))
+        {
+            return "/operate/connections";
+        }
+
+        if (Mentions(text, "job"))
+        {
+            return "/operate/geoprocessing";
+        }
+
+        if (Mentions(text, "alert") || Mentions(text, "observability") || Mentions(text, "monitor"))
+        {
+            return "/operate/observability";
+        }
+
+        if (Mentions(text, "service"))
+        {
+            return "/operate/services";
+        }
+
+        return null;
+    }
+
+    private static bool Mentions(string text, string token) =>
+        text.Contains(token, StringComparison.Ordinal);
 }
