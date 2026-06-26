@@ -4,6 +4,7 @@
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject IServiceLayerPublishOperation PublishOperation
+@inject IConsoleNotificationService Notifications
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -76,6 +77,7 @@ else
     private bool _authorCreateNewService;
     private string? _authorTargetId = "public-works-fs";
     private bool _published;
+    private bool _publishing;
     private ServiceLayerPublishResult? _publishResult;
 
     // ---- Projection preview controls (shared by both Projection steps) ----
@@ -93,7 +95,18 @@ else
     // Drives the REAL service-layer-publish operation (issue #144). The step bodies above are design
     // scaffolding, so the command is built from the wizard's source context + selected slot; when no
     // server is configured the operation returns a missing-binding result and nothing is fabricated.
-    private async Task OnFinish()
+    //
+    // Wrapped in RunGuardedAsync: before this the finish handler had no busy flag, no disable, and no
+    // catch — a thrown publish error vanished and a second click could double-submit. Now the Finish
+    // button disables while publishing (the Review steps report invalid while _publishing), a thrown
+    // failure surfaces as a toast, and the in-band missing-binding / rejected result is surfaced too.
+    private Task OnFinish() =>
+        Notifications.RunGuardedAsync(
+            PublishAsync,
+            setBusy: busy => { _publishing = busy; StateHasChanged(); },
+            failureMessage: "Couldn't publish the layer");
+
+    private async Task PublishAsync()
     {
         var (schema, table) = SplitSchemaTable(SourceTable);
 
@@ -130,6 +143,18 @@ else
 
         _publishResult = await PublishOperation.PublishAsync(command);
         _published = _publishResult.Succeeded;
+
+        // Surface the in-band outcome as a toast too (RunGuardedAsync only catches THROWN failures; a
+        // returned missing-binding / rejected result is a non-throwing failure the operator must see).
+        if (_publishResult.Succeeded)
+        {
+            Notifications.Success(
+                $"Published {_publishResult.LayerName ?? "the layer"} into {_publishResult.ServiceName ?? "the service"}.");
+        }
+        else
+        {
+            Notifications.Warning(_publishResult.Detail ?? "The publish did not complete.");
+        }
     }
 
     private static (string Schema, string Table) SplitSchemaTable(string sourceTable)
@@ -255,7 +280,9 @@ else
             QuickLayerBody,
             IsValid: _createNewResource || _selectedResourceId is not null,
             ContinueLabel: "Continue · Review →"),
-        new PublishWizardStep("Review", QuickReviewBody),
+        // The Review step reports invalid while a publish is in flight so the wizard's Finish button
+        // disables — this is the double-submit guard (the button is otherwise always enabled on Review).
+        new PublishWizardStep("Review", QuickReviewBody, IsValid: !_publishing),
     ];
 
     private RenderFragment QuickServiceBody => __builder =>
@@ -510,7 +537,7 @@ else
         new PublishWizardStep("Fields", AuthorFieldsBody, ContinueLabel: "Continue · Projection →"),
         new PublishWizardStep("Projection", AuthorProjectionBody, ContinueLabel: "Continue · Access →"),
         new PublishWizardStep("Access", AuthorAccessBody, ContinueLabel: "Continue · Review →"),
-        new PublishWizardStep("Review", AuthorReviewBody),
+        new PublishWizardStep("Review", AuthorReviewBody, IsValid: !_publishing),
     ];
 
     private RenderFragment AuthorContext => __builder =>

@@ -2,7 +2,9 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
+@using Honua.Console.Shell.Services
 @inject IPublishingWorkspaceDataSource PublishingData
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -71,7 +73,7 @@
                                        disabled="@_busy" />
                                 <button class="console-button"
                                         type="button"
-                                        @onclick="RepublishAsync"
+                                        @onclick="ConfirmRepublish"
                                         disabled="@_busy">
                                     Republish
                                 </button>
@@ -108,7 +110,7 @@
                                                         {
                                                             <button class="console-button console-button-secondary"
                                                                     type="button"
-                                                                    @onclick="() => RollbackAsync(version.VersionId)"
+                                                                    @onclick="() => ConfirmRollback(version.VersionId, version.Revision)"
                                                                     disabled="@_busy">
                                                                 Roll back to rev @version.Revision
                                                             </button>
@@ -193,7 +195,10 @@
     }
 </section>
 
+<ConsoleConfirmDialog @ref="_confirm" />
+
 @code {
+    private ConsoleConfirmDialog? _confirm;
     private PublishingWorkspace? _workspace;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
     private PublishingLookupResult? _lookup;
@@ -267,43 +272,81 @@
         }
     }
 
-    private async Task RepublishAsync()
+    // Republish and rollback are destructive lifecycle actions against the live registry, so each is gated
+    // behind a confirm step (ConsoleConfirmDialog) — a single click previously rolled back / republished a
+    // live publication with no confirmation. The confirmed work runs through RunGuardedAsync so a server
+    // failure surfaces as a toast (and disables the controls while in flight) instead of vanishing silently.
+    private void ConfirmRepublish()
     {
-        if (_lookup?.Review is null || _busy)
+        if (_lookup?.Review is null || _busy || _confirm is null)
         {
             return;
         }
 
-        _busy = true;
-        try
-        {
-            var command = new PublishingRepublishCommand(
-                Title: string.IsNullOrWhiteSpace(_republishTitle) ? null : _republishTitle.Trim());
-            _lookup = await PublishingData.RepublishAsync(_lookup.Review.ResourceId, command);
-            _republishTitle = string.Empty;
-        }
-        finally
-        {
-            _busy = false;
-        }
+        var resourceName = string.IsNullOrWhiteSpace(_lookup.Review.ResourceName)
+            ? _lookup.Review.ResourceId
+            : _lookup.Review.ResourceName;
+        _confirm.Open(
+            title: "Republish this publication?",
+            onConfirm: RepublishAsync,
+            body: $"This creates a new live version of \"{resourceName}\" in the registry. Consumers will see the new version.",
+            confirmLabel: "Republish");
     }
 
-    private async Task RollbackAsync(string targetVersionId)
+    private void ConfirmRollback(string targetVersionId, long revision)
     {
-        if (_lookup?.Review is null || _busy)
+        if (_lookup?.Review is null || _busy || _confirm is null)
         {
             return;
         }
 
-        _busy = true;
-        try
+        var resourceName = string.IsNullOrWhiteSpace(_lookup.Review.ResourceName)
+            ? _lookup.Review.ResourceId
+            : _lookup.Review.ResourceName;
+        _confirm.Open(
+            title: $"Roll back to rev {revision}?",
+            onConfirm: () => RollbackAsync(targetVersionId),
+            body: $"This makes revision {revision} the live version of \"{resourceName}\" again. The current live version is superseded.",
+            confirmLabel: $"Roll back to rev {revision}");
+    }
+
+    private Task RepublishAsync()
+    {
+        if (_lookup?.Review is null || _busy)
         {
-            var command = new PublishingRollbackCommand(TargetVersionId: targetVersionId);
-            _lookup = await PublishingData.RollbackAsync(_lookup.Review.ResourceId, command);
+            return Task.CompletedTask;
         }
-        finally
+
+        var resourceId = _lookup.Review.ResourceId;
+        return Notifications.RunGuardedAsync(
+            async () =>
+            {
+                var command = new PublishingRepublishCommand(
+                    Title: string.IsNullOrWhiteSpace(_republishTitle) ? null : _republishTitle.Trim());
+                _lookup = await PublishingData.RepublishAsync(resourceId, command);
+                _republishTitle = string.Empty;
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't republish the publication",
+            onSuccess: "Publication republished.");
+    }
+
+    private Task RollbackAsync(string targetVersionId)
+    {
+        if (_lookup?.Review is null || _busy)
         {
-            _busy = false;
+            return Task.CompletedTask;
         }
+
+        var resourceId = _lookup.Review.ResourceId;
+        return Notifications.RunGuardedAsync(
+            async () =>
+            {
+                var command = new PublishingRollbackCommand(TargetVersionId: targetVersionId);
+                _lookup = await PublishingData.RollbackAsync(resourceId, command);
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't roll back the publication",
+            onSuccess: "Publication rolled back.");
     }
 }

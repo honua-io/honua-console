@@ -1,0 +1,116 @@
+@namespace Honua.Console.Shell.Components
+@using System.Timers
+@using Honua.Console.Shell.Services
+@implements IDisposable
+@inject IConsoleNotificationService Notifications
+
+@*
+    Shell-owned toast/notification host. Rendered ONCE in ConsoleLayout so every page raises
+    success/error/info/warning through IConsoleNotificationService rather than inventing its own
+    inline status. Each toast carries role="alert" (assertive for errors/warnings, polite container
+    otherwise), an explicit dismiss control, and an optional auto-dismiss timer the host owns.
+*@
+
+<div class="console-toast-host" aria-live="polite" aria-relevant="additions" data-console-toast-host>
+    @foreach (var toast in _toasts)
+    {
+        <div class="console-toast @LevelClass(toast.Level)"
+             role="alert"
+             aria-atomic="true"
+             data-console-toast
+             data-toast-level="@toast.Level.ToString().ToLowerInvariant()"
+             @key="toast.Id">
+            <span class="console-toast-icon" aria-hidden="true">@LevelGlyph(toast.Level)</span>
+            <span class="console-toast-message">@toast.Message</span>
+            <button type="button"
+                    class="console-toast-dismiss"
+                    aria-label="Dismiss notification"
+                    @onclick="() => Notifications.Dismiss(toast.Id)">
+                ✕
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<ConsoleNotification> _toasts = [];
+
+    // Per-toast expiry timers keyed by id. Each toast with a finite lifetime gets one one-shot timer;
+    // dismissing or expiring a toast disposes its timer so nothing leaks on the circuit.
+    private readonly Dictionary<Guid, System.Timers.Timer> _timers = [];
+
+    protected override void OnInitialized()
+    {
+        Notifications.Changed += OnChanged;
+        Sync();
+    }
+
+    private void OnChanged() => InvokeAsync(Sync);
+
+    private void Sync()
+    {
+        _toasts = Notifications.Notifications;
+
+        var live = _toasts.Select(toast => toast.Id).ToHashSet();
+
+        // Drop timers for toasts that are gone.
+        foreach (var id in _timers.Keys.Where(id => !live.Contains(id)).ToList())
+        {
+            DisposeTimer(id);
+        }
+
+        // Arm an auto-dismiss timer for each new toast that requested a finite lifetime.
+        foreach (var toast in _toasts)
+        {
+            if (toast.AutoDismissAfter is not { } lifetime || _timers.ContainsKey(toast.Id))
+            {
+                continue;
+            }
+
+            var timer = new System.Timers.Timer(Math.Max(1, lifetime.TotalMilliseconds)) { AutoReset = false };
+            var toastId = toast.Id;
+            timer.Elapsed += (_, _) => InvokeAsync(() => Notifications.Dismiss(toastId));
+            _timers[toastId] = timer;
+            timer.Start();
+        }
+
+        StateHasChanged();
+    }
+
+    private void DisposeTimer(Guid id)
+    {
+        if (_timers.Remove(id, out var timer))
+        {
+            timer.Stop();
+            timer.Dispose();
+        }
+    }
+
+    private static string LevelClass(ConsoleNotificationLevel level) => level switch
+    {
+        ConsoleNotificationLevel.Success => "console-toast-success",
+        ConsoleNotificationLevel.Warning => "console-toast-warning",
+        ConsoleNotificationLevel.Error => "console-toast-error",
+        _ => "console-toast-info",
+    };
+
+    private static string LevelGlyph(ConsoleNotificationLevel level) => level switch
+    {
+        ConsoleNotificationLevel.Success => "✓",
+        ConsoleNotificationLevel.Warning => "!",
+        ConsoleNotificationLevel.Error => "✕",
+        _ => "i",
+    };
+
+    public void Dispose()
+    {
+        Notifications.Changed -= OnChanged;
+        foreach (var timer in _timers.Values)
+        {
+            timer.Stop();
+            timer.Dispose();
+        }
+
+        _timers.Clear();
+    }
+}
