@@ -387,6 +387,12 @@ public sealed class ConsoleAlertRulesClientTests
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateJobRun>.Denied(OperateSectionStatus.Unavailable, "n/a"));
 
+        public Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(string jobRunId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a"));
+
+        public Task<OperateSectionResult<OperateJobControlOutcome>> RetryJobAsync(string jobRunId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a"));
+
         public Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateJobStepsView>.Denied(OperateSectionStatus.Unavailable, "n/a"));
 

@@ -366,6 +366,190 @@ public sealed class ConsoleOperateObservabilityClientTests
     }
 
     [Fact]
+    public async Task GetGeoprocessingJobsFollowsNextCursorAcrossPages()
+    {
+        var now = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
+        var handler = new RecordingHandler(request =>
+        {
+            var query = ConsoleUrlQuery.Parse(request.RequestUri!.Query);
+            var cursor = query.TryGetValue("cursor", out var c) ? c : null;
+            return cursor switch
+            {
+                null => JsonResponse(
+                    new ConsoleJobListResponse
+                    {
+                        Items = [GpJob("gp-1", now)],
+                        NextCursor = "cursor-2"
+                    },
+                    OperateObservabilityJsonContext.Default.ConsoleJobListResponse),
+                "cursor-2" => JsonResponse(
+                    new ConsoleJobListResponse
+                    {
+                        Items = [GpJob("gp-2", now)],
+                        NextCursor = null
+                    },
+                    OperateObservabilityJsonContext.Default.ConsoleJobListResponse),
+                _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+            };
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetGeoprocessingJobsAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.False(result.PartialResult);
+        Assert.Collection(result.Value!,
+            job => Assert.Equal("gp-1", job.JobRunId),
+            job => Assert.Equal("gp-2", job.JobRunId));
+        Assert.Equal(2, handler.Requests.Count);
+        // The second read carried the cursor and the kind filter.
+        var secondQuery = ConsoleUrlQuery.Parse(handler.Requests[1].RequestUri!.Query);
+        Assert.Equal("cursor-2", secondQuery["cursor"]);
+        Assert.Equal("Geoprocessing", secondQuery["kind"]);
+    }
+
+    [Fact]
+    public async Task GetGeoprocessingJobsFlagsTruncationPastPageCap()
+    {
+        var now = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
+        // Every page advertises a further cursor; the client caps the follow and
+        // must flag the result as partial rather than silently truncating.
+        var handler = new RecordingHandler(request => JsonResponse(
+            new ConsoleJobListResponse
+            {
+                Items = [GpJob("gp-page", now)],
+                NextCursor = "more"
+            },
+            OperateObservabilityJsonContext.Default.ConsoleJobListResponse));
+        var client = CreateClient(handler);
+
+        var result = await client.GetGeoprocessingJobsAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.True(result.PartialResult);
+        Assert.Contains("more exist", result.Message, StringComparison.Ordinal);
+        // Bounded by the page cap (5).
+        Assert.Equal(5, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task CancelJobPostsToCancelEndpointAndMapsControlResponse()
+    {
+        var handler = new RecordingHandler(request =>
+            request is { Method.Method: "POST", RequestUri.AbsolutePath: "/api/v1/admin/jobs/gp-run/cancel" }
+                ? JsonResponse(
+                    new ConsoleJobControlResponse
+                    {
+                        JobId = "gp-run",
+                        Action = "cancel",
+                        Status = "Cancelled",
+                        Message = "Job cancelled.",
+                        CorrelationId = "corr-cancel"
+                    },
+                    OperateObservabilityJsonContext.Default.ConsoleJobControlResponse)
+                : new HttpResponseMessage(HttpStatusCode.NotFound));
+        var client = CreateClient(handler);
+
+        var result = await client.CancelJobAsync("gp-run");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Equal("Cancelled", result.Value!.Status);
+        Assert.Equal("Job cancelled.", result.Value.Message);
+        Assert.Equal("cancel", result.Value.Action);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+    }
+
+    [Fact]
+    public async Task RetryJobPostsToRetryEndpoint()
+    {
+        var handler = new RecordingHandler(request =>
+            request is { Method.Method: "POST", RequestUri.AbsolutePath: "/api/v1/admin/jobs/gp-failed/retry" }
+                ? JsonResponse(
+                    new ConsoleJobControlResponse
+                    {
+                        JobId = "gp-failed",
+                        Action = "retry",
+                        Status = "Queued",
+                        Message = "Job requeued.",
+                        CorrelationId = "corr-retry"
+                    },
+                    OperateObservabilityJsonContext.Default.ConsoleJobControlResponse)
+                : new HttpResponseMessage(HttpStatusCode.NotFound));
+        var client = CreateClient(handler);
+
+        var result = await client.RetryJobAsync("gp-failed");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Equal("Queued", result.Value!.Status);
+        Assert.Equal("/api/v1/admin/jobs/gp-failed/retry", Assert.Single(handler.Requests).RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task CancelJobMapsPlainForbiddenToNotPermitted()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("{\"title\":\"Forbidden\"}", Encoding.UTF8, "application/problem+json")
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.CancelJobAsync("gp-run");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("not permitted", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancelJobSurfacesApprovalRequiredFromGateBody()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent(
+                "{\"type\":\"https://honua.io/problems/approval-required\",\"title\":\"Approval required\"}",
+                Encoding.UTF8,
+                "application/problem+json")
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.CancelJobAsync("gp-run");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("requires approval", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RetryJobMapsConflictToNotRetryable()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            ReasonPhrase = "Conflict"
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.RetryJobAsync("gp-run");
+
+        Assert.Equal(OperateSectionStatus.Unavailable, result.Status);
+        Assert.Contains("retried", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ConsoleJobSummary GpJob(string id, DateTimeOffset now) =>
+        new()
+        {
+            JobId = id,
+            Kind = "Geoprocessing",
+            Backend = "postgis",
+            TargetKind = "dataset",
+            WorkloadName = "Buffer roads",
+            Status = "Running",
+            RequestedBy = "analyst.live",
+            CreatedAt = now,
+            UpdatedAt = now,
+            PercentComplete = 0.4,
+            CurrentPhase = "Executing"
+        };
+
+    [Fact]
     public async Task GetJobStepsCallsStepsEndpointAndMapsSanitizedGlassBox()
     {
         var started = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
@@ -897,6 +1081,12 @@ public sealed class ConsoleOperateObservabilityClientTests
                 stages: [new OperateJobStage("Validate", new OperateStatus("succeeded", "Done"), 100, "completed")],
                 logs: ["Live job detail log"],
                 artifacts: [new OperateEvidenceLink("artifact", "Live artifact", "/operate/jobs/live-job-1#artifacts", "Live report")])));
+
+        public Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(string jobRunId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a"));
+
+        public Task<OperateSectionResult<OperateJobControlOutcome>> RetryJobAsync(string jobRunId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a"));
 
         public Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateJobStepsView>.Allowed(OperateJobStepsView.Empty));
