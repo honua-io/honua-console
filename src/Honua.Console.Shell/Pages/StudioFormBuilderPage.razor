@@ -59,6 +59,7 @@
         {
             <div class="console-toolbar">
                 <button class="console-button" type="button" disabled="@_busy" @onclick="NewForm">New form</button>
+                <a class="console-button console-button-secondary" href="/studio/form/import">Import XLSForm</a>
             </div>
 
             @if (_workspace.Packages.Count == 0)
@@ -421,7 +422,30 @@
     private readonly ValidationState _validation = new();
     private readonly FormDirtyState _dirty = new();
 
-    protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+    /// <summary>
+    /// Optional package to open directly. The XLSForm import surface lands here with <c>?formId=…</c> after
+    /// saving the converted draft so the operator continues editing it in the builder without hunting the
+    /// list. A blank/missing value keeps the default list view.
+    /// </summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "formId")]
+    public string? FormIdParameter { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkspaceAsync();
+
+        // Deep-link into a specific package when asked (e.g. arriving from XLSForm import). Only follow it
+        // when the surface is bound and the form is actually listed, so a stale/forbidden id falls back to
+        // the list rather than rendering a confusing empty editor.
+        if (!string.IsNullOrWhiteSpace(FormIdParameter)
+            && _bindingState is null
+            && _workspace.Packages.Any(package =>
+                string.Equals(package.FormId, FormIdParameter, StringComparison.Ordinal)))
+        {
+            await OpenForm(FormIdParameter);
+        }
+    }
 
     /// <summary>
     /// Re-runs the client cross-field/bounds validator over the current editor and flags the editor dirty.
