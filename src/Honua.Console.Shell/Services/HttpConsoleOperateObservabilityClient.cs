@@ -340,6 +340,22 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 artifactsFetch.Message));
     }
 
+    public async Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobRunId);
+
+        var fetch = await FetchAsync(
+            OperateAdminRoutes.JobSteps(jobRunId),
+            OperateObservabilityJsonContext.Default.ConsoleJobStepsResponse,
+            cancellationToken).ConfigureAwait(false);
+
+        return fetch.Ok
+            ? OperateSectionResult<OperateJobStepsView>.Allowed(OperateObservabilityMapper.MapJobSteps(fetch.Value!))
+            : OperateSectionResult<OperateJobStepsView>.Denied(fetch.Status, fetch.Message);
+    }
+
     public async Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
         CancellationToken cancellationToken = default)
     {

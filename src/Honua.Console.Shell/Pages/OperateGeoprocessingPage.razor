@@ -123,6 +123,19 @@
             <div class="operate-detail-grid">
                 <JobDetailPanel Job="_detail.Value" />
             </div>
+
+            @if (!_stepsLoaded || _steps is null)
+            {
+                <OperateSectionStatusPanel Heading="Steps" Loading="true" />
+            }
+            else if (!_steps.IsAllowed || _steps.Value is null)
+            {
+                <OperateSectionStatusPanel Heading="Steps" Status="_steps.Status" Message="@_steps.Message" />
+            }
+            else
+            {
+                <JobStepsPanel View="_steps.Value" />
+            }
         }
     }
 </section>
@@ -148,8 +161,10 @@
 
     private bool _listLoaded;
     private bool _detailLoaded;
+    private bool _stepsLoaded;
     private OperateSectionResult<IReadOnlyList<OperateJobRun>>? _jobs;
     private OperateSectionResult<OperateJobRun>? _detail;
+    private OperateSectionResult<OperateJobStepsView>? _steps;
     private string? _loadedDetailFor;
     private string _stateFilter = string.Empty;
 
@@ -179,8 +194,14 @@
             {
                 _loadedDetailFor = jobId;
                 _detailLoaded = false;
+                _stepsLoaded = false;
                 _detail = await OperateClient.GetJobDetailAsync(jobId);
                 _detailLoaded = true;
+
+                // Per-step glass-box is a separate endpoint; fetch it lazily once
+                // the detail opens rather than fanning it out from the list.
+                _steps = await OperateClient.GetJobStepsAsync(jobId);
+                _stepsLoaded = true;
             }
         }
         else if (!_listLoaded)
@@ -223,9 +244,14 @@
                     }
 
                     var detail = await OperateClient.GetJobDetailAsync(_loadedDetailFor, cancellationToken);
+                    // Refresh the per-step glass-box alongside the detail so a running
+                    // job's newly emitted steps appear on the same poll cadence.
+                    var steps = await OperateClient.GetJobStepsAsync(_loadedDetailFor, cancellationToken);
                     await InvokeAsync(() =>
                     {
                         _detail = detail;
+                        _steps = steps;
+                        _stepsLoaded = true;
                         StateHasChanged();
                     });
 

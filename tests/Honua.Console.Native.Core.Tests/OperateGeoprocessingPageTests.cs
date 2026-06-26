@@ -93,6 +93,77 @@ public sealed class OperateGeoprocessingPageTests
         Assert.Contains("was not found", html);
     }
 
+    [Fact]
+    public async Task DetailModeRendersStepsGlassBoxPanelLazily()
+    {
+        const string sanitizedCommand = "gdalwarp -t_srs EPSG:3857 <path>/in.tif <scratch>/out.tif";
+        var stub = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-run-1", "Succeeded", "Done", 100, "analyst.live")),
+            Steps = OperateSectionResult<OperateJobStepsView>.Allowed(
+                new OperateJobStepsView(
+                    "gp-run-1",
+                    "corr-1",
+                    new OperateStatus("Succeeded", "Done"),
+                    [
+                        new OperateJobStep(
+                            Ordinal: 1,
+                            Phase: "Reproject",
+                            Status: new OperateStatus("Succeeded", "Reprojected"),
+                            Timing: "2026-05-24 20:00 UTC - 2026-05-24 20:00 UTC",
+                            Duration: "3 s",
+                            Message: "Reprojected to Web Mercator",
+                            Command: sanitizedCommand,
+                            Artifacts: [new OperateJobStepArtifact("out.tif", "raster", "2 MB")],
+                            Metadata: [])
+                    ]))
+        };
+
+        var html = await RenderAsync(stub, selectedJobRunId: "gp-run-1");
+
+        // The steps panel is fetched lazily when the detail opens.
+        Assert.Equal(1, stub.StepFetchCount);
+        Assert.Contains("Glass-box", html);
+        Assert.Contains("Reproject", html);
+        // Command rendered verbatim (server already sanitized it).
+        Assert.Contains("gdalwarp -t_srs EPSG:3857 &lt;path&gt;/in.tif &lt;scratch&gt;/out.tif", html);
+        Assert.Contains("out.tif", html);
+        Assert.Contains("3 s", html);
+    }
+
+    [Fact]
+    public async Task DetailModeRendersStepsForbiddenState()
+    {
+        var stub = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(
+                Job("gp-run-1", "Succeeded", "Done", 100, "analyst.live")),
+            Steps = OperateSectionResult<OperateJobStepsView>.Denied(
+                OperateSectionStatus.Forbidden,
+                "The active environment profile is not permitted to read job steps.")
+        };
+
+        var html = await RenderAsync(stub, selectedJobRunId: "gp-run-1");
+
+        Assert.Contains("Permission required", html);
+        Assert.Contains("not permitted to read job steps", html);
+    }
+
+    [Fact]
+    public async Task ListModeDoesNotFetchSteps()
+    {
+        var stub = new StubGeoprocessingClient
+        {
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
+                [Job("gp-run-1", "Running", "Executing", 40, "analyst.live")])
+        };
+
+        _ = await RenderAsync(stub);
+
+        Assert.Equal(0, stub.StepFetchCount);
+    }
+
     private static async Task<string> RenderAsync(
         IConsoleOperateObservabilityClient client,
         string? selectedJobRunId = null)
@@ -144,6 +215,10 @@ public sealed class OperateGeoprocessingPageTests
 
         public OperateSectionResult<OperateJobRun>? Detail { get; init; }
 
+        public OperateSectionResult<OperateJobStepsView>? Steps { get; init; }
+
+        public int StepFetchCount { get; private set; }
+
         public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Jobs);
 
@@ -155,6 +230,12 @@ public sealed class OperateGeoprocessingPageTests
 
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail ?? OperateSectionResult<OperateJobRun>.Denied(OperateSectionStatus.Missing, "not found"));
+
+        public Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(string jobRunId, CancellationToken cancellationToken = default)
+        {
+            StepFetchCount++;
+            return Task.FromResult(Steps ?? OperateSectionResult<OperateJobStepsView>.Allowed(OperateJobStepsView.Empty));
+        }
 
         public Task<OperateSectionResult<OperateFleetOverview>> GetOverviewAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateFleetOverview>.Allowed(OperateFleetOverview.Empty));
