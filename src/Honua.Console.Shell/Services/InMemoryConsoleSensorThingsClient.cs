@@ -100,9 +100,10 @@ public sealed class InMemoryConsoleSensorThingsClient : IConsoleSensorThingsClie
 
         var points = ObservationsFor(datastreamId)
             .Take(top)
+            .Where(o => o.NumericResult is not null)
             .Select(o => new SensorThingsTimeSeriesPoint(
                 DateTimeOffset.Parse(o.PhenomenonTime, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal),
-                o.Result))
+                o.NumericResult!.Value))
             .OrderBy(p => p.PhenomenonTime)
             .ToList();
 
@@ -171,7 +172,7 @@ public sealed class InMemoryConsoleSensorThingsClient : IConsoleSensorThingsClie
                 IotId = hour + 1,
                 IotSelfLink = $"https://example/sta/v1.1/Observations({(hour + 1).ToString(CultureInfo.InvariantCulture)})",
                 PhenomenonTime = time.ToString("o", CultureInfo.InvariantCulture),
-                Result = Math.Round(result, 2),
+                Result = StaObservation.NumericResultValue(Math.Round(result, 2)),
                 DatastreamNavigationLink = "https://example/sta/v1.1/Observations(1)/Datastream"
             });
         }
