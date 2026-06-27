@@ -25,6 +25,8 @@ public sealed class ConsoleHomePageRenderTests
         ctx.Services.AddSingleton(approvalClient);
         ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(
             new ConsoleApprovalInboxClient(releaseClient, approvalClient));
+        ctx.Services.AddSingleton<IConsoleHostCapabilities>(
+            new BrowserConsoleHostCapabilities());
         return ctx;
     }
 
