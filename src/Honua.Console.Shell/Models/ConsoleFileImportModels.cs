@@ -20,25 +20,11 @@ public sealed record ConsoleFileImportCommand
 /// <see cref="FeatureCount"/> describe the created table. On failure, <see cref="State"/> carries the neutral
 /// state vocabulary token and <see cref="Detail"/> the operator-facing reason.
 /// </summary>
-public sealed record ConsoleFileImportResult
+public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFileImportResult>
 {
-    public bool Succeeded { get; init; }
-
-    /// <summary>State vocabulary token (e.g. "Imported", "Missing binding", "Rejected", "Unavailable").</summary>
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
     public string? TableName { get; init; }
 
     public long FeatureCount { get; init; }
 
     public IReadOnlyList<string> ValidationErrors { get; init; } = [];
-
-    public static ConsoleFileImportResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail,
-    };
 }
