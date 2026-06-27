@@ -37,18 +37,4 @@ public sealed record ConsolePublicationFieldAlias
 }
 
 /// <summary>Outcome of saving a publication's overrides.</summary>
-public sealed record ConsoleSavePublicationOverridesResult
-{
-    public bool Succeeded { get; init; }
-
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
-    public static ConsoleSavePublicationOverridesResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
-}
+public sealed record ConsoleSavePublicationOverridesResult : ConsoleOperationResult<ConsoleSavePublicationOverridesResult>;
