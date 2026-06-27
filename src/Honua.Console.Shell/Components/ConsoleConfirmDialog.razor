@@ -1,0 +1,107 @@
+@namespace Honua.Console.Shell.Components
+
+@*
+    Reusable confirm step for destructive lifecycle actions (rollback / republish / delete). There was
+    previously NO confirmation anywhere on the Operate destructive paths — a single click rolled back or
+    republished a live publication. A surface holds one of these and calls Open(...) with the action's
+    label + handler; the dialog renders a modal with a Cancel and a danger-styled Confirm.
+
+    Self-contained: it owns its own open/pending state and only invokes the supplied confirm callback when
+    the operator confirms, so the destructive call never runs on the first click.
+*@
+
+@if (_open)
+{
+    <div class="console-confirm-backdrop" data-console-confirm @onclick="Cancel">
+        <div class="console-confirm-dialog"
+             role="alertdialog"
+             aria-modal="true"
+             aria-labelledby="console-confirm-title"
+             @onclick:stopPropagation="true">
+            <h2 id="console-confirm-title" class="console-confirm-title">@_title</h2>
+            @if (!string.IsNullOrWhiteSpace(_body))
+            {
+                <p class="console-confirm-body">@_body</p>
+            }
+            <div class="console-confirm-actions">
+                <button type="button"
+                        class="console-button console-button-secondary"
+                        disabled="@_pending"
+                        @onclick="Cancel">
+                    @_cancelLabel
+                </button>
+                <button type="button"
+                        class="console-button console-button-danger"
+                        disabled="@_pending"
+                        data-console-confirm-accept
+                        @onclick="ConfirmAsync">
+                    @(_pending ? "Working…" : _confirmLabel)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _open;
+    private bool _pending;
+    private string _title = "Are you sure?";
+    private string? _body;
+    private string _confirmLabel = "Confirm";
+    private string _cancelLabel = "Cancel";
+    private Func<Task>? _onConfirm;
+
+    /// <summary>
+    /// Opens the dialog. <paramref name="onConfirm"/> runs only when the operator clicks the confirm
+    /// control; cancelling (button, backdrop) discards it. The confirm control stays disabled while the
+    /// supplied handler runs so the destructive action cannot be double-fired.
+    /// </summary>
+    public void Open(
+        string title,
+        Func<Task> onConfirm,
+        string? body = null,
+        string confirmLabel = "Confirm",
+        string cancelLabel = "Cancel")
+    {
+        _title = title;
+        _body = body;
+        _confirmLabel = confirmLabel;
+        _cancelLabel = cancelLabel;
+        _onConfirm = onConfirm;
+        _pending = false;
+        _open = true;
+        StateHasChanged();
+    }
+
+    private void Cancel()
+    {
+        if (_pending)
+        {
+            return;
+        }
+
+        _open = false;
+        _onConfirm = null;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_pending || _onConfirm is null)
+        {
+            return;
+        }
+
+        var handler = _onConfirm;
+        _pending = true;
+        try
+        {
+            await handler();
+        }
+        finally
+        {
+            _pending = false;
+            _open = false;
+            _onConfirm = null;
+        }
+    }
+}

@@ -108,4 +108,32 @@ public static class EsriImportSampleDocuments
       }
     }
     """;
+
+    /// <summary>
+    /// An ArcGIS Notebook (hosted arcpy) <c>.ipynb</c> export sample exercising clean / degrade / drop / manual
+    /// cell fidelity, injected parameters, and a task schedule. The arcpy code cell and the schedule import as
+    /// the definition but are gated behind the server hosted-arcpy runtime (#159 scope boundary).
+    /// </summary>
+    public const string NotebookFileName = "parcel-sync.ipynb";
+
+    public const string Notebook = """
+    {
+      "cells": [
+        { "cell_type": "markdown", "metadata": {}, "source": ["# Nightly parcel sync\n", "Refreshes the parcels feature layer from the county source."] },
+        { "cell_type": "code", "metadata": { "tags": ["parameters"] }, "source": ["county_url = \"https://services.arcgis.com/abc/County/FeatureServer/0\"\n", "max_records = 5000\n"] },
+        { "cell_type": "code", "metadata": {}, "source": ["import arcpy\n", "from arcgis.gis import GIS\n", "gis = GIS(\"home\")\n"] },
+        { "cell_type": "code", "metadata": {}, "source": ["import pandas as pd\n", "df = pd.DataFrame()\n", "print(df.shape)"] },
+        { "cell_type": "code", "metadata": {}, "source": ["arcpy.management.RepairGeometry(\"parcels\")\n"] },
+        { "cell_type": "raw", "metadata": {}, "source": ["nbconvert template directive"] }
+      ],
+      "metadata": {
+        "kernelspec": { "display_name": "ArcGIS Notebook Python 3 (Advanced)", "name": "python3" },
+        "esriNotebookRuntime": "ArcGIS Notebook Python 3 Advanced",
+        "parameters": { "county_url": "https://services.arcgis.com/abc/County/FeatureServer/0", "max_records": 5000 },
+        "schedule": { "cron": "0 2 * * *", "timezone": "Pacific/Honolulu" }
+      },
+      "nbformat": 4,
+      "nbformat_minor": 5
+    }
+    """;
 }

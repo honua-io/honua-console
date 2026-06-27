@@ -9,6 +9,7 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IStudioMapStyleCatalogDataSource StyleData
 @inject IAiPublishDriver AiDriver
+@inject IConsoleNotificationService Notifications
 @inject NavigationManager Nav
 
 @*
@@ -716,24 +717,25 @@
             return;
         }
 
-        _busy = true;
-        try
-        {
-            await PublishTableResourceAsync(table);
+        // Guarded so a thrown publish error surfaces as a toast instead of resetting the spinner silently;
+        // the per-protocol _publishResults panel still carries the in-band (non-throwing) server outcome.
+        await Notifications.RunGuardedAsync(
+            async () =>
+            {
+                await PublishTableResourceAsync(table);
 
-            if (_successPublicationCount > 0)
-            {
-                _flow.Step = FlowStep.Done;
-            }
-            else if (_publishResults.Count > 0)
-            {
-                _stepError = "No publications landed. Review the per-protocol results above.";
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
+                if (_successPublicationCount > 0)
+                {
+                    _flow.Step = FlowStep.Done;
+                    Notifications.Success($"{_flow.Resource.Name} is live ({_successPublicationCount} publication(s)).");
+                }
+                else if (_publishResults.Count > 0)
+                {
+                    _stepError = "No publications landed. Review the per-protocol results above.";
+                }
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't publish");
     }
 
     /// <summary>
@@ -863,24 +865,25 @@
         _missingBinding = null;
         _aiOutcome = null;
         _publishResults.Clear();
-        _busy = true;
-        try
-        {
-            // Resolve the intent against the real bound resources so the AI never fabricates a resource id: the
-            // publishable PostGIS tables (which Approve publishes for real through the wired admin operation)
-            // plus the catalog resources. The apply step publishes the resolved resource — never a made-up one.
-            var knownResources = _aiTables.Values
-                .Select(entry => new AiPublishResourceRef(entry.Table.QualifiedName, entry.Table.Table))
-                .Concat(_resourceOptions.Select(option => new AiPublishResourceRef(option.Id, option.Label)))
-                .GroupBy(reference => reference.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .ToArray();
-            _aiOutcome = await AiDriver.ProposeAsync(_aiIntent, knownResources);
-        }
-        finally
-        {
-            _busy = false;
-        }
+
+        // Guarded so a thrown error from the AI generation surface surfaces as a toast; the outcome card
+        // still renders the in-band (non-throwing) proposal / needs-input / unavailable / blocked states.
+        await Notifications.RunGuardedAsync(
+            async () =>
+            {
+                // Resolve the intent against the real bound resources so the AI never fabricates a resource id:
+                // the publishable PostGIS tables (which Approve publishes for real through the wired admin
+                // operation) plus the catalog resources. Apply publishes the resolved resource — never made up.
+                var knownResources = _aiTables.Values
+                    .Select(entry => new AiPublishResourceRef(entry.Table.QualifiedName, entry.Table.Table))
+                    .Concat(_resourceOptions.Select(option => new AiPublishResourceRef(option.Id, option.Label)))
+                    .GroupBy(reference => reference.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .ToArray();
+                _aiOutcome = await AiDriver.ProposeAsync(_aiIntent, knownResources);
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't generate a proposal");
     }
 
     // Approve → apply through the SAME wired admin publish path manual mode uses. The proposal's protocols and

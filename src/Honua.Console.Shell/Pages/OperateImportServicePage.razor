@@ -3,6 +3,7 @@
 @using Honua.Console.Shell.Models
 @implements IDisposable
 @inject IConsoleServiceImportOperation ServiceImport
+@inject Honua.Console.Shell.Services.IConsoleNotificationService Notifications
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -538,39 +539,70 @@
         var auth = TryBuildAuth(out var built, out _) ? built : null;
         try
         {
+            var queueFailures = 0;
             foreach (var (service, layer) in importable)
             {
                 var table = BuildTableName(service.Name, layer.LayerId!.Value, layer.RawName);
                 var row = new ImportJobRow { LayerName = $"{service.Name} · {layer.Display}", TableName = table };
                 _jobs.Add(row);
 
-                var run = await ServiceImport.StartLayerImportAsync(new ConsoleServiceImportRunRequest
+                // Guard EACH item independently: a thrown error queuing one layer must not abort the whole
+                // batch (it previously did — one bad layer threw out of the loop and the remaining selected
+                // layers were silently never queued). On throw, mark this row failed and keep going.
+                try
                 {
-                    ServiceUrl = service.ServiceUrl!,
-                    LayerId = layer.LayerId!.Value,
-                    TableName = table,
-                    AutoPublish = _autoPublish,
-                    ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
-                    Auth = auth,
-                });
+                    var run = await ServiceImport.StartLayerImportAsync(new ConsoleServiceImportRunRequest
+                    {
+                        ServiceUrl = service.ServiceUrl!,
+                        LayerId = layer.LayerId!.Value,
+                        TableName = table,
+                        AutoPublish = _autoPublish,
+                        ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
+                        Auth = auth,
+                    });
 
-                if (run.Succeeded && !string.IsNullOrWhiteSpace(run.JobId))
-                {
-                    row.JobId = run.JobId;
-                    row.Status = run.State;
+                    if (run.Succeeded && !string.IsNullOrWhiteSpace(run.JobId))
+                    {
+                        row.JobId = run.JobId;
+                        row.Status = run.State;
+                    }
+                    else
+                    {
+                        row.Terminal = true;
+                        row.Succeeded = false;
+                        row.Status = "Failed to queue";
+                        row.Detail = run.Detail;
+                        queueFailures++;
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
                     row.Terminal = true;
                     row.Succeeded = false;
                     row.Status = "Failed to queue";
-                    row.Detail = run.Detail;
+                    row.Detail = ex.Message;
+                    queueFailures++;
                 }
             }
 
             if (skipped > 0)
             {
                 _importError = $"{skipped} non-ArcGIS layer(s) were skipped — import those from their own source page.";
+            }
+
+            // Toast a single summary so the operator sees how the batch landed without scanning every row.
+            var queued = importable.Count - queueFailures;
+            if (queueFailures == 0)
+            {
+                Notifications.Success($"Queued {queued} layer import(s).");
+            }
+            else if (queued == 0)
+            {
+                Notifications.Error($"Couldn't queue any of the {importable.Count} selected layer(s). See each row for details.");
+            }
+            else
+            {
+                Notifications.Warning($"Queued {queued} of {importable.Count} layer(s); {queueFailures} failed to queue. See each row for details.");
             }
 
             StartPolling();
@@ -634,6 +666,10 @@
                 if (_pollFailureCount >= MaxConsecutivePollFailures)
                 {
                     StopPolling();
+                    // The live poll gave up after sustained failures — tell the operator the status table is
+                    // no longer updating (it previously stopped silently, looking like the jobs had stalled).
+                    await InvokeAsync(() =>
+                        Notifications.Warning("Stopped polling import status after repeated errors — reload to resume tracking."));
                 }
 
                 return;

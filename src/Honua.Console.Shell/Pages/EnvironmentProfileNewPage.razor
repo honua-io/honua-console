@@ -9,23 +9,20 @@
 
 <section class="console-page">
     <div class="console-page-heading">
-        <p class="console-kicker">Native host configuration</p>
-        <h1>Add Environment</h1>
-        <p>Create a managed Honua Server profile. The profile stores server URL, account binding, transport capabilities, and an optional client-certificate reference. Private keys are never stored - only a certificate reference.</p>
+        <p class="console-kicker">@(Host.SupportsNativeTransports ? "Native host configuration" : "Connect to a server")</p>
+        <h1>@(Host.SupportsNativeTransports ? "Add Environment" : "Connect to a Honua Server")</h1>
+        @if (Host.SupportsNativeTransports)
+        {
+            <p>Create a managed Honua Server profile. The profile stores server URL, account binding, transport capabilities, and an optional client-certificate reference. Private keys are never stored - only a certificate reference.</p>
+        }
+        else
+        {
+            <p>Point this Console at your Honua Server over HTTPS and bind an account to start working. The browser host connects over HTTPS and realtime transports; native gRPC, client-certificate (mTLS), and trust validation are added by the optional desktop host.</p>
+        }
     </div>
 
-    @if (!Host.SupportsNativeTransports)
-    {
-        <article class="console-panel console-state-info" role="note">
-            <h2>Profile creation runs on the desktop host</h2>
-            <p class="console-muted">Creating native environment profiles, certificate references, and trust validation is available in the optional native (MAUI) Console host. The browser host renders saved profiles read-only.</p>
-            <a class="console-button" href="/environments">Back to environments</a>
-        </article>
-    }
-    else
-    {
-        <article class="console-panel">
-            <div class="studio-field-grid">
+    <article class="console-panel">
+        <div class="studio-field-grid">
                 <label>
                     <span>Display name</span>
                     <input class="console-input" @bind="_displayName" @bind:after="OnEdit" placeholder="Honua Production" />
@@ -61,16 +58,25 @@
                 </label>
             </div>
 
-            <div class="studio-check-row">
-                <input id="native-grpc" type="checkbox" @bind="_nativeGrpc" @bind:after="OnEdit" />
-                <label for="native-grpc"><span>Enable native gRPC transport</span></label>
-            </div>
-            <div class="studio-check-row">
-                <input id="native-mtls" type="checkbox" @bind="_mtlsEnabled" @bind:after="OnEdit" />
-                <label for="native-mtls"><span>Require client certificate (native mTLS)</span></label>
-            </div>
+            @if (Host.SupportsNativeTransports)
+            {
+                <div class="studio-check-row">
+                    <input id="native-grpc" type="checkbox" @bind="_nativeGrpc" @bind:after="OnEdit" />
+                    <label for="native-grpc"><span>Enable native gRPC transport</span></label>
+                </div>
+                <div class="studio-check-row">
+                    <input id="native-mtls" type="checkbox" @bind="_mtlsEnabled" @bind:after="OnEdit" />
+                    <label for="native-mtls"><span>Require client certificate (native mTLS)</span></label>
+                </div>
+            }
+            else
+            {
+                <article class="console-panel console-state-info" role="note">
+                    <p class="console-muted">Native gRPC, client certificates (mTLS), and server-trust validation are added by the optional desktop (MAUI) Console host. This profile connects over HTTPS.</p>
+                </article>
+            }
 
-            @if (_mtlsEnabled)
+            @if (Host.SupportsNativeTransports && _mtlsEnabled)
             {
                 <div class="studio-field-grid">
                     <label>
@@ -119,11 +125,10 @@
             }
 
             <div class="console-action-row">
-                <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="CreateAsync">Create environment</button>
+                <button class="console-button" type="button" disabled="@(_busy || _validation.HasBlockingClientErrors)" @onclick="CreateAsync">@(Host.SupportsNativeTransports ? "Create environment" : "Connect and continue")</button>
                 <a href="/environments">Cancel</a>
             </div>
-        </article>
-    }
+    </article>
 </section>
 
 @code {
@@ -179,8 +184,14 @@
             ? parsedAuth
             : ConsoleAccountAuthMode.AccountRbac;
 
+        // The browser host creates HTTP-only profiles: native gRPC, mTLS, and client certificates are
+        // desktop-host features and stay off here regardless of any default field state. The native host
+        // keeps the operator's gRPC/mTLS selections.
+        var nativeGrpc = Host.SupportsNativeTransports && _nativeGrpc;
+        var mtlsEnabled = Host.SupportsNativeTransports && _mtlsEnabled;
+
         var certificate = new ConsoleClientCertificateBinding();
-        if (_mtlsEnabled)
+        if (mtlsEnabled)
         {
             var kind = Enum.TryParse<ConsoleClientCertificateReferenceKind>(_certKind, out var parsedKind)
                 ? parsedKind
@@ -211,8 +222,8 @@
             {
                 BrowserHttp = true,
                 BrowserRealtime = true,
-                NativeGrpc = _nativeGrpc,
-                NativeMtls = _mtlsEnabled
+                NativeGrpc = nativeGrpc,
+                NativeMtls = mtlsEnabled
             },
             Account = new ConsoleAccountBinding
             {
@@ -228,7 +239,18 @@
 
         // A successful save clears the dirty flag so the navigation guard lets the redirect through.
         _dirty.MarkClean();
-        Nav.NavigateTo($"/environments/{profileId}");
+
+        // First-run elegance: on the browser host the connect form IS the front door, so activate the new
+        // profile and continue straight to sign-in. The native host keeps routing to the per-environment
+        // diagnostics/trust detail, where connect/validate/trust live.
+        if (Host.SupportsNativeTransports)
+        {
+            Nav.NavigateTo($"/environments/{profileId}");
+            return;
+        }
+
+        await Profiles.ActivateProfileAsync(profileId);
+        Nav.NavigateTo("/auth/signin");
     }
 
     private async Task<string> ResolveUniqueIdAsync(string candidate)

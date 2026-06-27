@@ -239,6 +239,7 @@ public sealed class StudioMapQueryValidationRenderTests
     private static Bunit.BunitContext NewContext()
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         // The map builder injects the style-picker catalog source (#161). Register the unsupported (no-server)
         // implementation so the inspector degrades to the legacy free-form style input under render tests.

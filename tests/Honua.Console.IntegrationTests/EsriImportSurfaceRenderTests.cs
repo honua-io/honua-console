@@ -220,6 +220,49 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("Web Map", banner.TextContent, StringComparison.Ordinal);
     }
 
+    // ---- #159 ArcGIS Notebook ----
+
+    [Fact]
+    public void NotebookPage_RendersCellMappingPreviewAndGatedExecutionState()
+    {
+        using var ctx = NewContext();
+
+        var page = ctx.Render<ImportEsriNotebookPage>();
+
+        // Default state is the empty intake — the sample is not preloaded as the user's import.
+        Assert.Contains("Paste or upload an ArcGIS Notebook", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cell → notebook-package mapping", page.Markup, StringComparison.Ordinal);
+
+        // Loading the bundled sample parses it through the real parser and populates the surface.
+        page.Find("[data-intake-sample]").Click();
+
+        Assert.Contains("Cell → notebook-package mapping", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("honua.notebook-package.v1", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("esri-notebook-preview", page.Markup, StringComparison.Ordinal);
+
+        // The bundled sample exercises each Fid state: markdown/code clean, arcpy + schedule manual, raw drop.
+        Assert.Contains("esri-mapping__row--clean", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("esri-mapping__row--manual", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("esri-mapping__row--drop", page.Markup, StringComparison.Ordinal);
+
+        // #159 scope boundary: execution is explicitly gated to a server hosted-arcpy runtime via an honest
+        // missing-binding state — never a Run action Console cannot honour, nor fabricated run output.
+        Assert.Contains("Execution gated", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("server hosted-arcpy runtime", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Run<", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NotebookPage_DefaultState_CreateCtaDisabledUntilParsed()
+    {
+        using var ctx = NewContext();
+
+        var page = ctx.Render<ImportEsriNotebookPage>();
+
+        var create = page.FindAll("button.console-button").First(b => b.TextContent.Contains("Create notebook package", StringComparison.Ordinal));
+        Assert.True(create.HasAttribute("disabled"));
+    }
+
     // ---- #102 Wizard / Run / Scorecard ----
 
     [Fact]

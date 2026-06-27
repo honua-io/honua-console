@@ -24,6 +24,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+
+        // Shell-owned toast/notification surface. Scoped = one queue per Blazor circuit so a toast a
+        // page raises is shown only to that connected user. The single ConsoleNotificationHost in
+        // ConsoleLayout subscribes and renders them (success/error/info/warning, role=alert, auto +
+        // manual dismiss). Pages surface server failures here through RunGuardedAsync rather than
+        // letting an exception vanish silently.
+        services.TryAddScoped<IConsoleNotificationService, ConsoleNotificationService>();
         // Environment profiles are host-owned local state (Console Patterns Charter §11 local-state
         // carve-out), but they must not ship fabricated demo profiles. The default store starts EMPTY so
         // the first-run experience is "create your first environment", never seeded dev.honua.local /
