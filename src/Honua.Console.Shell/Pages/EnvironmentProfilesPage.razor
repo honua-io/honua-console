@@ -13,40 +13,35 @@
     @if (!Host.SupportsNativeTransports)
     {
         <article class="console-panel console-state-info" role="note">
-            <h2>Native transports run on the desktop host</h2>
+            <h2>Connect over HTTPS in this browser Console</h2>
             <p class="console-muted">
-                This browser Console renders environment profiles read-only. Native gRPC, native mTLS, certificate
-                selection, connect/disconnect, and server trust validation are available in the optional native
-                (MAUI) Console host. The browser keeps HTTP and realtime transports.
+                This browser Console connects to a Honua Server over HTTPS and realtime transports. Native gRPC,
+                native mTLS, certificate selection, connect/disconnect, and server trust validation are added by
+                the optional desktop (MAUI) Console host.
             </p>
         </article>
     }
 
     <div class="console-toolbar">
-        @if (NativeReady)
-        {
-            <a class="console-button" href="/environments/new">Add Environment</a>
-        }
-        else
-        {
-            <span class="console-status console-state-info">Add environment · Native host only</span>
-        }
+        <a class="console-button" href="/environments/new">@(Host.SupportsNativeTransports ? "Add Environment" : "Connect to a server")</a>
     </div>
 
     @if (_profiles.Count == 0)
     {
-        @if (NativeReady)
-        {
-            <article class="console-panel">
+        <article class="console-panel">
+            @if (Host.SupportsNativeTransports)
+            {
                 <h2>Create your first environment</h2>
                 <p class="console-muted">No environment profiles exist yet. Add a managed Honua Server to connect, validate trust, and stream telemetry.</p>
                 <a class="console-button" href="/environments/new">Create environment profile</a>
-            </article>
-        }
-        else
-        {
-            <EmptyState Area="operate" Subject="environment profiles" />
-        }
+            }
+            else
+            {
+                <h2>Connect to your first server</h2>
+                <p class="console-muted">No environment profiles exist yet. Point this Console at your Honua Server over HTTPS and bind an account to sign in and start working.</p>
+                <a class="console-button" href="/environments/new">Connect to a server</a>
+            }
+        </article>
     }
     else
     {

@@ -1,5 +1,6 @@
 @page "/"
 @inject IConsoleEnvironmentProfileStore Profiles
+@inject IConsoleHostCapabilities Host
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -7,6 +8,18 @@
         <h1>Honua Console</h1>
         <p>Studio, Catalog, Operate, and Share run in one route surface while preserving builder and operator workflow boundaries.</p>
     </div>
+
+    @if (_profiles.Count == 0)
+    {
+        <article class="console-panel console-state-info console-environment-summary" role="note" aria-labelledby="home-first-run">
+            <div>
+                <p class="console-kicker">Get started</p>
+                <h2 id="home-first-run">Connect to a Honua Server</h2>
+                <p class="console-muted">No environment is set up yet. Point this Console at your Honua Server over HTTPS and sign in to start working.</p>
+            </div>
+            <a class="console-button" href="/environments/new">@(Host.SupportsNativeTransports ? "Add environment" : "Connect to a server")</a>
+        </article>
+    }
 
     <div class="console-panel-grid console-panel-grid-wide">
         @foreach (var area in ConsoleRouteMap.Areas)

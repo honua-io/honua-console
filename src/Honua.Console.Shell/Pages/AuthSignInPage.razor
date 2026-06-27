@@ -12,7 +12,7 @@
 
     @if (_profile is null)
     {
-        <ConsoleStateView Kind="unavailable" Kicker="Unavailable" Title="No environment profile" Message="Create or activate an environment profile before signing in." ActionHref="/environments" ActionLabel="Manage Environments" />
+        <ConsoleStateView Kind="empty" Kicker="Get started" Title="Connect to a server first" Message="Sign-in needs an active environment. Point this Console at your Honua Server and bind an account, then continue here." ActionHref="/environments/new" ActionLabel="Connect to a server" />
     }
     else
     {
