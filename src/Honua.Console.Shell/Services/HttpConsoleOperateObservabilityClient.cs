@@ -27,6 +27,11 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
     // unbounded number of admin reads. Past this cap the result is flagged partial.
     private const int MaxJobPages = 5;
 
+    // Per-rule health and per-investigation detail are per-item admin reads. Fetch them concurrently to
+    // avoid a request waterfall, but cap in-flight concurrency so a large rule/investigation list cannot
+    // open dozens-to-hundreds of admin sockets at once on every page open (honua-console#236).
+    private const int MaxDetailFanoutConcurrency = 8;
+
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
@@ -973,27 +978,54 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             return new Dictionary<long, RuleHealthResult>();
         }
 
-        var tasks = rules.Select(async rule =>
-        {
-            var health = await FetchAsync(
-                OperateAdminRoutes.RuleHealth(rule.RuleId),
-                OperateObservabilityJsonContext.Default.AlertRuleHealthEnvelope,
-                cancellationToken).ConfigureAwait(false);
-            if (health.Ok && health.Value!.Success && health.Value.Data is not null)
+        var resolved = await BoundedFanOutAsync(
+            rules,
+            async rule =>
             {
-                return (rule.RuleId, Result: RuleHealthResult.Allowed(health.Value.Data));
-            }
+                var health = await FetchAsync(
+                    OperateAdminRoutes.RuleHealth(rule.RuleId),
+                    OperateObservabilityJsonContext.Default.AlertRuleHealthEnvelope,
+                    cancellationToken).ConfigureAwait(false);
+                if (health.Ok && health.Value!.Success && health.Value.Data is not null)
+                {
+                    return (rule.RuleId, Result: RuleHealthResult.Allowed(health.Value.Data));
+                }
 
-            var status = health.Ok ? OperateSectionStatus.Unavailable : health.Status;
-            var message = health.Ok
-                ? FirstNonBlank(health.Value!.Message, "The rule health endpoint returned an empty response envelope.")
-                : health.Message;
-            return (rule.RuleId, Result: RuleHealthResult.Denied(status, message));
-        });
-
-        var resolved = await Task.WhenAll(tasks).ConfigureAwait(false);
+                var status = health.Ok ? OperateSectionStatus.Unavailable : health.Status;
+                var message = health.Ok
+                    ? FirstNonBlank(health.Value!.Message, "The rule health endpoint returned an empty response envelope.")
+                    : health.Message;
+                return (rule.RuleId, Result: RuleHealthResult.Denied(status, message));
+            },
+            cancellationToken).ConfigureAwait(false);
         return resolved
             .ToDictionary(entry => entry.RuleId, entry => entry.Result);
+    }
+
+    // Runs <paramref name="body"/> over every item with in-flight concurrency capped at
+    // <see cref="MaxDetailFanoutConcurrency"/>, so a large list cannot open an unbounded number of
+    // concurrent admin sockets while still avoiding a fully serial waterfall. The page cancellation token
+    // is honored both while waiting for a slot and inside each body call.
+    private static async Task<IReadOnlyList<TResult>> BoundedFanOutAsync<TItem, TResult>(
+        IReadOnlyList<TItem> items,
+        Func<TItem, Task<TResult>> body,
+        CancellationToken cancellationToken)
+    {
+        using var gate = new SemaphoreSlim(MaxDetailFanoutConcurrency, MaxDetailFanoutConcurrency);
+        var tasks = items.Select(async item =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await body(item).ConfigureAwait(false);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        return await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<OperateInvestigation>> ResolveInvestigationDetailsAsync(
@@ -1006,35 +1038,36 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             return [];
         }
 
-        var tasks = pageItems.Select(async summary =>
-        {
-            var detail = await FetchAsync(
-                OperateAdminRoutes.InvestigationDetail(summary.InvestigationId),
-                OperateObservabilityJsonContext.Default.InvestigationResponse,
-                cancellationToken).ConfigureAwait(false);
-            if (detail.Ok)
+        return await BoundedFanOutAsync(
+            pageItems,
+            async summary =>
             {
-                return OperateObservabilityMapper.MapInvestigation(detail.Value!);
-            }
+                var detail = await FetchAsync(
+                    OperateAdminRoutes.InvestigationDetail(summary.InvestigationId),
+                    OperateObservabilityJsonContext.Default.InvestigationResponse,
+                    cancellationToken).ConfigureAwait(false);
+                if (detail.Ok)
+                {
+                    return OperateObservabilityMapper.MapInvestigation(detail.Value!);
+                }
 
-            var projected = OperateObservabilityMapper.MapInvestigation(summary);
-            var message = FirstNonBlank(
-                detail.Message,
-                "Investigation detail, pins, and linked resources are unavailable from the server.");
-            return projected with
-            {
-                DetailStatus = SubresourceStatus(
-                    detail.Status,
-                    message,
-                    "Investigation detail returned by honua-server."),
-                DetailMessage = message,
-                Notes = projected.Notes
-                    .Concat([$"Investigation detail unavailable: {message}"])
-                    .ToArray()
-            };
-        });
-
-        return await Task.WhenAll(tasks).ConfigureAwait(false);
+                var projected = OperateObservabilityMapper.MapInvestigation(summary);
+                var message = FirstNonBlank(
+                    detail.Message,
+                    "Investigation detail, pins, and linked resources are unavailable from the server.");
+                return projected with
+                {
+                    DetailStatus = SubresourceStatus(
+                        detail.Status,
+                        message,
+                        "Investigation detail returned by honua-server."),
+                    DetailMessage = message,
+                    Notes = projected.Notes
+                        .Concat([$"Investigation detail unavailable: {message}"])
+                        .ToArray()
+                };
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<FetchResult<T>> FetchAsync<T>(

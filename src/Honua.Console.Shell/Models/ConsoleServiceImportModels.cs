@@ -114,6 +114,13 @@ public sealed record ConsoleServiceImportJob
 
     public bool Succeeded { get; init; }
 
+    /// <summary>
+    /// True when this reading is a transport/transient failure (server unreachable or a 5xx blip) rather
+    /// than a definitive job state. The server import may still be running, so the poller keeps the job
+    /// active and retries instead of marking it terminally failed.
+    /// </summary>
+    public bool TransientFailure { get; init; }
+
     public int FeaturesProcessed { get; init; }
 
     public int? EstimatedTotalFeatures { get; init; }

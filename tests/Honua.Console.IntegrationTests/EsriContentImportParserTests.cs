@@ -73,6 +73,29 @@ public sealed class EsriContentImportParserTests
         // Carry-over chips reflect the basemap + bookmarks.
         Assert.Contains(result.CarryOver, c => c.Label == "basemap" && c.Carried);
         Assert.Contains(result.CarryOver, c => c.Label.Contains("bookmark", StringComparison.OrdinalIgnoreCase) && c.Carried);
+
+        // No initialState / mapRangeInfo in this document, so the initial-extent carry-over must report
+        // not-carried rather than claiming a false fidelity signal.
+        Assert.Contains(result.CarryOver, c => c.Label == "initial extent" && !c.Carried);
+    }
+
+    [Fact]
+    public void ParseWebMap_WithInitialState_ReportsInitialExtentCarried()
+    {
+        const string json = """
+        {
+          "title": "Has extent",
+          "operationalLayers": [
+            { "id": "parcels", "title": "Parcels", "layerType": "ArcGISFeatureLayer", "url": "https://services/Parcels/FeatureServer/0" }
+          ],
+          "initialState": { "viewpoint": { "targetGeometry": { "xmin": 0, "ymin": 0, "xmax": 1, "ymax": 1 } } }
+        }
+        """;
+
+        var outcome = _parser.ParseWebMap(json, "wm.json");
+
+        Assert.True(outcome.Succeeded, outcome.Error);
+        Assert.Contains(outcome.Result!.CarryOver, c => c.Label == "initial extent" && c.Carried);
     }
 
     [Fact]
