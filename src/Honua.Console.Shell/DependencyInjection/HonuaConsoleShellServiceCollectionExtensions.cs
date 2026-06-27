@@ -121,6 +121,18 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
+        // The approval inbox (#193) is a thin aggregator over the two server-owned
+        // proposal sources above (GitOps release proposals + deploy-control operations).
+        // It introduces NO new server contract — it reuses the Operate Deploy page's
+        // projection to surface the GIS-department work queue as one human-in-the-loop
+        // surface, classified by ticket type. No standing in-memory source is registered
+        // (Charter section 11); when no environment is connected the inbox renders the
+        // missing-binding state surfaced by the underlying deploy-control read.
+        services.TryAddSingleton<IConsoleApprovalInboxClient>(serviceProvider =>
+            new ConsoleApprovalInboxClient(
+                serviceProvider.GetRequiredService<IConsoleGitOpsReleaseClient>(),
+                serviceProvider.GetRequiredService<IConsoleDeployApprovalClient>()));
+
         // Server-version detection for the server-upgrade flow binds to the connected
         // honua-server's capability manifest (GET /api/v1/capabilities/manifest, the
         // `server` block) via the same thin typed HttpClient. It detects the target

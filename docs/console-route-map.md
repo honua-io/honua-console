@@ -34,7 +34,8 @@ Four top-level workflow areas (per ADR-0001), plus a small set of shell
 routes. Path prefixes are frozen for downstream tickets:
 
 ```
-/                              Workspace dashboard (post-auth landing)
+/                              Workspace dashboard (post-auth landing) — information + approval landing (#193): leads with the approval-inbox summary + recent activity, then the four area work surfaces
+/inbox                         Approval inbox (#193) — the GIS-department work queue: aggregates pending/active agent-proposed deploy-control operations (release-derived + operator-tracked ids), classified by GIS-desk ticket type, with the review→approve/reject/rollback surface inline. Pure projection over the deploy-control + GitOps-release contracts (no new server contract); missing-binding state when unbound. Alias: /approvals
 /auth/signin                   Sign in (anonymous; returnTo)
 /auth/callback                 OIDC callback (anonymous)
 /auth/signed-out               Post-signout landing (anonymous)

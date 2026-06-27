@@ -20,6 +20,15 @@
         </div>
 
         <nav class="console-nav" aria-label="Primary">
+            @* The approval inbox (#193) is the human-in-the-loop centerpiece: the GIS
+               department's work queue. It is a top-level surface, not Operate-scoped. *@
+            <NavLink href="/inbox" Match="NavLinkMatch.Prefix" title="Approval inbox">
+                <span class="console-nav-icon">@Icon("inbox")</span>
+                <span class="console-nav-label">
+                    <span>Inbox</span>
+                    <small>Approvals</small>
+                </span>
+            </NavLink>
             @foreach (var area in ConsoleRouteMap.Areas)
             {
                 <NavLink href="@area.Path" Match="NavLinkMatch.Prefix" title="@area.Name">
@@ -131,6 +140,7 @@
             "environments" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z|M3 12h18|M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z",
             "native-stream" => "M5 12a9 9 0 0 1 14 0|M8.5 15a4.5 4.5 0 0 1 7 0|M12 18.5v.01",
             "support" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z|M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3|M12 17h.01",
+            "inbox" => "M22 12h-6l-2 3h-4l-2-3H2|M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z",
             "collapse" => "M15 18l-6-6 6-6|M9 18l-6-6 6-6",
             _ => "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
         };
