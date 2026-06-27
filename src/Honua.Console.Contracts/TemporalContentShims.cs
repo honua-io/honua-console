@@ -582,11 +582,19 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
 
     private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
     {
+        // A 409 means different things by contract. On the conflict-resolution POST it is an
+        // already-resolved conflict (the operator raced another resolver or reloaded stale state) — a
+        // recoverable Conflict the caller can clear by reloading the queue. On capability/as-of reads it
+        // is the server declaring the layer does not support the requested temporal capability.
+        var conflictIsAlreadyResolved =
+            statusCode == HttpStatusCode.Conflict
+            && contract.EndsWith("/resolve", StringComparison.Ordinal);
+
         var state = statusCode switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Forbidden",
             HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-            HttpStatusCode.Conflict => "Unsupported",
+            HttpStatusCode.Conflict => conflictIsAlreadyResolved ? "Conflict" : "Unsupported",
             HttpStatusCode.BadRequest => "Rejected",
             _ => "Unavailable"
         };
@@ -598,7 +606,9 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
             HttpStatusCode.NotFound => "The Honua server temporal service, layer, or replica was not found.",
             HttpStatusCode.MethodNotAllowed => "The Honua server exposes the temporal route but not the required verb.",
             HttpStatusCode.NotImplemented => "The Honua server reports the temporal capability is not implemented.",
-            HttpStatusCode.Conflict => "The Honua server reports this layer does not support the requested temporal capability.",
+            HttpStatusCode.Conflict => conflictIsAlreadyResolved
+                ? "The Honua server reports this conflict has already been resolved. Reload the conflict queue and retry against the current state."
+                : "The Honua server reports this layer does not support the requested temporal capability.",
             HttpStatusCode.BadRequest => "The Honua server rejected the temporal request as invalid.",
             HttpStatusCode.ServiceUnavailable => "The Honua server temporal store is currently unavailable.",
             _ => string.Format(

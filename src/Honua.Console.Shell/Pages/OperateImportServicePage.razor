@@ -643,9 +643,20 @@
 
             try
             {
+                var anyTransientFailure = false;
                 foreach (var row in active)
                 {
                     var job = await ServiceImport.GetImportJobAsync(row.JobId!);
+                    if (job.TransientFailure)
+                    {
+                        // The reading failed but the server import may still be running. Keep the row active
+                        // (Terminal stays false) and surface a retry note instead of marking it failed; the
+                        // consecutive-failure backoff below stops polling only after sustained failures.
+                        anyTransientFailure = true;
+                        row.Detail = "Connection lost — retrying.";
+                        continue;
+                    }
+
                     row.Status = job.Status;
                     row.Terminal = job.Terminal;
                     row.Succeeded = job.Succeeded;
@@ -654,8 +665,22 @@
                     row.Detail = job.Detail;
                 }
 
-                // A successful sweep clears the transient-failure backoff.
-                _pollFailureCount = 0;
+                if (anyTransientFailure)
+                {
+                    _pollFailureCount++;
+                    if (_pollFailureCount >= MaxConsecutivePollFailures)
+                    {
+                        StopPolling();
+                        await InvokeAsync(() =>
+                            Notifications.Warning("Stopped polling import status after repeated errors — reload to resume tracking."));
+                        return;
+                    }
+                }
+                else
+                {
+                    // A clean sweep clears the transient-failure backoff.
+                    _pollFailureCount = 0;
+                }
             }
             catch (Exception)
             {

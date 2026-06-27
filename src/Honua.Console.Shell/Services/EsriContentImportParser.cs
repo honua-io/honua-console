@@ -105,7 +105,7 @@ public sealed class EsriContentImportParser
                 new("basemap", basemapCount > 0),
                 new($"{bookmarkCount} bookmarks", bookmarkCount > 0),
                 new("popups → templates", rows.Any(r => r.Note.Contains("popup", StringComparison.OrdinalIgnoreCase)) || popupCount > 0),
-                new("initial extent", root.TryGetProperty("initialState", out _) || root.TryGetProperty("mapRangeInfo", out _) || true),
+                new("initial extent", root.TryGetProperty("initialState", out _) || root.TryGetProperty("mapRangeInfo", out _)),
             };
             if (widgetCount > 0)
             {
