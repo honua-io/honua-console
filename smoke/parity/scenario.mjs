@@ -54,7 +54,7 @@ export const SCENARIO_STEPS = [
     description:
       "Verify the single deployable artifact metadata (version.json) declares name=honua-console, the four areas, and the legacy block.",
     async run(ctx) {
-      const { metadata, source, path, contract } = await loadBuildArtifact({
+      const { metadata, source, path, contract, contractDrift } = await loadBuildArtifact({
         repoRoot: ctx.repoRoot,
         originUrl: ctx.originUrl,
         fetchImpl: ctx.fetchImpl,
@@ -69,6 +69,9 @@ export const SCENARIO_STEPS = [
           ref: metadata.ref,
           legacy: metadata.legacy,
           areas: metadata.areas,
+          // AUD-106: drift detection result. `served: false` means version.json carried no
+          // contracts block, so registry-vs-served drift could not be (and was not) checked.
+          contractDrift,
         },
         contracts: [contract],
       };

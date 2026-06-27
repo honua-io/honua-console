@@ -81,7 +81,11 @@ if (app.Environment.IsDevelopment())
 // Integrity. object-src/base-uri/frame-ancestors/form-action are locked down to block plugin,
 // base-tag, clickjacking, and form-hijack vectors. 'unsafe-eval' is required by the Vega chart
 // runtime (and Cesium WASM); 'unsafe-inline' (style/script) by the MapLibre/Cesium/Vega inline
-// styles and the Blazor bootstrap. Set on every response (static assets and rendered pages).
+// styles and the Blazor bootstrap. 'blob:' in script-src lets same-origin code execute module bytes
+// pulled from this origin under a guaranteed MIME (the map-preview interop is loaded this way, and
+// MapLibre/Cesium also spin up blob-backed workers); given 'unsafe-inline'/'unsafe-eval' are already
+// permitted, allowing same-origin blob scripts adds no meaningful capability and introduces no new
+// remote code origin. Set on every response (static assets and rendered pages).
 var contentSecurityPolicy = string.Join("; ", new[]
 {
     "default-src 'self'",
@@ -89,7 +93,7 @@ var contentSecurityPolicy = string.Join("; ", new[]
     "object-src 'none'",
     "frame-ancestors 'self'",
     "form-action 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://unpkg.com https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net",
     "img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org",
     "font-src 'self' data: https://cdn.jsdelivr.net",
