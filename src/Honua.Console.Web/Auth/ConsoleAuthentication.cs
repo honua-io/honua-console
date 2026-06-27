@@ -49,6 +49,12 @@ public static class ConsoleAuthentication
                 options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
                 options.LoginPath = "/auth/login";
                 options.LogoutPath = "/auth/logout";
+                // The framework's automatic challenge redirect and the rest of the Console
+                // (RedirectToLogin, the sign-in pages, the /auth/login endpoint) must agree on the
+                // return-url query key. The Console uses "returnTo" everywhere, so override the cookie
+                // middleware's default ("ReturnUrl") — otherwise a challenged deep link is dropped and
+                // the operator lands on "/" after sign-in instead of the page they requested.
+                options.ReturnUrlParameter = "returnTo";
                 options.SlidingExpiration = true;
                 options.ExpireTimeSpan = TimeSpan.FromHours(8);
                 // For XHR/fetch (e.g. the map-proxy) return 401 instead of a 302 to the login page so
