@@ -1083,13 +1083,20 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     }
 
     private static HttpClient CreateOperateObservabilityHttpClient() =>
-        new(new SocketsHttpHandler
+        new(CreateBoundedLifetimeHandler())
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+
+    // Family-A server-bound clients are built by HonuaServerClientFactory (profile/session-aware
+    // binding over a bounded-lifetime pooled handler). The observability client below is not part of
+    // that binding family but shares the same bounded-lifetime handler so a long-lived singleton
+    // client does not pin stale DNS for the active environment's server.
+    private static SocketsHttpHandler CreateBoundedLifetimeHandler() =>
+        new()
         {
             // Refresh pooled connections so a long-lived singleton client does
             // not pin stale DNS for the active environment's server.
             PooledConnectionLifetime = TimeSpan.FromMinutes(5)
-        })
-        {
-            Timeout = TimeSpan.FromSeconds(30)
         };
 }
