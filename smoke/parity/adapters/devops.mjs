@@ -19,7 +19,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { findContract } from "../contracts.mjs";
+import { compareServedContractVersions, findContract } from "../contracts.mjs";
 
 const REQUIRED_BUILD_FIELDS = ["name", "version", "commit", "shortCommit", "ref", "builtAt", "legacy", "areas"];
 const REQUIRED_LEGACY_FIELDS = ["portal", "admin"];
@@ -114,7 +114,8 @@ export async function loadBuildArtifact({
     }
     const { parsed, path } = await fetchOriginVersion({ originUrl, fetchImpl });
     validateBuildArtifact(parsed, path);
-    return { metadata: parsed, source: "origin", path, contract: findContract("build-artifact") };
+    const contractDrift = assertNoContractDrift(parsed, path);
+    return { metadata: parsed, source: "origin", path, contract: findContract("build-artifact"), contractDrift };
   }
 
   const artifact = artifactPath ?? resolve(repoRoot, "artifacts/honua-console-web/version.json");
@@ -136,7 +137,27 @@ export async function loadBuildArtifact({
     });
   }
   validateBuildArtifact(parsed, path);
-  return { metadata: parsed, source, path, contract: findContract("build-artifact") };
+  const contractDrift = assertNoContractDrift(parsed, path);
+  return { metadata: parsed, source, path, contract: findContract("build-artifact"), contractDrift };
+}
+
+// Fail the smoke when the registry diverges from the contract versions the build artifact
+// actually serves (honua-console#239, AUD-106). A no-op (served: false) when version.json
+// carries no `contracts` block, so local/fixture runs and servers that do not yet publish
+// served contract versions are unaffected.
+export function assertNoContractDrift(metadata, path) {
+  const summary = compareServedContractVersions(metadata?.contracts);
+  if (summary.drift.length > 0) {
+    const detail = summary.drift
+      .map((d) => `${d.name}: registry ${d.registryVersion} != served ${d.servedVersion}`)
+      .join("; ");
+    throw new BuildArtifactError(
+      `build-artifact at ${path} contract-version drift — the parity registry no longer matches the served contract block: ${detail}. `
+        + `Bump smoke/parity/contracts.mjs to match the server, or fix the server contract version.`,
+      { reason: "contract-drift" },
+    );
+  }
+  return summary;
 }
 
 export function validateBuildArtifact(metadata, path) {

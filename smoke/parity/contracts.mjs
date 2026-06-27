@@ -101,3 +101,33 @@ export function findContract(name) {
   }
   return entry;
 }
+
+// Contract-drift detection (honua-console#239, AUD-106). The local registry above is
+// hand-maintained, so on its own the smoke can only prove the registry is internally
+// consistent — it cannot prove the registry still matches what the deployed server actually
+// serves. When a build artifact's `version.json` publishes a `contracts` block (a map of
+// contract name -> served version), this compares it against the registry and reports any
+// divergence so the smoke FAILS on real contract drift instead of silently shipping a stale
+// version. When no `contracts` block is served (local/fixture runs, or a server that does not
+// yet publish one) `checked` is 0 and `served` is false — drift detection is a documented
+// no-op, never a false pass.
+export function compareServedContractVersions(servedContracts) {
+  if (servedContracts == null || typeof servedContracts !== "object" || Array.isArray(servedContracts)) {
+    return { served: false, checked: 0, drift: [], unknown: [] };
+  }
+  const drift = [];
+  const unknown = [];
+  let checked = 0;
+  for (const [name, servedVersion] of Object.entries(servedContracts)) {
+    const entry = CONTRACT_VERSIONS.find((c) => c.name === name);
+    if (!entry) {
+      unknown.push({ name, servedVersion });
+      continue;
+    }
+    checked += 1;
+    if (entry.version !== servedVersion) {
+      drift.push({ name, registryVersion: entry.version, servedVersion });
+    }
+  }
+  return { served: true, checked, drift, unknown };
+}

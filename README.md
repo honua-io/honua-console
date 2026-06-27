@@ -79,6 +79,21 @@ invalid. Evidence records `buildArtifact.source` as `"origin"`,
 `"artifact"`, or `"fixture"` so release promotion can distinguish a
 deployed artifact check from a local harness run.
 
+The smoke runs the cross-surface scenario against in-process adapters
+(`smoke/parity/adapters/`) over a hand-maintained contract-version registry
+(`smoke/parity/contracts.mjs`); on its own it proves the scenario chain and
+that the registry is internally consistent, **not** that the registry still
+matches the live server. To catch real contract drift, the
+`devops/build-artifact` step compares the registry against the `contracts`
+block a build artifact's `version.json` publishes (a map of contract name →
+served version) and **fails** the smoke on any divergence
+([honua-console#239](https://github.com/honua-io/honua-console/issues/239),
+AUD-106). When `version.json` carries no `contracts` block — local/fixture
+runs, or a server that does not yet publish served contract versions —
+drift detection is a documented no-op recorded as
+`buildArtifact.contractDrift.served = false` in evidence (never a false
+pass).
+
 See [docs/smoke/parity.md](docs/smoke/parity.md) for the CLI options,
 scenario, owning-layer triage taxonomy, and evidence format. The focused
 `smoke:workflow` command covers the Studio workflow-package contract path

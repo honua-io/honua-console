@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
 
-import { CONTRACT_VERSIONS, findContract } from "../contracts.mjs";
+import { CONTRACT_VERSIONS, compareServedContractVersions, findContract } from "../contracts.mjs";
+import { assertNoContractDrift } from "../adapters/devops.mjs";
 import { OWNING_LAYER_IDS } from "../owning-layers.mjs";
 
 describe("contracts registry", () => {
@@ -50,5 +51,58 @@ describe("contracts registry", () => {
   test("contract names are unique", () => {
     const names = CONTRACT_VERSIONS.map((c) => c.name);
     assert.equal(names.length, new Set(names).size, "duplicate contract names in registry");
+  });
+});
+
+describe("contract-drift detection (AUD-106)", () => {
+  test("is a no-op when version.json serves no contracts block", () => {
+    for (const served of [undefined, null, [], "v1", 5]) {
+      const summary = compareServedContractVersions(served);
+      assert.equal(summary.served, false);
+      assert.equal(summary.checked, 0);
+      assert.deepEqual(summary.drift, []);
+    }
+  });
+
+  test("reports no drift when served versions match the registry", () => {
+    const served = Object.fromEntries(CONTRACT_VERSIONS.map((c) => [c.name, c.version]));
+    const summary = compareServedContractVersions(served);
+    assert.equal(summary.served, true);
+    assert.equal(summary.checked, CONTRACT_VERSIONS.length);
+    assert.deepEqual(summary.drift, []);
+    assert.deepEqual(summary.unknown, []);
+  });
+
+  test("reports drift when a served version diverges from the registry", () => {
+    const entry = CONTRACT_VERSIONS[0];
+    const summary = compareServedContractVersions({ [entry.name]: `${entry.version}-drifted` });
+    assert.equal(summary.served, true);
+    assert.equal(summary.checked, 1);
+    assert.equal(summary.drift.length, 1);
+    assert.equal(summary.drift[0].name, entry.name);
+    assert.equal(summary.drift[0].registryVersion, entry.version);
+    assert.equal(summary.drift[0].servedVersion, `${entry.version}-drifted`);
+  });
+
+  test("collects unknown served contracts without failing the match", () => {
+    const summary = compareServedContractVersions({ "not-a-contract": "v9" });
+    assert.equal(summary.served, true);
+    assert.equal(summary.checked, 0);
+    assert.deepEqual(summary.drift, []);
+    assert.equal(summary.unknown.length, 1);
+    assert.equal(summary.unknown[0].name, "not-a-contract");
+  });
+
+  test("assertNoContractDrift throws on drift and returns the summary otherwise", () => {
+    const entry = CONTRACT_VERSIONS[0];
+    assert.throws(
+      () => assertNoContractDrift({ contracts: { [entry.name]: `${entry.version}-drifted` } }, "test://version.json"),
+      /contract-version drift/,
+    );
+    const ok = assertNoContractDrift({ contracts: { [entry.name]: entry.version } }, "test://version.json");
+    assert.equal(ok.served, true);
+    assert.equal(ok.drift.length, 0);
+    // No contracts block at all -> no-op, no throw.
+    assert.equal(assertNoContractDrift({}, "test://version.json").served, false);
   });
 });

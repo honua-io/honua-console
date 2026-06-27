@@ -1,13 +1,14 @@
-name: Console E2E (advisory)
+name: Console E2E
 
 # Thin real-browser Playwright smoke for the Honua Console Blazor Web host.
 #
-# ADVISORY, NOT A REQUIRED GATE. Browser smokes are inherently more flaky than the bUnit
-# render tests in "Validate Console", and this suite currently tolerates a documented
-# pre-existing circuit defect (ambiguous `/operate/jobs/{...}` route). It runs on every PR
-# and push so regressions are visible, but `continue-on-error` keeps a transient or
-# environmental failure from blocking merge. Promote it to a required check (and drop
-# continue-on-error) once it is reliably green and the routing defect is fixed.
+# This is a real signal: the job fails the run on any browser boot failure (asset 404,
+# transport teardown, a re-introduced ambiguous route, or any console/page error). The
+# ambiguous `/operate/jobs/{...}` circuit defect this smoke used to tolerate was fixed in
+# #140, and the boot assertion was unblinded in #244 (app-shell.spec.ts now asserts zero
+# console/page errors), so the previous `continue-on-error` escape hatch — which blinded the
+# smoke to exactly the failures it exists to catch — has been removed (honua-console#239).
+# Enforce it as a required check in branch protection.
 
 on:
   push:
@@ -25,9 +26,8 @@ concurrency:
 
 jobs:
   e2e-smoke:
-    name: Playwright smoke (advisory)
+    name: Playwright smoke
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Check out repository
