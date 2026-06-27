@@ -34,6 +34,52 @@ public static class MapProxySupport
         return !string.IsNullOrWhiteSpace(session?.AccessToken);
     }
 
+    // Validator request headers forwarded to the upstream so it can answer 304 Not Modified.
+    private static readonly string[] ConditionalRequestHeaders = ["If-None-Match", "If-Modified-Since"];
+
+    // Caching + validator response headers copied from the upstream so the browser can cache tiles.
+    private static readonly string[] CacheResponseHeaders =
+        ["Cache-Control", "ETag", "Expires", "Last-Modified", "Vary", "Age"];
+
+    /// <summary>
+    /// Forwards the browser's cache-validation headers (<c>If-None-Match</c> / <c>If-Modified-Since</c>) onto
+    /// the upstream tile request so honua-server can answer <c>304 Not Modified</c> and the browser
+    /// revalidates cheaply instead of always re-downloading the tile body.
+    /// </summary>
+    public static void ForwardConditionalHeaders(HttpRequest browserRequest, HttpRequestMessage upstreamRequest)
+    {
+        foreach (var name in ConditionalRequestHeaders)
+        {
+            if (browserRequest.Headers.TryGetValue(name, out var values))
+            {
+                upstreamRequest.Headers.TryAddWithoutValidation(name, (IEnumerable<string?>)values);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Copies the upstream caching + validator headers onto the proxied response so the browser can cache
+    /// vector tiles instead of re-fetching every tile through this admin-keyed proxy on every view. When the
+    /// upstream sends no <c>Cache-Control</c>, applies a conservative immutable long max-age (tiles are
+    /// content-addressed by layer/z/x/y, so a given tile body is stable between publishes).
+    /// </summary>
+    public static void ApplyTileCacheHeaders(HttpResponseMessage upstream, HttpResponse browserResponse)
+    {
+        foreach (var name in CacheResponseHeaders)
+        {
+            if (upstream.Headers.TryGetValues(name, out var values) ||
+                upstream.Content.Headers.TryGetValues(name, out values))
+            {
+                browserResponse.Headers[name] = values.ToArray();
+            }
+        }
+
+        if (!browserResponse.Headers.ContainsKey("Cache-Control"))
+        {
+            browserResponse.Headers["Cache-Control"] = "public, max-age=86400, immutable";
+        }
+    }
+
     /// <summary>
     /// Rewrites every vector-tile URL in a MapLibre style document so the browser fetches tiles
     /// back through this proxy (where the admin key is injected) rather than directly from

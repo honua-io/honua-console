@@ -6,7 +6,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents(options => options.DetailedErrors = true);
+    // Detailed circuit errors leak exception messages and stack traces to the browser, so only enable
+    // them in Development; production circuits surface a generic error and log the detail server-side.
+    .AddInteractiveServerComponents(options => options.DetailedErrors = builder.Environment.IsDevelopment());
 
 // NL->workflow generation against a local CPU model can hold a circuit for minutes and
 // return a graph payload larger than SignalR's 32 KB default receive cap. Raise the cap and
@@ -150,6 +152,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         int z,
         int x,
         int y,
+        HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
         Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
         Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
@@ -170,10 +173,26 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             request.Headers.TryAddWithoutValidation("X-API-Key", mapProxyAdminKey);
         }
 
-        using var response = await client.SendAsync(request, cancellationToken);
+        // Forward the browser's validators so the upstream can answer 304 and the browser revalidates cheaply.
+        Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
+
+        // Tiles are the hottest path. Read only the headers first and stream the body straight to the
+        // browser instead of buffering each tile into a byte[], and forward the upstream caching/validator
+        // headers so the browser can cache tiles rather than re-fetching every tile through this admin-keyed
+        // proxy on every view (honua-console#236). The response is disposed once the request completes.
+        var response = await client.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        httpContext.Response.RegisterForDispose(response);
+
         if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
         {
             return Results.StatusCode(StatusCodes.Status204NoContent);
+        }
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+        {
+            Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
+            return Results.StatusCode(StatusCodes.Status304NotModified);
         }
 
         if (!response.IsSuccessStatusCode)
@@ -181,9 +200,10 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             return Results.StatusCode((int)response.StatusCode);
         }
 
-        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
         var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/vnd.mapbox-vector-tile";
-        return Results.Bytes(bytes, contentType);
+        var tileStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return Results.Stream(tileStream, contentType);
     });
 
     // Real tabular feature rows for the Studio query-result table and the live chart (graphs) preview.

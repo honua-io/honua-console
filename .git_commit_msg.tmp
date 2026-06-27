@@ -1,0 +1,18 @@
+fix(web): gate detailed circuit errors and stream/cache map tiles
+
+Close two web-host hardening gaps before release.
+
+- DetailedErrors: interactive-circuit exception messages and stack traces
+  were streamed to browsers in every environment. Gate DetailedErrors on
+  IsDevelopment so production circuits surface a generic error and the detail
+  is logged server-side only.
+- Map tile proxy (the hottest path): stop buffering each tile into a byte[]
+  and dropping upstream caching headers. Read response headers only, stream
+  the body straight to the browser, forward the upstream caching/validator
+  headers (Cache-Control/ETag/Expires/Last-Modified/Vary/Age) with an
+  immutable long max-age fallback, forward the browser's conditional headers
+  so the upstream can answer 304, and pass 304 through. Browsers can now
+  cache tiles instead of re-fetching every tile through the admin-keyed proxy
+  on every view.
+
+Adds Docker-free tests for the new cache-header forwarding helpers.
