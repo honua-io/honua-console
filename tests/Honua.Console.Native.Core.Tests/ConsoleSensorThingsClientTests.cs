@@ -105,6 +105,52 @@ public sealed class ConsoleSensorThingsClientTests
     }
 
     [Fact]
+    public async Task GetDatastreamTimeSeries_ToleratesNonNumericAndNullResults()
+    {
+        // OGC STA v1.1 result is an open type. A category/string result, a null result, and a
+        // boolean must not throw JsonException (which previously degraded the WHOLE collection to
+        // Unavailable); numeric (including numeric-string) results still chart.
+        var handler = new RecordingHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/sta/v1.1/Datastreams(1)")
+            {
+                return Json("""{ "@iot.id": 1, "@iot.selfLink": "s", "name": "Mixed", "description": "d", "observationType": "t" }""");
+            }
+
+            if (path == "/sta/v1.1/Datastreams(1)/Observations")
+            {
+                return Json(
+                    """
+                    {
+                      "@iot.count": 5,
+                      "value": [
+                        { "@iot.id": 1, "@iot.selfLink": "s", "phenomenonTime": "2026-06-18T00:00:00Z", "result": 15.0 },
+                        { "@iot.id": 2, "@iot.selfLink": "s", "phenomenonTime": "2026-06-18T01:00:00Z", "result": "category-a" },
+                        { "@iot.id": 3, "@iot.selfLink": "s", "phenomenonTime": "2026-06-18T02:00:00Z", "result": null },
+                        { "@iot.id": 4, "@iot.selfLink": "s", "phenomenonTime": "2026-06-18T03:00:00Z", "result": true },
+                        { "@iot.id": 5, "@iot.selfLink": "s", "phenomenonTime": "2026-06-18T04:00:00Z", "result": "17.5" }
+                      ]
+                    }
+                    """);
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetDatastreamTimeSeriesAsync(1);
+
+        Assert.True(result.IsOk);
+        var series = result.Value!;
+        // Only the two numeric results (a JSON number and a numeric string) are charted; the
+        // string-category, null, and boolean results are skipped without failing the read.
+        Assert.Equal(2, series.Points.Count);
+        Assert.Equal(15.0, series.Points[0].Result);
+        Assert.Equal(17.5, series.Points[1].Result);
+    }
+
+    [Fact]
     public async Task GetDatastream_WithExpand_RequestsExpandObservations()
     {
         var handler = new RecordingHandler(_ => Json(
