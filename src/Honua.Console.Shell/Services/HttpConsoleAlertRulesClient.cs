@@ -206,13 +206,8 @@ public sealed class HttpConsoleAlertRulesClient : IConsoleAlertRulesClient
     private static string Serialize<T>(T value, JsonTypeInfo<T> typeInfo) =>
         JsonSerializer.Serialize(value, typeInfo);
 
-    private static Uri BuildUri(Uri baseUri, string relativePath)
-    {
-        var normalizedBase = baseUri.AbsoluteUri.EndsWith('/')
-            ? baseUri
-            : new Uri(baseUri.AbsoluteUri + "/", UriKind.Absolute);
-        return new Uri(normalizedBase, relativePath);
-    }
+    private static Uri BuildUri(Uri baseUri, string relativePath) =>
+        ConsoleServerHttp.BuildUri(baseUri, relativePath);
 
     private static OperateSectionStatus MapStatus(HttpStatusCode code) => code switch
     {

@@ -130,13 +130,8 @@ public sealed class HttpConsoleMonitoringMetricsClient : IConsoleMonitoringMetri
         }
     }
 
-    private static Uri BuildUri(Uri baseUri, string relativePath)
-    {
-        var normalizedBase = baseUri.AbsoluteUri.EndsWith('/')
-            ? baseUri
-            : new Uri(baseUri.AbsoluteUri + "/", UriKind.Absolute);
-        return new Uri(normalizedBase, relativePath);
-    }
+    private static Uri BuildUri(Uri baseUri, string relativePath) =>
+        ConsoleServerHttp.BuildUri(baseUri, relativePath);
 
     private static OperateSectionStatus MapStatus(HttpStatusCode code) => code switch
     {
