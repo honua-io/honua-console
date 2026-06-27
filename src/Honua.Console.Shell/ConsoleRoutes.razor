@@ -1,6 +1,23 @@
-<Router AppAssembly="@typeof(ConsoleRoutes).Assembly" NotFoundPage="@typeof(NotFoundPage)">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(ConsoleLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
+
+@* Fail-closed routing (honua-console#233): every Console route now requires an authenticated
+   operator. AuthorizeRouteView refuses anonymous access; the host's cookie/edge authentication
+   (UseAuthentication + RequireAuthenticatedUser fallback policy) is the primary gate and redirects
+   unauthenticated browser requests to the sign-in endpoint before a circuit is even established.
+   This component is the defense-in-depth layer for the interactive render path. *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(ConsoleRoutes).Assembly" NotFoundPage="@typeof(NotFoundPage)">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(ConsoleLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+                <Authorizing>
+                    <p role="status">Authorizing…</p>
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>

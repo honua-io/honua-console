@@ -1,5 +1,6 @@
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Web;
+using Honua.Console.Web.Auth;
 using Honua.Console.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,6 +32,10 @@ builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Llm:Model"] ?? builder.Configuration["HONUA_LLM_MODEL"],
     builder.Configuration["Honua:Llm:ApiKey"] ?? builder.Configuration["HONUA_LLM_API_KEY"],
     builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"]);
+
+// Operator authentication (honua-console#233): fail-closed cookie/edge auth + RequireAuthenticatedUser
+// fallback policy so no Console route is reachable anonymously. See ConsoleAuthentication for the model.
+builder.AddConsoleAuthentication();
 
 var app = builder.Build();
 
@@ -109,14 +114,23 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+// Authentication + the trusted edge-forwarded-identity middleware + authorization. Must run before
+// the antiforgery middleware and the component/map-proxy endpoints so the fail-closed fallback policy
+// gates every route (honua-console#233).
+app.UseConsoleAuthentication();
+
 app.UseAntiforgery();
 
-app.MapStaticAssets();
+// Anonymous sign-in / sign-out endpoints (the cookie LoginPath target).
+app.MapConsoleAuthEndpoints();
+
+// Static assets and the build-metadata probe are public (no operator identity required).
+app.MapStaticAssets().AllowAnonymous();
 app.MapGet("/version.json", (HttpContext context) =>
 {
     context.Response.Headers["Cache-Control"] = "no-store";
     return Results.Json(ConsoleBuildMetadata.Create());
-});
+}).AllowAnonymous();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddAdditionalAssemblies(typeof(Honua.Console.Shell.ConsoleRoutes).Assembly);
@@ -126,13 +140,14 @@ app.MapRazorComponents<App>()
 // server-side, and rewrite the style's tile URLs to flow back through this proxy. The browser (MapLibre GL)
 // only ever talks to the console origin and never sees the admin key.
 //
-// SECURITY (honua-console#210): because these endpoints act with the server's admin privileges, every one
-// of them MUST first verify an authenticated console session. The console host has no ASP.NET authentication
-// middleware; "authenticated" here means an active environment profile with a non-Anonymous account and a
-// valid session access token — the same definition used by ConsoleCatalogReadContextResolver. Unauthenticated
-// callers receive 401. Known gap: this gates *whether* a session exists, but does not yet scope the proxied
-// request to that caller's identity (the proxy still uses the shared admin key); per-identity scoping is
-// tracked separately and depends on honua-server exposing a session-scoped style/tile/feature contract.
+// SECURITY (honua-console#210/#233): because these endpoints act with honua-server privileges, every one
+// of them requires an authenticated operator. The host now runs real ASP.NET authentication with a
+// fail-closed RequireAuthenticatedUser fallback policy, so these endpoints check HttpContext.User and
+// forward the operator's identity to honua-server: when the active operator session carries a real bearer
+// (e.g. an edge-forwarded access token) it is sent as Authorization: Bearer so honua-server scopes the
+// read to that operator; only when no operator bearer exists does the proxy fall back to the configured
+// shared admin key (documented in docs/console-authentication.md). Full per-identity scoping for every
+// deployment still depends on honua-server issuing a console-consumable operator bearer (Option C).
 var mapProxyServerUrl =
     (app.Configuration["Honua:Server:BaseUrl"] ?? app.Configuration["HONUA_SERVER_BASE_URL"])?.TrimEnd('/');
 var mapProxyAdminKey = app.Configuration["Honua:Server:AdminApiKey"] ?? app.Configuration["HONUA_ADMIN_API_KEY"];
@@ -147,18 +162,22 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
-        if (!await Honua.Console.Web.MapProxySupport.HasAuthenticatedConsoleSessionAsync(
-                profileStore, sessionStore, cancellationToken))
+        // The endpoint acts with honua-server privileges, so it requires an authenticated operator
+        // (honua-console#233/#210). The host's fail-closed fallback policy already gates this, but the
+        // explicit check keeps the 401 contract for the browser fetch even if route metadata changes.
+        if (httpContext.User?.Identity?.IsAuthenticated != true)
         {
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
 
+        // Forward the operator's identity to honua-server when a real bearer exists; otherwise fall
+        // back to the configured shared admin key (documented).
+        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
+            profileStore, sessionStore, cancellationToken);
+
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{mapProxyServerUrl}/api/styles/{layerId}.json");
-        if (!string.IsNullOrWhiteSpace(mapProxyAdminKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", mapProxyAdminKey);
-        }
+        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -189,20 +208,24 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
-        if (!await Honua.Console.Web.MapProxySupport.HasAuthenticatedConsoleSessionAsync(
-                profileStore, sessionStore, cancellationToken))
+        // The endpoint acts with honua-server privileges, so it requires an authenticated operator
+        // (honua-console#233/#210). The host's fail-closed fallback policy already gates this, but the
+        // explicit check keeps the 401 contract for the browser fetch even if route metadata changes.
+        if (httpContext.User?.Identity?.IsAuthenticated != true)
         {
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
+
+        // Forward the operator's identity to honua-server when a real bearer exists; otherwise fall
+        // back to the configured shared admin key (documented).
+        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
+            profileStore, sessionStore, cancellationToken);
 
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"{mapProxyServerUrl}/tiles/{layerId}/{z}/{x}/{y}.mvt");
-        if (!string.IsNullOrWhiteSpace(mapProxyAdminKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", mapProxyAdminKey);
-        }
+        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
         // Forward the browser's validators so the upstream can answer 304 and the browser revalidates cheaply.
         Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
@@ -246,26 +269,31 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         string serviceId,
         int layerId,
         int? limit,
+        HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
         Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
         Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
-        if (!await Honua.Console.Web.MapProxySupport.HasAuthenticatedConsoleSessionAsync(
-                profileStore, sessionStore, cancellationToken))
+        // The endpoint acts with honua-server privileges, so it requires an authenticated operator
+        // (honua-console#233/#210). The host's fail-closed fallback policy already gates this, but the
+        // explicit check keeps the 401 contract for the browser fetch even if route metadata changes.
+        if (httpContext.User?.Identity?.IsAuthenticated != true)
         {
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
+
+        // Forward the operator's identity to honua-server when a real bearer exists; otherwise fall
+        // back to the configured shared admin key (documented).
+        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
+            profileStore, sessionStore, cancellationToken);
 
         var count = limit is > 0 and <= 2000 ? limit.Value : 200;
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         var url = $"{mapProxyServerUrl}/rest/services/{Uri.EscapeDataString(serviceId)}/FeatureServer/{layerId}/query"
             + $"?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount={count}&f=json";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (!string.IsNullOrWhiteSpace(mapProxyAdminKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", mapProxyAdminKey);
-        }
+        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)

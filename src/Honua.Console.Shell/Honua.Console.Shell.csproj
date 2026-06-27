@@ -9,6 +9,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.9" />
+    <!-- AuthorizeRouteView / CascadingAuthenticationState for fail-closed route authorization
+         (honua-console#233). -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
