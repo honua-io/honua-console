@@ -18,6 +18,15 @@ const VEGA_JS = 'https://cdn.jsdelivr.net/npm/vega@5.30.0/build/vega.min.js';
 const VEGA_LITE_JS = 'https://cdn.jsdelivr.net/npm/vega-lite@5.21.0/build/vega-lite.min.js';
 const VEGA_EMBED_JS = 'https://cdn.jsdelivr.net/npm/vega-embed@6.26.0/build/vega-embed.min.js';
 
+// Subresource Integrity for the CDN peer scripts. This module runs in the privileged Console origin
+// (Blazor session + admin-keyed BFF proxy), so a tampered CDN asset would execute with full access;
+// pinning the exact bytes of the versioned URLs above makes an altered asset fail to load.
+const VEGA_SRI = {
+    [VEGA_JS]: 'sha384-em7CHpJd+SsMugVFf6TY7AKQcLWMcbPhD84hmNK8o6WFDkK+2uHSUQRVQV1/w827',
+    [VEGA_LITE_JS]: 'sha384-GhkD6ks9/zgY1m5EFOUZWz/vMVMUFF/92DL61RZc+B42J8osL+jNufKv68bNHHZ2',
+    [VEGA_EMBED_JS]: 'sha384-TqXb8su49m5OnEpKGO8m+VrgHesrUxyP22HgpXi4hnh1Hm43dXroiSYemNf5D8lv',
+};
+
 const instances = new Map();
 let vegaEmbedPromise = null;
 
@@ -26,6 +35,11 @@ function loadScript(src) {
         try {
             const script = document.createElement('script');
             script.src = src;
+            const integrity = VEGA_SRI[src];
+            if (integrity) {
+                script.integrity = integrity;
+                script.crossOrigin = 'anonymous';
+            }
             script.async = false; // preserve execution order across the three peer scripts
             script.onload = () => resolve(true);
             script.onerror = () => resolve(false);

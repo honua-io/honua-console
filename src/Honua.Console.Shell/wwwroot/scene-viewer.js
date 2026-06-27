@@ -11,6 +11,11 @@
 const CESIUM_JS = 'https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Cesium.js';
 const CESIUM_CSS = 'https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Widgets/widgets.css';
 const CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/';
+// Subresource Integrity for the entry assets loaded into the privileged Console origin, so a
+// tampered CDN bundle fails to load instead of running with full session/proxy access. (Cesium's
+// own runtime chunks under CESIUM_BASE_URL are fetched dynamically and constrained by the CSP.)
+const CESIUM_JS_SRI = 'sha384-N4idLd6+vStyaOmPvzdeBLB/s3TY1Q17pMYKWRj+L5WuTq/2xY8namucn3yOVswy';
+const CESIUM_CSS_SRI = 'sha384-ghEeMdcWWzRv/BPeUcX835vcKDGrxvROXisl/Btpv3GeekBUXTSPVcFJpI1Tcrgp';
 
 const instances = new Map();
 let cesiumPromise = null;
@@ -34,12 +39,16 @@ function loadCesium() {
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
                 link.href = CESIUM_CSS;
+                link.integrity = CESIUM_CSS_SRI;
+                link.crossOrigin = 'anonymous';
                 link.setAttribute('data-cesium-css', 'true');
                 document.head.appendChild(link);
             }
 
             const script = document.createElement('script');
             script.src = CESIUM_JS;
+            script.integrity = CESIUM_JS_SRI;
+            script.crossOrigin = 'anonymous';
             script.async = true;
             script.onload = () => resolve(window.Cesium ?? null);
             script.onerror = () => resolve(null);
