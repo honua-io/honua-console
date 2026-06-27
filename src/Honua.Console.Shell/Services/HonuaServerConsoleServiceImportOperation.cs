@@ -127,13 +127,39 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
         }
 
         var issue = result.Issue;
+        // A failed reading is not the same as a failed import. A transport blip or a transient 5xx must not
+        // be mapped to a TERMINAL failure that stops polling while the server import is still running; only a
+        // definitive client-side outcome (auth/permission, or an unsupported/missing contract) ends polling.
+        var transient = IsTransientIssue(issue);
         return new ConsoleServiceImportJob
         {
             JobId = jobId,
             Status = issue?.State ?? "Unavailable",
-            Terminal = true,
+            Terminal = !transient,
             Succeeded = false,
+            TransientFailure = transient,
             Detail = issue?.Detail ?? "The Honua server could not report the import job.",
+        };
+    }
+
+    // Distinguishes a transport/transient failure (worth retrying — the import may still be running) from a
+    // definitive issue that will not change by polling again. Transport failures carry no status code; 5xx and
+    // the standard transient 408/429 statuses may recover; everything else (401/403/404/405/501, other 4xx)
+    // is definitive.
+    private static bool IsTransientIssue(HonuaAdminEndpointIssue? issue)
+    {
+        if (issue is null)
+        {
+            // No data and no issue is anomalous; retry rather than declaring the in-flight import dead.
+            return true;
+        }
+
+        return issue.StatusCode switch
+        {
+            null => true,
+            408 or 429 => true,
+            >= 500 => true,
+            _ => false,
         };
     }
 

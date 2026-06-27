@@ -301,7 +301,7 @@ public sealed class HonuaTemporalHttpClientTests
     }
 
     [Fact]
-    public async Task ResolveReplicaConflict_AlreadyResolved_MapsConflictToUnsupported()
+    public async Task ResolveReplicaConflict_AlreadyResolved_MapsConflictToConflict()
     {
         var handler = new RecordingHandler(_ => ProblemDetails(HttpStatusCode.Conflict));
         var client = CreateClient(handler);
@@ -311,7 +311,10 @@ public sealed class HonuaTemporalHttpClientTests
             new HonuaReplicaConflictResolutionRequest { Action = "acceptClient" });
 
         Assert.Null(result.Data);
-        Assert.Equal("Unsupported", result.Issue!.State);
+        // A 409 on the resolve POST is an already-resolved conflict, not a capability gap: it must surface
+        // a recoverable Conflict state (reload-and-retry), never "Unsupported".
+        Assert.Equal("Conflict", result.Issue!.State);
+        Assert.Contains("already been resolved", result.Issue.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
