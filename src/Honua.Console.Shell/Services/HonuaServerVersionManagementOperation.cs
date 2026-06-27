@@ -124,7 +124,11 @@ public sealed class HonuaServerVersionManagementOperation : IVersionManagementOp
                 cancellationToken)
             .ConfigureAwait(false);
 
-        if (result.Data is { } reconcile)
+        // Gate on the server's success flag like the sibling alter/delete/post operations: a 200
+        // response can still carry success:false (e.g. abortIfConflicts aborting because conflicts
+        // exist, or the version being edited/locked). Reporting that as "Reconciled" would tell the
+        // operator the reconcile ran when it did not.
+        if (result.Data is { Success: true } reconcile)
         {
             var remaining = reconcile.Conflicts.Count;
             var detail = reconcile.CanPost
@@ -137,6 +141,23 @@ public sealed class HonuaServerVersionManagementOperation : IVersionManagementOp
                 HasConflicts = reconcile.HasConflicts,
                 CanPost = reconcile.CanPost,
                 AutoResolvedCount = reconcile.AutoResolvedCount,
+                RemainingConflictCount = remaining
+            };
+        }
+
+        if (result.Data is { Success: false } aborted)
+        {
+            var remaining = aborted.Conflicts.Count;
+            var detail = aborted.HasConflicts
+                ? $"honua-server did not complete the reconcile (success=false): {remaining} conflict(s) remain unresolved. Resolve the conflicts or relax the policy, then retry."
+                : "honua-server reported the reconcile did not complete (success=false). The version may be locked or in edit.";
+
+            return new ReconcileResultView
+            {
+                Operation = VersionOperationResult.Failure("Conflicts", detail),
+                HasConflicts = aborted.HasConflicts,
+                CanPost = aborted.CanPost,
+                AutoResolvedCount = aborted.AutoResolvedCount,
                 RemainingConflictCount = remaining
             };
         }
