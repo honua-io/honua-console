@@ -72,8 +72,13 @@ public sealed class ConsoleApprovalInboxClient : IConsoleApprovalInboxClient
             return [];
         }
 
-        var details = await Task.WhenAll(
-            list.Select(p => _releases.GetReleaseDetailAsync(p.ReleasePackageId, cancellationToken)))
+        // Bound the per-release detail fan-out (server-driven proposal count, no upstream clamp)
+        // so the inbox surface cannot open an unbounded number of concurrent admin sockets.
+        var details = await BoundedFanOut
+            .RunAsync(
+                list,
+                (p, ct) => _releases.GetReleaseDetailAsync(p.ReleasePackageId, ct),
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         return details

@@ -85,7 +85,12 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
                 NoProfileMessage);
         }
 
-        var reads = await Task.WhenAll(ids.Select(id => GetOperationAsync(id, cancellationToken))).ConfigureAwait(false);
+        // Bound the per-operation detail fan-out: the id set is server-driven (no upstream clamp),
+        // so an unbounded Task.WhenAll would open one admin socket per operation at once — the
+        // connection-exhaustion cliff BoundedFanOut exists to prevent.
+        var reads = await BoundedFanOut
+            .RunAsync(ids, GetOperationAsync, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
 
         // Independent reads: keep the ones that resolved and are still pending/actionable.
         // A failed individual read is skipped (partial result) rather than failing the list.
