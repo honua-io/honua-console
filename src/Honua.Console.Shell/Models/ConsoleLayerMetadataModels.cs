@@ -88,18 +88,4 @@ public sealed record ConsoleLayerSpatial
 }
 
 /// <summary>Outcome of saving a layer's display / editing / spatial metadata section.</summary>
-public sealed record ConsoleSetLayerMetadataResult
-{
-    public bool Succeeded { get; init; }
-
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
-    public static ConsoleSetLayerMetadataResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
-}
+public sealed record ConsoleSetLayerMetadataResult : ConsoleOperationResult<ConsoleSetLayerMetadataResult>;

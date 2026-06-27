@@ -6,15 +6,8 @@ namespace Honua.Console.Shell.Models;
 /// unreachable service, rejected credentials) <see cref="State"/> carries the neutral state vocabulary token
 /// and <see cref="Detail"/> the reason.
 /// </summary>
-public sealed record ConsoleServiceImportResult
+public sealed record ConsoleServiceImportResult : ConsoleOperationResult<ConsoleServiceImportResult>
 {
-    public bool Succeeded { get; init; }
-
-    /// <summary>State vocabulary token (e.g. "Discovered", "Missing binding", "Rejected", "Unavailable").</summary>
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
     public string? ServiceType { get; init; }
 
     public string? ServiceName { get; init; }
@@ -29,13 +22,6 @@ public sealed record ConsoleServiceImportResult
 
     /// <summary>Discovered services (one for a single service URL; many for a catalog), grouped by folder.</summary>
     public IReadOnlyList<ConsoleServiceImportService> Services { get; init; } = [];
-
-    public static ConsoleServiceImportResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail,
-    };
 }
 
 /// <summary>A single service discovered within a catalog (or the sole service for a single-service URL).</summary>

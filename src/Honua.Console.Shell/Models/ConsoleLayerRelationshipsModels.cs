@@ -41,18 +41,4 @@ public sealed record ConsoleLayerRelationship
 }
 
 /// <summary>Outcome of replacing a layer's relationship set.</summary>
-public sealed record ConsoleSetRelationshipsResult
-{
-    public bool Succeeded { get; init; }
-
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
-    public static ConsoleSetRelationshipsResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
-}
+public sealed record ConsoleSetRelationshipsResult : ConsoleOperationResult<ConsoleSetRelationshipsResult>;
