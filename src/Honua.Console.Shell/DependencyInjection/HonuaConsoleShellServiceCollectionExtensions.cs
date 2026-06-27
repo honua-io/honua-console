@@ -319,9 +319,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IStudioPackageLifecycleClient>(_ =>
+            services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HttpStudioPackageLifecycleClient(
                     httpClient,
                     new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
@@ -351,9 +351,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // these legitimately-slow generations client-side (surfacing as a false "endpoint could not be
             // reached"). Match the server's own request timeout (10 min) so the real path works — mirrors the
             // map/dashboard generation clients.
-            services.TryAddSingleton<IStudioAppGenerationClient>(_ =>
+            services.TryAddSingleton<IStudioAppGenerationClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HttpStudioAppGenerationClient(
                     httpClient,
                     new StudioAppGenerationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -379,9 +379,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaFormPackageClient>(_ =>
+            services.TryAddSingleton<IHonuaFormPackageClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaFormPackageHttpClient(
                     httpClient,
                     new HonuaFormPackageClientOptions(baseUri, honuaServerAdminApiKey));
@@ -413,9 +413,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // minutes. The default HttpClient.Timeout of 100s cancels these legitimately-slow generations
             // client-side (surfacing as a false "endpoint could not be reached"). Match the server's own
             // request timeout (10 min) so the real path works — mirrors the workflow/map generation clients.
-            services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
+            services.TryAddSingleton<IHonuaAnalysisContentClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HonuaAnalysisContentHttpClient(
                     httpClient,
                     new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
@@ -446,9 +446,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // these legitimately-slow generations client-side (surfacing as a false "endpoint could not be
             // reached"). Match the server's own request timeout (10 min) so the real path works — mirrors the
             // workflow generation client.
-            services.TryAddSingleton<IStudioMapGenerationClient>(_ =>
+            services.TryAddSingleton<IStudioMapGenerationClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HttpStudioMapGenerationClient(
                     httpClient,
                     new StudioMapGenerationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -458,9 +458,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // The per-layer style picker (#161, ADR-0048) binds the layer's styleId to the styles the server
             // advertises on the PUBLIC OGC API - Styles list (GET /ogc/styles). The admin key is forwarded
             // only if configured (harmless on the public read; future-proof if the surface is ever gated).
-            services.TryAddSingleton<IHonuaOgcStylesClient>(_ =>
+            services.TryAddSingleton<IHonuaOgcStylesClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaOgcStylesHttpClient(
                     httpClient,
                     new HonuaOgcStylesClientOptions(baseUri, honuaServerAdminApiKey));
@@ -491,9 +491,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaStudioMapCollaborationClient>(_ =>
+            services.TryAddSingleton<IHonuaStudioMapCollaborationClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaStudioMapCollaborationHttpClient(
                     httpClient,
                     new HonuaStudioMapCollaborationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -520,9 +520,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // Shared with the query builder; the 10-minute timeout covers the NL-generation routes on this
             // client (see AddStudioQueryPackageDataSource for the rationale). TryAdd keeps whichever
             // registration ran first, so both register the identical client.
-            services.TryAddSingleton<IHonuaAnalysisContentClient>(_ =>
+            services.TryAddSingleton<IHonuaAnalysisContentClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HonuaAnalysisContentHttpClient(
                     httpClient,
                     new HonuaAnalysisContentClientOptions(baseUri, honuaServerAdminApiKey));
@@ -549,9 +549,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IStudioPackageLifecycleClient>(_ =>
+            services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HttpStudioPackageLifecycleClient(
                     httpClient,
                     new StudioPackageLifecycleClientOptions(baseUri, honuaServerAdminApiKey));
@@ -562,9 +562,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // report/dashboard/publishing surfaces. Generation grounds + validates + runs a bounded repair
             // loop on the server and against a local CPU model a single turn can take minutes, so match the
             // server's own 10-min request timeout — mirrors the map/analysis/workflow generation clients.
-            services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
+            services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HonuaContentPublicationHttpClient(
                     httpClient,
                     new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -590,11 +590,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
+            services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
             {
                 // 10-min timeout: report/dashboard generation share this client and a local model can take
                 // minutes. Set it here too rather than relying on TryAdd ordering with the dashboard registration.
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HonuaContentPublicationHttpClient(
                     httpClient,
                     new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -617,14 +617,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IWorkflowPackageApiClient>(_ =>
+            services.TryAddSingleton<IWorkflowPackageApiClient>(serviceProvider =>
             {
                 // NL->workflow generation grounds + validates + runs a bounded repair loop on the
                 // server, and against a local CPU model a single turn can take minutes. The default
                 // HttpClient.Timeout of 100s cancels these legitimately-slow generations client-side
                 // (surfacing as a false "endpoint could not be reached"). Match the server's own
                 // request timeout (Limits:Connections:RequestTimeout = 10 min) so the real path works.
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HttpWorkflowPackageApiClient(
                     httpClient,
                     new WorkflowPackageClientOptions(baseUri, honuaServerAdminApiKey));
@@ -683,9 +683,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaConsoleContentClient>(_ =>
+            services.TryAddSingleton<IHonuaConsoleContentClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaConsoleContentHttpClient(
                     httpClient,
                     new HonuaConsoleContentClientOptions(baseUri, honuaServerAdminApiKey));
@@ -764,9 +764,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaConsoleShareClient>(_ =>
+            services.TryAddSingleton<IHonuaConsoleShareClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaConsoleShareHttpClient(
                     httpClient,
                     new HonuaConsoleShareClientOptions(baseUri, honuaServerAdminApiKey));
@@ -786,9 +786,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaConsoleRbacClient>(_ =>
+            services.TryAddSingleton<IHonuaConsoleRbacClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaConsoleRbacHttpClient(
                     httpClient,
                     new HonuaConsoleRbacClientOptions(baseUri, honuaServerAdminApiKey));
@@ -815,9 +815,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaCatalogDiscoveryClient>(_ =>
+            services.TryAddSingleton<IHonuaCatalogDiscoveryClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaCatalogDiscoveryHttpClient(
                     httpClient,
                     new HonuaCatalogDiscoveryClientOptions(baseUri, honuaServerAdminApiKey));
@@ -837,9 +837,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaAdminOperateClient>(_ =>
+            services.TryAddSingleton<IHonuaAdminOperateClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaAdminOperateHttpClient(
                     httpClient,
                     new HonuaAdminOperateClientOptions(baseUri, honuaServerAdminApiKey));
@@ -925,9 +925,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaTemporalClient>(_ =>
+            services.TryAddSingleton<IHonuaTemporalClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaTemporalHttpClient(
                     httpClient,
                     new HonuaTemporalClientOptions(baseUri, honuaServerAdminApiKey));
@@ -975,11 +975,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             // Reuse the content publication client already registered by the report-builder binding when
             // present; otherwise register it here (TryAdd keeps a single client across both surfaces).
-            services.TryAddSingleton<IHonuaContentPublicationClient>(_ =>
+            services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
             {
                 // 10-min timeout to match the generation clients that share IHonuaContentPublicationClient
                 // (report/dashboard generation), independent of registration order.
-                var httpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromMinutes(10) };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri, TimeSpan.FromMinutes(10));
                 return new HonuaContentPublicationHttpClient(
                     httpClient,
                     new HonuaContentPublicationClientOptions(baseUri, honuaServerAdminApiKey));
@@ -1042,9 +1042,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
             && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
         {
-            services.TryAddSingleton<IHonuaVersionManagementClient>(_ =>
+            services.TryAddSingleton<IHonuaVersionManagementClient>(serviceProvider =>
             {
-                var httpClient = new HttpClient { BaseAddress = baseUri };
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
                 return new HonuaVersionManagementHttpClient(
                     httpClient,
                     new HonuaVersionManagementClientOptions(baseUri, honuaServerAdminApiKey));

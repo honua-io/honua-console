@@ -1,0 +1,12 @@
+@inject NavigationManager Navigation
+
+@code {
+    // Sends an unauthenticated operator to the host sign-in endpoint, preserving where they were
+    // headed. forceLoad navigates out of the Blazor circuit so the cookie/edge authentication
+    // middleware (and, where configured, the IdP challenge) runs on a full HTTP request.
+    protected override void OnInitialized()
+    {
+        var returnTo = Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery);
+        Navigation.NavigateTo($"/auth/login?returnTo={returnTo}", forceLoad: true);
+    }
+}

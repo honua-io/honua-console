@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Web;
@@ -32,6 +33,49 @@ public static class MapProxySupport
 
         var session = await sessions.GetSessionAsync(activeProfile.Id, cancellationToken).ConfigureAwait(false);
         return !string.IsNullOrWhiteSpace(session?.AccessToken);
+    }
+
+    /// <summary>
+    /// Resolves the active operator's forwardable bearer for a map-proxy upstream request
+    /// (honua-console#233/#210). Returns the operator's real bearer when one exists so honua-server
+    /// can scope the proxied style/tile/feature read to that operator's identity; returns
+    /// <c>null</c> when only a non-forwardable session sentinel exists (the caller then falls back to
+    /// the configured shared admin key). Operator authentication for the endpoint itself is enforced
+    /// separately via <c>HttpContext.User</c>.
+    /// </summary>
+    public static async Task<string?> ResolveOperatorBearerAsync(
+        IConsoleEnvironmentProfileStore profiles,
+        IConsoleAccountSessionStore sessions,
+        CancellationToken cancellationToken)
+    {
+        var activeProfile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (activeProfile is null || activeProfile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous)
+        {
+            return null;
+        }
+
+        var session = await sessions.GetSessionAsync(activeProfile.Id, cancellationToken).ConfigureAwait(false);
+        var token = session?.AccessToken;
+        return ConsoleAuthConstants.IsSessionSentinel(token) ? null : token;
+    }
+
+    /// <summary>
+    /// Attaches the operator's bearer to an upstream map-proxy request when one is available,
+    /// otherwise the configured shared admin key (documented fallback). Centralises the
+    /// "operator-first, admin-key-fallback" rule across the three proxy endpoints.
+    /// </summary>
+    public static void ApplyUpstreamCredential(HttpRequestMessage request, string? operatorBearer, string? adminApiKey)
+    {
+        if (!string.IsNullOrWhiteSpace(operatorBearer))
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", operatorBearer);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(adminApiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", adminApiKey);
+        }
     }
 
     // Validator request headers forwarded to the upstream so it can answer 304 Not Modified.
