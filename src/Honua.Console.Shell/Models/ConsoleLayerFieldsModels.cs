@@ -106,18 +106,4 @@ public enum ConsoleDefaultValueIntent
 }
 
 /// <summary>Outcome of setting/clearing a field's coded-value domain.</summary>
-public sealed record ConsoleSetDomainResult
-{
-    public bool Succeeded { get; init; }
-
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
-    public static ConsoleSetDomainResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
-}
+public sealed record ConsoleSetDomainResult : ConsoleOperationResult<ConsoleSetDomainResult>;

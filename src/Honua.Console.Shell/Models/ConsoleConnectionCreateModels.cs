@@ -48,27 +48,13 @@ public sealed record ConsoleConnectionCreateCommand
 /// neutral state vocabulary token, and <see cref="FieldErrors"/> carries any field-addressable validation
 /// errors the operator can bind onto the offending inputs.
 /// </summary>
-public sealed record ConsoleConnectionCreateResult
+public sealed record ConsoleConnectionCreateResult : ConsoleOperationResult<ConsoleConnectionCreateResult>
 {
-    public bool Succeeded { get; init; }
-
-    /// <summary>State vocabulary token (e.g. "Created", "Missing binding", "Rejected", "Unavailable").</summary>
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
     public string? ConnectionId { get; init; }
 
     public string? Name { get; init; }
 
     public IReadOnlyList<ConsoleConnectionCreateFieldError> FieldErrors { get; init; } = [];
-
-    public static ConsoleConnectionCreateResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
 }
 
 /// <summary>A field-addressable validation error surfaced by the connection-create operation.</summary>

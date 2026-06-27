@@ -47,21 +47,7 @@ public sealed record ConsoleSubtypeFieldOverride
 }
 
 /// <summary>Outcome of saving a layer's subtype set.</summary>
-public sealed record ConsoleSetSubtypesResult
-{
-    public bool Succeeded { get; init; }
-
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
-    public static ConsoleSetSubtypesResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
-}
+public sealed record ConsoleSetSubtypesResult : ConsoleOperationResult<ConsoleSetSubtypesResult>;
 
 /// <summary>
 /// A layer's attribute rules as read from honua-server. <see cref="Bound"/> is false (with
@@ -101,18 +87,4 @@ public sealed record ConsoleAttributeRule
 }
 
 /// <summary>Outcome of replacing a layer's attribute-rule set.</summary>
-public sealed record ConsoleSetAttributeRulesResult
-{
-    public bool Succeeded { get; init; }
-
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
-    public static ConsoleSetAttributeRulesResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
-}
+public sealed record ConsoleSetAttributeRulesResult : ConsoleOperationResult<ConsoleSetAttributeRulesResult>;

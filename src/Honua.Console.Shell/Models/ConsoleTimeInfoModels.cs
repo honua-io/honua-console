@@ -24,25 +24,12 @@ public sealed record ConsoleServiceTimeInfo
 }
 
 /// <summary>Outcome of setting a service's time-info.</summary>
-public sealed record ConsoleSetTimeInfoResult
+public sealed record ConsoleSetTimeInfoResult : ConsoleOperationResult<ConsoleSetTimeInfoResult>
 {
-    public bool Succeeded { get; init; }
-
-    public required string State { get; init; }
-
-    public string? Detail { get; init; }
-
     /// <summary>The service's time-info as re-read by the server after the change (when it succeeded).</summary>
     public string? StartTimeField { get; init; }
 
     public string? EndTimeField { get; init; }
 
     public string? TrackIdField { get; init; }
-
-    public static ConsoleSetTimeInfoResult MissingBinding(string detail) => new()
-    {
-        Succeeded = false,
-        State = "Missing binding",
-        Detail = detail
-    };
 }

@@ -97,6 +97,21 @@ Per ADR-0001:
 - Generated apps, browser embeds, and the open-data runtime continue to consume `honua-sdk-js` from inside JS interop bundles. Those bundles must not be the source of truth for Console-side server payloads; the Razor side reads `honua-sdk-dotnet`.
 - If a needed projection is not yet in `honua-sdk-dotnet` (or, for embed/generated-app paths, `honua-sdk-js`), see [`SDK_SHIM_POLICY.md`](./SDK_SHIM_POLICY.md). Shims live behind a single boundary file and are removed in [`honua-console#7`](https://github.com/honua-io/honua-console/issues/7).
 
+#### 6a. Operation-result vocabulary (binding)
+
+Mutating Console operations ("Set"/"Save"/"Import") return one shared result shape, not a per-operation copy (see [`honua-console#238`](https://github.com/honua-io/honua-console/issues/238), AUD-102).
+
+- The canonical shape is `ConsoleOperationResult<TSelf>` (`Honua.Console.Shell/Models/ConsoleOperationResult.cs`): `Succeeded` / `State` / `Detail` plus the standard `MissingBinding(detail)` factory, in one place.
+- Each operation declares a self-typed concrete record — `public sealed record ConsoleSetXResult : ConsoleOperationResult<ConsoleSetXResult>;` — so the concrete type name (and thus call sites and wire serialization) is preserved while the shape and missing-binding factory are inherited, never re-declared.
+- Add typed payload members only where the result genuinely carries more than the envelope (e.g. `ConsoleServiceImportResult`, `ConsoleFileImportResult`, `ConsoleSetTimeInfoResult`); those records still derive from the base for the envelope and add their extra `init` members.
+
+#### 6b. Wire serialization posture (binding)
+
+One serialization posture per host target, picked by whether the assembly is on a trim/AOT publish budget:
+
+- Shared library / WebAssembly-publishable code (`Honua.Console.Shell` and anything it lazy-loads) must stay trim/AOT-friendly per section 7 — prefer a source-generated `JsonSerializerContext` (as the observability client already uses) over reflection-based `JsonSerializerOptions`.
+- Interactive-Server-only and test-only contract shims (`Honua.Console.Contracts` HTTP clients, used from the always-server-rendered host and the Testcontainers live-server tests) may keep reflection-based `JsonSerializerOptions(JsonSerializerDefaults.Web)` because they never enter a WASM publish budget. New shared clients should not introduce reflection-based options; migrate a shim to a source-generated context when it moves onto a trim/AOT path (AUD-171).
+
 ### 7. Performance budgets and network waterfalls
 
 Per project constraints, Console startup, catalog list, map viewer, and generated-app preview must not introduce avoidable network waterfalls relative to current `honua-portal` behavior.
