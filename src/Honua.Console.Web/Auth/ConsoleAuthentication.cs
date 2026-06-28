@@ -197,16 +197,5 @@ public static class ConsoleAuthentication
             && !value.Contains("text/html", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string SanitizeReturnTo(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)
-            || !value.StartsWith('/')
-            || value.StartsWith("//", StringComparison.Ordinal)
-            || value.Contains("://", StringComparison.Ordinal))
-        {
-            return "/";
-        }
-
-        return value;
-    }
+    internal static string SanitizeReturnTo(string? value) => ConsoleReturnUrl.Sanitize(value);
 }
