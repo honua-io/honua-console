@@ -191,24 +191,11 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
         }
     }
 
-    private async Task<string?> ResolveTokenAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
-    {
-        if (profile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous)
-        {
-            return null;
-        }
+    private Task<string?> ResolveTokenAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken) =>
+        ConsoleServerHttp.ResolveForwardableBearerAsync(_sessionStore, profile, cancellationToken);
 
-        var session = await _sessionStore.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
-        return session?.AccessToken;
-    }
-
-    private static Uri BuildUri(Uri baseUri, string relativePath)
-    {
-        var normalizedBase = baseUri.AbsoluteUri.EndsWith('/')
-            ? baseUri
-            : new Uri(baseUri.AbsoluteUri + "/", UriKind.Absolute);
-        return new Uri(normalizedBase, relativePath);
-    }
+    private static Uri BuildUri(Uri baseUri, string relativePath) =>
+        ConsoleServerHttp.BuildUri(baseUri, relativePath);
 
     private static SensorThingsReadStatus MapStatus(HttpStatusCode code) => code switch
     {

@@ -103,25 +103,22 @@ public sealed class HttpSupportTicketClient : IConsoleSupportTicketClient
         ConsoleEnvironmentProfile? profile,
         CancellationToken cancellationToken)
     {
-        if (profile is null || profile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous)
+        if (profile is null)
         {
             return;
         }
 
-        var session = await _sessionStore.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(session?.AccessToken))
+        var token = await ConsoleServerHttp
+            .ResolveForwardableBearerAsync(_sessionStore, profile, cancellationToken)
+            .ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(token))
         {
-            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
     }
 
-    private Uri BuildUri(string relativePath)
-    {
-        var normalizedBase = _supportBaseUri.AbsoluteUri.EndsWith('/')
-            ? _supportBaseUri
-            : new Uri(_supportBaseUri.AbsoluteUri + "/", UriKind.Absolute);
-        return new Uri(normalizedBase, relativePath);
-    }
+    private Uri BuildUri(string relativePath) =>
+        ConsoleServerHttp.BuildUri(_supportBaseUri, relativePath);
 
     private static OperateSectionStatus MapStatus(HttpStatusCode code) => code switch
     {
