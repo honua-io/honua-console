@@ -15,6 +15,14 @@ public sealed class JsonConsoleEnvironmentProfileStore : IConsoleEnvironmentProf
     private readonly IConsoleProfileStorage _storage;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
+    // In-memory cache of the deserialized snapshot. The store is a process-wide singleton and on the
+    // native host the backing IConsoleProfileStorage is the platform SecureStorage (keychain/keystore/
+    // DPAPI decrypt + IPC), so reading + JSON-parsing it on every honua-server request (the binding
+    // handler resolves the active profile per request) is a mobile perf anti-pattern. Caching makes
+    // per-request reads hit memory. Writes use copy-on-write (a fresh snapshot replaces this field)
+    // so a reader enumerating an earlier snapshot outside the gate is never mutated underneath it.
+    private EnvironmentProfileSnapshot? _cached;
+
     public JsonConsoleEnvironmentProfileStore(IConsoleProfileStorage storage)
     {
         _storage = storage;
@@ -136,10 +144,20 @@ public sealed class JsonConsoleEnvironmentProfileStore : IConsoleEnvironmentProf
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var snapshot = await ReadSnapshotCoreAsync(cancellationToken).ConfigureAwait(false);
-            update(snapshot);
-            var json = JsonSerializer.Serialize(snapshot, JsonOptions);
+            var current = await ReadSnapshotCoreAsync(cancellationToken).ConfigureAwait(false);
+
+            // Copy-on-write: mutate a fresh snapshot, never the instance earlier readers may hold.
+            var working = new EnvironmentProfileSnapshot
+            {
+                ActiveProfileId = current.ActiveProfileId,
+                Profiles = [.. current.Profiles],
+                States = [.. current.States],
+            };
+            update(working);
+
+            var json = JsonSerializer.Serialize(working, JsonOptions);
             await _storage.SetAsync(StorageKey, json, cancellationToken).ConfigureAwait(false);
+            _cached = working;
         }
         finally
         {
@@ -149,16 +167,21 @@ public sealed class JsonConsoleEnvironmentProfileStore : IConsoleEnvironmentProf
 
     private async Task<EnvironmentProfileSnapshot> ReadSnapshotCoreAsync(CancellationToken cancellationToken)
     {
+        if (_cached is not null)
+        {
+            return _cached;
+        }
+
         var json = await _storage.GetAsync(StorageKey, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(json))
         {
             // First run: start EMPTY, not seeded. Environment profiles are host-owned local state
             // (Console Patterns Charter §11), but they must never ship fabricated demo environments —
             // the operator creates their first environment via /environments/new.
-            return new EnvironmentProfileSnapshot();
+            return _cached = new EnvironmentProfileSnapshot();
         }
 
-        return JsonSerializer.Deserialize<EnvironmentProfileSnapshot>(json, JsonOptions)
+        return _cached = JsonSerializer.Deserialize<EnvironmentProfileSnapshot>(json, JsonOptions)
             ?? new EnvironmentProfileSnapshot();
     }
 

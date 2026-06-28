@@ -218,8 +218,12 @@
                 return;
             }
 
-            var details = await Task.WhenAll(
-                releaseProposals.Select(p => ReleaseClient.GetReleaseDetailAsync(p.ReleasePackageId)));
+            // Bound the per-release detail fan-out (server-driven proposal count, no upstream
+            // clamp) so a single page load cannot open an unbounded number of concurrent admin
+            // sockets against honua-server.
+            var details = await BoundedFanOut.RunAsync(
+                releaseProposals,
+                (p, ct) => ReleaseClient.GetReleaseDetailAsync(p.ReleasePackageId, ct));
 
             var operationIds = details
                 .Where(d => d.IsAllowed && d.Value?.Operation is not null)

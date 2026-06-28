@@ -79,16 +79,6 @@
             ? profile.Account.AccountId
             : profile.Account.DisplayName;
 
-    private static string SanitizeReturnTo(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)
-            || !value.StartsWith("/", StringComparison.Ordinal)
-            || value.StartsWith("//", StringComparison.Ordinal)
-            || value.Contains("://", StringComparison.Ordinal))
-        {
-            return "/";
-        }
-
-        return value;
-    }
+    private static string SanitizeReturnTo(string? value) =>
+        Honua.Console.Shell.Security.ConsoleReturnUrl.Sanitize(value);
 }
