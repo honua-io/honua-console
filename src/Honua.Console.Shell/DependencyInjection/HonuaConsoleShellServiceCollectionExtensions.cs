@@ -213,7 +213,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IConsoleSupportAssistantClient>(_ =>
                 new HttpConsoleSupportAssistantClient(
-                    CreateOperateObservabilityHttpClient(),
+                    CreateSupportAssistantHttpClient(),
                     llmBaseUri,
                     honuaLlmModel.Trim(),
                     honuaLlmApiKey));
@@ -1086,6 +1086,18 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         new(CreateBoundedLifetimeHandler())
         {
             Timeout = TimeSpan.FromSeconds(30)
+        };
+
+    // The L0 support assistant drives the SAME slow local-CPU LLM inference path as the Studio
+    // generation clients (qwen via NIM/vLLM/llama.cpp/Ollama) with a non-streaming chat completion,
+    // where a single turn can take minutes. Give it the same generation-appropriate budget those
+    // clients use (10 min) instead of the 30s observability/metrics budget, which cancels a
+    // legitimately-slow answer mid-generation and surfaces the false "assistant endpoint unreachable"
+    // failure — defeating the deflection goal on exactly the slow-but-valid path.
+    private static HttpClient CreateSupportAssistantHttpClient() =>
+        new(CreateBoundedLifetimeHandler())
+        {
+            Timeout = TimeSpan.FromMinutes(10)
         };
 
     // Family-A server-bound clients are built by HonuaServerClientFactory (profile/session-aware

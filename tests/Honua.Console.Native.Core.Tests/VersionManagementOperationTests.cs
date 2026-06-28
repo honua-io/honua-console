@@ -91,6 +91,38 @@ public sealed class VersionManagementOperationTests
     }
 
     [Fact]
+    public async Task Reconcile_ServerRejectsWithSuccessFalse_IsFailureNotReconciled()
+    {
+        // A 200 body with success:false (e.g. abortIfConflicts aborting because conflicts exist)
+        // must NOT be presented to the operator as a successful reconcile.
+        var client = new FakeClient
+        {
+            Reconcile = HonuaAdminEndpointResult<HonuaReconcileResult>.FromData(new HonuaReconcileResult
+            {
+                Success = false,
+                HasConflicts = true,
+                CanPost = false,
+                AutoResolvedCount = 0,
+                Conflicts = [new HonuaVersionConflict { LayerId = 1, ObjectId = 2, ConflictType = "attribute" }]
+            })
+        };
+        var op = new HonuaServerVersionManagementOperation(client);
+
+        var view = await op.ReconcileAsync(new ReconcileVersionCommand
+        {
+            ServiceId = ServiceId,
+            VersionGuid = VersionGuid,
+            Policy = "none",
+            AbortIfConflicts = true
+        });
+
+        Assert.False(view.Operation.Succeeded);
+        Assert.True(view.HasConflicts);
+        Assert.False(view.CanPost);
+        Assert.Equal(1, view.RemainingConflictCount);
+    }
+
+    [Fact]
     public async Task ResolveConflicts_MapsChoiceStrings_AndReportsRemaining()
     {
         var client = new FakeClient
