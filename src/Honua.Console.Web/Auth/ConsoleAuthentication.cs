@@ -5,6 +5,7 @@ using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Honua.Console.Web.Auth;
@@ -73,16 +74,48 @@ public static class ConsoleAuthentication
             });
 
         // Fail-closed: every endpoint requires an authenticated operator unless it explicitly allows
-        // anonymous access (the auth endpoints, version.json, static assets, error pages).
+        // anonymous access (the auth endpoints, version.json, static assets, error pages) OR it targets a
+        // legitimately-anonymous PUBLIC surface — the Share embeds / public-link / open-data pages, which
+        // customers publish for the open web (honua-console#233 S1 #2). A bare RequireAuthenticatedUser
+        // fallback blocked those public surfaces; the requirement below keeps fail-closed for operator
+        // routes while allow-listing the audited public path prefixes (ConsolePublicSurfaces). Per-page
+        // authorization in ConsoleRoutes is the defense-in-depth layer for the interactive render path.
+        builder.Services.AddSingleton<IAuthorizationHandler, ConsoleAuthenticatedOrPublicHandler>();
         builder.Services.AddAuthorization(options =>
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
+                .AddRequirements(new ConsoleAuthenticatedOrPublicRequirement())
                 .Build();
         });
 
         // Flow HttpContext.User into the interactive Razor components so AuthorizeRouteView resolves.
         builder.Services.AddCascadingAuthenticationState();
+
+        // The browser Console host serves MANY operators from one process. The profile/session stores
+        // registered by AddHonuaConsoleShell are process-wide singletons, so one operator's active
+        // profile/account-binding/forwarded bearer would bleed into another operator's requests
+        // (honua-console#233 S1 #1). Partition that per-operator state by the authenticated operator:
+        //   - IHttpContextAccessor + the operator context resolve the current operator's partition key;
+        //   - the operator-scoped stores keep the singleton registration (the singleton honua-server
+        //     clients resolve them at construction) but route every read/write into the current
+        //     operator's own backing store, so no operator can ever observe another's profile/bearer.
+        // The native single-operator host (one operator per process) keeps its persistent Json-backed
+        // singletons untouched — partitioning is wired only here in the browser Web host.
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.TryAddSingleton<IConsoleOperatorContext, ConsoleOperatorContext>();
+
+        // Development testbed convenience: the browser host cannot create environment profiles (profile
+        // creation runs on the native host), so seed + activate one from the configured server URL for
+        // EACH operator's partition on first use. Mirrors the prior startup seed, but per-operator so it
+        // survives partitioning (and never seeds outside Development).
+        var browserSeed = BuildBrowserDevSeed(builder);
+        builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleEnvironmentProfileStore>(serviceProvider =>
+            new OperatorScopedEnvironmentProfileStore(
+                serviceProvider.GetRequiredService<IConsoleOperatorContext>(),
+                browserSeed)));
+        builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleAccountSessionStore>(serviceProvider =>
+            new OperatorScopedAccountSessionStore(
+                serviceProvider.GetRequiredService<IConsoleOperatorContext>())));
 
         builder.Services.AddSingleton<ConsoleOperatorSessionBridge>();
         builder.Services.AddSingleton<IConfigureOptions<ConsoleEdgeAuthOptions>, ConsoleEdgeAuthOptionsSetup>();
@@ -165,6 +198,42 @@ public static class ConsoleAuthentication
 
         var mode = app.Configuration[ConsoleAuthConstants.AuthModeKey];
         return string.Equals(mode, "Dev", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Builds the per-operator dev-seed factory: in Development with a configured server URL, each new
+    // operator partition starts with one active "Local honua-server" profile so a browser-only testbed
+    // binds without the native host. Outside Development (or with no server URL) partitions start empty.
+    private static Func<InMemoryConsoleEnvironmentProfileStore>? BuildBrowserDevSeed(WebApplicationBuilder builder)
+    {
+        if (!builder.Environment.IsDevelopment())
+        {
+            return null;
+        }
+
+        var seedUrl = builder.Configuration["Honua:Server:BaseUrl"]
+            ?? builder.Configuration["HONUA_SERVER_BASE_URL"];
+        if (string.IsNullOrWhiteSpace(seedUrl) || !Uri.TryCreate(seedUrl, UriKind.Absolute, out var seedUri))
+        {
+            return null;
+        }
+
+        return () =>
+        {
+            var devProfile = new ConsoleEnvironmentProfile
+            {
+                Id = "local-dev",
+                DisplayName = "Local honua-server",
+                ServerBaseUri = seedUri,
+                EnvironmentKind = "development",
+                Account = new ConsoleAccountBinding
+                {
+                    AuthMode = ConsoleAccountAuthMode.AccountRbac,
+                    AccountId = "console-user",
+                    DisplayName = "Console User",
+                },
+            };
+            return new InMemoryConsoleEnvironmentProfileStore([devProfile], activeProfileId: devProfile.Id);
+        };
     }
 
     private static ClaimsPrincipal BuildDevPrincipal()

@@ -36,6 +36,11 @@ public sealed class ConsoleOperatorSessionBridge
     {
         ArgumentNullException.ThrowIfNull(principal);
 
+        // Establish the ambient operator partition key before touching the profile/session stores so the
+        // operator-partitioned stores (multi-operator browser host) write into THIS operator's partition,
+        // and so circuit-time outbound calls in the same async flow read it back (honua-console#233 S1).
+        ConsoleOperatorContext.SetAmbient(principal);
+
         var profile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)
         {

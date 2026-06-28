@@ -1,4 +1,8 @@
 @page "/embed/maps/{MapId}"
+@* Public surface (honua-console#233 S1 #2): map embeds render for anonymous open-web visitors. Per-item
+   public access is still enforced by AuthorizeEmbedAsync below; the attribute only opts this route out of
+   the fail-closed operator-auth fallback. *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @layout EmbedLayout
 @inject IConsoleCatalogClient Catalog
 @inject NavigationManager Navigation
