@@ -107,11 +107,7 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
             // a category/truth reading or a gap) — they have no numeric value to chart but must not
             // break the series, which now tolerates them instead of failing the whole collection.
             if (observation.NumericResult is { } numericResult
-                && DateTimeOffset.TryParse(
-                    observation.PhenomenonTime,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                    out var time))
+                && TryParsePhenomenonTime(observation.PhenomenonTime, out var time))
             {
                 points.Add(new SensorThingsTimeSeriesPoint(time, numericResult));
             }
@@ -131,6 +127,27 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
     }
 
     private static int Clamp(int top) => Math.Clamp(top, 1, 1000);
+
+    // STA phenomenonTime is either a single TM_Instant ("2026-06-18T00:00:00Z") or a TM_Period
+    // expressed as an ISO 8601 interval ("start/end"). DateTimeOffset.TryParse rejects the interval
+    // form, which would silently drop every interval-timed observation from the chart. Use the
+    // interval's start instant as the point's time so period observations are plotted instead of lost.
+    private static bool TryParsePhenomenonTime(string? phenomenonTime, out DateTimeOffset time)
+    {
+        time = default;
+        if (string.IsNullOrWhiteSpace(phenomenonTime))
+        {
+            return false;
+        }
+
+        var slash = phenomenonTime.IndexOf('/');
+        var instant = slash >= 0 ? phenomenonTime.AsSpan(0, slash) : phenomenonTime.AsSpan();
+        return DateTimeOffset.TryParse(
+            instant,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out time);
+    }
 
     private async Task<SensorThingsReadResult<T>> FetchAsync<T>(
         string relativePath,
