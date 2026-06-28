@@ -28,15 +28,22 @@ public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionSt
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
     }
 
+    // Reads use CurrentOperatorKey (the shared anonymous partition is legitimately empty of operator
+    // sessions, so an anonymous read simply finds nothing). Writes carry operator-scoped credentials and
+    // must NEVER land in the shared anonymous partition — an anonymous surface never writes operator
+    // sessions, so an unresolved operator on a write is a fail-closed bug, not a no-op (honua-console#256).
     private InMemoryConsoleAccountSessionStore Current =>
         _byOperator.GetOrAdd(_operatorContext.CurrentOperatorKey, _ => new InMemoryConsoleAccountSessionStore());
+
+    private InMemoryConsoleAccountSessionStore CurrentForWrite =>
+        _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), _ => new InMemoryConsoleAccountSessionStore());
 
     public Task<ConsoleAccountSession?> GetSessionAsync(string profileId, CancellationToken cancellationToken = default) =>
         Current.GetSessionAsync(profileId, cancellationToken);
 
     public Task SaveSessionAsync(ConsoleAccountSession session, CancellationToken cancellationToken = default) =>
-        Current.SaveSessionAsync(session, cancellationToken);
+        CurrentForWrite.SaveSessionAsync(session, cancellationToken);
 
     public Task ClearSessionAsync(string profileId, CancellationToken cancellationToken = default) =>
-        Current.ClearSessionAsync(profileId, cancellationToken);
+        CurrentForWrite.ClearSessionAsync(profileId, cancellationToken);
 }
