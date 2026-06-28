@@ -1,5 +1,9 @@
 @page "/share/public/items/{IdOrSlug}"
 @page "/public/items/{IdOrSlug}"
+@* Public surface (honua-console#233 S1 #2): open-data / public-link landing pages render for anonymous
+   open-web visitors. The server-owned "public" projection (GetOpenDataItemAsync) still decides what is
+   public; the attribute only opts this route out of the fail-closed operator-auth fallback. *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
 
 <section class="console-page share-opendata">
