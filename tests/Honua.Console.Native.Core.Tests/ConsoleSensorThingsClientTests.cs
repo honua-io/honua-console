@@ -151,6 +151,97 @@ public sealed class ConsoleSensorThingsClientTests
     }
 
     [Fact]
+    public async Task GetDatastreamTimeSeries_ChartsIntervalPhenomenonTimeUsingStart()
+    {
+        // STA phenomenonTime may be an ISO 8601 interval ("start/end") for TM_Period observations.
+        // DateTimeOffset.TryParse rejects the interval form, so these were previously dropped from the
+        // chart. The series now plots the interval's start instant alongside plain TM_Instant points.
+        var handler = new RecordingHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/sta/v1.1/Datastreams(1)")
+            {
+                return Json("""{ "@iot.id": 1, "@iot.selfLink": "s", "name": "Period", "description": "d", "observationType": "t" }""");
+            }
+
+            if (path == "/sta/v1.1/Datastreams(1)/Observations")
+            {
+                return Json(
+                    """
+                    {
+                      "@iot.count": 2,
+                      "value": [
+                        { "@iot.id": 1, "@iot.selfLink": "s", "phenomenonTime": "2026-06-18T01:00:00Z/2026-06-18T02:00:00Z", "result": 17.0 },
+                        { "@iot.id": 2, "@iot.selfLink": "s", "phenomenonTime": "2026-06-18T00:00:00Z", "result": 15.0 }
+                      ]
+                    }
+                    """);
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetDatastreamTimeSeriesAsync(1);
+
+        Assert.True(result.IsOk);
+        var series = result.Value!;
+        Assert.Equal(2, series.Points.Count);
+        // Sorted ascending; the interval observation contributes its start instant (01:00).
+        Assert.Equal(15.0, series.Points[0].Result);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-18T00:00:00Z"), series.Points[0].PhenomenonTime);
+        Assert.Equal(17.0, series.Points[1].Result);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-18T01:00:00Z"), series.Points[1].PhenomenonTime);
+    }
+
+    [Fact]
+    public async Task ListThings_ToleratesNonStringPropertyValues()
+    {
+        // STA `properties` is an open object: values may be any JSON type. Typing the values as string
+        // made the source-generated deserializer throw JsonException on the first non-string value,
+        // failing the WHOLE collection read. Things with numeric/boolean/object/array property values
+        // must now deserialize without degrading to a denied status.
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/sta/v1.1/Things" => Json(
+                """
+                {
+                  "@iot.count": 1,
+                  "value": [
+                    {
+                      "@iot.id": 1,
+                      "@iot.selfLink": "https://server.example/sta/v1.1/Things(1)",
+                      "name": "Station",
+                      "description": "A station with mixed-type properties.",
+                      "properties": {
+                        "label": "alpha",
+                        "elevation": 1024,
+                        "active": true,
+                        "tags": ["a", "b"],
+                        "nested": { "k": "v" }
+                      }
+                    }
+                  ]
+                }
+                """),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.ListThingsAsync();
+
+        Assert.True(result.IsOk);
+        var thing = Assert.Single(result.Value!.Value);
+        Assert.Equal(1, thing.IotId);
+        Assert.Equal("Station", thing.Name);
+        Assert.NotNull(thing.Properties);
+        Assert.Equal(JsonValueKind.Number, thing.Properties!["elevation"].ValueKind);
+        Assert.Equal(1024, thing.Properties["elevation"].GetInt32());
+        Assert.Equal(JsonValueKind.True, thing.Properties["active"].ValueKind);
+        Assert.Equal(JsonValueKind.Array, thing.Properties["tags"].ValueKind);
+    }
+
+    [Fact]
     public async Task GetDatastream_WithExpand_RequestsExpandObservations()
     {
         var handler = new RecordingHandler(_ => Json(

@@ -741,7 +741,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IConsoleSceneClient>(serviceProvider =>
                 new HttpConsoleSceneClient(
-                    CreateOperateObservabilityHttpClient(),
+                    CreateSceneIngestHttpClient(),
                     serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                     serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                     honuaServerAdminApiKey));
@@ -1095,6 +1095,19 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // legitimately-slow answer mid-generation and surfaces the false "assistant endpoint unreachable"
     // failure — defeating the deflection goal on exactly the slow-but-valid path.
     private static HttpClient CreateSupportAssistantHttpClient() =>
+        new(CreateBoundedLifetimeHandler())
+        {
+            Timeout = TimeSpan.FromMinutes(10)
+        };
+
+    // The scene client uploads LAS point clouds up to 256 MB (OperateScenesPage MaxFileBytes) as a
+    // multipart POST. HttpClient.Timeout is a whole-operation deadline (connect + full body upload +
+    // response), so the 30s observability/metrics-read budget cancels any realistically-sized upload
+    // mid-stream and the client surfaces a false "endpoint unreachable" (OperationCanceledException ->
+    // SceneReadStatus.Unavailable). Give the ingest path the same generation-class budget the slow
+    // generation/support clients use (10 min) instead of the 30s read budget; the caller's
+    // CancellationToken still governs user-initiated cancellation.
+    private static HttpClient CreateSceneIngestHttpClient() =>
         new(CreateBoundedLifetimeHandler())
         {
             Timeout = TimeSpan.FromMinutes(10)
