@@ -36,10 +36,12 @@ public sealed class ConsoleOperatorSessionBridge
     {
         ArgumentNullException.ThrowIfNull(principal);
 
-        // Establish the ambient operator partition key before touching the profile/session stores so the
-        // operator-partitioned stores (multi-operator browser host) write into THIS operator's partition,
-        // and so circuit-time outbound calls in the same async flow read it back (honua-console#233 S1).
-        ConsoleOperatorContext.SetAmbient(principal);
+        // SyncAsync runs on the sign-in HTTP request (the cookie/edge /auth/login path), where the operator
+        // is authenticated on HttpContext.User. The operator-partitioned stores resolve their partition key
+        // from HttpContext.User on that thread, so writes here land in THIS operator's partition without any
+        // ambient plumbing. Interactive-circuit reads partition via the circuit's authentication state
+        // (CircuitOperatorContextHandler), not this thread's execution context — which does not flow to the
+        // circuit (honua-console#256).
 
         var profile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)

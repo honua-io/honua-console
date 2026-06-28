@@ -104,6 +104,16 @@ public static class ConsoleAuthentication
         builder.Services.AddHttpContextAccessor();
         builder.Services.TryAddSingleton<IConsoleOperatorContext, ConsoleOperatorContext>();
 
+        // Blazor Server interactive rendering has NO HttpContext: component code and the singleton
+        // honua-server clients' binding handler run on the circuit, so the operator key cannot be resolved
+        // from HttpContext.User there (honua-console#256). This circuit handler reads the circuit's
+        // AuthenticationStateProvider and sets the circuit operator key as the ambient for every inbound
+        // circuit activity, so interactive-circuit reads/writes partition to the authenticated operator
+        // instead of collapsing to the shared anonymous partition (the #252 regression).
+        builder.Services.AddScoped<
+            Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler,
+            CircuitOperatorContextHandler>();
+
         // Development testbed convenience: the browser host cannot create environment profiles (profile
         // creation runs on the native host), so seed + activate one from the configured server URL for
         // EACH operator's partition on first use. Mirrors the prior startup seed, but per-operator so it

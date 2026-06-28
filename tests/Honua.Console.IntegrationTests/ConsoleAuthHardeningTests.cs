@@ -184,5 +184,11 @@ public sealed class ConsoleAuthHardeningTests
     private sealed class SwitchableOperatorContext : IConsoleOperatorContext
     {
         public string CurrentOperatorKey { get; set; } = ConsoleOperatorContext.AnonymousKey;
+
+        public bool HasOperator =>
+            !string.Equals(CurrentOperatorKey, ConsoleOperatorContext.AnonymousKey, StringComparison.Ordinal);
+
+        public string RequireOperatorKey() =>
+            HasOperator ? CurrentOperatorKey : throw new ConsoleOperatorContextUnresolvedException();
     }
 }

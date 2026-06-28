@@ -40,8 +40,15 @@ public sealed class OperatorScopedEnvironmentProfileStore : IConsoleEnvironmentP
         _seedFactory = seedFactory ?? (() => new InMemoryConsoleEnvironmentProfileStore([]));
     }
 
+    // Reads use CurrentOperatorKey (an anonymous public surface legitimately sees an empty profile set).
+    // Writes mutate operator-owned profile/identity/state and must NEVER land in the shared anonymous
+    // partition — an anonymous surface never writes a profile, so an unresolved operator on a write is a
+    // fail-closed bug, not a silent shared-partition write (honua-console#256).
     private InMemoryConsoleEnvironmentProfileStore Current =>
         _byOperator.GetOrAdd(_operatorContext.CurrentOperatorKey, _ => _seedFactory());
+
+    private InMemoryConsoleEnvironmentProfileStore CurrentForWrite =>
+        _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), _ => _seedFactory());
 
     public Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default) =>
         Current.ListProfilesAsync(cancellationToken);
@@ -53,14 +60,14 @@ public sealed class OperatorScopedEnvironmentProfileStore : IConsoleEnvironmentP
         Current.GetActiveProfileAsync(cancellationToken);
 
     public Task UpsertProfileAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default) =>
-        Current.UpsertProfileAsync(profile, cancellationToken);
+        CurrentForWrite.UpsertProfileAsync(profile, cancellationToken);
 
     public Task ActivateProfileAsync(string profileId, CancellationToken cancellationToken = default) =>
-        Current.ActivateProfileAsync(profileId, cancellationToken);
+        CurrentForWrite.ActivateProfileAsync(profileId, cancellationToken);
 
     public Task<ConsoleEnvironmentState?> GetStateAsync(string profileId, CancellationToken cancellationToken = default) =>
         Current.GetStateAsync(profileId, cancellationToken);
 
     public Task SaveStateAsync(ConsoleEnvironmentState state, CancellationToken cancellationToken = default) =>
-        Current.SaveStateAsync(state, cancellationToken);
+        CurrentForWrite.SaveStateAsync(state, cancellationToken);
 }
