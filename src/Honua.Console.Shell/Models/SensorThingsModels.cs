@@ -44,8 +44,13 @@ public sealed record StaThing
     [JsonPropertyName("description")]
     public string Description { get; init; } = string.Empty;
 
+    // STA `properties` is an open object whose values may be any JSON type (string, number,
+    // boolean, nested object/array). Typing the values as string makes the source-generated
+    // deserializer throw JsonException on any non-string value, which fails the whole collection
+    // read (FetchAsync -> Denied). Keep the values as raw JsonElement so any conformant value
+    // round-trips (mirrors the Observation.result JsonElement handling).
     [JsonPropertyName("properties")]
-    public IReadOnlyDictionary<string, string>? Properties { get; init; }
+    public IReadOnlyDictionary<string, JsonElement>? Properties { get; init; }
 
     [JsonPropertyName("Datastreams@iot.navigationLink")]
     public string? DatastreamsNavigationLink { get; init; }
