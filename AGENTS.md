@@ -24,7 +24,7 @@ render an explicit missing-binding state (see Conventions).
   Windows/macOS (or Linux with `EnableHonuaConsoleAndroidTarget=true` + Android SDK).
 - Solution file: `Honua.Console.slnx` (XML `.slnx` format). Key package refs:
   `Microsoft.AspNetCore.Components.Web` 10.0.3, `Grpc.Net.Client` 2.76.0.
-- License: Apache-2.0.
+- License: Elastic License 2.0 (ELv2). See `LICENSE` and `NOTICE`.
 
 ## Setup
 
