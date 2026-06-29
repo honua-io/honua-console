@@ -1,9 +1,6 @@
 Honua Console
 Copyright (c) Honua
 
-This product is licensed under the Elastic License 2.0 (ELv2).
-See the LICENSE file in the project root for the full license text.
-
-Honua Console aligns with the licensing posture of the Honua platform
-(honua-server and the other source-available Honua components), which is
-distributed under the Elastic License 2.0.
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file in the project root for the full license text, or
+obtain a copy at http://www.apache.org/licenses/LICENSE-2.0.
