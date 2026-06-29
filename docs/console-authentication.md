@@ -87,12 +87,46 @@ A real operator bearer never carries this prefix.
 
 ## Map-proxy
 
-The map-preview BFF endpoints (`/map-proxy/*`) act with honua-server privileges. They now require an
-authenticated operator via `HttpContext.User` and forward the operator's bearer to honua-server when
-one exists (`MapProxySupport.ResolveOperatorBearerAsync` + `ApplyUpstreamCredential`), falling back
-to the shared admin key only when no operator bearer is available.
+The map-preview BFF endpoints (`/map-proxy/*`) act with honua-server privileges. They require an
+authenticated operator and forward the operator's bearer to honua-server when one exists
+(`MapProxySupport.ResolveOperatorBearerAsync` + `ApplyUpstreamCredential`), falling back to the shared
+admin key only when no operator bearer is available.
+
+As of honua-console#254 the operator gate is **fail-closed by construction**: each endpoint resolves the
+request's scoped `IConsoleOperatorScope` and denies (401) when it yields `null`. The code path that
+builds the admin-keyed upstream request is unreachable without a non-null `ConsoleOperatorIdentity`, so
+"no resolved operator" cannot silently proceed.
+
+## Multi-operator isolation (fail-closed by construction, #254)
+
+The browser host serves MANY operators from one process, so any process-wide operator state would bleed
+across operators. Two complementary mechanisms keep operators isolated:
+
+- **Operator-partitioned stores (legacy seam, #233/#252/#253).** The profile/session singletons are
+  decorated so every read/write routes to a per-operator backing store selected by
+  `IConsoleOperatorContext`. The partition key is resolved from `HttpContext.User` (request pipeline) or,
+  on the interactive circuit, from the circuit `AuthenticationStateProvider` stamped onto an ambient by
+  `CircuitOperatorContextHandler`. Writes fail closed (`RequireOperatorKey`).
+- **Scoped operator accessor (`IConsoleOperatorScope`, #254).** The fail-closed-by-construction
+  replacement on the server-bound call path. It is a per-circuit/per-request **scoped** DI service that
+  reads its scope's OWN authoritative identity and returns a strongly-typed `ConsoleOperatorIdentity` or
+  `null` — there is no shared mutable singleton, no `AsyncLocal` ambient a missed context could leave
+  unset, and no `__anonymous__` sentinel that stands in for both "anonymous" and "unresolved". Server-bound
+  callers take it explicitly (parameter injection) and treat `null`/`RequireAsync` as a hard deny. The
+  map-proxy endpoints are converted to this seam; converting the broad typed-client surface is tracked
+  below.
 
 ## What is deferred (follow-ups)
+
+- **Convert the typed honua-server clients to the scoped seam (honua-console#254 remainder).** The
+  Family-A typed clients are singletons whose `HonuaServerBindingHandler` resolves the operator-scoped
+  stores via `IConsoleOperatorContext` (HttpContext + circuit ambient). Because that handler also serves
+  the legitimately-anonymous public open-data surfaces (e.g. `IConsoleCatalogClient` on `/public`), it
+  cannot blanket-deny; moving it fully onto `IConsoleOperatorScope` requires constructing the clients per
+  circuit/request scope (or an equivalent scoped-services accessor) so the operator is injected rather
+  than bridged through execution context. Deferred to keep this PR a single, safe, fully-fail-closed seam
+  (the map-proxy) rather than a half-converted broad rewrite. No fail-open path is introduced on the
+  converted surface; the legacy seam retains its #253 write-guard behavior unchanged.
 
 - **Full Option C — honua-server dependency.** honua-server needs a console-consumable endpoint that,
   after the operator authenticates, returns a forwardable operator bearer (or accepts an OIDC bearer
