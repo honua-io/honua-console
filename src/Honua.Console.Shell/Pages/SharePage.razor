@@ -1,6 +1,13 @@
 @page "/share"
 @page "/share/public"
 @page "/public"
+@* The "/public" and "/share/public" routes are the open-web open-data / public-link hub
+   (host-allow-listed anonymous in ConsolePublicSurfaces). They must also opt the interactive
+   render path out of the fail-closed fallback, or AuthorizeRouteView redirects anonymous
+   visitors to sign-in. The "/share" route stays operator-only: the host fallback policy does
+   not allow-list it, so it remains fail-closed regardless of this page-level attribute.
+   Enforced by ConsoleRouteAuthorizationAuditTests (honua-console#254). *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
 
 <section class="console-page share-home">

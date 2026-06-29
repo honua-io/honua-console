@@ -36,15 +36,20 @@ public sealed class OperateObservabilityTestcontainersTests
         var database = "honua_console_operate";
         var username = "honua";
         var password = "honua_password";
-        var network = new NetworkBuilder()
-            .WithName($"honua-console-operate-{suffix}")
-            .Build();
+        // Build the Docker network INSIDE the try (NetworkBuilder.Build() pings the Docker daemon to
+        // validate, so when Docker is unavailable it must convert to a Skip via the IsDockerUnavailable
+        // catch below, not a hard failure). Resolve the server image first so the env-driven Skip.If in
+        // ResolveServerImageAsync fires before any Docker call when no server image/context is configured.
+        INetwork? network = null;
         PostgreSqlContainer? postgres = null;
         IContainer? server = null;
 
         try
         {
             (serverImage, builtServerImage) = await ResolveServerImageAsync(suffix);
+            network = new NetworkBuilder()
+                .WithName($"honua-console-operate-{suffix}")
+                .Build();
             await network.CreateAsync();
             postgres = new PostgreSqlBuilder("postgis/postgis:16-3.4")
                 .WithDatabase(database)
@@ -145,7 +150,10 @@ public sealed class OperateObservabilityTestcontainersTests
                 await postgres.DisposeAsync();
             }
 
-            await network.DisposeAsync();
+            if (network is not null)
+            {
+                await network.DisposeAsync();
+            }
 
             if (builtServerImage is not null)
             {
