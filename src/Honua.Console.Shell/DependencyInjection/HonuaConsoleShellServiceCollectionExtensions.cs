@@ -121,17 +121,39 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
-        // The approval inbox (#193) is a thin aggregator over the two server-owned
-        // proposal sources above (GitOps release proposals + deploy-control operations).
-        // It introduces NO new server contract — it reuses the Operate Deploy page's
-        // projection to surface the GIS-department work queue as one human-in-the-loop
-        // surface, classified by ticket type. No standing in-memory source is registered
-        // (Charter section 11); when no environment is connected the inbox renders the
-        // missing-binding state surfaced by the underlying deploy-control read.
+        // The first-class agent-operation approval API (issue #193, honua-server #1694):
+        // GET /api/v1/admin/proposals (list/filter), GET .../{id} (plan/diff/dry-run/risk),
+        // POST .../{id}/approve, POST .../{id}/reject (reason required). Approve/reject are
+        // gated server-side by the RBAC 'approve' grant + separation of duties; a denied
+        // decision returns 403 (surfaced as Forbidden — never bypassed). No standing
+        // in-memory source is registered (Charter section 11); when no environment is
+        // connected every call renders the missing-binding state. The admin API key is sent
+        // as X-API-Key.
+        services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
+            new HttpConsoleProposalsClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                honuaServerAdminApiKey));
+
+        // Live approval-inbox updates (issue #193, honua-server #1695): the console connects
+        // from its server process to the honua-server admin realtime hub's proposals group at
+        // {server}/hubs/admin and projects ProposalPending / ProposalResolved events onto the
+        // inbox without polling. A connect failure (no environment bound, hub unsupported)
+        // degrades to an inert no-op so the inbox stays usable via manual refresh.
+        services.TryAddSingleton<IConsoleProposalRealtimeClient>(serviceProvider =>
+            new SignalRConsoleProposalRealtimeClient(
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                honuaServerAdminApiKey));
+
+        // The approval inbox (#193) is a thin projection over the first-class proposals API
+        // above. It surfaces the GIS-department work queue as one human-in-the-loop surface,
+        // classified by ticket type. No standing in-memory source is registered (Charter
+        // section 11); when no environment is connected the inbox renders the missing-binding
+        // state surfaced by the underlying proposals read.
         services.TryAddSingleton<IConsoleApprovalInboxClient>(serviceProvider =>
             new ConsoleApprovalInboxClient(
-                serviceProvider.GetRequiredService<IConsoleGitOpsReleaseClient>(),
-                serviceProvider.GetRequiredService<IConsoleDeployApprovalClient>()));
+                serviceProvider.GetRequiredService<IConsoleProposalsClient>()));
 
         // Server-version detection for the server-upgrade flow binds to the connected
         // honua-server's capability manifest (GET /api/v1/capabilities/manifest, the

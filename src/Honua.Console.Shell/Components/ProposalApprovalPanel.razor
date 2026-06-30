@@ -1,0 +1,327 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleProposalsClient Proposals
+
+@* Human-in-the-loop approval panel for a single operation proposal (#193, honua-server
+   #1694). It renders the server-owned plan/diff/dry-run/risk/blockers/warnings — the same
+   artifacts the direct-execute path would have produced — and the governed actions:
+     Approve -> POST /api/v1/admin/proposals/{id}/approve
+     Reject  -> POST /api/v1/admin/proposals/{id}/reject  (reason REQUIRED)
+   Approve/reject are gated server-side by the RBAC 'approve' grant and the
+   proposer-cannot-approve separation-of-duties rule; a denied decision returns 403 and is
+   surfaced here, disabling the actions (the server is the only safety gate; never bypassed).
+   For a Data import proposal (honua-server #1630) the card leads with an import treatment,
+   then renders the same plan/diff/risk as every other kind. *@
+
+@if (_detail is null)
+{
+    <OperateSectionStatusPanel Heading="Proposal review" Status="_status" Message="@_message" />
+}
+else
+{
+    var detail = _detail;
+    var isImport = detail.Kind == ConsoleProposalKind.DataImport;
+    <section class="console-panel proposal-approval-panel @(isImport ? "is-data-import" : null)"
+             data-proposal-id="@detail.ProposalId"
+             aria-labelledby="proposal-approval-heading">
+        <div class="console-panel-heading">
+            <div>
+                <p class="console-kicker">@(isImport ? "Data import approval" : "Proposal review")</p>
+                <h3 id="proposal-approval-heading">
+                    <span class="console-mono">@detail.ProposalId</span>
+                </h3>
+            </div>
+            <span class="console-status @ConsoleProposalPresentation.StatusClass(detail.Status)" data-proposal-status>
+                @ConsoleProposalPresentation.StatusLabel(detail.Status)
+            </span>
+        </div>
+
+        <p class="proposal-approval-summary">@detail.Summary</p>
+
+        <dl class="console-definition-list proposal-approval-facts">
+            <dt>Ticket type</dt>
+            <dd>@ApprovalTicketPresentation.Label(ApprovalTicketPresentation.Classify(detail.Kind))</dd>
+            <dt>Kind</dt>
+            <dd>@ConsoleProposalPresentation.KindLabel(detail.Kind)</dd>
+            <dt>Risk</dt>
+            <dd>
+                <span class="console-status @ConsoleProposalPresentation.RiskClass(detail.RiskLevel)" data-proposal-risk>
+                    @ConsoleProposalPresentation.RiskLabel(detail.RiskLevel)
+                </span>
+            </dd>
+            @if (!string.IsNullOrWhiteSpace(detail.RequestedBy))
+            {
+                <dt>Requested by</dt>
+                <dd>@detail.RequestedBy</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.RequestedByAgent))
+            {
+                <dt>Agent</dt>
+                <dd class="console-mono">@detail.RequestedByAgent</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.GuardrailTier))
+            {
+                <dt>Guardrail tier</dt>
+                <dd>@detail.GuardrailTier</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.ResolvedBy))
+            {
+                <dt>Resolved by</dt>
+                <dd>@detail.ResolvedBy</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.ResolutionReason))
+            {
+                <dt>Resolution reason</dt>
+                <dd>@detail.ResolutionReason</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.ExecutionOperationId))
+            {
+                <dt>Execution operation</dt>
+                <dd class="console-mono">@detail.ExecutionOperationId</dd>
+            }
+        </dl>
+
+        @if (detail.BlockingReasons.Count > 0)
+        {
+            <div class="console-usage-callout proposal-approval-callout-block">
+                <strong>Blocking findings.</strong>
+                <ul class="operate-note-list" data-proposal-blockers>
+                    @foreach (var blocker in detail.BlockingReasons)
+                    {
+                        <li class="console-state-danger">@blocker</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (detail.Warnings.Count > 0)
+        {
+            <ul class="operate-note-list proposal-approval-warnings" data-proposal-warnings>
+                @foreach (var warning in detail.Warnings)
+                {
+                    <li class="console-state-warning">@warning</li>
+                }
+            </ul>
+        }
+
+        @if (detail.Diff.Count > 0)
+        {
+            <div class="proposal-approval-diff">
+                <h4>@(isImport ? "Import plan & diff" : "Plan & diff")</h4>
+                <ul class="console-mono operate-note-list" data-proposal-diff>
+                    @foreach (var line in detail.Diff)
+                    {
+                        <li>@line</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (detail.DryRun.Count > 0)
+        {
+            <div class="proposal-approval-dryrun">
+                <h4>Dry run</h4>
+                <ul class="console-mono operate-note-list" data-proposal-dryrun>
+                    @foreach (var line in detail.DryRun)
+                    {
+                        <li>@line</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @* GOVERNED ACTIONS — approve / reject (reason required). Offered only while
+           AwaitingApproval; approve is blocked while there are blocking findings. The RBAC
+           'approve' grant is the server's gate: once a 403 tells us the operator lacks it,
+           the actions are disabled and the reason is surfaced. *@
+        @if (detail.IsAwaitingApproval)
+        {
+            <div class="proposal-approval-actions">
+                <label class="proposal-approval-reason-label" for="proposal-approval-reason">
+                    Reason <span class="console-muted">(required to reject)</span>
+                </label>
+                <textarea id="proposal-approval-reason"
+                          class="proposal-approval-reason"
+                          rows="2"
+                          placeholder="Why are you approving or rejecting this proposal?"
+                          disabled="@(_busy || _approveForbidden)"
+                          data-proposal-reason
+                          @bind="_reason"></textarea>
+
+                <div class="proposal-approval-action-row">
+                    <button type="button"
+                            class="console-button"
+                            disabled="@(_busy || _approveForbidden || detail.BlockingReasons.Count > 0)"
+                            title="@(_approveForbidden
+                                ? "You lack the approve permission for this server."
+                                : detail.BlockingReasons.Count > 0
+                                    ? "Resolve blocking findings before approving."
+                                    : "Approve and submit this proposal for execution.")"
+                            data-proposal-approve
+                            @onclick="ApproveAsync">
+                        Approve &amp; submit
+                    </button>
+                    <button type="button"
+                            class="console-button console-button-secondary"
+                            disabled="@(_busy || _approveForbidden || string.IsNullOrWhiteSpace(_reason))"
+                            title="@(_approveForbidden
+                                ? "You lack the approve permission for this server."
+                                : string.IsNullOrWhiteSpace(_reason)
+                                    ? "Enter a reason to reject."
+                                    : "Reject this proposal with the reason above.")"
+                            data-proposal-reject
+                            @onclick="RejectAsync">
+                        Reject
+                    </button>
+                </div>
+
+                @if (_approveForbidden)
+                {
+                    <p class="console-status console-state-warning proposal-approval-rbac" role="note"
+                       data-proposal-rbac-denied>
+                        Approving or rejecting requires the <span class="console-mono">approve</span> grant on the
+                        connected server (and a proposal's requester cannot approve their own). Ask an operator with
+                        that grant to decide this one.
+                    </p>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_actionMessage))
+        {
+            <p class="proposal-approval-action-message @_actionMessageClass" role="status" data-proposal-action-message>
+                @_actionMessage
+            </p>
+        }
+
+        <p class="proposal-approval-governed console-state-danger">
+            Governed operation &middot; routed through the server's approval gate; recorded in the audit log.
+        </p>
+    </section>
+}
+
+@code {
+    /// <summary>The proposal id under review.</summary>
+    [Parameter, EditorRequired]
+    public required string ProposalId { get; set; }
+
+    /// <summary>
+    /// Bumped by the parent (e.g. on a live ProposalResolved event for this proposal) to force
+    /// a detail reload without changing the selected id.
+    /// </summary>
+    [Parameter]
+    public int ReloadToken { get; set; }
+
+    /// <summary>Raised after a successful approve/reject so the parent can refresh its queue.</summary>
+    [Parameter]
+    public EventCallback<ConsoleProposalDetail> OnActioned { get; set; }
+
+    private ConsoleProposalDetail? _detail;
+    private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
+    private string _message = string.Empty;
+    private string? _reason;
+    private bool _busy;
+    private bool _approveForbidden;
+    private string? _actionMessage;
+    private string _actionMessageClass = string.Empty;
+
+    private string? _loadedProposalId;
+    private int _loadedReloadToken = -1;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.Equals(_loadedProposalId, ProposalId, StringComparison.Ordinal))
+        {
+            _loadedProposalId = ProposalId;
+            _loadedReloadToken = ReloadToken;
+            _reason = null;
+            _approveForbidden = false;
+            _actionMessage = null;
+            await LoadAsync();
+        }
+        else if (_loadedReloadToken != ReloadToken)
+        {
+            _loadedReloadToken = ReloadToken;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Proposals.GetAsync(ProposalId);
+        Apply(result);
+    }
+
+    private void Apply(OperateSectionResult<ConsoleProposalDetail> result)
+    {
+        _status = result.Status;
+        _message = result.Message;
+        _detail = result.IsAllowed ? result.Value : null;
+    }
+
+    private Task ApproveAsync() => RunActionAsync(
+        () => Proposals.ApproveAsync(ProposalId),
+        successMessage: "Approved — proposal submitted for execution.");
+
+    private Task RejectAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_reason))
+        {
+            _actionMessage = "A rejection reason is required.";
+            _actionMessageClass = "console-state-warning";
+            return Task.CompletedTask;
+        }
+
+        return RunActionAsync(
+            () => Proposals.RejectAsync(ProposalId, _reason!),
+            successMessage: "Rejected — recorded with your reason.");
+    }
+
+    private async Task RunActionAsync(
+        Func<Task<OperateSectionResult<ConsoleProposalDetail>>> action,
+        string successMessage)
+    {
+        if (_busy || _approveForbidden)
+        {
+            return;
+        }
+
+        _busy = true;
+        _actionMessage = null;
+        try
+        {
+            var result = await action();
+            if (result.IsAllowed && result.Value is not null)
+            {
+                Apply(result);
+                _actionMessage = successMessage;
+                _actionMessageClass = "console-state-success";
+                await OnActioned.InvokeAsync(result.Value);
+            }
+            else
+            {
+                // A Forbidden result means the RBAC approve grant / separation-of-duties gate
+                // denied the decision — disable the actions and surface the reason.
+                if (result.Status == OperateSectionStatus.Forbidden)
+                {
+                    _approveForbidden = true;
+                }
+
+                _actionMessage = string.IsNullOrWhiteSpace(result.Message)
+                    ? OperateSectionPresentation.FallbackMessage(result.Status)
+                    : result.Message;
+                _actionMessageClass = "console-state-danger";
+
+                // Reload so a conflict (already-resolved) reflects the server's current state.
+                if (result.Status == OperateSectionStatus.Unavailable || result.Status == OperateSectionStatus.Missing)
+                {
+                    await LoadAsync();
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

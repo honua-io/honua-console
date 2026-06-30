@@ -15,16 +15,13 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class ConsoleHomePageRenderTests
 {
-    private static BunitContext NewContext(IConsoleDeployApprovalClient approvalClient)
+    private static BunitContext NewContext(FakeConsoleProposalsClient proposals)
     {
         var ctx = new BunitContext();
-        var releaseClient = new ApprovalInboxPageRenderTests_EmptyReleaseClient();
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(
             new InMemoryConsoleEnvironmentProfileStore([]));
-        ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(releaseClient);
-        ctx.Services.AddSingleton(approvalClient);
-        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(
-            new ConsoleApprovalInboxClient(releaseClient, approvalClient));
+        ctx.Services.AddSingleton<IConsoleProposalsClient>(proposals);
+        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ConsoleApprovalInboxClient(proposals));
         ctx.Services.AddSingleton<IConsoleHostCapabilities>(
             new BrowserConsoleHostCapabilities());
         return ctx;
@@ -33,7 +30,7 @@ public sealed class ConsoleHomePageRenderTests
     [Fact]
     public void Home_LeadsWithInboxSummary_AndDeepLinksToInbox()
     {
-        using var ctx = NewContext(new InMemoryConsoleDeployApprovalClient());
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
 
         var page = ctx.Render<ConsoleHomePage>();
 
@@ -49,7 +46,7 @@ public sealed class ConsoleHomePageRenderTests
     [Fact]
     public void Home_StillRendersTheFourAreaWorkSurfaces()
     {
-        using var ctx = NewContext(new InMemoryConsoleDeployApprovalClient());
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
 
         var page = ctx.Render<ConsoleHomePage>();
 
@@ -62,30 +59,5 @@ public sealed class ConsoleHomePageRenderTests
                 }
             },
             TimeSpan.FromSeconds(5));
-    }
-
-    // The empty release client lives on the inbox render-test type; re-declared here as an
-    // alias-free local to keep this file self-contained without a shared test helper.
-    private sealed class ApprovalInboxPageRenderTests_EmptyReleaseClient : IConsoleGitOpsReleaseClient
-    {
-        public Task<OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>> GetReleaseProposalsAsync(
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>.Allowed(
-                (IReadOnlyList<GitOpsReleaseProposal>)[]));
-
-        public Task<OperateSectionResult<GitOpsReleaseProposal>> GetReleaseProposalAsync(
-            string releasePackageId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<GitOpsReleaseProposal>.Denied(
-                OperateSectionStatus.Missing, "Release not found."));
-
-        public Task<OperateSectionResult<GitOpsReleaseDetail>> GetReleaseDetailAsync(
-            string releasePackageId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<GitOpsReleaseDetail>.Denied(
-                OperateSectionStatus.Missing, "Release not found."));
-
-        public Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
-            string releasePackageId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<GitOpsCoordinatedRelease>.Denied(
-                OperateSectionStatus.Missing, "No coordinated release."));
     }
 }

@@ -136,9 +136,9 @@
 
         try
         {
-            // The landing only knows release-derived ids (it tracks none of its own); the
-            // inbox page is where operators pin operations by id.
-            _inbox = await Inbox.GetInboxAsync([]);
+            // The landing shows the queue at a glance; the inbox page is where operators
+            // filter and act. Both read the same first-class server proposals API.
+            _inbox = await Inbox.GetInboxAsync();
         }
         finally
         {
