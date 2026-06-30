@@ -4,30 +4,40 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleApprovalInboxClient Inbox
+@inject IConsoleProposalRealtimeClient Realtime
+@implements IAsyncDisposable
 
-@* APPROVAL INBOX (#193) — the GIS department's work queue as one human-in-the-loop
-   surface. The console's job is not form-work: it WITNESSES and AUTHORIZES the operations
-   agents and APIs propose. This page aggregates the pending/active agent-proposed
-   operations Console can act on (deploy-control operations derived from the GitOps release
-   operations in view, plus any operator-tracked ids), classifies each onto a GIS-desk
-   ticket type, and lets an operator review the plan / diff / rollback and approve, reject,
-   or roll back — all through the server's governed endpoints (the OperatorApprovalGate
-   stays the only real gate; this surface never bypasses it).
+@* APPROVAL INBOX (#193) — the GIS department's work queue as one human-in-the-loop surface.
+   The console's job is not form-work: it WITNESSES and AUTHORIZES the operations agents and
+   APIs propose. This page reads the first-class honua-server proposals API (#1694), classifies
+   each proposal onto a GIS-desk ticket type, and lets an operator review the plan / diff /
+   dry-run / risk / blockers and approve or reject (reason required) — all through the server's
+   governed endpoints (the RBAC approve gate stays the only real gate; this surface never
+   bypasses it). It subscribes to the admin realtime hub's proposals group (#1695) so pending /
+   resolved events update the queue live, with a manual refresh fallback.
 
    Server-owned data only (Console Patterns Charter section 11): a missing / unsupported /
-   forbidden / unavailable read renders the shared status surface, never seeded data. The
-   server exposes no list-all endpoint, so an operator can track a paused operation by its
-   durable id to bind it into the queue. *@
+   forbidden / unavailable read renders the shared status surface, never seeded data. *@
 
 <section class="console-page console-operate-page approval-inbox-page">
     <div class="console-page-heading operate-heading">
         <p class="console-kicker">Human-in-the-loop</p>
         <h1>Approval inbox</h1>
         <p>
-            The work queue for agent-proposed operations. Agents and APIs do the writing;
-            you review the plan, diff, and rollback readiness here and authorize the outcome.
-            Approve, reject, or roll back through the server's governed deploy-control endpoints.
+            The work queue for agent-proposed operations. Agents and APIs do the writing; you
+            review the plan, diff, dry-run, and risk here and authorize the outcome. Approve or
+            reject through the server's governed, audited approval endpoints.
         </p>
+    </div>
+
+    <div class="approval-inbox-toolbar" role="group" aria-label="Inbox controls">
+        <span class="approval-inbox-live @(Realtime.IsConnected ? "is-live" : null)" data-live-state>
+            @(Realtime.IsConnected ? "Live" : "Manual")
+        </span>
+        <button type="button" class="console-button console-button-secondary"
+                disabled="@_busy" data-refresh-inbox @onclick="RefreshAsync">
+            Refresh
+        </button>
     </div>
 
     @if (!_loaded)
@@ -90,7 +100,7 @@
                 {
                     <OperateSectionStatusPanel Heading="Approval inbox" Empty="true"
                         EmptyTitle="No work in the queue"
-                        EmptyMessage="No agent-proposed operations are awaiting a decision. Track a paused operation by its durable id, or wait for an agent to propose one." />
+                        EmptyMessage="No agent-proposed operations are awaiting a decision. Wait for an agent or API to propose one." />
                 }
                 else
                 {
@@ -101,62 +111,46 @@
                                 <button type="button"
                                         class="approval-inbox-select"
                                         aria-pressed="@(IsSelected(item) ? "true" : "false")"
-                                        data-operation-id="@item.OperationId"
+                                        data-proposal-id="@item.ProposalId"
                                         @onclick="() => Select(item)">
                                     <span class="approval-inbox-row-head">
                                         <span class="console-chip approval-inbox-ticket" data-ticket-type="@item.TicketType">
                                             @ApprovalTicketPresentation.Label(item.TicketType)
                                         </span>
-                                        <span class="console-status @DeployOperationPresentation.StateClass(item.Proposal.Lifecycle)">
-                                            @DeployOperationPresentation.Label(item.Proposal.Lifecycle)
+                                        <span class="console-status @ConsoleProposalPresentation.StatusClass(item.Proposal.Status)">
+                                            @ConsoleProposalPresentation.StatusLabel(item.Proposal.Status)
+                                        </span>
+                                        <span class="console-status @ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)">
+                                            @ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)
                                         </span>
                                     </span>
-                                    <span class="console-mono approval-inbox-row-id">@item.OperationId</span>
+                                    <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
                                     <span class="console-muted approval-inbox-row-sub">
-                                        <span class="console-mono">@item.Proposal.Service</span>
-                                        &rarr;
-                                        <span class="console-mono">@item.Proposal.Environment</span>
-                                        &middot; @item.Proposal.Action
+                                        <span class="console-mono">@item.ProposalId</span>
+                                        @if (!string.IsNullOrWhiteSpace(item.Proposal.RequestedBy))
+                                        {
+                                            <text> &middot; @item.Proposal.RequestedBy</text>
+                                        }
                                     </span>
-                                    @if (item.Proposal.BlockingReasons.Count > 0)
-                                    {
-                                        <span class="console-status console-state-danger approval-inbox-row-blocked">
-                                            @item.Proposal.BlockingReasons.Count blocker@(item.Proposal.BlockingReasons.Count == 1 ? "" : "s")
-                                        </span>
-                                    }
                                 </button>
                             </li>
                         }
                     </ul>
                 }
-
-                <div class="approval-inbox-track">
-                    <label class="console-field">
-                        <span class="console-field-label">Track an operation by id</span>
-                        <input class="console-input" type="text" placeholder="e.g. deploy-op-2f8c"
-                               data-track-operation-id
-                               @bind="_trackOperationIdInput" />
-                    </label>
-                    <button class="console-button console-button-secondary" type="button"
-                            disabled="@(string.IsNullOrWhiteSpace(_trackOperationIdInput) || _busy)"
-                            data-track-operation
-                            @onclick="TrackOperationAsync">
-                        Track
-                    </button>
-                </div>
             </div>
 
             <div class="approval-inbox-detail" aria-live="polite">
-                @if (_selectedOperationId is { Length: > 0 } operationId)
+                @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
-                    <OperateDeploymentApprovalPanel OperationId="@operationId"
-                        OnActioned="OnApprovalActioned" />
+                    <ProposalApprovalPanel ProposalId="@proposalId"
+                        ReloadToken="_detailReloadToken"
+                        OnActioned="OnProposalActioned" />
                 }
                 else
                 {
                     <OperateSectionStatusPanel Heading="Review" Empty="true"
                         EmptyTitle="Select a work item"
-                        EmptyMessage="Choose an operation from the queue to review its plan, diff, evidence, and rollback readiness before you authorize it." />
+                        EmptyMessage="Choose a proposal from the queue to review its plan, diff, dry-run, and risk before you authorize it." />
                 }
             </div>
         </div>
@@ -164,18 +158,14 @@
 </section>
 
 @code {
-    // The operator-tracked deploy-control operation ids (the server has no list endpoint),
-    // unioned with the ids derived from the release operations in view by the aggregator.
-    private readonly List<string> _trackedOperationIds = new();
-    private string _trackOperationIdInput = string.Empty;
-
     private bool _loaded;
     private bool _busy;
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
     private ApprovalTicketType? _filter;
-    private string? _selectedOperationId;
+    private string? _selectedProposalId;
+    private int _detailReloadToken;
 
     private IReadOnlyList<ApprovalInboxItem> VisibleItems
     {
@@ -186,19 +176,31 @@
         }
     }
 
-    protected override async Task OnInitializedAsync() => await RefreshAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.ProposalChanged += OnProposalEvent;
+        await RefreshAsync();
+        // Best-effort: open the live subscription. A failure leaves the inbox on manual refresh.
+        await Realtime.StartAsync();
+    }
 
     private async Task RefreshAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
         try
         {
-            _result = await Inbox.GetInboxAsync(_trackedOperationIds);
+            _result = await Inbox.GetInboxAsync();
 
             // Drop a stale selection / filter that no longer maps onto a queue item.
-            if (_selectedOperationId is { Length: > 0 } selected
-                && _result.Value?.Items.All(item => !string.Equals(item.OperationId, selected, StringComparison.Ordinal)) == true)
+            if (_selectedProposalId is { Length: > 0 } selected
+                && _result.Value?.Items.All(item => !string.Equals(item.ProposalId, selected, StringComparison.Ordinal)) == true)
             {
-                _selectedOperationId = null;
+                _selectedProposalId = null;
             }
 
             if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
@@ -208,46 +210,48 @@
         }
         finally
         {
+            _busy = false;
             _loaded = true;
         }
     }
 
-    private async Task TrackOperationAsync()
+    // A live ProposalPending / ProposalResolved event: refresh the queue (and the open detail
+    // if the resolved proposal is the selected one) without polling.
+    private void OnProposalEvent(ConsoleProposalEvent evt)
     {
-        var id = _trackOperationIdInput.Trim();
-        if (id.Length == 0)
+        _ = InvokeAsync(async () =>
         {
-            return;
-        }
+            if (evt.EventKind == ConsoleProposalEventKind.Resolved
+                && string.Equals(evt.ProposalId, _selectedProposalId, StringComparison.Ordinal))
+            {
+                _detailReloadToken++;
+            }
 
-        if (!_trackedOperationIds.Contains(id, StringComparer.Ordinal))
-        {
-            _trackedOperationIds.Add(id);
-        }
-
-        _trackOperationIdInput = string.Empty;
-        _busy = true;
-        try
-        {
             await RefreshAsync();
-        }
-        finally
-        {
-            _busy = false;
-        }
+            StateHasChanged();
+        });
     }
 
     private void SetFilter(ApprovalTicketType? type) => _filter = type;
 
     private bool IsSelected(ApprovalInboxItem item) =>
-        string.Equals(item.OperationId, _selectedOperationId, StringComparison.Ordinal);
+        string.Equals(item.ProposalId, _selectedProposalId, StringComparison.Ordinal);
 
-    private void Select(ApprovalInboxItem item) => _selectedOperationId = item.OperationId;
+    private void Select(ApprovalInboxItem item) => _selectedProposalId = item.ProposalId;
 
-    private async Task OnApprovalActioned(DeployOperationProposal proposal)
+    private async Task OnProposalActioned(ConsoleProposalDetail detail)
     {
-        // After an approve / reject / rollback, refresh the queue so a now-terminal /
-        // submitted operation drops out of the pending set.
+        // After an approve / reject, refresh the queue so a now-resolved proposal drops out of
+        // the pending set.
         await RefreshAsync();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        // The realtime client is an app-lifetime singleton shared across circuits; only detach
+        // this page's handler. The connection is torn down by the DI container on shutdown, not
+        // when one operator navigates away.
+        Realtime.ProposalChanged -= OnProposalEvent;
+        return ValueTask.CompletedTask;
     }
 }

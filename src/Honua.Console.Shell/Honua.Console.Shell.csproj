@@ -12,6 +12,9 @@
     <!-- AuthorizeRouteView / CascadingAuthenticationState for fail-closed route authorization
          (honua-console#233). -->
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.9" />
+    <!-- SignalR client for the approval-inbox live updates: the console connects to the
+         honua-server admin realtime hub's proposals group (honua-server #1695, issue #193). -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
