@@ -124,9 +124,34 @@ across operators. Two complementary mechanisms keep operators isolated:
   the legitimately-anonymous public open-data surfaces (e.g. `IConsoleCatalogClient` on `/public`), it
   cannot blanket-deny; moving it fully onto `IConsoleOperatorScope` requires constructing the clients per
   circuit/request scope (or an equivalent scoped-services accessor) so the operator is injected rather
-  than bridged through execution context. Deferred to keep this PR a single, safe, fully-fail-closed seam
-  (the map-proxy) rather than a half-converted broad rewrite. No fail-open path is introduced on the
-  converted surface; the legacy seam retains its #253 write-guard behavior unchanged.
+  than bridged through execution context. No fail-open path is introduced on the converted surface; the
+  legacy seam retains its #253 write-guard behaviour unchanged.
+
+  This remainder is intentionally NOT attempted as a single PR because a correct conversion is broad and
+  lifecycle-sensitive, and a rushed version would regress the carefully-built isolation seam:
+
+  1. **HttpClient lifecycle.** The typed clients are singletons over a pooled `SocketsHttpHandler`
+     (`HonuaServerClientFactory`) precisely so the multi-circuit host shares one connection pool.
+     Making them per-circuit/request scoped (the only way to inject `IConsoleOperatorScope` at
+     construction with no ambient) means a new client + handler + connection pool per scope unless the
+     whole factory is moved onto `IHttpClientFactory` typed clients with a shared primary handler and a
+     scoped binding handler — a rewrite of the factory, all ~20 `IConsole*Client` registrations, and
+     their `Server*DataSource` consumers.
+  2. **The partition seam is regression-locked.** `OperatorScopedAccountSessionStore` /
+     `OperatorScopedEnvironmentProfileStore` + `IConsoleOperatorContext` + the
+     `CircuitOperatorContextHandler` ambient are covered by `ConsoleAuthHardeningTests` and
+     `ConsoleOperatorCircuitPartitionTests` (the #252/#253/#256 isolation guarantees). Any conversion
+     must keep those green.
+  3. **Residual is circuit-bound.** Even a singleton-accessible scoped accessor shares the one residual
+     fail-open it would aim to close — a circuit activity whose execution context is detached from the
+     inbound-activity ambient. Only per-scope client construction (operator injected at construction)
+     removes that, which is exactly (1).
+
+  Until then, the chokepoint's fail-closed contract is regression-locked by
+  `tests/Honua.Console.IntegrationTests/ConsoleServerBindingFailClosedTests.cs`: each operator's outbound
+  call carries that operator's own bearer (never another's), an unresolved operator never inherits an
+  operator bearer (it falls back to the documented anonymous/admin-key path), and an unresolved operator
+  cannot write an operator session.
 
 - **Full Option C — honua-server dependency.** honua-server needs a console-consumable endpoint that,
   after the operator authenticates, returns a forwardable operator bearer (or accepts an OIDC bearer
