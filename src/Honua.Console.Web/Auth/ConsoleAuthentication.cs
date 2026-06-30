@@ -104,6 +104,16 @@ public static class ConsoleAuthentication
         builder.Services.AddHttpContextAccessor();
         builder.Services.TryAddSingleton<IConsoleOperatorContext, ConsoleOperatorContext>();
 
+        // Fail-closed-by-construction operator accessor (honua-console#254). Unlike the singleton
+        // IConsoleOperatorContext + process-static ambient key (which represents "no operator" as the
+        // shared __anonymous__ sentinel and so can silently fail open), this is a per-circuit/per-request
+        // SCOPED service that reads the scope's OWN authoritative identity (HttpContext.User for requests,
+        // the circuit AuthenticationStateProvider for interactive circuits). Server-bound call sites take
+        // it explicitly and treat an unresolved operator as a hard deny — there is no ambient fallback.
+        // The map-proxy BFF endpoints (the highest-risk "acts with honua-server privileges" surface) are
+        // converted to this seam; the broad typed-client surface is tracked as honua-console#254 follow-up.
+        builder.Services.AddScoped<IConsoleOperatorScope, ConsoleOperatorScope>();
+
         // Blazor Server interactive rendering has NO HttpContext: component code and the singleton
         // honua-server clients' binding handler run on the circuit, so the operator key cannot be resolved
         // from HttpContext.User there (honua-console#256). This circuit handler reads the circuit's

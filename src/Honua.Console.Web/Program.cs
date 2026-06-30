@@ -134,14 +134,19 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         int layerId,
         HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
+        Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
         Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
         Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         // The endpoint acts with honua-server privileges, so it requires an authenticated operator
-        // (honua-console#233/#210). The host's fail-closed fallback policy already gates this, but the
-        // explicit check keeps the 401 contract for the browser fetch even if route metadata changes.
-        if (httpContext.User?.Identity?.IsAuthenticated != true)
+        // (honua-console#233/#210/#254). Fail-closed BY CONSTRUCTION: the operator is resolved from the
+        // request's scoped operator accessor, which reads HttpContext.User directly and has no shared
+        // ambient/anonymous fallback. A scope with no resolved operator yields null and cannot proceed
+        // past this point (the host fail-closed fallback policy is the defense-in-depth layer); the
+        // explicit deny keeps the 401 contract for the browser fetch even if route metadata changes.
+        var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
+        if (operatorIdentity is null)
         {
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
@@ -180,14 +185,19 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         int y,
         HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
+        Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
         Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
         Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         // The endpoint acts with honua-server privileges, so it requires an authenticated operator
-        // (honua-console#233/#210). The host's fail-closed fallback policy already gates this, but the
-        // explicit check keeps the 401 contract for the browser fetch even if route metadata changes.
-        if (httpContext.User?.Identity?.IsAuthenticated != true)
+        // (honua-console#233/#210/#254). Fail-closed BY CONSTRUCTION: the operator is resolved from the
+        // request's scoped operator accessor, which reads HttpContext.User directly and has no shared
+        // ambient/anonymous fallback. A scope with no resolved operator yields null and cannot proceed
+        // past this point (the host fail-closed fallback policy is the defense-in-depth layer); the
+        // explicit deny keeps the 401 contract for the browser fetch even if route metadata changes.
+        var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
+        if (operatorIdentity is null)
         {
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
@@ -247,14 +257,19 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         int? limit,
         HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
+        Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
         Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
         Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         // The endpoint acts with honua-server privileges, so it requires an authenticated operator
-        // (honua-console#233/#210). The host's fail-closed fallback policy already gates this, but the
-        // explicit check keeps the 401 contract for the browser fetch even if route metadata changes.
-        if (httpContext.User?.Identity?.IsAuthenticated != true)
+        // (honua-console#233/#210/#254). Fail-closed BY CONSTRUCTION: the operator is resolved from the
+        // request's scoped operator accessor, which reads HttpContext.User directly and has no shared
+        // ambient/anonymous fallback. A scope with no resolved operator yields null and cannot proceed
+        // past this point (the host fail-closed fallback policy is the defense-in-depth layer); the
+        // explicit deny keeps the 401 contract for the browser fetch even if route metadata changes.
+        var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
+        if (operatorIdentity is null)
         {
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
