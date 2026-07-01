@@ -124,6 +124,15 @@ public static class ConsoleAuthentication
             Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler,
             CircuitOperatorContextHandler>();
 
+        // honua-console#254: route the Family-A server-bound typed clients through IHttpClientFactory named
+        // clients whose handler chain fails closed for an unresolved operator on the privileged path (and
+        // keeps the /public + /ogc/styles surfaces anonymous by design). The typed-client registrations in
+        // AddHonuaConsoleShell obtain their HttpClient from the IHonuaServerBoundClientFactory registered
+        // here instead of building a self-contained per-client pooled handler; resolution is lazy, so this
+        // running after AddHonuaConsoleShell is fine. The native single-operator host does not register the
+        // factory and keeps the self-contained pooled client.
+        builder.Services.AddConsoleServerBoundClients();
+
         // Development testbed convenience: the browser host cannot create environment profiles (profile
         // creation runs on the native host), so seed + activate one from the configured server URL for
         // EACH operator's partition on first use. Mirrors the prior startup seed, but per-operator so it
