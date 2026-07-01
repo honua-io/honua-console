@@ -2,12 +2,6 @@ using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Shell.Models;
 
-public static class OperateMetricsRoutes
-{
-    public const string Root = "/operate";
-    public const string Metrics = "/operate/metrics";
-}
-
 /// <summary>
 /// One metrics sub-read carrying its own section status so the page degrades each
 /// metric independently (one unavailable metric must not blank the whole surface).
