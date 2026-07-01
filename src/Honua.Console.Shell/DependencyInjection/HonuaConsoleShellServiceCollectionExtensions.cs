@@ -146,14 +146,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey));
 
-        // The approval inbox (#193) is a thin projection over the first-class proposals API
-        // above. It surfaces the GIS-department work queue as one human-in-the-loop surface,
-        // classified by ticket type. No standing in-memory source is registered (Charter
-        // section 11); when no environment is connected the inbox renders the missing-binding
-        // state surfaced by the underlying proposals read.
+        // The approval inbox (#193) aggregates every proposal source into one GIS-department
+        // work queue, classified by ticket type. Per honua-server #1690's locked ownership split
+        // it merges TWO sources behind the shared IConsoleProposalSource seam: the honua-server
+        // proposals API (admin/deploy/metadata/seed) and the honua-devops console-bridge
+        // gitops/deliverable proposals. No standing in-memory source is registered (Charter
+        // section 11); when no source is reachable the inbox renders the missing-binding state
+        // surfaced by the primary (server) source's read.
+        //
+        // honua-devops does not expose a console-facing proposals endpoint yet (it is a CLI/MCP
+        // agent host; see IConsoleDevOpsProposalsClient), so the default devops client degrades
+        // gracefully to an empty allowed result — the seam and normalization are in place for the
+        // day that endpoint (or honua-server #1692's aggregating projection) lands.
+        services.TryAddSingleton<IConsoleDevOpsProposalsClient, UnavailableConsoleDevOpsProposalsClient>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, ServerConsoleProposalSource>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, DevOpsConsoleProposalSource>());
         services.TryAddSingleton<IConsoleApprovalInboxClient>(serviceProvider =>
-            new ConsoleApprovalInboxClient(
-                serviceProvider.GetRequiredService<IConsoleProposalsClient>()));
+            new ConsoleApprovalInboxClient(serviceProvider.GetServices<IConsoleProposalSource>()));
 
         // Server-version detection for the server-upgrade flow binds to the connected
         // honua-server's capability manifest (GET /api/v1/capabilities/manifest, the

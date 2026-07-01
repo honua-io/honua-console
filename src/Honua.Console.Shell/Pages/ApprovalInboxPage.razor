@@ -51,6 +51,7 @@
     else
     {
         var snapshot = _result.Value ?? ApprovalInboxSnapshot.Empty;
+        var multiSource = snapshot.PresentSources.Count > 1;
 
         <div class="approval-inbox-summary" role="status" aria-live="polite">
             <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
@@ -112,11 +113,18 @@
                                         class="approval-inbox-select"
                                         aria-pressed="@(IsSelected(item) ? "true" : "false")"
                                         data-proposal-id="@item.ProposalId"
+                                        data-proposal-source="@item.Source"
                                         @onclick="() => Select(item)">
                                     <span class="approval-inbox-row-head">
                                         <span class="console-chip approval-inbox-ticket" data-ticket-type="@item.TicketType">
                                             @ApprovalTicketPresentation.Label(item.TicketType)
                                         </span>
+                                        @if (multiSource)
+                                        {
+                                            <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">
+                                                @ConsoleProposalPresentation.SourceLabel(item.Source)
+                                            </span>
+                                        }
                                         <span class="console-status @ConsoleProposalPresentation.StatusClass(item.Proposal.Status)">
                                             @ConsoleProposalPresentation.StatusLabel(item.Proposal.Status)
                                         </span>

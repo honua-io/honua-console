@@ -28,6 +28,34 @@ public enum ConsoleProposalKind
 
     /// <summary>Data-import (ImportDataset GP job) surfaced as a proposal (honua-server #1630).</summary>
     DataImport,
+
+    /// <summary>A map deliverable the agent-first console proposes for authoring/publish (honua-devops deliverable lifecycle).</summary>
+    Map,
+
+    /// <summary>An analysis deliverable proposed for authoring/publish (honua-devops deliverable lifecycle).</summary>
+    Analysis,
+
+    /// <summary>A dashboard deliverable proposed for authoring/publish (honua-devops deliverable lifecycle).</summary>
+    Dashboard,
+
+    /// <summary>An app deliverable proposed for authoring/publish (honua-devops deliverable lifecycle).</summary>
+    App,
+}
+
+/// <summary>
+/// The system that owns a proposal in the aggregated approval inbox (issue #193). The console
+/// aggregates two sources on one surface (honua-server #1690's locked ownership split):
+/// honua-server owns admin/deploy/metadata/seed proposals; honua-devops owns gitops/infra and
+/// deliverable proposals via its console bridge. The source is a projection tag only — it never
+/// changes the fact that the owning system is the sole safety gate for approve/reject.
+/// </summary>
+public enum ConsoleProposalSource
+{
+    /// <summary>A honua-server-owned proposal (admin config / deploy / metadata release / seed / data import).</summary>
+    Server,
+
+    /// <summary>A honua-devops-owned proposal aggregated through the console-bridge gitops/deliverable contract.</summary>
+    DevOps,
 }
 
 /// <summary>
@@ -100,6 +128,13 @@ public sealed record ConsoleProposalSummary(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
+    /// <summary>
+    /// The system that owns this proposal (server vs devops-bridge). Defaults to
+    /// <see cref="ConsoleProposalSource.Server"/> so server projections carry the correct tag by
+    /// construction; the devops source sets <see cref="ConsoleProposalSource.DevOps"/>.
+    /// </summary>
+    public ConsoleProposalSource Source { get; init; } = ConsoleProposalSource.Server;
+
     /// <summary>Whether an operator can act on this proposal right now (approve / reject).</summary>
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
@@ -137,6 +172,9 @@ public sealed record ConsoleProposalDetail(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? ResolvedAt)
 {
+    /// <summary>The system that owns this proposal (server vs devops-bridge). See <see cref="ConsoleProposalSource"/>.</summary>
+    public ConsoleProposalSource Source { get; init; } = ConsoleProposalSource.Server;
+
     /// <summary>Whether an operator can act on this proposal right now (approve / reject).</summary>
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
@@ -157,7 +195,10 @@ public sealed record ConsoleProposalDetail(
         Summary,
         RiskLevel,
         CreatedAt,
-        UpdatedAt);
+        UpdatedAt)
+    {
+        Source = Source,
+    };
 }
 
 /// <summary>
@@ -204,6 +245,17 @@ public static class ConsoleProposalPresentation
         // The data-import GP job (honua-server #1630) may surface under any of these
         // server-emitted kind strings; the console parses the wire value (never prose).
         "dataimport" or "importdataset" or "import" => ConsoleProposalKind.DataImport,
+        // Deliverable-request kinds the agent-first console proposes (map / analysis /
+        // dashboard / app). These arrive from the honua-devops deliverable lifecycle bridge
+        // (and any server-emitted deliverable proposal); the console parses the wire value.
+        "map" => ConsoleProposalKind.Map,
+        "analysis" => ConsoleProposalKind.Analysis,
+        "dashboard" => ConsoleProposalKind.Dashboard,
+        "app" or "application" => ConsoleProposalKind.App,
+        // The honua-devops gitops proposal bridge emits kind "gitops-deploy"; it is a deploy
+        // of a target revision through the control plane, so it maps onto the Deploy kind (the
+        // ConsoleProposalSource.DevOps tag carries the gitops/infra provenance).
+        "gitopsdeploy" or "gitops" => ConsoleProposalKind.Deploy,
         _ => ConsoleProposalKind.Unknown,
     };
 
@@ -238,6 +290,10 @@ public static class ConsoleProposalPresentation
         ConsoleProposalKind.MetadataRelease => "Metadata release",
         ConsoleProposalKind.Seed => "Seed",
         ConsoleProposalKind.DataImport => "Data import",
+        ConsoleProposalKind.Map => "Map",
+        ConsoleProposalKind.Analysis => "Analysis",
+        ConsoleProposalKind.Dashboard => "Dashboard",
+        ConsoleProposalKind.App => "App",
         _ => "Unknown",
     };
 
@@ -283,6 +339,71 @@ public static class ConsoleProposalPresentation
         ConsoleProposalRisk.Medium => "console-state-warning",
         ConsoleProposalRisk.Low => "console-state-success",
         _ => "console-state-neutral",
+    };
+
+    /// <summary>
+    /// Whether a kind is a deliverable-request (map / analysis / dashboard / app) — the
+    /// artifacts the agent-first console proposes for authoring and publish. These get a
+    /// first-class deliverable card treatment alongside the data-import card.
+    /// </summary>
+    public static bool IsDeliverable(ConsoleProposalKind kind) => kind
+        is ConsoleProposalKind.Map
+        or ConsoleProposalKind.Analysis
+        or ConsoleProposalKind.Dashboard
+        or ConsoleProposalKind.App;
+
+    /// <summary>
+    /// The card kicker (eyebrow) for the approval panel, giving each first-class kind its own
+    /// treatment: the data-import card, a per-deliverable card, else the neutral review kicker.
+    /// </summary>
+    public static string CardKicker(ConsoleProposalKind kind) => kind switch
+    {
+        ConsoleProposalKind.DataImport => "Data import approval",
+        ConsoleProposalKind.Map => "Map request approval",
+        ConsoleProposalKind.Analysis => "Analysis request approval",
+        ConsoleProposalKind.Dashboard => "Dashboard request approval",
+        ConsoleProposalKind.App => "App request approval",
+        _ => "Proposal review",
+    };
+
+    /// <summary>
+    /// A CSS modifier class for the approval panel so each first-class kind can be styled
+    /// distinctly (the existing <c>is-data-import</c> treatment plus per-deliverable variants).
+    /// Returns <c>null</c> for kinds that use the neutral panel.
+    /// </summary>
+    public static string? CardVariantClass(ConsoleProposalKind kind) => kind switch
+    {
+        ConsoleProposalKind.DataImport => "is-data-import",
+        ConsoleProposalKind.Map => "is-deliverable is-deliverable-map",
+        ConsoleProposalKind.Analysis => "is-deliverable is-deliverable-analysis",
+        ConsoleProposalKind.Dashboard => "is-deliverable is-deliverable-dashboard",
+        ConsoleProposalKind.App => "is-deliverable is-deliverable-app",
+        _ => null,
+    };
+
+    /// <summary>The plan/diff section heading, made kind-appropriate for the first-class cards.</summary>
+    public static string PlanDiffHeading(ConsoleProposalKind kind) => kind switch
+    {
+        ConsoleProposalKind.DataImport => "Import plan & diff",
+        ConsoleProposalKind.Map => "Map plan & diff",
+        ConsoleProposalKind.Analysis => "Analysis plan & diff",
+        ConsoleProposalKind.Dashboard => "Dashboard plan & diff",
+        ConsoleProposalKind.App => "App plan & diff",
+        _ => "Plan & diff",
+    };
+
+    /// <summary>
+    /// The dry-run section heading. For a deliverable request the dry-run IS the rendered
+    /// preview of the artifact, so the section reads "Preview"; other kinds keep "Dry run".
+    /// </summary>
+    public static string PreviewHeading(ConsoleProposalKind kind) =>
+        IsDeliverable(kind) ? "Preview" : "Dry run";
+
+    /// <summary>Short, human label for a proposal source (server vs devops-bridge).</summary>
+    public static string SourceLabel(ConsoleProposalSource source) => source switch
+    {
+        ConsoleProposalSource.DevOps => "DevOps",
+        _ => "Server",
     };
 
     private static string Normalize(string? raw) => (raw ?? string.Empty)
