@@ -480,9 +480,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             // The per-layer style picker (#161, ADR-0048) binds the layer's styleId to the styles the server
             // advertises on the PUBLIC OGC API - Styles list (GET /ogc/styles). The admin key is forwarded
             // only if configured (harmless on the public read; future-proof if the surface is ever gated).
+            // It reads a public surface, so it uses the anonymous-capable client rather than failing closed
+            // for an unresolved operator (honua-console#254).
             services.TryAddSingleton<IHonuaOgcStylesClient>(serviceProvider =>
             {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
+                var httpClient = HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri);
                 return new HonuaOgcStylesHttpClient(
                     httpClient,
                     new HonuaOgcStylesClientOptions(baseUri, honuaServerAdminApiKey));
@@ -707,7 +709,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IHonuaConsoleContentClient>(serviceProvider =>
             {
-                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
+                // The catalog/content client serves BOTH authenticated operator reads AND the
+                // legitimately-anonymous /public open-data pages, so it uses the anonymous-capable client:
+                // the operator bearer is forwarded when resolved, but an anonymous visitor is tolerated by
+                // design (honua-console#254). It must NOT fail closed like the privileged surfaces.
+                var httpClient = HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri);
                 return new HonuaConsoleContentHttpClient(
                     httpClient,
                     new HonuaConsoleContentClientOptions(baseUri, honuaServerAdminApiKey));
