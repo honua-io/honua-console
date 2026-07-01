@@ -9388,6 +9388,24 @@ button.console-chip:focus-visible {
     }
 }
 
+/* Source attribution chip — shown on inbox rows only when the queue aggregates more than one
+   proposal source (server + honua-devops gitops/deliverable proposals, #193). */
+.approval-inbox-source {
+    background: rgb(15 118 110 / 8%);
+    border-color: rgb(15 118 110 / 24%);
+}
+
+/* First-class approval-card treatments (#193): the data-import card and the per-deliverable
+   (map / analysis / dashboard / app) cards lead with a left accent so each kind reads distinctly,
+   consistent with one panel family. */
+.proposal-approval-panel.is-data-import {
+    box-shadow: inset 4px 0 0 var(--honua-accent);
+}
+
+.proposal-approval-panel.is-deliverable {
+    box-shadow: inset 4px 0 0 #6d28d9;
+}
+
 /* ── Console home — information + approval landing (#193) ───────────────────
    The home/landing is no longer a dead link grid: it leads with the approval
    inbox summary (pending work) and recent activity, then the area work surfaces. */

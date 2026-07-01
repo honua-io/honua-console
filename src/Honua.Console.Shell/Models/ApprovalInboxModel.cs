@@ -25,6 +25,9 @@ public enum ApprovalTicketType
 
     /// <summary>An access / configuration change (RBAC, identity, server/service settings).</summary>
     AccessConfig,
+
+    /// <summary>A deliverable request — an agent-proposed map / analysis / dashboard / app to author and publish.</summary>
+    Deliverable,
 }
 
 /// <summary>
@@ -41,6 +44,7 @@ public static class ApprovalTicketPresentation
         ApprovalTicketType.DataImport => "Import data",
         ApprovalTicketType.ServerUpgrade => "Server upgrade",
         ApprovalTicketType.AccessConfig => "Access / config",
+        ApprovalTicketType.Deliverable => "Deliverable request",
         _ => "Other",
     };
 
@@ -55,6 +59,8 @@ public static class ApprovalTicketPresentation
             "Upgrade (or roll back) the target Honua server version through a governed deploy operation.",
         ApprovalTicketType.AccessConfig =>
             "Change access, identity, or server/service configuration through a governed admin operation.",
+        ApprovalTicketType.Deliverable =>
+            "Author and publish an agent-proposed deliverable — a map, analysis, dashboard, or app — reviewing the plan, preview, and risk before it runs.",
         _ => "Agent-proposed operations that do not map onto a known GIS-desk ticket type.",
     };
 
@@ -72,6 +78,10 @@ public static class ApprovalTicketPresentation
         ConsoleProposalKind.DataImport => ApprovalTicketType.DataImport,
         ConsoleProposalKind.Deploy => ApprovalTicketType.ServerUpgrade,
         ConsoleProposalKind.AdminConfigChange => ApprovalTicketType.AccessConfig,
+        ConsoleProposalKind.Map => ApprovalTicketType.Deliverable,
+        ConsoleProposalKind.Analysis => ApprovalTicketType.Deliverable,
+        ConsoleProposalKind.Dashboard => ApprovalTicketType.Deliverable,
+        ConsoleProposalKind.App => ApprovalTicketType.Deliverable,
         _ => ApprovalTicketType.Other,
     };
 }
@@ -89,6 +99,9 @@ public sealed record ApprovalInboxItem(
 {
     /// <summary>The durable server proposal id for this work item.</summary>
     public string ProposalId => Proposal.ProposalId;
+
+    /// <summary>The system that owns this work item (server vs devops-bridge).</summary>
+    public ConsoleProposalSource Source => Proposal.Source;
 
     /// <summary>Whether an operator can act on this item right now (approve / reject).</summary>
     public bool IsAwaitingApproval => Proposal.IsAwaitingApproval;
@@ -117,4 +130,8 @@ public sealed record ApprovalInboxSnapshot(IReadOnlyList<ApprovalInboxItem> Item
     /// <summary>The items for one ticket type (used by the filter rail).</summary>
     public IReadOnlyList<ApprovalInboxItem> ForTicketType(ApprovalTicketType type) =>
         Items.Where(item => item.TicketType == type).ToArray();
+
+    /// <summary>The distinct proposal sources present in the snapshot, in source order.</summary>
+    public IReadOnlyList<ConsoleProposalSource> PresentSources =>
+        Items.Select(item => item.Source).Distinct().OrderBy(source => (int)source).ToArray();
 }
