@@ -56,6 +56,7 @@ public sealed class OperateTemporalPageRenderTests
         // Register exactly what the merged build registers — the unsupported client — and prove the page
         // renders the capability explanation rather than an empty viewer, with no fabricated source rows.
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<OperateTemporalPage>();
 
@@ -552,6 +553,7 @@ public sealed class OperateTemporalPageRenderTests
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(client);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateTemporalPage>();
     }
 

@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
+@inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 
 <div class="console-shell">
     @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has(). *@
@@ -44,7 +45,7 @@
         @if (ShowOperateNavigation)
         {
             <nav class="console-nav console-nav-secondary" aria-label="Operate sections">
-                @foreach (var (path, label, icon) in OperateSections)
+                @foreach (var (path, label, icon) in VisibleOperateSections)
                 {
                     <NavLink href="@path" Match="NavLinkMatch.Prefix" title="@label">
                         <span class="console-nav-icon">@Icon(icon)</span>
@@ -91,6 +92,16 @@
 @code {
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
+
+    // Capability-gated depth surfaces (first-release cut-line) are hidden from the Operate nav until the
+    // deployment advertises the capability, so the rail never links to a surface that only renders the
+    // "unsupported" state. The gated page still renders that first-class state if reached by URL.
+    private IEnumerable<(string Path, string Label, string Icon)> VisibleOperateSections =>
+        OperateSections.Where(section => section.Path switch
+        {
+            "/operate/temporal" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal),
+            _ => true,
+        });
 
     // Resource-first IA (redesign §5.1): the Resources/Services/Layers trio collapses into one
     // "Data & Layers" treeview spine; Connections move under it as the data-source sub-section.

@@ -35,6 +35,7 @@ public sealed class OperateSyncPageRenderTests
     {
         using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<OperateSyncPage>();
 
@@ -86,6 +87,7 @@ public sealed class OperateSyncPageRenderTests
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(client);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateSyncPage>();
     }
 

@@ -19,11 +19,21 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaLlmBaseUrl = null,
         string? honuaLlmModel = null,
         string? honuaLlmApiKey = null,
-        string? honuaSupportKbPath = null)
+        string? honuaSupportKbPath = null,
+        string? honuaConsoleAdvertisedCapabilities = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+
+        // Capability-manifest gate for the deferred "exotic depth" surfaces (first-release cut-line,
+        // docs/roadmap/FIRST_RELEASE_STRATEGY_AND_CUT_LINE.md). The advertised set is empty by default,
+        // so temporal / disconnected-sync / realtime-alerting / cross-environment-promotion /
+        // siem-investigations render the first-class "unsupported" state until the deployment opts them
+        // in via Honua:Console:Capabilities. This is the interim source; the honua-server
+        // capability-manifest document feeds the same seam once its full-document consumption lands.
+        services.TryAddSingleton<IConsoleCapabilityManifest>(
+            _ => ConsoleCapabilityManifest.FromConfigurationList(honuaConsoleAdvertisedCapabilities));
 
         // Shell-owned toast/notification surface. Scoped = one queue per Blazor circuit so a toast a
         // page raises is shown only to that connected user. The single ConsoleNotificationHost in

@@ -29,6 +29,9 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+        // Advertise the gated capability so the missing-binding invariant under test is reached (the
+        // capability-manifest gate otherwise renders the "unsupported" state first).
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<OperateTemporalPage>();
 
@@ -69,6 +72,9 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
         ctx.Services.AddSingleton<IConsoleServerVersionClient>(new UnsupportedConsoleServerVersionClient());
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(new UnboundReleaseClient());
+        // The server-version upgrade card asserted below is ungated (operate floor); advertise the gated
+        // cross-environment-promotion capability so the manifest gate resolves and the page renders.
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<OperateDeployPage>();
 

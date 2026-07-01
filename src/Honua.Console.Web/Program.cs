@@ -31,7 +31,11 @@ builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Llm:BaseUrl"] ?? builder.Configuration["HONUA_LLM_BASE_URL"],
     builder.Configuration["Honua:Llm:Model"] ?? builder.Configuration["HONUA_LLM_MODEL"],
     builder.Configuration["Honua:Llm:ApiKey"] ?? builder.Configuration["HONUA_LLM_API_KEY"],
-    builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"]);
+    builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"],
+    // Deferred exotic-depth capabilities advertised for this release (first-release cut-line). Empty
+    // by default: temporal / disconnected-sync / realtime-alerting / cross-environment-promotion /
+    // siem-investigations render the first-class "unsupported" state until opted in here.
+    builder.Configuration["Honua:Console:Capabilities"] ?? builder.Configuration["HONUA_CONSOLE_CAPABILITIES"]);
 
 // Operator authentication (honua-console#233): fail-closed cookie/edge auth + RequireAuthenticatedUser
 // fallback policy so no Console route is reachable anonymously. See ConsoleAuthentication for the model.
