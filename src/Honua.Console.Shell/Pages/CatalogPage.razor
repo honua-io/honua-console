@@ -71,24 +71,27 @@
             <button class="console-button" type="submit">Search</button>
         </form>
 
-        <div class="console-result-toolbar" role="status">
-            <span class="console-result-count">@(_result?.Items.Count ?? 0) items shown</span>
-        </div>
+        @if (_result is null || _result.Succeeded)
+        {
+            <div class="console-result-toolbar" role="status">
+                <span class="console-result-count">@(_result?.Items.Count ?? 0) items shown</span>
+            </div>
 
-        <nav class="console-type-strip" aria-label="Catalog content types">
-            <a class="@TypeStripClass(string.Empty)" href="@BuildTypeHref(string.Empty)">
-                <span>All</span>
-                <small>@(_result?.Items.Count ?? 0)</small>
-            </a>
-            @foreach (var type in CatalogContentTypes.All)
-            {
-                <a class="@TypeStripClass(type.Key)" href="@BuildTypeHref(type.Key)" title="@type.Description">
-                    <span class="console-type-glyph" aria-hidden="true">@type.Glyph</span>
-                    <span>@type.Label</span>
-                    <small>@TypeCount(type.Key)</small>
+            <nav class="console-type-strip" aria-label="Catalog content types">
+                <a class="@TypeStripClass(string.Empty)" href="@BuildTypeHref(string.Empty)">
+                    <span>All</span>
+                    <small>@(_result?.Items.Count ?? 0)</small>
                 </a>
-            }
-        </nav>
+                @foreach (var type in CatalogContentTypes.All)
+                {
+                    <a class="@TypeStripClass(type.Key)" href="@BuildTypeHref(type.Key)" title="@type.Description">
+                        <span class="console-type-glyph" aria-hidden="true">@type.Glyph</span>
+                        <span>@type.Label</span>
+                        <small>@TypeCount(type.Key)</small>
+                    </a>
+                }
+            </nav>
+        }
     }
 
     @if (!_accessResolved)
@@ -102,6 +105,10 @@
     else if (_result is null)
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Loading catalog" Message="Catalog summaries are loading." />
+    }
+    else if (!_result.Succeeded)
+    {
+        <ConsoleStateView Kind="error" Kicker="Catalog unavailable" Title="Catalog could not load" Message="@CatalogErrorMessage()" ActionHref="@Navigation.Uri" ActionLabel="Retry" />
     }
     else if (_result.Items.Count == 0)
     {
@@ -215,6 +222,11 @@
 
     private int TypeCount(string type) =>
         _result?.TypeCounts.GetValueOrDefault(type) ?? 0;
+
+    private string CatalogErrorMessage() =>
+        string.IsNullOrWhiteSpace(_result?.FailureMessage)
+            ? "The catalog could not be loaded from the server. This is a read failure, not an empty catalog — retry once the server is reachable."
+            : _result!.FailureMessage;
 
     private string BuildSignInHref()
     {

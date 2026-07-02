@@ -37,7 +37,37 @@ public interface IConsoleCatalogClient
 public sealed record CatalogSearchResult(
     IReadOnlyList<ConsoleContentSummary> Items,
     IReadOnlyDictionary<string, int> TypeCounts,
-    CatalogListRequest Request);
+    CatalogListRequest Request)
+{
+    /// <summary>
+    /// Read status for the search. <see cref="CatalogReadStatus.Allowed"/> means the search ran — even if it
+    /// returned zero items, which is a genuine empty catalog. Any other value means the search FAILED against
+    /// the server (outage/timeout/permission/contract error) and <see cref="Items"/> is empty because the read
+    /// could not complete, not because the catalog is empty. The Catalog page renders a distinct error/retry
+    /// state for the failed case so a live-server failure is never shown as a successful empty catalog
+    /// (issue #272).
+    /// </summary>
+    public CatalogReadStatus Status { get; init; } = CatalogReadStatus.Allowed;
+
+    /// <summary>Operator-facing failure detail when <see cref="Status"/> is not Allowed; empty on success.</summary>
+    public string FailureMessage { get; init; } = string.Empty;
+
+    /// <summary>True when the search ran successfully (including a genuine empty catalog with zero items).</summary>
+    public bool Succeeded => Status == CatalogReadStatus.Allowed;
+
+    /// <summary>
+    /// A typed failure result: an empty item set carrying the server read status/detail so the page can tell a
+    /// failed read apart from a genuine empty catalog. Mirrors <c>CatalogItemReadResult.Denied</c> for the
+    /// item/map read paths. A non-failure <paramref name="status"/> is coerced to
+    /// <see cref="CatalogReadStatus.Unavailable"/> so a failed result is never mistaken for success.
+    /// </summary>
+    public static CatalogSearchResult Failed(CatalogListRequest request, CatalogReadStatus status, string message) =>
+        new([], new Dictionary<string, int>(StringComparer.Ordinal), request)
+        {
+            Status = status == CatalogReadStatus.Allowed ? CatalogReadStatus.Unavailable : status,
+            FailureMessage = message
+        };
+}
 
 public sealed record CatalogReadContext
 {
