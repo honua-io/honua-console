@@ -193,6 +193,14 @@ public static class ConsoleAuthentication
                     IsPersistent = true,
                     ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
                 }).ConfigureAwait(false);
+                // SignInAsync only writes the auth cookie to the RESPONSE; it does not re-authenticate
+                // HttpContext.User for THIS request. The operator-partitioned profile write below
+                // (bridge.SyncAsync -> OperatorScopedEnvironmentProfileStore.CurrentForWrite ->
+                // IConsoleOperatorContext.RequireOperatorKey) resolves the operator from HttpContext.User
+                // on this same request and fails closed with ConsoleOperatorContextUnresolvedException when
+                // it is still anonymous. Set the principal on the request so the operator is resolvable now
+                // (honua-console#256; the cookie/edge branches already arrive with User populated).
+                context.User = principal;
                 await bridge.SyncAsync(principal, cancellationToken).ConfigureAwait(false);
                 return Results.Redirect(returnTo);
             }
