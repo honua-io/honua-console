@@ -101,10 +101,21 @@ jobs:
       # would make this PR lane red for a server-side reason unrelated to the
       # Console Studio wiring. Re-add the Native.Core step here once that server
       # fixture 500 is fixed.
+      # Two classes are structurally incompatible with THIS lane (opt-in env SET,
+      # connect-only HTTP image) and are excluded so they don't red the lane for
+      # reasons unrelated to Studio wiring — they still run where they belong:
+      #   - ConsoleEndToEndSmokeHarnessTests: asserts the *absent*-opt-in-env
+      #     clean-skip contract, so it only holds on the standard ci.yml runner
+      #     (with the flag SET it throws SkipException = fail here).
+      #   - ConsoleTrustValidationIntegrationTests: mTLS/TLS fingerprint trust
+      #     validation that requires an HTTPS server; the connect-only image
+      #     serves plain HTTP, so it cannot observe a certificate fingerprint.
+      #     Covered by the HTTPS-capable nightly lane instead.
       - name: Run Console integration live-server suites (Studio + form builder + smoke)
         run: |
           dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj \
             --no-restore --nologo --verbosity normal \
+            --filter "FullyQualifiedName!~ConsoleEndToEndSmokeHarnessTests&FullyQualifiedName!~ConsoleTrustValidationIntegrationTests" \
             --logger "trx;LogFileName=integration.trx" \
             --results-directory artifacts/test-results/integration
 
