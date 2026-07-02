@@ -1,7 +1,11 @@
 @page "/operate/alerts/rules/{RuleId}"
 @using Honua.Console.Shell.Components
 @inject IOperateAlertRulesDataSource RulesData
+@inject IConsoleCapabilityManifest Capabilities
 
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.RealtimeAlerting"
+                       Title="Realtime / geofence alerting is not available in this release"
+                       Message="Realtime, geofence, threshold, and dwell alert-rule authoring is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page operate-alert-rule" data-alert-rule-detail="@RuleId">
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow / Alert rules</p>
@@ -127,6 +131,7 @@
         </article>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     [Parameter]
@@ -151,6 +156,14 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        // Capability-manifest gate: when realtime/geofence alerting is not advertised for this release
+        // the page renders the first-class "unsupported" state, so skip the server read entirely.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
+        {
+            _loading = false;
+            return;
+        }
+
         _loading = true;
         _saveResult = null;
         _view = await RulesData.GetRuleAsync(RuleId);

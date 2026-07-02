@@ -760,6 +760,10 @@ public sealed class ConsoleOperateObservabilityClientTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton<IConsoleOperateObservabilityClient>(new RenderingOperateClient());
+        // The investigations section is capability-gated (first-release cut-line); advertise it so the
+        // full-page live-data render under test exercises that surface.
+        services.AddSingleton<IConsoleCapabilityManifest>(
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
@@ -786,6 +790,10 @@ public sealed class ConsoleOperateObservabilityClientTests
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton<IConsoleOperateObservabilityClient>(new RenderingOperateClient());
+        // The investigations section is capability-gated (first-release cut-line); advertise it so the
+        // full-page live-data render under test exercises that surface.
+        services.AddSingleton<IConsoleCapabilityManifest>(
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
         var provider = services.BuildServiceProvider();
 
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
