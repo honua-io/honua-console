@@ -3,6 +3,7 @@
 @page "/operate/alerts/{SelectedAlertId}"
 @page "/operate/jobs/{SelectedJobRunId}"
 @inject IConsoleOperateObservabilityClient OperateClient
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page console-operate-page">
     <div class="console-page-heading operate-heading">
@@ -21,7 +22,10 @@
         <a href="#alerts">Alerts</a>
         <a href="#rules">Rules</a>
         <a href="#jobs">Jobs</a>
-        <a href="#investigations">Investigations</a>
+        @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
+        {
+            <a href="#investigations">Investigations</a>
+        }
     </nav>
 
     <section class="operate-summary-grid" aria-label="Operate summary">
@@ -458,7 +462,13 @@
                             <dd>@string.Join(", ", selectedAlert.AffectedResources)</dd>
                         </dl>
                         <EvidenceList Heading="Raw alert evidence" Items="selectedAlert.EvidenceLinks" />
-                        <AiAdvisoryPanel Advisory="selectedAlert.AiAdvisory" />
+                        @* AI DevOps advisory is capability-gated depth (first-release cut-line): hidden
+                           until the deployment advertises siem-investigations. The raw evidence above
+                           stays live (operate floor). *@
+                        @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
+                        {
+                            <AiAdvisoryPanel Advisory="selectedAlert.AiAdvisory" />
+                        }
 
                         <section class="operate-evidence-section">
                             <h4>Lifecycle actions</h4>
@@ -703,6 +713,12 @@
         }
     </section>
 
+    @* SIEM / investigations is capability-gated depth (first-release cut-line): renders the first-class
+       "unsupported" state until the deployment advertises siem-investigations. Fleet/events/logs/alerts/
+       rules/jobs above stay live (operate floor). *@
+    <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.SiemInvestigations"
+                           Title="Investigations are not available in this release"
+                           Message="Full SIEM / investigations and AI DevOps advisory over Operate event volume is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
     <section id="investigations" class="operate-section" aria-labelledby="investigations-heading">
         <div class="operate-section-heading">
             <div>
@@ -773,6 +789,7 @@
             </div>
         }
     </section>
+    </ConsoleCapabilityGate>
 </section>
 
 @code {

@@ -1,12 +1,16 @@
 @page "/operate/alerts/rules"
 @using Honua.Console.Shell.Components
 @inject IOperateAlertRulesDataSource RulesData
+@inject IConsoleCapabilityManifest Capabilities
 
 @* Realtime / geofence / threshold / dwell alert RULE list (UI-042; honua-server#1169). The rule
    DEFINITION surface, distinct from the firing-alert evidence detail at /operate/alerts/{alertId}.
    Bound to the alert rules data source; renders an honest missing-binding capability state until the
    server rule definition contract lands (Console Patterns Charter section 11). *@
 
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.RealtimeAlerting"
+                       Title="Realtime / geofence alerting is not available in this release"
+                       Message="Realtime, geofence, threshold, and dwell alert-rule authoring is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page operate-alert-rules" data-alert-rules="list">
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow</p>
@@ -74,6 +78,7 @@
         </section>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private bool _loading = true;
@@ -81,6 +86,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Capability-manifest gate: when realtime/geofence alerting is not advertised for this release
+        // the page renders the first-class "unsupported" state, so skip the server read entirely.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
+        {
+            _loading = false;
+            return;
+        }
+
         _loading = true;
         _view = await RulesData.GetRulesAsync();
         _loading = false;

@@ -21,6 +21,7 @@ public sealed class OperateObservabilityPageRenderTests
     public void EventDeepLink_WhenEventPageEmpty_StillRendersMissingDetailSurface()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
 
         var page = ctx.Render<OperateObservabilityPage>(parameters =>
@@ -44,6 +45,7 @@ public sealed class OperateObservabilityPageRenderTests
     public void AlertDeepLink_WhenAlertPageEmpty_StillRendersMissingDetailSurface()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient());
 
         var page = ctx.Render<OperateObservabilityPage>(parameters =>
@@ -71,6 +73,7 @@ public sealed class OperateObservabilityPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(stub);
         // The unified job-run deep link also embeds the workflow job-evidence panel, which binds
         // IStudioWorkflowPackageClient. The unsupported client returns null evidence (missing-binding).
@@ -105,6 +108,7 @@ public sealed class OperateObservabilityPageRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(stub);
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
 

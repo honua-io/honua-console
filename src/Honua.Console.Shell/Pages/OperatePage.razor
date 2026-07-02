@@ -1,5 +1,6 @@
 @page "/operate"
 @inject IOperateTransitionDataSource OperateData
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -71,35 +72,47 @@
                 <p class="console-muted">Preview apply scope, policy requirements, and restart impact for settings changes.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/temporal">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Temporal</p>
-                        <h2>History And Sync Review</h2>
+            @* Capability-gated depth (first-release cut-line): these hub cards are hidden until the
+               deployment advertises the capability, so the hub never routes to a surface that only
+               renders the "unsupported" state. The gated page still renders that state if reached by URL. *@
+            @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal))
+            {
+                <a class="console-panel console-area-link" href="/operate/temporal">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Temporal</p>
+                            <h2>History And Sync Review</h2>
+                        </div>
                     </div>
-                </div>
-                <p class="console-muted">Browse temporal data history, compare now-vs-as-of states, plan governed rollbacks, and review disconnected replica sync conflicts where the source supports it.</p>
-            </a>
+                    <p class="console-muted">Browse temporal data history, compare now-vs-as-of states, plan governed rollbacks, and review disconnected replica sync conflicts where the source supports it.</p>
+                </a>
+            }
 
-            <a class="console-panel console-area-link" href="/operate/sync">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Sync</p>
-                        <h2>Disconnected Sync Review</h2>
+            @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync))
+            {
+                <a class="console-panel console-area-link" href="/operate/sync">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Sync</p>
+                            <h2>Disconnected Sync Review</h2>
+                        </div>
                     </div>
-                </div>
-                <p class="console-muted">Review disconnected replica conflicts, compare base, client, and server revisions, and commit governed resolutions where the source supports it.</p>
-            </a>
+                    <p class="console-muted">Review disconnected replica conflicts, compare base, client, and server revisions, and commit governed resolutions where the source supports it.</p>
+                </a>
+            }
 
-            <a class="console-panel console-area-link" href="/operate/alerts/rules">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Alerts</p>
-                        <h2>Alert Rules</h2>
+            @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
+            {
+                <a class="console-panel console-area-link" href="/operate/alerts/rules">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Alerts</p>
+                            <h2>Alert Rules</h2>
+                        </div>
                     </div>
-                </div>
-                <p class="console-muted">Author and review realtime, geofence, threshold, and dwell alert rules and their delivery channels.</p>
-            </a>
+                    <p class="console-muted">Author and review realtime, geofence, threshold, and dwell alert rules and their delivery channels.</p>
+                </a>
+            }
 
             <a class="console-panel console-area-link" href="/operate/releases">
                 <div class="console-panel-heading">
