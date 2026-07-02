@@ -4,7 +4,11 @@
 @using Honua.Console.Shell.Services
 @using Honua.Console.Shell.Validation
 @inject ITemporalCapabilityClient TemporalData
+@inject IConsoleCapabilityManifest Capabilities
 
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.Temporal"
+                       Title="Temporal is not available in this release"
+                       Message="Temporal 'git over data' — as-of, diff, governed rollback, and feature history — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page operate-temporal" data-temporal-viewer="capability-gate">
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow</p>
@@ -169,6 +173,7 @@
         }
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private bool _loading = true;
@@ -230,6 +235,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Capability-manifest gate: when temporal is not advertised for this release the page renders
+        // the first-class "unsupported" state, so skip the server read entirely.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal))
+        {
+            _loading = false;
+            return;
+        }
+
         _loading = true;
         _workspace = await TemporalData.GetWorkspaceAsync();
         ApplyStates(_workspace.CapabilityStates);

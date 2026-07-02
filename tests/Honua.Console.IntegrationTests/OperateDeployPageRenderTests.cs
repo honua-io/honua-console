@@ -29,6 +29,7 @@ public sealed class OperateDeployPageRenderTests
                 OperateSectionStatus.Unavailable,
                 "No active environment profile is selected."));
         ctx.Services.AddSingleton(releaseClient ?? new EmptyReleaseClient());
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx;
     }
 

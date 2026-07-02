@@ -1,0 +1,37 @@
+@inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
+
+@* Capability-manifest gate (first-release cut-line). Renders its children only when the connected
+   deployment advertises the named capability; otherwise it renders the first-class "unsupported"
+   state so a deferred exotic-depth surface never shows dead/live UI. Absent from the manifest ->
+   unsupported; advertised later -> lights up with no re-architecture. *@
+@if (Capabilities.IsAdvertised(Capability))
+{
+    @ChildContent
+}
+else
+{
+    <ConsoleStateView Kind="unsupported"
+                      Kicker="@Kicker"
+                      Title="@Title"
+                      Message="@Message" />
+}
+
+@code {
+    /// <summary>The capability key to gate on (see <c>ConsoleCapabilityKeys</c>).</summary>
+    [Parameter]
+    [EditorRequired]
+    public string Capability { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string Kicker { get; set; } = "Not in this release";
+
+    [Parameter]
+    public string Title { get; set; } = "Capability not available in this release";
+
+    [Parameter]
+    public string Message { get; set; } =
+        "This capability is deferred for the current release and is not advertised by the connected environment. It lights up here once the capability is enabled for your account.";
+}
