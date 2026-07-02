@@ -101,6 +101,7 @@ public sealed class StudioMapPublishRoundTripTests
 
         // --- Console reflection: the builder page renders the live data source, not the missing-binding state. ---
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(source);
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
