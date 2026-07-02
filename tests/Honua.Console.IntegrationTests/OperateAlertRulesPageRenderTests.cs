@@ -36,6 +36,7 @@ public sealed class OperateAlertRulesPageRenderTests
     {
         using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<OperateAlertRulesPage>();
 
@@ -74,6 +75,7 @@ public sealed class OperateAlertRulesPageRenderTests
     {
         using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
         var page = ctx.Render<OperateAlertRuleDetailPage>(parameters =>
             parameters.Add(p => p.RuleId, "rule-1"));
@@ -101,6 +103,7 @@ public sealed class OperateAlertRulesPageRenderTests
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(data);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateAlertRulesPage>();
     }
 
@@ -108,6 +111,7 @@ public sealed class OperateAlertRulesPageRenderTests
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(data);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateAlertRuleDetailPage>(parameters => parameters.Add(p => p.RuleId, ruleId));
     }
 

@@ -227,26 +227,6 @@ Renders warnings and validation items with severity-based CSS classes
 
 Events: none.
 
-### `<StudioPackageEditor>`
-
-Source: `Components/StudioPackageEditor.razor`.
-
-The Console-native Studio package editor for the seven package families
-(`honua-console#39`). It renders a family-specific field set (query,
-analysis, map, dashboard/report, form, app), a validation/preview pair,
-editor-coverage, publish-review, lifecycle controls, and a live package
-JSON inspector. Publish is gated on the family's publication readiness
-(e.g. offline/sync policy review for forms). Lifecycle and bindings use
-stable mock refs until shared content/version/publication contracts land
-(see [`docs/studio/package-editor-routes.md`](../studio/package-editor-routes.md)).
-
-| Parameter | Type | Default | Notes |
-|---|---|---|---|
-| `Editor` | `StudioPackageEditorDefinition` | (required) | `[Parameter, EditorRequired]`. Drives display name, package/content type, family-specific section switch, validation checks, preview panels, required editors, publish-review items, and the offline-policy publish gate. |
-
-Events: none (lifecycle/validation/preview actions are internal
-`@onclick` handlers, not exposed as `EventCallback` parameters).
-
 ### `<WorkflowAreaPage>`
 
 Source: `Components/WorkflowAreaPage.razor`.

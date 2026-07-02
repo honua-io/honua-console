@@ -1,17 +1,11 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>
-/// Route + view models for the Operate resource-presentation style editor
-/// (<c>/operate/layers/{id}/style</c>, UI-032): per-publication-slot style and popup OVERRIDES on a layer's
-/// exposures. Distinct from the Studio-scoped style editor (<c>/studio/styles</c>), which authors the
-/// canonical OGC API styles. The base style read reuses the real <c>/ogc/styles</c> list; the per-slot
-/// override read/write is server-owned and renders a missing-binding state until that contract lands
-/// (Console Patterns Charter section 11).
-/// </summary>
-public static class OperateLayerStyleRoutes
-{
-    public static string Style(string resourceId) => $"/operate/layers/{Uri.EscapeDataString(resourceId)}/style";
-}
+// View models for the Operate resource-presentation style editor
+// (/operate/layers/{id}/style, UI-032): per-publication-slot style and popup OVERRIDES on a layer's
+// exposures. Distinct from the Studio-scoped style editor (/studio/styles), which authors the
+// canonical OGC API styles. The base style read reuses the real /ogc/styles list; the per-slot
+// override read/write is server-owned and renders a missing-binding state until that contract lands
+// (Console Patterns Charter section 11).
 
 /// <summary>Neutral binding/capability state for the per-slot presentation override surface.</summary>
 public sealed record OperateLayerStyleBindingState(string Surface, string State, string Contract, string Detail)
