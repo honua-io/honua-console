@@ -139,9 +139,41 @@ public sealed class CatalogServerBindingRenderTests
     }
 
     [Fact]
-    public void Catalog_WhenServerUnavailable_RendersEmptySurfaceNotMockData()
+    public void Catalog_WhenServerUnavailable_RendersErrorRetryState_NotEmptyCatalog()
     {
+        // Regression for issue #272: a live-server failure must render a distinct error/retry state, NOT the
+        // genuine empty-catalog "publish the first item" surface (a silent failure shown as success).
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        using var ctx = new Bunit.BunitContext();
+        RegisterCatalog(ctx, handler, anonymous: false);
+
+        var page = ctx.Render<CatalogPage>();
+
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(page.FindAll("section.console-state-error")),
+            TimeSpan.FromSeconds(5));
+        // The failed read renders the error/retry terminal state with a retry action.
+        Assert.Contains("Catalog could not load", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Retry", page.Markup, StringComparison.Ordinal);
+        // It must NOT masquerade as a successful empty catalog.
+        Assert.DoesNotContain("No content matched", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("publish the first item", page.Markup, StringComparison.OrdinalIgnoreCase);
+        // The misleading "0 items shown" / type-strip counters are suppressed on a failed read.
+        Assert.Empty(page.FindAll(".console-result-count"));
+        // The merged runtime never falls back to seeded demo content on a server failure.
+        Assert.DoesNotContain("Coastal Flood Service", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_WhenServerReturnsEmptyList_RendersEmptyCatalogState_NotError()
+    {
+        // The companion to the failure case: a SUCCESSFUL read that returns zero items is a genuine empty
+        // catalog and must still render the "publish the first item" empty surface, not the error state.
+        var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse
+        {
+            Total = 0,
+            Items = []
+        }));
         using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler, anonymous: false);
 
@@ -150,8 +182,10 @@ public sealed class CatalogServerBindingRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("No content matched", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        // The merged runtime never falls back to seeded demo content on a server failure.
-        Assert.DoesNotContain("Coastal Flood Service", page.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll("section.console-state-empty"));
+        // A genuine empty result is not an error.
+        Assert.Empty(page.FindAll("section.console-state-error"));
+        Assert.DoesNotContain("Catalog could not load", page.Markup, StringComparison.Ordinal);
     }
 
     private static void RegisterCatalog(Bunit.BunitContext ctx, StubHandler handler, bool anonymous)

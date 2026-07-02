@@ -150,15 +150,34 @@ public sealed class HonuaServerConsoleCatalogClientTests
     }
 
     [Fact]
-    public async Task Search_ServerUnavailable_ReturnsEmptyResultNotMockData()
+    public async Task Search_ServerUnavailable_ReturnsTypedFailureNotEmptyResult()
     {
+        // Regression for issue #272: a failed list read must surface a TYPED failure (Succeeded == false),
+        // not an empty-but-successful result that is indistinguishable from a genuine empty catalog.
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         var catalog = CreateCatalog(handler);
 
         var result = await catalog.SearchAsync(new CatalogListRequest(), CatalogReadContext.Authenticated);
 
+        Assert.False(result.Succeeded);
+        Assert.Equal(CatalogReadStatus.Unavailable, result.Status);
+        // Never fabricates content on failure.
         Assert.Empty(result.Items);
         Assert.Empty(result.TypeCounts);
+    }
+
+    [Fact]
+    public async Task Search_ServerReturnsEmptyList_ReturnsSuccessfulEmptyResult()
+    {
+        // The companion to the failure case: a successful read with zero items is a genuine empty catalog.
+        var handler = new RecordingHandler(_ => Envelope(new HonuaConsoleContentListResponse { Total = 0, Items = [] }));
+        var catalog = CreateCatalog(handler);
+
+        var result = await catalog.SearchAsync(new CatalogListRequest(), CatalogReadContext.Authenticated);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(CatalogReadStatus.Allowed, result.Status);
+        Assert.Empty(result.Items);
     }
 
     [Fact]

@@ -39,9 +39,12 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         var result = await _client.ListAsync(query, cancellationToken).ConfigureAwait(false);
         if (result.Data is null)
         {
-            // A missing-permission/unavailable/unsupported list read surfaces as an empty result set
-            // rather than fabricated content; the catalog page renders its empty/blocked state.
-            return new CatalogSearchResult([], new Dictionary<string, int>(StringComparer.Ordinal), request);
+            // Forward the server issue as a TYPED failure instead of collapsing to an empty result — an empty
+            // CatalogSearchResult here is indistinguishable from a genuine empty catalog and would hide a live
+            // server outage/timeout/permission failure behind the "publish the first item" empty state
+            // (issue #272). Mirrors GetCatalogItemAsync/ToItemFailure. The catalog page renders a distinct
+            // error/retry state for a failed read; never fabricated content.
+            return ToSearchFailure(result.Issue, request);
         }
 
         var summaries = (result.Data.Items ?? [])
@@ -212,6 +215,13 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         }
 
         return MapPackageReadResult.Allowed(ConsoleContentMapper.ToMapPackage(result.Data), anonymousRead: true);
+    }
+
+    private static CatalogSearchResult ToSearchFailure(HonuaAdminEndpointIssue? issue, CatalogListRequest request)
+    {
+        var status = ConsoleContentMapper.ToReadStatus(issue);
+        var message = issue?.Detail ?? UnsupportedConsoleCatalogClient.MissingBindingMessage;
+        return CatalogSearchResult.Failed(request, status, message);
     }
 
     private static CatalogItemReadResult ToItemFailure(HonuaAdminEndpointIssue? issue, string? notFoundMessage = null)
