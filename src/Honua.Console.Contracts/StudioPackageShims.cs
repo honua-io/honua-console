@@ -3,222 +3,37 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Honua.Sdk.Studio.Exceptions;
+using Honua.Sdk.Studio.Packages;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-sdk-dotnet#169): the honua-server Studio package lifecycle + validation/preview API
-// (#1180 commit 52202d7fc, #1181 commit 6d661afb8) is merged to honua-server trunk, but
-// honua-sdk-dotnet does not yet project these Studio DTOs (no consumable Honua.Sdk Studio package,
-// and honua-console wires no SDK NuGet feed). Per SDK_SHIM_POLICY.md the wire records and the thin
-// HTTP client live behind this single Console contracts boundary until honua-sdk-dotnet#169 publishes
-// the Studio projection and honua-console#7 swaps to SDK types. Do not add a sibling-repo
-// ProjectReference; do not mirror these DTOs anywhere else. The wire shape mirrors
-// honua-server/src/Honua.Core/Features/Studio/Domain/StudioPackageModels.cs + StudioPackageEnums.cs
-// (camelCase, string enums via [JsonStringEnumMemberName], null props omitted) and the shared
-// ApiResponse<T> envelope. See SDK_SHIM_POLICY "Active Shims".
+// D1 (#265): the honua-server Studio package lifecycle + validation/preview API is now projected by the
+// server-owned Honua.Sdk.Studio package. The duplicated wire DTOs that used to live here (the "5th
+// capability fork") are gone — the enums, domain DTOs, request bodies, and the ApiResponse<T> envelope
+// are consumed from Honua.Sdk.Studio.Packages via the global using aliases in StudioSdkAliases.cs, so the
+// existing DataSource/authoring-shell code keeps referencing the same simple names.
+//
+// What remains here is Console-only and has NO SDK equivalent:
+//   * the secret-safe draft LIST projection (StudioPackageDraftSummary / StudioPackageDraftListResponse),
+//     served by GET /api/v1/studio/package-drafts, which the SDK client does not expose;
+//   * the non-throwing StudioEndpointResult<T> / StudioEndpointIssue result envelope the DataSources depend
+//     on (missing-binding is a first-class state, so transport/HTTP failures must surface as a neutral issue
+//     rather than an exception); and
+//   * HttpStudioPackageLifecycleClient, now a THIN ADAPTER over the SDK's IHonuaStudioPackageClient: it
+//     delegates every lifecycle call to Honua.Sdk.Studio.Packages.HonuaStudioPackageClient and translates the
+//     SDK's throwing contract (HonuaStudioApiException / HonuaStudioContractException / transport faults) back
+//     into the console's result-envelope contract, preserving the Contract strings, State vocabulary,
+//     StatusCode, 409-conflict detection, and StudioValidationSummary diagnostics extraction unchanged.
 
-#region Enums (StudioPackageEnums.cs)
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioPackageFamily>))]
-public enum StudioPackageFamily
-{
-    [JsonStringEnumMemberName("query")] Query,
-    [JsonStringEnumMemberName("analysis")] Analysis,
-    [JsonStringEnumMemberName("map")] Map,
-    [JsonStringEnumMemberName("dashboard")] Dashboard,
-    [JsonStringEnumMemberName("report")] Report,
-    [JsonStringEnumMemberName("form")] Form,
-    [JsonStringEnumMemberName("app")] App,
-    [JsonStringEnumMemberName("workflow")] Workflow,
-    [JsonStringEnumMemberName("gp")] Geoprocessing,
-    [JsonStringEnumMemberName("etl")] Etl
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioPackageOperation>))]
-public enum StudioPackageOperation
-{
-    [JsonStringEnumMemberName("draft.create")] DraftCreate,
-    [JsonStringEnumMemberName("draft.read")] DraftRead,
-    [JsonStringEnumMemberName("draft.update")] DraftUpdate,
-    [JsonStringEnumMemberName("validate")] Validate,
-    [JsonStringEnumMemberName("preview-plan")] PreviewPlan,
-    [JsonStringEnumMemberName("content-version.create")] ContentVersionCreate,
-    [JsonStringEnumMemberName("content-version.read")] ContentVersionRead,
-    [JsonStringEnumMemberName("content-version.compare")] ContentVersionCompare,
-    [JsonStringEnumMemberName("publish-request.create")] PublishRequestCreate,
-    [JsonStringEnumMemberName("reopen")] Reopen,
-    [JsonStringEnumMemberName("rollback")] Rollback
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioPackageSupportLevel>))]
-public enum StudioPackageSupportLevel
-{
-    [JsonStringEnumMemberName("unsupported")] Unsupported,
-    [JsonStringEnumMemberName("limited")] Limited,
-    [JsonStringEnumMemberName("supported")] Supported
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioPackagePersistenceMode>))]
-public enum StudioPackagePersistenceMode
-{
-    [JsonStringEnumMemberName("in-memory")] InMemory,
-    [JsonStringEnumMemberName("durable")] Durable
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioPackageValidationStatus>))]
-public enum StudioPackageValidationStatus
-{
-    [JsonStringEnumMemberName("not-validated")] NotValidated,
-    [JsonStringEnumMemberName("valid")] Valid,
-    [JsonStringEnumMemberName("warning")] Warning,
-    [JsonStringEnumMemberName("invalid")] Invalid
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioPackageDiagnosticSeverity>))]
-public enum StudioPackageDiagnosticSeverity
-{
-    [JsonStringEnumMemberName("info")] Info,
-    [JsonStringEnumMemberName("warning")] Warning,
-    [JsonStringEnumMemberName("error")] Error,
-    [JsonStringEnumMemberName("blocker")] Blocker
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioPublicationRequestStatus>))]
-public enum StudioPublicationRequestStatus
-{
-    [JsonStringEnumMemberName("accepted")] Accepted,
-    [JsonStringEnumMemberName("pending")] Pending,
-    [JsonStringEnumMemberName("rejected")] Rejected
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<StudioRollbackPointer>))]
-public enum StudioRollbackPointer
-{
-    [JsonStringEnumMemberName("current")] Current,
-    [JsonStringEnumMemberName("published")] Published,
-    [JsonStringEnumMemberName("both")] Both
-}
-
-#endregion
-
-#region Domain DTOs (StudioPackageModels.cs)
-
-public sealed record StudioPackageBinding
-{
-    [JsonPropertyName("key")] public string Key { get; init; } = string.Empty;
-    [JsonPropertyName("kind")] public string Kind { get; init; } = string.Empty;
-    [JsonPropertyName("ref")] public string Ref { get; init; } = string.Empty;
-    [JsonPropertyName("crs")] public string? Crs { get; init; }
-    [JsonPropertyName("srid")] public int? Srid { get; init; }
-    [JsonPropertyName("units")] public string? Units { get; init; }
-    [JsonPropertyName("requiredPermissions")] public IReadOnlyList<string> RequiredPermissions { get; init; } = [];
-    [JsonPropertyName("metadata")] public JsonElement? Metadata { get; init; }
-}
-
-public sealed record StudioPackageDependency
-{
-    [JsonPropertyName("ref")] public string Ref { get; init; } = string.Empty;
-    [JsonPropertyName("kind")] public string Kind { get; init; } = string.Empty;
-    [JsonPropertyName("versionId")] public string? VersionId { get; init; }
-    [JsonPropertyName("required")] public bool Required { get; init; } = true;
-    [JsonPropertyName("metadata")] public JsonElement? Metadata { get; init; }
-}
-
-public sealed record StudioProvenanceRef
-{
-    [JsonPropertyName("kind")] public string Kind { get; init; } = string.Empty;
-    [JsonPropertyName("ref")] public string Ref { get; init; } = string.Empty;
-    [JsonPropertyName("rel")] public string Rel { get; init; } = string.Empty;
-    [JsonPropertyName("actorId")] public string? ActorId { get; init; }
-    [JsonPropertyName("timestamp")] public DateTimeOffset? Timestamp { get; init; }
-}
-
-public sealed record StudioPublicationIntent
-{
-    [JsonPropertyName("route")] public string? Route { get; init; }
-    [JsonPropertyName("visibility")] public string? Visibility { get; init; }
-    [JsonPropertyName("embed")] public bool? Embed { get; init; }
-    [JsonPropertyName("service")] public string? Service { get; init; }
-    [JsonPropertyName("schedule")] public string? Schedule { get; init; }
-    [JsonPropertyName("job")] public string? Job { get; init; }
-    [JsonPropertyName("metadata")] public JsonElement? Metadata { get; init; }
-}
-
-public sealed record StudioValidationDiagnostic
-{
-    [JsonPropertyName("code")] public string Code { get; init; } = string.Empty;
-    [JsonPropertyName("severity")] public StudioPackageDiagnosticSeverity Severity { get; init; }
-    [JsonPropertyName("path")] public string? Path { get; init; }
-    [JsonPropertyName("message")] public string Message { get; init; } = string.Empty;
-}
-
-public sealed record StudioValidationSummary
-{
-    [JsonPropertyName("status")] public StudioPackageValidationStatus Status { get; init; }
-    [JsonPropertyName("diagnostics")] public IReadOnlyList<StudioValidationDiagnostic> Diagnostics { get; init; } = [];
-    [JsonPropertyName("unsupportedCapabilities")] public IReadOnlyList<string> UnsupportedCapabilities { get; init; } = [];
-    [JsonPropertyName("generatedAt")] public DateTimeOffset? GeneratedAt { get; init; }
-}
-
-public sealed record StudioPackageEnvelope
-{
-    [JsonPropertyName("family")] public StudioPackageFamily Family { get; init; }
-    [JsonPropertyName("schemaVersion")] public string SchemaVersion { get; init; } = string.Empty;
-    [JsonPropertyName("format")] public string? Format { get; init; }
-    [JsonPropertyName("bindings")] public IReadOnlyList<StudioPackageBinding> Bindings { get; init; } = [];
-    [JsonPropertyName("dependencies")] public IReadOnlyList<StudioPackageDependency> Dependencies { get; init; } = [];
-    // Server defaults Validation to NotValidated and computes it; nullable here so create/update bodies
-    // can omit the server-owned summary (DefaultIgnoreCondition = WhenWritingNull).
-    [JsonPropertyName("validation")] public StudioValidationSummary? Validation { get; init; }
-    [JsonPropertyName("publicationIntent")] public StudioPublicationIntent? PublicationIntent { get; init; }
-    [JsonPropertyName("provenance")] public IReadOnlyList<StudioProvenanceRef> Provenance { get; init; } = [];
-    [JsonPropertyName("body")] public JsonElement? Body { get; init; }
-}
-
-public sealed record StudioPackageFamilyDescriptor
-{
-    [JsonPropertyName("family")] public StudioPackageFamily Family { get; init; }
-    [JsonPropertyName("currentSchemaVersion")] public string CurrentSchemaVersion { get; init; } = string.Empty;
-    [JsonPropertyName("format")] public string Format { get; init; } = string.Empty;
-    [JsonPropertyName("supportLevel")] public StudioPackageSupportLevel SupportLevel { get; init; }
-    [JsonPropertyName("supportedOperations")] public IReadOnlyList<StudioPackageOperation> SupportedOperations { get; init; } = [];
-    [JsonPropertyName("validationDepth")] public string ValidationDepth { get; init; } = string.Empty;
-    [JsonPropertyName("limitations")] public IReadOnlyList<string> Limitations { get; init; } = [];
-    [JsonPropertyName("maxPackageBytes")] public int MaxPackageBytes { get; init; }
-    [JsonPropertyName("previewSupported")] public bool PreviewSupported { get; init; }
-    [JsonPropertyName("publishSupported")] public bool PublishSupported { get; init; }
-}
-
-public sealed record StudioPackageFamilyCapabilities
-{
-    [JsonPropertyName("persistenceMode")] public StudioPackagePersistenceMode PersistenceMode { get; init; }
-    [JsonPropertyName("durable")] public bool Durable { get; init; }
-    [JsonPropertyName("families")] public IReadOnlyList<StudioPackageFamilyDescriptor> Families { get; init; } = [];
-}
-
-public sealed record StudioPackageDraft
-{
-    [JsonPropertyName("draftId")] public Guid DraftId { get; init; }
-    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
-    [JsonPropertyName("packageKey")] public string PackageKey { get; init; } = string.Empty;
-    [JsonPropertyName("workspaceId")] public string? WorkspaceId { get; init; }
-    [JsonPropertyName("ownerId")] public string? OwnerId { get; init; }
-    [JsonPropertyName("family")] public StudioPackageFamily Family { get; init; }
-    [JsonPropertyName("envelope")] public StudioPackageEnvelope Envelope { get; init; } = new();
-    [JsonPropertyName("validation")] public StudioValidationSummary Validation { get; init; } = new();
-    [JsonPropertyName("baseVersionId")] public Guid? BaseVersionId { get; init; }
-    [JsonPropertyName("generation")] public long Generation { get; init; }
-    [JsonPropertyName("createdBy")] public string? CreatedBy { get; init; }
-    [JsonPropertyName("updatedBy")] public string? UpdatedBy { get; init; }
-    [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
-    [JsonPropertyName("updatedAt")] public DateTimeOffset UpdatedAt { get; init; }
-}
+#region Console-only draft list projection
 
 /// <summary>
 /// Secret-safe summary of a Studio package draft returned by the list endpoint
 /// (<c>GET /api/v1/studio/package-drafts</c>). Carries identity, family, package key, validation status,
 /// generation, and timestamps, but never the full package graph (no envelope body/bindings), so
-/// enumerating existing packages never leaks credentialed binding details.
+/// enumerating existing packages never leaks credentialed binding details. Console-only: the SDK's
+/// <see cref="IHonuaStudioPackageClient"/> does not project a draft list.
 /// </summary>
 public sealed record StudioPackageDraftSummary
 {
@@ -242,123 +57,9 @@ public sealed record StudioPackageDraftListResponse
     [JsonPropertyName("drafts")] public IReadOnlyList<StudioPackageDraftSummary> Drafts { get; init; } = [];
 }
 
-public sealed record StudioPreviewPlan
-{
-    [JsonPropertyName("draftId")] public Guid DraftId { get; init; }
-    [JsonPropertyName("family")] public StudioPackageFamily Family { get; init; }
-    [JsonPropertyName("synchronous")] public bool Synchronous { get; init; }
-    [JsonPropertyName("requiresJob")] public bool RequiresJob { get; init; }
-    [JsonPropertyName("steps")] public IReadOnlyList<string> Steps { get; init; } = [];
-    [JsonPropertyName("validation")] public StudioValidationSummary Validation { get; init; } = new();
-}
-
-public sealed record StudioContentVersion
-{
-    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
-    [JsonPropertyName("packageKey")] public string PackageKey { get; init; } = string.Empty;
-    [JsonPropertyName("workspaceId")] public string? WorkspaceId { get; init; }
-    [JsonPropertyName("ownerId")] public string? OwnerId { get; init; }
-    [JsonPropertyName("versionId")] public Guid VersionId { get; init; }
-    [JsonPropertyName("versionNumber")] public int VersionNumber { get; init; }
-    [JsonPropertyName("contentHash")] public string ContentHash { get; init; } = string.Empty;
-    [JsonPropertyName("envelope")] public StudioPackageEnvelope Envelope { get; init; } = new();
-    [JsonPropertyName("validation")] public StudioValidationSummary Validation { get; init; } = new();
-    [JsonPropertyName("dependencies")] public IReadOnlyList<StudioPackageDependency> Dependencies { get; init; } = [];
-    [JsonPropertyName("provenance")] public IReadOnlyList<StudioProvenanceRef> Provenance { get; init; } = [];
-    [JsonPropertyName("sourceDraftId")] public Guid? SourceDraftId { get; init; }
-    [JsonPropertyName("baseVersionId")] public Guid? BaseVersionId { get; init; }
-    [JsonPropertyName("changeNote")] public string? ChangeNote { get; init; }
-    [JsonPropertyName("createdBy")] public string? CreatedBy { get; init; }
-    [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
-}
-
-public sealed record StudioContentVersionListResponse
-{
-    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
-    [JsonPropertyName("versions")] public IReadOnlyList<StudioContentVersion> Versions { get; init; } = [];
-}
-
-public sealed record StudioPublicationRequest
-{
-    [JsonPropertyName("requestId")] public Guid RequestId { get; init; }
-    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
-    [JsonPropertyName("versionId")] public Guid VersionId { get; init; }
-    [JsonPropertyName("intent")] public StudioPublicationIntent? Intent { get; init; }
-    [JsonPropertyName("status")] public StudioPublicationRequestStatus Status { get; init; }
-    [JsonPropertyName("validation")] public StudioValidationSummary Validation { get; init; } = new();
-    [JsonPropertyName("warningAcknowledgement")] public string? WarningAcknowledgement { get; init; }
-    [JsonPropertyName("requestedBy")] public string? RequestedBy { get; init; }
-    [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
-}
-
-public sealed record StudioContentItemPointers
-{
-    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
-    [JsonPropertyName("currentVersionId")] public Guid? CurrentVersionId { get; init; }
-    [JsonPropertyName("publishedVersionId")] public Guid? PublishedVersionId { get; init; }
-}
-
-public sealed record StudioRollbackRequest
-{
-    [JsonPropertyName("requestId")] public Guid RequestId { get; init; }
-    [JsonPropertyName("itemId")] public Guid ItemId { get; init; }
-    [JsonPropertyName("targetVersionId")] public Guid TargetVersionId { get; init; }
-    [JsonPropertyName("pointer")] public StudioRollbackPointer Target { get; init; }
-    [JsonPropertyName("pointers")] public StudioContentItemPointers Pointers { get; init; } = new();
-    [JsonPropertyName("requestedBy")] public string? RequestedBy { get; init; }
-    [JsonPropertyName("reason")] public string? Reason { get; init; }
-    [JsonPropertyName("createdAt")] public DateTimeOffset CreatedAt { get; init; }
-}
-
 #endregion
 
-#region Request bodies (StudioApiModels.cs)
-
-public sealed record CreateStudioPackageDraftRequest
-{
-    [JsonPropertyName("itemId")] public Guid? ItemId { get; init; }
-    [JsonPropertyName("packageKey")] public string PackageKey { get; init; } = string.Empty;
-    [JsonPropertyName("workspaceId")] public string? WorkspaceId { get; init; }
-    [JsonPropertyName("ownerId")] public string? OwnerId { get; init; }
-    [JsonPropertyName("envelope")] public StudioPackageEnvelope Envelope { get; init; } = new();
-}
-
-public sealed record UpdateStudioPackageDraftRequest
-{
-    [JsonPropertyName("packageKey")] public string PackageKey { get; init; } = string.Empty;
-    [JsonPropertyName("workspaceId")] public string? WorkspaceId { get; init; }
-    [JsonPropertyName("ownerId")] public string? OwnerId { get; init; }
-    [JsonPropertyName("envelope")] public StudioPackageEnvelope Envelope { get; init; } = new();
-    [JsonPropertyName("generation")] public long? Generation { get; init; }
-}
-
-public sealed record SaveStudioContentVersionRequest
-{
-    [JsonPropertyName("changeNote")] public string? ChangeNote { get; init; }
-}
-
-public sealed record CreateStudioPublicationRequest
-{
-    [JsonPropertyName("intent")] public StudioPublicationIntent? Intent { get; init; }
-    [JsonPropertyName("warningAcknowledgement")] public string? WarningAcknowledgement { get; init; }
-}
-
-public sealed record CreateStudioRollbackRequest
-{
-    [JsonPropertyName("targetVersionId")] public Guid TargetVersionId { get; init; }
-    [JsonPropertyName("pointer")] public StudioRollbackPointer Target { get; init; } = StudioRollbackPointer.Current;
-    [JsonPropertyName("reason")] public string? Reason { get; init; }
-}
-
-#endregion
-
-#region Envelope + result types
-
-public sealed record StudioApiResponse<T>(
-    bool Success,
-    T? Data,
-    string? Message,
-    DateTimeOffset? Timestamp);
+#region Result envelope
 
 public sealed record StudioEndpointResult<T>(T? Data, StudioEndpointIssue? Issue)
 {
@@ -489,6 +190,16 @@ public interface IStudioPackageLifecycleClient
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Thin adapter over the SDK's <see cref="IHonuaStudioPackageClient"/>. Every lifecycle call is delegated to
+/// <see cref="HonuaStudioPackageClient"/> (which throws on non-2xx / contract drift) and the throwing result
+/// is translated back into the console's non-throwing <see cref="StudioEndpointResult{T}"/> envelope so the
+/// Studio DataSources can render a neutral issue state instead of surfacing an exception. The console
+/// <see cref="HttpClient"/> from <c>HonuaServerClientFactory</c> already carries the base address and the
+/// profile/session binding handler, so the admin <c>X-API-Key</c> is attached here as a default header (the
+/// binding handler still swaps it for an operator bearer when one resolves) instead of via the SDK's own
+/// auth handler.
+/// </summary>
 public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleClient, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -499,6 +210,7 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
 
     private readonly HttpClient _httpClient;
     private readonly string? _apiKey;
+    private readonly IHonuaStudioPackageClient _sdk;
 
     public HttpStudioPackageLifecycleClient(HttpClient httpClient, StudioPackageLifecycleClientOptions options)
     {
@@ -509,16 +221,25 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+
+        // The admin key is the request-time fallback the binding handler keeps in place when no operator
+        // bearer resolves (see HonuaServerBindingHandler). The prior direct-HTTP client attached it per
+        // request; attaching it as a default header keeps every SDK-delegated request authenticated
+        // identically without reaching for the SDK's auth handler.
+        if (!string.IsNullOrWhiteSpace(_apiKey) && !_httpClient.DefaultRequestHeaders.Contains("X-API-Key"))
+        {
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", _apiKey);
+        }
+
+        _sdk = new HonuaStudioPackageClient(_httpClient);
     }
 
     public Uri BaseUri { get; }
 
     public Task<StudioEndpointResult<StudioPackageFamilyCapabilities>> ListPackageFamiliesAsync(
         CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioPackageFamilyCapabilities>(
-            HttpMethod.Get,
-            "/api/v1/studio/package-families",
-            null,
+        ExecuteAsync(
+            ct => _sdk.GetPackageFamiliesAsync(ct),
             "GET /api/v1/studio/package-families",
             cancellationToken);
 
@@ -527,10 +248,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SendAsync<CreateStudioPackageDraftRequest, StudioPackageDraft>(
-            HttpMethod.Post,
-            "/api/v1/studio/package-drafts",
-            request,
+        return ExecuteAsync(
+            ct => _sdk.CreateDraftAsync(request, ct),
             "POST /api/v1/studio/package-drafts",
             cancellationToken);
     }
@@ -538,10 +257,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
     public Task<StudioEndpointResult<StudioPackageDraft>> GetPackageDraftAsync(
         Guid draftId,
         CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioPackageDraft>(
-            HttpMethod.Get,
-            $"/api/v1/studio/package-drafts/{draftId}",
-            null,
+        ExecuteAsync(
+            ct => _sdk.GetDraftAsync(draftId, ct),
             "GET /api/v1/studio/package-drafts/{draftId}",
             cancellationToken);
 
@@ -550,6 +267,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         StudioPackageValidationStatus? status = null,
         CancellationToken cancellationToken = default)
     {
+        // The SDK's IHonuaStudioPackageClient does not project the secret-safe draft list, so this one call
+        // stays a direct GET against the console-only StudioPackageDraftListResponse projection.
         var queryParts = new List<string>();
         if (family is { } f)
         {
@@ -562,10 +281,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         }
 
         var query = queryParts.Count == 0 ? string.Empty : "?" + string.Join("&", queryParts);
-        return SendAsync<object, StudioPackageDraftListResponse>(
-            HttpMethod.Get,
+        return ListPackageDraftsCoreAsync(
             $"/api/v1/studio/package-drafts{query}",
-            null,
             "GET /api/v1/studio/package-drafts (list)",
             cancellationToken);
     }
@@ -576,10 +293,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SendAsync<UpdateStudioPackageDraftRequest, StudioPackageDraft>(
-            HttpMethod.Put,
-            $"/api/v1/studio/package-drafts/{draftId}",
-            request,
+        return ExecuteAsync(
+            ct => _sdk.UpdateDraftAsync(draftId, request, ct),
             "PUT /api/v1/studio/package-drafts/{draftId}",
             cancellationToken);
     }
@@ -587,20 +302,16 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
     public Task<StudioEndpointResult<StudioValidationSummary>> ValidatePackageDraftAsync(
         Guid draftId,
         CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioValidationSummary>(
-            HttpMethod.Post,
-            $"/api/v1/studio/package-drafts/{draftId}/validate",
-            null,
+        ExecuteAsync(
+            ct => _sdk.ValidateDraftAsync(draftId, ct),
             "POST /api/v1/studio/package-drafts/{draftId}/validate",
             cancellationToken);
 
     public Task<StudioEndpointResult<StudioPreviewPlan>> CreatePreviewPlanAsync(
         Guid draftId,
         CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioPreviewPlan>(
-            HttpMethod.Post,
-            $"/api/v1/studio/package-drafts/{draftId}/preview-plan",
-            null,
+        ExecuteAsync(
+            ct => _sdk.PreviewPlanAsync(draftId, ct),
             "POST /api/v1/studio/package-drafts/{draftId}/preview-plan",
             cancellationToken);
 
@@ -610,10 +321,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SendAsync<SaveStudioContentVersionRequest, StudioContentVersion>(
-            HttpMethod.Post,
-            $"/api/v1/studio/package-drafts/{draftId}/content-versions",
-            request,
+        return ExecuteAsync(
+            ct => _sdk.CreateContentVersionAsync(draftId, request, ct),
             "POST /api/v1/studio/package-drafts/{draftId}/content-versions",
             cancellationToken);
     }
@@ -621,10 +330,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
     public Task<StudioEndpointResult<StudioContentVersionListResponse>> ListContentVersionsAsync(
         Guid itemId,
         CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioContentVersionListResponse>(
-            HttpMethod.Get,
-            $"/api/v1/studio/content-items/{itemId}/versions",
-            null,
+        ExecuteAsync(
+            ct => _sdk.ListVersionsAsync(itemId, ct),
             "GET /api/v1/studio/content-items/{itemId}/versions",
             cancellationToken);
 
@@ -632,10 +339,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         Guid itemId,
         Guid versionId,
         CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioContentVersion>(
-            HttpMethod.Get,
-            $"/api/v1/studio/content-items/{itemId}/versions/{versionId}",
-            null,
+        ExecuteAsync(
+            ct => _sdk.GetVersionAsync(itemId, versionId, ct),
             "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}",
             cancellationToken);
 
@@ -646,10 +351,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SendAsync<CreateStudioPublicationRequest, StudioPublicationRequest>(
-            HttpMethod.Post,
-            $"/api/v1/studio/content-items/{itemId}/versions/{versionId}/publish-requests",
-            request,
+        return ExecuteAsync(
+            ct => _sdk.CreatePublishRequestAsync(itemId, versionId, request, ct),
             "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/publish-requests",
             cancellationToken);
     }
@@ -658,10 +361,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         Guid itemId,
         Guid versionId,
         CancellationToken cancellationToken = default) =>
-        SendAsync<object, StudioPackageDraft>(
-            HttpMethod.Post,
-            $"/api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen",
-            null,
+        ExecuteAsync(
+            ct => _sdk.ReopenVersionAsync(itemId, versionId, ct),
             "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen",
             cancellationToken);
 
@@ -677,10 +378,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SendAsync<CreateStudioRollbackRequest, StudioRollbackRequest>(
-            HttpMethod.Post,
-            $"/api/v1/studio/content-items/{itemId}/rollback-requests",
-            request,
+        return ExecuteAsync(
+            ct => _sdk.RollbackAsync(itemId, request, ct),
             "POST /api/v1/studio/content-items/{itemId}/rollback-requests",
             cancellationToken);
     }
@@ -717,32 +416,41 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         _ => status.ToString().ToLowerInvariant(),
     };
 
-    private async Task<StudioEndpointResult<TResponse>> SendAsync<TBody, TResponse>(
-        HttpMethod method,
-        string path,
-        TBody? body,
+    /// <summary>
+    /// Delegates one SDK lifecycle call and translates its throwing contract into the console's non-throwing
+    /// result envelope: an <see cref="HonuaStudioApiException"/> (non-2xx) becomes the same
+    /// state/detail/StatusCode issue the direct-HTTP client produced (with validation diagnostics parsed out
+    /// of the response body); an <see cref="HonuaStudioContractException"/> (successful status, drifted/empty
+    /// body) becomes an "Unsupported" shape-mismatch issue; and a transport fault becomes an "Unavailable"
+    /// issue. A genuine cancellation is left to propagate.
+    /// </summary>
+    private async Task<StudioEndpointResult<TResponse>> ExecuteAsync<TResponse>(
+        Func<CancellationToken, Task<TResponse>> operation,
         string contract,
         CancellationToken cancellationToken)
+        where TResponse : class
     {
-        using var request = new HttpRequestMessage(method, path);
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        if (body is not null)
-        {
-            request.Content = JsonContent.Create(body, body.GetType(), options: JsonOptions);
-        }
-
-        HttpResponseMessage response;
         try
         {
-            response = await _httpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            var data = await operation(cancellationToken).ConfigureAwait(false);
+            return StudioEndpointResult<TResponse>.FromData(data);
+        }
+        catch (HonuaStudioApiException ex)
+        {
+            // The Studio validate/create/update endpoints return a structured validation body on a rejection
+            // (the StudioValidationSummary diagnostics {code,severity,path,message}). Parse and carry it on the
+            // issue instead of discarding it, so the console can bind each diagnostic onto the offending editor
+            // field (map layer / query predicate) via the Wave-0 ServerFieldErrorMapper.
+            var diagnostics = ParseDiagnostics(ex.ResponseBody);
+            return StudioEndpointResult<TResponse>.FromIssue(
+                CreateIssue(contract, ex.StatusCode) with { Diagnostics = diagnostics });
+        }
+        catch (HonuaStudioContractException ex)
+        {
+            return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
+                "Unsupported",
+                contract,
+                $"The Honua server Studio response did not match the expected API shape: {ex.Message}"));
         }
         catch (HttpRequestException ex)
         {
@@ -758,30 +466,58 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
                 contract,
                 $"The Honua server Studio endpoint could not be reached: {ex.Message}"));
         }
+    }
+
+    private async Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsCoreAsync(
+        string path,
+        string contract,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex)
+        {
+            return StudioEndpointResult<StudioPackageDraftListResponse>.FromIssue(new StudioEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server Studio endpoint could not be reached: {ex.Message}"));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            return StudioEndpointResult<StudioPackageDraftListResponse>.FromIssue(new StudioEndpointIssue(
+                "Unavailable",
+                contract,
+                $"The Honua server Studio endpoint could not be reached: {ex.Message}"));
+        }
 
         using (response)
         {
             if (!response.IsSuccessStatusCode)
             {
-                // The Studio validate/create/update endpoints return a structured validation body on a
-                // rejection (the StudioValidationSummary diagnostics{code,severity,path,message}). Parse and
-                // carry it on the issue instead of discarding it, so the console can bind each diagnostic onto
-                // the offending editor field (map layer / query predicate) via the Wave-0 ServerFieldErrorMapper.
                 var diagnostics = await ReadDiagnosticsAsync(response, cancellationToken).ConfigureAwait(false);
-                return StudioEndpointResult<TResponse>.FromIssue(
+                return StudioEndpointResult<StudioPackageDraftListResponse>.FromIssue(
                     CreateIssue(contract, response.StatusCode) with { Diagnostics = diagnostics });
             }
 
-            StudioApiResponse<TResponse>? envelope;
+            StudioApiResponse<StudioPackageDraftListResponse>? envelope;
             try
             {
                 envelope = await response.Content
-                    .ReadFromJsonAsync<StudioApiResponse<TResponse>>(JsonOptions, cancellationToken)
+                    .ReadFromJsonAsync<StudioApiResponse<StudioPackageDraftListResponse>>(JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (JsonException ex)
             {
-                return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
+                return StudioEndpointResult<StudioPackageDraftListResponse>.FromIssue(new StudioEndpointIssue(
                     "Unsupported",
                     contract,
                     $"The Honua server Studio response did not match the expected API shape: {ex.Message}",
@@ -790,10 +526,10 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
 
             if (envelope?.Success == true && envelope.Data is not null)
             {
-                return StudioEndpointResult<TResponse>.FromData(envelope.Data);
+                return StudioEndpointResult<StudioPackageDraftListResponse>.FromData(envelope.Data);
             }
 
-            return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
+            return StudioEndpointResult<StudioPackageDraftListResponse>.FromIssue(new StudioEndpointIssue(
                 "Unavailable",
                 contract,
                 envelope?.Message ?? "The Honua server Studio response did not include data.",
@@ -830,17 +566,32 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
     }
 
     /// <summary>
-    /// Best-effort parse of the Studio validation diagnostics carried on a non-2xx response. The server may
-    /// shape the rejection body in a few ways depending on the route, so this probes the common locations and
-    /// returns the first diagnostics array it finds:
-    /// <list type="bullet">
-    ///   <item>a bare <see cref="StudioValidationSummary"/> (<c>{status,diagnostics[],…}</c>);</item>
-    ///   <item>an <c>ApiResponse</c> envelope whose <c>data</c> is a summary or a draft/version/plan carrying
-    ///   a <c>validation</c> summary; and</item>
-    ///   <item>an RFC-7807 ProblemDetails whose <c>diagnostics</c>/<c>errors</c> extension carries them.</item>
-    /// </list>
-    /// Never throws: a body that does not parse (HTML error page, empty body) yields an empty list so the
-    /// caller still surfaces the HTTP-level issue.
+    /// Best-effort parse of the Studio validation diagnostics carried on a non-2xx response body captured by
+    /// the SDK's <see cref="HonuaStudioApiException.ResponseBody"/>. Never throws: a null/empty/unparseable
+    /// body yields an empty list so the caller still surfaces the HTTP-level issue.
+    /// </summary>
+    private static IReadOnlyList<StudioValidationDiagnostic> ParseDiagnostics(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return ExtractDiagnostics(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Best-effort parse of the Studio validation diagnostics carried on a non-2xx response for the
+    /// direct-HTTP draft-list path. Probes the same common locations as <see cref="ExtractDiagnostics"/> and
+    /// never throws.
     /// </summary>
     private static async Task<IReadOnlyList<StudioValidationDiagnostic>> ReadDiagnosticsAsync(
         HttpResponseMessage response,
@@ -856,20 +607,7 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             return [];
         }
 
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return [];
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-            return ExtractDiagnostics(document.RootElement);
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
+        return ParseDiagnostics(body);
     }
 
     private static IReadOnlyList<StudioValidationDiagnostic> ExtractDiagnostics(JsonElement root)
@@ -937,7 +675,18 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
                 continue;
             }
 
-            var diagnostic = item.Deserialize<StudioValidationDiagnostic>(JsonOptions);
+            StudioValidationDiagnostic? diagnostic;
+            try
+            {
+                diagnostic = item.Deserialize<StudioValidationDiagnostic>(JsonOptions);
+            }
+            catch (JsonException)
+            {
+                // The SDK diagnostic record has required members; a body item missing one is skipped rather
+                // than aborting the whole parse, preserving the never-throws contract.
+                continue;
+            }
+
             if (diagnostic is not null && !string.IsNullOrEmpty(diagnostic.Code))
             {
                 parsed.Add(diagnostic);

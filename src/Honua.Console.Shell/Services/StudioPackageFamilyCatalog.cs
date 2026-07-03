@@ -1,8 +1,9 @@
+using Honua.Sdk.Studio.Packages;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 // Disambiguate from the editor-catalog enum Honua.Console.Shell.Models.StudioPackageFamily; this
 // catalog maps the honua-server wire enum to Console display metadata.
-using StudioPackageFamily = Honua.Console.Contracts.StudioPackageFamily;
+using StudioPackageFamily = Honua.Sdk.Studio.Packages.StudioPackageFamily;
 
 namespace Honua.Console.Shell.Services;
 

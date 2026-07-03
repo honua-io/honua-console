@@ -226,7 +226,7 @@ public static class StudioQueryServerErrorBinder
 {
     /// <summary>Maps <paramref name="diagnostics"/> onto console field keys via the JSON-Pointer resolver.</summary>
     public static IReadOnlyList<ConsoleFieldError> Map(
-        IEnumerable<Contracts.StudioValidationDiagnostic>? diagnostics)
+        IEnumerable<Honua.Sdk.Studio.Packages.StudioValidationDiagnostic>? diagnostics)
     {
         if (diagnostics is null)
         {

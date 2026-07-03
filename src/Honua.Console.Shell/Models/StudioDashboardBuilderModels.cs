@@ -244,7 +244,7 @@ public sealed record StudioDashboardCommandResult(
     string Message,
     StudioDashboardEditorState? State = null,
     StudioDashboardCapabilityState? Issue = null,
-    IReadOnlyList<Honua.Console.Contracts.StudioValidationDiagnostic>? Diagnostics = null);
+    IReadOnlyList<Honua.Sdk.Studio.Packages.StudioValidationDiagnostic>? Diagnostics = null);
 
 /// <summary>
 /// Pure pre-publish gate. Publish requires a titled dashboard with at least one panel, every panel bound
