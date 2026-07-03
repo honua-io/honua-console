@@ -1,3 +1,4 @@
+using Honua.Sdk.Studio.Packages;
 using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
@@ -305,14 +306,14 @@ public sealed class StudioGenerationNullCollectionTests
         public Uri BaseUri { get; } = new("https://server.example");
 
         public Task<StudioEndpointResult<StudioPackageFamilyCapabilities>> ListPackageFamiliesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(Honua.Console.Contracts.StudioPackageFamily? family = null, Honua.Console.Contracts.StudioPackageValidationStatus? status = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(Honua.Sdk.Studio.Packages.StudioPackageFamily? family = null, Honua.Sdk.Studio.Packages.StudioPackageValidationStatus? status = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPackageDraft>> CreatePackageDraftAsync(CreateStudioPackageDraftRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPackageDraft>> GetPackageDraftAsync(Guid draftId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPackageDraft>> UpdatePackageDraftAsync(Guid draftId, UpdateStudioPackageDraftRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioValidationSummary>> ValidatePackageDraftAsync(Guid draftId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPreviewPlan>> CreatePreviewPlanAsync(Guid draftId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioContentVersion>> SaveContentVersionAsync(Guid draftId, SaveStudioContentVersionRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<StudioEndpointResult<StudioContentVersionListResponse>> ListContentVersionsAsync(Guid itemId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<StudioEndpointResult<StudioContentVersionList>> ListContentVersionsAsync(Guid itemId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(Guid itemId, Guid versionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPublicationRequest>> CreatePublishRequestAsync(Guid itemId, Guid versionId, CreateStudioPublicationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StudioEndpointResult<StudioPackageDraft>> ReopenContentVersionAsync(Guid itemId, Guid versionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

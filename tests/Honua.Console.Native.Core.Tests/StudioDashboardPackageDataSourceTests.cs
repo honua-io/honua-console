@@ -1,8 +1,9 @@
+using Honua.Sdk.Studio.Packages;
 using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
-using StudioPackageFamily = Honua.Console.Contracts.StudioPackageFamily;
+using StudioPackageFamily = Honua.Sdk.Studio.Packages.StudioPackageFamily;
 
 namespace Honua.Console.Native.Core.Tests;
 
@@ -424,7 +425,7 @@ public sealed class StudioDashboardPackageDataSourceTests
 
         public Task<StudioEndpointResult<StudioPackageFamilyCapabilities>> ListPackageFamiliesAsync(
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioEndpointResult<StudioPackageFamilyCapabilities>.FromData(new StudioPackageFamilyCapabilities()));
+            Task.FromResult(StudioEndpointResult<StudioPackageFamilyCapabilities>.FromData(new StudioPackageFamilyCapabilities { PersistenceMode = StudioPackagePersistenceMode.Durable, Durable = true }));
 
         public Task<StudioEndpointResult<StudioPackageDraft>> CreatePackageDraftAsync(
             CreateStudioPackageDraftRequest request,
@@ -499,7 +500,14 @@ public sealed class StudioDashboardPackageDataSourceTests
         public Task<StudioEndpointResult<StudioPreviewPlan>> CreatePreviewPlanAsync(
             Guid draftId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioEndpointResult<StudioPreviewPlan>.FromData(new StudioPreviewPlan { DraftId = draftId }));
+            Task.FromResult(StudioEndpointResult<StudioPreviewPlan>.FromData(new StudioPreviewPlan
+            {
+                DraftId = draftId,
+                Family = StudioPackageFamily.Dashboard,
+                Synchronous = false,
+                RequiresJob = false,
+                Validation = StudioValidationSummary.NotValidated
+            }));
 
         public Task<StudioEndpointResult<StudioContentVersion>> SaveContentVersionAsync(
             Guid draftId,
@@ -518,7 +526,9 @@ public sealed class StudioDashboardPackageDataSourceTests
                 PackageKey = _draft.PackageKey,
                 VersionId = Guid.NewGuid(),
                 VersionNumber = _versions.Count + 1,
+                ContentHash = string.Empty,
                 Envelope = _draft.Envelope,
+                Validation = StudioValidationSummary.NotValidated,
                 SourceDraftId = _draft.DraftId,
                 CreatedAt = DateTimeOffset.UtcNow
             };
@@ -526,10 +536,10 @@ public sealed class StudioDashboardPackageDataSourceTests
             return Task.FromResult(StudioEndpointResult<StudioContentVersion>.FromData(version));
         }
 
-        public Task<StudioEndpointResult<StudioContentVersionListResponse>> ListContentVersionsAsync(
+        public Task<StudioEndpointResult<StudioContentVersionList>> ListContentVersionsAsync(
             Guid itemId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioEndpointResult<StudioContentVersionListResponse>.FromData(new StudioContentVersionListResponse
+            Task.FromResult(StudioEndpointResult<StudioContentVersionList>.FromData(new StudioContentVersionList
             {
                 ItemId = itemId,
                 Versions = _versions.Where(version => version.ItemId == itemId).ToArray()
