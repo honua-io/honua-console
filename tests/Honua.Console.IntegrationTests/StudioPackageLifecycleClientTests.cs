@@ -23,7 +23,17 @@ public sealed class StudioPackageLifecycleClientTests
             var payload = JsonSerializer.Serialize(new
             {
                 success = true,
-                data = new { draftId, itemId, packageKey = "studio-dashboard-ops", family = "dashboard", generation = 1 }
+                data = new
+                {
+                    draftId,
+                    itemId,
+                    packageKey = "studio-dashboard-ops",
+                    family = "dashboard",
+                    envelope = new { family = "dashboard", schemaVersion = "1.0" },
+                    generation = 1,
+                    createdAt = DateTimeOffset.UtcNow,
+                    updatedAt = DateTimeOffset.UtcNow
+                }
             });
             return Json(HttpStatusCode.Created, payload);
         });
