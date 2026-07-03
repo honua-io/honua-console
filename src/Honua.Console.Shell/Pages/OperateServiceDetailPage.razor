@@ -1,7 +1,9 @@
 @page "/operate/services/{ServiceName}/settings"
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceConfigurationOperation ServiceConfig
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page">
     @if (_service is null)
@@ -431,111 +433,103 @@
         _configResult = null;
     }
 
-    private async Task SaveProtocolsAsync()
+    private Task SaveProtocolsAsync()
     {
-        _savingProtocols = true;
         _configResult = null;
-        try
-        {
-            _configResult = await ServiceConfig.UpdateProtocolsAsync(new ServiceProtocolsCommand
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                ServiceName = ServiceName,
-                EnabledProtocols = _selectedProtocols.ToArray()
-            });
-            if (_configResult.Succeeded)
-            {
-                await LoadSettingsAsync();
-            }
-        }
-        finally
-        {
-            _savingProtocols = false;
-        }
+                _configResult = await ServiceConfig.UpdateProtocolsAsync(new ServiceProtocolsCommand
+                {
+                    ServiceName = ServiceName,
+                    EnabledProtocols = _selectedProtocols.ToArray()
+                });
+                if (_configResult.Succeeded)
+                {
+                    await LoadSettingsAsync();
+                }
+            },
+            setBusy: busy => { _savingProtocols = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save protocols");
     }
 
-    private async Task SaveAccessAsync()
+    private Task SaveAccessAsync()
     {
-        _savingAccess = true;
         _configResult = null;
-        try
-        {
-            _configResult = await ServiceConfig.UpdateAccessPolicyAsync(new ServiceAccessPolicyCommand
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                ServiceName = ServiceName,
-                AllowAnonymous = _allowAnonymous,
-                AllowAnonymousWrite = _allowAnonymousWrite,
-                AllowedRoles = ParseRoles(_allowedRoles),
-                AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
-            });
-            if (_configResult.Succeeded)
-            {
-                await LoadSettingsAsync();
-            }
-        }
-        finally
-        {
-            _savingAccess = false;
-        }
+                _configResult = await ServiceConfig.UpdateAccessPolicyAsync(new ServiceAccessPolicyCommand
+                {
+                    ServiceName = ServiceName,
+                    AllowAnonymous = _allowAnonymous,
+                    AllowAnonymousWrite = _allowAnonymousWrite,
+                    AllowedRoles = ParseRoles(_allowedRoles),
+                    AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
+                });
+                if (_configResult.Succeeded)
+                {
+                    await LoadSettingsAsync();
+                }
+            },
+            setBusy: busy => { _savingAccess = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save access policy");
     }
 
-    private async Task SaveMapServerAsync()
+    private Task SaveMapServerAsync()
     {
-        _savingMapServer = true;
         _configResult = null;
-        try
-        {
-            _configResult = await ServiceConfig.UpdateMapServerSettingsAsync(new ServiceMapServerSettingsCommand
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                ServiceName = ServiceName,
-                MaxImageWidth = _maxImageWidth,
-                MaxImageHeight = _maxImageHeight,
-                DefaultImageWidth = _defaultImageWidth,
-                DefaultImageHeight = _defaultImageHeight,
-                DefaultDpi = _defaultDpi,
-                DefaultFormat = string.IsNullOrWhiteSpace(_defaultFormat) ? null : _defaultFormat.Trim(),
-                DefaultTransparent = _defaultTransparent,
-                MaxFeaturesPerLayer = _maxFeaturesPerLayer
-            });
-            if (_configResult.Succeeded)
-            {
-                await LoadSettingsAsync();
-            }
-        }
-        finally
-        {
-            _savingMapServer = false;
-        }
+                _configResult = await ServiceConfig.UpdateMapServerSettingsAsync(new ServiceMapServerSettingsCommand
+                {
+                    ServiceName = ServiceName,
+                    MaxImageWidth = _maxImageWidth,
+                    MaxImageHeight = _maxImageHeight,
+                    DefaultImageWidth = _defaultImageWidth,
+                    DefaultImageHeight = _defaultImageHeight,
+                    DefaultDpi = _defaultDpi,
+                    DefaultFormat = string.IsNullOrWhiteSpace(_defaultFormat) ? null : _defaultFormat.Trim(),
+                    DefaultTransparent = _defaultTransparent,
+                    MaxFeaturesPerLayer = _maxFeaturesPerLayer
+                });
+                if (_configResult.Succeeded)
+                {
+                    await LoadSettingsAsync();
+                }
+            },
+            setBusy: busy => { _savingMapServer = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save MapServer settings");
     }
 
-    private async Task SaveSettingsCapsAsync()
+    private Task SaveSettingsCapsAsync()
     {
-        _savingCaps = true;
         _configResult = null;
-        try
-        {
-            _configResult = await ServiceConfig.UpdateServiceSettingsCapsAsync(new ServiceSettingsCapsCommand
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                ServiceName = ServiceName,
-                MaxRecordCount = _maxRecordCount,
-                DefaultRecordCount = _defaultRecordCount,
-                MaxFeaturesPerLayer = _capsMaxFeaturesPerLayer,
-                QueryTimeoutMs = _queryTimeoutMs,
-                MaxEditsPerTransaction = _maxEditsPerTransaction,
-                MaxPayloadBytes = _maxPayloadBytes,
-                SupportedFormats = ParseFormats(_supportedFormats),
-                DefaultFormat = string.IsNullOrWhiteSpace(_capsDefaultFormat) ? null : _capsDefaultFormat.Trim(),
-                DefaultTileMatrixSet = string.IsNullOrWhiteSpace(_defaultTileMatrixSet) ? null : _defaultTileMatrixSet.Trim(),
-                SupportsAttachments = _supportsAttachments,
-                MaxAttachmentSizeBytes = _maxAttachmentSizeBytes
-            });
-            if (_configResult.Succeeded)
-            {
-                await LoadSettingsAsync();
-            }
-        }
-        finally
-        {
-            _savingCaps = false;
-        }
+                _configResult = await ServiceConfig.UpdateServiceSettingsCapsAsync(new ServiceSettingsCapsCommand
+                {
+                    ServiceName = ServiceName,
+                    MaxRecordCount = _maxRecordCount,
+                    DefaultRecordCount = _defaultRecordCount,
+                    MaxFeaturesPerLayer = _capsMaxFeaturesPerLayer,
+                    QueryTimeoutMs = _queryTimeoutMs,
+                    MaxEditsPerTransaction = _maxEditsPerTransaction,
+                    MaxPayloadBytes = _maxPayloadBytes,
+                    SupportedFormats = ParseFormats(_supportedFormats),
+                    DefaultFormat = string.IsNullOrWhiteSpace(_capsDefaultFormat) ? null : _capsDefaultFormat.Trim(),
+                    DefaultTileMatrixSet = string.IsNullOrWhiteSpace(_defaultTileMatrixSet) ? null : _defaultTileMatrixSet.Trim(),
+                    SupportsAttachments = _supportsAttachments,
+                    MaxAttachmentSizeBytes = _maxAttachmentSizeBytes
+                });
+                if (_configResult.Succeeded)
+                {
+                    await LoadSettingsAsync();
+                }
+            },
+            setBusy: busy => { _savingCaps = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save settings caps");
     }
 }

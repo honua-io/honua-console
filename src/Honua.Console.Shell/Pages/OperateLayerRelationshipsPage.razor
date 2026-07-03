@@ -4,6 +4,7 @@
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerRelationshipsOperation LayerRelationships
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page" data-relationships-page>
     @if (_layer is null)
@@ -147,28 +148,22 @@
 
     private void RemoveRow(RelationshipRow row) => _rows.Remove(row);
 
-    private async Task SaveAsync()
+    private Task SaveAsync()
     {
-        if (_layer is null)
-        {
-            return;
-        }
-
-        _saving = true;
+        if (_layer is null) return Task.CompletedTask;
         _result = null;
-        try
-        {
-            var payload = _rows.Select(row => row.ToModel()).ToArray();
-            _result = await LayerRelationships.SetRelationshipsAsync(_layer.LayerId, payload);
-            if (_result.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadRelationshipsAsync();
-            }
-        }
-        finally
-        {
-            _saving = false;
-        }
+                var payload = _rows.Select(row => row.ToModel()).ToArray();
+                _result = await LayerRelationships.SetRelationshipsAsync(_layer.LayerId, payload);
+                if (_result.Succeeded)
+                {
+                    await LoadRelationshipsAsync();
+                }
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save relationships");
     }
 
     // Mutable per-row edit model bound to the inputs (the domain record is immutable).

@@ -5,6 +5,7 @@
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleDiscoveryMetadataOperation Discovery
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page" data-discovery-page>
     @if (!_resolved)
@@ -280,54 +281,52 @@
     private static string? Trimmed(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private async Task SaveAsync()
+    private Task SaveAsync()
     {
-        _saving = true;
         _result = null;
-        try
-        {
-            var hasContact = !string.IsNullOrWhiteSpace(_contactName)
-                || !string.IsNullOrWhiteSpace(_contactEmail)
-                || !string.IsNullOrWhiteSpace(_contactUrl);
-
-            var metadata = new ConsoleDiscoveryMetadata
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                Bound = true,
-                Title = Trimmed(_title),
-                Description = Trimmed(_description),
-                Keywords = ParseList(_keywords),
-                Themes = ParseList(_themes),
-                Language = Trimmed(_language),
-                License = Trimmed(_license),
-                Attribution = Trimmed(_attribution),
-                Publisher = Trimmed(_publisher),
-                ContactPoint = hasContact
-                    ? new ConsoleDiscoveryContactPoint
-                    {
-                        Name = Trimmed(_contactName),
-                        Email = Trimmed(_contactEmail),
-                        Url = Trimmed(_contactUrl),
-                    }
-                    : null,
-                Links = _links
-                    .Where(row => !string.IsNullOrWhiteSpace(row.Href) || !string.IsNullOrWhiteSpace(row.Rel))
-                    .Select(row => row.ToModel())
-                    .ToArray(),
-            };
+                var hasContact = !string.IsNullOrWhiteSpace(_contactName)
+                    || !string.IsNullOrWhiteSpace(_contactEmail)
+                    || !string.IsNullOrWhiteSpace(_contactUrl);
 
-            _result = IsService
-                ? await Discovery.SaveServiceDiscoveryAsync(ServiceName!, metadata)
-                : await Discovery.SaveLayerDiscoveryAsync(_layerId, metadata);
+                var metadata = new ConsoleDiscoveryMetadata
+                {
+                    Bound = true,
+                    Title = Trimmed(_title),
+                    Description = Trimmed(_description),
+                    Keywords = ParseList(_keywords),
+                    Themes = ParseList(_themes),
+                    Language = Trimmed(_language),
+                    License = Trimmed(_license),
+                    Attribution = Trimmed(_attribution),
+                    Publisher = Trimmed(_publisher),
+                    ContactPoint = hasContact
+                        ? new ConsoleDiscoveryContactPoint
+                        {
+                            Name = Trimmed(_contactName),
+                            Email = Trimmed(_contactEmail),
+                            Url = Trimmed(_contactUrl),
+                        }
+                        : null,
+                    Links = _links
+                        .Where(row => !string.IsNullOrWhiteSpace(row.Href) || !string.IsNullOrWhiteSpace(row.Rel))
+                        .Select(row => row.ToModel())
+                        .ToArray(),
+                };
 
-            if (_result.Succeeded)
-            {
-                await LoadAsync();
-            }
-        }
-        finally
-        {
-            _saving = false;
-        }
+                _result = IsService
+                    ? await Discovery.SaveServiceDiscoveryAsync(ServiceName!, metadata)
+                    : await Discovery.SaveLayerDiscoveryAsync(_layerId, metadata);
+
+                if (_result.Succeeded)
+                {
+                    await LoadAsync();
+                }
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save discovery metadata");
     }
 
     // Mutable per-row edit model bound to the link inputs (the domain record is immutable).

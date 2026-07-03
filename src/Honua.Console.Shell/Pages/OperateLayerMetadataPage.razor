@@ -5,6 +5,7 @@
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerMetadataOperation LayerMetadata
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page" data-layer-metadata-page>
     @if (_layer is null)
@@ -305,100 +306,94 @@
         }
     }
 
-    private async Task SaveDisplayAsync()
+    private Task SaveDisplayAsync()
     {
-        if (_layer is null) return;
-        _savingDisplay = true;
+        if (_layer is null) return Task.CompletedTask;
         _displayResult = null;
-        try
-        {
-            var payload = new ConsoleLayerDisplay
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                MinScale = _displayEdit.MinScale,
-                MaxScale = _displayEdit.MaxScale,
-                DisplayField = string.IsNullOrWhiteSpace(_displayEdit.DisplayField) ? null : _displayEdit.DisplayField,
-                DefaultVisibility = FromSelect(_displayEdit.DefaultVisibility),
-                Queryable = FromSelect(_displayEdit.Queryable),
-                HasZ = FromSelect(_displayEdit.HasZ),
-                HasM = FromSelect(_displayEdit.HasM),
-            };
-            _displayResult = await LayerMetadata.SetDisplayAsync(_layer.LayerId, payload);
-            if (_displayResult.Succeeded)
-            {
-                await LoadDisplayAsync();
-            }
-        }
-        finally
-        {
-            _savingDisplay = false;
-        }
+                var payload = new ConsoleLayerDisplay
+                {
+                    MinScale = _displayEdit.MinScale,
+                    MaxScale = _displayEdit.MaxScale,
+                    DisplayField = string.IsNullOrWhiteSpace(_displayEdit.DisplayField) ? null : _displayEdit.DisplayField,
+                    DefaultVisibility = FromSelect(_displayEdit.DefaultVisibility),
+                    Queryable = FromSelect(_displayEdit.Queryable),
+                    HasZ = FromSelect(_displayEdit.HasZ),
+                    HasM = FromSelect(_displayEdit.HasM),
+                };
+                _displayResult = await LayerMetadata.SetDisplayAsync(_layer.LayerId, payload);
+                if (_displayResult.Succeeded)
+                {
+                    await LoadDisplayAsync();
+                }
+            },
+            setBusy: busy => { _savingDisplay = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save display settings");
     }
 
-    private async Task SaveEditingAsync()
+    private Task SaveEditingAsync()
     {
-        if (_layer is null) return;
-        _savingEditing = true;
+        if (_layer is null) return Task.CompletedTask;
         _editingResult = null;
-        try
-        {
-            var payload = new ConsoleLayerEditing
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                GlobalIdField = Trim(_editingEdit.GlobalIdField),
-                CreatorField = Trim(_editingEdit.CreatorField),
-                CreatedAtField = Trim(_editingEdit.CreatedAtField),
-                EditorField = Trim(_editingEdit.EditorField),
-                UpdatedAtField = Trim(_editingEdit.UpdatedAtField),
-                CanModify = FromSelect(_editingEdit.CanModify),
-                SupportsAttachments = FromSelect(_editingEdit.SupportsAttachments),
-                SupportsRelatedRecords = FromSelect(_editingEdit.SupportsRelatedRecords),
-            };
-            _editingResult = await LayerMetadata.SetEditingAsync(_layer.LayerId, payload);
-            if (_editingResult.Succeeded)
-            {
-                await LoadEditingAsync();
-            }
-        }
-        finally
-        {
-            _savingEditing = false;
-        }
+                var payload = new ConsoleLayerEditing
+                {
+                    GlobalIdField = Trim(_editingEdit.GlobalIdField),
+                    CreatorField = Trim(_editingEdit.CreatorField),
+                    CreatedAtField = Trim(_editingEdit.CreatedAtField),
+                    EditorField = Trim(_editingEdit.EditorField),
+                    UpdatedAtField = Trim(_editingEdit.UpdatedAtField),
+                    CanModify = FromSelect(_editingEdit.CanModify),
+                    SupportsAttachments = FromSelect(_editingEdit.SupportsAttachments),
+                    SupportsRelatedRecords = FromSelect(_editingEdit.SupportsRelatedRecords),
+                };
+                _editingResult = await LayerMetadata.SetEditingAsync(_layer.LayerId, payload);
+                if (_editingResult.Succeeded)
+                {
+                    await LoadEditingAsync();
+                }
+            },
+            setBusy: busy => { _savingEditing = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save editing settings");
     }
 
-    private async Task SaveSpatialAsync()
+    private Task SaveSpatialAsync()
     {
-        if (_layer is null) return;
-        _savingSpatial = true;
+        if (_layer is null) return Task.CompletedTask;
         _spatialResult = null;
-        try
-        {
-            // A blank textarea = "leave the list unchanged" (null); any non-blank content = the explicit
-            // list (which may be a single line). To CLEAR, the operator removes every line — which a fully
-            // blank box can't express, so an all-whitespace box is treated as unchanged. The server's []=clear
-            // is reachable from the API; the UI's primary affordances are set/unchanged.
-            IReadOnlyList<string>? supportedCrs = null;
-            if (!string.IsNullOrWhiteSpace(_spatialEdit.SupportedCrsText))
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                supportedCrs = _spatialEdit.SupportedCrsText
-                    .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .ToArray();
-            }
+                // A blank textarea = "leave the list unchanged" (null); any non-blank content = the explicit
+                // list (which may be a single line). To CLEAR, the operator removes every line — which a fully
+                // blank box can't express, so an all-whitespace box is treated as unchanged. The server's []=clear
+                // is reachable from the API; the UI's primary affordances are set/unchanged.
+                IReadOnlyList<string>? supportedCrs = null;
+                if (!string.IsNullOrWhiteSpace(_spatialEdit.SupportedCrsText))
+                {
+                    supportedCrs = _spatialEdit.SupportedCrsText
+                        .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .ToArray();
+                }
 
-            _spatialResult = await LayerMetadata.SetSpatialAsync(
-                _layer.LayerId,
-                supportedCrs,
-                Trim(_spatialEdit.StorageCrs),
-                _spatialEdit.StorageCrsCoordinateEpoch,
-                _spatialEdit.ClearStorageCrs,
-                _spatialEdit.ClearStorageCrsCoordinateEpoch);
-            if (_spatialResult.Succeeded)
-            {
-                await LoadSpatialAsync();
-            }
-        }
-        finally
-        {
-            _savingSpatial = false;
-        }
+                _spatialResult = await LayerMetadata.SetSpatialAsync(
+                    _layer.LayerId,
+                    supportedCrs,
+                    Trim(_spatialEdit.StorageCrs),
+                    _spatialEdit.StorageCrsCoordinateEpoch,
+                    _spatialEdit.ClearStorageCrs,
+                    _spatialEdit.ClearStorageCrsCoordinateEpoch);
+                if (_spatialResult.Succeeded)
+                {
+                    await LoadSpatialAsync();
+                }
+            },
+            setBusy: busy => { _savingSpatial = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save CRS / spatial settings");
     }
 
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

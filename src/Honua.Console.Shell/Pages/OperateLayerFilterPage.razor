@@ -1,9 +1,10 @@
-@page "/operate/layers/{ResourceId}/filter"
+﻿@page "/operate/layers/{ResourceId}/filter"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerFilterOperation LayerFilter
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page" data-filter-page>
     @if (_layer is null)
@@ -65,7 +66,7 @@
                         @(_busy ? "Saving…" : "Save filter")
                     </button>
                     <button class="console-button console-button-secondary" type="button"
-                            disabled="@(_busy || !_filter.HasFilter)" @onclick="ClearAsync" data-filter-clear>
+                            disabled="@(_busy || !_filter.HasFilter)" @onclick="ConfirmClear" data-filter-clear>
                         Clear filter
                     </button>
                 </div>
@@ -80,6 +81,7 @@
             }
         </section>
     }
+    <ConsoleConfirmDialog @ref="_confirm" />
 </section>
 
 @code {
@@ -92,6 +94,7 @@
     private string _editLanguage = "arcgis-sql";
     private bool _busy;
     private ConsoleSetLayerFilterResult? _result;
+    private ConsoleConfirmDialog? _confirm;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -119,50 +122,56 @@
         }
     }
 
-    private async Task SaveAsync()
+    private Task SaveAsync()
     {
         if (_layer is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _busy = true;
         _result = null;
-        try
-        {
-            _result = await LayerFilter.SaveFilterAsync(_layer.LayerId, _editExpression, _editLanguage);
-            if (_result.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadFilterAsync();
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
+                _result = await LayerFilter.SaveFilterAsync(_layer.LayerId, _editExpression, _editLanguage);
+                if (_result.Succeeded)
+                {
+                    await LoadFilterAsync();
+                }
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save the filter");
     }
 
-    private async Task ClearAsync()
+    private void ConfirmClear()
+    {
+        if (_confirm is null) return;
+        _confirm.Open(
+            title: "Clear the permanent filter?",
+            onConfirm: ClearAsync,
+            body: "This removes the server-enforced query filter from this layer. All reads will be unrestricted until a new filter is set. This cannot be undone.",
+            confirmLabel: "Clear filter");
+    }
+
+    private Task ClearAsync()
     {
         if (_layer is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _busy = true;
         _result = null;
-        try
-        {
-            _result = await LayerFilter.ClearFilterAsync(_layer.LayerId);
-            if (_result.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                _editExpression = string.Empty;
-                await LoadFilterAsync();
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
+                _result = await LayerFilter.ClearFilterAsync(_layer.LayerId);
+                if (_result.Succeeded)
+                {
+                    _editExpression = string.Empty;
+                    await LoadFilterAsync();
+                }
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't clear the filter");
     }
 }

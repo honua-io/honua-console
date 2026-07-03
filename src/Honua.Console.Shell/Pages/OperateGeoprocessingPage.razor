@@ -1,5 +1,6 @@
-@page "/operate/geoprocessing"
+﻿@page "/operate/geoprocessing"
 @page "/operate/geoprocessing/{SelectedJobRunId}"
+@using Honua.Console.Shell.Components
 @implements IDisposable
 @inject IConsoleOperateObservabilityClient OperateClient
 
@@ -106,7 +107,7 @@
                                                     <button type="button"
                                                         class="console-button console-button-secondary"
                                                         disabled="@_actionBusy"
-                                                        @onclick="() => CancelJobAsync(job.JobRunId)">
+                                                        @onclick="() => ConfirmCancelJob(job.JobRunId)">
                                                         Cancel
                                                     </button>
                                                 }
@@ -163,7 +164,7 @@
                             <button type="button"
                                 class="console-button"
                                 disabled="@_actionBusy"
-                                @onclick="() => CancelJobAsync(job.JobRunId)">
+                                @onclick="() => ConfirmCancelJob(job.JobRunId)">
                                 Cancel job
                             </button>
                         }
@@ -206,6 +207,7 @@
             }
         }
     }
+<ConsoleConfirmDialog @ref="_confirm" />
 </section>
 
 @code {
@@ -246,6 +248,7 @@
     private bool _actionBusy;
     private string? _actionMessage;
     private string _actionMessageClass = string.Empty;
+    private ConsoleConfirmDialog? _confirm;
 
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _pollCts;
@@ -304,6 +307,16 @@
         StartPolling();
     }
 
+    private void ConfirmCancelJob(string jobRunId)
+    {
+        if (_confirm is null) return;
+        _confirm.Open(
+            title: "Cancel this job?",
+            onConfirm: () => CancelJobAsync(jobRunId),
+            body: "This will abort the running job. Work completed so far may be partially applied. This cannot be undone.",
+            confirmLabel: "Cancel job");
+    }
+
     private Task CancelJobAsync(string jobRunId) =>
         RunJobActionAsync(jobRunId, OperateClient.CancelJobAsync, "Cancel requested.");
 
@@ -356,6 +369,10 @@
         finally
         {
             _actionBusy = false;
+            // Explicitly re-render the page: RunJobActionAsync may be invoked from the
+            // ConsoleConfirmDialog's confirm callback (a child component), so Blazor's implicit
+            // post-event re-render of the parent page doesn't fire automatically.
+            StateHasChanged();
         }
     }
 
