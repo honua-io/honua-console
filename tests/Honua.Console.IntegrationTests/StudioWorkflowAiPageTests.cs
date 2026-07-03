@@ -132,6 +132,35 @@ public sealed class StudioWorkflowAiPageTests
         Assert.Contains("Honua:Server:BaseUrl", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void WorkingState_ShowsCancel_AndClickingItCancelsTheInFlightGeneration()
+    {
+        var client = new FakeAiWorkflowClient { BlockUntilCancelled = true };
+        var page = RenderWith(client);
+
+        // Start a generation that blocks server-side; the page enters its busy/working state.
+        page.Find(".studio-ai-refine-input").Input("Nightly: pull CSV, validate, publish to FeatureServer");
+        FindButton(page, "Send").Click();
+
+        // The "Honua is working…" indicator and a Cancel control appear while the request is in flight.
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(page.FindAll("[data-studio-ai-working]")),
+            TimeSpan.FromSeconds(5));
+        var cancel = page.Find("[data-studio-ai-cancel]");
+        Assert.False(client.CapturedToken.IsCancellationRequested);
+
+        // Clicking Cancel cancels the token the page passed into GenerateAsync and surfaces a cancelled turn.
+        cancel.Click();
+
+        page.WaitForAssertion(
+            () => Assert.True(client.CapturedToken.IsCancellationRequested),
+            TimeSpan.FromSeconds(5));
+        Assert.Empty(page.FindAll("[data-studio-ai-working]"));
+        Assert.Contains("Request cancelled", page.Find(".studio-ai-conversation-log").TextContent, StringComparison.Ordinal);
+        // The refine input is usable again for the next prompt (not stuck disabled/busy).
+        Assert.False(page.Find(".studio-ai-refine-input").HasAttribute("disabled"));
+    }
+
     private static IRenderedComponent<StudioWorkflowAiPage> RenderWith(IStudioWorkflowPackageClient client)
     {
         var ctx = new Bunit.BunitContext();
@@ -157,6 +186,14 @@ public sealed class StudioWorkflowAiPageTests
     {
         public bool GenerationEnabled { get; init; } = true;
 
+        /// <summary>When set, GenerateAsync blocks until its cancellation token fires (never returns an
+        /// outcome). Lets a test drive the page into its in-flight/busy state and exercise Cancel.</summary>
+        public bool BlockUntilCancelled { get; init; }
+
+        /// <summary>The cancellation token the page passed into the most recent GenerateAsync call, captured
+        /// so a test can assert the page cancelled it when Cancel was clicked.</summary>
+        public CancellationToken CapturedToken { get; private set; }
+
         public Task<StudioWorkflowEditorContext> OpenEditorAsync(string? draftId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioWorkflowEditorContext(BindingState: null, NodeDefinitions: [], Draft: NewDraft()));
 
@@ -179,6 +216,17 @@ public sealed class StudioWorkflowAiPageTests
             StudioWorkflowGenerationRequest request,
             CancellationToken cancellationToken = default)
         {
+            CapturedToken = cancellationToken;
+
+            // Simulate a long-running server generation: never complete until the page cancels the token.
+            // Mirrors a real slow model turn so the page's busy/working state and Cancel can be exercised.
+            if (BlockUntilCancelled)
+            {
+                var tcs = new TaskCompletionSource<StudioWorkflowGenerationOutcome>();
+                cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+                return tcs.Task;
+            }
+
             // Answering a clarification, or an unambiguous prompt, yields a graph; an ambiguous prompt asks.
             var ambiguous = request.Answers.Count == 0 &&
                 request.Prompt.Contains("public works", StringComparison.OrdinalIgnoreCase);

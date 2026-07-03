@@ -101,7 +101,8 @@
                                       Busy="_busy"
                                       OnSend="OnPromptSend"
                                       OnAnswer="OnClarificationAnswered"
-                                      OnEvidence="OnEvidenceRequested">
+                                      OnEvidence="OnEvidenceRequested"
+                                      OnCancel="HandleCancelAsync">
                     <SecondaryRefineActions>
                         @* "Attach data" has no honua-server attach contract in the map-from-prompt flow yet
                            (data is grounded server-side from the prompt). It is honestly disabled rather than
@@ -494,6 +495,7 @@
 
     private bool _loading = true;
     private bool _busy;
+    private CancellationTokenSource _cts = new();
     private StudioMapWorkspace _workspace = new([], []);
     private StudioMapStyleCatalog _styleCatalog = StudioMapStyleCatalog.Empty;
     private StudioMapCapabilityState? _bindingState;
@@ -707,6 +709,23 @@
                 turn.Body))
             .ToArray();
 
+    // Cancels the in-flight generation request and resets busy state so the user can send a revised prompt.
+    // A cancelled request surfaces as a "Request cancelled" turn rather than an error, keeping the
+    // conversation usable. Mirrors the identical pattern in StudioFormAiPage.
+    private Task HandleCancelAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+        _busy = false;
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Request cancelled — refine your prompt and send again.",
+            "just now",
+            StudioConversationTone.Neutral));
+        return Task.CompletedTask;
+    }
+
     private async Task GenerateAsync(StudioMapGenerationRequest request)
     {
         if (_editor is null || _busy)
@@ -715,9 +734,10 @@
         }
 
         _busy = true;
+        var ct = _cts.Token;
         try
         {
-            var outcome = await MapData.GenerateAsync(_editor, request);
+            var outcome = await MapData.GenerateAsync(_editor, request, ct);
 
             if (outcome.BindingState is not null)
             {
@@ -792,6 +812,11 @@
                     "just now",
                     StudioConversationTone.Neutral));
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the user via HandleCancelAsync — the cancel turn and _busy=false are already
+            // set there; suppress the exception so the conversation stays in a good state.
         }
         finally
         {

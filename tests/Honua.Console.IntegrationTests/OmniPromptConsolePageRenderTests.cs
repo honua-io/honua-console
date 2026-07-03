@@ -10,8 +10,9 @@ namespace Honua.Console.IntegrationTests;
 /// Docker-free render coverage for the omni-prompt AI console (honua-console#203). One prompt box routes to BOTH
 /// lanes: a Studio (GIS authoring) prompt lands on the unified data→publish flow in AI mode (the #200 outcome
 /// card path); a DevOps (ops) prompt lands on the deploy approval queue (the #197 approval surface). The
-/// approval gate is preserved in both lanes — nothing actuates from the prompt. Low-confidence prompts surface a
-/// confirm chip rather than misrouting.
+/// approval gate is preserved in both lanes — nothing actuates from the prompt. The keyword classifier NEVER
+/// silently routes: every verdict — high-confidence or ambiguous — surfaces a confirmable suggestion chip the
+/// human accepts with one click before the lane mounts.
 /// </summary>
 public sealed class OmniPromptConsolePageRenderTests
 {
@@ -35,7 +36,7 @@ public sealed class OmniPromptConsolePageRenderTests
     }
 
     [Fact]
-    public void OmniPrompt_StudioIntent_RoutesToDataToPublishFlowAiSurface()
+    public void OmniPrompt_StudioIntent_SuggestsStudioLane_ThenRoutesOnConfirm()
     {
         using var ctx = NewContext();
 
@@ -44,14 +45,28 @@ public sealed class OmniPromptConsolePageRenderTests
         page.Find("[data-omni-prompt-input]").Input("publish Maui parcels as a feature service");
         page.Find("[data-omni-prompt-submit]").Click();
 
+        // A confident Studio classify surfaces a "Best guess" suggestion chip — it does NOT silently route.
         page.WaitForAssertion(
             () =>
             {
-                // Routed to Studio (a confident classify), so the data→publish flow's AI driver surface mounts.
+                Assert.NotEmpty(page.FindAll("[data-omni-prompt-confirm]"));
+                Assert.Contains("Best guess", page.Markup, StringComparison.Ordinal);
+                Assert.NotEmpty(page.FindAll("[data-omni-confirm-studio]"));
+                // No lane is committed until the human confirms.
+                Assert.Empty(page.FindAll("[data-data-publish-flow]"));
+                Assert.Empty(page.FindAll("[data-omni-devops-surface]"));
+            },
+            TimeSpan.FromSeconds(5));
+
+        // Confirming the suggested Studio lane mounts the data→publish flow's AI driver surface.
+        page.Find("[data-omni-confirm-studio]").Click();
+
+        page.WaitForAssertion(
+            () =>
+            {
                 Assert.Contains("Routed to", page.Markup, StringComparison.Ordinal);
                 Assert.NotEmpty(page.FindAll("[data-data-publish-flow]"));
                 Assert.NotEmpty(page.FindAll("[data-ai-driver]"));
-                // The DevOps deploy-approval surface is NOT shown for a Studio prompt.
                 Assert.Empty(page.FindAll("[data-omni-devops-surface]"));
             },
             TimeSpan.FromSeconds(5));
@@ -70,6 +85,12 @@ public sealed class OmniPromptConsolePageRenderTests
         page.Find("[data-omni-prompt-input]").Input(intent);
         page.Find("[data-omni-prompt-submit]").Click();
 
+        // Confirm the suggested Studio lane before the flow mounts (no silent route).
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(page.FindAll("[data-omni-confirm-studio]")),
+            TimeSpan.FromSeconds(5));
+        page.Find("[data-omni-confirm-studio]").Click();
+
         page.WaitForAssertion(
             () =>
             {
@@ -83,7 +104,7 @@ public sealed class OmniPromptConsolePageRenderTests
     }
 
     [Fact]
-    public void OmniPrompt_DevOpsIntent_RoutesToDeployApprovalQueue_PreservingTheGate()
+    public void OmniPrompt_DevOpsIntent_SuggestsDevOpsLane_ThenRoutesToDeployApprovalQueueOnConfirm_PreservingTheGate()
     {
         using var ctx = NewContext();
 
@@ -92,11 +113,24 @@ public sealed class OmniPromptConsolePageRenderTests
         page.Find("[data-omni-prompt-input]").Input("roll back staging to the last good revision");
         page.Find("[data-omni-prompt-submit]").Click();
 
+        // A confident DevOps classify surfaces a "Best guess" suggestion chip — it does NOT silently route.
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.NotEmpty(page.FindAll("[data-omni-prompt-confirm]"));
+                Assert.Contains("Best guess", page.Markup, StringComparison.Ordinal);
+                Assert.NotEmpty(page.FindAll("[data-omni-confirm-devops]"));
+                Assert.Empty(page.FindAll("[data-omni-devops-surface]"));
+            },
+            TimeSpan.FromSeconds(5));
+
+        // Confirming the suggested DevOps lane mounts the deploy approval queue (the human-in-the-loop gate).
+        page.Find("[data-omni-confirm-devops]").Click();
+
         page.WaitForAssertion(
             () =>
             {
                 Assert.Contains("Routed to", page.Markup, StringComparison.Ordinal);
-                // The DevOps deploy approval surface mounts (the human-in-the-loop queue).
                 Assert.NotEmpty(page.FindAll("[data-omni-devops-surface]"));
                 Assert.Contains("Deploy approvals", page.Markup, StringComparison.Ordinal);
                 // The Studio publish flow is NOT shown for a DevOps prompt.

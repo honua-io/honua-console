@@ -22,10 +22,12 @@
         the server's governed OperatorApprovalGate (#197). Nothing actuates until the human approves.
 
     The router is a thin, console-side classifier (IOmniPromptIntentClassifier): no server intent-classify or
-    operations-catalog endpoint exists yet, so a deterministic keyword heuristic picks the lane and surfaces a
-    confirm chip when the signal is weak. Power users can force a lane with the lane override. The surface is
-    unified; the EXECUTION still routes to the existing Studio generate / deploy-control drivers — this page
-    re-homes neither.
+    operations-catalog endpoint exists yet, so a deterministic keyword heuristic scores the lane. The verdict —
+    even a high-confidence one — is always shown as a confirmable suggestion before routing, never a silent
+    misroute. Low-confidence / ambiguous prompts surface equal choices. Power users can force a lane with the
+    lane override. When no AI provider is configured the classify still works (keyword-only, server-independent)
+    and the confirm chip offers an explicit lane choice. The EXECUTION still routes to the existing Studio
+    generate / deploy-control drivers — this page re-homes neither.
 *@
 
 <section class="console-page omni-prompt-page" data-omni-prompt-page>
@@ -34,8 +36,8 @@
         <h1>Ask Honua</h1>
         <p>
             One prompt for everything — publish a layer, build a map or dashboard, run an analysis, or deploy /
-            roll back / upgrade a server. Describe it in plain language; Honua infers what you mean and routes it
-            to the right place. You always approve before anything happens.
+            roll back / upgrade a server. Describe it in plain language; Honua suggests a lane based on keyword
+            matching, and you confirm before anything routes. You always approve before anything happens.
         </p>
     </div>
 
@@ -75,22 +77,54 @@
             </span>
         </div>
 
-        @if (_classification is { Confidence: OmniPromptConfidence.Low } lowConfidence && _routedIntent is null)
+        @if (_classification is { } classification && _routedIntent is null)
         {
-            @* CONFIRM CHIP — low-confidence / ambiguous prompt. The classifier never silently routes into the
-               wrong lane; the human picks. *@
-            <div class="console-panel console-state-info omni-prompt-confirm" role="note" data-omni-prompt-confirm>
-                <p class="console-kicker">Which lane?</p>
-                <p>@lowConfidence.Rationale</p>
-                <div class="console-action-row">
-                    <button type="button" class="console-button" @onclick="@(() => RouteTo(OmniPromptIntent.Studio))" data-omni-confirm-studio>
-                        Studio — publish / map / analyze
-                    </button>
-                    <button type="button" class="console-button console-button-secondary" @onclick="@(() => RouteTo(OmniPromptIntent.DevOps))" data-omni-confirm-devops>
-                        DevOps — deploy / roll back / upgrade
-                    </button>
+            @if (classification.Confidence == OmniPromptConfidence.High)
+            {
+                @* HIGH-CONFIDENCE SUGGESTION — keyword match drove this verdict. Shown as a confirmable
+                   suggestion rather than a silent route: one click to accept, a secondary button to switch
+                   lanes. The keyword heuristic never actuates anything; the human always confirms. *@
+                <div class="console-panel console-state-info omni-prompt-confirm" role="note" data-omni-prompt-confirm>
+                    <p class="console-kicker">Best guess · confirm or change?</p>
+                    <p>@classification.Rationale</p>
+                    <div class="console-action-row">
+                        @if (classification.Intent == OmniPromptIntent.Studio)
+                        {
+                            <button type="button" class="console-button" @onclick="@(() => RouteTo(OmniPromptIntent.Studio))" data-omni-confirm-studio>
+                                Studio — publish / map / analyze
+                            </button>
+                            <button type="button" class="console-button console-button-secondary" @onclick="@(() => RouteTo(OmniPromptIntent.DevOps))" data-omni-confirm-devops>
+                                DevOps — deploy / roll back / upgrade
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="console-button" @onclick="@(() => RouteTo(OmniPromptIntent.DevOps))" data-omni-confirm-devops>
+                                DevOps — deploy / roll back / upgrade
+                            </button>
+                            <button type="button" class="console-button console-button-secondary" @onclick="@(() => RouteTo(OmniPromptIntent.Studio))" data-omni-confirm-studio>
+                                Studio — publish / map / analyze
+                            </button>
+                        }
+                    </div>
                 </div>
-            </div>
+            }
+            else
+            {
+                @* AMBIGUOUS — no clear lane signal; the human picks. *@
+                <div class="console-panel console-state-info omni-prompt-confirm" role="note" data-omni-prompt-confirm>
+                    <p class="console-kicker">Which lane?</p>
+                    <p>@classification.Rationale</p>
+                    <div class="console-action-row">
+                        <button type="button" class="console-button" @onclick="@(() => RouteTo(OmniPromptIntent.Studio))" data-omni-confirm-studio>
+                            Studio — publish / map / analyze
+                        </button>
+                        <button type="button" class="console-button console-button-secondary" @onclick="@(() => RouteTo(OmniPromptIntent.DevOps))" data-omni-confirm-devops>
+                            DevOps — deploy / roll back / upgrade
+                        </button>
+                    </div>
+                </div>
+            }
         }
         else if (_routedIntent is { } routed)
         {
@@ -156,8 +190,10 @@
         OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
     private string? _selectedApprovalOperationId;
 
-    // Classify the prompt and, on a confident verdict, route straight to that lane's surface. A low-confidence
-    // verdict stops at the confirm chip (rendered above) so the human picks the lane — never a silent misroute.
+    // Classify the prompt and surface the verdict as a confirmable suggestion. Even a high-confidence keyword
+    // match shows a chip the human confirms with one click — never a silent misroute into the wrong lane. The
+    // chip rendered above handles both high-confidence (suggested-lane primary button) and low-confidence
+    // (equal-weight lane choices).
     private Task RouteAsync()
     {
         if (string.IsNullOrWhiteSpace(_prompt))
@@ -169,12 +205,7 @@
         var classification = Classifier.Classify(_prompt);
         _classification = classification;
 
-        if (classification.Confidence == OmniPromptConfidence.High)
-        {
-            return RouteTo(classification.Intent);
-        }
-
-        // Low confidence: the confirm chip renders; wait for the human's lane choice.
+        // Always stop at the suggestion chip rather than routing silently.
         return Task.CompletedTask;
     }
 
