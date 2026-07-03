@@ -314,6 +314,24 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
     /// <summary>The configured server base URI.</summary>
     public Uri BaseUri { get; }
 
+    /// <summary>
+    /// Resolves a request path against <see cref="BaseUri"/> so a non-root base-path prefix is preserved.
+    /// A configured server URL may include a path segment (e.g. <c>https://host/honua/</c> behind a reverse
+    /// proxy). Relying on <see cref="HttpClient.BaseAddress"/> with a rooted request path (<c>/rest/...</c>)
+    /// drops that prefix — an absolute-path reference resolves against the authority only (RFC 3986 §5.3), so
+    /// the request would hit <c>https://host/rest/...</c> instead of <c>https://host/honua/rest/...</c>.
+    /// Building an absolute URI from a slash-terminated base plus a relativised path keeps the prefix
+    /// (honua-console#274).
+    /// </summary>
+    private Uri BuildRequestUri(string relativePath)
+    {
+        var normalizedBase = BaseUri.AbsoluteUri.EndsWith('/')
+            ? BaseUri
+            : new Uri(BaseUri.AbsoluteUri + "/", UriKind.Absolute);
+        var relative = relativePath.StartsWith('/') ? relativePath[1..] : relativePath;
+        return new Uri(normalizedBase, relative);
+    }
+
     private static string Base(string serviceId) =>
         $"/rest/services/{Uri.EscapeDataString(serviceId)}/VersionManagementServer";
 
@@ -326,7 +344,7 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         const string contract = "GET .../VersionManagementServer/versions";
 
         return SendAsync<VersionListBody, IReadOnlyList<HonuaVersionInfo>>(
-            () => new HttpRequestMessage(HttpMethod.Get, path),
+            () => new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path)),
             contract,
             body => body.Versions ?? [],
             cancellationToken);
@@ -458,7 +476,7 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
         var path = $"{Base(serviceId)}/versions/{Uri.EscapeDataString(versionGuid)}/inspectConflicts?f=json";
         const string contract = "GET .../VersionManagementServer/versions/{guid}/inspectConflicts";
         return SendAsync<HonuaInspectConflictsResult, HonuaInspectConflictsResult>(
-            () => new HttpRequestMessage(HttpMethod.Get, path),
+            () => new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path)),
             contract,
             body => body,
             cancellationToken);
@@ -510,8 +528,8 @@ public sealed class HonuaVersionManagementHttpClient : IHonuaVersionManagementCl
             cancellationToken);
     }
 
-    private static HttpRequestMessage Form(string path, IReadOnlyDictionary<string, string> form) =>
-        new(HttpMethod.Post, path) { Content = new FormUrlEncodedContent(form) };
+    private HttpRequestMessage Form(string path, IReadOnlyDictionary<string, string> form) =>
+        new(HttpMethod.Post, BuildRequestUri(path)) { Content = new FormUrlEncodedContent(form) };
 
     private async Task<HonuaAdminEndpointResult<TResult>> SendAsync<TBody, TResult>(
         Func<HttpRequestMessage> requestFactory,

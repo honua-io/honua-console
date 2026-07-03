@@ -864,6 +864,69 @@ public sealed class ConsoleOperateObservabilityClientTests
     }
 
     [Fact]
+    public async Task RulesSurface_WhenRulesEnvelopeReportsFailure_DeniesSectionInsteadOfEmptyList()
+    {
+        // honua-console#274 item 1: a HTTP 200 alert-rules envelope carrying success:false (with null data)
+        // is a server-reported failure, NOT an empty rule set. It must surface as a denied section rather
+        // than a successful empty "no rules configured" list (the "failure shown as empty success" shape
+        // fixed on the Catalog surface in #272/#273).
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/alerts/rules" => JsonResponse(
+                new ConsoleApiEnvelope<AlertRuleResponse[]>
+                {
+                    Success = false,
+                    Message = "Alert rule store is unavailable.",
+                    Data = null
+                },
+                OperateObservabilityJsonContext.Default.AlertRuleListEnvelope),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetRulesAsync();
+
+        Assert.NotEqual(OperateSectionStatus.Allowed, result.Status);
+        Assert.Null(result.Value);
+        Assert.Contains("Alert rule store is unavailable", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RulesSurface_WhenZonesEnvelopeReportsFailure_SurfacesZonesFailureNotEmptySuccess()
+    {
+        // honua-console#274 item 1 (zones sub-section): a HTTP 200 geofence-zones envelope with success:false
+        // must surface through the zones status/message failure path, not render as an empty-but-successful
+        // zone list.
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/alerts/rules" => JsonResponse(
+                new ConsoleApiEnvelope<AlertRuleResponse[]>
+                {
+                    Success = true,
+                    Data = []
+                },
+                OperateObservabilityJsonContext.Default.AlertRuleListEnvelope),
+            "/api/v1/admin/alerts/zones" => JsonResponse(
+                new ConsoleApiEnvelope<AlertZoneResponse[]>
+                {
+                    Success = false,
+                    Message = "Geofence zone store is unavailable.",
+                    Data = null
+                },
+                OperateObservabilityJsonContext.Default.AlertZoneListEnvelope),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.GetRulesAsync();
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Empty(result.Value!.Zones);
+        Assert.NotEqual(OperateSectionStatus.Allowed, result.Value.ZonesStatus);
+        Assert.Contains("Geofence zone store is unavailable", result.Value.ZonesMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvestigationsCarryDetailFailureStateInsteadOfHidingMissingPinsAndLinks()
     {
         var now = DateTimeOffset.Parse("2026-05-24T20:00:00Z");
