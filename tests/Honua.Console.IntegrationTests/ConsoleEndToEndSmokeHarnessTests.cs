@@ -12,7 +12,7 @@ namespace Honua.Console.IntegrationTests;
 /// </summary>
 public sealed class ConsoleEndToEndSmokeHarnessTests
 {
-    [Fact]
+    [SkippableFact]
     public void EndToEndSmoke_SkipsCleanly_WhenOptInEnvIsAbsent()
     {
         // The standard CI runner sets neither HONUA_CONSOLE_INTEGRATION nor

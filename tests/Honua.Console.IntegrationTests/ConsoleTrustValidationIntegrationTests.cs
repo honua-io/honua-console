@@ -55,6 +55,11 @@ public sealed class ConsoleTrustValidationIntegrationTests
     public async Task ChangedServerFingerprint_BlocksUntilAcknowledged_AgainstLiveServer()
     {
         SkipIf(ConsoleTrustIntegrationOptions.GetSkipReason());
+        // The change-detection assertions below pivot on a real, observed server-certificate fingerprint.
+        // That requires a TLS handshake; when the live server boots plain HTTP (e.g. the pinned nightly
+        // image) there is no certificate to fingerprint, so skip cleanly rather than fail on an empty
+        // fingerprint. When a TLS-enabled server IS configured, the full assertion still runs.
+        SkipIf(_fixture.ServerFingerprintProbeSkipReason);
 
         var profile = _fixture.BuildProfile();
         var probe = _fixture.CreateProbe();
