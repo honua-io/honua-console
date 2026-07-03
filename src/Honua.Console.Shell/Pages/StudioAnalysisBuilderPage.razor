@@ -113,7 +113,8 @@
                                       Clarifications="_clarifications"
                                       Busy="_busy"
                                       OnSend="OnPromptSend"
-                                      OnAnswer="OnClarificationAnswered">
+                                      OnAnswer="OnClarificationAnswered"
+                                      OnCancel="HandleCancelAsync">
                     <PreviewHeader>
                         <span class="studio-analysis-editor-glyph" aria-hidden="true">∑</span>
                         <input class="console-input studio-analysis-title-input" @bind="_plan.Title" @bind:after="OnEdit" placeholder="hydrant-proximity-buffer" aria-label="Analysis title" />
@@ -590,6 +591,7 @@
 
     private bool _loading = true;
     private bool _busy;
+    private CancellationTokenSource _cts = new();
     private StudioAnalysisWorkspace _workspace = new([], []);
     private StudioAnalysisCapabilityState? _bindingState;
     private IReadOnlyList<StudioAnalysisCapabilityState> _states = [];
@@ -739,6 +741,23 @@
                 turn.Body))
             .ToArray();
 
+    // Cancels the in-flight generation request and resets busy state so the user can send a revised prompt.
+    // A cancelled request surfaces as a "Request cancelled" turn rather than an error, keeping the
+    // conversation usable. Mirrors the identical pattern in StudioFormAiPage.
+    private Task HandleCancelAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+        _busy = false;
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Request cancelled — refine your prompt and send again.",
+            "just now",
+            StudioConversationTone.Neutral));
+        return Task.CompletedTask;
+    }
+
     private async Task GenerateAsync(StudioAnalysisGenerationRequest request)
     {
         if (_plan is null || _busy)
@@ -747,6 +766,7 @@
         }
 
         _busy = true;
+        var ct = _cts.Token;
         try
         {
             // Show a real result immediately: seed a baseline from the live catalog (no model call) so the
@@ -758,7 +778,7 @@
             var seededBaseline = false;
             if (_plan.Inputs.Count == 0)
             {
-                var baseline = await AnalysisData.SeedBaselineAsync(request.Prompt);
+                var baseline = await AnalysisData.SeedBaselineAsync(request.Prompt, ct);
                 if (baseline is not null)
                 {
                     _plan = baseline;
@@ -787,7 +807,7 @@
                 }
             }
 
-            var outcome = await AnalysisData.GenerateAsync(generationPlan, request);
+            var outcome = await AnalysisData.GenerateAsync(generationPlan, request, ct);
 
             // If we already seeded a baseline this turn and the server just re-confirms a baseline (the model
             // couldn't draft one), keep the seeded plan as-is: don't overwrite the operator's in-flight edits
@@ -868,6 +888,11 @@
                     "just now",
                     StudioConversationTone.Neutral));
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the user via HandleCancelAsync — the cancel turn and _busy=false are already
+            // set there; suppress the exception so the conversation stays in a good state.
         }
         finally
         {

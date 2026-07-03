@@ -53,9 +53,11 @@
                               RefinePlaceholder="@RefinePlaceholder"
                               Turns="_turns"
                               Clarifications="_clarifications"
-                              Busy="@(_busy || !AiEnabled)"
+                              Busy="_busy"
+                              Disabled="@(!AiEnabled)"
                               OnSend="HandleSendAsync"
-                              OnAnswer="HandleAnswerAsync">
+                              OnAnswer="HandleAnswerAsync"
+                              OnCancel="HandleCancelAsync">
             <SecondaryRefineActions>
                 @if (AiEnabled)
                 {
@@ -221,6 +223,7 @@
 @code {
     private bool _loading = true;
     private bool _busy;
+    private CancellationTokenSource _cts = new();
     private StudioWorkflowPackageDraft? _draft;
     private StudioWorkflowBindingState? _binding;
     private IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions = [];
@@ -332,6 +335,22 @@
         return GenerateAsync(request);
     }
 
+    // Cancels the in-flight generation request and resets busy state so the user can send a revised prompt.
+    // A cancelled request surfaces as a "Request cancelled" turn rather than an error, keeping the
+    // conversation usable. Mirrors the identical pattern in StudioFormAiPage.
+    private Task HandleCancelAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+        _busy = false;
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Request cancelled — refine your prompt and send again.",
+            Tone: StudioConversationTone.Neutral));
+        return Task.CompletedTask;
+    }
+
     private async Task GenerateAsync(StudioWorkflowGenerationRequest request)
     {
         if (_draft is null)
@@ -340,9 +359,10 @@
         }
 
         _busy = true;
+        var ct = _cts.Token;
         try
         {
-            var outcome = await Workflows.GenerateAsync(_draft, request);
+            var outcome = await Workflows.GenerateAsync(_draft, request, ct);
 
             if (outcome.BindingState is not null)
             {
@@ -392,6 +412,11 @@
                         : outcome.Rationale,
                     Tone: StudioConversationTone.Neutral));
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the user via HandleCancelAsync — the cancel turn and _busy=false are already
+            // set there; suppress the exception so the conversation stays in a good state.
         }
         finally
         {

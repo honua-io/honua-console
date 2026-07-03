@@ -36,7 +36,8 @@
                               RefinePlaceholder="@RefinePlaceholder"
                               Turns="_turns"
                               Clarifications="_clarifications"
-                              Busy="@(_busy || !AiEnabled)"
+                              Busy="_busy"
+                              Disabled="@(!AiEnabled)"
                               OnSend="HandleSendAsync"
                               OnAnswer="HandleAnswerAsync"
                               OnCancel="HandleCancelAsync">

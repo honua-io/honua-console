@@ -120,7 +120,8 @@
                                       Clarifications="_clarifications"
                                       Busy="_busy"
                                       OnSend="OnPromptSend"
-                                      OnAnswer="OnClarificationAnswered">
+                                      OnAnswer="OnClarificationAnswered"
+                                      OnCancel="HandleCancelAsync">
                     <PreviewHeader>
                         <span class="studio-query-bar-glyph" aria-hidden="true">◇</span>
                         <input class="console-input studio-query-title-input" @bind="_query.Title" @bind:after="OnEdit" placeholder="Flood-zone permits" aria-label="Query title" />
@@ -537,6 +538,7 @@
 
     private bool _loading = true;
     private bool _busy;
+    private CancellationTokenSource _cts = new();
     private StudioQueryWorkspace _workspace = new([], []);
     private StudioQueryCapabilityState? _bindingState;
     private IReadOnlyList<StudioQueryCapabilityState> _states = [];
@@ -699,6 +701,23 @@
                 turn.Body))
             .ToArray();
 
+    // Cancels the in-flight generation request and resets busy state so the user can send a revised prompt.
+    // A cancelled request surfaces as a "Request cancelled" turn rather than an error, keeping the
+    // conversation usable. Mirrors the identical pattern in StudioFormAiPage.
+    private Task HandleCancelAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+        _busy = false;
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Request cancelled — refine your prompt and send again.",
+            "just now",
+            StudioConversationTone.Neutral));
+        return Task.CompletedTask;
+    }
+
     private async Task GenerateAsync(StudioQueryGenerationRequest request)
     {
         if (_query is null || _busy)
@@ -707,9 +726,10 @@
         }
 
         _busy = true;
+        var ct = _cts.Token;
         try
         {
-            var outcome = await QueryData.GenerateAsync(_query, request);
+            var outcome = await QueryData.GenerateAsync(_query, request, ct);
 
             if (outcome.BindingState is not null)
             {
@@ -782,6 +802,11 @@
                     "just now",
                     StudioConversationTone.Neutral));
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the user via HandleCancelAsync — the cancel turn and _busy=false are already
+            // set there; suppress the exception so the conversation stays in a good state.
         }
         finally
         {
