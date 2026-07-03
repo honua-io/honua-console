@@ -76,12 +76,31 @@
             }
         </div>
 
+        @if (Busy)
+        {
+            @* IN-FLIGHT INDICATOR — shows while the server is working so the pane feels alive rather than
+               frozen. A Cancel button fires OnCancel (the caller cancels the in-flight task and clears Busy).
+               The driver does not stream partial turns, so no fabricated incremental output is shown here;
+               the log will update once the full turn arrives. aria-live="polite" on the log above picks it
+               up automatically. *@
+            <div class="studio-ai-working" role="status" data-studio-ai-working>
+                <span class="studio-ai-working-label">Honua is working…</span>
+                @if (OnCancel.HasDelegate)
+                {
+                    <button type="button" class="console-link studio-ai-cancel" @onclick="Cancel" data-studio-ai-cancel>
+                        Cancel
+                    </button>
+                }
+            </div>
+        }
+
         <footer class="studio-ai-refine">
+            @* The textarea stays enabled while the server is working so the user can compose a follow-up
+               while waiting; the Send button remains disabled until the current request completes. *@
             <textarea class="studio-ai-refine-input"
                       rows="2"
                       placeholder="@RefinePlaceholder"
                       aria-label="Refine or ask a follow-up"
-                      disabled="@Busy"
                       @bind="_refine"
                       @bind:event="oninput"
                       @onkeydown="OnRefineKeyDown"></textarea>
@@ -166,6 +185,11 @@
     [Parameter]
     public EventCallback<StudioConversationTurn> OnEvidence { get; set; }
 
+    /// <summary>Raised when the Cancel button is clicked during a busy in-flight request. The caller
+    /// should cancel the in-flight operation and set <see cref="Busy"/> to false when honoured.</summary>
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
     // The Send button advertises "Send ⌘↵" but no keydown handler existed, so the shortcut did nothing.
     // Ctrl+Enter / Cmd+Enter now sends (the modifier matches the multi-line textarea convention: a bare
     // Enter still inserts a newline). The textarea is excluded from preventDefault so the modifier combo
@@ -201,4 +225,7 @@
 
     private Task RaiseEvidence(StudioConversationTurn turn) =>
         OnEvidence.HasDelegate ? OnEvidence.InvokeAsync(turn) : Task.CompletedTask;
+
+    private Task Cancel() =>
+        OnCancel.HasDelegate ? OnCancel.InvokeAsync() : Task.CompletedTask;
 }

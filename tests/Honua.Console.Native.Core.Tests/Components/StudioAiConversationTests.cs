@@ -73,4 +73,69 @@ public sealed class StudioAiConversationTests : ConsoleComponentTestBase
 
         Assert.Equal(0, sends);
     }
+
+    [Fact]
+    public void Textarea_is_not_disabled_while_busy_so_user_can_queue_a_followup()
+    {
+        // The refine textarea must remain enabled when Busy=true so the user can compose their next
+        // message while waiting for the current request to complete. The Send button stays disabled.
+        var cut = Render<StudioAiConversation>(p => p
+            .Add(c => c.Busy, true));
+
+        var textarea = cut.Find(".studio-ai-refine-input");
+        Assert.False(textarea.HasAttribute("disabled"),
+            "Textarea must NOT be disabled while busy — user should be able to type a follow-up.");
+    }
+
+    [Fact]
+    public void Working_indicator_is_visible_while_busy()
+    {
+        var cut = Render<StudioAiConversation>(p => p
+            .Add(c => c.Busy, true));
+
+        var indicator = cut.Find("[data-studio-ai-working]");
+        Assert.Contains("Honua is working", indicator.TextContent);
+    }
+
+    [Fact]
+    public void Working_indicator_is_not_rendered_when_not_busy()
+    {
+        var cut = Render<StudioAiConversation>(p => p
+            .Add(c => c.Busy, false));
+
+        Assert.Empty(cut.FindAll("[data-studio-ai-working]"));
+    }
+
+    [Fact]
+    public void Cancel_button_is_shown_when_busy_and_OnCancel_is_wired()
+    {
+        var cut = Render<StudioAiConversation>(p => p
+            .Add(c => c.Busy, true)
+            .Add(c => c.OnCancel, () => { }));
+
+        Assert.Single(cut.FindAll("[data-studio-ai-cancel]"));
+    }
+
+    [Fact]
+    public void Cancel_button_is_not_shown_when_OnCancel_is_not_wired()
+    {
+        // When the caller hasn't wired a cancel handler the button must not appear — no dead affordance.
+        var cut = Render<StudioAiConversation>(p => p
+            .Add(c => c.Busy, true));
+
+        Assert.Empty(cut.FindAll("[data-studio-ai-cancel]"));
+    }
+
+    [Fact]
+    public void Clicking_cancel_button_invokes_OnCancel()
+    {
+        var cancelled = 0;
+        var cut = Render<StudioAiConversation>(p => p
+            .Add(c => c.Busy, true)
+            .Add(c => c.OnCancel, () => cancelled++));
+
+        cut.Find("[data-studio-ai-cancel]").Click();
+
+        Assert.Equal(1, cancelled);
+    }
 }
