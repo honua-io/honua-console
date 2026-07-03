@@ -1,11 +1,9 @@
 @page "/operate/sync"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Services
 @inject ITemporalCapabilityClient TemporalData
-@inject IConsoleCapabilityManifest Capabilities
+@inject IConsoleNotificationService Notifications
 
-<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.DisconnectedSync"
-                       Title="Disconnected sync review is not available in this release"
-                       Message="Disconnected sync conflict review — replica three-way merge and governed resolution — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page operate-sync" data-sync-review="capability-gate">
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow</p>
@@ -286,7 +284,6 @@
         }
     }
 </section>
-</ConsoleCapabilityGate>
 
 @code {
     private bool _loading = true;
@@ -309,14 +306,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Capability-manifest gate: when disconnected sync is not advertised for this release the page
-        // renders the first-class "unsupported" state, so skip the server read entirely.
-        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync))
-        {
-            _loading = false;
-            return;
-        }
-
         _loading = true;
         var workspace = await TemporalData.GetWorkspaceAsync();
         // Gate on whether the server-owned disconnected-replica workspace is reachable. The non-missing
@@ -381,31 +370,29 @@
     private Task ApplyBatchAsync() =>
         ResolveAsync([.. _selectedConflictIds], _batchAction);
 
-    private async Task ResolveAsync(IReadOnlyList<string> conflictIds, SyncResolutionAction action)
+    private Task ResolveAsync(IReadOnlyList<string> conflictIds, SyncResolutionAction action)
     {
         if (conflictIds.Count == 0 || _selectedReplica is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _resolveBusy = true;
-        try
-        {
-            _lastResolution = await TemporalData.ResolveConflictsAsync(
-                new SyncConflictResolutionRequest(conflictIds, action));
-            _resolutionBinding = _lastResolution.BindingState;
-            if (_resolutionBinding is null)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                var review = await TemporalData.GetReplicaConflictReviewAsync(_selectedReplica.ReplicaId);
-                _conflictReviewBinding = review.BindingState;
-                _conflicts = review.Conflicts;
-                _selectedConflictIds.Clear();
-            }
-        }
-        finally
-        {
-            _resolveBusy = false;
-        }
+                _lastResolution = await TemporalData.ResolveConflictsAsync(
+                    new SyncConflictResolutionRequest(conflictIds, action));
+                _resolutionBinding = _lastResolution.BindingState;
+                if (_resolutionBinding is null)
+                {
+                    var review = await TemporalData.GetReplicaConflictReviewAsync(_selectedReplica.ReplicaId);
+                    _conflictReviewBinding = review.BindingState;
+                    _conflicts = review.Conflicts;
+                    _selectedConflictIds.Clear();
+                }
+            },
+            setBusy: busy => { _resolveBusy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't resolve the conflicts");
     }
 
     private static string StatusClass(ReplicaStatus status) => status switch

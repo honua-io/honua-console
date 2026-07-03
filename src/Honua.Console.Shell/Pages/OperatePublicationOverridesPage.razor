@@ -4,6 +4,7 @@
 @using Honua.Console.Shell.Services
 @inject IConsolePublicationOverridesOperation Overrides
 @inject NavigationManager Nav
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page" data-publication-overrides-page>
     <div class="console-page-heading">
@@ -224,38 +225,36 @@
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    private async Task SaveAsync()
+    private Task SaveAsync()
     {
-        _saving = true;
         _result = null;
-        try
-        {
-            var overrides = new ConsolePublicationOverrides
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                Bound = true,
-                PublicationId = PublicationId,
-                // A blank box clears the title server-side (empty string), matching the form's intent.
-                TitleOverride = string.IsNullOrWhiteSpace(_titleOverride) ? string.Empty : _titleOverride.Trim(),
-                IsPrimary = _isPrimary,
-                Capabilities = ParseList(_capabilities),
-                SupportedFormats = ParseList(_supportedFormats),
-                FieldAliases = _aliases
-                    .Where(row => !string.IsNullOrWhiteSpace(row.Field))
-                    .Select(row => row.ToModel())
-                    .ToArray(),
-            };
+                var overrides = new ConsolePublicationOverrides
+                {
+                    Bound = true,
+                    PublicationId = PublicationId,
+                    // A blank box clears the title server-side (empty string), matching the form's intent.
+                    TitleOverride = string.IsNullOrWhiteSpace(_titleOverride) ? string.Empty : _titleOverride.Trim(),
+                    IsPrimary = _isPrimary,
+                    Capabilities = ParseList(_capabilities),
+                    SupportedFormats = ParseList(_supportedFormats),
+                    FieldAliases = _aliases
+                        .Where(row => !string.IsNullOrWhiteSpace(row.Field))
+                        .Select(row => row.ToModel())
+                        .ToArray(),
+                };
 
-            _result = await Overrides.SaveOverridesAsync(PublicationId!, overrides);
+                _result = await Overrides.SaveOverridesAsync(PublicationId!, overrides);
 
-            if (_result.Succeeded)
-            {
-                await LoadAsync();
-            }
-        }
-        finally
-        {
-            _saving = false;
-        }
+                if (_result.Succeeded)
+                {
+                    await LoadAsync();
+                }
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save publication overrides");
     }
 
     // Mutable per-row edit model bound to the alias inputs (the domain record is immutable).

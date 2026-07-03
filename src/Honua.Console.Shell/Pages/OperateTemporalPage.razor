@@ -1,10 +1,11 @@
-@page "/operate/temporal"
+﻿@page "/operate/temporal"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @using Honua.Console.Shell.Validation
 @inject ITemporalCapabilityClient TemporalData
 @inject IConsoleCapabilityManifest Capabilities
+@inject IConsoleNotificationService Notifications
 
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.Temporal"
                        Title="Temporal is not available in this release"
@@ -172,6 +173,7 @@
             }
         }
     }
+<ConsoleConfirmDialog @ref="_confirm" />
 </section>
 </ConsoleCapabilityGate>
 
@@ -219,6 +221,7 @@
     private TemporalRollbackPlan? _rollbackPlan;
     private TemporalRollbackOperation? _rollbackOperation;
     private TemporalBindingState? _rollbackBinding;
+    private ConsoleConfirmDialog? _confirm;
 
     // Replica conflict queue + review state.
     private bool _replicaBusy;
@@ -620,7 +623,7 @@
                         }
                     </ul>
                 }
-                <button class="console-button" type="button" disabled="@_rollbackBusy" @onclick="ExecuteRollbackAsync">Execute Rollback Job</button>
+                <button class="console-button" type="button" disabled="@_rollbackBusy" @onclick="ConfirmRollback">Execute Rollback Job</button>
             }
 
             @if (_rollbackOperation is not null && _rollbackOperation.BindingState is null)
@@ -935,24 +938,28 @@
         }
     }
 
-    private async Task ExecuteRollbackAsync()
+    private void ConfirmRollback()
     {
-        if (_rollbackPlan is null)
-        {
-            return;
-        }
+        if (_confirm is null || _rollbackPlan is null) return;
+        _confirm.Open(
+            title: "Execute the rollback job?",
+            onConfirm: ExecuteRollbackAsync,
+            body: $"This will roll back {_rollbackPlan.AffectedFeatureCount} feature(s) to checkpoint '{_rollbackPlan.TargetCheckpointId}'. The rollback runs as a server job and cannot be undone.",
+            confirmLabel: "Execute rollback");
+    }
 
-        _rollbackBusy = true;
-        try
-        {
-            var operation = await TemporalData.ExecuteRollbackAsync(_rollbackPlan.RollbackPlanId);
-            _rollbackBinding = operation.BindingState;
-            _rollbackOperation = operation.BindingState is null ? operation : null;
-        }
-        finally
-        {
-            _rollbackBusy = false;
-        }
+    private Task ExecuteRollbackAsync()
+    {
+        _rollbackOperation = null;
+        _rollbackBinding = null;
+        return Notifications.RunGuardedAsync(
+            async () =>
+            {
+                _rollbackOperation = await TemporalData.ExecuteRollbackAsync(_rollbackPlan!.RollbackPlanId);
+                _rollbackBinding = _rollbackOperation.BindingState;
+            },
+            setBusy: busy => { _rollbackBusy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't execute the rollback");
     }
 
     private async Task ReviewReplicaAsync(DisconnectedReplica replica)

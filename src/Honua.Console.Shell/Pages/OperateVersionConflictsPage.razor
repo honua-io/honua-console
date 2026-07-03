@@ -1,7 +1,9 @@
 @page "/operate/versions/{ServiceId}/{VersionGuid}/conflicts"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @inject IVersionManagementOperation VersionOps
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page operate-version-conflicts" data-version-conflicts>
     <div class="console-page-heading">
@@ -88,7 +90,7 @@
                 <p>Replays this version's net changes onto DEFAULT. Disabled while conflicts remain.</p>
             </div>
             <div class="console-action-row">
-                <button class="console-button" type="button" @onclick="PostAsync"
+                <button class="console-button" type="button" @onclick="ConfirmPost"
                         disabled="@(_busy || conflicts.HasConflicts)" data-post>
                     @(_busy ? "Posting…" : "Post to DEFAULT")
                 </button>
@@ -99,6 +101,8 @@
             </div>
         </section>
     }
+
+    <ConsoleConfirmDialog @ref="_confirm" />
 </section>
 
 @code {
@@ -117,6 +121,7 @@
 
     private ResolveConflictsResultView? _resolveResult;
     private VersionOperationResult? _postResult;
+    private ConsoleConfirmDialog? _confirm;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
@@ -151,60 +156,56 @@
         _postResult = null;
     }
 
-    private async Task ResolveAsync()
+    private Task ResolveAsync()
     {
         if (_conflicts is not { Bound: true } || _choices.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _busy = true;
         _postResult = null;
-        try
-        {
-            var resolutions = _choices
-                .Select(pair =>
-                {
-                    var parts = pair.Key.Split(':', 2);
-                    var layerId = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
-                    var objectId = long.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
-                    return new ConflictResolutionChoice(layerId, objectId, pair.Value);
-                })
-                .ToArray();
-
-            _resolveResult = await VersionOps.ResolveConflictsAsync(ServiceId, VersionGuid, resolutions);
-            if (_resolveResult.Operation.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadAsync();
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
+                var resolutions = _choices
+                    .Select(pair =>
+                    {
+                        var parts = pair.Key.Split(':', 2);
+                        var layerId = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+                        var objectId = long.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                        return new ConflictResolutionChoice(layerId, objectId, pair.Value);
+                    })
+                    .ToArray();
+
+                _resolveResult = await VersionOps.ResolveConflictsAsync(ServiceId, VersionGuid, resolutions);
+                if (_resolveResult.Operation.Succeeded)
+                {
+                    await LoadAsync();
+                }
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't submit conflict resolutions");
     }
 
-    private async Task PostAsync()
+    private void ConfirmPost()
     {
-        if (_conflicts is not { Bound: true, HasConflicts: false })
-        {
-            return;
-        }
+        if (_confirm is null) return;
+        _confirm.Open(
+            title: "Post version to DEFAULT?",
+            onConfirm: PostAsync,
+            body: "This posts all edits in this branch version to the DEFAULT version. This action is irreversible and affects all users reading from DEFAULT.",
+            confirmLabel: "Post to DEFAULT");
+    }
 
-        _busy = true;
-        _resolveResult = null;
-        try
-        {
-            _postResult = await VersionOps.PostAsync(ServiceId, VersionGuid);
-            if (_postResult.Succeeded)
+    private Task PostAsync()
+    {
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadAsync();
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
+                _postResult = await VersionOps.PostAsync(ServiceId, VersionGuid);
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't post the version to DEFAULT");
     }
 
     private static string DescribeBinding(string? detail, string? contract) =>

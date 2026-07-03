@@ -154,8 +154,12 @@ public sealed class OperateGeoprocessingPageTests
         var page = ctx.Render<OperateGeoprocessingPage>(p => p
             .Add(x => x.SelectedJobRunId, "gp-run"));
 
+        // Cancel job now requires a confirmation step (ConsoleConfirmDialog was added to the page).
+        // First click opens the confirm dialog; the accept button fires the actual cancel call.
         var cancel = page.FindAll("button").Single(b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
         cancel.Click();
+
+        page.Find("[data-console-confirm-accept]").Click();
 
         Assert.Equal("gp-run", Assert.Single(client.CancelCalls));
         Assert.Contains("Cancellation requested.", page.Markup);
@@ -178,7 +182,9 @@ public sealed class OperateGeoprocessingPageTests
         var page = ctx.Render<OperateGeoprocessingPage>(p => p
             .Add(x => x.SelectedJobRunId, "gp-run"));
 
+        // Cancel job now requires a confirmation step before the call goes through.
         page.FindAll("button").Single(b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal)).Click();
+        page.Find("[data-console-confirm-accept]").Click();
 
         Assert.Contains("requires approval", page.Markup);
     }

@@ -1,7 +1,9 @@
 @page "/operate/alerts/rules/{RuleId}"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Services
 @inject IOperateAlertRulesDataSource RulesData
 @inject IConsoleCapabilityManifest Capabilities
+@inject IConsoleNotificationService Notifications
 
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.RealtimeAlerting"
                        Title="Realtime / geofence alerting is not available in this release"
@@ -184,29 +186,27 @@
         _loading = false;
     }
 
-    private async Task SaveAsync()
+    private Task SaveAsync()
     {
-        _saving = true;
         _saveResult = null;
-        try
-        {
-            var channels = _deliveryChannels
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var condition = new OperateAlertRuleCondition(
-                _subject, _operator, _threshold, _window,
-                string.IsNullOrWhiteSpace(_geofenceZoneId) ? null : _geofenceZoneId,
-                _dwellMinutes);
-            var edit = new OperateAlertRuleEdit(RuleId, _name, _enabled, condition, channels);
-            _saveResult = await RulesData.SaveRuleAsync(edit);
-            if (_saveResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                _rule = _saveResult.Rule;
-            }
-        }
-        finally
-        {
-            _saving = false;
-        }
+                var channels = _deliveryChannels
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var condition = new OperateAlertRuleCondition(
+                    _subject, _operator, _threshold, _window,
+                    string.IsNullOrWhiteSpace(_geofenceZoneId) ? null : _geofenceZoneId,
+                    _dwellMinutes);
+                var edit = new OperateAlertRuleEdit(RuleId, _name, _enabled, condition, channels);
+                _saveResult = await RulesData.SaveRuleAsync(edit);
+                if (_saveResult.Succeeded)
+                {
+                    _rule = _saveResult.Rule;
+                }
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save alert rule");
     }
 
     private static string StateKind(string state) => state switch

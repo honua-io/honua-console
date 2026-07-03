@@ -619,6 +619,10 @@ public sealed class OperateTransitionDataSourceTests
         // The layer detail page renders MapPreview, which [Inject]s IJSRuntime (never invoked under static
         // HtmlRenderer); a no-op satisfies DI.
         services.AddSingleton<Microsoft.JSInterop.IJSRuntime>(new NoOpJsRuntime());
+        // Several Operate detail pages now inject IConsoleNotificationService for action-feedback toasts;
+        // the real in-memory service is harmless under static HtmlRenderer (no toast host to subscribe).
+        services.AddSingleton<Honua.Console.Shell.Services.IConsoleNotificationService,
+            Honua.Console.Shell.Services.ConsoleNotificationService>();
         await using var serviceProvider = services.BuildServiceProvider();
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         await using var renderer = new HtmlRenderer(serviceProvider, loggerFactory);

@@ -1,7 +1,10 @@
 @page "/operate/access"
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Services
 @inject IRbacAccessDataSource RbacData
+@inject IConsoleNotificationService Notifications
 
 @* Settings > Access · roles & permissions (screens-collab-rbac.jsx RBACOverview): the five-level scope
    hierarchy strip, the role × permission matrix with the granted/scoped/env-scoped/custom legend, and the
@@ -172,7 +175,7 @@
                                             type="button" data-rbac-delete-role="@role.Id"
                                             disabled="@(_saving || !overview.CanManageRoles)"
                                             title="Delete this custom role"
-                                            @onclick="() => DeleteRoleAsync(role.Id, role.Name)">Delete</button>
+                                            @onclick="() => ConfirmDeleteRole(role.Id, role.Name)">Delete</button>
                                 }
                                 @if (!string.IsNullOrWhiteSpace(role.Description))
                                 {
@@ -208,6 +211,7 @@
                           Title="No roles to show"
                           Message="The Console metadata/RBAC API returned no roles for this workspace." />
     }
+<ConsoleConfirmDialog @ref="_confirm" />
 </section>
 
 @code {
@@ -222,6 +226,7 @@
     private string _newRoleDescription = string.Empty;
     private readonly HashSet<string> _newRoleGrants = new(StringComparer.Ordinal);
     private string? _mutationError;
+    private ConsoleConfirmDialog? _confirm;
     private IReadOnlyList<RbacAuditEntryView> _audit = [];
     private RbacCapabilityState? _auditIssue;
 
@@ -282,73 +287,77 @@
         }
     }
 
-    private async Task SubmitCreateAsync()
+    private Task SubmitCreateAsync()
     {
         if (string.IsNullOrWhiteSpace(_newRoleName) || _saving)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _saving = true;
         _mutationError = null;
-        try
-        {
-            var result = await RbacData.CreateRoleAsync(
-                WorkspaceId,
-                _newRoleName.Trim(),
-                string.IsNullOrWhiteSpace(_newRoleDescription) ? null : _newRoleDescription.Trim(),
-                _newRoleGrants.ToArray());
+        return Notifications.RunGuardedAsync(
+            async () =>
+            {
+                var result = await RbacData.CreateRoleAsync(
+                    WorkspaceId,
+                    _newRoleName.Trim(),
+                    string.IsNullOrWhiteSpace(_newRoleDescription) ? null : _newRoleDescription.Trim(),
+                    _newRoleGrants.ToArray());
 
-            if (result.Succeeded)
-            {
-                _showCreate = false;
-                await ReloadOverviewAsync();
-                if (_showAudit)
+                if (result.Succeeded)
                 {
-                    await LoadAuditAsync();
+                    _showCreate = false;
+                    await ReloadOverviewAsync();
+                    if (_showAudit)
+                    {
+                        await LoadAuditAsync();
+                    }
                 }
-            }
-            else
-            {
-                _mutationError = result.Error ?? "The role could not be created.";
-            }
-        }
-        finally
-        {
-            _saving = false;
-        }
+                else
+                {
+                    _mutationError = result.Error ?? "The role could not be created.";
+                }
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: "Couldn't create the role");
     }
 
-    private async Task DeleteRoleAsync(string roleId, string roleName)
+    private void ConfirmDeleteRole(string roleId, string roleName)
     {
-        if (_saving)
-        {
-            return;
-        }
-
-        _saving = true;
-        _mutationError = null;
-        try
-        {
-            var result = await RbacData.DeleteRoleAsync(WorkspaceId, roleId);
-            if (result.Succeeded)
-            {
-                await ReloadOverviewAsync();
-                if (_showAudit)
-                {
-                    await LoadAuditAsync();
-                }
-            }
-            else
-            {
-                _mutationError = result.Error ?? $"Role '{roleName}' could not be deleted.";
-            }
-        }
-        finally
-        {
-            _saving = false;
-        }
+        if (_confirm is null) return;
+        _confirm.Open(
+            title: $"Delete role '{roleName}'?",
+            onConfirm: () => DeleteRoleAsync(roleId, roleName),
+            body: $"This permanently removes the custom role '{roleName}' and revokes any grants using it. This cannot be undone.",
+            confirmLabel: "Delete role");
     }
+
+    private Task DeleteRoleAsync(string roleId, string roleName)
+    {
+        if (_saving) return Task.CompletedTask;
+        _mutationError = null;
+        return Notifications.RunGuardedAsync(
+            async () =>
+            {
+                var result = await RbacData.DeleteRoleAsync(WorkspaceId, roleId);
+                if (result.Succeeded)
+                {
+                    await ReloadOverviewAsync();
+                    if (_showAudit)
+                    {
+                        await LoadAuditAsync();
+                    }
+                    Notifications.Success($"Role '{roleName}' deleted.");
+                }
+                else
+                {
+                    _mutationError = result.Error ?? $"Role '{roleName}' could not be deleted.";
+                }
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: $"Couldn't delete role '{roleName}'");
+    }
+
 
     private async Task ToggleAuditAsync()
     {
