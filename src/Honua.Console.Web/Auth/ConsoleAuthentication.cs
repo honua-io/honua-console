@@ -287,10 +287,10 @@ public static class ConsoleAuthentication
 
     private static bool IsApiRequest(HttpRequest request)
     {
-        if (request.Path.StartsWithSegments("/map-proxy", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
+        // Note: /map-proxy/ paths intentionally use the standard cookie-redirect flow (not the
+        // 401-direct path) so that the dev auto-login can round-trip back to the original map-proxy
+        // URL via the returnTo parameter. In production the user is already signed in before any
+        // page with a map is rendered, so the redirect case is rare and handles correctly.
 
         var requestedWith = request.Headers["X-Requested-With"];
         if (requestedWith.Count > 0 && string.Equals(requestedWith[0], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase))

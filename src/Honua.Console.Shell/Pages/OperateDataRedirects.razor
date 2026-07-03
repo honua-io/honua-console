@@ -1,14 +1,11 @@
-@* Route redirects folding the old disconnected Operate entry points into the unified resource-first flow
-   (redesign §5.2 route delta). Each old list/entry route now lands on /operate/data (the treeview) or
-   /operate/data/new?source=… (the flow). The old page bodies remain as renderable components (their
-   @page ownership moved here); the unified surfaces replace them as the routed destinations. *@
+@* Route redirects folding the old disconnected Operate list/entry routes into the unified treeview or
+   the unified resource-first flow (redesign §5.2 route delta). Routes that have a dedicated page
+   component (import-file, quick-publish, import-service, layers) keep their own @page directives
+   and are NOT listed here — only the pure list aliases that have no standalone page body are
+   redirected. *@
 @page "/operate/resources"
-@page "/operate/layers"
 @page "/operate/services"
 @page "/operate/resources/new"
-@page "/operate/resources/import"
-@page "/operate/publishing/quick"
-@page "/operate/import/service"
 @inject NavigationManager Nav
 
 @code {
@@ -19,12 +16,8 @@
         var target = path switch
         {
             "/operate/resources" => "/operate/data",
-            "/operate/layers" => "/operate/data",
             "/operate/services" => "/operate/data?view=services",
             "/operate/resources/new" => "/operate/data/new",
-            "/operate/resources/import" => "/operate/data/new?source=file",
-            "/operate/publishing/quick" => "/operate/data/new?source=table",
-            "/operate/import/service" => "/operate/data/new?source=remoteservice",
             _ => "/operate/data",
         };
 
