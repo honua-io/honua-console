@@ -1,3 +1,4 @@
+using Honua.Sdk.Studio.Packages;
 using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
@@ -344,7 +345,7 @@ public sealed class StudioAppPackageDataSourceTests
 
         public Task<StudioEndpointResult<StudioPackageFamilyCapabilities>> ListPackageFamiliesAsync(
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioEndpointResult<StudioPackageFamilyCapabilities>.FromData(new StudioPackageFamilyCapabilities()));
+            Task.FromResult(StudioEndpointResult<StudioPackageFamilyCapabilities>.FromData(new StudioPackageFamilyCapabilities { PersistenceMode = StudioPackagePersistenceMode.Durable, Durable = true }));
 
         public Task<StudioEndpointResult<StudioPackageDraft>> CreatePackageDraftAsync(
             CreateStudioPackageDraftRequest request, CancellationToken cancellationToken = default) =>
@@ -355,7 +356,7 @@ public sealed class StudioAppPackageDataSourceTests
             throw new NotSupportedException();
 
         public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
-            Honua.Console.Contracts.StudioPackageFamily? family = null,
+            Honua.Sdk.Studio.Packages.StudioPackageFamily? family = null,
             StudioPackageValidationStatus? status = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(StudioEndpointResult<StudioPackageDraftListResponse>.FromData(new StudioPackageDraftListResponse()));
@@ -376,7 +377,7 @@ public sealed class StudioAppPackageDataSourceTests
             Guid draftId, SaveStudioContentVersionRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<StudioEndpointResult<StudioContentVersionListResponse>> ListContentVersionsAsync(
+        public Task<StudioEndpointResult<StudioContentVersionList>> ListContentVersionsAsync(
             Guid itemId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

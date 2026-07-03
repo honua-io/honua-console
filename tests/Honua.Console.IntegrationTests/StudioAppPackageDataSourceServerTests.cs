@@ -1,3 +1,4 @@
+using Honua.Sdk.Studio.Packages;
 using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
@@ -237,11 +238,11 @@ public sealed class StudioAppPackageDataSourceServerTests
         public Task<StudioEndpointResult<StudioPackageFamilyCapabilities>> ListPackageFamiliesAsync(
             CancellationToken cancellationToken = default) =>
             Task.FromResult(StudioEndpointResult<StudioPackageFamilyCapabilities>.FromData(
-                new StudioPackageFamilyCapabilities()));
+                new StudioPackageFamilyCapabilities { PersistenceMode = StudioPackagePersistenceMode.Durable, Durable = true }));
 
         public Task<StudioEndpointResult<StudioPackageDraftListResponse>> ListPackageDraftsAsync(
-            Honua.Console.Contracts.StudioPackageFamily? family = null,
-            Honua.Console.Contracts.StudioPackageValidationStatus? status = null,
+            Honua.Sdk.Studio.Packages.StudioPackageFamily? family = null,
+            Honua.Sdk.Studio.Packages.StudioPackageValidationStatus? status = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(StudioEndpointResult<StudioPackageDraftListResponse>.FromData(
                 new StudioPackageDraftListResponse()));
@@ -316,8 +317,9 @@ public sealed class StudioAppPackageDataSourceServerTests
             return Task.FromResult(StudioEndpointResult<StudioPreviewPlan>.FromData(new StudioPreviewPlan
             {
                 DraftId = draftId,
-                Family = Honua.Console.Contracts.StudioPackageFamily.App,
+                Family = Honua.Sdk.Studio.Packages.StudioPackageFamily.App,
                 Synchronous = true,
+                RequiresJob = false,
                 Steps = ["validate-envelope", "prepare-inline-preview"],
                 Validation = new StudioValidationSummary { Status = StudioPackageValidationStatus.Valid }
             }));
@@ -342,6 +344,7 @@ public sealed class StudioAppPackageDataSourceServerTests
                 VersionNumber = _versions.Count + 1,
                 ContentHash = "sha256:test",
                 Envelope = draft.Envelope,
+                Validation = StudioValidationSummary.NotValidated,
                 ChangeNote = request.ChangeNote,
                 SourceDraftId = draftId,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -351,17 +354,17 @@ public sealed class StudioAppPackageDataSourceServerTests
             return Task.FromResult(StudioEndpointResult<StudioContentVersion>.FromData(version));
         }
 
-        public Task<StudioEndpointResult<StudioContentVersionListResponse>> ListContentVersionsAsync(
+        public Task<StudioEndpointResult<StudioContentVersionList>> ListContentVersionsAsync(
             Guid itemId,
             CancellationToken cancellationToken = default)
         {
             if (FailListVersionsWith is { } status)
             {
-                return Task.FromResult(Issue<StudioContentVersionListResponse>(status, "GET .../versions"));
+                return Task.FromResult(Issue<StudioContentVersionList>(status, "GET .../versions"));
             }
 
-            return Task.FromResult(StudioEndpointResult<StudioContentVersionListResponse>.FromData(
-                new StudioContentVersionListResponse { ItemId = itemId, Versions = _versions.ToArray() }));
+            return Task.FromResult(StudioEndpointResult<StudioContentVersionList>.FromData(
+                new StudioContentVersionList { ItemId = itemId, Versions = _versions.ToArray() }));
         }
 
         public Task<StudioEndpointResult<StudioContentVersion>> GetContentVersionAsync(

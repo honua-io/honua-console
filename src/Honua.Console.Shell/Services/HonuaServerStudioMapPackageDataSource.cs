@@ -1,9 +1,10 @@
+using Honua.Sdk.Studio.Packages;
 using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Validation;
 // The server wire enum, not any editor-catalog enum of the same simple name.
-using StudioPackageFamily = Honua.Console.Contracts.StudioPackageFamily;
+using StudioPackageFamily = Honua.Sdk.Studio.Packages.StudioPackageFamily;
 
 namespace Honua.Console.Shell.Services;
 

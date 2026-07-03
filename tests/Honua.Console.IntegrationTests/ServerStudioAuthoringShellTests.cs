@@ -1,7 +1,8 @@
+using Honua.Sdk.Studio.Packages;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
-using StudioPackageFamily = Honua.Console.Contracts.StudioPackageFamily;
+using StudioPackageFamily = Honua.Sdk.Studio.Packages.StudioPackageFamily;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -372,10 +373,10 @@ public sealed class ServerStudioAuthoringShellTests
             }));
         }
 
-        public Task<StudioEndpointResult<StudioContentVersionListResponse>> ListContentVersionsAsync(
+        public Task<StudioEndpointResult<StudioContentVersionList>> ListContentVersionsAsync(
             Guid itemId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(StudioEndpointResult<StudioContentVersionListResponse>.FromData(new StudioContentVersionListResponse
+            Task.FromResult(StudioEndpointResult<StudioContentVersionList>.FromData(new StudioContentVersionList
             {
                 ItemId = itemId,
                 Versions = []

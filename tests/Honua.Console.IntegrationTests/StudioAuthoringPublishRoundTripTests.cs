@@ -1,3 +1,4 @@
+using Honua.Sdk.Studio.Packages;
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
@@ -6,7 +7,7 @@ using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 // The server wire enum, not the editor-catalog enum of the same simple name (mirrors the data sources).
-using StudioPackageFamily = Honua.Console.Contracts.StudioPackageFamily;
+using StudioPackageFamily = Honua.Sdk.Studio.Packages.StudioPackageFamily;
 
 namespace Honua.Console.IntegrationTests;
 
