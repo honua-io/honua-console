@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -33,6 +34,11 @@ jobs:
         with:
           node-version: 20.x
           cache: npm
+
+      - name: Authenticate GitHub Packages feed
+        # The Honua.Sdk.* packages (e.g. Honua.Sdk.Studio) resolve from the private
+        # github-honua feed declared in NuGet.config; add credentials for restore.
+        run: dotnet nuget update source github-honua --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
 
       - name: Restore .NET projects
         run: dotnet restore Honua.Console.slnx

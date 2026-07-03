@@ -20,7 +20,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaLlmModel = null,
         string? honuaLlmApiKey = null,
         string? honuaSupportKbPath = null,
-        string? honuaConsoleAdvertisedCapabilities = null)
+        string? honuaConsoleAdvertisedCapabilities = null,
+        bool registryIntentResolutionEnabled = false)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -74,6 +75,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // The classifier is a thin, deterministic, server-independent heuristic (no server classify endpoint
         // exists yet); it only chooses the lane and never actuates, so a singleton is safe.
         services.TryAddSingleton<IOmniPromptIntentClassifier, OmniPromptIntentClassifier>();
+
+        // Registry-driven Studio-AI intent resolution (honua-console#266). Behind the
+        // Studio:RegistryIntentResolution flag (default OFF): when ON and a server is bound, the Studio
+        // generate/validate/preview/publish lifecycle resolves against the live capability-manifest
+        // registry and deferred/unavailable capabilities are hidden from Studio AI. OFF preserves current
+        // behavior via the no-op resolver (no registry gating).
+        AddStudioIntentResolution(services, honuaServerBaseUrl, registryIntentResolutionEnabled);
         AddShareAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddRbacAccessDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
         AddCatalogDiscoveryDataSource(services, honuaServerBaseUrl, honuaServerAdminApiKey);
@@ -989,6 +997,45 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         }
 
         services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
+    }
+
+    // Registry-driven Studio-AI intent resolution (honua-console#266), behind the
+    // Studio:RegistryIntentResolution flag (default OFF). When the flag is ON AND a valid server base URL is
+    // configured, the capability registry binds to the server capability manifest
+    // (GET /api/v1/capabilities/manifest) through the shared Honua.Sdk.Studio IHonuaCapabilityManifestClient
+    // projection (Console Patterns Charter §11a: binding allowed because the contract lives in the SDK), and
+    // the Studio generate/validate/preview/publish lifecycle resolves against it — deferred/unavailable
+    // capabilities are hidden from Studio AI. Otherwise (flag OFF, or ON with no server bound) the
+    // missing-binding registry client + the no-op resolver are registered, preserving CURRENT behavior:
+    // every phase resolves as available without registry gating. TryAdd keeps a test/demo provider overridable.
+    private static void AddStudioIntentResolution(
+        IServiceCollection services,
+        string? honuaServerBaseUrl,
+        bool registryIntentResolutionEnabled)
+    {
+        if (registryIntentResolutionEnabled
+            && Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
+            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        {
+            services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
+            {
+                var httpClient = HonuaServerClientFactory.Create(serviceProvider, baseUri);
+                return new Honua.Sdk.Studio.Capabilities.HonuaCapabilityManifestClient(httpClient);
+            });
+            services.TryAddSingleton<ICapabilityRegistryClient>(serviceProvider =>
+                new HonuaServerCapabilityRegistryClient(
+                    serviceProvider.GetRequiredService<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>()));
+            services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
+                new StudioIntentResolver(
+                    serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>(),
+                    serviceProvider.GetRequiredService<ICapabilityRegistryClient>()));
+            return;
+        }
+
+        services.TryAddSingleton<ICapabilityRegistryClient, UnsupportedCapabilityRegistryClient>();
+        services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
+            new NoopStudioIntentResolver(
+                serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
     }
 
     // Binds the "Import from Esri" wizard run engine + parity scorecard (#102, /operate/import/esri Run and
