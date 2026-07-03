@@ -1,0 +1,95 @@
+# Console live e2e testbed
+#
+# Topology (shared-network-namespace pattern):
+#   postgis   — owns the network namespace; exposes all ports to the host.
+#   redis     — joins postgis's namespace (network_mode: service:postgis).
+#   honua-server — joins postgis's namespace (network_mode: service:postgis).
+#
+# Result: inside honua-server, localhost:5544 = PostGIS and localhost:6379 = Redis.
+# This matches the hardcoded host/port the live specs fill into the connection form.
+#
+# Host-visible ports (for Playwright running on the host):
+#   localhost:5544  → PostGIS
+#   localhost:8088  → honua-server HTTP (internal :8080 mapped here)
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: honua_dev
+      POSTGRES_USER: honua_user
+      POSTGRES_PASSWORD: honua_password
+      # Run PostgreSQL on 5544 so connections.live.spec.ts can fill in localhost:5544.
+      PGPORT: "5544"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      # PostgreSQL — accessible on host at :5544 (mirrors what the specs fill in).
+      - "5544:5544"
+      # honua-server Kestrel (:8080 in the shared namespace) exposed as :8088.
+      - "8088:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honua_user -d honua_dev -p 5544"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    # Joins postgis's network namespace so honua-server can reach localhost:6379.
+    network_mode: "service:postgis"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  honua-server:
+    image: ghcr.io/honua-io/honua-server:nightly-aot
+    # Shares postgis's network namespace: localhost:5544 = PostGIS, localhost:6379 = Redis.
+    network_mode: "service:postgis"
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # --- Required connections ---
+      # Host=localhost because we share the postgis network namespace.
+      ConnectionStrings__DefaultConnection: "Host=localhost;Port=5544;Database=honua_dev;Username=honua_user;Password=honua_password"
+      ConnectionStrings__Redis: "localhost:6379"
+
+      # --- Auth & security ---
+      HONUA_ADMIN_PASSWORD: "honua-console-dev-key"
+      Security__ConnectionEncryption__MasterKey: "0000000000000000000000000000000000000000000000000000000000000001"
+
+      # --- Environment ---
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+
+      # --- Licensing ---
+      Licensing__DevGrantEdition: Enterprise
+
+      # --- Host validation (open in testbed) ---
+      HostValidation__AllowedHosts: "*"
+      AllowedHosts: "*"
+
+      # --- Deterministic AI providers: no model needed, no flake ---
+      WorkflowGeneration__DefaultProvider: deterministic
+      NlQuery__Provider: deterministic
+
+      # --- Secret-reference connection test (connections.live.spec.ts) ---
+      # Filled in as env:HONUA_TEST_DB_DSN by the secret-reference spec.
+      HONUA_TEST_DB_DSN: "Host=localhost;Port=5544;Database=honua_dev;Username=honua_user;Password=honua_password"
+
+    healthcheck:
+      # The honua-server image has busybox wget available.
+      test: ["CMD-SHELL", "wget -qO/dev/null http://localhost:8080/healthz/ready"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 45s
