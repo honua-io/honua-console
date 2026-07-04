@@ -39,8 +39,10 @@ test.describe('Operate · Import from a service (live)', () => {
       await page.getByPlaceholder(/rest\/services/).fill('http://insecure.example.com/FeatureServer');
       await page.getByRole('button', { name: 'Discover service' }).click();
       await expect(page.locator('[data-discover-validation]')).toBeVisible({ timeout: 3_000 });
+      // Assert the specific message inside the retry: a cold circuit can momentarily surface a
+      // different validation state, so retry the full interaction until the https message renders.
+      await expect(page.locator('[data-discover-validation]')).toContainText(/must be an absolute https/i, { timeout: 3_000 });
     }).toPass({ timeout: 30_000 });
-    await expect(page.locator('[data-discover-validation]')).toContainText(/must be an absolute https/i);
   });
 
   test('requires credentials when an auth mode is selected', async ({ page }) => {

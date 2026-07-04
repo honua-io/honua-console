@@ -81,8 +81,14 @@ test.describe('Operate · Add Connection (live)', () => {
     await expect(page.locator('[data-secret-type]')).toHaveText('env');
 
     // Draft test resolves the env secret (a full connection string) server-side → Healthy.
-    await page.getByRole('button', { name: 'Test connection' }).click();
-    await expect(page.getByText('Connection test passed')).toBeVisible();
+    // Re-fill the reference and re-click inside the retry: a Test-connection click that lands
+    // before the Blazor circuit wires the handler is dropped, so retry the whole interaction
+    // until the pass message renders.
+    await expect(async () => {
+      await page.locator('[data-secret-reference]').fill('env:HONUA_TEST_DB_DSN');
+      await page.getByRole('button', { name: 'Test connection' }).click();
+      await expect(page.getByText('Connection test passed')).toBeVisible({ timeout: 15_000 });
+    }).toPass({ timeout: 45_000 });
 
     // Create → detail page. The server stores only the reference (external storage), never the secret.
     await page.getByRole('button', { name: 'Create connection' }).click();
