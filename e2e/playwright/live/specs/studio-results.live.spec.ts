@@ -43,15 +43,16 @@ test.describe('Studio · workflow result rendering (live)', () => {
   });
 
   test('QUERY from prompt renders a live chart of the bound layer\'s real rows', async ({ page }) => {
-    // The NL-query generation step requires the server-side `NlQuery__Provider` to have a
-    // matching fixture for QUERY_PROMPT in its deterministic fixture set, or a live LLM
-    // provider configured. The minimal compose stack uses `NlQuery__Provider: deterministic`
-    // and QUERY_PROMPT is not a registered deterministic fixture — so the generation call
-    // never completes and the test times out at 2 minutes. Gate behind
-    // HONUA_E2E_NL_QUERY_FIXTURES=true so the rest of the describe block keeps running in CI.
+    // Verified against ghcr.io/honua-io/honua-server:nightly-aot with the compose's
+    // `NlQuery__Provider: deterministic`: the NL-query generation never produces a bound
+    // result for QUERY_PROMPT — "Result · live" never appears and the test hits its 120s
+    // wait. The deterministic provider has no registered fixture for this prompt, and the
+    // fixtures live inside the server image (not in e2e/initdb), so they cannot be seeded
+    // from this repo. Gate behind HONUA_E2E_NL_QUERY_FIXTURES=true (set when running against
+    // a server that has the NL-query fixtures or a live LLM provider). [live-verified 2026-07-04]
     test.skip(
       !process.env.HONUA_E2E_NL_QUERY_FIXTURES,
-      'NL-query generation test requires HONUA_E2E_NL_QUERY_FIXTURES=true (deterministic fixture or live LLM provider needed for QUERY_PROMPT).',
+      'QUERY generation needs a server NL-query provider that resolves QUERY_PROMPT; nightly-aot returns no bound result. Set HONUA_E2E_NL_QUERY_FIXTURES=true against a fixtures/LLM-enabled server.',
     );
     test.setTimeout(180_000);
     await page.goto('/studio/query');
@@ -77,14 +78,15 @@ test.describe('Studio · workflow result rendering (live)', () => {
   });
 
   test('MAP from prompt binds the published layer\'s real style (live map preview)', async ({ page }) => {
-    // MAP generation sends a prompt through the NL generation pipeline to bind a real published
-    // layer's style. The minimal compose stack has NlQuery__Provider: deterministic, but no
-    // deterministic fixture exists for MAP_PROMPT, so generation never completes and the style
-    // request never fires (150s timeout). Gate behind HONUA_E2E_NL_QUERY_FIXTURES=true so the
-    // ANALYSIS, WORKFLOW, and other structure tests keep running.
+    // Verified against nightly-aot with `NlQuery__Provider: deterministic`: MAP generation
+    // runs through the same NL generation pipeline as QUERY and never binds a style for
+    // MAP_PROMPT — the `/map-proxy/styles/N.json` request never fires and the test hits its
+    // 150s waitForRequest timeout. Same root cause as QUERY: no registered deterministic
+    // fixture for this prompt and the fixtures are server-image-internal (not seedable from
+    // e2e/initdb). Gate behind HONUA_E2E_NL_QUERY_FIXTURES=true. [live-verified 2026-07-04]
     test.skip(
       !process.env.HONUA_E2E_NL_QUERY_FIXTURES,
-      'MAP generation test requires HONUA_E2E_NL_QUERY_FIXTURES=true (AI generation provider must produce a bound layer style for MAP_PROMPT).',
+      'MAP generation needs a server NL generation provider that binds a style for MAP_PROMPT; nightly-aot never issues the style request. Set HONUA_E2E_NL_QUERY_FIXTURES=true against a fixtures/LLM-enabled server.',
     );
     test.setTimeout(180_000);
     await page.goto('/studio/map');
@@ -107,12 +109,16 @@ test.describe('Studio · workflow result rendering (live)', () => {
   });
 
   test('FORM from prompt renders the form (real interactive controls) as its final output', async ({ page }) => {
-    // FORM generation requires the server's form-builder AI endpoint to be configured with a live
-    // provider. The minimal compose stack has no form generation provider, so the textarea stays
-    // disabled and "AI generation is unavailable" is shown. Gate so the rest of the suite runs.
+    // Verified against nightly-aot: the server exposes NO form-generation capability —
+    // GET /api/v1/console/form-generation/providers returns 404, so the console shows the
+    // honest "AI generation is unavailable on this server." state with the refine textarea
+    // disabled, and the test fails at the toBeEnabled() gate. This is a missing server
+    // capability (not a console bug or seed-data gap) and cannot be fixed from this repo.
+    // Gate behind HONUA_E2E_FORM_GENERATION=true (a server that exposes form generation).
+    // [live-verified 2026-07-04]
     test.skip(
-      !process.env.HONUA_E2E_NL_QUERY_FIXTURES,
-      'FORM generation test requires HONUA_E2E_NL_QUERY_FIXTURES=true (server must expose a form generation provider and the textarea must be enabled).',
+      !process.env.HONUA_E2E_FORM_GENERATION,
+      'FORM generation needs the server form-generation providers endpoint; nightly-aot returns 404 and the console shows "AI generation is unavailable". Set HONUA_E2E_FORM_GENERATION=true against a server that exposes form generation.',
     );
     test.setTimeout(180_000);
     await page.goto('/studio/form/ai');
@@ -167,13 +173,18 @@ test.describe('Studio · workflow result rendering (live)', () => {
   });
 
   test('WORKFLOW from prompt renders the server-authored DAG (deterministic provider)', async ({ page }) => {
-    // The WORKFLOW test requires the server to expose the workflow generation capability endpoint
-    // (GET /api/v1/admin/ai/studio/workflows/generation/...). The nightly-aot image may not have
-    // this endpoint yet; a 404 causes the console to show no provider selector (AiEnabled=false)
-    // and the test fails. Gate so the suite stays green on the minimal stack.
+    // Verified against nightly-aot WITH the compose's `WorkflowGeneration__DefaultProvider:
+    // deterministic`: GET /api/v1/console/workflow-generation/providers returns HTTP 200 but
+    // with {"enabled":false,"defaultProvider":null,"providers":[]}. The compose var names the
+    // engine's default provider but the image does NOT surface a workflow-generation provider
+    // to the console, so AiEnabled=false and neither the <select> nor <span>
+    // [data-workflow-ai-provider] marker ever renders — the test fails at the 30s visibility
+    // gate. This is a server-image capability gap (not a console bug); it can't be fixed from
+    // this repo or via seed data. Gate behind HONUA_E2E_WORKFLOW_GENERATION=true (a server
+    // that reports enabled=true with ≥1 provider). [live-verified 2026-07-04]
     test.skip(
       !process.env.HONUA_E2E_WORKFLOW_GENERATION,
-      'WORKFLOW generation test requires HONUA_E2E_WORKFLOW_GENERATION=true (server must expose the workflow generation capability endpoint and at least one provider).',
+      'WORKFLOW generation needs the server to report enabled=true with ≥1 provider; nightly-aot returns enabled:false/providers:[] even with WorkflowGeneration__DefaultProvider=deterministic. Set HONUA_E2E_WORKFLOW_GENERATION=true against a workflow-generation-enabled server.',
     );
     test.setTimeout(120_000);
     await page.goto('/studio/workflows/new');
