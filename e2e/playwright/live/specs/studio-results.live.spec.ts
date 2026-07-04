@@ -1,4 +1,4 @@
-import { test, expect } from '../admin-api';
+﻿import { test, expect } from '../admin-api';
 
 // Live e2e for the STUDIO workflow goal: each Studio builder must work all the way to its FINAL OUTPUT —
 // a real rendered result from real server data — not just a structural package. This drives the real
@@ -43,17 +43,12 @@ test.describe('Studio · workflow result rendering (live)', () => {
   });
 
   test('QUERY from prompt renders a live chart of the bound layer\'s real rows', async ({ page }) => {
-    // Verified against ghcr.io/honua-io/honua-server:nightly-aot with the compose's
-    // `NlQuery__Provider: deterministic`: the NL-query generation never produces a bound
-    // result for QUERY_PROMPT — "Result · live" never appears and the test hits its 120s
-    // wait. The deterministic provider has no registered fixture for this prompt, and the
-    // fixtures live inside the server image (not in e2e/initdb), so they cannot be seeded
-    // from this repo. Gate behind HONUA_E2E_NL_QUERY_FIXTURES=true (set when running against
-    // a server that has the NL-query fixtures or a live LLM provider). [live-verified 2026-07-04]
-    test.skip(
-      !process.env.HONUA_E2E_NL_QUERY_FIXTURES,
-      'QUERY generation needs a server NL-query provider that resolves QUERY_PROMPT; nightly-aot returns no bound result. Set HONUA_E2E_NL_QUERY_FIXTURES=true against a fixtures/LLM-enabled server.',
-    );
+    // The console QUERY studio calls POST /api/v1/analysis/content/queries/generate, backed by the server's
+    // QueryGenerationService. On nightly-aot WorkflowGeneration is not enabled (that service has no
+    // deterministic/fixture path — it only calls a live OpenAI-compatible model), so the server returns
+    // status "unsupported". The console then seeds an honest baseline all-features query bound to the real
+    // published catalog source (e2e_src_fs, layer 1) — the SAME baseline mechanism the ANALYSIS test relies
+    // on. The rendered chart is the layer's ACTUAL rows via the console features proxy, never fabricated.
     test.setTimeout(180_000);
     await page.goto('/studio/query');
     await openFromPrompt(page);
@@ -78,16 +73,12 @@ test.describe('Studio · workflow result rendering (live)', () => {
   });
 
   test('MAP from prompt binds the published layer\'s real style (live map preview)', async ({ page }) => {
-    // Verified against nightly-aot with `NlQuery__Provider: deterministic`: MAP generation
-    // runs through the same NL generation pipeline as QUERY and never binds a style for
-    // MAP_PROMPT — the `/map-proxy/styles/N.json` request never fires and the test hits its
-    // 150s waitForRequest timeout. Same root cause as QUERY: no registered deterministic
-    // fixture for this prompt and the fixtures are server-image-internal (not seedable from
-    // e2e/initdb). Gate behind HONUA_E2E_NL_QUERY_FIXTURES=true. [live-verified 2026-07-04]
-    test.skip(
-      !process.env.HONUA_E2E_NL_QUERY_FIXTURES,
-      'MAP generation needs a server NL generation provider that binds a style for MAP_PROMPT; nightly-aot never issues the style request. Set HONUA_E2E_NL_QUERY_FIXTURES=true against a fixtures/LLM-enabled server.',
-    );
+    // The console MAP studio calls POST /api/v1/studio/map-packages/generate, backed by the server's
+    // MapGenerationService. Like QueryGenerationService it has no deterministic/fixture path and gates on
+    // WorkflowGeneration being enabled, so on nightly-aot it returns status "unsupported". The console then
+    // seeds an honest baseline single-layer map bound to the real published catalog source (e2e_src_fs),
+    // so PreviewStyleUrl resolves to /map-proxy/styles/{layerId}.json — the layer's REAL MapLibre style
+    // proxied from the live server. Mirrors the ANALYSIS/QUERY baseline pattern.
     test.setTimeout(180_000);
     await page.goto('/studio/map');
     await openFromPrompt(page);
