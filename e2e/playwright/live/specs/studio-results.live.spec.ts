@@ -1,4 +1,4 @@
-import { test, expect } from '../admin-api';
+﻿import { test, expect } from '../admin-api';
 
 // Live e2e for the STUDIO workflow goal: each Studio builder must work all the way to its FINAL OUTPUT —
 // a real rendered result from real server data — not just a structural package. This drives the real
@@ -58,7 +58,10 @@ test.describe('Studio · workflow result rendering (live)', () => {
     await page.goto('/studio/query');
     await openFromPrompt(page);
 
-    // Send the prompt; generation grounds in the real catalog and binds the real layer server-side.
+    // Send the prompt; when AI generation is on the model grounds in the real catalog and binds the
+    // real layer server-side. When the server reports "unsupported", the console seeds a baseline
+    // all-features query bound to the single available catalog source (same honest baseline pattern as
+    // ANALYSIS). Either path makes the query bound, so "Result · live" and the chart appear.
     await page.locator('textarea').first().fill(QUERY_PROMPT);
     await page.getByRole('button', { name: /Send/ }).click();
 
@@ -93,8 +96,8 @@ test.describe('Studio · workflow result rendering (live)', () => {
     await openFromPrompt(page);
     await page.locator('textarea').first().fill(MAP_PROMPT);
 
-    // Arm the listener BEFORE sending: when generation binds the real layer (catalog fallback resolves the
-    // single source), the preview requests that layer's real MapLibre style through the console proxy.
+    // Arm the listener BEFORE sending: when generation binds the real layer (catalog fallback or baseline
+    // seeding resolves the single source), the preview requests that layer's real MapLibre style.
     const styleRequest = page.waitForRequest((req) => /\/map-proxy\/styles\/\d+\.json(\?|$)/.test(req.url()), { timeout: 150_000 });
     await page.getByRole('button', { name: /Send/ }).click();
 
