@@ -30,6 +30,21 @@ public sealed class HonuaServerMtlsFixture : IAsyncLifetime, IDisposable
 
     public Uri BaseAddress { get; private set; } = new("https://localhost");
 
+    /// <summary>
+    /// Reason the server-certificate fingerprint probe cannot run against this fixture, or <c>null</c>
+    /// when it can. Observing a server fingerprint requires a TLS handshake; when the live server boots
+    /// plain HTTP (for example the pinned <c>honua-server:nightly</c> image, which listens on HTTP per
+    /// the nightly lane's <c>HONUA_CONSOLE_SERVER_SCHEME=http</c>) there is no server certificate to
+    /// fingerprint, so the trust-probe facts must skip cleanly rather than fail on an empty fingerprint.
+    /// Mirrors the <c>BaseAddress.Scheme == "https"</c> TLS guard the other live-server fixtures use.
+    /// </summary>
+    public string? ServerFingerprintProbeSkipReason =>
+        string.Equals(BaseAddress.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : $"The live server at '{BaseAddress}' is not TLS-enabled (scheme '{BaseAddress.Scheme}'); "
+                + "there is no server certificate to fingerprint. Set HONUA_CONSOLE_SERVER_SCHEME=https and "
+                + "pin a TLS-capable honua-server image to run the server-certificate trust probe.";
+
     /// <summary>A self-signed certificate the server does not trust (untrusted issuer).</summary>
     public X509Certificate2 UntrustedClientCertificate { get; } = CreateSelfSignedCertificate("CN=Honua Console Untrusted");
 
