@@ -42,7 +42,7 @@ test.describe('Studio · workflow result rendering (live)', () => {
     test.skip(!res.ok(), 'e2e_src_fs is not published on this server — run services-layers.live.spec first.');
   });
 
-  test('QUERY from prompt renders a live chart of the bound layer\'s real rows', async ({ page }) => {
+  test('QUERY renders a chart of the bound layer\'s real rows (baseline binding when generation is unavailable)', async ({ page }) => {
     // The console QUERY studio calls POST /api/v1/analysis/content/queries/generate, backed by the server's
     // QueryGenerationService. On nightly-aot WorkflowGeneration is not enabled (that service has no
     // deterministic/fixture path — it only calls a live OpenAI-compatible model), so the server returns
@@ -72,7 +72,7 @@ test.describe('Studio · workflow result rendering (live)', () => {
       .toBeGreaterThan(0);
   });
 
-  test('MAP from prompt binds the published layer\'s real style (live map preview)', async ({ page }) => {
+  test('MAP renders the published layer\'s real style (baseline binding when generation is unavailable)', async ({ page }) => {
     // The console MAP studio calls POST /api/v1/studio/map-packages/generate, backed by the server's
     // MapGenerationService. Like QueryGenerationService it has no deterministic/fixture path and gates on
     // WorkflowGeneration being enabled, so on nightly-aot it returns status "unsupported". The console then
