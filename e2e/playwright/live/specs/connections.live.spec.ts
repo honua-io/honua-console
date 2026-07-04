@@ -28,18 +28,22 @@ test.describe('Operate · Add Connection (live)', () => {
     admin.trackConnectionName(name);
 
     await page.goto('/operate/connections/new');
-    await page.getByPlaceholder('prod-postgis').fill(name);
-    // Provider defaults to PostgreSQL/PostGIS (port 5432).
-    await fillConnectionForm(page, {
-      host: 'localhost',
-      database: 'honua_dev',
-      username: 'honua_user',
-      password: 'honua_password',
-    });
-
-    // Draft test (POST /api/v1/admin/connections/test → PostgresConnectionDriver).
-    await page.getByRole('button', { name: 'Test connection' }).click();
-    await expect(page.getByText('Connection test passed')).toBeVisible();
+    // Re-fill the form and re-click on each retry: the Blazor @onclick handler is only wired
+    // after the SignalR circuit establishes; a click that arrives before the circuit is ready
+    // is silently dropped. Form fills are idempotent and safe to repeat.
+    await expect(async () => {
+      await page.getByPlaceholder('prod-postgis').fill(name);
+      // Provider defaults to PostgreSQL/PostGIS (port 5432).
+      await fillConnectionForm(page, {
+        host: 'localhost',
+        database: 'honua_dev',
+        username: 'honua_user',
+        password: 'honua_password',
+      });
+      // Draft test (POST /api/v1/admin/connections/test → PostgresConnectionDriver).
+      await page.getByRole('button', { name: 'Test connection' }).click();
+      await expect(page.getByText('Connection test passed')).toBeVisible({ timeout: 15_000 });
+    }).toPass({ timeout: 45_000 });
 
     // Create → navigates to the new connection's detail page.
     await page.getByRole('button', { name: 'Create connection' }).click();

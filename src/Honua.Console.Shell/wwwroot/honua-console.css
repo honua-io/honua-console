@@ -8308,6 +8308,8 @@ p {
     padding-left: 18px;
     font-size: 0.88rem;
     line-height: 1.6;
+}
+
 /* ----- inline field validation (Shell/Validation, Wave 0) -----
    The error slot rendered under a FieldStateRow's slotted control (and the standalone
    ValidationMessageInline for plain studio-form-label surfaces). Severity drives the accent so an
@@ -9441,6 +9443,9 @@ button.console-chip:focus-visible {
     flex-direction: column;
     gap: 0.6rem;
     width: min(360px, calc(100vw - 2.5rem));
+    /* min-height ensures the host is never zero-sized when empty so it remains
+       detectable by automated tests and screen-reader clients at all times. */
+    min-height: 1px;
     z-index: 2500;
     pointer-events: none;
 }

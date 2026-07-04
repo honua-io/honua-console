@@ -20,6 +20,21 @@ import { test, expect } from '../admin-api';
 
 const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
 
+// Blazor Server wires button onclick handlers over the SignalR circuit AFTER the button is in the
+// DOM. The submit button is disabled until _prompt is non-empty (server-side state); calling
+// fill() before the circuit is established loses the oninput event, so the button stays disabled
+// and a subsequent click() is swallowed by the browser. This helper retries fill + toBeEnabled
+// until the circuit processes the input, then the caller can safely click.
+async function fillAndAwaitCircuit(
+  page: import('@playwright/test').Page,
+  text: string,
+): Promise<void> {
+  await expect(async () => {
+    await page.locator('[data-omni-prompt-input]').fill(text);
+    await expect(page.locator('[data-omni-prompt-submit]')).toBeEnabled({ timeout: 3_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
 test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
   // The classifier is keyword-based and server-independent, so the confirm chip is deterministic:
   // no server state is required. The tests rely only on the Console being up.
@@ -28,7 +43,7 @@ test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
     test.setTimeout(60_000);
     await page.goto('/studio/ai');
 
-    await page.locator('[data-omni-prompt-input]').fill('publish Maui parcels as a feature service');
+    await fillAndAwaitCircuit(page, 'publish Maui parcels as a feature service');
     await page.locator('[data-omni-prompt-submit]').click();
 
     // The confirm chip MUST appear — no silent route.
@@ -48,7 +63,7 @@ test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
     test.setTimeout(60_000);
     await page.goto('/operate/ai');
 
-    await page.locator('[data-omni-prompt-input]').fill('roll back staging to the last good revision');
+    await fillAndAwaitCircuit(page, 'roll back staging to the last good revision');
     await page.locator('[data-omni-prompt-submit]').click();
 
     const chip = page.locator('[data-omni-prompt-confirm]');
@@ -64,7 +79,7 @@ test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
     test.setTimeout(60_000);
     await page.goto('/studio/ai');
 
-    await page.locator('[data-omni-prompt-input]').fill('help me with this');
+    await fillAndAwaitCircuit(page, 'help me with this');
     await page.locator('[data-omni-prompt-submit]').click();
 
     const chip = page.locator('[data-omni-prompt-confirm]');
@@ -81,7 +96,7 @@ test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
     test.setTimeout(60_000);
     await page.goto('/studio/ai');
 
-    await page.locator('[data-omni-prompt-input]').fill('publish parcels as a feature service');
+    await fillAndAwaitCircuit(page, 'publish parcels as a feature service');
     await page.locator('[data-omni-prompt-submit]').click();
 
     await expect(page.locator('[data-omni-prompt-confirm]')).toBeVisible({ timeout: 10_000 });
