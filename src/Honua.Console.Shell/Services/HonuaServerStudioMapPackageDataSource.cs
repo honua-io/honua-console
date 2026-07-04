@@ -1,4 +1,4 @@
-﻿using Honua.Sdk.Studio.Packages;
+using Honua.Sdk.Studio.Packages;
 using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
@@ -344,39 +344,6 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         }
 
         var outcome = MapGeneration(currentState, result.Data!);
-
-        // When the server returns "unsupported" (map generation is disabled or the provider is not
-        // configured) but a real catalog source is available, seed a baseline single-layer map. This
-        // mirrors the analysis/query baseline pattern: the operator gets a real, viewable starting
-        // point rather than a dead end. ResolveBoundLayerIds then binds the layer via the catalog.
-        if (string.Equals(outcome.Status, StudioMapGenerationStatuses.Unsupported, StringComparison.Ordinal))
-        {
-            // Prefer a source the prompt names; fall back to the first usable one.
-            var baseline = SelectBaselineSource(request.Prompt, availableSources);
-            if (baseline is not null)
-            {
-                var name = string.IsNullOrWhiteSpace(baseline.Name) ? baseline.ServiceId : baseline.Name!;
-                currentState.Status = StudioMapStatuses.Draft;
-                currentState.Layers.Add(new StudioMapLayerEditor
-                {
-                    BoundLayerId = baseline.LayerId,
-                    BoundServiceId = baseline.ServiceId,
-                    Title = name,
-                    SourceRef = $"service:{baseline.ServiceId}/{baseline.LayerId}",
-                    Visible = true,
-                });
-                FrameFromSource(currentState, baseline);
-                return new StudioMapGenerationOutcome
-                {
-                    Status = StudioMapGenerationStatuses.Generated,
-                    State = currentState,
-                    Rationale = $"AI map generation isn't available on this server, so I started you from a "
-                        + $"baseline single-layer map of {name}. Refine the layers, style, and frame, or save and publish it.",
-                    Warnings = ["Baseline - not generated from your prompt; the server's AI map generation is unavailable."]
-                };
-            }
-        }
-
         ResolveBoundLayerIds(outcome.State, availableSources);
         return outcome;
     }
@@ -533,54 +500,6 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             Provider = result.Provider,
             Model = result.Model
         };
-    }
-
-    // Pick the catalog source to baseline: prefer one the prompt names (by layer name or service id),
-    // otherwise the first source with a real service id and non-empty layer id.
-    // Returns null when nothing usable is available.
-    private static MapGenerationSource? SelectBaselineSource(string? prompt, IReadOnlyList<MapGenerationSource> sources)
-    {
-        var usable = sources
-            .Where(s => !string.IsNullOrWhiteSpace(s.ServiceId) && !string.IsNullOrWhiteSpace(s.LayerId))
-            .ToList();
-
-        if (usable.Count == 0)
-        {
-            return null;
-        }
-
-        if (!string.IsNullOrWhiteSpace(prompt))
-        {
-            var lower = prompt.ToLowerInvariant();
-            var match = usable.FirstOrDefault(s =>
-                (!string.IsNullOrWhiteSpace(s.Name) && lower.Contains(s.Name.ToLowerInvariant()))
-                || lower.Contains(s.ServiceId.ToLowerInvariant()));
-            if (match is not null)
-            {
-                return match;
-            }
-        }
-
-        return usable[0];
-    }
-
-    // Apply the source's extent, a default basemap, and a title to the state when not already set.
-    private static void FrameFromSource(StudioMapEditorState state, MapGenerationSource src)
-    {
-        if (src.Bbox is { Length: 4 } bbox && bbox.All(double.IsFinite) && string.IsNullOrWhiteSpace(state.InitialExtent))
-        {
-            state.InitialExtent = string.Join(",", bbox.Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        }
-
-        if (string.IsNullOrWhiteSpace(state.Basemap))
-        {
-            state.Basemap = "basemap:streets";
-        }
-
-        if (string.IsNullOrWhiteSpace(state.Title))
-        {
-            state.Title = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!;
-        }
     }
 
     private static string NormalizeStatus(string? status) => status switch
