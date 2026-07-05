@@ -1,0 +1,256 @@
+@page "/operate/copilot"
+@inject IConsoleOpsFindingsClient Findings
+
+@* COPILOT FINDINGS (#193) — the ops-copilot information + approval seat. Lists honua-server's
+   DETERMINISTIC ops findings (GET /api/v1/admin/observability/findings): severity, plain-language
+   explanation, rule id, subject, and evidence refs. When a finding carries a recommended action,
+   "Propose fix" POSTs to .../propose, which routes through the SAME governed approval gateway the
+   Approval inbox witnesses (#1694) — on ProposalCreated we surface the proposal id and link to
+   /inbox. NO model/LLM anything: this renders deterministic server output (ADR-0028). A cleared
+   condition (404) refreshes the list with an explanatory notice. Server-owned data only; a
+   missing / unsupported / forbidden / unavailable read renders the shared status surface, never
+   seeded data (Console Patterns Charter section 11). *@
+
+<section class="console-page console-operate-page">
+    <div class="console-page-heading operate-heading">
+        <p class="console-kicker">Human-in-the-loop</p>
+        <h1>Copilot Findings</h1>
+        <p>
+            Deterministic operational findings computed from live server signals — no model
+            reasoning. Review each finding's plain-language explanation and evidence, then propose
+            its recommended fix through the governed approval gateway; you authorize the outcome in
+            the <a href="/inbox">approval inbox</a>.
+        </p>
+    </div>
+
+    <div class="approval-inbox-toolbar" role="group" aria-label="Findings controls">
+        <button type="button" class="console-button console-button-secondary"
+                disabled="@_busy" data-refresh-findings @onclick="RefreshAsync">
+            Refresh
+        </button>
+    </div>
+
+    @if (_notice is { Length: > 0 })
+    {
+        <div class="console-panel operate-status-panel" role="status">
+            <p class="console-muted">@_notice</p>
+        </div>
+    }
+
+    @if (!_loaded)
+    {
+        <OperateSectionStatusPanel Heading="Copilot findings" Loading="true" />
+    }
+    else if (_findings is null)
+    {
+        <OperateSectionStatusPanel Heading="Copilot findings" Status="_status" Message="@_message" />
+    }
+    else if (_findings.Count == 0)
+    {
+        <OperateSectionStatusPanel Heading="Copilot findings"
+            Empty="true"
+            EmptyTitle="No findings"
+            EmptyMessage="No findings — all monitored conditions are healthy." />
+    }
+    else
+    {
+        <div class="console-panel-grid">
+            @foreach (var finding in _findings)
+            {
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">@finding.Rule</p>
+                            <h2>@finding.Title</h2>
+                        </div>
+                        <span class="console-status @finding.Severity.CssClass">@finding.SeverityLabel</span>
+                    </div>
+
+                    <p>@finding.Explanation</p>
+                    <p class="console-muted">Detected @finding.DetectedAt</p>
+
+                    @if (finding.Subject.Count > 0)
+                    {
+                        <dl class="console-definition-list">
+                            @foreach (var row in finding.Subject)
+                            {
+                                <dt>@row.Label</dt>
+                                <dd>@row.Value</dd>
+                            }
+                        </dl>
+                    }
+
+                    @if (finding.EvidenceRefs.Count > 0)
+                    {
+                        <section class="operate-metric-recommendations">
+                            <strong>Evidence</strong>
+                            <ul>
+                                @foreach (var evidence in finding.EvidenceRefs)
+                                {
+                                    <li><code>@evidence</code></li>
+                                }
+                            </ul>
+                        </section>
+                    }
+
+                    @if (finding.RecommendedAction is { } action)
+                    {
+                        <section class="operate-metric-recommendations">
+                            <strong>Recommended action (@action.Kind)</strong>
+                            <p>@action.Summary</p>
+                            @if (!string.IsNullOrWhiteSpace(action.Reason))
+                            {
+                                <p class="console-muted">Reason: @action.Reason</p>
+                            }
+
+                            @if (_outcomes.TryGetValue(finding.Id, out var outcome))
+                            {
+                                <div class="console-panel operate-status-panel @(outcome.IsError ? "operate-status-denied" : null)" role="status">
+                                    <p class="console-muted">@outcome.Message</p>
+                                    @if (outcome.ProposalId is { Length: > 0 } proposalId)
+                                    {
+                                        <p>
+                                            Proposal <code>@proposalId</code> —
+                                            <a href="/inbox">review in the approval inbox</a>.
+                                        </p>
+                                    }
+                                </div>
+                            }
+
+                            @if (_outcomes.TryGetValue(finding.Id, out var done) && done.IsProposed)
+                            {
+                                <button type="button" class="console-button console-button-secondary" disabled>
+                                    Proposed
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="console-button console-button-primary"
+                                        disabled="@_busy" data-propose-finding="@finding.Id"
+                                        @onclick="() => ProposeAsync(finding.Id)">
+                                    Propose fix
+                                </button>
+                            }
+                        </section>
+                    }
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private bool _loaded;
+    private bool _busy;
+    private IReadOnlyList<OpsFindingView>? _findings;
+    private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
+    private string _message = string.Empty;
+    private string? _notice;
+    private readonly Dictionary<string, ProposeOutcome> _outcomes = new(StringComparer.Ordinal);
+
+    protected override Task OnInitializedAsync() => LoadAsync(clearNotice: true);
+
+    private async Task RefreshAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        await LoadAsync(clearNotice: true);
+    }
+
+    private async Task LoadAsync(bool clearNotice)
+    {
+        _busy = true;
+        if (clearNotice)
+        {
+            _notice = null;
+        }
+
+        try
+        {
+            var result = await Findings.ListAsync();
+            if (result.IsAllowed)
+            {
+                _findings = OpsFindingsMapper.Map(result.Value!);
+                _outcomes.Clear();
+            }
+            else
+            {
+                _findings = null;
+                _status = result.Status;
+                _message = result.Message;
+            }
+        }
+        finally
+        {
+            _loaded = true;
+            _busy = false;
+        }
+    }
+
+    private async Task ProposeAsync(string findingId)
+    {
+        if (_busy || string.IsNullOrEmpty(findingId))
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await Findings.ProposeAsync(findingId);
+            if (result.IsAllowed)
+            {
+                var response = result.Value!;
+                _outcomes[findingId] = new ProposeOutcome(
+                    IsError: false,
+                    IsProposed: true,
+                    ProposalId: response.ProposalId,
+                    Message: BuildOutcomeMessage(response));
+            }
+            else if (result.Status == OperateSectionStatus.Missing)
+            {
+                // The finding's condition cleared (or lost its action) between listing and
+                // proposing. Refresh the list and explain, rather than surfacing a hard error.
+                _busy = false;
+                await LoadAsync(clearNotice: false);
+                _notice = result.Message;
+                return;
+            }
+            else
+            {
+                _outcomes[findingId] = new ProposeOutcome(
+                    IsError: true,
+                    IsProposed: false,
+                    ProposalId: null,
+                    Message: result.Message);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string BuildOutcomeMessage(OpsFindingProposeResponse response)
+    {
+        var status = response.Status ?? "Completed";
+        if (!string.IsNullOrWhiteSpace(response.Message))
+        {
+            return response.Message!;
+        }
+
+        return status switch
+        {
+            "ProposalCreated" => "A proposal was created and awaits approval.",
+            "Executed" => "The gateway executed the action directly.",
+            "Blocked" => "The gateway blocked this action.",
+            "NotSupported" => "The gateway does not support this action's operation class.",
+            _ => $"Propose outcome: {status}."
+        };
+    }
+
+    private sealed record ProposeOutcome(bool IsError, bool IsProposed, string? ProposalId, string Message);
+}

@@ -1,0 +1,368 @@
+@page "/operate/health"
+@inject IOpsHealthDataSource HealthData
+
+@* OPS HEALTH (ADR-0060 WS4) — the GIS-aware at-a-glance operational view. One consolidated
+   snapshot from honua-server (GET /api/v1/admin/observability/ops-health): overall status,
+   per-protocol serving latency, geoprocessing queue depth, alert-dispatch backlog, coordinated-
+   deploy readiness + platform-release skew, and database vitals. Bound to the connected server's
+   admin observability API; a missing / unsupported / forbidden / unavailable read renders the
+   shared status surface, never seeded data (Console Patterns Charter section 11). *@
+
+<section class="console-page console-operate-page">
+    <div class="console-page-heading operate-heading">
+        <p class="console-kicker">Operator workflow</p>
+        <h1>Ops Health</h1>
+        <p>
+            The consolidated operational-health snapshot at a glance: overall status, per-protocol
+            serving latency, the geoprocessing queue, alert-dispatch backlog, coordinated-deploy
+            readiness and platform-release skew, and database vitals. Bound to the connected
+            honua-server admin observability API; renders an honest missing-binding state when
+            unavailable.
+        </p>
+    </div>
+
+    <div class="approval-inbox-toolbar" role="group" aria-label="Ops health controls">
+        @if (_loaded && _view is not null)
+        {
+            <span class="console-status @_view.Overall.CssClass">Overall: @_view.Overall.Label</span>
+            <span class="console-muted">Generated @_view.GeneratedAt</span>
+        }
+        <button type="button" class="console-button console-button-secondary"
+                disabled="@_busy" data-refresh-health @onclick="RefreshAsync">
+            Refresh
+        </button>
+    </div>
+
+    @if (!_loaded)
+    {
+        <OperateSectionStatusPanel Heading="Ops health" Loading="true" />
+    }
+    else if (_view is null)
+    {
+        <OperateSectionStatusPanel Heading="Ops health" Status="_status" Message="@_message" />
+    }
+    else
+    {
+        <nav class="operate-section-nav" aria-label="Ops health sections">
+            <a href="#serving-latency">Serving latency</a>
+            <a href="#geoprocessing">Geoprocessing</a>
+            <a href="#alert-dispatch">Alert dispatch</a>
+            <a href="#deploy">Deploy readiness</a>
+            <a href="#database">Database</a>
+            <a href="#health-checks">Health checks</a>
+        </nav>
+
+        <section id="serving-latency" class="operate-section" aria-labelledby="serving-latency-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Serving latency · @_view.ServingLatency.WindowLabel</p>
+                    <h2 id="serving-latency-heading">Per-Protocol Latency And Error Rate</h2>
+                </div>
+                @if (_view.ServingLatency.HasBreach)
+                {
+                    <span class="console-status console-state-warning">SLO breach on one or more protocols</span>
+                }
+            </div>
+
+            @if (_view.ServingLatency.Rows.Count == 0)
+            {
+                <p class="console-muted">No serving-latency samples in the current window.</p>
+            }
+            else
+            {
+                <div class="console-panel operate-table-panel">
+                    <div class="operate-table-scroll">
+                        <table class="operate-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Protocol</th>
+                                    <th scope="col">Requests</th>
+                                    <th scope="col">Errors</th>
+                                    <th scope="col">Error rate</th>
+                                    <th scope="col">p50</th>
+                                    <th scope="col">p95</th>
+                                    <th scope="col">p99</th>
+                                    <th scope="col">Max</th>
+                                    <th scope="col">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in _view.ServingLatency.Rows)
+                                {
+                                    <tr>
+                                        <td>@row.Protocol</td>
+                                        <td>@row.RequestCount</td>
+                                        <td>@row.ErrorCount</td>
+                                        <td>@row.ErrorRateLabel</td>
+                                        <td>@row.P50Label</td>
+                                        <td>@row.P95Label</td>
+                                        <td>@row.P99Label</td>
+                                        <td>@row.MaxLabel</td>
+                                        <td><span class="console-status @row.Status.CssClass">@row.Status.Label</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        </section>
+
+        <section id="geoprocessing" class="operate-section" aria-labelledby="geoprocessing-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Geoprocessing queue</p>
+                    <h2 id="geoprocessing-heading">Active Jobs By Status And Backend</h2>
+                </div>
+                <span class="console-status @_view.Geoprocessing.Status.CssClass">@_view.Geoprocessing.Status.Label</span>
+            </div>
+
+            <article class="console-panel operate-metric-card">
+                <div class="console-panel-heading">
+                    <div>
+                        <h3>@_view.Geoprocessing.TotalActive active job(s)</h3>
+                        <p class="console-muted">@_view.Geoprocessing.Status.Description</p>
+                    </div>
+                </div>
+
+                @if (!_view.Geoprocessing.Available)
+                {
+                    <p class="console-muted">Geoprocessing queue telemetry is unavailable on the connected server.</p>
+                }
+                else if (_view.Geoprocessing.Buckets.Count == 0)
+                {
+                    <p class="console-muted">No active geoprocessing jobs.</p>
+                }
+                else
+                {
+                    <div class="operate-table-scroll">
+                        <table class="operate-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Backend</th>
+                                    <th scope="col">Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var bucket in _view.Geoprocessing.Buckets)
+                                {
+                                    <tr>
+                                        <td>@bucket.Status</td>
+                                        <td>@bucket.Backend</td>
+                                        <td>@bucket.Count</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </article>
+        </section>
+
+        <section id="alert-dispatch" class="operate-section" aria-labelledby="alert-dispatch-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Alert dispatch</p>
+                    <h2 id="alert-dispatch-heading">Backlog And Dead-Letters</h2>
+                </div>
+                <span class="console-status @_view.AlertDispatch.Status.CssClass">@_view.AlertDispatch.Status.Label</span>
+            </div>
+
+            <article class="console-panel operate-metric-card @(_view.AlertDispatch.HasDeadLetters ? "operate-metric-alerts" : null)">
+                <p class="console-muted">@_view.AlertDispatch.Status.Description</p>
+                <dl class="console-definition-list">
+                    <dt>Dispatcher</dt>
+                    <dd>@(_view.AlertDispatch.DispatcherEnabled ? "enabled" : "disabled"), @(_view.AlertDispatch.DispatcherRunning ? "running" : "stopped")</dd>
+                    <dt>Storage poll</dt>
+                    <dd>@(_view.AlertDispatch.StoragePollFailing ? "failing" : "healthy")</dd>
+                    <dt>Last successful poll</dt>
+                    <dd>@_view.AlertDispatch.LastPollLabel</dd>
+                    <dt>Pending</dt>
+                    <dd>@_view.AlertDispatch.PendingLabel</dd>
+                    <dt>Dead-lettered</dt>
+                    <dd>@_view.AlertDispatch.DeadLetteredLabel</dd>
+                </dl>
+            </article>
+        </section>
+
+        <section id="deploy" class="operate-section" aria-labelledby="deploy-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Coordinated deploy</p>
+                    <h2 id="deploy-heading">Deploy Readiness And Platform Release</h2>
+                </div>
+                <span class="console-status @_view.Deploy.Status.CssClass">@_view.Deploy.Status.Label</span>
+            </div>
+
+            <div class="console-panel-grid">
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Readiness</h3>
+                            <p class="console-muted">@_view.Deploy.Status.Description</p>
+                        </div>
+                    </div>
+                    <dl class="console-definition-list">
+                        <dt>Ready for coordinated deploy</dt>
+                        <dd>@(_view.Deploy.ReadyForCoordinatedDeploy ? "yes" : "no")</dd>
+                        <dt>Pending migrations</dt>
+                        <dd>@_view.Deploy.PendingMigrationsCount</dd>
+                        <dt>Pending contract scripts</dt>
+                        <dd>@_view.Deploy.PendingContractScriptsCount</dd>
+                    </dl>
+                </article>
+
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div>
+                            <h3>Platform release</h3>
+                            <p class="console-muted">@_view.Deploy.PlatformRelease.ReleaseLabel</p>
+                        </div>
+                        <span class="console-status @_view.Deploy.PlatformRelease.CoVersionStatus.CssClass">
+                            @(_view.Deploy.PlatformRelease.IsCoVersioned ? "co-versioned" : "skewed")
+                        </span>
+                    </div>
+                    <p class="console-muted">@_view.Deploy.PlatformRelease.CoVersionStatus.Description</p>
+                    @if (_view.Deploy.PlatformRelease.SkewedIds.Count > 0)
+                    {
+                        <dl class="console-definition-list">
+                            <dt>Skewed planes</dt>
+                            <dd>@string.Join(", ", _view.Deploy.PlatformRelease.SkewedIds)</dd>
+                        </dl>
+                    }
+                </article>
+            </div>
+        </section>
+
+        <section id="database" class="operate-section" aria-labelledby="database-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Database vitals</p>
+                    <h2 id="database-heading">Connection Pool, Cache, And Errors</h2>
+                </div>
+            </div>
+
+            <div class="console-panel-grid">
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div><h3>Connection pool</h3></div>
+                        <span class="console-status @_view.Database.PoolUtilization.Status.CssClass">@_view.Database.PoolUtilization.Status.Label</span>
+                    </div>
+                    <MetricBar Bar="_view.Database.PoolUtilization" Label="Pool utilization" />
+                    <dl class="console-definition-list">
+                        <dt>Active connections</dt>
+                        <dd>@_view.Database.ActiveConnections</dd>
+                        <dt>Acquisition timeouts</dt>
+                        <dd>@_view.Database.ConnectionAcquisitionTimeouts</dd>
+                        <dt>Acquisition failures</dt>
+                        <dd>@_view.Database.ConnectionAcquisitionFailures</dd>
+                    </dl>
+                </article>
+
+                <article class="console-panel operate-metric-card">
+                    <div class="console-panel-heading">
+                        <div><h3>Cache hit ratio</h3></div>
+                        <span class="console-status @_view.Database.CacheHitRatio.Status.CssClass">@_view.Database.CacheHitRatio.Status.Label</span>
+                    </div>
+                    <MetricBar Bar="_view.Database.CacheHitRatio" Label="Hit ratio" />
+                    <MetricBar Bar="_view.Database.ErrorRate" Label="Server error rate" />
+                </article>
+            </div>
+        </section>
+
+        <section id="health-checks" class="operate-section" aria-labelledby="health-checks-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Dependency health</p>
+                    <h2 id="health-checks-heading">Comprehensive Health Checks</h2>
+                </div>
+                <span class="console-status @_view.Health.Status.CssClass">@_view.Health.Status.Label</span>
+            </div>
+
+            <div class="console-panel operate-table-panel">
+                <div class="console-panel-heading">
+                    <div>
+                        <h3>Overall: <span class="console-status @_view.Health.Status.CssClass">@_view.Health.Status.Label</span></h3>
+                        <p class="console-muted">Total duration @_view.Health.DurationLabel</p>
+                    </div>
+                </div>
+
+                @if (_view.Health.Entries.Count == 0)
+                {
+                    <p class="console-muted">The server reported no individual health-check entries.</p>
+                }
+                else
+                {
+                    <div class="operate-table-scroll">
+                        <table class="operate-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Check</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Duration</th>
+                                    <th scope="col">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var entry in _view.Health.Entries)
+                                {
+                                    <tr>
+                                        <td>@entry.Name</td>
+                                        <td><span class="console-status @entry.Status.CssClass">@entry.Status.Label</span></td>
+                                        <td>@entry.DurationLabel</td>
+                                        <td>@(string.IsNullOrWhiteSpace(entry.Description) ? "—" : entry.Description)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</section>
+
+@code {
+    private bool _loaded;
+    private bool _busy;
+    private OpsHealthView? _view;
+    private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
+    private string _message = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task RefreshAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await HealthData.GetSnapshotAsync();
+            if (result.IsAllowed)
+            {
+                _view = result.Value;
+            }
+            else
+            {
+                _view = null;
+                _status = result.Status;
+                _message = result.Message;
+            }
+        }
+        finally
+        {
+            _loaded = true;
+            _busy = false;
+        }
+    }
+}
