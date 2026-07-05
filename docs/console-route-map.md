@@ -75,9 +75,9 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/resources             REDIRECT → /operate/data (resources fold into the treeview)
 /operate/resources/new         REDIRECT → /operate/data/new (the five entry points fold into one flow)
 /operate/resources/:id         Resource detail, validation, publish, access, presentation, and advanced tabs
-/operate/resources/import      REDIRECT → /operate/data/new?source=file
-/operate/publishing/quick      REDIRECT → /operate/data/new?source=table
-/operate/import/service        REDIRECT → /operate/data/new?source=remoteservice
+/operate/resources/import      File import — dedicated page (OperateImportFilePage) owns this entry point
+/operate/publishing/quick      Quick-publish a table/dataset — dedicated page (OperatePublishLayerPage)
+/operate/import/service        Import a remote service — dedicated page (OperateImportServicePage)
 /operate/publishing            Publishing workspace
 /operate/identity/providers
 /operate/identity/status
@@ -98,7 +98,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/control-center        Control center
 /operate/services              REDIRECT → /operate/data?view=services (services fold into the treeview)
 /operate/services/:name/settings
-/operate/layers                REDIRECT → /operate/data (a "layer" is now a Publication node under its resource)
+/operate/layers                Layers list — dedicated page (OperateLayersPage) owns this route
 /operate/layers/:id            Layer configuration (default + ?tab=configure)
 /operate/layers/:id/style      Layer style editor
 /operate/settings              Auth providers, API keys, CORS, license, server info, and catalog endpoints
@@ -875,9 +875,9 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/resources` | — | REDIRECT → `/operate/data` | forbidden | operate |
 | `/operate/resources/new` | — | REDIRECT → `/operate/data/new` | forbidden | operate |
 | `/operate/resources/:id` | — | missing-item | forbidden | operate |
-| `/operate/resources/import` | — | REDIRECT → `/operate/data/new?source=file` | forbidden | operate |
-| `/operate/publishing/quick` | — | REDIRECT → `/operate/data/new?source=table` | forbidden | operate |
-| `/operate/import/service` | — | REDIRECT → `/operate/data/new?source=remoteservice` | forbidden | operate |
+| `/operate/resources/import` | — | dedicated page (OperateImportFilePage); missing-binding | forbidden | operate |
+| `/operate/publishing/quick` | — | dedicated page (OperatePublishLayerPage); missing-binding | forbidden | operate |
+| `/operate/import/service` | — | dedicated page (OperateImportServicePage); missing-binding | forbidden | operate |
 | `/operate/publishing` | — | empty-operate | forbidden | operate |
 | `/operate/identity/providers` | `entitlement:identity.oidc` (gate the OIDC provider) | empty-operate | forbidden / upgrade | operate |
 | `/operate/identity/status` | — | empty-operate | forbidden | operate |
@@ -891,7 +891,7 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/control-center` | — | empty-operate | forbidden | operate |
 | `/operate/services` | — | REDIRECT → `/operate/data?view=services` | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
-| `/operate/layers` | — | REDIRECT → `/operate/data` (a layer is a Publication node) | forbidden | operate |
+| `/operate/layers` | — | empty-operate (dedicated OperateLayersPage) | forbidden | operate |
 | `/operate/layers/:id` | — | missing-item | forbidden | operate |
 | `/operate/layers/:id/style` | — | missing-item | forbidden | operate |
 | `/operate/settings` | — | — | forbidden | operate |
