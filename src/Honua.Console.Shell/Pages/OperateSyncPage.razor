@@ -2,8 +2,12 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
 @inject ITemporalCapabilityClient TemporalData
+@inject IConsoleCapabilityManifest Capabilities
 @inject IConsoleNotificationService Notifications
 
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.DisconnectedSync"
+                       Title="Disconnected sync review is not available in this release"
+                       Message="Disconnected sync conflict review — replica three-way merge over base, client, and server revisions — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page operate-sync" data-sync-review="capability-gate">
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow</p>
@@ -284,6 +288,7 @@
         }
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private bool _loading = true;
@@ -306,6 +311,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Capability-manifest gate: when disconnected sync is not advertised for this release the page
+        // renders the first-class "unsupported" state, so skip the server read entirely.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync))
+        {
+            _loading = false;
+            return;
+        }
+
         _loading = true;
         var workspace = await TemporalData.GetWorkspaceAsync();
         // Gate on whether the server-owned disconnected-replica workspace is reachable. The non-missing
