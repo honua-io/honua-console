@@ -1,9 +1,12 @@
+using System.Reflection;
 using Bunit;
+using Honua.Console.Shell;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -416,14 +419,16 @@ public sealed class ResourceFirstPublishFlowTests
 
     // ----------------------------------------------------------------- redirects
 
+    // The pure list aliases that have NO standalone page body fold into the unified treeview / flow:
+    // OperateDataRedirects owns these routes and rewrites them on init (redesign §5.2). The old entry
+    // points that DO have a dedicated flow page keep their own @page ownership instead (see the
+    // separate route-ownership test below) — routing them through OperateDataRedirects would steal the
+    // route from the owning component (commit "Restore @page directives on orphaned Operate pages").
     [Theory]
     [InlineData("operate/resources", "/operate/data")]
-    [InlineData("operate/layers", "/operate/data")]
     [InlineData("operate/services", "/operate/data?view=services")]
-    [InlineData("operate/resources/import", "/operate/data/new?source=file")]
-    [InlineData("operate/publishing/quick", "/operate/data/new?source=table")]
-    [InlineData("operate/import/service", "/operate/data/new?source=remoteservice")]
-    public void Redirects_FoldOldEntryPointsIntoTheUnifiedFlow(string from, string expectedTarget)
+    [InlineData("operate/resources/new", "/operate/data/new")]
+    public void Redirects_FoldOldListAliasesIntoTheUnifiedFlow(string from, string expectedTarget)
     {
         using var ctx = NewContext();
         var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
@@ -432,6 +437,29 @@ public sealed class ResourceFirstPublishFlowTests
         ctx.Render<OperateDataRedirects>();
 
         Assert.EndsWith(expectedTarget, nav.Uri, StringComparison.Ordinal);
+    }
+
+    // The old entry points that own a dedicated flow page (import-file, quick-publish, import-service,
+    // and the layers list) resolve directly to that page — they are NOT redirected through
+    // OperateDataRedirects, so the fold neither dead-ends nor is stolen back by the redirects host.
+    // Pin each route to its single owning routable component (same enumeration the live router builds).
+    [Theory]
+    [InlineData("/operate/resources/import", "OperateImportFilePage")]
+    [InlineData("/operate/publishing/quick", "OperatePublishLayerPage")]
+    [InlineData("/operate/import/service", "OperateImportServicePage")]
+    [InlineData("/operate/layers", "OperateLayersPage")]
+    public void OldEntryPoints_WithADedicatedPage_AreOwnedByThatPage(string route, string expectedOwner)
+    {
+        var owners =
+            (from type in typeof(ConsoleRoutes).Assembly.GetTypes()
+             where typeof(IComponent).IsAssignableFrom(type)
+             from attribute in type.GetCustomAttributes<RouteAttribute>(inherit: false)
+             where string.Equals(attribute.Template, route, StringComparison.Ordinal)
+             select type.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal([expectedOwner], owners);
     }
 
     [Fact]
