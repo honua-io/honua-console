@@ -213,6 +213,28 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new OperateMetricsDataSource(
                 serviceProvider.GetRequiredService<IConsoleMonitoringMetricsClient>()));
 
+        // Ops Health (ADR-0060 WS4) + Copilot Findings (#193) bind to honua-server's
+        // consolidated ops-health snapshot and deterministic ops-findings engine (group
+        // /api/v1/admin/observability, admin-authorized, bare JSON — NO ApiResponse
+        // envelope) through the Honua.Console.Contracts shim. Findings are deterministic
+        // server output proposed by id through the existing approval gateway — no
+        // model/LLM anything (ADR-0028). No standing in-memory source is registered
+        // (Charter section 11); each read degrades to the shared missing-binding /
+        // section-status surface when unbound. The admin API key is sent as X-API-Key.
+        services.TryAddSingleton<IConsoleOpsHealthClient>(serviceProvider =>
+            new HttpConsoleOpsHealthClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                honuaServerAdminApiKey));
+        services.TryAddSingleton<IOpsHealthDataSource>(serviceProvider =>
+            new OpsHealthDataSource(
+                serviceProvider.GetRequiredService<IConsoleOpsHealthClient>()));
+        services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
+            new HttpConsoleOpsFindingsClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                honuaServerAdminApiKey));
+
         // In-product support loop (#164). The ticket client binds to the
         // honua-support API (POST/GET /api/v1/tickets) through the
         // Honua.Console.Contracts shim, with the bearer token from the active
