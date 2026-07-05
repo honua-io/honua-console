@@ -84,6 +84,73 @@ public sealed class OperateCopilotPageTests
     }
 
     [Fact]
+    public void ProposeBlockedOutcomeShowsErrorReasonNotProposed()
+    {
+        // The server returns HTTP 200 for a governed Blocked outcome (only cleared/no-action
+        // map to 404). The page must NOT present it as a successful "Proposed" with a proposal
+        // link, and the propose button must stay actionable so the operator can retry.
+        using var ctx = new BunitContext();
+        var client = new StubOpsFindingsClient
+        {
+            List = OperateSectionResult<OpsFindingsListResponse>.Allowed(BuildList()),
+            ProposeResult = OperateSectionResult<OpsFindingProposeResponse>.Allowed(new OpsFindingProposeResponse
+            {
+                FindingId = "platform-release-skew-abc123",
+                Status = "Blocked",
+                ProposalId = "prop-should-not-appear",
+                Message = "The guardrail ladder denied this deploy for the current edition."
+            })
+        };
+        ctx.Services.AddSingleton<IConsoleOpsFindingsClient>(client);
+
+        var page = ctx.Render<OperateCopilotPage>();
+        page.FindAll("button").Single(b => b.TextContent.Contains("Propose fix", StringComparison.Ordinal)).Click();
+
+        Assert.Equal("platform-release-skew-abc123", Assert.Single(client.ProposeCalls));
+        // Reason surfaces as an error-styled outcome.
+        Assert.Contains("guardrail ladder denied", page.Markup);
+        Assert.Contains("operate-status-denied", page.Markup);
+        // No bogus success affordances.
+        Assert.DoesNotContain("prop-should-not-appear", page.Markup);
+        Assert.DoesNotContain("review in the approval inbox", page.Markup);
+        // Button stays actionable (still "Propose fix", not a disabled "Proposed").
+        Assert.Contains(
+            page.FindAll("button"),
+            b => b.TextContent.Contains("Propose fix", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            page.FindAll("button"),
+            b => b.TextContent.Contains("Proposed", StringComparison.Ordinal)
+                && !b.TextContent.Contains("Propose fix", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ProposeNotSupportedOutcomeShowsErrorNotProposed()
+    {
+        using var ctx = new BunitContext();
+        var client = new StubOpsFindingsClient
+        {
+            List = OperateSectionResult<OpsFindingsListResponse>.Allowed(BuildList()),
+            ProposeResult = OperateSectionResult<OpsFindingProposeResponse>.Allowed(new OpsFindingProposeResponse
+            {
+                FindingId = "platform-release-skew-abc123",
+                Status = "NotSupported",
+                Message = "This operation class is not supported by the gateway."
+            })
+        };
+        ctx.Services.AddSingleton<IConsoleOpsFindingsClient>(client);
+
+        var page = ctx.Render<OperateCopilotPage>();
+        page.FindAll("button").Single(b => b.TextContent.Contains("Propose fix", StringComparison.Ordinal)).Click();
+
+        Assert.Contains("not supported by the gateway", page.Markup);
+        Assert.Contains("operate-status-denied", page.Markup);
+        Assert.DoesNotContain("review in the approval inbox", page.Markup);
+        Assert.Contains(
+            page.FindAll("button"),
+            b => b.TextContent.Contains("Propose fix", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ProposeClearedConditionRefreshesListWithNotice()
     {
         using var ctx = new BunitContext();
