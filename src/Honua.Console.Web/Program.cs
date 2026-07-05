@@ -73,37 +73,6 @@ if (app.Environment.IsDevelopment())
     }
 }
 
-// Content-Security-Policy: this origin holds the Blazor session and the admin-keyed map BFF proxy,
-// so it must constrain where executable code, styles, images, and network connections may come from
-// — a tampered or injected script here would run with full session/proxy access. Scripts and styles
-// are limited to this origin plus the two pinned CDNs the preview interops lazy-load (MapLibre on
-// unpkg; Cesium/Vega on jsdelivr), whose exact assets are additionally pinned with Subresource
-// Integrity. object-src/base-uri/frame-ancestors/form-action are locked down to block plugin,
-// base-tag, clickjacking, and form-hijack vectors. 'unsafe-eval' is required by the Vega chart
-// runtime (and Cesium WASM); 'unsafe-inline' (style/script) by the MapLibre/Cesium/Vega inline
-// styles and the Blazor bootstrap. Set on every response (static assets and rendered pages).
-var contentSecurityPolicy = string.Join("; ", new[]
-{
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "frame-ancestors 'self'",
-    "form-action 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net",
-    "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net",
-    "img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org",
-    "font-src 'self' data: https://cdn.jsdelivr.net",
-    "worker-src 'self' blob:",
-    "child-src 'self' blob:",
-    "connect-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://tile.openstreetmap.org",
-});
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["Content-Security-Policy"] = contentSecurityPolicy;
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    await next();
-});
-
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Honua.Console.Shell.Models;
@@ -122,40 +120,11 @@ public sealed record StaObservation
     [JsonPropertyName("resultTime")]
     public string? ResultTime { get; init; }
 
-    // OGC STA v1.1 leaves Observation.result an open type: a number, string, boolean, JSON
-    // object/array, or null (category/truth datastreams, or a gap in an otherwise-numeric stream).
-    // Modelling it as a raw JsonElement keeps deserialization total — a single non-numeric or null
-    // result no longer throws JsonException and degrades the WHOLE collection to Unavailable.
-    // Numeric consumers project through <see cref="NumericResult"/>.
     [JsonPropertyName("result")]
-    public JsonElement Result { get; init; }
+    public double Result { get; init; }
 
     [JsonPropertyName("Datastream@iot.navigationLink")]
     public string? DatastreamNavigationLink { get; init; }
-
-    /// <summary>
-    /// The observation result as a <see cref="double"/> when it is numeric (a JSON number, or a
-    /// string that parses as an invariant number), otherwise <c>null</c> for non-numeric/null
-    /// results that cannot be plotted on a numeric axis.
-    /// </summary>
-    [JsonIgnore]
-    public double? NumericResult => Result.ValueKind switch
-    {
-        JsonValueKind.Number when Result.TryGetDouble(out var value) => value,
-        JsonValueKind.String when double.TryParse(
-            Result.GetString(),
-            NumberStyles.Float | NumberStyles.AllowThousands,
-            CultureInfo.InvariantCulture,
-            out var value) => value,
-        _ => null
-    };
-
-    /// <summary>
-    /// Builds an <see cref="StaObservation"/> result payload from a numeric value, for the
-    /// demo/in-memory shell and tests (the live client deserializes the wire value directly).
-    /// </summary>
-    public static JsonElement NumericResultValue(double value) =>
-        JsonSerializer.SerializeToElement(value);
 }
 
 /// <summary>

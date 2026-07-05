@@ -9,11 +9,6 @@
 
 const MAPLIBRE_JS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
 const MAPLIBRE_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
-// Subresource Integrity: this module runs in the privileged Console origin (Blazor session +
-// admin-keyed BFF proxy), so a tampered CDN asset would execute with full access. Pin the exact
-// bytes for the versioned URLs above; a mismatched/altered asset fails to load instead of running.
-const MAPLIBRE_JS_SRI = 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj';
-const MAPLIBRE_CSS_SRI = 'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V';
 
 const instances = new Map();
 let maplibrePromise = null;
@@ -34,15 +29,11 @@ function loadMapLibre() {
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
                 link.href = MAPLIBRE_CSS;
-                link.integrity = MAPLIBRE_CSS_SRI;
-                link.crossOrigin = 'anonymous';
                 link.setAttribute('data-honua-maplibre', '');
                 document.head.appendChild(link);
             }
             const script = document.createElement('script');
             script.src = MAPLIBRE_JS;
-            script.integrity = MAPLIBRE_JS_SRI;
-            script.crossOrigin = 'anonymous';
             script.async = true;
             script.onload = () => resolve(window.maplibregl ?? null);
             script.onerror = () => resolve(null);

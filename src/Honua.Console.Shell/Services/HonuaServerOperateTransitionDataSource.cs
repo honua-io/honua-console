@@ -237,24 +237,24 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
         }
 
         var serviceScopes = CreateLayerServiceScopes(services);
-        var layerScopes = connections
-            .SelectMany(connection => serviceScopes.Select(serviceName => (Connection: connection, ServiceName: serviceName)))
+        var layerTasks = connections
+            .SelectMany(connection => serviceScopes.Select(async serviceName => (
+                Connection: connection,
+                ServiceName: serviceName,
+                Result: await _client.ListConnectionLayersAsync(
+                        connection.Id,
+                        serviceName,
+                        cancellationToken)
+                    .ConfigureAwait(false))))
             .ToArray();
 
-        // Bounded fan-out: an unbounded connections x serviceScopes Task.WhenAll would open hundreds
-        // of concurrent admin HTTP requests on a single Operate landing/resources load (a
-        // thundering herd against the admin API). Cap concurrency the way the observability client does.
-        var layerResults = await BoundedFanOut.RunAsync(
-            layerScopes,
-            (scope, token) => _client.ListConnectionLayersAsync(scope.Connection.Id, scope.ServiceName, token),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        await Task.WhenAll(layerTasks).ConfigureAwait(false);
 
         var rows = new List<LayerRow>();
         var seenRows = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < layerScopes.Length; i++)
+        foreach (var layerTask in layerTasks)
         {
-            var (connection, serviceName) = layerScopes[i];
-            var result = layerResults[i];
+            var (connection, serviceName, result) = await layerTask.ConfigureAwait(false);
             AddIssue(states, "Layers", result.Issue);
 
             foreach (var layer in result.Data ?? [])
@@ -318,22 +318,20 @@ public sealed class HonuaServerOperateTransitionDataSource : IOperateTransitionD
             CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
-        var namedServices = services
+        var settingsTasks = services
             .Where(service => !string.IsNullOrWhiteSpace(service.ServiceName))
+            .Select(async service => (
+                ServiceName: service.ServiceName!,
+                Result: await _client.GetServiceSettingsAsync(service.ServiceName!, cancellationToken)
+                    .ConfigureAwait(false)))
             .ToArray();
 
-        // Bounded fan-out (see LoadLayerRowsAsync): one settings request per service, capped so a
-        // server with many services cannot open one concurrent admin socket per service on page load.
-        var settingsResults = await BoundedFanOut.RunAsync(
-            namedServices,
-            (service, token) => _client.GetServiceSettingsAsync(service.ServiceName!, token),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        await Task.WhenAll(settingsTasks).ConfigureAwait(false);
 
         var settings = new Dictionary<string, HonuaAdminServiceSettingsResponse>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < namedServices.Length; i++)
+        foreach (var settingsTask in settingsTasks)
         {
-            var serviceName = namedServices[i].ServiceName!;
-            var result = settingsResults[i];
+            var (serviceName, result) = await settingsTask.ConfigureAwait(false);
             AddIssue(states, "Services", result.Issue);
             if (result.Data is null)
             {

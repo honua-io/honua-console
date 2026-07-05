@@ -103,17 +103,13 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
         var points = new List<SensorThingsTimeSeriesPoint>(observationsFetch.Value.Value.Count);
         foreach (var observation in observationsFetch.Value.Value)
         {
-            // Skip observations whose result is non-numeric or null (an open-typed STA result, e.g.
-            // a category/truth reading or a gap) — they have no numeric value to chart but must not
-            // break the series, which now tolerates them instead of failing the whole collection.
-            if (observation.NumericResult is { } numericResult
-                && DateTimeOffset.TryParse(
+            if (DateTimeOffset.TryParse(
                     observation.PhenomenonTime,
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
                     out var time))
             {
-                points.Add(new SensorThingsTimeSeriesPoint(time, numericResult));
+                points.Add(new SensorThingsTimeSeriesPoint(time, observation.Result));
             }
         }
 
