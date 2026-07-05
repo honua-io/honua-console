@@ -78,6 +78,7 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
     public void Relationships_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
 
@@ -146,6 +147,7 @@ public sealed class LayerRelationshipsAndTimeInfoRenderTests
     private static IRenderedComponent<OperateLayerRelationshipsPage> RenderRelationships(FakeRelationships relationships)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerRelationshipsOperation>(relationships);
         return ctx.Render<OperateLayerRelationshipsPage>(p => p.Add(x => x.ResourceId, ResourceId));

@@ -131,6 +131,7 @@ public sealed class LayerMetadataPageRenderTests
     public void Page_MergedBuild_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
 
@@ -147,6 +148,7 @@ public sealed class LayerMetadataPageRenderTests
     private static IRenderedComponent<OperateLayerMetadataPage> RenderPage(FakeMetadata metadata)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerMetadataOperation>(metadata);
         return ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));

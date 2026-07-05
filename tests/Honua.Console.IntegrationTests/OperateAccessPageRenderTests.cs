@@ -281,6 +281,7 @@ public sealed class OperateAccessPageRenderTests
     private static IRenderedComponent<OperateAccessRolesPage> RenderRoles(FakeRbacDataSource data)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
         return ctx.Render<OperateAccessRolesPage>();
     }

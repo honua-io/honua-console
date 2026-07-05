@@ -360,6 +360,7 @@ public sealed class Layer3DAndLifecycleTests
     public void Page_MergedBuild_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
 
@@ -375,6 +376,7 @@ public sealed class Layer3DAndLifecycleTests
     private static IRenderedComponent<OperateLayer3DPage> RenderPage(FakeLayer3D fake)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayer3DOperation>(fake);
         return ctx.Render<OperateLayer3DPage>(p => p.Add(x => x.ResourceId, ResourceId));

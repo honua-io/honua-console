@@ -41,6 +41,7 @@ public sealed class OperateLayerStylePageRenderTests
     public void StyleEditor_MergedBuildPage_RendersOverrideMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
 
@@ -80,6 +81,7 @@ public sealed class OperateLayerStylePageRenderTests
         IStudioMapStyleCatalogDataSource catalog)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(overrides);
         ctx.Services.AddSingleton(catalog);
         return ctx.Render<OperateLayerStylePage>(parameters => parameters.Add(p => p.ResourceId, "res-1"));
