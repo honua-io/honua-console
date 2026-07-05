@@ -35,9 +35,11 @@
                               RefinePlaceholder="@RefinePlaceholder"
                               Turns="_turns"
                               Clarifications="_clarifications"
-                              Busy="@(_busy || !AiEnabled)"
+                              Busy="_busy"
+                              Disabled="@(!AiEnabled)"
                               OnSend="HandleSendAsync"
-                              OnAnswer="HandleAnswerAsync">
+                              OnAnswer="HandleAnswerAsync"
+                              OnCancel="HandleCancelAsync">
             <SecondaryRefineActions>
                 @if (AiEnabled && _availableProviders.Count > 1)
                 {
@@ -121,6 +123,7 @@
 @code {
     private bool _loading = true;
     private bool _busy;
+    private CancellationTokenSource _cts = new();
     private StudioReportEditorState _state = new();
     private StudioReportCapabilityState? _binding;
     private StudioReportAiCapability _capability = StudioReportAiCapability.Off;
@@ -196,12 +199,29 @@
         return GenerateAsync(request);
     }
 
+    // Cancels the in-flight generation request and resets busy state so the user can send a revised prompt.
+    // A cancelled request surfaces as a "Request cancelled" turn rather than an error, keeping the
+    // conversation usable. Mirrors the identical pattern in StudioFormAiPage.
+    private Task HandleCancelAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+        _busy = false;
+        _turns.Add(new StudioConversationTurn(
+            StudioConversationRole.Honua,
+            "Request cancelled — refine your prompt and send again.",
+            Tone: StudioConversationTone.Neutral));
+        return Task.CompletedTask;
+    }
+
     private async Task GenerateAsync(StudioReportGenerationRequest request)
     {
         _busy = true;
+        var ct = _cts.Token;
         try
         {
-            var outcome = await ReportData.GenerateAsync(_state, request);
+            var outcome = await ReportData.GenerateAsync(_state, request, ct);
             if (outcome.BindingState is { } bound)
             {
                 _binding = bound;
@@ -238,6 +258,11 @@
                     string.IsNullOrWhiteSpace(outcome.Rationale) ? "I couldn't turn that into a report." : outcome.Rationale,
                     Tone: StudioConversationTone.Neutral));
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the user via HandleCancelAsync — the cancel turn and _busy=false are already
+            // set there; suppress the exception so the conversation stays in a good state.
         }
         finally
         {

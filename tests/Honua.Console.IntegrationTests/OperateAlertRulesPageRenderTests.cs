@@ -74,6 +74,7 @@ public sealed class OperateAlertRulesPageRenderTests
     public void RuleDetail_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateAlertRulesDataSource, UnsupportedOperateAlertRulesDataSource>();
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
@@ -110,6 +111,7 @@ public sealed class OperateAlertRulesPageRenderTests
     private static IRenderedComponent<OperateAlertRuleDetailPage> RenderDetail(IOperateAlertRulesDataSource data, string ruleId)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(data);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateAlertRuleDetailPage>(parameters => parameters.Add(p => p.RuleId, ruleId));

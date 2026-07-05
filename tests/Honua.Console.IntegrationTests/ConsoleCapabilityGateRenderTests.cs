@@ -49,6 +49,7 @@ public sealed class ConsoleCapabilityGateRenderTests
     public void TemporalPage_WhenCapabilityNotAdvertised_RendersUnsupportedNotViewer()
     {
         using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
 
@@ -64,6 +65,7 @@ public sealed class ConsoleCapabilityGateRenderTests
     public void SyncPage_WhenCapabilityNotAdvertised_RendersUnsupportedNotQueue()
     {
         using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
 

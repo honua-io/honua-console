@@ -116,7 +116,7 @@ public sealed class StudioAiConversationRenderTests
     }
 
     [Fact]
-    public void StudioAiConversation_WhenBusy_DisablesRefineAndClarificationChoices()
+    public void StudioAiConversation_WhenBusy_DisablesSendAndChoices_ButKeepsRefineEnabledAndShowsWorkingState()
     {
         using var ctx = new Bunit.BunitContext();
 
@@ -131,8 +131,36 @@ public sealed class StudioAiConversationRenderTests
                     [new StudioConversationChoice("categorical", "categorical")]),
             ]));
 
+        // In-flight: Send and clarification choices are gated so the current turn isn't double-dispatched…
+        Assert.True(cut.Find(".studio-ai-send").HasAttribute("disabled"));
+        Assert.True(cut.Find(".studio-ai-clarification-choice").HasAttribute("disabled"));
+        // …but the refine textarea stays ENABLED so the user can compose a follow-up while waiting, and the
+        // "Honua is working…" affordance shows the pane is alive rather than frozen.
+        Assert.False(cut.Find(".studio-ai-refine-input").HasAttribute("disabled"));
+        Assert.NotEmpty(cut.FindAll("[data-studio-ai-working]"));
+    }
+
+    [Fact]
+    public void StudioAiConversation_WhenDisabled_HardLocksEveryInput_AndShowsNoWorkingState()
+    {
+        using var ctx = new Bunit.BunitContext();
+
+        var cut = ctx.Render<StudioAiConversation>(parameters => parameters
+            .Add(p => p.Disabled, true)
+            .Add(p => p.Clarifications,
+            [
+                new StudioConversationClarification(
+                    "palette",
+                    "Use-code colours",
+                    "12 distinct codes.",
+                    [new StudioConversationChoice("categorical", "categorical")]),
+            ]));
+
+        // Hard-disabled (e.g. AI unavailable): every input is locked, including the refine textarea, and the
+        // working indicator never shows — the pane must not falsely claim to be "working".
         Assert.True(cut.Find(".studio-ai-refine-input").HasAttribute("disabled"));
         Assert.True(cut.Find(".studio-ai-send").HasAttribute("disabled"));
         Assert.True(cut.Find(".studio-ai-clarification-choice").HasAttribute("disabled"));
+        Assert.Empty(cut.FindAll("[data-studio-ai-working]"));
     }
 }

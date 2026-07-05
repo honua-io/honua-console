@@ -34,6 +34,7 @@ public sealed class OperateSyncPageRenderTests
     public void Sync_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
 
@@ -86,6 +87,7 @@ public sealed class OperateSyncPageRenderTests
     private static IRenderedComponent<OperateSyncPage> Render(ITemporalCapabilityClient client)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateSyncPage>();

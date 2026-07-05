@@ -1,9 +1,10 @@
-@page "/operate/layers/{ResourceId}/subtypes"
+﻿@page "/operate/layers/{ResourceId}/subtypes"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerSubtypesOperation LayerSubtypes
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page" data-subtypes-page>
     @if (_layer is null)
@@ -83,7 +84,7 @@
                     <button class="console-button" type="button" disabled="@_savingSubtypes" @onclick="SaveSubtypesAsync" data-subtype-save>
                         @(_savingSubtypes ? "Saving…" : "Save subtypes")
                     </button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@_savingSubtypes" @onclick="ClearSubtypesAsync" data-subtype-clear>
+                    <button class="console-button console-button-secondary" type="button" disabled="@_savingSubtypes" @onclick="ConfirmClearSubtypes" data-subtype-clear>
                         Clear subtype set
                     </button>
                 </div>
@@ -179,6 +180,7 @@
             }
         </section>
     }
+    <ConsoleConfirmDialog @ref="_confirm" />
 </section>
 
 @code {
@@ -198,6 +200,8 @@
     private readonly List<RuleRow> _ruleRows = new();
     private bool _savingRules;
     private ConsoleSetAttributeRulesResult? _rulesResult;
+
+    private ConsoleConfirmDialog? _confirm;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -238,33 +242,41 @@
 
     private async Task SaveSubtypesAsync() => await SaveSubtypesCoreAsync(clear: false);
 
+    private void ConfirmClearSubtypes()
+    {
+        if (_confirm is null) return;
+        _confirm.Open(
+            title: "Clear subtypes?",
+            onConfirm: ClearSubtypesAsync,
+            body: "This removes all subtype definitions from this layer. Any subtype-based editing rules will also be removed. This cannot be undone.",
+            confirmLabel: "Clear subtypes");
+    }
+
     private async Task ClearSubtypesAsync() => await SaveSubtypesCoreAsync(clear: true);
 
-    private async Task SaveSubtypesCoreAsync(bool clear)
+    private Task SaveSubtypesCoreAsync(bool clear)
     {
         if (_layer is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _savingSubtypes = true;
         _subtypesResult = null;
-        try
-        {
-            var payload = clear
-                ? Array.Empty<ConsoleLayerSubtype>()
-                : _subtypeRows.Select(row => row.ToModel()).ToArray();
-            _subtypesResult = await LayerSubtypes.SetSubtypesAsync(
-                _layer.LayerId, _subtypeField, _defaultSubtypeCode, clear, payload);
-            if (_subtypesResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadSubtypesAsync();
-            }
-        }
-        finally
-        {
-            _savingSubtypes = false;
-        }
+                var payload = clear
+                    ? Array.Empty<ConsoleLayerSubtype>()
+                    : _subtypeRows.Select(row => row.ToModel()).ToArray();
+                _subtypesResult = await LayerSubtypes.SetSubtypesAsync(
+                    _layer.LayerId, _subtypeField, _defaultSubtypeCode, clear, payload);
+                if (_subtypesResult.Succeeded)
+                {
+                    await LoadSubtypesAsync();
+                }
+            },
+            setBusy: busy => { _savingSubtypes = busy; StateHasChanged(); },
+            failureMessage: clear ? "Couldn't clear subtypes" : "Couldn't save subtypes");
     }
 
     // ---- Attribute rules ----
@@ -286,28 +298,26 @@
 
     private void RemoveRule(RuleRow row) => _ruleRows.Remove(row);
 
-    private async Task SaveRulesAsync()
+    private Task SaveRulesAsync()
     {
         if (_layer is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _savingRules = true;
         _rulesResult = null;
-        try
-        {
-            var payload = _ruleRows.Select(row => row.ToModel()).ToArray();
-            _rulesResult = await LayerSubtypes.SetAttributeRulesAsync(_layer.LayerId, payload);
-            if (_rulesResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadRulesAsync();
-            }
-        }
-        finally
-        {
-            _savingRules = false;
-        }
+                var payload = _ruleRows.Select(row => row.ToModel()).ToArray();
+                _rulesResult = await LayerSubtypes.SetAttributeRulesAsync(_layer.LayerId, payload);
+                if (_rulesResult.Succeeded)
+                {
+                    await LoadRulesAsync();
+                }
+            },
+            setBusy: busy => { _savingRules = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save attribute rules");
     }
 
     // Mutable per-row edit models bound to the inputs (the domain records are immutable).

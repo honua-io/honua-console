@@ -80,6 +80,7 @@ public sealed class DiscoveryMetadataPageRenderTests
             SaveResult = new ConsoleSaveDiscoveryResult { Succeeded = true, State = "Updated", Detail = "Saved discovery metadata on honua-server." },
         };
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation>(fake);
         var page = ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ServiceName, "svc"));
@@ -101,6 +102,7 @@ public sealed class DiscoveryMetadataPageRenderTests
     public void LayerDiscovery_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
 
@@ -115,6 +117,7 @@ public sealed class DiscoveryMetadataPageRenderTests
     private static IRenderedComponent<OperateDiscoveryMetadataPage> RenderLayer(FakeDiscovery fake)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleDiscoveryMetadataOperation>(fake);
         return ctx.Render<OperateDiscoveryMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));

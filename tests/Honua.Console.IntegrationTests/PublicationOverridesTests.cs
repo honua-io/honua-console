@@ -259,6 +259,7 @@ public sealed class PublicationOverridesTests
     public void Page_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IConsolePublicationOverridesOperation, UnsupportedConsolePublicationOverridesOperation>();
 
         var page = ctx.Render<OperatePublicationOverridesPage>(p => p.Add(x => x.PublicationId, PublicationId));
@@ -272,6 +273,7 @@ public sealed class PublicationOverridesTests
     private static IRenderedComponent<OperatePublicationOverridesPage> Render(FakeOverrides fake, string? publicationId)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IConsolePublicationOverridesOperation>(fake);
         return ctx.Render<OperatePublicationOverridesPage>(p =>
         {

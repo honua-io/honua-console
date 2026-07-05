@@ -53,6 +53,7 @@ public sealed class OperateTemporalPageRenderTests
     public void TemporalViewer_MergedBuildPage_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         // Register exactly what the merged build registers — the unsupported client — and prove the page
         // renders the capability explanation rather than an empty viewer, with no fabricated source rows.
         ctx.Services.AddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
@@ -418,7 +419,13 @@ public sealed class OperateTemporalPageRenderTests
             () => Assert.Contains("Affected features", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
+        // The destructive rollback is gated behind a confirm dialog (UX hardening): clicking "Execute
+        // Rollback Job" only opens the dialog; accepting it runs the governed job.
         ClickByText(page, "Execute Rollback Job");
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-console-confirm-accept]")),
+            TimeSpan.FromSeconds(5));
+        page.Find("[data-console-confirm-accept]").Click();
 
         page.WaitForAssertion(
             () => Assert.Contains("cp-rollback-9", page.Markup, StringComparison.Ordinal),
@@ -552,6 +559,7 @@ public sealed class OperateTemporalPageRenderTests
     private static IRenderedComponent<OperateTemporalPage> Render(ITemporalCapabilityClient client)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateTemporalPage>();

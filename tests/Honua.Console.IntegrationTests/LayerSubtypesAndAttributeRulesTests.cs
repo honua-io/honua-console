@@ -292,6 +292,7 @@ public sealed class LayerSubtypesAndAttributeRulesTests
     public void Page_MergedBuild_RendersMissingBindingThroughRealDi()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
 
@@ -309,6 +310,7 @@ public sealed class LayerSubtypesAndAttributeRulesTests
     private static IRenderedComponent<OperateLayerSubtypesPage> RenderPage(FakeSubtypes fake)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FakeTransition());
         ctx.Services.AddSingleton<IConsoleLayerSubtypesOperation>(fake);
         return ctx.Render<OperateLayerSubtypesPage>(p => p.Add(x => x.ResourceId, ResourceId));

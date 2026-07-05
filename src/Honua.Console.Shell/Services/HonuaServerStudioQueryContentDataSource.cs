@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
@@ -239,6 +239,17 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
         }
 
         var outcome = MapGeneration(currentQuery, result.Data!);
+
+        // When the server returns "unsupported" (query generation is disabled or the provider is not
+        // configured) but a real catalog source is available, seed a baseline all-features query bound to
+        // that source. The operator gets a real, data-bound starting point rather than a dead end -
+        // clearly labelled as a baseline in the rationale. Mirrors the analysis baseline pattern.
+        if (string.Equals(outcome.Status, StudioQueryGenerationStatuses.Unsupported, StringComparison.Ordinal)
+            && SeedBaselineQuery(request.Prompt, availableSources) is { } baseline)
+        {
+            return baseline;
+        }
+
         ResolveServiceBinding(outcome.Query, availableSources);
         return outcome;
     }
@@ -263,6 +274,80 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
         {
             query.ServiceName = match.ServiceId;
         }
+    }
+
+    // Seed an all-features baseline query bound to a real catalog source when the server cannot generate
+    // one (AI is off or the provider is not configured). Mirrors the analysis data source's SeedBaselinePlan.
+    // Returns null when no usable catalog source is available.
+    private static StudioQueryGenerationOutcome? SeedBaselineQuery(
+        string prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        if (SelectBaselineSource(prompt, sources) is not { } src)
+        {
+            return null;
+        }
+
+        if (!int.TryParse(src.LayerId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var layerId))
+        {
+            layerId = 0;
+        }
+
+        var name = string.IsNullOrWhiteSpace(src.Name) ? src.ServiceId : src.Name!;
+        var query = new StudioQueryEditor
+        {
+            NaturalLanguageQuery = prompt,
+            Title = $"All features of {name}",
+            ServiceName = src.ServiceId,
+            LayerId = layerId,
+        };
+
+        return new StudioQueryGenerationOutcome
+        {
+            Status = StudioQueryGenerationStatuses.Generated,
+            Query = query,
+            Rationale = $"AI query generation isn't available on this server, so I started you from a "
+                + $"baseline all-features query on {name}. Refine the filter and projection, or save and preview it.",
+            Warnings = ["Baseline - not generated from your prompt; the server's AI query generation is unavailable."]
+        };
+    }
+
+    // Pick the catalog source to baseline: prefer one the prompt names (by layer name or service id),
+    // otherwise the first usable one. Only considers sources with a real service id and a parseable
+    // non-negative layer id. Returns null when nothing usable exists.
+    // Mirrors HonuaServerStudioAnalysisContentDataSource.SelectBaselineSource.
+    private static HonuaQueryGenerationSource? SelectBaselineSource(
+        string? prompt,
+        HonuaQueryGenerationSource[] sources)
+    {
+        var usable = sources
+            .Where(s => !string.IsNullOrWhiteSpace(s.ServiceId)
+                && int.TryParse(
+                    s.LayerId,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var id)
+                && id >= 0)
+            .ToArray();
+
+        if (usable.Length == 0)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(prompt))
+        {
+            var lower = prompt.ToLowerInvariant();
+            var match = usable.FirstOrDefault(s =>
+                (!string.IsNullOrWhiteSpace(s.Name) && lower.Contains(s.Name.ToLowerInvariant()))
+                || lower.Contains(s.ServiceId!.ToLowerInvariant()));
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return usable[0];
     }
 
     private static StudioQueryGenerationOutcome MapGeneration(

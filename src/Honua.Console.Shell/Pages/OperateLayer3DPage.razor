@@ -5,6 +5,7 @@
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayer3DOperation Layer3D
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page" data-layer-3d-page>
     @if (_layer is null)
@@ -280,78 +281,74 @@
         }
     }
 
-    private async Task SaveExtrusionAsync()
+    private Task SaveExtrusionAsync()
     {
-        if (_layer is null) return;
-        _savingExtrusion = true;
+        if (_layer is null) return Task.CompletedTask;
         _extrusionResult = null;
-        try
-        {
-            // The extrusion section is sent only when the operator did not opt to clear it AND at least one
-            // field carries a value, so an untouched-but-bound layer doesn't resend an all-null block.
-            ConsoleLayerExtrusionSettings? extrusion = null;
-            if (!_edit.ClearExtrusion && _edit.HasExtrusionValues)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                extrusion = new ConsoleLayerExtrusionSettings
+                // The extrusion section is sent only when the operator did not opt to clear it AND at least one
+                // field carries a value, so an untouched-but-bound layer doesn't resend an all-null block.
+                ConsoleLayerExtrusionSettings? extrusion = null;
+                if (!_edit.ClearExtrusion && _edit.HasExtrusionValues)
                 {
-                    HeightField = Trim(_edit.HeightField),
-                    BaseHeightField = Trim(_edit.BaseHeightField),
-                    Unit = string.IsNullOrWhiteSpace(_edit.Unit) ? null : _edit.Unit,
-                    DefaultHeight = _edit.DefaultHeight,
-                    MaterialHint = Trim(_edit.MaterialHint),
-                };
-            }
+                    extrusion = new ConsoleLayerExtrusionSettings
+                    {
+                        HeightField = Trim(_edit.HeightField),
+                        BaseHeightField = Trim(_edit.BaseHeightField),
+                        Unit = string.IsNullOrWhiteSpace(_edit.Unit) ? null : _edit.Unit,
+                        DefaultHeight = _edit.DefaultHeight,
+                        MaterialHint = Trim(_edit.MaterialHint),
+                    };
+                }
 
-            ConsoleSymbology3D? symbology = null;
-            if (!_edit.ClearSymbology && _edit.HasSymbologyValues)
-            {
-                symbology = new ConsoleSymbology3D
+                ConsoleSymbology3D? symbology = null;
+                if (!_edit.ClearSymbology && _edit.HasSymbologyValues)
                 {
-                    DefaultColor = _edit.HasDefaultColor
-                        ? new ConsoleRgbColor { Red = _edit.DefaultRed ?? 0, Green = _edit.DefaultGreen ?? 0, Blue = _edit.DefaultBlue ?? 0 }
-                        : null,
-                    DefaultOpacity = _edit.DefaultOpacity,
-                    Rules = _edit.Rules.Select(r => r.ToModel()).ToArray(),
-                };
-            }
+                    symbology = new ConsoleSymbology3D
+                    {
+                        DefaultColor = _edit.HasDefaultColor
+                            ? new ConsoleRgbColor { Red = _edit.DefaultRed ?? 0, Green = _edit.DefaultGreen ?? 0, Blue = _edit.DefaultBlue ?? 0 }
+                            : null,
+                        DefaultOpacity = _edit.DefaultOpacity,
+                        Rules = _edit.Rules.Select(r => r.ToModel()).ToArray(),
+                    };
+                }
 
-            _extrusionResult = await Layer3D.SetExtrusionAsync(
-                _layer.LayerId,
-                extrusion,
-                _edit.ClearExtrusion,
-                symbology,
-                _edit.ClearSymbology);
-            if (_extrusionResult.Succeeded)
-            {
-                await LoadExtrusionAsync();
-            }
-        }
-        finally
-        {
-            _savingExtrusion = false;
-        }
+                _extrusionResult = await Layer3D.SetExtrusionAsync(
+                    _layer.LayerId,
+                    extrusion,
+                    _edit.ClearExtrusion,
+                    symbology,
+                    _edit.ClearSymbology);
+                if (_extrusionResult.Succeeded)
+                {
+                    await LoadExtrusionAsync();
+                }
+            },
+            setBusy: busy => { _savingExtrusion = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save 3D settings");
     }
 
-    private async Task SaveStatusAsync()
+    private Task SaveStatusAsync()
     {
-        if (_layer is null) return;
-        _savingStatus = true;
+        if (_layer is null) return Task.CompletedTask;
         _statusResult = null;
-        try
-        {
-            _statusResult = await Layer3D.SetStatusAsync(
-                _layer.LayerId,
-                string.IsNullOrWhiteSpace(_statusEdit.Lifecycle) ? null : _statusEdit.Lifecycle,
-                string.IsNullOrWhiteSpace(_statusEdit.State) ? null : _statusEdit.State);
-            if (_statusResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadStatusAsync();
-            }
-        }
-        finally
-        {
-            _savingStatus = false;
-        }
+                _statusResult = await Layer3D.SetStatusAsync(
+                    _layer.LayerId,
+                    string.IsNullOrWhiteSpace(_statusEdit.Lifecycle) ? null : _statusEdit.Lifecycle,
+                    string.IsNullOrWhiteSpace(_statusEdit.State) ? null : _statusEdit.State);
+                if (_statusResult.Succeeded)
+                {
+                    await LoadStatusAsync();
+                }
+            },
+            setBusy: busy => { _savingStatus = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save lifecycle status");
     }
 
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
