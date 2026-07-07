@@ -82,7 +82,7 @@ else
             @if (!string.IsNullOrWhiteSpace(detail.ExecutionOperationId))
             {
                 <dt>Execution operation</dt>
-                <dd class="console-mono">@detail.ExecutionOperationId</dd>
+                <dd><CorrelationIdChip Value="@detail.ExecutionOperationId" Kind="CorrelationIdKind.OperationId" /></dd>
             }
         </dl>
 

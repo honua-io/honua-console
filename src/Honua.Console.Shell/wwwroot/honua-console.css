@@ -9567,3 +9567,59 @@ button.console-chip:focus-visible {
     justify-content: flex-end;
     gap: 0.6rem;
 }
+
+/* Ops-summary strip (console#292): the hub + home "is my server healthy, what needs me?"
+   glance. Each tile is its own deep link into the surface that owns the metric. */
+.ops-summary-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.5rem;
+    margin: 0 0 1.25rem;
+}
+
+.ops-summary-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.ops-summary-tile:hover {
+    color: var(--honua-accent-strong);
+}
+
+.ops-summary-tile strong {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.ops-summary-tile strong.is-actionable {
+    color: #7a5300;
+}
+
+.ops-summary-liveness {
+    margin-left: auto;
+    font-size: 0.82rem;
+    color: var(--honua-muted);
+}
+
+.ops-summary-liveness.is-live::before {
+    content: "\25CF";
+    margin-right: 0.35rem;
+    color: #2f8f5b;
+}
+
+/* Correlation-id chip (console#292): a clickable variant of the existing read-only
+   .console-chip, so every correlation/operation/event/finding/proposal id deep-links to its
+   owning surface instead of rendering as inert text. */
+.correlation-id-chip {
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.correlation-id-chip:hover {
+    border-color: var(--honua-accent);
+    color: var(--honua-accent-strong);
+}

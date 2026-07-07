@@ -28,6 +28,19 @@ public sealed class OperateHealthPageTests
         Assert.Contains("Platform release", html);
         Assert.Contains("worker-plane", html);         // skewed plane listed.
         Assert.Contains("Cache hit ratio", html);
+
+        // console#292 scope item 3: every degraded/breach badge deep-links to its actionable
+        // surface — no dead ends. The fixture's SLO breach and deploy-readiness "blocked" status
+        // both breach, so both drilldowns must render.
+        Assert.Contains("data-health-drilldown=\"serving-latency\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-health-drilldown=\"deploy\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/operate/copilot\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/operate/deploy#deploy-approvals\"", html, StringComparison.Ordinal);
+
+        // The healthy geoprocessing/alert-dispatch sections in this fixture are not breaches,
+        // so they must NOT render a drilldown link (a healthy badge is not a dead end either).
+        Assert.DoesNotContain("data-health-drilldown=\"geoprocessing\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-health-drilldown=\"alert-dispatch\"", html, StringComparison.Ordinal);
     }
 
     [Fact]

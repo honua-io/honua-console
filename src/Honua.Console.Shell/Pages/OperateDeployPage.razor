@@ -193,9 +193,19 @@
 </section>
 
 @code {
+    /// <summary>
+    /// A deploy-control operation id to pre-track on load (console#292 correlation-id chip deep
+    /// link, e.g. <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.OperationId, id)</c>). The
+    /// server exposes operations by durable id only (no list-all endpoint), so a deep link
+    /// tracks the id the same way the manual "Track operation" input does.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "operationId")]
+    public string? OperationId { get; set; }
+
     // The operator-tracked deploy-control operation ids (the server has no list endpoint).
     private readonly List<string> _trackedOperationIds = new();
     private string _trackOperationIdInput = string.Empty;
+    private bool _queryOperationIdTracked;
 
     private bool _promotionLoaded;
 
@@ -219,7 +229,35 @@
     // tracked operation set; null until an upgrade operation is being tracked.
     private string? _upgradeOperationId;
 
-    protected override async Task OnInitializedAsync() => await RefreshQueuesAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // A deep-linked operation id (console#292) tracks and selects it up front, exactly as
+        // the manual "Track operation" input does, so the golden path from a correlation-id chip
+        // lands directly on the operation's approval panel.
+        if (!string.IsNullOrWhiteSpace(OperationId) && !_queryOperationIdTracked)
+        {
+            var id = OperationId.Trim();
+            if (!_trackedOperationIds.Contains(id, StringComparer.Ordinal))
+            {
+                _trackedOperationIds.Add(id);
+            }
+
+            _queryOperationIdTracked = true;
+        }
+
+        await RefreshQueuesAsync();
+
+        if (_queryOperationIdTracked && OperationId is { Length: > 0 })
+        {
+            var id = OperationId.Trim();
+            var match = _tracked.Value?.FirstOrDefault(p => string.Equals(p.OperationId, id, StringComparison.Ordinal))
+                ?? _promotions.Value?.FirstOrDefault(p => string.Equals(p.OperationId, id, StringComparison.Ordinal));
+            if (match is not null)
+            {
+                OnTrackedSelected(match);
+            }
+        }
+    }
 
     private async Task TrackOperationAsync()
     {

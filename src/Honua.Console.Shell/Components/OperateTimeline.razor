@@ -42,14 +42,7 @@
                             }
                         </td>
                         <td>
-                            @if (string.IsNullOrWhiteSpace(entry.CorrelationId))
-                            {
-                                <span class="console-muted">&mdash;</span>
-                            }
-                            else
-                            {
-                                <span class="console-chip" data-correlation-id="@entry.CorrelationId">@entry.CorrelationId</span>
-                            }
+                            <CorrelationIdChip Value="@entry.CorrelationId" Kind="CorrelationIdKind.CorrelationId" />
                         </td>
                     </tr>
                 }

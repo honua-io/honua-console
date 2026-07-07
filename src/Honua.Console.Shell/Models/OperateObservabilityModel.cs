@@ -17,6 +17,39 @@ public static class OperateObservabilityRoutes
 
     public static string GeoprocessingJobDetail(string jobRunId) =>
         $"/operate/geoprocessing/{Uri.EscapeDataString(jobRunId)}";
+
+    /// <summary>
+    /// Deep-links into the evidence timeline pre-filtered to one correlation id (console#292
+    /// correlation-id chip). Client-side query-string convenience over the existing events
+    /// filter form (<c>OperateObservabilityPage</c>) — no new server endpoint.
+    /// </summary>
+    public static string CorrelationSearch(string correlationId) =>
+        $"{Observability}?correlationId={Uri.EscapeDataString(correlationId)}#events";
+
+    /// <summary>
+    /// Deep-links into the Copilot Findings surface, anchored to one finding (console#292).
+    /// Copilot Findings has no per-finding route; the page renders an anchor id per finding so
+    /// this resolves without a new server endpoint.
+    /// </summary>
+    public static string FindingDetail(string findingId) =>
+        $"/operate/copilot#finding-{Uri.EscapeDataString(findingId)}";
+
+    /// <summary>
+    /// Deep-links into the Approval inbox pre-selecting one proposal (console#292). Client-side
+    /// query-string convenience over the inbox's existing selection state — no new server
+    /// endpoint.
+    /// </summary>
+    public static string ProposalDetail(string proposalId) =>
+        $"/inbox?proposalId={Uri.EscapeDataString(proposalId)}";
+
+    /// <summary>
+    /// Deep-links into the Deploy page pre-tracking one deploy-control operation (console#292).
+    /// Client-side query-string convenience over the deploy page's existing "track operation"
+    /// input — no new server endpoint (the server exposes operations by durable id only, no
+    /// list-all endpoint).
+    /// </summary>
+    public static string OperationDetail(string operationId) =>
+        $"/operate/deploy?operationId={Uri.EscapeDataString(operationId)}#deploy-approvals";
 }
 
 /// <summary>
@@ -165,6 +198,14 @@ public sealed record OperateStatus(string State, string Description)
     public bool IsNeutral => NeutralStates.Contains(NormalizedState);
 
     public bool IsFailure => FailureStates.Contains(NormalizedState);
+
+    /// <summary>
+    /// Whether this status renders as a warning or danger badge (console#292): the shared test
+    /// for "this badge is a breach an operator should act on" used to decide whether a health
+    /// section renders a deep link to its actionable surface. Neutral/success/info states are
+    /// not breaches; a badge for those is never a dead end because there is nothing to act on.
+    /// </summary>
+    public bool IsBreach => CssClass is "console-state-warning" or "console-state-danger";
 
     public string CssClass => NormalizedState switch
     {

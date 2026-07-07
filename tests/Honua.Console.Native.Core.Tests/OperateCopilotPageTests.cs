@@ -26,6 +26,22 @@ public sealed class OperateCopilotPageTests
         Assert.Contains("platform-release-skew", html);         // rule id.
         Assert.Contains("Propose fix", html);                   // action button.
         Assert.Contains("Geoprocessing queue is idle", html);
+
+        // console#292: every finding is anchored so a correlation-id chip's FindingDetail route
+        // (/operate/copilot#finding-{id}) resolves to a real element, never a dead anchor.
+        Assert.Contains("id=\"finding-platform-release-skew-abc123\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"finding-gp-queue-idle-def456\"", html, StringComparison.Ordinal);
+
+        // console#292: a subject's pinned deploy operation renders as a correlation-id chip
+        // deep-linking into the Deploy page rather than plain text.
+        Assert.Contains("data-correlation-kind=\"OperationId\"", html, StringComparison.Ordinal);
+        Assert.Contains("/operate/deploy?operationId=deploy-op-42#deploy-approvals", html, StringComparison.Ordinal);
+
+        // console#292 scope item 6: the informational finding (no RecommendedAction) still gets
+        // a next step — "Investigate" linking to the correlated evidence timeline since it has no
+        // pinned operation id.
+        Assert.Contains("data-investigate-finding=\"gp-queue-idle-def456\"", html, StringComparison.Ordinal);
+        Assert.Contains("/operate/observability#events", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -81,6 +97,11 @@ public sealed class OperateCopilotPageTests
         Assert.Contains("prop-42", page.Markup);
         Assert.Contains("/inbox", page.Markup);
         Assert.Contains("Proposed", page.Markup);   // button flips to the proposed state.
+
+        // console#292: the created proposal id renders as a correlation-id chip deep-linking
+        // into the approval inbox, preselected, not a bare <code> string.
+        Assert.Contains("data-correlation-kind=\"ProposalId\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("/inbox?proposalId=prop-42", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -198,7 +219,7 @@ public sealed class OperateCopilotPageTests
                 Title = "Platform planes are skewed from the declared release",
                 Explanation = "The worker plane is not co-versioned with release 2026.06.1.",
                 DetectedAt = DateTimeOffset.Parse("2026-06-06T09:59:00Z"),
-                Subject = new OpsFindingSubjectResponse { ReleaseVersion = "2026.06.1" },
+                Subject = new OpsFindingSubjectResponse { ReleaseVersion = "2026.06.1", OperationId = "deploy-op-42" },
                 EvidenceRefs = ["release:2026.06.1"],
                 RecommendedAction = new OpsFindingActionResponse
                 {

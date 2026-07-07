@@ -57,7 +57,7 @@
         <div class="console-panel-grid">
             @foreach (var finding in _findings)
             {
-                <article class="console-panel operate-metric-card">
+                <article class="console-panel operate-metric-card" id="finding-@finding.Id" data-finding-id="@finding.Id">
                     <div class="console-panel-heading">
                         <div>
                             <p class="console-kicker">@finding.Rule</p>
@@ -75,7 +75,14 @@
                             @foreach (var row in finding.Subject)
                             {
                                 <dt>@row.Label</dt>
-                                <dd>@row.Value</dd>
+                                @if (string.Equals(row.Label, "Operation", StringComparison.Ordinal))
+                                {
+                                    <dd><CorrelationIdChip Value="@row.Value" Kind="CorrelationIdKind.OperationId" /></dd>
+                                }
+                                else
+                                {
+                                    <dd>@row.Value</dd>
+                                }
                             }
                         </dl>
                     }
@@ -110,7 +117,7 @@
                                     @if (outcome.ProposalId is { Length: > 0 } proposalId)
                                     {
                                         <p>
-                                            Proposal <code>@proposalId</code> —
+                                            Proposal <CorrelationIdChip Value="@proposalId" Kind="CorrelationIdKind.ProposalId" /> —
                                             <a href="/inbox">review in the approval inbox</a>.
                                         </p>
                                     }
@@ -131,6 +138,19 @@
                                     Propose fix
                                 </button>
                             }
+                        </section>
+                    }
+                    else
+                    {
+                        @* Scope item 6 (console#292): an informational finding still gets a next
+                           step — it just is not proposable through the approval gateway. Route to
+                           the deploy operation it pins when known, else the correlated evidence
+                           timeline, so no finding is a dead end. *@
+                        <section class="operate-metric-recommendations">
+                            <a class="console-button console-button-secondary" data-investigate-finding="@finding.Id"
+                               href="@finding.InvestigateHref">
+                                Investigate
+                            </a>
                         </section>
                     }
                 </article>

@@ -9,6 +9,11 @@
         <p>Connections, data resources, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
     </div>
 
+    @* Ops-summary strip (console#292, founder decision 2026-07-07): the hub's "is my server
+       healthy, what needs me?" glance — overall health, awaiting approvals, open findings, and
+       SLO breaches, each deep-linking to its actionable surface. *@
+    <OpsSummaryStrip />
+
     @if (_workspace is null)
     {
         <p class="console-muted">Loading Operate workspace...</p>
@@ -178,7 +183,7 @@
                     <li>
                         <strong>@connection.Name</strong>
                         <span>@diagnostic.FailureCode</span>
-                        <small>@diagnostic.OperatorActions[0]</small>
+                        <small>@(diagnostic.OperatorActions.Count > 0 ? diagnostic.OperatorActions[0] : "No operator action recorded.")</small>
                     </li>
                 }
 

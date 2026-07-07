@@ -782,6 +782,15 @@
     [Parameter]
     public string? SelectedJobRunId { get; set; }
 
+    /// <summary>
+    /// A correlation id to pre-filter the evidence timeline to (console#292 correlation-id chip
+    /// deep link, e.g. <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, id)</c>).
+    /// Seeds both the pending and active filter on first load so the timeline opens already
+    /// scoped to the correlated events, with no further operator action required.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "correlationId")]
+    public string? CorrelationId { get; set; }
+
     private bool _loaded;
     private OperateSectionResult<OperateFleetOverview>? _overview;
     private OperateSectionResult<IReadOnlyList<OperateEventRow>>? _events;
@@ -861,11 +870,21 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // A correlation-id chip deep link (console#292) seeds the filter so the timeline opens
+        // already scoped to the correlated events — no extra operator action required.
+        if (!string.IsNullOrWhiteSpace(CorrelationId))
+        {
+            _pendingCorrelationFilter = CorrelationId.Trim();
+        }
+
         // Load each independently permissioned section in parallel rather than
         // through a single blocking aggregate, protecting the Operate path from
         // a request waterfall.
         var overviewTask = OperateClient.GetOverviewAsync();
-        var eventsTask = OperateClient.QueryEventsAsync(OperateEventQuery.Empty);
+        var eventsTask = OperateClient.QueryEventsAsync(new OperateEventQuery
+        {
+            CorrelationId = _pendingCorrelationFilter
+        });
         var logsTask = OperateClient.GetLogsAsync();
         var alertsTask = OperateClient.GetAlertsAsync();
         var rulesTask = OperateClient.GetRulesAsync();

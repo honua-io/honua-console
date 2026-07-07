@@ -14,7 +14,25 @@ public sealed record OpsHealthView(
     OpsGpQueueView Geoprocessing,
     OpsAlertDispatchView AlertDispatch,
     OpsDeployReadinessView Deploy,
-    OpsDatabaseView Database);
+    OpsDatabaseView Database)
+{
+    /// <summary>
+    /// The total count of breaching sections across the snapshot (console#292 ops-summary
+    /// strip's "SLO breaches" element): every per-protocol serving-latency breach, plus the
+    /// geoprocessing, alert-dispatch, deploy-readiness, and database vitals sections whenever
+    /// their status renders as a warning/danger badge. Mirrors the same <see cref="OperateStatus.IsBreach"/>
+    /// test the health page uses to decide whether a badge needs a deep link, so the strip's
+    /// count and the page's dead-end-free badges never disagree.
+    /// </summary>
+    public int BreachCount =>
+        ServingLatency.Rows.Count(row => row.Status.IsBreach)
+        + (Geoprocessing.Status.IsBreach ? 1 : 0)
+        + (AlertDispatch.Status.IsBreach ? 1 : 0)
+        + (Deploy.Status.IsBreach ? 1 : 0)
+        + (Database.PoolUtilization.Status.IsBreach ? 1 : 0)
+        + (Database.CacheHitRatio.Status.IsBreach ? 1 : 0)
+        + (Database.ErrorRate.Status.IsBreach ? 1 : 0);
+}
 
 /// <summary>Comprehensive health-check roll-up view.</summary>
 public sealed record OpsHealthChecksView(
