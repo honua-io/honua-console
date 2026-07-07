@@ -31,7 +31,8 @@
     </div>
 
     <div class="approval-inbox-toolbar" role="group" aria-label="Inbox controls">
-        <span class="approval-inbox-live @(Realtime.IsConnected ? "is-live" : null)" data-live-state>
+        <span class="approval-inbox-live @(Realtime.IsConnected ? "is-live" : null)" data-live-state
+              data-fallback-engaged="@Realtime.IsFallbackEngaged">
             @(Realtime.IsConnected ? "Live" : "Manual")
         </span>
         <button type="button" class="console-button console-button-secondary"
@@ -125,12 +126,9 @@
                                                 @ConsoleProposalPresentation.SourceLabel(item.Source)
                                             </span>
                                         }
-                                        <span class="console-status @ConsoleProposalPresentation.StatusClass(item.Proposal.Status)">
-                                            @ConsoleProposalPresentation.StatusLabel(item.Proposal.Status)
-                                        </span>
-                                        <span class="console-status @ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)">
-                                            @ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)
-                                        </span>
+                                        <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
+                                        <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
+                                            CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
                                     </span>
                                     <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
                                     <span class="console-muted approval-inbox-row-sub">

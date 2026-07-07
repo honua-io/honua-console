@@ -4,6 +4,7 @@ using Honua.Console.Shell.Services;
 using Honua.Console.Shell.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.DependencyInjection;
 
@@ -162,6 +163,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new SignalRConsoleProposalRealtimeClient(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                serviceProvider.GetRequiredService<ILogger<SignalRConsoleProposalRealtimeClient>>(),
                 honuaServerAdminApiKey));
 
         // The approval inbox (#193) aggregates every proposal source into one GIS-department
