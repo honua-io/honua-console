@@ -203,12 +203,12 @@
             var result = await Findings.ProposeAsync(findingId);
             if (result.IsAllowed)
             {
-                var response = result.Value!;
-                _outcomes[findingId] = new ProposeOutcome(
-                    IsError: false,
-                    IsProposed: true,
-                    ProposalId: response.ProposalId,
-                    Message: BuildOutcomeMessage(response));
+                // The server returns HTTP 200 for every reached outcome, including Blocked
+                // and NotSupported (only FindingNotFound / NoRecommendedAction map to 404).
+                // Only ProposalCreated / Executed are real successes — a Blocked or
+                // NotSupported outcome must surface as an error and keep the propose button
+                // actionable, never as a "Proposed" state with a bogus proposal link.
+                _outcomes[findingId] = BuildProposeOutcome(result.Value!);
             }
             else if (result.Status == OperateSectionStatus.Missing)
             {
@@ -232,6 +232,27 @@
         {
             _busy = false;
         }
+    }
+
+    // The propose outcome statuses honua-server serializes (OperationGatewayOutcome ->
+    // OpsFindingProposalStatus, sent as its enum name). ProposalCreated / Executed are
+    // successes; Blocked / NotSupported are governed refusals returned with HTTP 200.
+    private const string ProposalCreatedStatus = "ProposalCreated";
+    private const string ExecutedStatus = "Executed";
+
+    private static ProposeOutcome BuildProposeOutcome(OpsFindingProposeResponse response)
+    {
+        var status = response.Status;
+        var proposed = string.Equals(status, ProposalCreatedStatus, StringComparison.Ordinal)
+            || string.Equals(status, ExecutedStatus, StringComparison.Ordinal);
+
+        return new ProposeOutcome(
+            IsError: !proposed,
+            IsProposed: proposed,
+            // A proposal link is only meaningful for a created proposal; never surface one
+            // for a Blocked / NotSupported (or otherwise unrecognized) outcome.
+            ProposalId: proposed ? response.ProposalId : null,
+            Message: BuildOutcomeMessage(response));
     }
 
     private static string BuildOutcomeMessage(OpsFindingProposeResponse response)
