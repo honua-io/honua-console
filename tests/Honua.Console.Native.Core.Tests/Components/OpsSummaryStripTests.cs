@@ -59,6 +59,25 @@ public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
     }
 
     [Fact]
+    public void NoServicesRegistered_RendersDegradedStateWithoutThrowing()
+    {
+        // The strip resolves every dependency optionally (GetService): a host (or render
+        // harness) that registers none of the clients must get the honest degraded state —
+        // health unavailable, counts em-dashed, approvals in manual mode — never a DI or
+        // render exception (the PR #295 CI regression).
+        var cut = Render<OpsSummaryStrip>();
+
+        Assert.Equal("Unavailable", cut.Find("[data-summary-unavailable='health']").TextContent.Trim());
+        Assert.Equal("—", cut.Find("[data-summary-value='approvals']").TextContent.Trim());
+        Assert.Equal("—", cut.Find("[data-summary-value='findings']").TextContent.Trim());
+        Assert.Equal("—", cut.Find("[data-summary-value='breaches']").TextContent.Trim());
+
+        var liveness = cut.Find("[data-summary-liveness]");
+        Assert.DoesNotContain("is-live", liveness.ClassList);
+        Assert.Contains("manual refresh", liveness.TextContent);
+    }
+
+    [Fact]
     public void DeniedReads_RenderHonestUnavailableNeverAFabricatedZero()
     {
         Services.AddSingleton<IOpsHealthDataSource>(new StubHealthDataSource

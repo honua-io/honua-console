@@ -4,7 +4,7 @@
 @using Honua.Console.Shell.Services
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleApprovalInboxClient Inbox
-@inject IConsoleProposalRealtimeClient Realtime
+@inject IServiceProvider ServiceProvider
 @inject IConsoleHostCapabilities Host
 @implements IAsyncDisposable
 
@@ -19,7 +19,9 @@
    proposals group the approval inbox uses (console#294's shared realtime seam), so a
    ProposalPending/ProposalResolved event updates the count here without a page reload. A
    failed connect degrades to the existing one-shot read (manual refresh via navigation) — the
-   Live/Manual pill states this honestly rather than claiming a liveness that failed. *@
+   Live/Manual pill states this honestly rather than claiming a liveness that failed. The
+   realtime client is resolved optionally (GetService, not a required inject): a host that has
+   not registered the seam gets the same honest Manual state, never a render exception. *@
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -44,9 +46,9 @@
                 <p class="console-kicker">Human-in-the-loop</p>
                 <h2 id="home-inbox-heading">Approval inbox</h2>
             </div>
-            <span class="approval-inbox-live @(Realtime.IsConnected ? "is-live" : null)" data-home-live-state
-                  data-fallback-engaged="@Realtime.IsFallbackEngaged">
-                @(Realtime.IsConnected ? "Live" : "Manual")
+            <span class="approval-inbox-live @(RealtimeConnected ? "is-live" : null)" data-home-live-state
+                  data-fallback-engaged="@FallbackEngaged">
+                @(RealtimeConnected ? "Live" : "Manual")
             </span>
             @if (!_inboxLoaded)
             {
@@ -147,6 +149,14 @@
     private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
+    // Resolved optionally (console#292): a host without the realtime seam registered renders
+    // the honest Manual state instead of failing DI at render time. Never a required inject.
+    private IConsoleProposalRealtimeClient? _realtime;
+
+    private bool RealtimeConnected => _realtime?.IsConnected == true;
+
+    private bool FallbackEngaged => _realtime?.IsFallbackEngaged == true;
+
     protected override async Task OnInitializedAsync()
     {
         _profiles = await Profiles.ListProfilesAsync();
@@ -164,9 +174,14 @@
 
         // Console#292 scope item 4: subscribe to the same admin-hub proposals group the
         // approval inbox uses so a pending/resolved event refreshes this band live, with no
-        // polling. Best-effort: a failed connect leaves the band on its one-shot read.
-        Realtime.ProposalChanged += OnProposalEvent;
-        await Realtime.StartAsync();
+        // polling. Best-effort twice over: an unregistered client means Manual mode (no
+        // subscription to open), and a failed connect leaves the band on its one-shot read.
+        _realtime = ServiceProvider.GetService<IConsoleProposalRealtimeClient>();
+        if (_realtime is not null)
+        {
+            _realtime.ProposalChanged += OnProposalEvent;
+            await _realtime.StartAsync();
+        }
     }
 
     private void OnProposalEvent(ConsoleProposalEvent evt)
@@ -182,7 +197,11 @@
     {
         // The realtime client is an app-lifetime singleton shared across circuits; only detach
         // this page's handler (mirrors ApprovalInboxPage's disposal note).
-        Realtime.ProposalChanged -= OnProposalEvent;
+        if (_realtime is not null)
+        {
+            _realtime.ProposalChanged -= OnProposalEvent;
+        }
+
         return ValueTask.CompletedTask;
     }
 }
