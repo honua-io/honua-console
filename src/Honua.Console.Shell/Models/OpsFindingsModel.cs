@@ -19,10 +19,21 @@ public sealed record OpsFindingView(
     string DetectedAt,
     IReadOnlyList<OpsFindingSubjectRow> Subject,
     IReadOnlyList<string> EvidenceRefs,
-    OpsFindingActionView? RecommendedAction)
+    OpsFindingActionView? RecommendedAction,
+    string? OperationId = null)
 {
     /// <summary>Gets a value indicating whether this finding carries a proposable action.</summary>
     public bool HasAction => RecommendedAction is not null;
+
+    /// <summary>
+    /// The next-step deep link for a finding with no recommended action (console#292 scope item
+    /// 6: every finding gets a next step). When the finding's subject pins a deploy/workflow
+    /// operation id, "Investigate" opens that governed operation directly; otherwise it opens the
+    /// evidence timeline so the operator can review the correlated events.
+    /// </summary>
+    public string InvestigateHref => string.IsNullOrWhiteSpace(OperationId)
+        ? $"{OperateObservabilityRoutes.Observability}#events"
+        : CorrelationIdRoutes.Resolve(CorrelationIdKind.OperationId, OperationId);
 }
 
 /// <summary>A populated subject identifier (label + value) for a finding.</summary>
@@ -63,7 +74,8 @@ public static class OpsFindingsMapper
                 : new OpsFindingActionView(
                     string.IsNullOrWhiteSpace(finding.RecommendedAction.Kind) ? "action" : finding.RecommendedAction.Kind!,
                     finding.RecommendedAction.Summary ?? string.Empty,
-                    finding.RecommendedAction.Reason ?? string.Empty));
+                    finding.RecommendedAction.Reason ?? string.Empty),
+            finding.Subject?.OperationId);
     }
 
     private static IReadOnlyList<OpsFindingSubjectRow> MapSubject(OpsFindingSubjectResponse? subject)

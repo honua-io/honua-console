@@ -1,0 +1,40 @@
+@using Honua.Console.Shell.Models
+
+@* Shared clickable id chip (console#292 incident golden path): everywhere a correlationId /
+   operationId / eventId / findingId / proposalId is rendered, it deep-links to the surface that
+   owns it (event detail, correlation-filtered timeline, Copilot finding, deploy operation, or
+   the approval inbox) via CorrelationIdRoutes — so an operator drills alert -> finding ->
+   proposal -> inbox approval without ever hand-copying an id between pages. An explicit Href
+   overrides the kind-derived route for a caller that already knows the exact target (e.g. an
+   event row's own DetailHref). A missing/empty value renders the same muted dash the shared
+   timeline uses rather than a chip that links nowhere. *@
+@if (string.IsNullOrWhiteSpace(Value))
+{
+    <span class="console-muted" data-correlation-chip-empty>&mdash;</span>
+}
+else
+{
+    <a class="console-chip correlation-id-chip" href="@ResolvedHref"
+       data-correlation-chip data-correlation-kind="@Kind" data-correlation-id="@Value"
+       title="@ResolvedTitle">
+        <span class="console-mono">@Value</span>
+    </a>
+}
+
+@code {
+    /// <summary>The raw id value to render and link.</summary>
+    [Parameter, EditorRequired]
+    public required string? Value { get; set; }
+
+    /// <summary>The id's kind, used to resolve its owning surface when <see cref="Href"/> is not set.</summary>
+    [Parameter]
+    public CorrelationIdKind Kind { get; set; } = CorrelationIdKind.CorrelationId;
+
+    /// <summary>An explicit deep-link that overrides the kind-derived route.</summary>
+    [Parameter]
+    public string? Href { get; set; }
+
+    private string ResolvedHref => Href ?? CorrelationIdRoutes.Resolve(Kind, Value!);
+
+    private string ResolvedTitle => $"Open the {CorrelationIdRoutes.KindLabel(Kind)} for {Value}";
+}

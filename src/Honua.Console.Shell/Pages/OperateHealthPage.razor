@@ -61,6 +61,9 @@
                 @if (_view.ServingLatency.HasBreach)
                 {
                     <span class="console-status console-state-warning">SLO breach on one or more protocols</span>
+                    <a class="console-button-link" href="/operate/copilot" data-health-drilldown="serving-latency">
+                        Investigate in Copilot Findings
+                    </a>
                 }
             </div>
 
@@ -115,6 +118,12 @@
                     <h2 id="geoprocessing-heading">Active Jobs By Status And Backend</h2>
                 </div>
                 <span class="console-status @_view.Geoprocessing.Status.CssClass">@_view.Geoprocessing.Status.Label</span>
+                @if (_view.Geoprocessing.Status.IsBreach)
+                {
+                    <a class="console-button-link" href="@OperateObservabilityRoutes.Geoprocessing" data-health-drilldown="geoprocessing">
+                        Open geoprocessing queue
+                    </a>
+                }
             </div>
 
             <article class="console-panel operate-metric-card">
@@ -167,6 +176,12 @@
                     <h2 id="alert-dispatch-heading">Backlog And Dead-Letters</h2>
                 </div>
                 <span class="console-status @_view.AlertDispatch.Status.CssClass">@_view.AlertDispatch.Status.Label</span>
+                @if (_view.AlertDispatch.Status.IsBreach)
+                {
+                    <a class="console-button-link" href="/operate/copilot" data-health-drilldown="alert-dispatch">
+                        Investigate in Copilot Findings
+                    </a>
+                }
             </div>
 
             <article class="console-panel operate-metric-card @(_view.AlertDispatch.HasDeadLetters ? "operate-metric-alerts" : null)">
@@ -193,6 +208,12 @@
                     <h2 id="deploy-heading">Deploy Readiness And Platform Release</h2>
                 </div>
                 <span class="console-status @_view.Deploy.Status.CssClass">@_view.Deploy.Status.Label</span>
+                @if (_view.Deploy.Status.IsBreach)
+                {
+                    <a class="console-button-link" href="/operate/deploy#deploy-approvals" data-health-drilldown="deploy">
+                        Open deploy approvals
+                    </a>
+                }
             </div>
 
             <div class="console-panel-grid">
@@ -248,6 +269,12 @@
                     <div class="console-panel-heading">
                         <div><h3>Connection pool</h3></div>
                         <span class="console-status @_view.Database.PoolUtilization.Status.CssClass">@_view.Database.PoolUtilization.Status.Label</span>
+                        @if (_view.Database.PoolUtilization.Status.IsBreach)
+                        {
+                            <a class="console-button-link" href="/operate/metrics" data-health-drilldown="database-pool">
+                                Open performance metrics
+                            </a>
+                        }
                     </div>
                     <MetricBar Bar="_view.Database.PoolUtilization" Label="Pool utilization" />
                     <dl class="console-definition-list">
@@ -264,6 +291,12 @@
                     <div class="console-panel-heading">
                         <div><h3>Cache hit ratio</h3></div>
                         <span class="console-status @_view.Database.CacheHitRatio.Status.CssClass">@_view.Database.CacheHitRatio.Status.Label</span>
+                        @if (_view.Database.CacheHitRatio.Status.IsBreach)
+                        {
+                            <a class="console-button-link" href="/operate/metrics" data-health-drilldown="database-cache">
+                                Open performance metrics
+                            </a>
+                        }
                     </div>
                     <MetricBar Bar="_view.Database.CacheHitRatio" Label="Hit ratio" />
                     <MetricBar Bar="_view.Database.ErrorRate" Label="Server error rate" />
