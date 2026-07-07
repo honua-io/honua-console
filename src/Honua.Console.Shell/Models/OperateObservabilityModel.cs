@@ -107,6 +107,24 @@ public sealed record OperateObservabilitySnapshot(
             && job.DetailHref.StartsWith("/operate/jobs/", StringComparison.Ordinal)));
 }
 
+/// <summary>
+/// The single status-vocabulary mapping table for the platform's status space (console#293):
+/// overallStatus / SLO flags (ops health), finding-state style raw strings, deploy/workflow
+/// lifecycle states (including <c>ManualInterventionRequired</c>), and proposal lifecycle states
+/// all normalize onto one of five visual buckets here — success / info / warning / danger /
+/// neutral — via <see cref="CssClass"/>. Render it through the shared <c>OperateStatusPill</c>
+/// component rather than re-deriving a CSS class inline.
+///
+/// Enum-typed domains (e.g. <c>ConsoleProposalStatus</c>, <c>DeployOperationLifecycle</c>) keep
+/// their own label helpers (the words differ per domain) but delegate their CSS-class mapping to
+/// this record's <see cref="CssClass"/> so "warning" always looks the same regardless of which
+/// surface produced it — see <c>ConsoleProposalPresentation.ToStatus</c> /
+/// <c>DeployOperationPresentation.ToStatus</c>.
+///
+/// An unrecognized raw state (including a future finding state this table has not seen yet)
+/// falls through to <see cref="IsNeutral"/>'s default — neutral — rather than guessing success or
+/// danger; this is the safe default for any raw server string, not just the words listed below.
+/// </summary>
 public sealed record OperateStatus(string State, string Description)
 {
     private static readonly HashSet<string> NeutralStates = new(StringComparer.OrdinalIgnoreCase)
@@ -129,7 +147,10 @@ public sealed record OperateStatus(string State, string Description)
         "invalid",
         "misconfigured",
         "unhealthy",
-        "blocked"
+        "blocked",
+        // Proposal / deploy-operation lifecycle failure states (console#293 unification).
+        "rejected",
+        "manual intervention required"
     };
 
     public string NormalizedState => NormalizeState(State);
@@ -148,8 +169,10 @@ public sealed record OperateStatus(string State, string Description)
     public string CssClass => NormalizedState switch
     {
         "configured" or "healthy" or "succeeded" or "resolved" or "valid" => "console-state-success",
-        "running" or "info" or "notice" => "console-state-info",
-        "warning" or "degraded" or "acknowledged" or "retrying" or "waiting" => "console-state-warning",
+        "running" or "info" or "notice" or "submitted" or "reconciling" => "console-state-info",
+        "warning" or "degraded" or "acknowledged" or "retrying" or "waiting"
+            // Proposal / deploy-operation lifecycle warning states (console#293 unification).
+            or "awaiting approval" or "rolled back" or "rollback requested" => "console-state-warning",
         _ when IsNeutral => "console-state-neutral",
         _ when IsFailure => "console-state-danger",
         _ => "console-state-neutral"

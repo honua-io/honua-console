@@ -244,31 +244,11 @@
                     {
                         <p class="console-muted">@_events.Message</p>
                     }
-                    <div class="operate-table-scroll">
-                        <table class="operate-table operate-event-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Time</th>
-                                    <th scope="col">Type</th>
-                                    <th scope="col">Severity</th>
-                                    <th scope="col">Message</th>
-                                    <th scope="col">Correlation</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in EventRows)
-                                {
-                                    <tr class="@(item.EventId == SelectedEvent?.EventId ? "operate-selected-row" : null)">
-                                        <td>@item.EventTime</td>
-                                        <td>@item.EventType</td>
-                                        <td><span class="console-status @item.SeverityStatus.CssClass">@item.SeverityStatus.Label</span></td>
-                                        <td><a href="@item.DetailHref">@item.Message</a></td>
-                                        <td>@item.CorrelationId</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                    @* Shared operate timeline (console#293): idempotent-append dedup keyed on
+                       eventId, so an at-least-once server transition/event feed never renders a
+                       duplicate row here. *@
+                    <OperateTimeline Entries="@TimelineEntries" SelectedEntryKey="@SelectedTimelineKey"
+                        EmptyMessage="The server returned no events for the current filters." />
                 </div>
 
                 @if (SelectedEvent is { } selectedEvent)
@@ -823,6 +803,14 @@
     private OperateFleetOverview Overview => _overview?.Value ?? OperateFleetOverview.Empty;
 
     private IReadOnlyList<OperateEventRow> EventRows => _events?.Value ?? [];
+
+    // Projects the observability event rows onto the shared OperateTimeline entry shape
+    // (console#293). The timeline component dedupes by DedupeKey internally, so this projection
+    // does not need to worry about the at-least-once server feed producing duplicate rows.
+    private IReadOnlyList<OperateTimelineEntry> TimelineEntries =>
+        EventRows.Select(row => row.ToTimelineEntry()).ToArray();
+
+    private string? SelectedTimelineKey => SelectedEvent?.ToTimelineEntry().DedupeKey;
 
     private OperateLogsView LogsView => _logs?.Value ?? OperateLogsView.Empty;
 

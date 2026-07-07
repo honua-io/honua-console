@@ -1,0 +1,42 @@
+@using Honua.Console.Shell.Models
+
+@* Shared status badge/pill (console#293): every Operate/proposal/deploy surface should render its
+   status through this one component, keyed off the single OperateStatus mapping table
+   (overallStatus, SLO flags, deploy/workflow states incl. ManualInterventionRequired, and
+   proposal states — see OperateStatus in OperateObservabilityModel.cs), so a "warning" state
+   always looks the same regardless of which domain produced it.
+
+   Pass Status for anything already in (or projectable onto) the OperateStatus vocabulary — most
+   callers. Pass the explicit Label/CssClass pair only for an axis the shared vocabulary does not
+   model (e.g. proposal risk level, which is a severity axis rather than a lifecycle status). *@
+<span class="console-status @ResolvedCssClass" title="@ResolvedTitle" data-status-state="@ResolvedState">
+    @ResolvedLabel
+</span>
+
+@code {
+    /// <summary>The status to render, projected onto the shared vocabulary.</summary>
+    [Parameter]
+    public OperateStatus? Status { get; set; }
+
+    /// <summary>
+    /// Explicit label override, for an axis the shared <see cref="OperateStatus"/> vocabulary
+    /// does not model (e.g. proposal risk level). Ignored when <see cref="Status"/> is set.
+    /// </summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>
+    /// Explicit CSS class override paired with <see cref="Label"/>. Ignored when
+    /// <see cref="Status"/> is set.
+    /// </summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string ResolvedLabel => Status?.Label ?? Label ?? string.Empty;
+
+    private string ResolvedCssClass => Status?.CssClass ?? CssClass ?? "console-state-neutral";
+
+    private string ResolvedState => Status?.NormalizedState ?? Label ?? string.Empty;
+
+    private string ResolvedTitle => Status?.Description ?? string.Empty;
+}

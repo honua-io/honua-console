@@ -311,17 +311,20 @@ public static class ConsoleProposalPresentation
         _ => "unknown",
     };
 
-    /// <summary>Neutral Console status CSS class for a proposal lifecycle state.</summary>
-    public static string StatusClass(ConsoleProposalStatus status) => status switch
-    {
-        ConsoleProposalStatus.Succeeded => "console-state-success",
-        ConsoleProposalStatus.Failed => "console-state-danger",
-        ConsoleProposalStatus.Rejected => "console-state-danger",
-        ConsoleProposalStatus.AwaitingApproval => "console-state-warning",
-        ConsoleProposalStatus.RolledBack => "console-state-warning",
-        ConsoleProposalStatus.Submitted or ConsoleProposalStatus.Reconciling => "console-state-info",
-        _ => "console-state-neutral",
-    };
+    /// <summary>
+    /// Neutral Console status CSS class for a proposal lifecycle state, derived from the shared
+    /// <see cref="OperateStatus"/> mapping table (console#293) so this stays identical to the
+    /// class every other Operate surface would render for the same word.
+    /// </summary>
+    public static string StatusClass(ConsoleProposalStatus status) => ToStatus(status).CssClass;
+
+    /// <summary>
+    /// Projects a proposal lifecycle status onto the shared <see cref="OperateStatus"/> status
+    /// vocabulary (console#293) so it can render through the shared <c>OperateStatusPill</c>
+    /// component.
+    /// </summary>
+    public static OperateStatus ToStatus(ConsoleProposalStatus status) =>
+        new(StatusLabel(status), string.Empty);
 
     /// <summary>Short, human label for a risk level.</summary>
     public static string RiskLabel(ConsoleProposalRisk risk) => risk switch
