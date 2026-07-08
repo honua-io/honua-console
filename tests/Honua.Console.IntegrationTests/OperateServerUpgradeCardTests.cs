@@ -309,6 +309,10 @@ public sealed class OperateServerUpgradeCardTests
             _index++;
             return Task.FromResult(result);
         }
+
+        public Task<OperateSectionResult<OpsHealthTrendView>> GetHistoryAsync(
+            OpsHealthTrendRangeSelection selection, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OpsHealthTrendView>.Denied(OperateSectionStatus.Unsupported, "n/a"));
     }
 
     private static DeployOperationProposal SubmittedUpgrade(string operationId) => new(

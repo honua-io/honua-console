@@ -256,6 +256,19 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IOpsHealthDataSource>(serviceProvider =>
             new OpsHealthDataSource(
                 serviceProvider.GetRequiredService<IConsoleOpsHealthClient>()));
+
+        // Live Ops Health trend updates (console#288, honua-server PR #2591 ops-health hub group):
+        // connects to the same admin hub the proposals/deploy-operations realtime clients use and
+        // joins the ops-health group. honua-server PR #2591 was still landing at the time this
+        // ticket was authored, so this degrades to FallbackEngaged against every server available
+        // today — the trend charts' history-refresh poll stays authoritative until the group
+        // exists (console#293 shared realtime seam, PA-233 fix).
+        services.TryAddSingleton<IConsoleOpsHealthRealtimeClient>(serviceProvider =>
+            new SignalRConsoleOpsHealthRealtimeClient(
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                serviceProvider.GetRequiredService<ILogger<SignalRConsoleOpsHealthRealtimeClient>>(),
+                honuaServerAdminApiKey));
         services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
             new HttpConsoleOpsFindingsClient(
                 CreateOperateObservabilityHttpClient(),

@@ -118,6 +118,10 @@ public sealed class OperatePageTests
     {
         public Task<OperateSectionResult<OpsHealthView>> GetSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OpsHealthView>.Denied(OperateSectionStatus.Unavailable, "n/a"));
+
+        public Task<OperateSectionResult<OpsHealthTrendView>> GetHistoryAsync(
+            OpsHealthTrendRangeSelection selection, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OpsHealthTrendView>.Denied(OperateSectionStatus.Unsupported, "n/a"));
     }
 
     private sealed class StubOpsFindingsClient : IConsoleOpsFindingsClient
