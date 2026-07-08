@@ -387,8 +387,21 @@ public sealed record DeployOperationResponse
     [JsonPropertyName("priority")]
     public string Priority { get; init; } = string.Empty;
 
+    /// <summary>
+    /// The deploy target this operation actuates against (server-upgrade / rollback kind
+    /// operations). <see langword="null"/> when the server omits it — a metadata-promotion
+    /// kind operation carries its context in <see cref="MetadataRelease"/> instead and has no
+    /// <c>target</c> object; absence here must be treated as "no target data", never as a
+    /// zero-value target (console#290, honua-server PR #2577 null-omission contract).
+    /// </summary>
+    [JsonPropertyName("target")]
+    public DeployPlanTargetResponse? Target { get; init; }
+
     [JsonPropertyName("metadataRelease")]
     public MetadataReleaseContextResponse? MetadataRelease { get; init; }
+
+    [JsonPropertyName("providerOperationId")]
+    public string? ProviderOperationId { get; init; }
 
     [JsonPropertyName("currentPhase")]
     public string? CurrentPhase { get; init; }
@@ -422,6 +435,45 @@ public sealed record DeployOperationResponse
 
     [JsonPropertyName("completedAt")]
     public DateTimeOffset? CompletedAt { get; init; }
+}
+
+/// <summary>
+/// Deploy target metadata embedded in a workflow operation response (server-upgrade /
+/// rollback kind operations; mirrors the server <c>DeployPlanTargetResponse</c>). Every
+/// field but <c>targetId</c>/<c>targetKind</c>/<c>backend</c>/<c>environment</c>/<c>targetName</c>/
+/// <c>desiredRevision</c>/<c>parameters</c> is nullable and omitted from the wire when null.
+/// </summary>
+public sealed record DeployPlanTargetResponse
+{
+    [JsonPropertyName("targetId")]
+    public string TargetId { get; init; } = string.Empty;
+
+    [JsonPropertyName("targetKind")]
+    public string TargetKind { get; init; } = string.Empty;
+
+    [JsonPropertyName("backend")]
+    public string Backend { get; init; } = string.Empty;
+
+    [JsonPropertyName("environment")]
+    public string Environment { get; init; } = string.Empty;
+
+    [JsonPropertyName("targetName")]
+    public string TargetName { get; init; } = string.Empty;
+
+    [JsonPropertyName("artifactReference")]
+    public string? ArtifactReference { get; init; }
+
+    [JsonPropertyName("runtimeProfile")]
+    public string? RuntimeProfile { get; init; }
+
+    [JsonPropertyName("currentRevision")]
+    public string? CurrentRevision { get; init; }
+
+    [JsonPropertyName("desiredRevision")]
+    public string DesiredRevision { get; init; } = string.Empty;
+
+    [JsonPropertyName("parameters")]
+    public IReadOnlyDictionary<string, string> Parameters { get; init; } = new Dictionary<string, string>();
 }
 
 /// <summary>Metadata release lifecycle context embedded in a workflow operation.</summary>
@@ -618,6 +670,7 @@ public sealed record CoordinatedReleaseOperationResponse
 [JsonSerializable(typeof(MetadataReleasePackageResponse))]
 [JsonSerializable(typeof(GitOpsMetadataReleaseManifestResponse))]
 [JsonSerializable(typeof(DeployOperationResponse))]
+[JsonSerializable(typeof(DeployPlanTargetResponse))]
 [JsonSerializable(typeof(CoordinatedReleaseOperationResponse))]
 public sealed partial class MetadataReleaseJsonContext : JsonSerializerContext
 {

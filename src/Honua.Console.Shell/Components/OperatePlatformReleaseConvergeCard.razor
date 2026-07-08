@@ -1,0 +1,121 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleDeployOperationsClient DeployOperationsClient
+
+@* Platform-release card (console#290 acceptance criterion 5): declared release,
+   co-versioning badge, per-target convergence state (from the preflight platform-release
+   projection), and a Converge action. honua-server#2564 (the converge API) is still open at
+   the time this was authored — every server available today returns 404/501 for the
+   converge route, so this ALWAYS capability-detects to its unavailable state. Per the single-
+   approval-seat rule (console#290 addendum item 5), a converge that the server DOES execute
+   (once #2564 lands) is approval-mediated — this card never claims a direct-execute bypass;
+   any created approval lands in the inbox and the card only offers the drill-in chip. *@
+<div class="console-panel operate-platform-release-card" data-platform-release-card>
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">Platform release</p>
+            <h3>Declared release &amp; convergence</h3>
+        </div>
+        @if (_preflight is { IsAllowed: true, Value.PlatformReleaseDeclared: true } preflightResult)
+        {
+            <span class="console-status @(preflightResult.Value!.PlatformReleaseCoVersioned ? "console-state-success" : "console-state-warning")"
+                  data-coversion-badge>
+                @(preflightResult.Value!.PlatformReleaseCoVersioned ? "co-versioned" : "skewed")
+            </span>
+        }
+    </div>
+
+    @if (_preflight is null)
+    {
+        <OperateSectionStatusPanel Heading="Platform release" Loading="true" />
+    }
+    else if (!_preflight.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Platform release" Status="@_preflight.Status" Message="@_preflight.Message" />
+    }
+    else if (!_preflight.Value!.PlatformReleaseDeclared)
+    {
+        <OperateSectionStatusPanel Heading="Platform release" Empty="true"
+            EmptyTitle="No platform release declared"
+            EmptyMessage="The connected server has no declared platform release to converge." />
+    }
+    else
+    {
+        var preflight = _preflight.Value!;
+        @if (preflight.SkewedPlaneIds.Count > 0)
+        {
+            <p class="console-muted">Skewed planes: <span class="console-mono">@string.Join(", ", preflight.SkewedPlaneIds)</span></p>
+        }
+
+        <button type="button" class="console-button" disabled="@_converging" data-converge
+                @onclick="ConvergeAsync">
+            Converge
+        </button>
+
+        @if (_convergeResult is not null)
+        {
+            @if (!_convergeResult.IsAllowed)
+            {
+                <OperateSectionStatusPanel Heading="Converge" Status="@_convergeResult.Status" Message="@_convergeResult.Message" />
+            }
+            else
+            {
+                var converge = _convergeResult.Value!;
+                @if (converge.ProposalId is { Length: > 0 } proposalId)
+                {
+                    <p class="console-state-success" data-converge-proposal>
+                        Converge proposed &mdash;
+                        <CorrelationIdChip Value="@proposalId" Kind="CorrelationIdKind.ProposalId" />
+                        approve it in the inbox to actuate.
+                    </p>
+                }
+                @if (converge.Targets.Count > 0)
+                {
+                    <table class="operate-table">
+                        <thead>
+                            <tr><th scope="col">Target</th><th scope="col">Outcome</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var target in converge.Targets)
+                            {
+                                <tr>
+                                    <td class="console-mono">@target.TargetId</td>
+                                    <td><OperateStatusPill Status="@target.Outcome" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        }
+    }
+</div>
+
+@code {
+    private OperateSectionResult<DeployPreflightView>? _preflight;
+    private OperateSectionResult<PlatformReleaseConvergeView>? _convergeResult;
+    private bool _converging;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _preflight = await DeployOperationsClient.GetPreflightAsync(includeDiagnostics: true);
+    }
+
+    private async Task ConvergeAsync()
+    {
+        if (_converging)
+        {
+            return;
+        }
+
+        _converging = true;
+        try
+        {
+            _convergeResult = await DeployOperationsClient.ConvergeAsync();
+        }
+        finally
+        {
+            _converging = false;
+        }
+    }
+}

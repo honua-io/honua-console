@@ -72,6 +72,8 @@ public sealed class MissingBindingCompletenessCrossCuttingTests
         ctx.Services.AddSingleton<IConsoleServerVersionClient>(new UnsupportedConsoleServerVersionClient());
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(new UnboundReleaseClient());
+        // console#290: "All deploy operations" and the platform-release converge card.
+        ctx.Services.AddSingleton<IConsoleDeployOperationsClient>(new UnsupportedConsoleDeployOperationsClient());
         // The server-version upgrade card asserted below is ungated (operate floor); advertise the gated
         // cross-environment-promotion capability so the manifest gate resolves and the page renders.
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);

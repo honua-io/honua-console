@@ -11,8 +11,10 @@ namespace Honua.Console.IntegrationTests;
 /// Docker-free bUnit coverage for the human-in-the-loop deploy approval surface. The
 /// surface binds to a live honua-server deploy-control operation (charter section 11);
 /// these tests drive it through the test/demo <see cref="InMemoryConsoleDeployApprovalClient"/>
-/// and a stub client to exercise the approve / reject / rollback actions, the data-affecting
-/// rollback confirmation gate, and the missing/unsupported binding states without a backend.
+/// and a stub client to exercise the approve / rollback actions (there is no Reject action —
+/// console#290 addendum item 2), the data-affecting rollback confirmation gate, the
+/// ManualInterventionRequired findings-driven recovery panel, and the missing/unsupported
+/// binding states without a backend.
 /// </summary>
 public sealed class OperateDeploymentApprovalTests
 {
@@ -112,32 +114,109 @@ public sealed class OperateDeploymentApprovalTests
     }
 
     [Fact]
-    public void ApprovalPanel_Reject_DoesNotSubmit_AndRecordsIntent()
+    public void ApprovalPanel_NoRejectButton_StatesModelInstead()
     {
-        var client = new InMemoryConsoleDeployApprovalClient([Awaiting("op-reject")]);
+        // console#290 addendum item 2: kill the fake Reject. There is no server reject
+        // endpoint, so a Reject button that recorded a local "rejection" without calling
+        // anything was worse than no button — it is removed, and the model (approve in the
+        // inbox; rollback is the recovery lever) is stated in prose instead.
+        var client = new InMemoryConsoleDeployApprovalClient([Awaiting("op-no-reject")]);
 
         using var ctx = new BunitContext();
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
-            .Add(x => x.OperationId, "op-reject")
+            .Add(x => x.OperationId, "op-no-reject")
             .Add(x => x.PollInterval, (TimeSpan?)null));
 
         panel.WaitForAssertion(
-            () => Assert.NotNull(panel.FindAll("button.console-button-secondary").FirstOrDefault(b => b.TextContent.Contains("Reject", StringComparison.Ordinal))),
+            () =>
+            {
+                Assert.DoesNotContain(panel.FindAll("button"), b => b.TextContent.Contains("Reject", StringComparison.Ordinal));
+                Assert.NotNull(panel.Find("[data-no-reject-note]"));
+                Assert.Contains("approval inbox", panel.Markup, StringComparison.OrdinalIgnoreCase);
+            },
             TimeSpan.FromSeconds(5));
+    }
 
-        var rejectButton = panel.FindAll("button.console-button-secondary")
-            .First(b => b.TextContent.Contains("Reject", StringComparison.Ordinal));
-        rejectButton.Click();
+    [Fact]
+    public void ApprovalPanel_ManualInterventionWithoutFindingsClient_RendersRollbackOnly_NoRecoveryPanel()
+    {
+        // IConsoleOpsFindingsClient is resolved OPTIONALLY; a host that has not wired it up
+        // (this test's DI container) must degrade by skipping the recovery panel, never throw.
+        var client = new InMemoryConsoleDeployApprovalClient([ManualIntervention("op-mir")]);
+
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
+
+        var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
+            .Add(x => x.OperationId, "op-mir")
+            .Add(x => x.PollInterval, (TimeSpan?)null));
 
         panel.WaitForAssertion(
-            () => Assert.Contains("Rejection recorded", panel.Markup, StringComparison.Ordinal),
+            () =>
+            {
+                Assert.Contains("manual intervention required", panel.Markup, StringComparison.Ordinal);
+                Assert.Empty(panel.FindAll("[data-manual-intervention-panel]"));
+                // Rollback stays offered — the recovery lever the "no Reject" note points to.
+                Assert.NotNull(panel.Find("button.operate-deploy-rollback-button"));
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void ApprovalPanel_ManualInterventionWithRecordedFinding_ProposesRecovery_AndShowsProposalChip()
+    {
+        // console#290 AC4: surfaces the EXISTING findings recovery (forward-deploy to the
+        // recorded prior revision), proposed through the same findings/propose flow Copilot
+        // Findings already uses — never rebuilt.
+        var client = new InMemoryConsoleDeployApprovalClient([ManualIntervention("op-mir-recoverable")]);
+        var findingsClient = new StubOpsFindingsClient("op-mir-recoverable");
+
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
+        ctx.Services.AddSingleton<IConsoleOpsFindingsClient>(findingsClient);
+
+        var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
+            .Add(x => x.OperationId, "op-mir-recoverable")
+            .Add(x => x.PollInterval, (TimeSpan?)null));
+
+        panel.WaitForAssertion(
+            () => Assert.NotNull(panel.Find("[data-propose-recovery]")),
             TimeSpan.FromSeconds(5));
 
-        // Reject never advances the operation; the status badge stays AwaitingApproval.
-        var badge = panel.Find(".operate-deploy-approval-panel .console-panel-heading .console-status");
-        Assert.Equal("awaiting approval", badge.TextContent.Trim());
+        panel.Find("[data-propose-recovery]").Click();
+
+        panel.WaitForAssertion(
+            () =>
+            {
+                Assert.NotNull(panel.Find("[data-recovery-proposal]"));
+                Assert.Contains("prop-forward-1", panel.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void ApprovalPanel_ManualInterventionWithNoRecordedFinding_RendersHonestSupersedeGuidance()
+    {
+        var client = new InMemoryConsoleDeployApprovalClient([ManualIntervention("op-mir-no-recovery")]);
+
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
+        ctx.Services.AddSingleton<IConsoleOpsFindingsClient>(new StubOpsFindingsClient(null));
+
+        var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
+            .Add(x => x.OperationId, "op-mir-no-recovery")
+            .Add(x => x.PollInterval, (TimeSpan?)null));
+
+        panel.WaitForAssertion(
+            () =>
+            {
+                Assert.NotNull(panel.Find("[data-no-recovery-finding]"));
+                Assert.Empty(panel.FindAll("[data-propose-recovery]"));
+                Assert.Contains("Supersede", panel.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -192,4 +271,57 @@ public sealed class OperateDeploymentApprovalTests
             EvidenceRequired: ["backup-id"],
             ApprovalPolicyRef: "policy/rollback-prod"),
     };
+
+    private static DeployOperationProposal ManualIntervention(string operationId) => Awaiting(operationId) with
+    {
+        Lifecycle = DeployOperationLifecycle.ManualInterventionRequired,
+        RawStatus = "ManualInterventionRequired",
+    };
+
+    /// <summary>
+    /// Minimal stub for the recovery-panel tests: reports one finding pinned to
+    /// <paramref name="recoverableOperationId"/> (or none, when null — the honest
+    /// "no recorded prior revision" case) with a recommended forward-deploy action, and
+    /// records propose calls as creating a gateway proposal (never executing directly).
+    /// </summary>
+    private sealed class StubOpsFindingsClient(string? recoverableOperationId) : IConsoleOpsFindingsClient
+    {
+        public Task<OperateSectionResult<Honua.Console.Contracts.OpsFindingsListResponse>> ListAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var findings = recoverableOperationId is null
+                ? new List<Honua.Console.Contracts.OpsFindingResponse>()
+                : new List<Honua.Console.Contracts.OpsFindingResponse>
+                {
+                    new()
+                    {
+                        Id = "finding-forward-1",
+                        Rule = "deploy-manual-intervention-recovery",
+                        Severity = "Warning",
+                        Title = "Manual intervention recorded a recoverable prior revision",
+                        Subject = new Honua.Console.Contracts.OpsFindingSubjectResponse { OperationId = recoverableOperationId },
+                        RecommendedAction = new Honua.Console.Contracts.OpsFindingActionResponse
+                        {
+                            Kind = "Deploy",
+                            Summary = "Forward-deploy to the last known-good revision.",
+                            Reason = "Recorded prior revision from the workflow operation.",
+                        },
+                    },
+                };
+
+            return Task.FromResult(OperateSectionResult<Honua.Console.Contracts.OpsFindingsListResponse>.Allowed(
+                new Honua.Console.Contracts.OpsFindingsListResponse { Findings = findings }));
+        }
+
+        public Task<OperateSectionResult<Honua.Console.Contracts.OpsFindingProposeResponse>> ProposeAsync(
+            string findingId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<Honua.Console.Contracts.OpsFindingProposeResponse>.Allowed(
+                new Honua.Console.Contracts.OpsFindingProposeResponse
+                {
+                    FindingId = findingId,
+                    Status = "ProposalCreated",
+                    ProposalId = "prop-forward-1",
+                }));
+    }
 }
