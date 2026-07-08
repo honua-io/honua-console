@@ -100,6 +100,56 @@ public sealed class DeployApprovalMapperTests
     }
 
     [Fact]
+    public void MapProposal_WhenTargetPresentButNoMetadataRelease_UsesTargetForEnvironmentAndRevision()
+    {
+        // A server-upgrade (Deploy-kind) operation carries Target, not MetadataRelease. Before
+        // console#290 this always degraded to "unknown" — a real gap this ticket fixes.
+        var response = new DeployOperationResponse
+        {
+            OperationId = "op-upgrade-1",
+            Kind = "Deploy",
+            Status = "ManualInterventionRequired",
+            Priority = "Normal",
+            Target = new DeployPlanTargetResponse
+            {
+                TargetId = "prod-serving-1",
+                TargetKind = "Serving",
+                Backend = "kubernetes",
+                Environment = "prod",
+                TargetName = "prod-serving",
+                CurrentRevision = "1.5.0",
+                DesiredRevision = "1.6.0",
+            },
+        };
+
+        var proposal = DeployApprovalMapper.MapProposal(response);
+
+        Assert.Equal("prod", proposal.Environment);
+        Assert.Equal("1.6.0", proposal.DesiredRevision);
+        Assert.Equal("1.5.0", proposal.CurrentRevision);
+        Assert.Equal("prod-serving", proposal.Service);
+        Assert.Equal(DeployOperationLifecycle.ManualInterventionRequired, proposal.Lifecycle);
+    }
+
+    [Fact]
+    public void MapProposal_WhenBothTargetAndMetadataReleaseAbsent_DesiredRevisionIsUnknownNotEmpty()
+    {
+        // Guards the console#290 addendum item 3 nullability concern: an absent revision must
+        // never be read as a real empty-string revision.
+        var response = new DeployOperationResponse
+        {
+            OperationId = "op-degenerate",
+            Kind = "Migration",
+            Status = "Planned",
+        };
+
+        var proposal = DeployApprovalMapper.MapProposal(response);
+
+        Assert.Equal("unknown", proposal.DesiredRevision);
+        Assert.NotEqual(string.Empty, proposal.DesiredRevision);
+    }
+
+    [Fact]
     public void Proposal_RollbackEligibility_TracksLifecycle()
     {
         Assert.True(SampleWith(DeployOperationLifecycle.Submitted).IsRollbackEligible);

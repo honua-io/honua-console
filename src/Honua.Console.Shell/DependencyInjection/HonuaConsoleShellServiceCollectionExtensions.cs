@@ -140,6 +140,31 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
+        // Deploy cockpit completion (console#290): the paged deploy-operations list
+        // (honua-server PR #2577), the preflight gate, and the speculative platform-release
+        // converge action bind through the same thin typed HttpClient. Every new route is
+        // feature-detected (404/501 -> Unsupported), so the cockpit degrades to the
+        // pre-existing tracked-id approval surface against an older server. No standing
+        // in-memory source is registered (Charter section 11).
+        services.TryAddSingleton<IConsoleDeployOperationsClient>(serviceProvider =>
+            new HttpConsoleDeployOperationsClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                honuaServerAdminApiKey));
+
+        // Live deploy-operation progress (console#290, honua-server#2554 deploy-operations hub
+        // group): connects to the same admin hub the proposals realtime client uses and joins
+        // the deploy-operations group. honua-server#2554 is not yet merged, so this degrades to
+        // FallbackEngaged against every server available today — the cockpit's existing poll
+        // loop (OperateDeploymentApprovalPanel's PeriodicTimer) stays authoritative until the
+        // group exists (console#293 shared realtime seam, PA-233 fix).
+        services.TryAddSingleton<IConsoleDeployOperationRealtimeClient>(serviceProvider =>
+            new SignalRConsoleDeployOperationRealtimeClient(
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                serviceProvider.GetRequiredService<ILogger<SignalRConsoleDeployOperationRealtimeClient>>(),
+                honuaServerAdminApiKey));
+
         // The first-class agent-operation approval API (issue #193, honua-server #1694):
         // GET /api/v1/admin/proposals (list/filter), GET .../{id} (plan/diff/dry-run/risk),
         // POST .../{id}/approve, POST .../{id}/reject (reason required). Approve/reject are

@@ -1,0 +1,240 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleDeployOperationsClient DeployOperationsClient
+@inject IServiceProvider ServiceProvider
+@implements IAsyncDisposable
+
+@* Deploy-operations list (console#290 acceptance criterion 1): consumes the real, paged
+   GET /api/v1/admin/deploy/operations list (honua-server PR #2577) instead of the retired
+   release-scrape workaround (a deploy operation is no longer discovered only by
+   hand-copying a deployOperationId off a release, or by manual "track by id"). Live
+   progress (canary step / health gate / promote / rollback transitions) comes from the
+   deploy-operations realtime seam with an honest Live/Manual pill (console#293); when
+   honua-server#2554's hub group does not exist yet (true for every server today) it falls
+   back to a manual-refresh poll, never fake liveness.
+
+   Feature-detected against an older server: a 404/501 on the list route degrades the
+   Kind/Status filter to <see cref="OperateSectionStatus.Unsupported"/>, which the caller can
+   still bridge to a caller-supplied tracked-id fallback (kept on the Deploy page for exactly
+   this case). *@
+
+<div class="console-panel operate-deploy-operations-list" data-deploy-operations-list>
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">Deploy operations</p>
+            <h3>All operations</h3>
+        </div>
+        <span class="console-status @RealtimeStateClass" data-realtime-pill title="@RealtimeStateTitle">
+            @RealtimeStateLabel
+        </span>
+    </div>
+
+    <div class="console-action-row operate-deploy-operations-filters">
+        <label class="console-field">
+            <span class="console-field-label">Status</span>
+            <select class="console-input" data-filter-status @bind="_status" @bind:after="RefreshAsync">
+                <option value="">Any</option>
+                <option value="AwaitingApproval">Awaiting approval</option>
+                <option value="Submitted">Submitted</option>
+                <option value="Reconciling">Reconciling</option>
+                <option value="ManualInterventionRequired">Manual intervention required</option>
+                <option value="Succeeded">Succeeded</option>
+                <option value="Failed">Failed</option>
+                <option value="RolledBack">Rolled back</option>
+            </select>
+        </label>
+        <label class="console-field">
+            <span class="console-field-label">Kind</span>
+            <select class="console-input" data-filter-kind @bind="_kind" @bind:after="RefreshAsync">
+                <option value="">Any</option>
+                <option value="Deploy">Deploy</option>
+                <option value="Rollback">Rollback</option>
+                <option value="Migration">Migration</option>
+                <option value="MetadataRelease">Metadata release</option>
+                <option value="CoordinatedRelease">Coordinated release</option>
+            </select>
+        </label>
+        <button type="button" class="console-button console-button-secondary" data-refresh-operations
+                @onclick="RefreshAsync">
+            Refresh
+        </button>
+    </div>
+
+    @if (_result is null)
+    {
+        <OperateSectionStatusPanel Heading="Deploy operations" Loading="true" />
+    }
+    else if (!_result.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Deploy operations" Status="@_result.Status" Message="@_result.Message" />
+    }
+    else
+    {
+        var rowsResult = OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed(_result.Value!.Items);
+        <OperateDeploymentProposalList
+            Result="rowsResult"
+            SelectedOperationId="@SelectedOperationId"
+            OnSelect="OnSelect" />
+
+        <div class="console-action-row operate-deploy-operations-paging">
+            <button type="button" class="console-button console-button-secondary" data-page-prev
+                    disabled="@(_page <= 1)" @onclick="PreviousPageAsync">
+                Previous
+            </button>
+            <span class="console-muted">
+                Page @_result.Value!.Page &middot; @_result.Value!.TotalCount total (this window)
+            </span>
+            <button type="button" class="console-button console-button-secondary" data-page-next
+                    disabled="@(!_result.Value!.HasMore)" @onclick="NextPageAsync">
+                Next
+            </button>
+        </div>
+
+        @if (_liveEntries.Count > 0)
+        {
+            <h4 class="operate-deploy-operations-live-heading">Live transitions</h4>
+            <OperateTimeline Entries="_liveEntries" EmptyMessage="No live transitions received yet." />
+        }
+    }
+</div>
+
+@code {
+    /// <summary>Restricts the list to operations of one <c>WorkflowOperationKind</c> (e.g. only server-upgrade Deploy/Rollback kinds, or only MetadataRelease). Null shows every kind with the in-page filter still available.</summary>
+    [Parameter]
+    public string? FixedKind { get; set; }
+
+    /// <summary>The currently selected operation id, forwarded to the underlying row list.</summary>
+    [Parameter]
+    public string? SelectedOperationId { get; set; }
+
+    /// <summary>Raised when an operator selects an operation row.</summary>
+    [Parameter]
+    public EventCallback<DeployOperationProposal> OnSelect { get; set; }
+
+    private OperateSectionResult<DeployOperationListView>? _result;
+    private string _status = string.Empty;
+    private string _kind = string.Empty;
+    private int _page = 1;
+    private const int PageSize = 25;
+    private IReadOnlyList<OperateTimelineEntry> _liveEntries = [];
+
+    // Resolved OPTIONALLY (GetService, never a required inject — mirrors OpsSummaryStrip): a
+    // host that has not wired up the deploy-operations realtime seam degrades to the Manual
+    // pill and never attempts to subscribe, rather than throwing at render time.
+    private IConsoleDeployOperationRealtimeClient? _realtimeClient;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(FixedKind))
+        {
+            _kind = FixedKind;
+        }
+
+        await RefreshAsync();
+
+        _realtimeClient = ServiceProvider.GetService<IConsoleDeployOperationRealtimeClient>();
+        if (_realtimeClient is null)
+        {
+            return;
+        }
+
+        _realtimeClient.OperationChanged += OnRealtimeOperationChanged;
+        if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
+        {
+            capability.ConnectionStateChanged += OnConnectionStateChanged;
+        }
+
+        await _realtimeClient.StartAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _result = await DeployOperationsClient.ListAsync(new DeployOperationListQuery(
+            Status: string.IsNullOrWhiteSpace(_status) ? null : _status,
+            Kind: string.IsNullOrWhiteSpace(_kind) ? null : _kind,
+            Page: _page,
+            PageSize: PageSize));
+        _page = _result is { IsAllowed: true, Value: { } list } ? list.Page : _page;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (_page <= 1)
+        {
+            return;
+        }
+
+        _page -= 1;
+        await RefreshAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (_result is not { IsAllowed: true, Value.HasMore: true })
+        {
+            return;
+        }
+
+        _page += 1;
+        await RefreshAsync();
+    }
+
+    private void OnRealtimeOperationChanged(ConsoleDeployOperationRealtimeEvent evt)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            _liveEntries = OperateTimelineEntries.Append(_liveEntries, evt.ToTimelineEntry());
+            // A live transition means the list is stale; refresh so the row's status pill and
+            // the paging counts stay in lock-step with what the timeline just reported.
+            await RefreshAsync();
+        });
+    }
+
+    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state) => InvokeAsync(StateHasChanged);
+
+    private ConsoleRealtimeConnectionState ConnectionState =>
+        _realtimeClient is IConsoleRealtimeCapabilityClient capability ? capability.ConnectionState : ConsoleRealtimeConnectionState.NotConfigured;
+
+    private string RealtimeStateClass => ConnectionState switch
+    {
+        ConsoleRealtimeConnectionState.Connected => "console-state-success",
+        ConsoleRealtimeConnectionState.Connecting => "console-state-info",
+        ConsoleRealtimeConnectionState.FallbackEngaged => "console-state-neutral",
+        _ => "console-state-neutral",
+    };
+
+    private string RealtimeStateLabel => ConnectionState switch
+    {
+        ConsoleRealtimeConnectionState.Connected => "Live",
+        ConsoleRealtimeConnectionState.Connecting => "Connecting…",
+        ConsoleRealtimeConnectionState.FallbackEngaged => "Manual (poll)",
+        _ => "Manual",
+    };
+
+    private string RealtimeStateTitle => ConnectionState switch
+    {
+        ConsoleRealtimeConnectionState.Connected => "Live deploy-operation transitions via the admin realtime hub.",
+        ConsoleRealtimeConnectionState.Connecting => "Connecting to the admin realtime hub.",
+        ConsoleRealtimeConnectionState.FallbackEngaged =>
+            "The deploy-operations realtime group is unavailable (honua-server#2554 not yet merged, or the connection failed); use Refresh to update.",
+        _ => "No environment is bound; use Refresh to update.",
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        // The realtime client is an app-lifetime singleton shared across circuits (mirrors
+        // ApprovalInboxPage): only detach this component's handlers. The connection itself is
+        // torn down by the DI container on shutdown, not when one operator navigates away.
+        if (_realtimeClient is not null)
+        {
+            _realtimeClient.OperationChanged -= OnRealtimeOperationChanged;
+            if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
+            {
+                capability.ConnectionStateChanged -= OnConnectionStateChanged;
+            }
+        }
+
+        return ValueTask.CompletedTask;
+    }
+}

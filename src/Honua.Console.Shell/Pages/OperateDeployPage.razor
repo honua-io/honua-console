@@ -15,12 +15,14 @@
         dev -> staging -> prod as an ordered, approved, rollback-able operation (the
         GitOps metadata release lifecycle, surfaced in full on the Releases page).
 
-   The honua-server deploy-control surface exposes NO list-all endpoint (operations are
-   read by durable id), so the in-flight operation queue is projected from the deploy
-   operation ids discovered on the release operations in view, plus any ids the operator
-   is tracking. When none are known, the surface renders an honest empty state and points
-   the operator at a release to drill into. Raw PR/gitops mechanics live behind a Details
-   toggle on each card, never on the primary surface. *@
+   console#290 (deploy cockpit completion): the honua-server deploy-control surface now
+   exposes a paged, newest-first list endpoint (GET /api/v1/admin/deploy/operations, honua-
+   server PR #2577) — the "All deploy operations" section below consumes it directly, so an
+   operation no longer needs to be discovered only by hand-copying a deployOperationId off a
+   release. The release-derived + operator-tracked id projection is kept as a documented
+   fallback for an older server where the list route is unsupported (feature-detected: a
+   404/501 there degrades this page to exactly its pre-#290 behavior). Raw PR/gitops
+   mechanics live behind a Details toggle on each card, never on the primary surface. *@
 
 <section class="console-page console-operate-page operate-deploy-page">
     <div class="console-page-heading operate-heading">
@@ -34,10 +36,28 @@
     </div>
 
     <nav class="operate-section-nav" aria-label="Deploy sections">
+        <a href="#all-operations">All operations</a>
         <a href="#server-upgrade">Server upgrade</a>
         <a href="#cross-env-promote">Cross-environment promotion</a>
+        <a href="#platform-release">Platform release</a>
         <a href="#deploy-approvals">Approvals queue</a>
     </nav>
+
+    @* ── ALL DEPLOY OPERATIONS (console#290 AC1) ────────────────────────────── *@
+    <section id="all-operations" class="operate-section" aria-labelledby="all-operations-heading">
+        <div class="operate-section-heading">
+            <div>
+                <p class="console-kicker">Deploy cockpit</p>
+                <h2 id="all-operations-heading">All deploy operations</h2>
+                <p class="console-muted">
+                    Every durable deploy-control operation the connected server reports, newest-first, with live
+                    transitions when the realtime group is available and manual refresh otherwise. Selecting a row
+                    binds its outcome below (server upgrade or cross-environment promotion).
+                </p>
+            </div>
+        </div>
+        <OperateDeployOperationsList SelectedOperationId="@_selectedOperationId" OnSelect="OnTrackedSelected" />
+    </section>
 
     @* ── SERVER VERSION UPGRADE ─────────────────────────────────────────────── *@
     <section id="server-upgrade" class="operate-section" aria-labelledby="server-upgrade-heading">
@@ -127,8 +147,10 @@
         }
 
         @* IN-FLIGHT PROMOTIONS — the governed deploy-control operations already promoting across
-           environments (projected from release-derived + operator-tracked ids; the server has no
-           list-all endpoint). Selecting one binds its approve / outcome / rollback surface. *@
+           environments (projected from release-derived + operator-tracked ids; this narrower,
+           promotion-scoped view still uses the tracked-id projection rather than the unscoped
+           "All deploy operations" list above). Selecting one binds its approve / outcome /
+           rollback surface. *@
         @if (!_promotionLoaded)
         {
             <OperateSectionStatusPanel Heading="In-flight promotions" Loading="true" />
@@ -150,16 +172,36 @@
     </section>
     </ConsoleCapabilityGate>
 
-    @* ── APPROVALS QUEUE (TRACK BY ID) ──────────────────────────────────────── *@
+    @* ── PLATFORM RELEASE (console#290 AC5) ─────────────────────────────────── *@
+    <section id="platform-release" class="operate-section" aria-labelledby="platform-release-heading">
+        <div class="operate-section-heading">
+            <div>
+                <p class="console-kicker">Capability 3</p>
+                <h2 id="platform-release-heading">Platform release</h2>
+                <p class="console-muted">
+                    The declared platform release, co-versioning across serving/execution planes, and a Converge
+                    action to actuate any skew. Approval-mediated — a created convergence lands in the approval
+                    inbox, never a direct-execute bypass.
+                </p>
+            </div>
+        </div>
+        <OperatePlatformReleaseConvergeCard />
+    </section>
+
+    @* ── APPROVALS QUEUE (TRACK BY ID, FALLBACK) ────────────────────────────── *@
+    @* Kept as a documented fallback: when the connected server does not yet expose the
+       deploy-operations list (older build), "All deploy operations" above degrades to its
+       Unsupported state and this manual/tracked path remains the only way to bind an
+       operation's approval surface. *@
     <section id="deploy-approvals" class="operate-section" aria-labelledby="deploy-approvals-heading">
         <div class="operate-section-heading">
             <div>
                 <p class="console-kicker">Human-in-the-loop</p>
                 <h2 id="deploy-approvals-heading">Approvals queue</h2>
                 <p class="console-muted">
-                    The server has no list-all endpoint; track a paused deploy-control operation by its durable id
-                    (for example, the upgrade operation id from devops actuation) to bind its approve / outcome /
-                    rollback surface here.
+                    Fallback for an older connected server that does not yet expose the deploy-operations list
+                    above: track a paused deploy-control operation by its durable id (for example, the upgrade
+                    operation id from devops actuation) to bind its approve / outcome / rollback surface here.
                 </p>
             </div>
         </div>
@@ -195,14 +237,16 @@
 @code {
     /// <summary>
     /// A deploy-control operation id to pre-track on load (console#292 correlation-id chip deep
-    /// link, e.g. <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.OperationId, id)</c>). The
-    /// server exposes operations by durable id only (no list-all endpoint), so a deep link
-    /// tracks the id the same way the manual "Track operation" input does.
+    /// link, e.g. <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.OperationId, id)</c>). Kept
+    /// as the tracked-id fallback path (console#290): a deep link tracks the id the same way the
+    /// manual "Track operation" input does, for an older server where the deploy-operations
+    /// list is unsupported.
     /// </summary>
     [SupplyParameterFromQuery(Name = "operationId")]
     public string? OperationId { get; set; }
 
-    // The operator-tracked deploy-control operation ids (the server has no list endpoint).
+    // The operator-tracked deploy-control operation ids — the tracked-id fallback path
+    // (console#290) for an older server where the deploy-operations list is unsupported.
     private readonly List<string> _trackedOperationIds = new();
     private string _trackOperationIdInput = string.Empty;
     private bool _queryOperationIdTracked;
@@ -372,8 +416,8 @@
 
     private async Task OnApprovalActioned(DeployOperationProposal proposal)
     {
-        // After an approve/reject/rollback, refresh the queues so a now-terminal/submitted
-        // operation drops out of the pending set.
+        // After an approve/rollback, refresh the queues so a now-terminal/submitted operation
+        // drops out of the pending set.
         await RefreshQueuesAsync();
     }
 }

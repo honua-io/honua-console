@@ -1,0 +1,90 @@
+@using Honua.Console.Shell.Models
+
+@* Deploy preflight gate (console#290 acceptance criterion 3): renders the connected
+   server's GET /api/v1/admin/deploy/preflight readiness — pending contract migration
+   scripts, database compatibility, and platform-release co-versioning — so an upgrade
+   card can block submit with a clear explanation rather than a silent bypass.
+
+   There is no gateway-mediated "override" actuator for a pending contract-migration block
+   today (the server's only override is the operator/infra-side
+   Database:MigrationSafety Enforce=false / HONUA_APPROVE_CONTRACT_MIGRATIONS environment
+   toggle — an out-of-band restart, not an admin API call). Rather than render a button
+   that claims to route an override through governance when none exists (the same
+   fake-affordance anti-pattern this ticket's addendum item 2 tells us to kill for Reject),
+   the override path below is stated as operator guidance. This is a documented deviation
+   from the issue body's literal wording — see the PR description. *@
+<div class="console-panel operate-preflight-panel" data-preflight-panel>
+    @if (Result is null)
+    {
+        <OperateSectionStatusPanel Heading="Preflight" Loading="true" />
+    }
+    else if (!Result.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Preflight" Status="@Result.Status" Message="@Result.Message" />
+    }
+    else
+    {
+        var preflight = Result.Value!;
+        <div class="console-panel-heading">
+            <div>
+                <p class="console-kicker">Preflight</p>
+                <h4>Coordinated-deploy readiness</h4>
+            </div>
+            <OperateStatusPill Status="@preflight.Status" />
+        </div>
+
+        @if (preflight.BlocksSubmit)
+        {
+            <div class="console-usage-callout operate-preflight-gate" role="status" data-preflight-blocked>
+                <strong>Submit is gated.</strong>
+                <ul class="operate-note-list">
+                    @foreach (var reason in preflight.BlockingReasons)
+                    {
+                        <li class="console-state-danger">@reason</li>
+                    }
+                </ul>
+                @if (preflight.PendingScripts.Count > 0)
+                {
+                    <details class="operate-preflight-override">
+                        <summary>Override path (operator/infra action, never a Console bypass)</summary>
+                        <p class="console-muted">
+                            There is no gateway-mediated override for a pending contract migration today. An
+                            operator with infra access can review the pending script(s) via
+                            <span class="console-mono">GET /api/v1/admin/observability/migrations</span>, then set
+                            <span class="console-mono">HONUA_APPROVE_CONTRACT_MIGRATIONS=true</span> (or
+                            <span class="console-mono">Database:MigrationSafety:Enforce=false</span>) on the target
+                            instance and restart it. This Console never performs that override on your behalf.
+                        </p>
+                        <ul class="operate-note-list">
+                            @foreach (var script in preflight.PendingScripts)
+                            {
+                                <li class="console-mono">@script</li>
+                            }
+                        </ul>
+                    </details>
+                }
+            </div>
+        }
+
+        <dl class="console-definition-list operate-preflight-facts">
+            @if (preflight.DiagnosticsIncluded)
+            {
+                <dt>Database compatible</dt>
+                <dd>@(preflight.DatabaseCompatible ? "yes" : "no")</dd>
+                <dt>Platform release declared</dt>
+                <dd>@(preflight.PlatformReleaseDeclared ? "yes" : "no")</dd>
+                @if (preflight.PlatformReleaseDeclared)
+                {
+                    <dt>Co-versioned</dt>
+                    <dd>@(preflight.PlatformReleaseCoVersioned ? "yes" : $"no — {preflight.SkewedPlaneIds.Count} plane(s) skewed")</dd>
+                }
+            }
+        </dl>
+    }
+</div>
+
+@code {
+    /// <summary>The loaded preflight result, or null while loading.</summary>
+    [Parameter]
+    public OperateSectionResult<DeployPreflightView>? Result { get; set; }
+}

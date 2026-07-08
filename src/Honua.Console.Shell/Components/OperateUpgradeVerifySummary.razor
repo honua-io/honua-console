@@ -1,0 +1,51 @@
+@using Honua.Console.Shell.Models
+
+@* Post-upgrade verification summary (console#290 addendum item 1b): before/after
+   ops-health rows with a per-row verdict, so the operator sees proof the upgrade left the
+   environment healthy rather than upgrading on faith. *@
+<div class="console-panel operate-upgrade-verify" data-upgrade-verify-summary>
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">Post-upgrade verification</p>
+            <h4>Before / after health snapshot</h4>
+        </div>
+    </div>
+
+    @if (!Summary.BeforeAvailable || !Summary.AfterAvailable)
+    {
+        <p class="console-muted">
+            @(!Summary.BeforeAvailable
+                ? "The pre-upgrade snapshot could not be read; the diff below is incomplete."
+                : "The post-upgrade snapshot could not be read; the diff below is incomplete.")
+        </p>
+    }
+
+    <div class="operate-table-scroll">
+        <table class="operate-table operate-upgrade-verify-table">
+            <thead>
+                <tr>
+                    <th scope="col">Metric</th>
+                    <th scope="col">Before</th>
+                    <th scope="col">After</th>
+                    <th scope="col">Verdict</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Summary.Rows)
+                {
+                    <tr data-verify-row="@row.Label">
+                        <td>@row.Label</td>
+                        <td class="console-mono">@row.Before</td>
+                        <td class="console-mono">@row.After</td>
+                        <td><OperateStatusPill Status="@row.Verdict" /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public required OperateUpgradeVerifySummaryData Summary { get; set; }
+}

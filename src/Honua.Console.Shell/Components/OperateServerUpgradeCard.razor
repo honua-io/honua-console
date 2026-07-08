@@ -1,6 +1,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleServerVersionClient ServerVersionClient
+@inject IServiceProvider ServiceProvider
 
 @* Server version upgrade — outcome-first surface that hides the GitOps plumbing.
    It detects the target environment's CURRENT running Honua version (capability
@@ -9,8 +10,12 @@
    including the case where the target env is on an OLDER Honua version (the only
    case that proceeds). When an upgrade is in flight as a deploy-control operation,
    the governed approve / outcome / rollback surface is the OperateDeploymentApprovalPanel.
-   Raw gitops/PR mechanics live behind the panel's evidence + a Details toggle, never
-   on the primary surface. *@
+   Raw gitops/PR mechanics live behind a Details toggle, never on the primary surface.
+
+   console#290 addendum (2026-07-07, item 1) closes the upgrade loop: a preflight gate
+   before "Plan upgrade" (pending contract scripts / non-co-versioned release block with a
+   clear explanation), a backup-safety callout, and a post-upgrade before/after health-
+   snapshot verify summary once the governed operation reaches Succeeded. *@
 
 <section class="console-panel operate-upgrade-card" aria-labelledby="upgrade-heading">
     <div class="console-panel-heading">
@@ -57,6 +62,44 @@
             <dd class="console-mono">@(string.IsNullOrWhiteSpace(current.ApiVersion) ? "—" : current.ApiVersion)</dd>
         </dl>
 
+        @* PREFLIGHT GATE — console#290 AC3: block "Plan upgrade" with a clear explanation
+           rather than a silent submit. Loaded once up front so the gate is visible before the
+           operator even types a target version. Rendered only when the (optionally resolved)
+           deploy-operations client is registered — a host that has not wired it up (e.g. a
+           narrow render-test harness) skips the read entirely rather than showing a stuck
+           loading spinner. *@
+        @if (_deployOperationsClient is not null)
+        {
+            <OperateDeployPreflightPanel Result="_preflight" />
+        }
+
+        @* BACKUP SAFETY — console#290 addendum item 1a: whether the pre-migration backup hook
+           (honua-server#2565, Database:MigrationSafety:BackupCommand) is configured for this
+           instance, and whether it ran/succeeded after an upgrade. honua-server does not expose
+           this over any admin API today (BackupCommand is configuration-source-only and
+           deliberately never surfaced, to avoid leaking a shell command that may embed
+           credentials/paths; no audit event distinguishes "ran" from "not configured" either).
+           Rather than fabricate a status, this renders the honest "not yet exposed" state — the
+           anti-ArcGIS credibility layer this codebase does not regress on. This is a documented
+           deviation from the issue body's literal wording; see the PR description. *@
+        <div class="console-usage-callout operate-upgrade-backup-status" data-backup-status>
+            <strong>Backup safety.</strong>
+            <span>
+                Whether a pre-migration backup hook is configured, and whether it ran/succeeded, is not yet exposed
+                by the connected server's admin API (see honua-server#2565). This section will populate once the
+                server surfaces it; until then the migration itself still fails closed when a configured backup
+                hook errors.
+            </span>
+        </div>
+
+        @* POST-UPGRADE VERIFY — console#290 addendum item 1b: a before/after health-snapshot
+           diff once the governed upgrade operation reaches a terminal state, so the operator
+           sees proof the upgrade left the environment healthy rather than upgrading on faith. *@
+        @if (_verifySummary is { } verify)
+        {
+            <OperateUpgradeVerifySummary Summary="@verify" />
+        }
+
         <div class="operate-upgrade-target">
             <label class="console-field">
                 <span class="console-field-label">Upgrade to version</span>
@@ -90,13 +133,17 @@
                     </div>
                 }
 
+                var preflightBlocks = _preflight is { IsAllowed: true, Value.BlocksSubmit: true };
+
                 <div class="operate-upgrade-actions">
                     <button type="button"
                             class="console-button"
-                            disabled="@(!plan.CanProceed)"
-                            title="@(plan.CanProceed
-                                ? "Plan the governed upgrade operation for this environment."
-                                : plan.GateReason)"
+                            disabled="@(!plan.CanProceed || preflightBlocks)"
+                            title="@(!plan.CanProceed
+                                ? plan.GateReason
+                                : preflightBlocks
+                                    ? "Resolve the preflight blockers above before planning this upgrade."
+                                    : "Plan the governed upgrade operation for this environment.")"
                             data-plan-upgrade
                             @onclick="PlanUpgrade">
                         Plan upgrade
@@ -114,7 +161,8 @@
         @if (UpgradeOperationId is { Length: > 0 } upgradeOperationId)
         {
             <div class="operate-upgrade-outcome" data-upgrade-outcome>
-                <OperateDeploymentApprovalPanel OperationId="@upgradeOperationId" OnActioned="OnOutcome" />
+                <OperateDeploymentApprovalPanel OperationId="@upgradeOperationId"
+                    OnActioned="OnOutcome" OnStatusChanged="OnUpgradeStatusChangedAsync" />
             </div>
         }
         else if (_planned)
@@ -169,13 +217,77 @@
     private string _requestedVersion = string.Empty;
     private bool _planned;
 
+    // Both resolved OPTIONALLY (GetService, never a required inject — mirrors OpsSummaryStrip):
+    // a host that has not wired up the deploy cockpit's newer services (a narrow render-test
+    // harness, or a future host that only needs the version-detect/rollback surface) degrades
+    // by skipping the preflight gate / verify summary entirely, never throwing at render time.
+    private IConsoleDeployOperationsClient? _deployOperationsClient;
+    private IOpsHealthDataSource? _healthDataSource;
+
+    private OperateSectionResult<DeployPreflightView>? _preflight;
+
+    // Before/after health-snapshot verify state (console#290 addendum item 1b). "Before" is
+    // captured the first time this card observes a bound upgrade operation id (an honest
+    // proxy for "state just before the operator engaged with this upgrade" — the server does
+    // not expose a snapshot pinned to the exact submit instant); "after" is captured once, the
+    // first time the bound operation reports Succeeded.
+    private OperateSectionResult<OpsHealthView>? _beforeSnapshot;
+    private OperateUpgradeVerifySummaryData? _verifySummary;
+    private string? _snapshotForOperationId;
+    private bool _afterCaptured;
+
     protected override async Task OnInitializedAsync()
     {
+        _deployOperationsClient = ServiceProvider.GetService<IConsoleDeployOperationsClient>();
+        _healthDataSource = ServiceProvider.GetService<IOpsHealthDataSource>();
+
         _versionResult = await ServerVersionClient.GetServerVersionAsync();
         _versionLoaded = true;
+
+        if (_deployOperationsClient is not null)
+        {
+            _preflight = await _deployOperationsClient.GetPreflightAsync(includeDiagnostics: true);
+        }
     }
 
-    private void PlanUpgrade() => _planned = true;
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_healthDataSource is not null
+            && UpgradeOperationId is { Length: > 0 } id
+            && !string.Equals(_snapshotForOperationId, id, StringComparison.Ordinal))
+        {
+            _snapshotForOperationId = id;
+            _afterCaptured = false;
+            _verifySummary = null;
+            _beforeSnapshot = await _healthDataSource.GetSnapshotAsync();
+        }
+    }
+
+    private void PlanUpgrade()
+    {
+        // console#290 AC3: the preflight gate blocks planning with a clear explanation rather
+        // than a silent submit — never bypassed, and there is no override button (see
+        // OperateDeployPreflightPanel's remarks: no gateway-mediated override exists today).
+        if (_preflight is { IsAllowed: true, Value.BlocksSubmit: true })
+        {
+            return;
+        }
+
+        _planned = true;
+    }
 
     private Task OnOutcome(DeployOperationProposal proposal) => OnUpgradeActioned.InvokeAsync(proposal);
+
+    private async Task OnUpgradeStatusChangedAsync(DeployOperationProposal? proposal)
+    {
+        if (_healthDataSource is null || _afterCaptured || proposal is not { Lifecycle: DeployOperationLifecycle.Succeeded })
+        {
+            return;
+        }
+
+        _afterCaptured = true;
+        var after = await _healthDataSource.GetSnapshotAsync();
+        _verifySummary = OperateUpgradeVerifySummaryData.Build(_beforeSnapshot, after);
+        StateHasChanged();
+    }
 }
