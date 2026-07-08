@@ -16,6 +16,37 @@ public interface IOpsHealthDataSource
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The mapped view, or a non-allowed section status.</returns>
     Task<OperateSectionResult<OpsHealthView>> GetSnapshotAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads and maps the ops-health trend history for the active environment (console#288): the
+    /// selectable-window/resolution/per-replica trend charts on the Ops Health page. Degrades to
+    /// <see cref="OperateSectionStatus.Unsupported"/> against an older server that does not yet
+    /// expose the history route.
+    /// </summary>
+    /// <param name="selection">The window/resolution/per-replica selection.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The mapped trend view, or a non-allowed section status.</returns>
+    Task<OperateSectionResult<OpsHealthTrendView>> GetHistoryAsync(
+        OpsHealthTrendRangeSelection selection,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// One selectable trend range on the Ops Health page (console#288): a human label, the
+/// server-facing window/resolution pair, and whether to request the per-replica breakdown. The
+/// three offered ranges pair each rollup tier with its natural default window (mirroring the
+/// server's own <c>OpsHealthHistoryQuery.DefaultWindow</c>), so every combination is one the
+/// server always has real rollup rows for once the store has been running long enough.
+/// </summary>
+public sealed record OpsHealthTrendRangeSelection(string Label, string Window, string Resolution, bool PerReplica)
+{
+    public static readonly OpsHealthTrendRangeSelection LastHour = new("Last hour", "1h", "1m", false);
+    public static readonly OpsHealthTrendRangeSelection Last24Hours = new("Last 24 hours", "24h", "5m", false);
+    public static readonly OpsHealthTrendRangeSelection Last7Days = new("Last 7 days", "7d", "1h", false);
+
+    public static IReadOnlyList<OpsHealthTrendRangeSelection> Options { get; } = [LastHour, Last24Hours, Last7Days];
+
+    public OpsHealthTrendRangeSelection WithPerReplica(bool perReplica) => this with { PerReplica = perReplica };
 }
 
 /// <summary>Default <see cref="IOpsHealthDataSource"/> over <see cref="IConsoleOpsHealthClient"/>.</summary>
@@ -47,6 +78,24 @@ public sealed class OpsHealthDataSource : IOpsHealthDataSource
         }
 
         return OperateSectionResult<OpsHealthView>.Allowed(Map(result.Value!));
+    }
+
+    /// <inheritdoc />
+    public async Task<OperateSectionResult<OpsHealthTrendView>> GetHistoryAsync(
+        OpsHealthTrendRangeSelection selection,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var result = await _client
+            .GetHistoryAsync(new ConsoleOpsHealthHistoryQuery(selection.Window, selection.Resolution, selection.PerReplica), cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.IsAllowed)
+        {
+            return OperateSectionResult<OpsHealthTrendView>.Denied(result.Status, result.Message);
+        }
+
+        return OperateSectionResult<OpsHealthTrendView>.Allowed(OpsHealthTrendMapper.Map(result.Value!, selection.Label));
     }
 
     internal static OpsHealthView Map(OpsHealthSnapshotResponse snapshot)

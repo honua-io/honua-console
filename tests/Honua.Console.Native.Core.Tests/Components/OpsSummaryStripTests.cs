@@ -199,6 +199,10 @@ public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
 
         public Task<OperateSectionResult<OpsHealthView>> GetSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Result);
+
+        public Task<OperateSectionResult<OpsHealthTrendView>> GetHistoryAsync(
+            OpsHealthTrendRangeSelection selection, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OpsHealthTrendView>.Denied(OperateSectionStatus.Unsupported, "n/a"));
     }
 
     private sealed class StubFindingsClient : IConsoleOpsFindingsClient

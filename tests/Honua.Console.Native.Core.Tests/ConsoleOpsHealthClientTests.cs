@@ -81,6 +81,68 @@ public sealed class ConsoleOpsHealthClientTests
     }
 
     [Fact]
+    public async Task HistoryBuildsQueryStringAndDeserializesSeries()
+    {
+        string? capturedQuery = null;
+        var handler = new RecordingHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/api/v1/admin/observability/ops-health/history", StringComparison.Ordinal))
+            {
+                capturedQuery = request.RequestUri.Query;
+                return JsonResponse(BuildHistory(), OpsHealthJsonContext.Default.OpsHealthHistoryResponse);
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var client = CreateClient(handler, adminApiKey: "admin-key");
+
+        var result = await client.GetHistoryAsync(new ConsoleOpsHealthHistoryQuery("24h", "5m", PerReplica: true));
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var history = result.Value!;
+        Assert.Equal("5m", history.Resolution);
+        Assert.True(history.PerReplica);
+        Assert.Single(history.Latency!);
+        Assert.Equal("GeoServices", history.Latency![0].Protocol);
+        Assert.Equal("replica-a", history.Latency[0].ReplicaId);
+        Assert.Single(history.Latency[0].Points!);
+        Assert.Single(history.Vitals!);
+
+        Assert.Contains("window=24h", capturedQuery);
+        Assert.Contains("resolution=5m", capturedQuery);
+        Assert.Contains("perReplica=true", capturedQuery);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.True(request.Headers.TryGetValues("X-API-Key", out var values) && values.Single() == "admin-key");
+    }
+
+    [Fact]
+    public async Task HistoryNotFoundMapsToMissingWithoutFabricatingData()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var client = CreateClient(handler);
+
+        var result = await client.GetHistoryAsync(ConsoleOpsHealthHistoryQuery.Default);
+
+        Assert.Equal(OperateSectionStatus.Missing, result.Status);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public async Task HistoryNoProfileReturnsMissingBindingWithoutCallingServer()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([], activeProfileId: null);
+        var client = new HttpConsoleOpsHealthClient(new HttpClient(handler), profiles, adminApiKey: "admin-key");
+
+        var result = await client.GetHistoryAsync(ConsoleOpsHealthHistoryQuery.Default);
+
+        Assert.Equal(OperateSectionStatus.Unavailable, result.Status);
+        Assert.Null(result.Value);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
     public void MapperFlagsServingLatencySloBreaches()
     {
         var view = OpsHealthDataSource.Map(BuildSnapshot());
@@ -218,6 +280,55 @@ public sealed class ConsoleOpsHealthClientTests
             CacheHitRatio = 0.91,
             ErrorRate = 0.004
         }
+    };
+
+    private static OpsHealthHistoryResponse BuildHistory() => new()
+    {
+        GeneratedAt = DateTimeOffset.Parse("2026-06-06T10:00:00Z"),
+        Resolution = "5m",
+        WindowSeconds = 86400,
+        From = DateTimeOffset.Parse("2026-06-05T10:00:00Z"),
+        To = DateTimeOffset.Parse("2026-06-06T10:00:00Z"),
+        PerReplica = true,
+        Latency =
+        [
+            new OpsHealthHistoryLatencySeriesResponse
+            {
+                Protocol = "GeoServices",
+                ReplicaId = "replica-a",
+                Points =
+                [
+                    new OpsHealthHistoryLatencyPointResponse
+                    {
+                        BucketStart = DateTimeOffset.Parse("2026-06-06T09:55:00Z"),
+                        RequestCount = 100,
+                        ErrorCount = 1,
+                        ErrorRate = 0.01,
+                        P50Ms = 30,
+                        P95Ms = 200,
+                        P99Ms = 400,
+                        MaxMs = 900
+                    }
+                ]
+            }
+        ],
+        Vitals =
+        [
+            new OpsHealthHistoryVitalsPointResponse
+            {
+                BucketStart = DateTimeOffset.Parse("2026-06-06T09:55:00Z"),
+                ReplicaId = "replica-a",
+                OverallStatus = "Healthy",
+                GpQueueTotal = 2,
+                GpQueueBreakdown = new Dictionary<string, int> { ["Running|local"] = 2 },
+                AlertPending = 1,
+                AlertDeadLettered = 0,
+                DbPoolUtilization = 0.3,
+                DbActiveConnections = 4,
+                CacheHitRatio = 0.95,
+                ErrorRate = 0.001
+            }
+        ]
     };
 
     private static HttpResponseMessage JsonResponse<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
