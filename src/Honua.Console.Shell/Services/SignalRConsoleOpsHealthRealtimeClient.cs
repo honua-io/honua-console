@@ -21,7 +21,7 @@ public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRea
     internal const string HubPath = "hubs/admin";
     internal const string SubscribeMethod = "SubscribeToOpsHealth";
     internal const string UnsubscribeMethod = "UnsubscribeFromOpsHealth";
-    internal const string SnapshotEvent = "OpsHealthUpdated";
+    internal const string SnapshotEvent = "OpsHealthSnapshot";
 
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessions;
