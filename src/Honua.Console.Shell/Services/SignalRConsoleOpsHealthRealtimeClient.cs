@@ -1,4 +1,4 @@
-﻿using Honua.Console.Contracts;
+using Honua.Console.Contracts;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +9,7 @@ namespace Honua.Console.Shell.Services;
 /// hub's <c>ops-health</c> group (honua-server PR #2591). Mirrors
 /// <see cref="SignalRConsoleDeployOperationRealtimeClient"/> exactly (same hub, same
 /// connect/reconnect/dispose pattern via <see cref="ConsoleAdminHubConnectionFactory"/> and
-/// <see cref="ConsoleRealtimeFallbackTracker"/>) â€” the console#293 shared seam this ticket
+/// <see cref="ConsoleRealtimeFallbackTracker"/>) — the console#293 shared seam this ticket
 /// consumes rather than reinventing.
 ///
 /// The pushed payload is bound directly as <see cref="OpsHealthSnapshotResponse"/> (no
@@ -21,7 +21,7 @@ public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRea
     internal const string HubPath = "hubs/admin";
     internal const string SubscribeMethod = "SubscribeToOpsHealth";
     internal const string UnsubscribeMethod = "UnsubscribeFromOpsHealth";
-    internal const string SnapshotEvent = "OpsHealthSnapshot";
+    internal const string SnapshotEvent = "OpsHealthUpdated";
 
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessions;
@@ -134,7 +134,7 @@ public sealed class SignalRConsoleOpsHealthRealtimeClient : IConsoleOpsHealthRea
                 // Expected against a server that predates honua-server PR #2591, or one running
                 // without a Redis backplane (the group is only advertised with one): the hub
                 // method does not exist, InvokeAsync throws, and the trend charts fall back to the
-                // history-refresh poll â€” logged at the tracker's normal level, not an error
+                // history-refresh poll — logged at the tracker's normal level, not an error
                 // condition on our side.
                 _tracker.MarkFallbackEngaged("Failed to connect or subscribe to the ops-health group.", ex);
                 await connection.DisposeAsync().ConfigureAwait(false);
