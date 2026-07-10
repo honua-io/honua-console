@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
@@ -22,8 +23,6 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 {
-    private const string ProposalsRoot = "api/v1/admin/proposals";
-
     private const string NoProfileMessage =
         "No active environment profile is selected. Connect an environment to review approvals.";
 
@@ -63,7 +62,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         var result = await SendAsync(
             profile,
             HttpMethod.Get,
-            ProposalsRoot + query,
+            ProposalAdminRoutes.List + query,
             content: null,
             ProposalJsonContext.Default.ProposalListWire,
             cancellationToken).ConfigureAwait(false);
@@ -85,7 +84,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
-        return await SendDetailAsync(HttpMethod.Get, proposalId, content: null, cancellationToken)
+        return await SendDetailAsync(HttpMethod.Get, ProposalAdminRoutes.Detail(proposalId.Trim()), content: null, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -96,7 +95,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
         return await SendDetailAsync(
             HttpMethod.Post,
-            $"{proposalId.Trim()}/approve",
+            ProposalAdminRoutes.Approve(proposalId.Trim()),
             content: null,
             cancellationToken).ConfigureAwait(false);
     }
@@ -122,7 +121,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
         return await SendDetailAsync(
             HttpMethod.Post,
-            $"{proposalId.Trim()}/reject",
+            ProposalAdminRoutes.Reject(proposalId.Trim()),
             body,
             cancellationToken).ConfigureAwait(false);
     }
@@ -142,7 +141,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         var result = await SendAsync(
             profile,
             method,
-            $"{ProposalsRoot}/{relativeSuffix}",
+            relativeSuffix,
             content,
             ProposalJsonContext.Default.ProposalDetailWire,
             cancellationToken).ConfigureAwait(false);

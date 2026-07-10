@@ -41,23 +41,41 @@ public static class DeployControlAdminRoutes
     public const string Prefix = "api/v1/admin/deploy";
 
     /// <summary>The deploy preflight route (honua-server, pre-existing; console#290 first consumer).</summary>
+    [OpsParityRoute("GET")]
     public const string Preflight = Prefix + "/preflight";
+
+    /// <summary>The route for listing deploy operations.</summary>
+    [OpsParityRoute("GET")]
+    public const string Operations = Prefix + "/operations";
+
+    /// <summary>The route template for reading one deploy operation.</summary>
+    [OpsParityRoute("GET")]
+    public const string OperationTemplate = Operations + "/{operationId}";
+
+    /// <summary>The route template for human submission of one deploy operation.</summary>
+    [OpsParityRoute("POST")]
+    public const string SubmitTemplate = OperationTemplate + "/submit";
+
+    /// <summary>The route template for requesting rollback of one deploy operation.</summary>
+    [OpsParityRoute("POST")]
+    public const string RollbackTemplate = OperationTemplate + "/rollback";
 
     /// <summary>
     /// Speculative platform-release converge route (honua-server#2564, not yet merged at the time
     /// this constant was authored). Every server today returns 404/501 for this path, which the
     /// client maps to <c>Unsupported</c> — the capability-detected "unavailable" state.
     /// </summary>
+    [OpsParityRoute("POST")]
     public const string PlatformReleaseConverge = "api/v1/admin/platform-release/converge";
 
     public static string Operation(string operationId) =>
-        $"{Prefix}/operations/{Uri.EscapeDataString(operationId)}";
+        OperationTemplate.Replace("{operationId}", Uri.EscapeDataString(operationId), StringComparison.Ordinal);
 
     public static string Submit(string operationId) =>
-        $"{Prefix}/operations/{Uri.EscapeDataString(operationId)}/submit";
+        SubmitTemplate.Replace("{operationId}", Uri.EscapeDataString(operationId), StringComparison.Ordinal);
 
     public static string Rollback(string operationId) =>
-        $"{Prefix}/operations/{Uri.EscapeDataString(operationId)}/rollback";
+        RollbackTemplate.Replace("{operationId}", Uri.EscapeDataString(operationId), StringComparison.Ordinal);
 
     /// <summary>
     /// Builds the paged deploy-operations list route (honua-server PR #2577's pinned contract):
@@ -87,7 +105,7 @@ public static class DeployControlAdminRoutes
             query.Add($"pageSize={ps}");
         }
 
-        return query.Count == 0 ? $"{Prefix}/operations" : $"{Prefix}/operations?{string.Join('&', query)}";
+        return query.Count == 0 ? Operations : $"{Operations}?{string.Join('&', query)}";
     }
 
     /// <summary>Builds the preflight route, optionally requesting the operator-diagnostics fields.</summary>
