@@ -1,0 +1,225 @@
+@using System.Globalization
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IServiceProvider ServiceProvider
+@implements IAsyncDisposable
+
+@* Shared ops-summary strip (console#292 scope item 2; founder decision 2026-07-07: ships on
+   BOTH the operate hub and the console home — not hub-only). Answers "is my server healthy,
+   what needs me?" at a glance: overall health, awaiting approvals, open findings, and SLO
+   breaches, each deep-linking to its actionable surface.
+
+   The awaiting-approvals count updates live through the same admin-hub proposals subscription
+   the approval inbox uses (console#294's shared realtime seam) — starting it here means Home
+   and the Hub go live even for an operator who never opens /inbox. Health and findings have no
+   realtime source on trunk today (issue #292 non-goals: no new server endpoints), so they poll
+   on PollInterval and the strip labels them with an honest "as of" timestamp rather than
+   claiming a liveness it does not have (never a fake "Live" pill — Console Patterns Charter
+   section 11 / the FallbackTracker honesty rule). A denied read for one metric renders that
+   metric as "unavailable", never a fabricated zero.
+
+   Every dependency is resolved OPTIONALLY (GetService, never a required inject): a host that
+   has not registered one of the clients gets that metric's honest unavailable state — and a
+   missing realtime client means Manual mode — NEVER a render exception. This keeps the strip
+   embeddable on any page without forcing new registrations onto every render harness. *@
+<section class="console-panel ops-summary-strip" aria-label="Operational summary" data-ops-summary-strip>
+    <a class="ops-summary-tile" href="/operate/health" data-summary-tile="health">
+        <span class="console-kicker">Health</span>
+        @if (!_loaded)
+        {
+            <strong class="console-muted" data-summary-loading="health">Loading&hellip;</strong>
+        }
+        else if (_overallHealth is { } overall)
+        {
+            <OperateStatusPill Status="@overall" />
+        }
+        else
+        {
+            <span class="console-muted" data-summary-unavailable="health">Unavailable</span>
+        }
+    </a>
+
+    <a class="ops-summary-tile" href="/inbox" data-summary-tile="approvals">
+        <span class="console-kicker">Awaiting approval</span>
+        <strong data-summary-value="approvals" class="@(_awaitingApprovals is > 0 ? "is-actionable" : null)">
+            @(_loaded && _awaitingApprovals is { } awaiting ? awaiting.ToString(CultureInfo.InvariantCulture) : "—")
+        </strong>
+    </a>
+
+    <a class="ops-summary-tile" href="/operate/copilot" data-summary-tile="findings">
+        <span class="console-kicker">Open findings</span>
+        <strong data-summary-value="findings">
+            @(_loaded && _openFindings is { } findings ? findings.ToString(CultureInfo.InvariantCulture) : "—")
+        </strong>
+    </a>
+
+    <a class="ops-summary-tile" href="/operate/health" data-summary-tile="breaches">
+        <span class="console-kicker">SLO breaches</span>
+        <strong data-summary-value="breaches" class="@(_sloBreaches is > 0 ? "is-actionable" : null)">
+            @(_loaded && _sloBreaches is { } breaches ? breaches.ToString(CultureInfo.InvariantCulture) : "—")
+        </strong>
+    </a>
+
+    <span class="ops-summary-liveness @(RealtimeConnected ? "is-live" : null)" data-summary-liveness
+          data-fallback-engaged="@FallbackEngaged">
+        @(RealtimeConnected ? "Approvals live" : "Approvals: manual refresh")
+        @if (_lastRefreshedAtUtc is { } refreshed)
+        {
+            <text> &middot; health/findings as of @refreshed.ToString("HH:mm:ss", CultureInfo.InvariantCulture) UTC</text>
+        }
+    </span>
+</section>
+
+@code {
+    /// <summary>The health/findings poll cadence. A parameter so tests can drive it deterministically.</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+    private bool _loaded;
+    private OperateStatus? _overallHealth;
+    private int? _awaitingApprovals;
+    private int? _openFindings;
+    private int? _sloBreaches;
+    private DateTimeOffset? _lastRefreshedAtUtc;
+
+    // All dependencies are optional (console#292): a missing registration degrades to that
+    // metric's unavailable state / Manual mode, never a DI failure during render.
+    private IOpsHealthDataSource? _healthData;
+    private IConsoleOpsFindingsClient? _findings;
+    private IConsoleApprovalInboxClient? _inbox;
+    private IConsoleProposalRealtimeClient? _realtime;
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _pollCts;
+
+    private bool RealtimeConnected => _realtime?.IsConnected == true;
+
+    private bool FallbackEngaged => _realtime?.IsFallbackEngaged == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _healthData = ServiceProvider.GetService<IOpsHealthDataSource>();
+        _findings = ServiceProvider.GetService<IConsoleOpsFindingsClient>();
+        _inbox = ServiceProvider.GetService<IConsoleApprovalInboxClient>();
+        _realtime = ServiceProvider.GetService<IConsoleProposalRealtimeClient>();
+
+        if (_realtime is not null)
+        {
+            _realtime.ProposalChanged += OnProposalEvent;
+        }
+
+        await RefreshAsync();
+
+        // Best-effort: open the live subscription. A failure leaves the approvals metric on the
+        // same poll cadence as health/findings rather than throwing.
+        if (_realtime is not null)
+        {
+            await _realtime.StartAsync();
+        }
+
+        // Nothing to poll when no data source is registered; the strip stays in its honest
+        // unavailable state.
+        if (_healthData is not null || _findings is not null || _inbox is not null)
+        {
+            StartPolling();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        // Fan the registered reads out in parallel (no request waterfall); an unregistered
+        // client simply leaves its metric in the unavailable state.
+        var healthTask = _healthData?.GetSnapshotAsync();
+        var findingsTask = _findings?.ListAsync();
+        var inboxTask = _inbox?.GetInboxAsync();
+
+        if (healthTask is not null)
+        {
+            var health = await healthTask;
+            _overallHealth = health.IsAllowed ? health.Value!.Overall : null;
+            _sloBreaches = health.IsAllowed ? health.Value!.BreachCount : null;
+        }
+
+        if (findingsTask is not null)
+        {
+            var findingsResult = await findingsTask;
+            _openFindings = findingsResult.IsAllowed ? OpsFindingsMapper.Map(findingsResult.Value!).Count : null;
+        }
+
+        if (inboxTask is not null)
+        {
+            var inbox = await inboxTask;
+            _awaitingApprovals = inbox.IsAllowed ? inbox.Value!.AwaitingApprovalCount : null;
+        }
+
+        // Only stamp the honest "as of" caption when something was actually read; with no
+        // clients registered there is no read to date, so no staleness claim is made.
+        if (healthTask is not null || findingsTask is not null || inboxTask is not null)
+        {
+            _lastRefreshedAtUtc = DateTimeOffset.UtcNow;
+        }
+
+        _loaded = true;
+    }
+
+    // A live ProposalPending / ProposalResolved event: refresh just the approvals count so it
+    // never waits for the next health/findings poll tick.
+    private void OnProposalEvent(ConsoleProposalEvent evt)
+    {
+        if (_inbox is not { } inboxClient)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            var inbox = await inboxClient.GetInboxAsync();
+            _awaitingApprovals = inbox.IsAllowed ? inbox.Value!.AwaitingApprovalCount : null;
+            StateHasChanged();
+        });
+    }
+
+    private void StartPolling()
+    {
+        StopPolling();
+        _pollCts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(PollInterval);
+        _ = PollLoopAsync(_timer, _pollCts.Token);
+    }
+
+    private async Task PollLoopAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposed; stop quietly.
+        }
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        if (_realtime is not null)
+        {
+            _realtime.ProposalChanged -= OnProposalEvent;
+        }
+
+        StopPolling();
+        return ValueTask.CompletedTask;
+    }
+}

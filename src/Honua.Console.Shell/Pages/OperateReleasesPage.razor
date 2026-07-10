@@ -2,7 +2,15 @@
 @page "/operate/releases/{SelectedReleaseId}"
 @inject IConsoleGitOpsReleaseClient ReleaseClient
 @inject IConsoleDeployApprovalClient ApprovalClient
+@inject IConsoleCapabilityManifest Capabilities
 
+@* Capability-gated depth (first-release cut-line): the GitOps metadata *release* workspace is the
+   cross-environment promotion + coordinated-release + rollback-readiness surface. It renders the
+   first-class "unsupported" state until the deployment advertises cross-environment-promotion, matching
+   the gated promotion section on /operate/deploy. The server-upgrade deploy floor stays live elsewhere. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.CrossEnvironmentPromotion"
+                       Title="Cross-environment releases are not available in this release"
+                       Message="Promoting and coordinating metadata / service + layer releases across a dev → staging → prod fleet — including cross-environment rollback readiness — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page console-operate-page">
     <div class="console-page-heading operate-heading">
         <p class="console-kicker">Operator workflow</p>
@@ -23,19 +31,24 @@
         </nav>
 
         @* DEPLOY APPROVALS — the human-in-the-loop approval queue for paused deploy-control
-           operations. The honua-server deploy-control surface exposes no list-all endpoint
-           (operations are read by id), so the queue is projected from the deploy operation
-           ids discovered on the release operations in view. When none are known, the
-           section renders an honest empty/unsupported state and points the operator at a
-           release to drill into. *@
+           operations, scoped to the release proposals visible on THIS page. console#290: the
+           deploy-control surface now has a real paged list endpoint (GET
+           /api/v1/admin/deploy/operations, honua-server PR #2577); the unscoped, all-kinds
+           view lives on the Deploy cockpit's "All deploy operations" section. This section
+           stays release-scoped (projected from the deploy operation ids on the release
+           operations in view) because it answers a narrower question — "what needs approval
+           among the releases shown above" — not "every operation on the server". When none
+           are known, the section renders an honest empty/unsupported state. *@
         <section id="deploy-approvals" class="operate-section" aria-labelledby="deploy-approvals-heading">
             <div class="operate-section-heading">
                 <div>
                     <p class="console-kicker">Human-in-the-loop</p>
                     <h2 id="deploy-approvals-heading">Deploy approvals</h2>
                     <p class="console-muted">
-                        Paused deploy-control operations awaiting an approval decision. Open a release to
-                        review and approve, reject, or roll back a specific operation.
+                        Paused deploy-control operations awaiting an approval decision, scoped to the releases
+                        below. Open a release to review and approve or roll back a specific operation, or see
+                        <a class="console-link" href="@GitOpsReleaseRoutes.Deploy#all-operations">every deploy operation</a>
+                        on the Deploy cockpit.
                     </p>
                 </div>
             </div>
@@ -764,6 +777,7 @@
         </div>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     [Parameter]
@@ -798,6 +812,13 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        // Capability-gated: when cross-environment promotion is not advertised the page renders the
+        // first-class unsupported state (via ConsoleCapabilityGate), so skip the server reads entirely.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.CrossEnvironmentPromotion))
+        {
+            return;
+        }
+
         if (HasSelectedReleaseRoute)
         {
             _detailLoaded = false;

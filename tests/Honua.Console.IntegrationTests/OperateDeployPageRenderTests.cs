@@ -20,7 +20,8 @@ public sealed class OperateDeployPageRenderTests
     private static BunitContext NewContext(
         IConsoleDeployApprovalClient approvalClient,
         IConsoleServerVersionClient? versionClient = null,
-        IConsoleGitOpsReleaseClient? releaseClient = null)
+        IConsoleGitOpsReleaseClient? releaseClient = null,
+        IConsoleDeployOperationsClient? deployOperationsClient = null)
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton(approvalClient);
@@ -29,6 +30,13 @@ public sealed class OperateDeployPageRenderTests
                 OperateSectionStatus.Unavailable,
                 "No active environment profile is selected."));
         ctx.Services.AddSingleton(releaseClient ?? new EmptyReleaseClient());
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        // console#290: "All deploy operations" and the platform-release converge card both
+        // require IConsoleDeployOperationsClient. The realtime client is resolved OPTIONALLY
+        // (GetService) by OperateDeployOperationsList, so it is intentionally left unregistered
+        // here — the list renders its honest Manual pill, exactly like a host that has not
+        // wired up honua-server#2554 yet.
+        ctx.Services.AddSingleton(deployOperationsClient ?? new InMemoryConsoleDeployOperationsClient());
         return ctx;
     }
 

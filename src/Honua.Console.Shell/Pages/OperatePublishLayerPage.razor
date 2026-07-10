@@ -1,7 +1,10 @@
+@page "/operate/publishing/quick"
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceLayerPublishOperation PublishOperation
 @inject NavigationManager Nav
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -175,13 +178,10 @@
         _result = null;
     }
 
-    private async Task PublishAsync()
+    private Task PublishAsync()
     {
         _clientError = Validate();
-        if (_clientError is not null)
-        {
-            return;
-        }
+        if (_clientError is not null) return Task.CompletedTask;
 
         var table = _selectedTable!;
         var command = new ServiceLayerPublishCommand
@@ -198,16 +198,11 @@
             Enabled = true
         };
 
-        _busy = true;
         _result = null;
-        try
-        {
-            _result = await PublishOperation.PublishAsync(command);
-        }
-        finally
-        {
-            _busy = false;
-        }
+        return Notifications.RunGuardedAsync(
+            async () => { _result = await PublishOperation.PublishAsync(command); },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't publish layer");
     }
 
     private string? Validate()

@@ -35,6 +35,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         });
 
         using var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
         // The page hosts a <MapPreview/> that imports a JS module on render; the fields panel under test
         // needs no JS, so let unmatched interop calls no-op instead of failing the render.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;

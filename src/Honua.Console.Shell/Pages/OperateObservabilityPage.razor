@@ -3,6 +3,7 @@
 @page "/operate/alerts/{SelectedAlertId}"
 @page "/operate/jobs/{SelectedJobRunId}"
 @inject IConsoleOperateObservabilityClient OperateClient
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page console-operate-page">
     <div class="console-page-heading operate-heading">
@@ -21,7 +22,10 @@
         <a href="#alerts">Alerts</a>
         <a href="#rules">Rules</a>
         <a href="#jobs">Jobs</a>
-        <a href="#investigations">Investigations</a>
+        @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
+        {
+            <a href="#investigations">Investigations</a>
+        }
     </nav>
 
     <section class="operate-summary-grid" aria-label="Operate summary">
@@ -240,31 +244,11 @@
                     {
                         <p class="console-muted">@_events.Message</p>
                     }
-                    <div class="operate-table-scroll">
-                        <table class="operate-table operate-event-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Time</th>
-                                    <th scope="col">Type</th>
-                                    <th scope="col">Severity</th>
-                                    <th scope="col">Message</th>
-                                    <th scope="col">Correlation</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in EventRows)
-                                {
-                                    <tr class="@(item.EventId == SelectedEvent?.EventId ? "operate-selected-row" : null)">
-                                        <td>@item.EventTime</td>
-                                        <td>@item.EventType</td>
-                                        <td><span class="console-status @item.SeverityStatus.CssClass">@item.SeverityStatus.Label</span></td>
-                                        <td><a href="@item.DetailHref">@item.Message</a></td>
-                                        <td>@item.CorrelationId</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                    @* Shared operate timeline (console#293): idempotent-append dedup keyed on
+                       eventId, so an at-least-once server transition/event feed never renders a
+                       duplicate row here. *@
+                    <OperateTimeline Entries="@TimelineEntries" SelectedEntryKey="@SelectedTimelineKey"
+                        EmptyMessage="The server returned no events for the current filters." />
                 </div>
 
                 @if (SelectedEvent is { } selectedEvent)
@@ -458,7 +442,13 @@
                             <dd>@string.Join(", ", selectedAlert.AffectedResources)</dd>
                         </dl>
                         <EvidenceList Heading="Raw alert evidence" Items="selectedAlert.EvidenceLinks" />
-                        <AiAdvisoryPanel Advisory="selectedAlert.AiAdvisory" />
+                        @* AI DevOps advisory is capability-gated depth (first-release cut-line): hidden
+                           until the deployment advertises siem-investigations. The raw evidence above
+                           stays live (operate floor). *@
+                        @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
+                        {
+                            <AiAdvisoryPanel Advisory="selectedAlert.AiAdvisory" />
+                        }
 
                         <section class="operate-evidence-section">
                             <h4>Lifecycle actions</h4>
@@ -703,6 +693,12 @@
         }
     </section>
 
+    @* SIEM / investigations is capability-gated depth (first-release cut-line): renders the first-class
+       "unsupported" state until the deployment advertises siem-investigations. Fleet/events/logs/alerts/
+       rules/jobs above stay live (operate floor). *@
+    <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.SiemInvestigations"
+                           Title="Investigations are not available in this release"
+                           Message="Full SIEM / investigations and AI DevOps advisory over Operate event volume is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
     <section id="investigations" class="operate-section" aria-labelledby="investigations-heading">
         <div class="operate-section-heading">
             <div>
@@ -773,6 +769,7 @@
             </div>
         }
     </section>
+    </ConsoleCapabilityGate>
 </section>
 
 @code {
@@ -784,6 +781,15 @@
 
     [Parameter]
     public string? SelectedJobRunId { get; set; }
+
+    /// <summary>
+    /// A correlation id to pre-filter the evidence timeline to (console#292 correlation-id chip
+    /// deep link, e.g. <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, id)</c>).
+    /// Seeds both the pending and active filter on first load so the timeline opens already
+    /// scoped to the correlated events, with no further operator action required.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "correlationId")]
+    public string? CorrelationId { get; set; }
 
     private bool _loaded;
     private OperateSectionResult<OperateFleetOverview>? _overview;
@@ -806,6 +812,14 @@
     private OperateFleetOverview Overview => _overview?.Value ?? OperateFleetOverview.Empty;
 
     private IReadOnlyList<OperateEventRow> EventRows => _events?.Value ?? [];
+
+    // Projects the observability event rows onto the shared OperateTimeline entry shape
+    // (console#293). The timeline component dedupes by DedupeKey internally, so this projection
+    // does not need to worry about the at-least-once server feed producing duplicate rows.
+    private IReadOnlyList<OperateTimelineEntry> TimelineEntries =>
+        EventRows.Select(row => row.ToTimelineEntry()).ToArray();
+
+    private string? SelectedTimelineKey => SelectedEvent?.ToTimelineEntry().DedupeKey;
 
     private OperateLogsView LogsView => _logs?.Value ?? OperateLogsView.Empty;
 
@@ -856,11 +870,21 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // A correlation-id chip deep link (console#292) seeds the filter so the timeline opens
+        // already scoped to the correlated events — no extra operator action required.
+        if (!string.IsNullOrWhiteSpace(CorrelationId))
+        {
+            _pendingCorrelationFilter = CorrelationId.Trim();
+        }
+
         // Load each independently permissioned section in parallel rather than
         // through a single blocking aggregate, protecting the Operate path from
         // a request waterfall.
         var overviewTask = OperateClient.GetOverviewAsync();
-        var eventsTask = OperateClient.QueryEventsAsync(OperateEventQuery.Empty);
+        var eventsTask = OperateClient.QueryEventsAsync(new OperateEventQuery
+        {
+            CorrelationId = _pendingCorrelationFilter
+        });
         var logsTask = OperateClient.GetLogsAsync();
         var alertsTask = OperateClient.GetAlertsAsync();
         var rulesTask = OperateClient.GetRulesAsync();

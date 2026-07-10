@@ -4,6 +4,7 @@
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerFieldsOperation LayerFields
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page">
     @if (_exposures.Count == 0)
@@ -321,38 +322,36 @@
         }
     }
 
-    private async Task SaveFieldAsync(string fieldName)
+    private Task SaveFieldAsync(string fieldName)
     {
         if (string.IsNullOrWhiteSpace(fieldName) || !_fieldEdits.TryGetValue(fieldName, out var edit))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _savingField = true;
         _fieldResult = null;
-        try
-        {
-            _fieldResult = await LayerFields.SetFieldConfigurationAsync(
-                _exposures[0].Layer.LayerId,
-                fieldName,
-                edit.Alias,
-                edit.Hidden);
-            if (_fieldResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadFieldsAsync();
-            }
-        }
-        finally
-        {
-            _savingField = false;
-        }
+                _fieldResult = await LayerFields.SetFieldConfigurationAsync(
+                    _exposures[0].Layer.LayerId,
+                    fieldName,
+                    edit.Alias,
+                    edit.Hidden);
+                if (_fieldResult.Succeeded)
+                {
+                    await LoadFieldsAsync();
+                }
+            },
+            setBusy: busy => { _savingField = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save field settings");
     }
 
-    private async Task SaveDomainAsync()
+    private Task SaveDomainAsync()
     {
         if (string.IsNullOrWhiteSpace(_domainField))
         {
-            return;
+            return Task.CompletedTask;
         }
 
         // A "Clear default value" check wins over typed text; otherwise typed text sets the default, and an
@@ -377,20 +376,18 @@
             DefaultValueText = _defaultValueText,
         };
 
-        _savingDomain = true;
         _domainResult = null;
-        try
-        {
-            _domainResult = await LayerFields.SetDomainAsync(_exposures[0].Layer.LayerId, authoring);
-            if (_domainResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                await LoadFieldsAsync();
-            }
-        }
-        finally
-        {
-            _savingDomain = false;
-        }
+                _domainResult = await LayerFields.SetDomainAsync(_exposures[0].Layer.LayerId, authoring);
+                if (_domainResult.Succeeded)
+                {
+                    await LoadFieldsAsync();
+                }
+            },
+            setBusy: busy => { _savingDomain = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save domain");
     }
 
     // Parses "code=label" lines into coded values; lines without "=" use the whole line as both code and label.

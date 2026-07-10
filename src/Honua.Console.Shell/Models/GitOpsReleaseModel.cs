@@ -13,6 +13,9 @@ public static class GitOpsReleaseRoutes
 {
     public const string Releases = "/operate/releases";
 
+    /// <summary>The Operate Deploy cockpit route (console#290).</summary>
+    public const string Deploy = "/operate/deploy";
+
     public static string ReleaseDetail(string releasePackageId) =>
         $"/operate/releases/{Uri.EscapeDataString(releasePackageId)}";
 }

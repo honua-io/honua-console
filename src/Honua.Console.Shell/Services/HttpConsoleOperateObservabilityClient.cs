@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Honua.Console.Contracts;
@@ -233,7 +232,18 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             return OperateSectionResult<OperateRulesView>.Denied(rulesFetch.Status, rulesFetch.Message);
         }
 
-        var rawRules = rulesFetch.Value!.Data ?? [];
+        // A HTTP 200 response can still carry an envelope with success:false (and a null/absent Data) — a
+        // server-reported failure, not an empty rule set. Surface it as a denied section rather than
+        // collapsing it to an empty "no rules configured" list (honua-console#274; same "failure shown as
+        // empty success" shape fixed on the Catalog surface in #272/#273).
+        if (!rulesFetch.Value!.Success)
+        {
+            return OperateSectionResult<OperateRulesView>.Denied(
+                OperateSectionStatus.Unavailable,
+                FirstNonBlank(rulesFetch.Value.Message, "The server reported a failure loading alert rules."));
+        }
+
+        var rawRules = rulesFetch.Value.Data ?? [];
 
         // Rule health (delivery failures, recent triggers, validation signals)
         // is a per-rule endpoint; fetch them in parallel rather than serially to
@@ -248,17 +258,27 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             OperateObservabilityJsonContext.Default.AlertZoneListEnvelope,
             cancellationToken).ConfigureAwait(false);
 
-        var zones = zonesFetch.Ok
+        // Geofence zones are a sub-section of the rules view: a transport failure OR a HTTP 200 envelope with
+        // success:false both mean "zones unavailable", not "zero zones". Guard on the envelope success flag
+        // too so a server-reported failure is surfaced through the zones status/message failure path instead
+        // of rendering as an empty-but-successful zone list (honua-console#274).
+        var zonesOk = zonesFetch.Ok && zonesFetch.Value!.Success;
+        var zones = zonesOk
             ? (zonesFetch.Value!.Data ?? []).Select(OperateObservabilityMapper.MapZone).ToArray()
             : [];
-        var zonesMessage = zonesFetch.Ok
+        var zonesStatus = zonesOk
+            ? zonesFetch.Status
+            : zonesFetch.Ok ? OperateSectionStatus.Unavailable : zonesFetch.Status;
+        var zonesMessage = zonesOk
             ? string.Empty
-            : FirstNonBlank(zonesFetch.Message, "Geofence zone metadata is unavailable from the server.");
+            : FirstNonBlank(
+                zonesFetch.Ok ? zonesFetch.Value!.Message : zonesFetch.Message,
+                "Geofence zone metadata is unavailable from the server.");
 
         return OperateSectionResult<OperateRulesView>.Allowed(new OperateRulesView(
             rules,
             zones,
-            zonesFetch.Status,
+            zonesStatus,
             zonesMessage));
     }
 
@@ -1086,18 +1106,12 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, BuildUri(profile.ServerBaseUri, relativePath));
-        var token = await ResolveTokenAsync(profile, cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-        else if (!string.IsNullOrWhiteSpace(_adminApiKey))
-        {
-            // No account-session bearer token (e.g. the browser host has no interactive sign-in): fall back
-            // to the configured admin API key like the GitOps/metrics clients, so the admin-authorized
-            // observability endpoints return data instead of 401 Unauthorized.
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
-        }
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -1149,15 +1163,12 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(profile.ServerBaseUri, relativePath));
-        var token = await ResolveTokenAsync(profile, cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-        else if (!string.IsNullOrWhiteSpace(_adminApiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
-        }
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         // The control endpoints take no body; send an empty JSON object so the
         // request advertises application/json consistently with the other writes.
@@ -1234,9 +1245,6 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         !string.IsNullOrWhiteSpace(body)
         && (body.Contains("approval-required", StringComparison.OrdinalIgnoreCase)
             || body.Contains("Approval required", StringComparison.OrdinalIgnoreCase));
-
-    private Task<string?> ResolveTokenAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken) =>
-        ConsoleServerHttp.ResolveForwardableBearerAsync(_sessionStore, profile, cancellationToken);
 
     private static Uri BuildUri(Uri baseUri, string relativePath) =>
         ConsoleServerHttp.BuildUri(baseUri, relativePath);

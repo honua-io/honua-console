@@ -171,16 +171,20 @@ public static class DeployOperationPresentation
         _ => "unknown",
     };
 
-    /// <summary>Neutral Console status CSS class for a lifecycle state.</summary>
-    public static string StateClass(DeployOperationLifecycle lifecycle) => lifecycle switch
-    {
-        DeployOperationLifecycle.Succeeded => "console-state-success",
-        DeployOperationLifecycle.Failed or DeployOperationLifecycle.ManualInterventionRequired => "console-state-danger",
-        DeployOperationLifecycle.AwaitingApproval => "console-state-warning",
-        DeployOperationLifecycle.RolledBack or DeployOperationLifecycle.RollbackRequested => "console-state-warning",
-        DeployOperationLifecycle.Submitted or DeployOperationLifecycle.Reconciling => "console-state-info",
-        _ => "console-state-neutral",
-    };
+    /// <summary>
+    /// Neutral Console status CSS class for a lifecycle state, derived from the shared
+    /// <see cref="OperateStatus"/> mapping table (console#293) so this stays identical to the
+    /// class every other Operate surface would render for the same word.
+    /// </summary>
+    public static string StateClass(DeployOperationLifecycle lifecycle) => ToStatus(lifecycle).CssClass;
+
+    /// <summary>
+    /// Projects a deploy-operation lifecycle state onto the shared <see cref="OperateStatus"/>
+    /// status vocabulary (console#293) so it can render through the shared
+    /// <c>OperateStatusPill</c> component.
+    /// </summary>
+    public static OperateStatus ToStatus(DeployOperationLifecycle lifecycle) =>
+        new(Label(lifecycle), string.Empty);
 
     /// <summary>
     /// Maps a honua-server WorkflowOperationStatus (any casing, hyphenated or

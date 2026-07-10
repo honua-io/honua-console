@@ -267,6 +267,29 @@ public sealed class HonuaVersionManagementHttpClientTests
         Assert.Contains("could not be reached", result.Issue.Detail, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task NonRootBasePath_IsPreservedInBuiltRequestUri()
+    {
+        // Regression for honua-console#274 item 2: when the configured server URL carries a non-root path
+        // prefix (e.g. honua-server reverse-proxied under /honua), the rooted "/rest/..." request path must
+        // resolve UNDER that prefix, not against the host root. Previously the shim leaned on
+        // HttpClient.BaseAddress resolution, which drops the base path for absolute-path references.
+        var prefixedBase = new Uri("https://host.example/honua/");
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, """{ "versions": [] }"""));
+        var httpClient = new HttpClient(handler) { BaseAddress = prefixedBase };
+        var client = new HonuaVersionManagementHttpClient(
+            httpClient,
+            new HonuaVersionManagementClientOptions(prefixedBase));
+
+        await client.ListVersionsAsync(ServiceId);
+
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal(
+            "/honua/rest/services/parcels/VersionManagementServer/versions",
+            recorded.Uri!.AbsolutePath);
+        Assert.Equal("host.example", recorded.Uri.Host);
+    }
+
     private static HonuaVersionManagementHttpClient CreateClient(HttpMessageHandler handler, string? apiKey = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };

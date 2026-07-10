@@ -1,0 +1,76 @@
+@using Honua.Console.Shell.Models
+
+@* Shared operate event timeline (console#293): renders event kind, severity (shared status
+   pill), timestamp, correlation id chip, and a drill-in link, with IDEMPOTENT APPEND keyed on
+   OperateTimelineEntry.DedupeKey (eventId, or operationId+transitionKind when there is no event
+   id). The server's transition/event seam is at-least-once (honua-server PR #2577 review note),
+   so a caller may pass a raw, non-deduped Entries list (e.g. a growing list fed by both an
+   initial read and a live push) and this component still renders each event exactly once. *@
+<div class="operate-table-scroll operate-timeline">
+    @if (_rendered.Count == 0)
+    {
+        <p class="console-muted" data-timeline-empty>@EmptyMessage</p>
+    }
+    else
+    {
+        <table class="operate-table operate-event-table">
+            <thead>
+                <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">Kind</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Message</th>
+                    <th scope="col">Correlation</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in _rendered)
+                {
+                    <tr class="@(entry.DedupeKey == SelectedEntryKey ? "operate-selected-row" : null)"
+                        data-timeline-row data-timeline-key="@entry.DedupeKey">
+                        <td>@entry.Timestamp</td>
+                        <td>@entry.Kind</td>
+                        <td><OperateStatusPill Status="@entry.SeverityStatus" /></td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(entry.DetailHref))
+                            {
+                                @entry.Message
+                            }
+                            else
+                            {
+                                <a href="@entry.DetailHref">@entry.Message</a>
+                            }
+                        </td>
+                        <td>
+                            <CorrelationIdChip Value="@entry.CorrelationId" Kind="CorrelationIdKind.CorrelationId" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<OperateTimelineEntry> _rendered = [];
+
+    /// <summary>
+    /// The events to render. May contain the same logical event more than once (at-least-once
+    /// delivery); the component dedupes by <see cref="OperateTimelineEntry.DedupeKey"/> before
+    /// rendering, preserving the first occurrence's position.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public required IReadOnlyList<OperateTimelineEntry> Entries { get; set; }
+
+    /// <summary>The dedupe key of the currently selected row, for highlighting.</summary>
+    [Parameter]
+    public string? SelectedEntryKey { get; set; }
+
+    [Parameter]
+    public string EmptyMessage { get; set; } = "No events to show.";
+
+    protected override void OnParametersSet()
+    {
+        _rendered = OperateTimelineEntries.Deduplicate(Entries);
+    }
+}

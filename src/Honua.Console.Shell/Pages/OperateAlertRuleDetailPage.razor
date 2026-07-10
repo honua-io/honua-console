@@ -1,7 +1,13 @@
 @page "/operate/alerts/rules/{RuleId}"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Services
 @inject IOperateAlertRulesDataSource RulesData
+@inject IConsoleCapabilityManifest Capabilities
+@inject IConsoleNotificationService Notifications
 
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.RealtimeAlerting"
+                       Title="Realtime / geofence alerting is not available in this release"
+                       Message="Realtime, geofence, threshold, and dwell alert-rule authoring is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
 <section class="console-page operate-alert-rule" data-alert-rule-detail="@RuleId">
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow / Alert rules</p>
@@ -127,6 +133,7 @@
         </article>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     [Parameter]
@@ -151,6 +158,14 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        // Capability-manifest gate: when realtime/geofence alerting is not advertised for this release
+        // the page renders the first-class "unsupported" state, so skip the server read entirely.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
+        {
+            _loading = false;
+            return;
+        }
+
         _loading = true;
         _saveResult = null;
         _view = await RulesData.GetRuleAsync(RuleId);
@@ -171,29 +186,27 @@
         _loading = false;
     }
 
-    private async Task SaveAsync()
+    private Task SaveAsync()
     {
-        _saving = true;
         _saveResult = null;
-        try
-        {
-            var channels = _deliveryChannels
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var condition = new OperateAlertRuleCondition(
-                _subject, _operator, _threshold, _window,
-                string.IsNullOrWhiteSpace(_geofenceZoneId) ? null : _geofenceZoneId,
-                _dwellMinutes);
-            var edit = new OperateAlertRuleEdit(RuleId, _name, _enabled, condition, channels);
-            _saveResult = await RulesData.SaveRuleAsync(edit);
-            if (_saveResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                _rule = _saveResult.Rule;
-            }
-        }
-        finally
-        {
-            _saving = false;
-        }
+                var channels = _deliveryChannels
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var condition = new OperateAlertRuleCondition(
+                    _subject, _operator, _threshold, _window,
+                    string.IsNullOrWhiteSpace(_geofenceZoneId) ? null : _geofenceZoneId,
+                    _dwellMinutes);
+                var edit = new OperateAlertRuleEdit(RuleId, _name, _enabled, condition, channels);
+                _saveResult = await RulesData.SaveRuleAsync(edit);
+                if (_saveResult.Succeeded)
+                {
+                    _rule = _saveResult.Rule;
+                }
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save alert rule");
     }
 
     private static string StateKind(string state) => state switch

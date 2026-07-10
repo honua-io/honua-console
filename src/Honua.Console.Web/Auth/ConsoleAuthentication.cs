@@ -27,8 +27,8 @@ namespace Honua.Console.Web.Auth;
 /// configured proxy and forwards the operator's bearer to honua-server, where per-principal RBAC is
 /// enforced for real.</item>
 /// <item><b>Dev</b> — a documented developer login (Development only, or an explicit
-/// <c>Honua:Console:Auth:Mode=Dev</c> override) so local work is not blocked. The dev operator's
-/// server calls fall back to the configured shared admin key.</item>
+/// <c>Honua:Console:Auth:Mode=Dev</c> override) so local reads are not blocked. Human approval
+/// and recovery mutations still require a forwardable server bearer and fail closed otherwise.</item>
 /// </list>
 /// In every other case authentication is <b>fail-closed</b>: there is no anonymous access. The
 /// <see cref="AuthorizationOptions.FallbackPolicy"/> requires an authenticated operator on every
@@ -124,6 +124,15 @@ public static class ConsoleAuthentication
             Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler,
             CircuitOperatorContextHandler>();
 
+        // honua-console#254: route the Family-A server-bound typed clients through IHttpClientFactory named
+        // clients whose handler chain fails closed for an unresolved operator on the privileged path (and
+        // keeps the /public + /ogc/styles surfaces anonymous by design). The typed-client registrations in
+        // AddHonuaConsoleShell obtain their HttpClient from the IHonuaServerBoundClientFactory registered
+        // here instead of building a self-contained per-client pooled handler; resolution is lazy, so this
+        // running after AddHonuaConsoleShell is fine. The native single-operator host does not register the
+        // factory and keeps the self-contained pooled client.
+        builder.Services.AddConsoleServerBoundClients();
+
         // Development testbed convenience: the browser host cannot create environment profiles (profile
         // creation runs on the native host), so seed + activate one from the configured server URL for
         // EACH operator's partition on first use. Mirrors the prior startup seed, but per-operator so it
@@ -184,6 +193,14 @@ public static class ConsoleAuthentication
                     IsPersistent = true,
                     ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
                 }).ConfigureAwait(false);
+                // SignInAsync only writes the auth cookie to the RESPONSE; it does not re-authenticate
+                // HttpContext.User for THIS request. The operator-partitioned profile write below
+                // (bridge.SyncAsync -> OperatorScopedEnvironmentProfileStore.CurrentForWrite ->
+                // IConsoleOperatorContext.RequireOperatorKey) resolves the operator from HttpContext.User
+                // on this same request and fails closed with ConsoleOperatorContextUnresolvedException when
+                // it is still anonymous. Set the principal on the request so the operator is resolvable now
+                // (honua-console#256; the cookie/edge branches already arrive with User populated).
+                context.User = principal;
                 await bridge.SyncAsync(principal, cancellationToken).ConfigureAwait(false);
                 return Results.Redirect(returnTo);
             }
@@ -264,16 +281,17 @@ public static class ConsoleAuthentication
                 new Claim(ClaimTypes.Name, "Developer"),
             ],
             ConsoleAuthConstants.CookieScheme);
-        // No operator bearer: dev server calls use the admin-key fallback.
+        // No operator bearer: reads may use their documented fallback, while human
+        // approval/recovery mutations fail closed until a bearer is available.
         return new ClaimsPrincipal(identity);
     }
 
     private static bool IsApiRequest(HttpRequest request)
     {
-        if (request.Path.StartsWithSegments("/map-proxy", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
+        // Note: /map-proxy/ paths intentionally use the standard cookie-redirect flow (not the
+        // 401-direct path) so that the dev auto-login can round-trip back to the original map-proxy
+        // URL via the returnTo parameter. In production the user is already signed in before any
+        // page with a map is rendered, so the redirect case is rare and handles correctly.
 
         var requestedWith = request.Headers["X-Requested-With"];
         if (requestedWith.Count > 0 && string.Equals(requestedWith[0], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase))

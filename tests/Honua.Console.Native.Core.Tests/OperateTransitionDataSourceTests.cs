@@ -619,6 +619,10 @@ public sealed class OperateTransitionDataSourceTests
         // The layer detail page renders MapPreview, which [Inject]s IJSRuntime (never invoked under static
         // HtmlRenderer); a no-op satisfies DI.
         services.AddSingleton<Microsoft.JSInterop.IJSRuntime>(new NoOpJsRuntime());
+        // Several Operate detail pages now inject IConsoleNotificationService for action-feedback toasts;
+        // the real in-memory service is harmless under static HtmlRenderer (no toast host to subscribe).
+        services.AddSingleton<Honua.Console.Shell.Services.IConsoleNotificationService,
+            Honua.Console.Shell.Services.ConsoleNotificationService>();
         await using var serviceProvider = services.BuildServiceProvider();
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         await using var renderer = new HtmlRenderer(serviceProvider, loggerFactory);
@@ -659,6 +663,32 @@ public sealed class OperateTransitionDataSourceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspace.Services.FirstOrDefault(
                 service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public async Task AdminOperateClient_PreservesNonRootBasePathPrefixInRequestUri()
+    {
+        // honua-console#274 item 2: a configured server URL with a non-root path prefix (honua-server
+        // reverse-proxied under /honua) must keep that prefix on rooted "/api/v1/..." request paths. Relying
+        // on HttpClient.BaseAddress resolution dropped the prefix (an absolute-path reference resolves against
+        // the authority only), sending admin reads to https://host/api/v1/... instead of
+        // https://host/honua/api/v1/... and 404-ing the proxied deployment.
+        var handler = new RecordingJsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/honua/api/v1/admin/connections/"] = """{"success":true,"data":[]}"""
+        });
+        var prefixedBase = new Uri("https://host.example/honua/");
+        var httpClient = new HttpClient(handler) { BaseAddress = prefixedBase };
+        var client = new HonuaAdminOperateHttpClient(
+            httpClient,
+            new HonuaAdminOperateClientOptions(prefixedBase, "test-api-key"));
+
+        var result = await client.ListConnectionsAsync();
+
+        // The read resolved (envelope success) against the prefixed path — not a 404 at the host root.
+        Assert.Null(result.Issue);
+        Assert.Contains("/honua/api/v1/admin/connections/", handler.RequestedPaths);
+        Assert.DoesNotContain("/api/v1/admin/connections/", handler.RequestedPaths);
     }
 
     private static HonuaServerOperateTransitionDataSource CreateServerDataSource(HttpMessageHandler handler)

@@ -619,6 +619,24 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
 
     public Uri BaseUri { get; }
 
+    /// <summary>
+    /// Resolves a request path against <see cref="BaseUri"/> so a non-root base-path prefix is preserved.
+    /// A configured server URL may include a path segment (e.g. <c>https://host/honua/</c> behind a reverse
+    /// proxy). Relying on <see cref="HttpClient.BaseAddress"/> with a rooted request path (<c>/api/v1/...</c>)
+    /// drops that prefix — an absolute-path reference resolves against the authority only (RFC 3986 §5.3), so
+    /// the request would hit <c>https://host/api/v1/...</c> instead of <c>https://host/honua/api/v1/...</c>.
+    /// Building an absolute URI from a slash-terminated base plus a relativised path keeps the prefix
+    /// (honua-console#274).
+    /// </summary>
+    private Uri BuildRequestUri(string relativePath)
+    {
+        var normalizedBase = BaseUri.AbsoluteUri.EndsWith('/')
+            ? BaseUri
+            : new Uri(BaseUri.AbsoluteUri + "/", UriKind.Absolute);
+        var relative = relativePath.StartsWith('/') ? relativePath[1..] : relativePath;
+        return new Uri(normalizedBase, relative);
+    }
+
     public Task<HonuaAdminEndpointResult<HonuaAdminConnectionSummary[]>> ListConnectionsAsync(
         CancellationToken cancellationToken = default) =>
         GetApiResponseAsync<HonuaAdminConnectionSummary[]>(
@@ -673,7 +691,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         const string contract = "GET /api/v1/admin/connections/{id}/tables";
         var path = $"/api/v1/admin/connections/{Uri.EscapeDataString(connectionId)}/tables";
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        using var request = new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path));
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -723,7 +741,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         CancellationToken cancellationToken = default)
     {
         const string contract = "GET /api/v1/admin/import/formats";
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/import/formats");
+        using var request = new HttpRequestMessage(HttpMethod.Get, BuildRequestUri("/api/v1/admin/import/formats"));
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -788,7 +806,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             form.Add(new StringContent(targetSchema), "TargetSchema");
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/import/upload") { Content = form };
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildRequestUri("/api/v1/admin/import/upload")) { Content = form };
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -842,7 +860,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
 
         const string contract = "POST /api/v1/admin/external-services/discover";
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/external-services/discover")
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildRequestUri("/api/v1/admin/external-services/discover"))
         {
             Content = JsonContent.Create(new ExternalServiceDiscoverBody(url, credentials), options: JsonOptions),
         };
@@ -899,7 +917,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         ArgumentNullException.ThrowIfNull(request);
 
         const string contract = "POST /api/v1/admin/import/geoservices/start";
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/import/geoservices/start")
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildRequestUri("/api/v1/admin/import/geoservices/start"))
         {
             Content = JsonContent.Create(request, options: JsonOptions),
         };
@@ -961,7 +979,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
 
         const string contract = "GET /api/v1/admin/import/geoservices/jobs/{jobId}";
         var path = $"/api/v1/admin/import/geoservices/jobs/{Uri.EscapeDataString(jobId)}";
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        using var request = new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path));
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -1509,7 +1527,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string relativePath,
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, relativePath);
+        using var request = new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(relativePath));
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -1538,7 +1556,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string contract,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        using var request = new HttpRequestMessage(HttpMethod.Get, BuildRequestUri(path));
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
@@ -1603,7 +1621,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string path,
         string contract,
         CancellationToken cancellationToken) =>
-        SendApiResponseAsync<TResponse>(() => new HttpRequestMessage(HttpMethod.Post, path), contract, cancellationToken);
+        SendApiResponseAsync<TResponse>(() => new HttpRequestMessage(HttpMethod.Post, BuildRequestUri(path)), contract, cancellationToken);
 
     private Task<HonuaAdminEndpointResult<TResponse>> PostApiResponseAsync<TRequest, TResponse>(
         string path,
@@ -1611,7 +1629,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string contract,
         CancellationToken cancellationToken) =>
         SendApiResponseAsync<TResponse>(
-            () => new HttpRequestMessage(HttpMethod.Post, path)
+            () => new HttpRequestMessage(HttpMethod.Post, BuildRequestUri(path))
             {
                 Content = JsonContent.Create(body, options: JsonOptions)
             },
@@ -1697,7 +1715,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         string contract,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Put, path)
+        using var request = new HttpRequestMessage(HttpMethod.Put, BuildRequestUri(path))
         {
             Content = JsonContent.Create(body, options: JsonOptions)
         };

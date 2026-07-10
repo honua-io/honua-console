@@ -31,7 +31,25 @@ builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Llm:BaseUrl"] ?? builder.Configuration["HONUA_LLM_BASE_URL"],
     builder.Configuration["Honua:Llm:Model"] ?? builder.Configuration["HONUA_LLM_MODEL"],
     builder.Configuration["Honua:Llm:ApiKey"] ?? builder.Configuration["HONUA_LLM_API_KEY"],
-    builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"]);
+    builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"],
+    // Deferred exotic-depth capabilities advertised for this release (first-release cut-line). Empty
+    // by default: temporal / disconnected-sync / realtime-alerting / cross-environment-promotion /
+    // siem-investigations render the first-class "unsupported" state until opted in here.
+    builder.Configuration["Honua:Console:Capabilities"] ?? builder.Configuration["HONUA_CONSOLE_CAPABILITIES"],
+    // Registry-driven Studio-AI intent resolution (honua-console#266): OFF by default. When ON (and a
+    // server is bound) the Studio generate/validate/preview/publish lifecycle resolves against the live
+    // capability-manifest registry and deferred/unavailable capabilities are hidden from Studio AI.
+    ParseFlag(
+        builder.Configuration["Studio:RegistryIntentResolution"]
+        ?? builder.Configuration["HONUA_STUDIO_REGISTRY_INTENT_RESOLUTION"]),
+    // Human-facing mode is the default and requires an attributable operator bearer
+    // for approval/recovery mutations. API-key fallback is available only through the
+    // exact HeadlessService opt-in, a ServiceApiKey profile, and no interactive session.
+    builder.Configuration["Honua:Server:CredentialMode"]
+        ?? builder.Configuration["HONUA_SERVER_CREDENTIAL_MODE"]);
+
+static bool ParseFlag(string? value) =>
+    bool.TryParse(value, out var parsed) && parsed;
 
 // Operator authentication (honua-console#233): fail-closed cookie/edge auth + RequireAuthenticatedUser
 // fallback policy so no Console route is reachable anonymously. See ConsoleAuthentication for the model.

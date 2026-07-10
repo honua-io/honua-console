@@ -133,3 +133,15 @@ Ship when a real org can run a real *new* project end to end on Honua alone, fro
 - Existing Esri REST clients (including ArcGIS Pro) can consume and publish to Honua services through the Esri-compatible interface — no forced client migration.
 - System-of-record reliability holds: server-authored RBAC/entitlement gates every route and action.
 - Gated exotic depth renders as unsupported via the capability manifest, with no dead UI.
+
+## First-Release Scope Revision (Superseding The Operate-Floor)
+
+Status: superseding revision (release owner, 2026-07). Canonical decision record: honua-server **ADR-0059** (First-Release Scope and Fix-Forward Operate Model); single source of truth for the in/out split is honua-io/honua-release#32; realized by honua-io/honua-server#2335 (Track B3).
+
+This section supersedes the "Operate Floor" and the rollback lines in "First-Release Exit Criteria" above.
+
+- **Rollback / auto-rollback is NOT the operate floor.** The earlier "propose → preflight → approve → apply → **roll back**, without ever touching Git" floor and the "**failure auto-rolls-back**" exit criterion are **withdrawn** as the non-negotiable floor. Rollback / auto-rollback was **never certified** — the health-gated auto-rollback path is not tested or run in CI and is not exercised by any release gate (per the release-readiness / safe-rollout audits). It is now **experimental + disabled** (`maturity: experimental`, **not** advertised in the capability manifest).
+- **The operate model is health-gated AI fix-forward.** Safety for the single-environment release is delivered by **roll-forward convergence** via the AI operator surface: when a change degrades health, the AI operator proposes and applies a *forward* corrective change to converge back to healthy — not a revert. This replaces the propose→preflight→approve→apply→rollback loop as the operate floor.
+- **Single-environment deploy; cross-environment promotion is experimental + disabled.** Cross-environment (dev→staging→prod fleet) promotion (honua-io/honua-devops#57/#58) is **not** in first-release scope and is `maturity: experimental` (gated off the manifest). Single-instance change-safety remains, delivered as fix-forward rather than rollback.
+
+Because these are experimental + disabled, they render as unsupported via the capability manifest with no dead UI — the same gating the rest of the experimental set uses. See ADR-0059 §2 for the full experimental + disabled set.

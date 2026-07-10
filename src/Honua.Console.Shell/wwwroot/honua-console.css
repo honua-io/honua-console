@@ -8308,6 +8308,8 @@ p {
     padding-left: 18px;
     font-size: 0.88rem;
     line-height: 1.6;
+}
+
 /* ----- inline field validation (Shell/Validation, Wave 0) -----
    The error slot rendered under a FieldStateRow's slotted control (and the standalone
    ValidationMessageInline for plain studio-form-label surfaces). Severity drives the accent so an
@@ -9388,6 +9390,24 @@ button.console-chip:focus-visible {
     }
 }
 
+/* Source attribution chip — shown on inbox rows only when the queue aggregates more than one
+   proposal source (server + honua-devops gitops/deliverable proposals, #193). */
+.approval-inbox-source {
+    background: rgb(15 118 110 / 8%);
+    border-color: rgb(15 118 110 / 24%);
+}
+
+/* First-class approval-card treatments (#193): the data-import card and the per-deliverable
+   (map / analysis / dashboard / app) cards lead with a left accent so each kind reads distinctly,
+   consistent with one panel family. */
+.proposal-approval-panel.is-data-import {
+    box-shadow: inset 4px 0 0 var(--honua-accent);
+}
+
+.proposal-approval-panel.is-deliverable {
+    box-shadow: inset 4px 0 0 #6d28d9;
+}
+
 /* ── Console home — information + approval landing (#193) ───────────────────
    The home/landing is no longer a dead link grid: it leads with the approval
    inbox summary (pending work) and recent activity, then the area work surfaces. */
@@ -9423,6 +9443,9 @@ button.console-chip:focus-visible {
     flex-direction: column;
     gap: 0.6rem;
     width: min(360px, calc(100vw - 2.5rem));
+    /* min-height ensures the host is never zero-sized when empty so it remains
+       detectable by automated tests and screen-reader clients at all times. */
+    min-height: 1px;
     z-index: 2500;
     pointer-events: none;
 }
@@ -9543,4 +9566,60 @@ button.console-chip:focus-visible {
     display: flex;
     justify-content: flex-end;
     gap: 0.6rem;
+}
+
+/* Ops-summary strip (console#292): the hub + home "is my server healthy, what needs me?"
+   glance. Each tile is its own deep link into the surface that owns the metric. */
+.ops-summary-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.5rem;
+    margin: 0 0 1.25rem;
+}
+
+.ops-summary-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.ops-summary-tile:hover {
+    color: var(--honua-accent-strong);
+}
+
+.ops-summary-tile strong {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.ops-summary-tile strong.is-actionable {
+    color: #7a5300;
+}
+
+.ops-summary-liveness {
+    margin-left: auto;
+    font-size: 0.82rem;
+    color: var(--honua-muted);
+}
+
+.ops-summary-liveness.is-live::before {
+    content: "\25CF";
+    margin-right: 0.35rem;
+    color: #2f8f5b;
+}
+
+/* Correlation-id chip (console#292): a clickable variant of the existing read-only
+   .console-chip, so every correlation/operation/event/finding/proposal id deep-links to its
+   owning surface instead of rendering as inert text. */
+.correlation-id-chip {
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.correlation-id-chip:hover {
+    border-color: var(--honua-accent);
+    color: var(--honua-accent-strong);
 }

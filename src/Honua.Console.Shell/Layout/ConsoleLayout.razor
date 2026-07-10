@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
+@inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 
 <div class="console-shell">
     @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has(). *@
@@ -44,7 +45,7 @@
         @if (ShowOperateNavigation)
         {
             <nav class="console-nav console-nav-secondary" aria-label="Operate sections">
-                @foreach (var (path, label, icon) in OperateSections)
+                @foreach (var (path, label, icon) in VisibleOperateSections)
                 {
                     <NavLink href="@path" Match="NavLinkMatch.Prefix" title="@label">
                         <span class="console-nav-icon">@Icon(icon)</span>
@@ -92,25 +93,50 @@
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
 
-    // Resource-first IA (redesign §5.1): the Resources/Services/Layers trio collapses into one
-    // "Data & Layers" treeview spine; Connections move under it as the data-source sub-section.
+    // Capability-gated depth surfaces (first-release cut-line) are hidden from the Operate nav until the
+    // deployment advertises the capability, so the rail never links to a surface that only renders the
+    // "unsupported" state. The gated page still renders that first-class state if reached by URL.
+    private IEnumerable<(string Path, string Label, string Icon)> VisibleOperateSections =>
+        OperateSections.Where(section => section.Path switch
+        {
+            "/operate/temporal" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal),
+            "/operate/sync" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync),
+            "/operate/alerts/rules" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting),
+            "/operate/releases" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.CrossEnvironmentPromotion),
+            _ => true,
+        });
+
+    // Operate section nav — ordered Data → Services → Monitor → Access/Admin → Deploy → AI.
+    // AI (Ask Honua) is intentionally last: it is an accelerator, not the required entry point.
+    // Capability-gated entries (sync, alerts/rules, releases, temporal) are hidden until the
+    // connected deployment advertises the capability; ungated entries are always visible.
     private static readonly (string Path, string Label, string Icon)[] OperateSections =
     [
-        ("/operate/ai", "Ask Honua", "studio"),
+        // Data
         ("/operate/data", "Data & Layers", "layers"),
         ("/operate/connections", "Connections", "connections"),
+        ("/operate/import/esri", "Import from Esri", "import"),
         ("/operate/publishing", "Publishing", "services"),
         ("/operate/versions", "Versions", "versions"),
-        ("/operate/deploy", "Deploy", "deploy"),
-        ("/operate/catalogs", "Catalogs", "catalogs"),
+        ("/operate/sync", "Sync", "sync"),                          // capability-gated: disconnected-sync
+        // Services
         ("/operate/sensors", "SensorThings", "sensors"),
         ("/operate/scenes", "3D Scenes", "scenes"),
-        ("/operate/settings", "Settings", "settings"),
-        ("/operate/access", "Access", "access"),
-        ("/operate/temporal", "Temporal", "temporal"),
-        ("/operate/observability", "Observability", "observability"),
         ("/operate/geoprocessing", "Geoprocessing", "geoprocessing"),
+        // Monitor
+        ("/operate/observability", "Observability", "observability"),
         ("/operate/metrics", "Metrics", "metrics"),
+        ("/operate/alerts/rules", "Alert Rules", "alert-rules"),    // capability-gated: realtime-alerting
+        ("/operate/temporal", "Temporal", "temporal"),              // capability-gated: temporal
+        // Access & Admin
+        ("/operate/access", "Access", "access"),
+        ("/operate/catalogs", "Catalogs", "catalogs"),
+        ("/operate/settings", "Settings", "settings"),
+        // Deploy
+        ("/operate/deploy", "Deploy", "deploy"),
+        ("/operate/releases", "Releases", "releases"),              // capability-gated: cross-environment-promotion
+        // AI accelerator — always last so the manual surfaces read as the foundation
+        ("/operate/ai", "Ask Honua (AI)", "studio"),
     ];
 
     // Minimal inline line-icon set (24x24, currentColor). Subpaths separated by '|'.
@@ -137,6 +163,10 @@
             "scenes" => "M12 2 2 7l10 5 10-5-10-5Z|M2 17l10 5 10-5|M2 12l10 5 10-5",
             "metrics" => "M3 3v18h18|M8 16v-5|M13 16V8|M18 16v-9",
             "geoprocessing" => "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z|M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6a7 7 0 0 0 .1-1Z",
+            "import" => "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2|M7 11l5 5 5-5|M12 4v12",
+            "sync" => "M23 4v6h-6|M1 20v-6h6|M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15",
+            "alert-rules" => "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9|M13.73 21a2 2 0 0 1-3.46 0",
+            "releases" => "M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z|M7 7h.01",
             "environments" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z|M3 12h18|M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z",
             "native-stream" => "M5 12a9 9 0 0 1 14 0|M8.5 15a4.5 4.5 0 0 1 7 0|M12 18.5v.01",
             "support" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z|M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3|M12 17h.01",

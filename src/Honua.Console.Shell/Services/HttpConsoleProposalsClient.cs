@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
@@ -10,9 +11,10 @@ namespace Honua.Console.Shell.Services;
 /// <summary>
 /// Binds the approval surface to a real honua-server through the console approval REST API
 /// (honua-server #1694): <c>GET /api/v1/admin/proposals</c>, <c>GET .../{id}</c>,
-/// <c>POST .../{id}/approve</c>, <c>POST .../{id}/reject</c>. The admin API key is sent as
-/// <c>X-API-Key</c>. The server's RBAC <c>approve</c> grant and separation-of-duties rule
-/// remain the real gate: a denied approve/reject returns 403, surfaced here as a
+/// <c>POST .../{id}/approve</c>, <c>POST .../{id}/reject</c>. The active operator bearer
+/// is required so server audit records retain the human identity. A configured admin API
+/// key is available only in explicit, sessionless headless/service mode. The server's RBAC <c>approve</c> grant and
+/// separation-of-duties rule remain the real gate: a denied approve/reject returns 403, surfaced here as a
 /// <see cref="OperateSectionStatus.Forbidden"/> result — the UI never bypasses it.
 ///
 /// Charter section 11 (no standing mock for server-owned data) is preserved: this client
@@ -21,23 +23,34 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 {
-    private const string ProposalsRoot = "api/v1/admin/proposals";
-
     private const string NoProfileMessage =
         "No active environment profile is selected. Connect an environment to review approvals.";
 
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
+    private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
+    private readonly IConsoleOperatorBearerProvider _operatorBearerProvider;
+    private readonly ConsoleServerCredentialMode _credentialMode;
 
     public HttpConsoleProposalsClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
-        string? adminApiKey = null)
+        IConsoleAccountSessionStore sessionStore,
+        string? adminApiKey = null,
+        IConsoleOperatorBearerProvider? operatorBearerProvider = null,
+        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
+        _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
+        _operatorBearerProvider = operatorBearerProvider
+            ?? new ConsoleOperatorBearerProvider(
+                sessionStore,
+                new UnavailableConsoleOperatorBearerExchange(),
+                TimeProvider.System);
+        _credentialMode = credentialMode;
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
@@ -57,9 +70,9 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         var query = BuildListQuery(status, kind, requestedBy);
 
         var result = await SendAsync(
-            profile.ServerBaseUri,
+            profile,
             HttpMethod.Get,
-            ProposalsRoot + query,
+            ProposalAdminRoutes.List + query,
             content: null,
             ProposalJsonContext.Default.ProposalListWire,
             cancellationToken).ConfigureAwait(false);
@@ -81,7 +94,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
-        return await SendDetailAsync(HttpMethod.Get, proposalId, content: null, cancellationToken)
+        return await SendDetailAsync(HttpMethod.Get, ProposalAdminRoutes.Detail(proposalId.Trim()), content: null, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -92,7 +105,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
         return await SendDetailAsync(
             HttpMethod.Post,
-            $"{proposalId.Trim()}/approve",
+            ProposalAdminRoutes.Approve(proposalId.Trim()),
             content: null,
             cancellationToken).ConfigureAwait(false);
     }
@@ -118,7 +131,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
         return await SendDetailAsync(
             HttpMethod.Post,
-            $"{proposalId.Trim()}/reject",
+            ProposalAdminRoutes.Reject(proposalId.Trim()),
             body,
             cancellationToken).ConfigureAwait(false);
     }
@@ -136,9 +149,9 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         }
 
         var result = await SendAsync(
-            profile.ServerBaseUri,
+            profile,
             method,
-            $"{ProposalsRoot}/{relativeSuffix}",
+            relativeSuffix,
             content,
             ProposalJsonContext.Default.ProposalDetailWire,
             cancellationToken).ConfigureAwait(false);
@@ -153,17 +166,38 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
     }
 
     private async Task<OperateSectionResult<T>> SendAsync<T>(
-        Uri baseUri,
+        ConsoleEnvironmentProfile profile,
         HttpMethod method,
         string relativePath,
         string? content,
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, BuildUri(baseUri, relativePath));
-        if (!string.IsNullOrWhiteSpace(_adminApiKey))
+        using var request = new HttpRequestMessage(method, BuildUri(profile.ServerBaseUri, relativePath));
+        if (method == HttpMethod.Get)
         {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
+            await ConsoleServerHttp.AttachAuthenticationAsync(
+                request,
+                _sessionStore,
+                profile,
+                _adminApiKey,
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var authentication = await ConsoleServerHttp.AttachMutationAuthenticationAsync(
+                request,
+                _operatorBearerProvider,
+                profile,
+                _adminApiKey,
+                _credentialMode,
+                cancellationToken).ConfigureAwait(false);
+            if (!authentication.IsAuthenticated)
+            {
+                return OperateSectionResult<T>.Denied(
+                    OperateSectionStatus.Forbidden,
+                    authentication.Message);
+            }
         }
 
         if (content is not null)
@@ -235,7 +269,12 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         Summary: wire.Summary ?? string.Empty,
         RiskLevel: ConsoleProposalPresentation.MapRisk(wire.RiskLevel),
         CreatedAt: wire.CreatedAt,
-        UpdatedAt: wire.UpdatedAt);
+        UpdatedAt: wire.UpdatedAt)
+    {
+        FindingId = wire.FindingId,
+        AutonomyRule = wire.AutonomyRule,
+        ActionDiscriminator = wire.ActionDiscriminator,
+    };
 
     internal static ConsoleProposalDetail MapDetail(ProposalDetailWire wire) => new(
         ProposalId: wire.ProposalId ?? string.Empty,
@@ -255,7 +294,12 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         ExecutionOperationId: wire.ExecutionOperationId,
         CreatedAt: wire.CreatedAt,
         UpdatedAt: wire.UpdatedAt,
-        ResolvedAt: wire.ResolvedAt);
+        ResolvedAt: wire.ResolvedAt)
+    {
+        FindingId = wire.FindingId,
+        AutonomyRule = wire.AutonomyRule,
+        ActionDiscriminator = wire.ActionDiscriminator,
+    };
 
     private static string MapErrorMessage(HttpStatusCode code, HttpMethod method, string relativePath) => code switch
     {
@@ -297,6 +341,9 @@ public sealed record ProposalSummaryWire
     public string? RiskLevel { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
+    public string? FindingId { get; init; }
+    public string? AutonomyRule { get; init; }
+    public string? ActionDiscriminator { get; init; }
 }
 
 /// <summary>Wire shape of the server proposal detail (honua-server #1694).</summary>
@@ -320,6 +367,9 @@ public sealed record ProposalDetailWire
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     public DateTimeOffset? ResolvedAt { get; init; }
+    public string? FindingId { get; init; }
+    public string? AutonomyRule { get; init; }
+    public string? ActionDiscriminator { get; init; }
 }
 
 /// <summary>Wire wrapper for the proposal list response.</summary>

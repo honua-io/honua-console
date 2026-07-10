@@ -1,5 +1,6 @@
 @page "/operate"
 @inject IOperateTransitionDataSource OperateData
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -7,6 +8,11 @@
         <h1>Operate</h1>
         <p>Connections, data resources, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
     </div>
+
+    @* Ops-summary strip (console#292, founder decision 2026-07-07): the hub's "is my server
+       healthy, what needs me?" glance — overall health, awaiting approvals, open findings, and
+       SLO breaches, each deep-linking to its actionable surface. *@
+    <OpsSummaryStrip />
 
     @if (_workspace is null)
     {
@@ -71,35 +77,47 @@
                 <p class="console-muted">Preview apply scope, policy requirements, and restart impact for settings changes.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/temporal">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Temporal</p>
-                        <h2>History And Sync Review</h2>
+            @* Capability-gated depth (first-release cut-line): these hub cards are hidden until the
+               deployment advertises the capability, so the hub never routes to a surface that only
+               renders the "unsupported" state. The gated page still renders that state if reached by URL. *@
+            @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal))
+            {
+                <a class="console-panel console-area-link" href="/operate/temporal">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Temporal</p>
+                            <h2>History And Sync Review</h2>
+                        </div>
                     </div>
-                </div>
-                <p class="console-muted">Browse temporal data history, compare now-vs-as-of states, plan governed rollbacks, and review disconnected replica sync conflicts where the source supports it.</p>
-            </a>
+                    <p class="console-muted">Browse temporal data history, compare now-vs-as-of states, plan governed rollbacks, and review disconnected replica sync conflicts where the source supports it.</p>
+                </a>
+            }
 
-            <a class="console-panel console-area-link" href="/operate/sync">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Sync</p>
-                        <h2>Disconnected Sync Review</h2>
+            @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync))
+            {
+                <a class="console-panel console-area-link" href="/operate/sync">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Sync</p>
+                            <h2>Disconnected Sync Review</h2>
+                        </div>
                     </div>
-                </div>
-                <p class="console-muted">Review disconnected replica conflicts, compare base, client, and server revisions, and commit governed resolutions where the source supports it.</p>
-            </a>
+                    <p class="console-muted">Review disconnected replica conflicts, compare base, client, and server revisions, and commit governed resolutions where the source supports it.</p>
+                </a>
+            }
 
-            <a class="console-panel console-area-link" href="/operate/alerts/rules">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Alerts</p>
-                        <h2>Alert Rules</h2>
+            @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
+            {
+                <a class="console-panel console-area-link" href="/operate/alerts/rules">
+                    <div class="console-panel-heading">
+                        <div>
+                            <p class="console-kicker">Alerts</p>
+                            <h2>Alert Rules</h2>
+                        </div>
                     </div>
-                </div>
-                <p class="console-muted">Author and review realtime, geofence, threshold, and dwell alert rules and their delivery channels.</p>
-            </a>
+                    <p class="console-muted">Author and review realtime, geofence, threshold, and dwell alert rules and their delivery channels.</p>
+                </a>
+            }
 
             <a class="console-panel console-area-link" href="/operate/releases">
                 <div class="console-panel-heading">
@@ -130,6 +148,26 @@
                 </div>
                 <p class="console-muted">Connection-pool and query-admission saturation, cache hit ratio, memory and GC pressure, the upload queue, database resilience, and the comprehensive health report at a glance.</p>
             </a>
+
+            <a class="console-panel console-area-link" href="/operate/health">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Health</p>
+                        <h2>Ops Health</h2>
+                    </div>
+                </div>
+                <p class="console-muted">The consolidated at-a-glance snapshot: overall status, per-protocol serving latency, the geoprocessing queue, alert-dispatch backlog, coordinated-deploy readiness and platform-release skew, and database vitals.</p>
+            </a>
+
+            <a class="console-panel console-area-link" href="/operate/copilot">
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Copilot</p>
+                        <h2>Copilot Findings</h2>
+                    </div>
+                </div>
+                <p class="console-muted">Deterministic findings, governed proposals, graduated per-rule autonomy, a global kill switch, and the causal audit trail for every automatic outcome.</p>
+            </a>
         </div>
 
         <section class="console-section">
@@ -145,7 +183,7 @@
                     <li>
                         <strong>@connection.Name</strong>
                         <span>@diagnostic.FailureCode</span>
-                        <small>@diagnostic.OperatorActions[0]</small>
+                        <small>@(diagnostic.OperatorActions.Count > 0 ? diagnostic.OperatorActions[0] : "No operator action recorded.")</small>
                     </li>
                 }
 

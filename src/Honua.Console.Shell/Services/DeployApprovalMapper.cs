@@ -16,10 +16,21 @@ public static class DeployApprovalMapper
         ArgumentNullException.ThrowIfNull(operation);
 
         var release = operation.MetadataRelease;
+        var target = operation.Target;
         var lifecycle = DeployOperationPresentation.MapLifecycle(operation.Status);
 
-        var environment = release is { TargetEnvironment: { Length: > 0 } env } ? env : "unknown";
-        var desiredRevision = release is { DesiredRevision: { Length: > 0 } rev } ? rev : "unknown";
+        // Environment/revision provenance prefers the metadata-release context (a promotion
+        // op) and falls back to the deploy target (a server-upgrade/rollback op); the server
+        // omits whichever side does not apply to this operation's kind, so BOTH must be
+        // treated as possibly absent (console#290, honua-server PR #2577 null-omission
+        // contract) — never default an absent value to "" and read it as a real revision.
+        var environment = release is { TargetEnvironment: { Length: > 0 } env }
+            ? env
+            : target is { Environment: { Length: > 0 } targetEnv } ? targetEnv : "unknown";
+        var desiredRevision = release is { DesiredRevision: { Length: > 0 } rev }
+            ? rev
+            : target is { DesiredRevision: { Length: > 0 } targetRev } ? targetRev : "unknown";
+        var currentRevision = target?.CurrentRevision;
 
         var evidence = release?.EvidenceRefs is { Count: > 0 } refs
             ? refs.Select(r => new DeployOperationEvidenceLink(r.Kind, r.RefId, r.Uri)).ToArray()
@@ -43,12 +54,15 @@ public static class DeployApprovalMapper
             RawStatus: operation.Status,
             Kind: operation.Kind,
             Priority: operation.Priority,
-            // Service/action are not first-class fields on the deploy-control response; the
-            // operation Kind is the closest durable descriptor. Surface it rather than guessing.
-            Service: string.IsNullOrWhiteSpace(operation.Kind) ? "deploy" : operation.Kind,
+            // Service prefers the deploy target's name (a real server-upgrade descriptor);
+            // when the operation carries no target (a metadata promotion), the operation Kind
+            // is the closest durable descriptor. Surface it rather than guessing.
+            Service: target is { TargetName: { Length: > 0 } targetName }
+                ? targetName
+                : string.IsNullOrWhiteSpace(operation.Kind) ? "deploy" : operation.Kind,
             Environment: environment,
             DesiredRevision: desiredRevision,
-            CurrentRevision: null,
+            CurrentRevision: currentRevision,
             Action: DeriveAction(lifecycle),
             ChangeSummary: BuildChangeSummary(operation, environment, desiredRevision),
             RequestedBy: operation.RequestedBy,

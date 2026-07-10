@@ -60,7 +60,7 @@
                                 {
                                     <button type="button"
                                             class="studio-ai-clarification-choice"
-                                            disabled="@Busy"
+                                            disabled="@(Busy || Disabled)"
                                             @onclick="() => AnswerClarification(question, choice)">
                                         <strong>@choice.Label</strong>
                                         @if (!string.IsNullOrWhiteSpace(choice.Effect))
@@ -76,12 +76,36 @@
             }
         </div>
 
+        @if (Busy && !Disabled)
+        {
+            @* IN-FLIGHT INDICATOR — shows while the server is working so the pane feels alive rather than
+               frozen. Only for a genuine in-flight request (Busy), never for a hard-disabled pane
+               (Disabled = AI unavailable), so an AI-off surface does not falsely claim to be "working".
+               A Cancel button fires OnCancel (the caller cancels the in-flight task and clears Busy).
+               The driver does not stream partial turns, so no fabricated incremental output is shown here;
+               the log will update once the full turn arrives. aria-live="polite" on the log above picks it
+               up automatically. *@
+            <div class="studio-ai-working" role="status" data-studio-ai-working>
+                <span class="studio-ai-working-label">Honua is working…</span>
+                @if (OnCancel.HasDelegate)
+                {
+                    <button type="button" class="console-link studio-ai-cancel" @onclick="Cancel" data-studio-ai-cancel>
+                        Cancel
+                    </button>
+                }
+            </div>
+        }
+
         <footer class="studio-ai-refine">
+            @* The textarea stays enabled while the server is working (Busy) so the user can compose a
+               follow-up while waiting; the Send button stays disabled until the request completes. When the
+               pane is hard-disabled (Disabled = AI unavailable) the textarea is disabled too — there is
+               nothing to send to. *@
             <textarea class="studio-ai-refine-input"
                       rows="2"
                       placeholder="@RefinePlaceholder"
                       aria-label="Refine or ask a follow-up"
-                      disabled="@Busy"
+                      disabled="@Disabled"
                       @bind="_refine"
                       @bind:event="oninput"
                       @onkeydown="OnRefineKeyDown"></textarea>
@@ -91,7 +115,7 @@
                 @SecondaryRefineActions
                 <button type="button"
                         class="console-button studio-ai-send"
-                        disabled="@(Busy || string.IsNullOrWhiteSpace(_refine))"
+                        disabled="@(Busy || Disabled || string.IsNullOrWhiteSpace(_refine))"
                         @onclick="Send">
                     @SendLabel
                 </button>
@@ -150,9 +174,18 @@
     [Parameter]
     public string SendLabel { get; set; } = "Send ⌘↵";
 
-    /// <summary>Disables every interactive control while the surface is awaiting the server.</summary>
+    /// <summary>In-flight state: the surface is awaiting the server for the current turn. Send and
+    /// clarification choices are disabled and the "Honua is working…" + Cancel affordance shows, but the
+    /// refine textarea stays enabled so the user can compose a follow-up. Distinct from <see cref="Disabled"/>.</summary>
     [Parameter]
     public bool Busy { get; set; }
+
+    /// <summary>Hard-disables the whole conversation (e.g. AI generation is unavailable on this server).
+    /// Every input — including the refine textarea — is disabled and the working indicator never shows,
+    /// so an AI-off pane never falsely claims to be "working". Callers pass this instead of folding an
+    /// unavailable state into <see cref="Busy"/>.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
 
     /// <summary>Raised with the refine text when Send is clicked. The text is cleared after dispatch.</summary>
     [Parameter]
@@ -165,6 +198,11 @@
     /// <summary>Raised when a turn's evidence link is clicked.</summary>
     [Parameter]
     public EventCallback<StudioConversationTurn> OnEvidence { get; set; }
+
+    /// <summary>Raised when the Cancel button is clicked during a busy in-flight request. The caller
+    /// should cancel the in-flight operation and set <see cref="Busy"/> to false when honoured.</summary>
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
 
     // The Send button advertises "Send ⌘↵" but no keydown handler existed, so the shortcut did nothing.
     // Ctrl+Enter / Cmd+Enter now sends (the modifier matches the multi-line textarea convention: a bare
@@ -183,7 +221,7 @@
 
     private async Task Send()
     {
-        if (Busy || string.IsNullOrWhiteSpace(_refine))
+        if (Busy || Disabled || string.IsNullOrWhiteSpace(_refine))
         {
             return;
         }
@@ -201,4 +239,7 @@
 
     private Task RaiseEvidence(StudioConversationTurn turn) =>
         OnEvidence.HasDelegate ? OnEvidence.InvokeAsync(turn) : Task.CompletedTask;
+
+    private Task Cancel() =>
+        OnCancel.HasDelegate ? OnCancel.InvokeAsync() : Task.CompletedTask;
 }

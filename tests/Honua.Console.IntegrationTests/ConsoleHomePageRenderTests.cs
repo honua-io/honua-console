@@ -60,4 +60,36 @@ public sealed class ConsoleHomePageRenderTests
             },
             TimeSpan.FromSeconds(5));
     }
+
+    [Fact]
+    public void Home_SurvivesWithoutRealtimeOrOpsSummaryServices_AndRendersTheirDegradedStates()
+    {
+        // console#292 regression (PR #295 CI): the home page embeds the ops-summary strip and a
+        // live inbox band, but this harness registers neither the realtime client nor the strip's
+        // health/findings clients. The page must resolve those optionally and render the honest
+        // degraded states — Manual pill, unavailable health, em-dashed counts — never throw
+        // during render.
+        using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
+
+        var page = ctx.Render<ConsoleHomePage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                // Inbox band: no realtime client registered -> honest Manual pill.
+                Assert.Contains("Manual", page.Find("[data-home-live-state]").TextContent);
+
+                // Ops-summary strip: health data source is unregistered -> unavailable, not a
+                // fabricated value; findings count is em-dashed; approvals still binds through
+                // the registered inbox client (an allowed empty read -> 0).
+                Assert.Equal("Unavailable", page.Find("[data-summary-unavailable='health']").TextContent.Trim());
+                Assert.Equal("—", page.Find("[data-summary-value='findings']").TextContent.Trim());
+                Assert.Equal("—", page.Find("[data-summary-value='breaches']").TextContent.Trim());
+                Assert.Equal("0", page.Find("[data-summary-value='approvals']").TextContent.Trim());
+
+                // Approvals liveness stays honest: no realtime client means manual refresh.
+                Assert.DoesNotContain("is-live", page.Find("[data-summary-liveness]").ClassList);
+            },
+            TimeSpan.FromSeconds(5));
+    }
 }

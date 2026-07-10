@@ -1,8 +1,10 @@
 @page "/operate/versions"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @inject IVersionManagementOperation VersionOps
 @inject NavigationManager Navigation
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page operate-versions" data-version-manager>
     <div class="console-page-heading">
@@ -112,7 +114,7 @@
                                                         @onclick="() => BeginAlter(version)" disabled="@_busy"
                                                         data-alter="@version.VersionGuid">Alter</button>
                                                 <button class="console-button console-button-danger" type="button"
-                                                        @onclick="() => DeleteAsync(version)" disabled="@_busy"
+                                                        @onclick="() => ConfirmDelete(version)" disabled="@_busy"
                                                         data-delete="@version.VersionGuid">Delete</button>
                                             </div>
                                         </td>
@@ -188,6 +190,7 @@
             </section>
         }
     }
+<ConsoleConfirmDialog @ref="_confirm" />
 </section>
 
 @code {
@@ -203,6 +206,7 @@
     private VersionOperationResult? _lastResult;
     private ReconcileResultView? _lastReconcile;
     private string? _reconciledVersionGuid;
+    private ConsoleConfirmDialog? _confirm;
 
     // Create/alter form state. _alterGuid is null in create mode and the version guid in alter mode.
     private string? _alterGuid;
@@ -233,53 +237,51 @@
         }
     }
 
-    private async Task ReconcileAsync(OperateVersionView version)
+    private Task ReconcileAsync(OperateVersionView version)
     {
-        if (_serviceId is null)
-        {
-            return;
-        }
-
-        _busy = true;
+        if (_serviceId is null) return Task.CompletedTask;
         _lastResult = null;
         _reconciledVersionGuid = version.VersionGuid;
-        try
-        {
-            _lastReconcile = await VersionOps.ReconcileAsync(new ReconcileVersionCommand
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                ServiceId = _serviceId,
-                VersionGuid = version.VersionGuid,
-                Policy = _policy,
-                AbortIfConflicts = _abortIfConflicts
-            });
-        }
-        finally
-        {
-            _busy = false;
-        }
+                _lastReconcile = await VersionOps.ReconcileAsync(new ReconcileVersionCommand
+                {
+                    ServiceId = _serviceId,
+                    VersionGuid = version.VersionGuid,
+                    Policy = _policy,
+                    AbortIfConflicts = _abortIfConflicts
+                });
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: "Couldn't reconcile the version");
     }
 
-    private async Task DeleteAsync(OperateVersionView version)
+    private void ConfirmDelete(OperateVersionView version)
     {
-        if (_serviceId is null)
-        {
-            return;
-        }
+        if (_confirm is null) return;
+        _confirm.Open(
+            title: $"Delete version '{version.VersionName}'?",
+            onConfirm: () => DeleteAsync(version),
+            body: $"This permanently removes branch version '{version.VersionName}'. Edits in this version will be lost. This cannot be undone.",
+            confirmLabel: "Delete version");
+    }
 
-        _busy = true;
+    private Task DeleteAsync(OperateVersionView version)
+    {
+        if (_serviceId is null) return Task.CompletedTask;
         _lastReconcile = null;
-        try
-        {
-            _lastResult = await VersionOps.DeleteVersionAsync(_serviceId, version.VersionGuid);
-            if (_lastResult.Succeeded)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                _versions = await VersionOps.ListVersionsAsync(_serviceId);
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
+                _lastResult = await VersionOps.DeleteVersionAsync(_serviceId, version.VersionGuid);
+                if (_lastResult.Succeeded)
+                {
+                    _versions = await VersionOps.ListVersionsAsync(_serviceId);
+                }
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: $"Couldn't delete version '{version.VersionName}'");
     }
 
     private void BeginAlter(OperateVersionView version)
@@ -304,51 +306,50 @@
         _formDescription = string.Empty;
     }
 
-    private async Task SubmitFormAsync()
+    private Task SubmitFormAsync()
     {
         if (_serviceId is null || string.IsNullOrWhiteSpace(_formName))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        _busy = true;
         _lastReconcile = null;
-        try
-        {
-            if (_alterGuid is { } guid)
+        return Notifications.RunGuardedAsync(
+            async () =>
             {
-                _lastResult = await VersionOps.AlterVersionAsync(new AlterVersionCommand
+                if (_alterGuid is { } guid)
                 {
-                    ServiceId = _serviceId,
-                    VersionGuid = guid,
-                    VersionName = _formName.Trim(),
-                    Access = _formAccess,
-                    Description = _formDescription
-                });
-            }
-            else
-            {
-                _lastResult = await VersionOps.CreateVersionAsync(new CreateVersionCommand
+                    _lastResult = await VersionOps.AlterVersionAsync(new AlterVersionCommand
+                    {
+                        ServiceId = _serviceId,
+                        VersionGuid = guid,
+                        VersionName = _formName.Trim(),
+                        Access = _formAccess,
+                        Description = _formDescription
+                    });
+                }
+                else
                 {
-                    ServiceId = _serviceId,
-                    VersionName = _formName.Trim(),
-                    Owner = string.IsNullOrWhiteSpace(_formOwner) ? null : _formOwner.Trim(),
-                    Access = _formAccess,
-                    Description = string.IsNullOrWhiteSpace(_formDescription) ? null : _formDescription.Trim()
-                });
-            }
+                    _lastResult = await VersionOps.CreateVersionAsync(new CreateVersionCommand
+                    {
+                        ServiceId = _serviceId,
+                        VersionName = _formName.Trim(),
+                        Owner = string.IsNullOrWhiteSpace(_formOwner) ? null : _formOwner.Trim(),
+                        Access = _formAccess,
+                        Description = string.IsNullOrWhiteSpace(_formDescription) ? null : _formDescription.Trim()
+                    });
+                }
 
-            if (_lastResult.Succeeded)
-            {
-                CancelAlter();
-                _versions = await VersionOps.ListVersionsAsync(_serviceId);
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
+                if (_lastResult.Succeeded)
+                {
+                    CancelAlter();
+                    _versions = await VersionOps.ListVersionsAsync(_serviceId);
+                }
+            },
+            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            failureMessage: _alterGuid is null ? "Couldn't create the version" : "Couldn't alter the version");
     }
+
 
     private string ConflictsHref(string versionGuid) =>
         $"/operate/versions/{Uri.EscapeDataString(_serviceId ?? string.Empty)}/{Uri.EscapeDataString(versionGuid)}/conflicts";

@@ -1,8 +1,9 @@
+using Honua.Sdk.Studio.Packages;
 using System.Text;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 // The server wire enum, not the editor-catalog enum Honua.Console.Shell.Models.StudioPackageFamily.
-using StudioPackageFamily = Honua.Console.Contracts.StudioPackageFamily;
+using StudioPackageFamily = Honua.Sdk.Studio.Packages.StudioPackageFamily;
 
 namespace Honua.Console.Shell.Services;
 
@@ -422,7 +423,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                     : current;
             }
 
-            var updatedEnvelope = ApplyClarificationToEnvelope(current.Data.Envelope ?? new StudioPackageEnvelope(), question, choice);
+            var updatedEnvelope = ApplyClarificationToEnvelope(current.Data.Envelope, question, choice);
             var update = new UpdateStudioPackageDraftRequest
             {
                 PackageKey = current.Data.PackageKey,

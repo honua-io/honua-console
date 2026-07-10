@@ -1,7 +1,9 @@
 @page "/operate/layers/{ResourceId}/style"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Services
 @inject IOperateLayerStyleOverrideDataSource OverrideData
 @inject IStudioMapStyleCatalogDataSource StyleCatalog
+@inject IConsoleNotificationService Notifications
 
 <section class="console-page operate-layer-style" data-layer-style="@ResourceId">
     <div class="console-page-heading">
@@ -156,23 +158,21 @@
     private void SetDrawing(string slotId, ChangeEventArgs e) =>
         _drawingEdits[slotId] = e.Value?.ToString() ?? string.Empty;
 
-    private async Task SaveSlotAsync(OperateLayerSlotStyleOverride slot)
+    private Task SaveSlotAsync(OperateLayerSlotStyleOverride slot)
     {
-        _saving = true;
         _saveResult = null;
-        try
-        {
-            var edit = new OperateLayerSlotStyleOverrideEdit(
-                ResourceId,
-                slot.SlotId,
-                PopupInfoJson: PopupValue(slot.SlotId),
-                DrawingInfoJson: DrawingValue(slot.SlotId));
-            _saveResult = await OverrideData.SaveOverrideAsync(edit);
-        }
-        finally
-        {
-            _saving = false;
-        }
+        return Notifications.RunGuardedAsync(
+            async () =>
+            {
+                var edit = new OperateLayerSlotStyleOverrideEdit(
+                    ResourceId,
+                    slot.SlotId,
+                    PopupInfoJson: PopupValue(slot.SlotId),
+                    DrawingInfoJson: DrawingValue(slot.SlotId));
+                _saveResult = await OverrideData.SaveOverrideAsync(edit);
+            },
+            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            failureMessage: "Couldn't save style override");
     }
 
     private static string StateKind(string state) => state switch

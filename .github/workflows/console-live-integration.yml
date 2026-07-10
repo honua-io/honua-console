@@ -1,0 +1,155 @@
+name: Console Live Integration (PR)
+
+# PR-required signal lane that actually RUNS the opt-in Testcontainers /
+# live-server suites (Studio authoring, form builder, Operate transition,
+# end-to-end smoke) which otherwise skip in the fast `ci.yml` validate job
+# because that job never sets HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS and the PR
+# runner is not asked to boot a server. Those suites are the only automated
+# proof that Console <-> honua-server Studio wiring works, so they must run on
+# every PR — not just in the nightly schedule (console-nightly.yml).
+#
+# This lane runs on a Docker-enabled ubuntu runner, sets the opt-in flags, and
+# pins a connect-only honua-server image so the SkippableFacts execute instead
+# of skipping. It mirrors the connect-only lane of console-nightly.yml; the two
+# source-build facts (GitOps release / Operate transition source build) still
+# skip cleanly here because no honua-server source ref is checked out (they
+# need a cross-repo token and are exercised by the nightly server_ref input).
+
+on:
+  push:
+    branches:
+      - trunk
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: console-live-integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-integration:
+    name: Live Integration (Testcontainers, pinned server image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Single opt-in flag that enables every live-server lane. Must be the
+      # literal "true" (the Native.Core source-build facts compare exactly).
+      HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS: "true"
+      HONUA_CONSOLE_INTEGRATION: "true"
+      # Pinned, repo-variable-overridable connect-only honua-server image.
+      # Pin a digest via the HONUA_CONSOLE_PR_SERVER_IMAGE repo variable for a
+      # deterministic required check; the literal fallback keeps the lane green
+      # out of the box. A job-level env block cannot read the `env` context, so
+      # reference the `vars` context directly with a literal fallback here.
+      HONUA_CONSOLE_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
+      HONUA_CONSOLE_OPERATE_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
+      # The pinned image boots plain HTTP on 8080 and exposes /healthz/live.
+      HONUA_CONSOLE_SERVER_SCHEME: http
+      HONUA_CONSOLE_SERVER_PORT: "8080"
+      HONUA_CONSOLE_SERVER_HEALTH_PATH: /healthz/live
+      # Dev-auth bypass keeps the admin-protected Studio / validate surfaces
+      # reachable. Repo secrets override when a hardened image needs real
+      # credentials; empty values keep only those few admin-gated facts skipped.
+      HONUA_CONSOLE_ADMIN_API_KEY: ${{ secrets.HONUA_CONSOLE_ADMIN_API_KEY }}
+      HONUA_CONSOLE_ADMIN_TOKEN: ${{ secrets.HONUA_CONSOLE_ADMIN_TOKEN }}
+      # Extra server env handed to the connect-only image so dev-auth + the
+      # durable Studio/job surfaces are enabled (semicolon-separated KEY=VALUE).
+      # Licensing__DevGrantEdition=Enterprise wires the Redis-backed durable
+      # job/Studio stores (caching.redis entitlement) outside Production.
+      HONUA_CONSOLE_SERVER_ENV: "ASPNETCORE_ENVIRONMENT=Test;HONUA_DEV_AUTH=true;HONUA_DEV_AUTH_ALLOW_BYPASS=true;HONUA_REGISTER_TEST_INFRASTRUCTURE=true;Licensing__DevGrantEdition=Enterprise"
+      HONUA_CONSOLE_LIVE_SERVER_STARTUP_TIMEOUT_SECONDS: "420"
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - name: Pre-pull honua-server image
+        run: |
+          echo "Pulling pinned honua-server image: ${HONUA_CONSOLE_SERVER_IMAGE}"
+          docker pull "${HONUA_CONSOLE_SERVER_IMAGE}"
+
+      - name: Authenticate GitHub Packages feed
+        run: dotnet nuget update source github-honua --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
+
+      - name: Restore .NET projects
+        run: dotnet restore Honua.Console.slnx
+
+      # Runs the console<->server live-server suite (Studio authoring/publish
+      # round-trips, form builder, catalog/publication binding, end-to-end
+      # smoke) against the pinned image with the opt-in flag SET, so the
+      # SkippableFacts execute instead of skipping as they do in the fast
+      # ci.yml validate job. This is the PR-time proof that Console Studio
+      # wiring works against a real honua-server.
+      #
+      # The Native.Core live-server lane (Operate observability Testcontainers)
+      # stays in console-nightly.yml for now: its dev-fixture seeding currently
+      # 500s on the pinned server image (honua-server dev-fixtures bug), which
+      # would make this PR lane red for a server-side reason unrelated to the
+      # Console Studio wiring. Re-add the Native.Core step here once that server
+      # fixture 500 is fixed.
+      # Two classes are structurally incompatible with THIS lane (opt-in env SET,
+      # connect-only HTTP image) and are excluded so they don't red the lane for
+      # reasons unrelated to Studio wiring — they still run where they belong:
+      #   - ConsoleEndToEndSmokeHarnessTests: asserts the *absent*-opt-in-env
+      #     clean-skip contract, so it only holds on the standard ci.yml runner
+      #     (with the flag SET it throws SkipException = fail here).
+      #   - ConsoleTrustValidationIntegrationTests: mTLS/TLS fingerprint trust
+      #     validation that requires an HTTPS server; the connect-only image
+      #     serves plain HTTP, so it cannot observe a certificate fingerprint.
+      #     Covered by the HTTPS-capable nightly lane instead.
+      - name: Run Console integration live-server suites (Studio + form builder + smoke)
+        run: |
+          dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj \
+            --no-restore --nologo --verbosity normal \
+            --filter "FullyQualifiedName!~ConsoleEndToEndSmokeHarnessTests&FullyQualifiedName!~ConsoleTrustValidationIntegrationTests" \
+            --logger "trx;LogFileName=integration.trx" \
+            --results-directory artifacts/test-results/integration
+
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Console Live Integration (PR)"
+            echo ""
+            echo "Ran the opt-in Testcontainers / live-server suites with the live env SET,"
+            echo "against a pinned connect-only honua-server image."
+            echo ""
+            echo "| Setting | Value |"
+            echo "| --- | --- |"
+            echo "| Server image | \`${HONUA_CONSOLE_SERVER_IMAGE}\` |"
+            echo "| Run-live flag | \`HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=${HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS}\` |"
+            echo "| Health probe | \`${HONUA_CONSOLE_SERVER_SCHEME}://:${HONUA_CONSOLE_SERVER_PORT}${HONUA_CONSOLE_SERVER_HEALTH_PATH}\` |"
+            echo ""
+            echo "### Passed / failed / skipped counts"
+            echo ""
+            echo '```'
+            grep -rhoE 'outcome="(Passed|Failed|NotExecuted)"' artifacts/test-results --include='*.trx' 2>/dev/null \
+              | sort | uniq -c || echo "no trx files found"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results (trx)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: console-live-integration-trx
+          path: artifacts/test-results/**/*.trx
+          if-no-files-found: warn

@@ -174,7 +174,6 @@ public sealed class StudioDashboardBuilderRenderTests
     [Fact]
     public void DashboardBuilder_RefinePrompt_ForwardsToServerGenerationAndRendersResult()
     {
-        StudioDashboardGenerationRequest? sent = null;
         var data = new FakeDashboardDataSource
         {
             Workspace = new StudioDashboardWorkspace([], []),

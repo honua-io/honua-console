@@ -24,7 +24,7 @@ public sealed class OperateObservabilityTestcontainersTests
     private const string FixtureServiceId = "operate-fixture-console";
     private const string FixtureCorrelationId = "corr-operate-fixture-001";
     private const string FixtureFailedJobId = "operate-fixture-job-failed";
-    private const string FixtureInvestigationId = "inv-operate-fixture-console";
+    private const string FixtureInvestigationTitle = "Operate fixture harbor alert triage";
 
     [SkippableFact]
     [Trait("Category", "Testcontainers")]
@@ -114,6 +114,13 @@ public sealed class OperateObservabilityTestcontainersTests
             var services = new ServiceCollection();
             services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
             services.AddSingleton<IConsoleOperateObservabilityClient>(operateClient);
+            // OperateObservabilityPage (and its ConsoleCapabilityGate) inject IConsoleCapabilityManifest
+            // to gate the SIEM/investigations depth surface behind the first-release cut-line. This
+            // hand-rolled render container must register it or Blazor throws at injection time. Advertise
+            // siem-investigations so the investigations section renders live server data (asserted below);
+            // AddHonuaConsoleShell wires the config-list-backed default in the real host.
+            services.AddSingleton<IConsoleCapabilityManifest>(
+                new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
             var provider = services.BuildServiceProvider();
 
             await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
@@ -125,11 +132,20 @@ public sealed class OperateObservabilityTestcontainersTests
 
             Assert.Contains("Testcontainers Honua Server", html);
             Assert.Contains("alert_rule.create", html);
-            Assert.Contains("minSeverity", html);
+            // The seeded geofence alert rule (zone-bound "Harbor Entry Testcontainers") renders its
+            // rule-type cell as "geofence:{trigger}" in the Rules section, proving the live alert-rule
+            // surface is bound to real server data. (The earlier "minSeverity" expectation was stale:
+            // it is only an events-query parameter name, never a rendered rule-editor element, so it
+            // never appeared in the page markup.)
+            Assert.Contains("geofence:enter", html);
             Assert.Contains("Harbor Entry Testcontainers", html);
             Assert.Contains("Honolulu Harbor Testcontainers", html);
             Assert.Contains(FixtureFailedJobId, html);
-            Assert.Contains(FixtureInvestigationId, html);
+            // The investigations card renders the seeded investigation's Title (live server data),
+            // not its raw resource id, so assert the rendered title. (The earlier assertion on the
+            // raw "inv-operate-fixture-console" id was stale: that id is not projected into the
+            // investigations card markup.)
+            Assert.Contains(FixtureInvestigationTitle, html);
             Assert.Contains(FixtureCorrelationId, html);
             Assert.DoesNotContain("OperateObservabilityFixture.Default", html);
             Assert.DoesNotContain("job-publish-001", html);
