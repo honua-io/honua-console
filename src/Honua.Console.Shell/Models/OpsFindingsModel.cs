@@ -17,6 +17,7 @@ public sealed record OpsFindingView(
     string Title,
     string Explanation,
     string DetectedAt,
+    DateTimeOffset DetectedAtValue,
     IReadOnlyList<OpsFindingSubjectRow> Subject,
     IReadOnlyList<string> EvidenceRefs,
     OpsFindingActionView? RecommendedAction,
@@ -40,7 +41,12 @@ public sealed record OpsFindingView(
 public sealed record OpsFindingSubjectRow(string Label, string Value);
 
 /// <summary>The recommended, approval-gated action a finding can propose.</summary>
-public sealed record OpsFindingActionView(string Kind, string Summary, string Reason);
+public sealed record OpsFindingActionView(
+    string Kind,
+    string Summary,
+    string Reason,
+    bool AutoSafe,
+    int BlastRadius);
 
 /// <summary>Maps ops-findings wire responses into the Copilot Findings view models.</summary>
 public static class OpsFindingsMapper
@@ -67,6 +73,7 @@ public static class OpsFindingsMapper
             string.IsNullOrWhiteSpace(finding.Title) ? "(untitled finding)" : finding.Title!,
             finding.Explanation ?? string.Empty,
             FormatTimestamp(finding.DetectedAt),
+            finding.DetectedAt,
             MapSubject(finding.Subject),
             finding.EvidenceRefs ?? [],
             finding.RecommendedAction is null
@@ -74,7 +81,9 @@ public static class OpsFindingsMapper
                 : new OpsFindingActionView(
                     string.IsNullOrWhiteSpace(finding.RecommendedAction.Kind) ? "action" : finding.RecommendedAction.Kind!,
                     finding.RecommendedAction.Summary ?? string.Empty,
-                    finding.RecommendedAction.Reason ?? string.Empty),
+                    finding.RecommendedAction.Reason ?? string.Empty,
+                    finding.RecommendedAction.AutoSafe,
+                    Math.Max(1, finding.RecommendedAction.BlastRadius)),
             finding.Subject?.OperationId);
     }
 
@@ -85,12 +94,13 @@ public static class OpsFindingsMapper
             return [];
         }
 
-        var rows = new List<OpsFindingSubjectRow>(5);
+        var rows = new List<OpsFindingSubjectRow>(6);
         AddRow(rows, "Target", subject.TargetId);
         AddRow(rows, "Workload", subject.WorkloadId);
         AddRow(rows, "Channel", subject.Channel);
         AddRow(rows, "Operation", subject.OperationId);
         AddRow(rows, "Release", subject.ReleaseVersion);
+        AddRow(rows, "Protocol", subject.Protocol);
         return rows;
     }
 

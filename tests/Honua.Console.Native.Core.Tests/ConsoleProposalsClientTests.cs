@@ -29,6 +29,9 @@ public sealed class ConsoleProposalsClientTests
               "requestedBy": "agent.ingest",
               "requestedByAgent": "agent.ingest",
               "summary": "Promote parcels to prod",
+              "findingId": "finding-release-skew",
+              "autonomyRule": "platform-release-skew",
+              "actionDiscriminator": "release.converge",
               "riskLevel": "Medium",
               "createdAt": "2026-06-28T10:00:00Z",
               "updatedAt": "2026-06-28T10:05:00Z"
@@ -59,6 +62,9 @@ public sealed class ConsoleProposalsClientTests
         Assert.Equal(ConsoleProposalStatus.AwaitingApproval, first.Status);
         Assert.Equal(ConsoleProposalRisk.Medium, first.RiskLevel);
         Assert.Equal("agent.ingest", first.RequestedBy);
+        Assert.Equal("finding-release-skew", first.FindingId);
+        Assert.Equal("platform-release-skew", first.AutonomyRule);
+        Assert.Equal("release.converge", first.ActionDiscriminator);
 
         var request = Assert.Single(handler.Requests);
         Assert.EndsWith("/api/v1/admin/proposals", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);
@@ -89,6 +95,9 @@ public sealed class ConsoleProposalsClientTests
           "status": "AwaitingApproval",
           "requestedBy": "agent.ingest",
           "summary": "Import parcels.gpkg",
+          "findingId": "finding-import",
+          "autonomyRule": "import-backlog",
+          "actionDiscriminator": "imports.retry",
           "diff": ["+ layer parcels", "+ 12,345 features"],
           "dryRun": ["estimated 12s", "no destructive ops"],
           "riskLevel": "Low",
@@ -112,6 +121,10 @@ public sealed class ConsoleProposalsClientTests
         Assert.Single(detail.Warnings);
         Assert.Empty(detail.BlockingReasons);
         Assert.Equal("RequiresApproval", detail.GuardrailTier);
+        Assert.Equal("finding-import", detail.FindingId);
+        Assert.Equal("import-backlog", detail.AutonomyRule);
+        Assert.Equal("imports.retry", detail.ActionDiscriminator);
+        Assert.Equal("finding-import", detail.ToSummary().FindingId);
 
         var request = Assert.Single(handler.Requests);
         Assert.EndsWith("/api/v1/admin/proposals/prop-1", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);

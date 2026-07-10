@@ -135,6 +135,15 @@ public sealed record ConsoleProposalSummary(
     /// </summary>
     public ConsoleProposalSource Source { get; init; } = ConsoleProposalSource.Server;
 
+    /// <summary>Deterministic ops-finding id that created this proposal, when applicable.</summary>
+    public string? FindingId { get; init; }
+
+    /// <summary>Autonomy rule associated with the source finding, when applicable.</summary>
+    public string? AutonomyRule { get; init; }
+
+    /// <summary>Bounded action discriminator associated with the source finding.</summary>
+    public string? ActionDiscriminator { get; init; }
+
     /// <summary>Whether an operator can act on this proposal right now (approve / reject).</summary>
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
@@ -175,6 +184,15 @@ public sealed record ConsoleProposalDetail(
     /// <summary>The system that owns this proposal (server vs devops-bridge). See <see cref="ConsoleProposalSource"/>.</summary>
     public ConsoleProposalSource Source { get; init; } = ConsoleProposalSource.Server;
 
+    /// <summary>Deterministic ops-finding id that created this proposal, when applicable.</summary>
+    public string? FindingId { get; init; }
+
+    /// <summary>Autonomy rule associated with the source finding, when applicable.</summary>
+    public string? AutonomyRule { get; init; }
+
+    /// <summary>Bounded action discriminator associated with the source finding.</summary>
+    public string? ActionDiscriminator { get; init; }
+
     /// <summary>Whether an operator can act on this proposal right now (approve / reject).</summary>
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
@@ -198,6 +216,9 @@ public sealed record ConsoleProposalDetail(
         UpdatedAt)
     {
         Source = Source,
+        FindingId = FindingId,
+        AutonomyRule = AutonomyRule,
+        ActionDiscriminator = ActionDiscriminator,
     };
 }
 

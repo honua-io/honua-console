@@ -269,7 +269,12 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         Summary: wire.Summary ?? string.Empty,
         RiskLevel: ConsoleProposalPresentation.MapRisk(wire.RiskLevel),
         CreatedAt: wire.CreatedAt,
-        UpdatedAt: wire.UpdatedAt);
+        UpdatedAt: wire.UpdatedAt)
+    {
+        FindingId = wire.FindingId,
+        AutonomyRule = wire.AutonomyRule,
+        ActionDiscriminator = wire.ActionDiscriminator,
+    };
 
     internal static ConsoleProposalDetail MapDetail(ProposalDetailWire wire) => new(
         ProposalId: wire.ProposalId ?? string.Empty,
@@ -289,7 +294,12 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         ExecutionOperationId: wire.ExecutionOperationId,
         CreatedAt: wire.CreatedAt,
         UpdatedAt: wire.UpdatedAt,
-        ResolvedAt: wire.ResolvedAt);
+        ResolvedAt: wire.ResolvedAt)
+    {
+        FindingId = wire.FindingId,
+        AutonomyRule = wire.AutonomyRule,
+        ActionDiscriminator = wire.ActionDiscriminator,
+    };
 
     private static string MapErrorMessage(HttpStatusCode code, HttpMethod method, string relativePath) => code switch
     {
@@ -331,6 +341,9 @@ public sealed record ProposalSummaryWire
     public string? RiskLevel { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
+    public string? FindingId { get; init; }
+    public string? AutonomyRule { get; init; }
+    public string? ActionDiscriminator { get; init; }
 }
 
 /// <summary>Wire shape of the server proposal detail (honua-server #1694).</summary>
@@ -354,6 +367,9 @@ public sealed record ProposalDetailWire
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     public DateTimeOffset? ResolvedAt { get; init; }
+    public string? FindingId { get; init; }
+    public string? AutonomyRule { get; init; }
+    public string? ActionDiscriminator { get; init; }
 }
 
 /// <summary>Wire wrapper for the proposal list response.</summary>
