@@ -27,6 +27,7 @@ namespace Honua.Console.Contracts;
 public static class OpsHealthRoutes
 {
     /// <summary>The consolidated ops-health snapshot route.</summary>
+    [OpsParityRoute("GET")]
     public const string Snapshot = "api/v1/admin/observability/ops-health";
 
     /// <summary>
@@ -36,6 +37,7 @@ public static class OpsHealthRoutes
     /// reconnect gap-fill contract for the <c>ops-health</c> realtime hub group — there is no
     /// Last-Event-ID; a dropped connection backfills by re-requesting this window.
     /// </summary>
+    [OpsParityRoute("GET")]
     public const string History = "api/v1/admin/observability/ops-health/history";
 }
 

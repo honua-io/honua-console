@@ -28,13 +28,18 @@ namespace Honua.Console.Contracts;
 public static class OpsFindingsRoutes
 {
     /// <summary>The findings list route.</summary>
+    [OpsParityRoute("GET")]
     public const string List = "api/v1/admin/observability/findings";
+
+    /// <summary>The route template for proposing a finding's recommended action.</summary>
+    [OpsParityRoute("POST")]
+    public const string ProposeTemplate = List + "/{findingId}/propose";
 
     /// <summary>Builds the propose-action route for a specific finding id.</summary>
     /// <param name="findingId">The deterministic finding identifier.</param>
     /// <returns>The relative propose route.</returns>
     public static string Propose(string findingId) =>
-        $"{List}/{Uri.EscapeDataString(findingId)}/propose";
+        ProposeTemplate.Replace("{findingId}", Uri.EscapeDataString(findingId), StringComparison.Ordinal);
 }
 
 /// <summary>
