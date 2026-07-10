@@ -119,6 +119,10 @@ public sealed class OpsFindingSubjectResponse
     /// <summary>Gets or sets the platform release version, when applicable.</summary>
     [JsonPropertyName("releaseVersion")]
     public string? ReleaseVersion { get; set; }
+
+    /// <summary>Gets or sets the GIS protocol family, when applicable.</summary>
+    [JsonPropertyName("protocol")]
+    public string? Protocol { get; set; }
 }
 
 /// <summary>Wire model of a finding's recommended action.</summary>
@@ -135,6 +139,14 @@ public sealed class OpsFindingActionResponse
     /// <summary>Gets or sets the operator-facing reason recorded on the proposal.</summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
+
+    /// <summary>Gets or sets whether the server marks this action eligible for autonomy evaluation.</summary>
+    [JsonPropertyName("autoSafe")]
+    public bool AutoSafe { get; set; }
+
+    /// <summary>Gets or sets the bounded blast-radius estimate checked by server policy.</summary>
+    [JsonPropertyName("blastRadius")]
+    public int BlastRadius { get; set; } = 1;
 }
 
 /// <summary>
@@ -147,7 +159,10 @@ public sealed class OpsFindingProposeResponse
     [JsonPropertyName("findingId")]
     public string? FindingId { get; set; }
 
-    /// <summary>Gets or sets the proposal outcome status (Executed/ProposalCreated/Blocked/NotSupported).</summary>
+    /// <summary>
+    /// Gets or sets the gateway outcome status (Executed/ProposalCreated/Blocked/NotSupported,
+    /// plus verified autonomy terminal states such as Failed/RolledBack/Indeterminate/Canceled).
+    /// </summary>
     [JsonPropertyName("status")]
     public string? Status { get; set; }
 

@@ -109,6 +109,7 @@ public sealed class ConsoleOpsParityMapTests
         return normalized.StartsWith("/api/v1/operate/", StringComparison.Ordinal)
             || normalized.StartsWith("/api/v1/admin/observability/ops-health", StringComparison.Ordinal)
             || normalized.StartsWith("/api/v1/admin/observability/findings", StringComparison.Ordinal)
+            || normalized.StartsWith("/api/v1/admin/observability/autonomy/", StringComparison.Ordinal)
             || normalized.StartsWith("/api/v1/admin/deploy/", StringComparison.Ordinal)
             || normalized.StartsWith("/api/v1/admin/proposals", StringComparison.Ordinal)
             || string.Equals(normalized, "/api/v1/admin/platform-release/converge", StringComparison.Ordinal);

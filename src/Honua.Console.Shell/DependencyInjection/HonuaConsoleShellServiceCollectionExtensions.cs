@@ -304,6 +304,20 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
                 serverCredentialMode));
 
+        // Graduated findings autonomy (console#289, honua-server#2557): a narrow
+        // capability-detected client reads server-confirmed global/per-rule policy,
+        // graduation counters and the unified action/policy audit trail. Human policy
+        // mutations use the same fail-closed operator bearer as findings proposals;
+        // older servers return Unsupported and leave the propose-only seat unchanged.
+        services.TryAddSingleton<IConsoleOpsAutonomyClient>(serviceProvider =>
+            new HttpConsoleOpsAutonomyClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                honuaServerAdminApiKey,
+                serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
+                serverCredentialMode));
+
         // In-product support loop (#164). The ticket client binds to the
         // honua-support API (POST/GET /api/v1/tickets) through the
         // Honua.Console.Contracts shim, with the bearer token from the active
