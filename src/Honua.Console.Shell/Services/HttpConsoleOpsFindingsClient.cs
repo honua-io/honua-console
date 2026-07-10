@@ -9,9 +9,10 @@ namespace Honua.Console.Shell.Services;
 /// Binds the Copilot Findings surface to a real honua-server through the deterministic
 /// ops-findings endpoints (group <c>/api/v1/admin/observability</c>, admin-authorized,
 /// bare JSON — NO ApiResponse envelope). Base address comes from the active
-/// <see cref="ConsoleEnvironmentProfile"/>. The active operator bearer is preferred so
-/// proposed actions retain the human audit principal; a configured admin API key is an
-/// explicit headless fallback. Deserialization is source-generated for trim/AOT safety.
+/// <see cref="ConsoleEnvironmentProfile"/>. The active operator bearer is required for
+/// proposed actions so they retain the human audit principal; a configured
+/// admin API key is available only in explicit, sessionless headless/service mode.
+/// Deserialization is source-generated for trim/AOT safety.
 ///
 /// Charter section 11 (no standing mock for server-owned data) is preserved: this client
 /// never returns seeded findings. When no environment profile is bound, every call
@@ -28,22 +29,34 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
+    private readonly IConsoleOperatorBearerProvider _operatorBearerProvider;
+    private readonly ConsoleServerCredentialMode _credentialMode;
 
     /// <summary>Initializes a new instance of the <see cref="HttpConsoleOpsFindingsClient"/> class.</summary>
     /// <param name="http">The shared HTTP client.</param>
     /// <param name="profileStore">The active-environment profile store.</param>
     /// <param name="sessionStore">The active operator account-session store.</param>
     /// <param name="adminApiKey">The headless fallback API key, when configured.</param>
+    /// <param name="operatorBearerProvider">The profile-partitioned operator bearer provider.</param>
+    /// <param name="credentialMode">The explicit interactive or headless credential mode.</param>
     public HttpConsoleOpsFindingsClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
         IConsoleAccountSessionStore sessionStore,
-        string? adminApiKey = null)
+        string? adminApiKey = null,
+        IConsoleOperatorBearerProvider? operatorBearerProvider = null,
+        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
+        _operatorBearerProvider = operatorBearerProvider
+            ?? new ConsoleOperatorBearerProvider(
+                sessionStore,
+                new UnavailableConsoleOperatorBearerExchange(),
+                TimeProvider.System);
+        _credentialMode = credentialMode;
     }
 
     /// <inheritdoc />
@@ -123,12 +136,19 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             ConsoleServerHttp.BuildUri(profile.ServerBaseUri, OpsFindingsRoutes.Propose(findingId)));
-        await ConsoleServerHttp.AttachAuthenticationAsync(
+        var authentication = await ConsoleServerHttp.AttachMutationAuthenticationAsync(
             request,
-            _sessionStore,
+            _operatorBearerProvider,
             profile,
             _adminApiKey,
+            _credentialMode,
             cancellationToken).ConfigureAwait(false);
+        if (!authentication.IsAuthenticated)
+        {
+            return OperateSectionResult<OpsFindingProposeResponse>.Denied(
+                OperateSectionStatus.Forbidden,
+                authentication.Message);
+        }
 
         try
         {

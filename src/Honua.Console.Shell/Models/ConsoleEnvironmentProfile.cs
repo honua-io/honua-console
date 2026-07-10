@@ -50,7 +50,14 @@ public sealed record ConsoleAccountBinding
 public enum ConsoleAccountAuthMode
 {
     Anonymous,
-    AccountRbac
+    AccountRbac,
+
+    /// <summary>
+    /// Explicit non-interactive profile whose mutations may use a configured service
+    /// API key only when the host also selects <c>HeadlessService</c> credential mode.
+    /// Interactive profile creation does not offer this mode.
+    /// </summary>
+    ServiceApiKey
 }
 
 public sealed record ConsoleClientCertificateBinding
@@ -128,4 +135,11 @@ public sealed record ConsoleAccountSession
     public string[] PermissionIds { get; init; } = [];
 
     public string AccessToken { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the expiry of the forwardable honua-server operator bearer, when known.
+    /// A null value is retained for edge-forwarded access tokens whose expiry is
+    /// managed by the trusted edge rather than exposed to the Console.
+    /// </summary>
+    public DateTimeOffset? AccessTokenExpiresAt { get; init; }
 }

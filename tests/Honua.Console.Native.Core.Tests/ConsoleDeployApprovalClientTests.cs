@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Native.Core.Tests;
@@ -49,6 +50,39 @@ public sealed class ConsoleDeployApprovalClientTests
         Assert.Equal(HttpMethod.Post, request.Method);
         Assert.Equal(new AuthenticationHeaderValue("Bearer", "operator-alice-bearer"), request.Headers.Authorization);
         Assert.False(request.Headers.Contains("X-API-Key"));
+    }
+
+    [Fact]
+    public async Task SubmitInteractiveSentinelFailsClosedWithoutSharedAdminIdentity()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Request must not be sent."));
+        var profile = new ConsoleEnvironmentProfile
+        {
+            Id = "live",
+            ServerBaseUri = new Uri("https://server.example"),
+            Account = new ConsoleAccountBinding
+            {
+                AuthMode = ConsoleAccountAuthMode.AccountRbac,
+                AccountId = "operator.live"
+            }
+        };
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = profile.Id,
+            AccessToken = ConsoleAuthConstants.SessionSentinelPrefix + profile.Id
+        });
+        var client = new HttpConsoleDeployApprovalClient(
+            new HttpClient(handler),
+            new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id),
+            sessions,
+            adminApiKey: "shared-admin-key");
+
+        var result = await client.SubmitAsync("deploy-1", "Approved by Alice");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("sign in", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(handler.Requests);
     }
 
     private static HttpResponseMessage JsonResponse(DeployOperationResponse value)

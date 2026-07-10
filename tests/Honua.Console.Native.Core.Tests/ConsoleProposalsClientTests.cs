@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Native.Core.Tests;
@@ -9,8 +10,8 @@ namespace Honua.Console.Native.Core.Tests;
 /// <summary>
 /// Recording-HttpClient unit tests proving the approval-surface proposals client (#193)
 /// binds to the honua-server console approval REST API (honua-server #1694): list/filter,
-/// detail (plan/diff/dry-run/risk/blockers), approve, and reject (reason required). Auth is
-/// the admin X-API-Key; the RBAC approve gate / separation-of-duties 403 surfaces as a
+/// detail (plan/diff/dry-run/risk/blockers), approve, and reject (reason required). Interactive
+/// decisions use the operator bearer; the RBAC approve gate / separation-of-duties 403 surfaces as a
 /// Forbidden result and the client never fabricates data (charter §11).
 /// </summary>
 public sealed class ConsoleProposalsClientTests
@@ -138,7 +139,7 @@ public sealed class ConsoleProposalsClientTests
         }
         """;
         var handler = new RecordingHandler(_ => Json(body));
-        var client = CreateClient(handler);
+        var client = CreateClient(handler, sessions: BearerSessions());
 
         var result = await client.ApproveAsync("prop-1");
 
@@ -186,10 +187,62 @@ public sealed class ConsoleProposalsClientTests
     }
 
     [Fact]
+    public async Task ApproveInteractiveSentinelFailsClosedWithoutSharedAdminIdentity()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Request must not be sent."));
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "live",
+            AccessToken = ConsoleAuthConstants.SessionSentinelPrefix + "live"
+        });
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
+
+        var result = await client.ApproveAsync("prop-1");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("sign in", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task ApproveExplicitHeadlessModeUsesAdminKeyOnlyWithoutInteractiveSession()
+    {
+        var handler = new RecordingHandler(_ => Json("""
+        {
+          "proposalId": "prop-1",
+          "kind": "Deploy",
+          "status": "Submitted",
+          "summary": "Upgrade server",
+          "diff": [],
+          "dryRun": [],
+          "riskLevel": "High",
+          "blockingReasons": [],
+          "warnings": [],
+          "createdAt": "2026-06-28T10:00:00Z",
+          "updatedAt": "2026-06-28T10:10:00Z"
+        }
+        """));
+        var client = CreateClient(
+            handler,
+            adminApiKey: "shared-admin-key",
+            credentialMode: ConsoleServerCredentialMode.HeadlessService,
+            accountAuthMode: ConsoleAccountAuthMode.ServiceApiKey);
+
+        var result = await client.ApproveAsync("prop-1");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var request = Assert.Single(handler.Requests);
+        Assert.True(request.Headers.TryGetValues("X-API-Key", out var values));
+        Assert.Equal("shared-admin-key", Assert.Single(values));
+        Assert.Null(request.Headers.Authorization);
+    }
+
+    [Fact]
     public async Task ApproveForbiddenMapsToForbiddenResult_NotFabricatedSuccess()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
-        var client = CreateClient(handler);
+        var client = CreateClient(handler, sessions: BearerSessions());
 
         var result = await client.ApproveAsync("prop-1");
 
@@ -224,7 +277,7 @@ public sealed class ConsoleProposalsClientTests
             capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
             return Json(body);
         });
-        var client = CreateClient(handler);
+        var client = CreateClient(handler, sessions: BearerSessions());
 
         var result = await client.RejectAsync("prop-1", "Out of change window");
 
@@ -274,7 +327,9 @@ public sealed class ConsoleProposalsClientTests
     private static HttpConsoleProposalsClient CreateClient(
         HttpMessageHandler handler,
         string? adminApiKey = null,
-        IConsoleAccountSessionStore? sessions = null)
+        IConsoleAccountSessionStore? sessions = null,
+        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive,
+        ConsoleAccountAuthMode accountAuthMode = ConsoleAccountAuthMode.AccountRbac)
     {
         var profile = new ConsoleEnvironmentProfile
         {
@@ -284,7 +339,7 @@ public sealed class ConsoleProposalsClientTests
             UpdatedAt = DateTimeOffset.Parse("2026-06-28T10:00:00Z"),
             Account = new ConsoleAccountBinding
             {
-                AuthMode = ConsoleAccountAuthMode.AccountRbac,
+                AuthMode = accountAuthMode,
                 AccountId = "operator.live"
             }
         };
@@ -293,7 +348,19 @@ public sealed class ConsoleProposalsClientTests
             new HttpClient(handler),
             profiles,
             sessions ?? new InMemoryConsoleAccountSessionStore(),
-            adminApiKey);
+            adminApiKey,
+            credentialMode: credentialMode);
+    }
+
+    private static IConsoleAccountSessionStore BearerSessions()
+    {
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "live",
+            AccessToken = "operator-test-bearer"
+        }).GetAwaiter().GetResult();
+        return sessions;
     }
 
     private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)

@@ -22,7 +22,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaLlmApiKey = null,
         string? honuaSupportKbPath = null,
         string? honuaConsoleAdvertisedCapabilities = null,
-        bool registryIntentResolutionEnabled = false)
+        bool registryIntentResolutionEnabled = false,
+        string? honuaServerCredentialMode = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -52,6 +53,20 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IConsoleEnvironmentProfileStore>(
             _ => new InMemoryConsoleEnvironmentProfileStore([]));
         services.TryAddSingleton<IConsoleAccountSessionStore, InMemoryConsoleAccountSessionStore>();
+
+        // Human-attributable Operate mutations are bearer-only by default. The exchange
+        // itself depends on deployment topology because honua-server authenticates it with
+        // an HttpOnly server-origin admin-session cookie. Stock Console leaves this seam
+        // unavailable until a per-operator/per-profile BFF exists; a process-wide cookie
+        // client would bleed identity. A process-wide API key is available only when
+        // HeadlessService is selected and the sessionless profile is ServiceApiKey.
+        var serverCredentialMode = ConsoleServerCredentialModeParser.Parse(honuaServerCredentialMode);
+        services.TryAddSingleton<IConsoleOperatorBearerExchange, UnavailableConsoleOperatorBearerExchange>();
+        services.TryAddSingleton<IConsoleOperatorBearerProvider>(serviceProvider =>
+            new ConsoleOperatorBearerProvider(
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                serviceProvider.GetRequiredService<IConsoleOperatorBearerExchange>(),
+                TimeProvider.System));
 
         // Unsaved-changes dirty tracking (FormDirtyState) is intentionally NOT registered in DI: a
         // Scoped service lives for the entire Blazor Server circuit, so every editor would share one
@@ -133,14 +148,16 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // endpoints (the OperatorApprovalGate stays the real gate — never bypassed). No
         // standing in-memory source is registered (Charter section 11); when no
         // environment is connected the surface renders the missing-binding state. The
-        // active operator bearer is preferred; the configured admin API key is the
-        // explicit headless fallback.
+        // active operator bearer is required in interactive mode. The configured admin
+        // API key is available only to a sessionless caller in explicit HeadlessService mode.
         services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>
             new HttpConsoleDeployApprovalClient(
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey));
+                honuaServerAdminApiKey,
+                serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
+                serverCredentialMode));
 
         // Deploy cockpit completion (console#290): the paged deploy-operations list
         // (honua-server PR #2577), the preflight gate, and the speculative platform-release
@@ -173,14 +190,17 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // gated server-side by the RBAC 'approve' grant + separation of duties; a denied
         // decision returns 403 (surfaced as Forbidden — never bypassed). No standing
         // in-memory source is registered (Charter section 11); when no environment is
-        // connected every call renders the missing-binding state. The admin API key is sent
-        // as X-API-Key only when no forwardable operator bearer exists.
+        // connected every call renders the missing-binding state. Approve/reject require a
+        // forwardable operator bearer in interactive mode; a human sentinel never downgrades
+        // to X-API-Key.
         services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
             new HttpConsoleProposalsClient(
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey));
+                honuaServerAdminApiKey,
+                serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
+                serverCredentialMode));
 
         // Live approval-inbox updates (issue #193, honua-server #1695): the console connects
         // from its server process to the honua-server admin realtime hub's proposals group at
@@ -251,8 +271,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // model/LLM anything (ADR-0028). No standing in-memory source is registered
         // (Charter section 11); each read degrades to the shared missing-binding /
         // section-status surface when unbound. Ops Health retains its current admin-key
-        // binding; ops-finding requests prefer the active operator bearer, with the
-        // configured admin API key as their explicit headless fallback.
+        // binding; ops-finding proposals require the active operator bearer in interactive
+        // mode. The configured admin API key is available only for sessionless explicit
+        // HeadlessService operation.
         services.TryAddSingleton<IConsoleOpsHealthClient>(serviceProvider =>
             new HttpConsoleOpsHealthClient(
                 CreateOperateObservabilityHttpClient(),
@@ -279,7 +300,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey));
+                honuaServerAdminApiKey,
+                serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
+                serverCredentialMode));
 
         // In-product support loop (#164). The ticket client binds to the
         // honua-support API (POST/GET /api/v1/tickets) through the

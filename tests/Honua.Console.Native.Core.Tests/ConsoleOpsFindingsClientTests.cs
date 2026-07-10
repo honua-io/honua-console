@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.Native.Core.Tests;
@@ -50,7 +51,7 @@ public sealed class ConsoleOpsFindingsClientTests
                     },
                     OpsFindingsJsonContext.Default.OpsFindingProposeResponse)
                 : new HttpResponseMessage(HttpStatusCode.NotFound));
-        var client = CreateClient(handler);
+        var client = CreateClient(handler, sessions: BearerSessions());
 
         var result = await client.ProposeAsync("platform-release-skew-abc123");
 
@@ -93,10 +94,29 @@ public sealed class ConsoleOpsFindingsClientTests
     }
 
     [Fact]
+    public async Task ProposeInteractiveSentinelFailsClosedWithoutSharedAdminIdentity()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Request must not be sent."));
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "live",
+            AccessToken = ConsoleAuthConstants.SessionSentinelPrefix + "live"
+        });
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
+
+        var result = await client.ProposeAsync("finding-1");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("sign in", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
     public async Task ProposeClearedConditionMapsToMissingForRefresh()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
-        var client = CreateClient(handler);
+        var client = CreateClient(handler, sessions: BearerSessions());
 
         var result = await client.ProposeAsync("gone-finding");
 
@@ -201,6 +221,17 @@ public sealed class ConsoleOpsFindingsClientTests
             }
         ]
     };
+
+    private static IConsoleAccountSessionStore BearerSessions()
+    {
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "live",
+            AccessToken = "operator-test-bearer"
+        }).GetAwaiter().GetResult();
+        return sessions;
+    }
 
     private static HttpResponseMessage JsonResponse<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
     {

@@ -41,7 +41,12 @@ builder.Services.AddHonuaConsoleShell(
     // capability-manifest registry and deferred/unavailable capabilities are hidden from Studio AI.
     ParseFlag(
         builder.Configuration["Studio:RegistryIntentResolution"]
-        ?? builder.Configuration["HONUA_STUDIO_REGISTRY_INTENT_RESOLUTION"]));
+        ?? builder.Configuration["HONUA_STUDIO_REGISTRY_INTENT_RESOLUTION"]),
+    // Human-facing mode is the default and requires an attributable operator bearer
+    // for approval/recovery mutations. API-key fallback is available only through the
+    // exact HeadlessService opt-in, a ServiceApiKey profile, and no interactive session.
+    builder.Configuration["Honua:Server:CredentialMode"]
+        ?? builder.Configuration["HONUA_SERVER_CREDENTIAL_MODE"]);
 
 static bool ParseFlag(string? value) =>
     bool.TryParse(value, out var parsed) && parsed;

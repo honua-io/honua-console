@@ -13,7 +13,7 @@ namespace Honua.Console.Web.Auth;
 /// <item>ensures the active environment profile is bound to a non-anonymous operator account; and</item>
 /// <item>writes an account session whose access token is the operator's forwarded bearer when one was
 /// supplied (real per-principal RBAC on honua-server), or a non-forwardable session sentinel
-/// otherwise (signed in for read context; server calls use the admin-key fallback).</item>
+/// otherwise (signed in for read context; human mutations require exchange/reauthentication).</item>
 /// </list>
 /// When no environment profile is active (browser host first-run) there is nothing to bridge; the
 /// operator is still authenticated for routing and Family-A/B surfaces render their missing-binding
@@ -58,7 +58,7 @@ public sealed class ConsoleOperatorSessionBridge
 
         // Bind the profile to the operator account so the binding handler treats it as authenticated
         // (non-anonymous) and forwards the operator credential.
-        if (profile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous
+        if (profile.Account.AuthMode != ConsoleAccountAuthMode.AccountRbac
             || !string.Equals(profile.Account.AccountId, accountId, StringComparison.Ordinal))
         {
             var updated = profile with
