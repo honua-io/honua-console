@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
@@ -14,6 +15,70 @@ namespace Honua.Console.Native.Core.Tests;
 /// </summary>
 public sealed class ConsoleServerHttpTests
 {
+    [Fact]
+    public async Task AttachAuthentication_PrefersOperatorBearerOverConfiguredAdminKey()
+    {
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "env-a",
+            AccessToken = "real-operator-bearer"
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://server.example/approve");
+
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            sessions,
+            Profile("env-a", ConsoleAccountAuthMode.AccountRbac),
+            "shared-admin-key",
+            CancellationToken.None);
+
+        Assert.Equal(
+            new AuthenticationHeaderValue("Bearer", "real-operator-bearer"),
+            request.Headers.Authorization);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+    }
+
+    [Fact]
+    public async Task AttachAuthentication_UsesConfiguredAdminKeyWhenBearerIsNotForwardable()
+    {
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "env-a",
+            AccessToken = ConsoleAuthConstants.SessionSentinelPrefix + "env-a"
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://server.example/approve");
+
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            sessions,
+            Profile("env-a", ConsoleAccountAuthMode.AccountRbac),
+            "shared-admin-key",
+            CancellationToken.None);
+
+        Assert.Null(request.Headers.Authorization);
+        Assert.True(
+            request.Headers.TryGetValues("X-API-Key", out var values)
+            && values.Single() == "shared-admin-key");
+    }
+
+    [Fact]
+    public async Task AttachAuthentication_LeavesRequestUnauthenticatedWhenNoCredentialExists()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://server.example/approve");
+
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            new InMemoryConsoleAccountSessionStore(),
+            Profile("env-a", ConsoleAccountAuthMode.AccountRbac),
+            adminApiKey: null,
+            CancellationToken.None);
+
+        Assert.Null(request.Headers.Authorization);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+    }
+
     [Fact]
     public async Task ResolveForwardableBearer_ReturnsRealOperatorBearer()
     {

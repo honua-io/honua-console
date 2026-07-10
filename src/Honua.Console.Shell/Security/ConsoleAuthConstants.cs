@@ -7,7 +7,7 @@ namespace Honua.Console.Shell.Security;
 /// edge-forwarded identity, or — in Development — a documented dev login) and then forwards
 /// that operator's identity to honua-server. The forwarded credential is the operator's
 /// bearer token when one is available (e.g. an oauth2-proxy <c>X-Forwarded-Access-Token</c>
-/// or, in the future, an OIDC/portal token), falling back to the configured shared admin key
+/// or honua-server's short-lived operator bearer), falling back to the configured shared admin key
 /// only when no operator bearer exists. Per-principal RBAC on honua-server is therefore
 /// honoured whenever a real operator bearer is present.
 /// </summary>

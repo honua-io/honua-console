@@ -10,9 +10,10 @@ namespace Honua.Console.Shell.Services;
 /// <summary>
 /// Binds the approval surface to a real honua-server through the console approval REST API
 /// (honua-server #1694): <c>GET /api/v1/admin/proposals</c>, <c>GET .../{id}</c>,
-/// <c>POST .../{id}/approve</c>, <c>POST .../{id}/reject</c>. The admin API key is sent as
-/// <c>X-API-Key</c>. The server's RBAC <c>approve</c> grant and separation-of-duties rule
-/// remain the real gate: a denied approve/reject returns 403, surfaced here as a
+/// <c>POST .../{id}/approve</c>, <c>POST .../{id}/reject</c>. The active operator bearer
+/// is preferred so server audit records retain the human identity; a configured admin API
+/// key is an explicit headless fallback. The server's RBAC <c>approve</c> grant and
+/// separation-of-duties rule remain the real gate: a denied approve/reject returns 403, surfaced here as a
 /// <see cref="OperateSectionStatus.Forbidden"/> result — the UI never bypasses it.
 ///
 /// Charter section 11 (no standing mock for server-owned data) is preserved: this client
@@ -28,15 +29,18 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
+    private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
 
     public HttpConsoleProposalsClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
+        IConsoleAccountSessionStore sessionStore,
         string? adminApiKey = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
+        _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
     }
 
@@ -57,7 +61,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         var query = BuildListQuery(status, kind, requestedBy);
 
         var result = await SendAsync(
-            profile.ServerBaseUri,
+            profile,
             HttpMethod.Get,
             ProposalsRoot + query,
             content: null,
@@ -136,7 +140,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         }
 
         var result = await SendAsync(
-            profile.ServerBaseUri,
+            profile,
             method,
             $"{ProposalsRoot}/{relativeSuffix}",
             content,
@@ -153,18 +157,20 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
     }
 
     private async Task<OperateSectionResult<T>> SendAsync<T>(
-        Uri baseUri,
+        ConsoleEnvironmentProfile profile,
         HttpMethod method,
         string relativePath,
         string? content,
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, BuildUri(baseUri, relativePath));
-        if (!string.IsNullOrWhiteSpace(_adminApiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
-        }
+        using var request = new HttpRequestMessage(method, BuildUri(profile.ServerBaseUri, relativePath));
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         if (content is not null)
         {

@@ -13,11 +13,11 @@ temporal) were bound once at DI time to the startup `honuaServerBaseUrl`, so swi
 environment profile silently mis-targeted mutations, and the native MAUI host (no startup URL) froze
 every Family-A surface into the "Unsupported" state.
 
-## Chosen option: A (interim) with an Option-C-ready forwarding path
+## Chosen option: A-compatible edge auth with an Option-C forwarding path
 
 The #233 recommendation was **Option C — server-delegated operator auth**: authenticate the operator
-against honua-server's own auth, obtain an operator session/bearer, and forward it. Investigation of
-honua-server shows it is **not yet able to issue a console-consumable operator bearer**:
+against honua-server's own auth, obtain an operator session/bearer, and forward it. At the time #234
+shipped, honua-server could **not yet issue a console-consumable operator bearer**:
 
 - Interactive operator login is **OIDC, cookie-session bound to honua-server's own admin origin**
   (`/api/v{version}/admin/auth/*` in `AdminAuthEndpoints.cs`, redirect `/admin/auth/callback`). The
@@ -32,6 +32,14 @@ So per the #233 branch ("if the server can't yet issue interactive operator sess
 interim and migrate to C"), the Console authenticates the operator **at its own edge** and forwards
 the operator identity/bearer to honua-server. The forwarding plumbing is identical to what full
 Option C needs, so migrating later is a configuration change, not a rewrite.
+
+Honua-server #2258 has since shipped `POST /api/v1/admin/auth/bearer`. It mints a short-lived,
+forwardable bearer from an authenticated admin session and validates it on the admin/control-plane
+request path. The Console request pipeline accepts that server-issued token through the same account
+session slot used for a trusted edge-forwarded access token. For approval audit attribution, the
+authenticated principal must carry `ClaimTypes.NameIdentifier` or `sub`; honua-server resolves those
+claims before any API-key identity fallback. The Console forwards the bearer and never supplies an
+actor override header.
 
 ## Authentication model (fail-closed)
 
@@ -76,6 +84,12 @@ client already had — without rewriting ~20 typed clients. On every outbound re
 
 `HonuaServerClientFactory.Create(...)` builds the Family-A `HttpClient`s with this handler; the DI
 registrations in `HonuaConsoleShellServiceCollectionExtensions` now use it.
+
+Family-B clients that construct absolute requests per active profile use the same decision through
+`ConsoleServerHttp.AttachAuthenticationAsync(...)`. In particular, proposal decisions, deploy
+approval/rollback, and ops-finding proposals forward the signed-in operator bearer so honua-server
+derives the approval audit actor from the token claims. A configured `X-API-Key` is used only when no
+forwardable operator bearer exists (for example a headless process or dev session).
 
 ### The session sentinel
 

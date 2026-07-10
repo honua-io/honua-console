@@ -9,8 +9,9 @@ namespace Honua.Console.Shell.Services;
 /// Binds the Copilot Findings surface to a real honua-server through the deterministic
 /// ops-findings endpoints (group <c>/api/v1/admin/observability</c>, admin-authorized,
 /// bare JSON — NO ApiResponse envelope). Base address comes from the active
-/// <see cref="ConsoleEnvironmentProfile"/>; the admin API key is sent as
-/// <c>X-API-Key</c>. Deserialization is source-generated for trim/AOT safety.
+/// <see cref="ConsoleEnvironmentProfile"/>. The active operator bearer is preferred so
+/// proposed actions retain the human audit principal; a configured admin API key is an
+/// explicit headless fallback. Deserialization is source-generated for trim/AOT safety.
 ///
 /// Charter section 11 (no standing mock for server-owned data) is preserved: this client
 /// never returns seeded findings. When no environment profile is bound, every call
@@ -25,19 +26,23 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
 
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
+    private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
 
     /// <summary>Initializes a new instance of the <see cref="HttpConsoleOpsFindingsClient"/> class.</summary>
     /// <param name="http">The shared HTTP client.</param>
     /// <param name="profileStore">The active-environment profile store.</param>
-    /// <param name="adminApiKey">The admin API key sent as <c>X-API-Key</c>, when configured.</param>
+    /// <param name="sessionStore">The active operator account-session store.</param>
+    /// <param name="adminApiKey">The headless fallback API key, when configured.</param>
     public HttpConsoleOpsFindingsClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
+        IConsoleAccountSessionStore sessionStore,
         string? adminApiKey = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
+        _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
     }
 
@@ -56,7 +61,12 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             ConsoleServerHttp.BuildUri(profile.ServerBaseUri, OpsFindingsRoutes.List));
-        AttachAdminKey(request);
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -113,7 +123,12 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             ConsoleServerHttp.BuildUri(profile.ServerBaseUri, OpsFindingsRoutes.Propose(findingId)));
-        AttachAdminKey(request);
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -153,14 +168,6 @@ public sealed class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsClient
             return OperateSectionResult<OpsFindingProposeResponse>.Denied(
                 OperateSectionStatus.Unavailable,
                 "The honua-server ops-findings API is unreachable or returned an unreadable response.");
-        }
-    }
-
-    private void AttachAdminKey(HttpRequestMessage request)
-    {
-        if (!string.IsNullOrWhiteSpace(_adminApiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
         }
     }
 

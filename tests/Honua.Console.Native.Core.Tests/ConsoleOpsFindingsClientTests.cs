@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Honua.Console.Contracts;
@@ -66,6 +67,32 @@ public sealed class ConsoleOpsFindingsClientTests
     }
 
     [Fact]
+    public async Task ProposePrefersSignedInOperatorBearerOverConfiguredAdminKey()
+    {
+        var handler = new RecordingHandler(_ => JsonResponse(
+            new OpsFindingProposeResponse
+            {
+                FindingId = "finding-1",
+                Status = "ProposalCreated",
+                ProposalId = "prop-42"
+            },
+            OpsFindingsJsonContext.Default.OpsFindingProposeResponse));
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "live",
+            AccessToken = "operator-alice-bearer"
+        });
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
+
+        _ = await client.ProposeAsync("finding-1");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(new AuthenticationHeaderValue("Bearer", "operator-alice-bearer"), request.Headers.Authorization);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+    }
+
+    [Fact]
     public async Task ProposeClearedConditionMapsToMissingForRefresh()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
@@ -83,7 +110,11 @@ public sealed class ConsoleOpsFindingsClientTests
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         var profiles = new InMemoryConsoleEnvironmentProfileStore([], activeProfileId: null);
-        var client = new HttpConsoleOpsFindingsClient(new HttpClient(handler), profiles, adminApiKey: "admin-key");
+        var client = new HttpConsoleOpsFindingsClient(
+            new HttpClient(handler),
+            profiles,
+            new InMemoryConsoleAccountSessionStore(),
+            adminApiKey: "admin-key");
 
         var result = await client.ListAsync();
 
@@ -110,7 +141,10 @@ public sealed class ConsoleOpsFindingsClientTests
         Assert.DoesNotContain(info.Subject, row => row.Label == "Channel");
     }
 
-    private static HttpConsoleOpsFindingsClient CreateClient(HttpMessageHandler handler, string? adminApiKey = null)
+    private static HttpConsoleOpsFindingsClient CreateClient(
+        HttpMessageHandler handler,
+        string? adminApiKey = null,
+        IConsoleAccountSessionStore? sessions = null)
     {
         var profile = new ConsoleEnvironmentProfile
         {
@@ -125,7 +159,11 @@ public sealed class ConsoleOpsFindingsClientTests
             }
         };
         var profiles = new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id);
-        return new HttpConsoleOpsFindingsClient(new HttpClient(handler), profiles, adminApiKey);
+        return new HttpConsoleOpsFindingsClient(
+            new HttpClient(handler),
+            profiles,
+            sessions ?? new InMemoryConsoleAccountSessionStore(),
+            adminApiKey);
     }
 
     private static OpsFindingsListResponse BuildList() => new()

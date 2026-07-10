@@ -4,8 +4,8 @@ namespace Honua.Console.Shell.Services;
 
 /// <summary>
 /// Reads honua-server's deterministic ops-findings surface (group
-/// <c>/api/v1/admin/observability</c>, admin-authorized via <c>X-API-Key</c>, bare JSON —
-/// NO ApiResponse envelope) and proposes a finding's recommended action through the
+/// <c>/api/v1/admin/observability</c>, operator-authorized with an explicit headless API-key
+/// fallback, bare JSON — NO ApiResponse envelope) and proposes a finding's recommended action through the
 /// existing operation-gateway approval flow. Findings are deterministic server output —
 /// no model/LLM reasoning is involved (ADR-0028). Each call returns an
 /// <see cref="OperateSectionResult{T}"/> whose status drives the shared

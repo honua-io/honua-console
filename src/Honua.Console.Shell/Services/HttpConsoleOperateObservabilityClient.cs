@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Honua.Console.Contracts;
@@ -1107,18 +1106,12 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, BuildUri(profile.ServerBaseUri, relativePath));
-        var token = await ResolveTokenAsync(profile, cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-        else if (!string.IsNullOrWhiteSpace(_adminApiKey))
-        {
-            // No account-session bearer token (e.g. the browser host has no interactive sign-in): fall back
-            // to the configured admin API key like the GitOps/metrics clients, so the admin-authorized
-            // observability endpoints return data instead of 401 Unauthorized.
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
-        }
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -1170,15 +1163,12 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(profile.ServerBaseUri, relativePath));
-        var token = await ResolveTokenAsync(profile, cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-        else if (!string.IsNullOrWhiteSpace(_adminApiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
-        }
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         // The control endpoints take no body; send an empty JSON object so the
         // request advertises application/json consistently with the other writes.
@@ -1255,9 +1245,6 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         !string.IsNullOrWhiteSpace(body)
         && (body.Contains("approval-required", StringComparison.OrdinalIgnoreCase)
             || body.Contains("Approval required", StringComparison.OrdinalIgnoreCase));
-
-    private Task<string?> ResolveTokenAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken) =>
-        ConsoleServerHttp.ResolveForwardableBearerAsync(_sessionStore, profile, cancellationToken);
 
     private static Uri BuildUri(Uri baseUri, string relativePath) =>
         ConsoleServerHttp.BuildUri(baseUri, relativePath);

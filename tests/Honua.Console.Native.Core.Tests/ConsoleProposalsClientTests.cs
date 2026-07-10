@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -151,6 +152,40 @@ public sealed class ConsoleProposalsClientTests
     }
 
     [Fact]
+    public async Task ApprovePrefersSignedInOperatorBearer_AndLeavesAuditIdentityToServerClaims()
+    {
+        var handler = new RecordingHandler(_ => Json("""
+        {
+          "proposalId": "prop-1",
+          "kind": "Deploy",
+          "status": "Submitted",
+          "summary": "Upgrade server",
+          "diff": [],
+          "dryRun": [],
+          "riskLevel": "High",
+          "blockingReasons": [],
+          "warnings": [],
+          "createdAt": "2026-06-28T10:00:00Z",
+          "updatedAt": "2026-06-28T10:10:00Z"
+        }
+        """));
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "live",
+            AccessToken = "operator-alice-bearer"
+        });
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: sessions);
+
+        _ = await client.ApproveAsync("prop-1");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(new AuthenticationHeaderValue("Bearer", "operator-alice-bearer"), request.Headers.Authorization);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+        Assert.DoesNotContain(request.Headers, header => header.Key.Contains("Actor", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task ApproveForbiddenMapsToForbiddenResult_NotFabricatedSuccess()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
@@ -220,7 +255,11 @@ public sealed class ConsoleProposalsClientTests
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         var profiles = new InMemoryConsoleEnvironmentProfileStore([], activeProfileId: null);
-        var client = new HttpConsoleProposalsClient(new HttpClient(handler), profiles, adminApiKey: "admin-key");
+        var client = new HttpConsoleProposalsClient(
+            new HttpClient(handler),
+            profiles,
+            new InMemoryConsoleAccountSessionStore(),
+            adminApiKey: "admin-key");
 
         var list = await client.ListAsync();
         var detail = await client.GetAsync("prop-1");
@@ -232,7 +271,10 @@ public sealed class ConsoleProposalsClientTests
         Assert.Empty(handler.Requests);
     }
 
-    private static HttpConsoleProposalsClient CreateClient(HttpMessageHandler handler, string? adminApiKey = null)
+    private static HttpConsoleProposalsClient CreateClient(
+        HttpMessageHandler handler,
+        string? adminApiKey = null,
+        IConsoleAccountSessionStore? sessions = null)
     {
         var profile = new ConsoleEnvironmentProfile
         {
@@ -247,7 +289,11 @@ public sealed class ConsoleProposalsClientTests
             }
         };
         var profiles = new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id);
-        return new HttpConsoleProposalsClient(new HttpClient(handler), profiles, adminApiKey);
+        return new HttpConsoleProposalsClient(
+            new HttpClient(handler),
+            profiles,
+            sessions ?? new InMemoryConsoleAccountSessionStore(),
+            adminApiKey);
     }
 
     private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
