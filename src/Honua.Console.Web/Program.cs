@@ -54,6 +54,7 @@ static bool ParseFlag(string? value) =>
 // Operator authentication (honua-console#233): fail-closed cookie/edge auth + RequireAuthenticatedUser
 // fallback policy so no Console route is reachable anonymously. See ConsoleAuthentication for the model.
 builder.AddConsoleAuthentication();
+builder.AddConsoleServerSessionBff();
 
 var app = builder.Build();
 
@@ -117,6 +118,7 @@ app.UseAntiforgery();
 
 // Anonymous sign-in / sign-out endpoints (the cookie LoginPath target).
 app.MapConsoleAuthEndpoints();
+app.MapConsoleServerSessionBff();
 
 // Static assets and the build-metadata probe are public (no operator identity required).
 app.MapStaticAssets().AllowAnonymous();

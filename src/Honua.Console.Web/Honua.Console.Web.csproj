@@ -12,4 +12,8 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Honua.Console.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

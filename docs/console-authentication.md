@@ -121,22 +121,46 @@ internal client for that wire contract and refreshes before expiry through
 server memory; the native host uses its platform secret store. Tokens are never written to browser
 `localStorage`.
 
-The default exchange registration is intentionally unavailable. The server cookie is scoped to the
-honua-server origin and cannot be read or forwarded by a separately deployed Blazor Server host.
-Deployments need one of these trust topologies before server-session exchange can be enabled safely:
+The browser host now registers a same-origin BFF by default. It owns a bounded, process-local
+`CookieContainer` for each authenticated Console operator + environment profile + server origin.
+The cookie jar is never shared by typed clients, never copied into configuration, and never exposed
+to browser JavaScript. One-time OAuth state is bound to the same operator/profile partition; a
+callback from another operator cannot consume or invalidate the owner's flow. Only the issued bearer
+and expiry enter the existing operator/profile session store.
 
-- serve the bearer exchange through a same-origin Console BFF whose upstream client owns the
-  authenticated honua-server session; or
-- use a trusted edge that establishes the server session or supplies a forwardable operator access
+The server cookie remains scoped to the honua-server origin, so the external auth topology must use a
+shared public origin:
+
+1. Set honua-server `Public:BaseUrl` / `PUBLIC_BASE_URL` to the external Console origin.
+2. Route `/admin/auth/callback` on that origin to Console. Console consumes the query callback;
+   its private client calls the server's `/providers/{provider}/token` endpoint with the pending
+   cookie held in that operator/profile jar.
+3. Keep the server API reachable from Console through the profile's `ServerBaseUri`. The internal
+   server URL may differ from the public callback origin.
+4. Register the exact shared-origin `/admin/auth/callback` URI with the OIDC provider. Use HTTPS
+   outside local development. The Console auth cookie is HttpOnly and Lax so it returns on the
+   top-level OIDC GET callback; honua-server's pending/auth cookies remain HttpOnly, Strict, and
+   server-side inside the BFF jar.
+
+An operator starts the flow at `/auth/server/login?profileId=...`. If the server exposes more
+than one provider, Console renders a provider-selection page. The one-time callback state and the
+authenticated Console cookie provide login-CSRF protection; callback state expires after ten minutes
+and is consumed once. Sign-out clears only the current operator's Console bearers, pending flows, and
+server cookie jars.
+
+Cookie jars are deliberately not durable. A Console restart, eight hours of inactivity, profile
+origin change, or server-session expiry drops the upstream session and requires sign-in again. This
+keeps server cookies out of storage while preserving bounded refresh during a live operator session.
+Deployments may also use the trusted-edge topology:
+
+- use the built-in same-origin Console BFF described above; or
+- use a trusted edge that supplies a forwardable operator access
   token to Console.
 
-Stock Console intentionally does not register a cookie-owning exchange client. A process-wide
-`HttpClient`/`CookieContainer` would bind multiple operators to one server session and create an
-identity bleed. Trusted-edge forwarded operator bearers work today; server-session exchange stays
-fail closed until a per-operator, per-profile BFF owns isolated server sessions. Do not copy the
+Do not replace the partitioned store with a process-wide `HttpClient`/`CookieContainer`, copy the
 server cookie into application config, relax it to a script-readable cookie, or add an actor header.
-Until that BFF exists, reads remain available under their existing policy while human mutations fail
-closed with a re-sign-in message.
+When the shared-origin route is absent or the server rejects exchange, human mutations still fail
+closed with a re-sign-in state and never fall back to the shared admin key.
 
 ## Map-proxy
 
@@ -205,10 +229,9 @@ across operators. Two complementary mechanisms keep operators isolated:
   The chokepoint remains regression-locked by
   `tests/Honua.Console.IntegrationTests/ConsoleServerBindingFailClosedTests.cs`.
 
-- **Full Option C host topology.** The honua-server endpoint is shipped. A deployment still has to
-  implement a same-origin, per-operator/per-profile BFF for server-session exchange. Console
-  intentionally does not guess how a cookie scoped to another origin should be propagated and does
-  not register a process-wide cookie jar.
+- **Full Option C host topology.** The honua-server endpoint and Console's partitioned BFF are shipped.
+  Deployment must route the shared-origin callback and configure the server public base URL as
+  described above. Missing/misrouted topology fails closed.
 - **Built-in OIDC (Option B) in the Console host.** `Microsoft.AspNetCore.Authentication.OpenIdConnect`
   can run the auth-code flow directly against the configured IdP and capture the access token for the
   same forwarding path. Not wired here to avoid adding the package/CI surface in this pass; the

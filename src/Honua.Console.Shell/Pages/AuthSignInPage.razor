@@ -1,6 +1,7 @@
 @page "/auth/signin"
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleAccountSessionStore Sessions
+@inject IConsoleHostCapabilities Host
 @inject NavigationManager Navigation
 
 <section class="console-page">
@@ -16,6 +17,14 @@
     }
     else
     {
+        @if (!string.IsNullOrWhiteSpace(_serverAuthMessage))
+        {
+            <article class="console-panel console-status-danger" role="alert">
+                <h2>Server sign-in required</h2>
+                <p class="console-muted">@_serverAuthMessage</p>
+            </article>
+        }
+
         <div class="console-panel">
             <div class="console-panel-heading">
                 <div>
@@ -47,10 +56,17 @@
 @code {
     private ConsoleEnvironmentProfile? _profile;
     private string _returnTo = "/";
+    private string? _serverAuthMessage;
 
     protected override async Task OnParametersSetAsync()
     {
         _returnTo = SanitizeReturnTo(ConsoleUrlQuery.GetValue(Navigation.Uri, "returnTo"));
+        _serverAuthMessage = ConsoleUrlQuery.GetValue(Navigation.Uri, "serverAuth") switch
+        {
+            "denied" => "The identity provider did not complete the honua-server session. Try again.",
+            "unavailable" => "The honua-server sign-in bridge is unavailable. Verify the shared-origin auth routing and try again.",
+            _ => null
+        };
         _profile = await Profiles.GetActiveProfileAsync();
     }
 
@@ -58,6 +74,24 @@
     {
         if (_profile is null)
         {
+            return;
+        }
+
+        if (!Host.SupportsNativeTransports
+            && _profile.Account.AuthMode == ConsoleAccountAuthMode.AccountRbac)
+        {
+            var current = await Sessions.GetSessionAsync(_profile.Id);
+            if (!string.IsNullOrWhiteSpace(current?.AccessToken)
+                && !Honua.Console.Shell.Security.ConsoleAuthConstants.IsSessionSentinel(current.AccessToken)
+                && (current.AccessTokenExpiresAt is null || current.AccessTokenExpiresAt > DateTimeOffset.UtcNow.AddSeconds(30)))
+            {
+                Navigation.NavigateTo(_returnTo);
+                return;
+            }
+
+            var loginUri = "/auth/server/login?profileId=" + Uri.EscapeDataString(_profile.Id)
+                + "&returnTo=" + Uri.EscapeDataString(_returnTo);
+            Navigation.NavigateTo(loginUri, forceLoad: true);
             return;
         }
 

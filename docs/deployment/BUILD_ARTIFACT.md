@@ -91,12 +91,15 @@ HONUA_CONSOLE_ARTIFACT_DIR=artifacts/honua-console-web \
 The single deployable artifact serves all four Console areas from one origin.
 That means:
 
-- No cross-origin XHR/fetch is required for Studio, Catalog, Operate, or Share
-  to talk to `honua-server`. Auth/session cookies live on the same origin as
-  the API.
+- No browser-side cross-origin XHR/fetch is required for Studio, Catalog, Operate, or Share
+  to talk to `honua-server`. The Console operator cookie lives on the Console origin;
+  honua-server admin-session cookies remain server-side in Console's partitioned BFF jars.
 - The reverse proxy in front of Console must route API calls (for example,
   `/api/*`, `/healthz/*`) to `honua-server` on the same origin. Console build
   does not embed an API base URL.
+- Route `/admin/auth/callback` to Console, set honua-server's external `Public:BaseUrl`
+  to that shared origin, and register the exact callback URI with the OIDC provider. Console
+  calls the server auth/token APIs over the profile's internal `ServerBaseUri`.
 - The legacy Blazor Admin, while it remains in the deployment, is served as a
   transitional surface under the same origin. Ported Operate routes land under
   `/operate/*`; routes not yet ported can be embedded or redirected.
