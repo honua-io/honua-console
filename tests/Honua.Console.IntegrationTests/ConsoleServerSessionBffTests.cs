@@ -67,6 +67,29 @@ public sealed class ConsoleServerSessionBffTests
     }
 
     [Fact]
+    public async Task SessionStore_NewProcessInstance_DiscardsCookiesAndPendingState()
+    {
+        await using (var first = new ConsoleServerSessionClientStore(TimeProvider.System))
+        {
+            first.GetOrCreate("operator-a", Profile("env")).Cookies.SetCookies(
+                ServerOrigin,
+                "honua_admin_session=session-a; Path=/; HttpOnly");
+            first.RegisterPending(new ConsoleServerAuthPendingFlow(
+                "state-a",
+                "operator-a",
+                "env",
+                "oidc",
+                ServerOrigin,
+                "/operate",
+                DateTimeOffset.UtcNow.AddMinutes(5)));
+        }
+
+        await using var restarted = new ConsoleServerSessionClientStore(TimeProvider.System);
+        Assert.Empty(restarted.GetOrCreate("operator-a", Profile("env")).Cookies.GetCookieHeader(ServerOrigin));
+        Assert.False(restarted.TryConsumePending("state-a", "operator-a", out _));
+    }
+
+    [Fact]
     public async Task BeginSignIn_MissingProfile_PreservesSanitizedReturnTarget()
     {
         var context = new SwitchableOperatorContext("operator-a");
@@ -126,6 +149,71 @@ public sealed class ConsoleServerSessionBffTests
         context.OperatorKey = "operator-b";
         Assert.Equal("bearer-operator-b-env-b", (await sessions.GetSessionAsync("env-b"))!.AccessToken);
         Assert.Null(await sessions.GetSessionAsync("env-a"));
+    }
+
+    [Fact]
+    public async Task CompleteSignIn_SameOperatorSwitchingProfiles_KeepsPartitionsIsolated()
+    {
+        var context = new SwitchableOperatorContext("operator-a");
+        var profiles = new OperatorScopedEnvironmentProfileStore(context);
+        var sessions = new OperatorScopedAccountSessionStore(context);
+        await using var serverSessions = new ConsoleServerSessionClientStore(
+            TimeProvider.System,
+            static (key, cookies) => new SimulatedServerAuthHandler(key, cookies));
+        var coordinator = new ConsoleServerSessionBffCoordinator(
+            context,
+            profiles,
+            sessions,
+            serverSessions,
+            TimeProvider.System);
+
+        await SeedOperatorAsync(context, profiles, sessions, "operator-a", "env-a");
+        await SeedOperatorAsync(context, profiles, sessions, "operator-a", "env-b");
+
+        var beginA = await coordinator.BeginSignInAsync("env-a", providerKey: null, "/operate/a");
+        var completeA = await coordinator.CompleteSignInAsync("code-a", State(beginA.RedirectUri), error: null);
+        var beginB = await coordinator.BeginSignInAsync("env-b", providerKey: null, "/operate/b");
+        var completeB = await coordinator.CompleteSignInAsync("code-b", State(beginB.RedirectUri), error: null);
+
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, completeA.Status);
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, completeB.Status);
+        Assert.Equal("bearer-operator-a-env-a", (await sessions.GetSessionAsync("env-a"))!.AccessToken);
+        Assert.Equal("bearer-operator-a-env-b", (await sessions.GetSessionAsync("env-b"))!.AccessToken);
+        Assert.True(serverSessions.TryGet("operator-a", Profile("env-a"), out var partitionA));
+        Assert.True(serverSessions.TryGet("operator-a", Profile("env-b"), out var partitionB));
+        Assert.NotSame(partitionA, partitionB);
+        Assert.DoesNotContain(
+            "session-operator-a-env-b",
+            partitionA!.Cookies.GetCookieHeader(ServerOrigin),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "session-operator-a-env-a",
+            partitionB!.Cookies.GetCookieHeader(ServerOrigin),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompleteSignIn_UpstreamDenial_DoesNotStoreBearer()
+    {
+        var context = new SwitchableOperatorContext("operator-a");
+        var profiles = new OperatorScopedEnvironmentProfileStore(context);
+        var sessions = new OperatorScopedAccountSessionStore(context);
+        await using var serverSessions = new ConsoleServerSessionClientStore(
+            TimeProvider.System,
+            static (key, cookies) => new SimulatedServerAuthHandler(key, cookies, rejectToken: true));
+        var coordinator = new ConsoleServerSessionBffCoordinator(
+            context,
+            profiles,
+            sessions,
+            serverSessions,
+            TimeProvider.System);
+        await SeedOperatorAsync(context, profiles, sessions, "operator-a", "env");
+
+        var begin = await coordinator.BeginSignInAsync("env", providerKey: null, "/operate");
+        var complete = await coordinator.CompleteSignInAsync("rejected-code", State(begin.RedirectUri), error: null);
+
+        Assert.Equal(ConsoleServerSignInStatus.Denied, complete.Status);
+        Assert.True(ConsoleAuthConstants.IsSessionSentinel((await sessions.GetSessionAsync("env"))!.AccessToken));
     }
 
     [Fact]
@@ -248,7 +336,8 @@ public sealed class ConsoleServerSessionBffTests
 
     private sealed class SimulatedServerAuthHandler(
         ConsoleServerSessionPartitionKey key,
-        CookieContainer cookies) : HttpMessageHandler
+        CookieContainer cookies,
+        bool rejectToken = false) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -271,6 +360,11 @@ public sealed class ConsoleServerSessionBffTests
 
             if (path.EndsWith("/token", StringComparison.Ordinal))
             {
+                if (rejectToken)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                }
+
                 var body = await request.Content!.ReadAsStringAsync(cancellationToken);
                 Assert.Contains($"state-{key.OperatorKey}-{key.ProfileId}", body, StringComparison.Ordinal);
                 Assert.Contains($"pending-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(ServerOrigin), StringComparison.Ordinal);
