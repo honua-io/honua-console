@@ -11,9 +11,10 @@ namespace Honua.Console.Shell.Services;
 /// <summary>
 /// Binds the human-in-the-loop deploy approval surface to a real honua-server through
 /// the deploy-control admin endpoints (<c>GET /api/v1/admin/deploy/operations/{id}</c>,
-/// <c>POST .../submit</c>, <c>POST .../rollback</c>). The admin API key is sent as
-/// <c>X-API-Key</c>. The server's <c>OperatorApprovalGate</c> remains the real gate: a
-/// data-affecting rollback that the gate denies returns 403, which this client surfaces
+/// <c>POST .../submit</c>, <c>POST .../rollback</c>). The active operator bearer is
+/// preferred so server audit records retain the human identity; a configured admin API
+/// key is an explicit headless fallback. The server's <c>OperatorApprovalGate</c> remains
+/// the real gate: a data-affecting rollback that the gate denies returns 403, which this client surfaces
 /// as a <see cref="OperateSectionStatus.Forbidden"/> result — the UI never bypasses it.
 ///
 /// Charter section 11 (no standing mock for server-owned data) is preserved: this client
@@ -27,15 +28,18 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
 
     private readonly HttpClient _http;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
+    private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
 
     public HttpConsoleDeployApprovalClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
+        IConsoleAccountSessionStore sessionStore,
         string? adminApiKey = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
+        _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
     }
 
@@ -52,7 +56,7 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
         }
 
         return await SendAsync(
-            profile.ServerBaseUri,
+            profile,
             HttpMethod.Get,
             DeployControlAdminRoutes.Operation(operationId.Trim()),
             content: null,
@@ -126,7 +130,7 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
             DeployControlJsonContext.Default.SubmitDeployOperationRequest);
 
         return await SendAsync(
-            profile.ServerBaseUri,
+            profile,
             HttpMethod.Post,
             DeployControlAdminRoutes.Submit(operationId.Trim()),
             body,
@@ -154,7 +158,7 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
         // The UI must require explicit confirmation before calling this; the gate is the
         // authority and is never bypassed.
         return await SendAsync(
-            profile.ServerBaseUri,
+            profile,
             HttpMethod.Post,
             DeployControlAdminRoutes.Rollback(operationId.Trim()),
             body,
@@ -162,17 +166,19 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
     }
 
     private async Task<OperateSectionResult<DeployOperationProposal>> SendAsync(
-        Uri baseUri,
+        ConsoleEnvironmentProfile profile,
         HttpMethod method,
         string relativePath,
         string? content,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, BuildUri(baseUri, relativePath));
-        if (!string.IsNullOrWhiteSpace(_adminApiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _adminApiKey);
-        }
+        using var request = new HttpRequestMessage(method, BuildUri(profile.ServerBaseUri, relativePath));
+        await ConsoleServerHttp.AttachAuthenticationAsync(
+            request,
+            _sessionStore,
+            profile,
+            _adminApiKey,
+            cancellationToken).ConfigureAwait(false);
 
         if (content is not null)
         {

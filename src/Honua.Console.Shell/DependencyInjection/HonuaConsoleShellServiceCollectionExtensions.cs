@@ -133,11 +133,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // endpoints (the OperatorApprovalGate stays the real gate — never bypassed). No
         // standing in-memory source is registered (Charter section 11); when no
         // environment is connected the surface renders the missing-binding state. The
-        // admin API key is sent as X-API-Key.
+        // active operator bearer is preferred; the configured admin API key is the
+        // explicit headless fallback.
         services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>
             new HttpConsoleDeployApprovalClient(
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey));
 
         // Deploy cockpit completion (console#290): the paged deploy-operations list
@@ -172,11 +174,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // decision returns 403 (surfaced as Forbidden — never bypassed). No standing
         // in-memory source is registered (Charter section 11); when no environment is
         // connected every call renders the missing-binding state. The admin API key is sent
-        // as X-API-Key.
+        // as X-API-Key only when no forwardable operator bearer exists.
         services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
             new HttpConsoleProposalsClient(
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey));
 
         // Live approval-inbox updates (issue #193, honua-server #1695): the console connects
@@ -247,7 +250,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // server output proposed by id through the existing approval gateway — no
         // model/LLM anything (ADR-0028). No standing in-memory source is registered
         // (Charter section 11); each read degrades to the shared missing-binding /
-        // section-status surface when unbound. The admin API key is sent as X-API-Key.
+        // section-status surface when unbound. Ops Health retains its current admin-key
+        // binding; ops-finding requests prefer the active operator bearer, with the
+        // configured admin API key as their explicit headless fallback.
         services.TryAddSingleton<IConsoleOpsHealthClient>(serviceProvider =>
             new HttpConsoleOpsHealthClient(
                 CreateOperateObservabilityHttpClient(),
@@ -273,6 +278,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             new HttpConsoleOpsFindingsClient(
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey));
 
         // In-product support loop (#164). The ticket client binds to the

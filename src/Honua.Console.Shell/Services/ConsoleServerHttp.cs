@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 
@@ -19,6 +20,38 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 internal static class ConsoleServerHttp
 {
+    /// <summary>
+    /// Attaches the active operator's forwardable bearer to a honua-server request. A
+    /// configured admin key is used only when no real operator bearer exists, preserving
+    /// the explicit headless/dev fallback without replacing the human audit principal.
+    /// </summary>
+    public static async Task AttachAuthenticationAsync(
+        HttpRequestMessage request,
+        IConsoleAccountSessionStore sessions,
+        ConsoleEnvironmentProfile profile,
+        string? adminApiKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(sessions);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var bearer = await ResolveForwardableBearerAsync(sessions, profile, cancellationToken)
+            .ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(bearer))
+        {
+            request.Headers.Remove("X-API-Key");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(adminApiKey))
+        {
+            request.Headers.Remove("X-API-Key");
+            request.Headers.TryAddWithoutValidation("X-API-Key", adminApiKey);
+        }
+    }
+
     /// <summary>
     /// Resolves a relative path against an absolute honua-server base URI, ensuring the
     /// base authority + base path are preserved (a trailing slash is added when missing so
