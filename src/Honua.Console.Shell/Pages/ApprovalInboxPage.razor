@@ -31,7 +31,8 @@
     </div>
 
     <div class="approval-inbox-toolbar" role="group" aria-label="Inbox controls">
-        <span class="approval-inbox-live @(Realtime.IsConnected ? "is-live" : null)" data-live-state>
+        <span class="approval-inbox-live @(Realtime.IsConnected ? "is-live" : null)" data-live-state
+              data-fallback-engaged="@Realtime.IsFallbackEngaged">
             @(Realtime.IsConnected ? "Live" : "Manual")
         </span>
         <button type="button" class="console-button console-button-secondary"
@@ -125,12 +126,9 @@
                                                 @ConsoleProposalPresentation.SourceLabel(item.Source)
                                             </span>
                                         }
-                                        <span class="console-status @ConsoleProposalPresentation.StatusClass(item.Proposal.Status)">
-                                            @ConsoleProposalPresentation.StatusLabel(item.Proposal.Status)
-                                        </span>
-                                        <span class="console-status @ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)">
-                                            @ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)
-                                        </span>
+                                        <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
+                                        <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
+                                            CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
                                     </span>
                                     <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
                                     <span class="console-muted approval-inbox-row-sub">
@@ -166,6 +164,15 @@
 </section>
 
 @code {
+    /// <summary>
+    /// A proposal id to pre-select on load (console#292 correlation-id chip deep link, e.g.
+    /// <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, id)</c>). This is the last
+    /// hop of the alert -> finding -> proposal -> inbox golden path: arriving here already opens
+    /// the proposal's approval panel, with no further hand-copying of ids.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "proposalId")]
+    public string? ProposalId { get; set; }
+
     private bool _loaded;
     private bool _busy;
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
@@ -186,6 +193,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // A deep-linked proposal id (console#292) pre-selects the work item — the panel loads it
+        // by id directly, independent of whether the queue read below finds/lists it.
+        if (!string.IsNullOrWhiteSpace(ProposalId))
+        {
+            _selectedProposalId = ProposalId.Trim();
+        }
+
         Realtime.ProposalChanged += OnProposalEvent;
         await RefreshAsync();
         // Best-effort: open the live subscription. A failure leaves the inbox on manual refresh.

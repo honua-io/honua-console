@@ -1,24 +1,27 @@
 using Honua.Console.Shell.Models;
-using Honua.Console.Shell.Security;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Shell.Services;
 
 /// <summary>
 /// Live <see cref="IConsoleProposalRealtimeClient"/> backed by the honua-server admin
 /// realtime hub (honua-server #1695). It connects from the console's server process to
-/// <c>{server}/hubs/admin</c>, joins the <c>proposals</c> group via the hub's
-/// <c>SubscribeToProposals</c> method, and projects each <c>ProposalPending</c> /
-/// <c>ProposalResolved</c> payload onto a <see cref="ConsoleProposalEvent"/>.
+/// <c>{server}/hubs/admin</c> via <see cref="ConsoleAdminHubConnectionFactory"/>, joins the
+/// <c>proposals</c> group via the hub's <c>SubscribeToProposals</c> method, and projects each
+/// <c>ProposalPending</c> / <c>ProposalResolved</c> payload onto a <see cref="ConsoleProposalEvent"/>.
 ///
-/// Auth mirrors the Family-B REST clients: the operator's forwardable honua-server bearer is
-/// used when present, otherwise the shared admin <c>X-API-Key</c> is sent. The hub is gated by
-/// the same admin authorization as the REST proposals API. A connect failure (no environment
-/// bound, server unreachable, hub unsupported) leaves the client disconnected and silent — the
-/// inbox stays usable via manual refresh and never sees fabricated events.
+/// This is also the reference implementation of the console#293 shared realtime/capability seam
+/// (<see cref="IConsoleRealtimeCapabilityClient"/>): connection lifecycle and auth are delegated
+/// to <see cref="ConsoleAdminHubConnectionFactory"/>, and fallback engagement is tracked through
+/// <see cref="ConsoleRealtimeFallbackTracker"/> rather than the previous bare <c>catch {}</c>
+/// blocks (finding PA-233) — every connect/subscribe/reconnect failure and every unexpected close
+/// is now logged and reflected in <see cref="ConnectionState"/>, so the inbox's Live/Manual pill
+/// can be honest about whether it silently degraded. A missing environment binding still leaves
+/// the client inert (<see cref="ConsoleRealtimeConnectionState.NotConfigured"/>) and never
+/// fabricates events; the inbox stays usable via manual refresh either way.
 /// </summary>
-public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealtimeClient
+public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealtimeClient, IConsoleRealtimeCapabilityClient
 {
     internal const string HubPath = "hubs/admin";
     internal const string SubscribeMethod = "SubscribeToProposals";
@@ -28,26 +31,45 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
 
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessions;
+    private readonly ILogger _logger;
     private readonly string? _adminApiKey;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly ConsoleRealtimeFallbackTracker _tracker;
 
     private HubConnection? _connection;
+    private bool _stopping;
 
     public SignalRConsoleProposalRealtimeClient(
         IConsoleEnvironmentProfileStore profileStore,
         IConsoleAccountSessionStore sessions,
+        ILogger<SignalRConsoleProposalRealtimeClient> logger,
         string? adminApiKey = null)
     {
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
+        _tracker = new ConsoleRealtimeFallbackTracker(_logger, HubPath);
     }
 
     /// <inheritdoc />
     public event Action<ConsoleProposalEvent>? ProposalChanged;
 
+    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionStateChanged" />
+    public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged
+    {
+        add => _tracker.StateChanged += value;
+        remove => _tracker.StateChanged -= value;
+    }
+
+    /// <inheritdoc cref="IConsoleRealtimeCapabilityClient.ConnectionState" />
+    public ConsoleRealtimeConnectionState ConnectionState => _tracker.State;
+
     /// <inheritdoc />
-    public bool IsConnected => _connection?.State == HubConnectionState.Connected;
+    public bool IsConnected => ConnectionState == ConsoleRealtimeConnectionState.Connected;
+
+    /// <inheritdoc />
+    public bool IsFallbackEngaged => ConnectionState == ConsoleRealtimeConnectionState.FallbackEngaged;
 
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken = default)
@@ -60,36 +82,29 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
                 return;
             }
 
-            var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-            if (profile is null)
+            HubConnection? connection;
+            try
             {
-                // No environment bound: stay inert. The inbox renders the missing-binding
-                // state from its REST read; there is nothing to subscribe to.
+                _tracker.MarkConnecting();
+                connection = await ConsoleAdminHubConnectionFactory
+                    .CreateAsync(_profileStore, _sessions, _adminApiKey, HubPath, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // PA-233 fix: previously unguarded (a profile-store/bearer-resolution failure
+                // would bubble past this method entirely). Logged and surfaced as a fallback.
+                _tracker.MarkFallbackEngaged("Failed to resolve the active environment or build the admin hub connection.", ex);
                 return;
             }
 
-            var bearer = await ConsoleServerHttp
-                .ResolveForwardableBearerAsync(_sessions, profile, cancellationToken)
-                .ConfigureAwait(false);
-
-            var hubUri = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, HubPath);
-
-            var connection = new HubConnectionBuilder()
-                .WithUrl(hubUri, options =>
-                {
-                    if (!string.IsNullOrWhiteSpace(_adminApiKey))
-                    {
-                        options.Headers["X-API-Key"] = _adminApiKey;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(bearer) && !ConsoleAuthConstants.IsSessionSentinel(bearer))
-                    {
-                        options.AccessTokenProvider = () => Task.FromResult<string?>(bearer);
-                    }
-                })
-                .WithAutomaticReconnect()
-                .AddJsonProtocol(o => o.PayloadSerializerOptions.PropertyNameCaseInsensitive = true)
-                .Build();
+            if (connection is null)
+            {
+                // No environment bound: stay inert. The inbox renders the missing-binding
+                // state from its REST read; there is nothing to subscribe to. Not a failure.
+                _tracker.MarkNotConfigured();
+                return;
+            }
 
             connection.On<ProposalRealtimeWire>(
                 PendingEvent,
@@ -98,6 +113,12 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
                 ResolvedEvent,
                 wire => Raise(ConsoleProposalEventKind.Resolved, wire));
 
+            connection.Reconnecting += _ =>
+            {
+                _tracker.MarkConnecting();
+                return Task.CompletedTask;
+            };
+
             // Re-join the proposals group after an automatic reconnect, else the connection
             // would be live but no longer in the group and would silently miss events.
             connection.Reconnected += async _ =>
@@ -105,11 +126,27 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
                 try
                 {
                     await connection.InvokeAsync(SubscribeMethod).ConfigureAwait(false);
+                    _tracker.MarkConnected();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Best-effort re-subscribe; the next manual refresh still reconciles state.
+                    // PA-233 fix: this was a bare `catch {}` — silent. The connection is live but
+                    // not in the group, so events would be missed with no signal that it happened.
+                    _tracker.MarkFallbackEngaged("Reconnected but re-subscribing to the proposals group failed.", ex);
                 }
+            };
+
+            connection.Closed += ex =>
+            {
+                // An unexpected close (server restart, or automatic reconnect exhausted) used to
+                // leave IsConnected=false with no record of why. StopAsync sets _stopping first,
+                // so a deliberate shutdown is not misreported as a fallback.
+                if (!_stopping)
+                {
+                    _tracker.MarkFallbackEngaged("The hub connection closed.", ex);
+                }
+
+                return Task.CompletedTask;
             };
 
             try
@@ -117,10 +154,14 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
                 await connection.StartAsync(cancellationToken).ConfigureAwait(false);
                 await connection.InvokeAsync(SubscribeMethod, cancellationToken).ConfigureAwait(false);
                 _connection = connection;
+                _tracker.MarkConnected();
             }
-            catch
+            catch (Exception ex)
             {
-                // Best-effort: a connect/subscribe failure leaves us disconnected and silent.
+                // PA-233 fix: this was a bare `catch {}` — a connect/subscribe failure left the
+                // client disconnected and silent, with no logger and no way for the page to know
+                // the difference between "not configured" and "tried and failed".
+                _tracker.MarkFallbackEngaged("Failed to connect or subscribe to the proposals group.", ex);
                 await connection.DisposeAsync().ConfigureAwait(false);
             }
         }
@@ -134,10 +175,12 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _stopping = true;
         try
         {
             if (_connection is null)
             {
+                _tracker.MarkNotConfigured();
                 return;
             }
 
@@ -151,15 +194,19 @@ public sealed class SignalRConsoleProposalRealtimeClient : IConsoleProposalRealt
                     await connection.InvokeAsync(UnsubscribeMethod, cancellationToken).ConfigureAwait(false);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Best-effort unsubscribe; disposing the connection drops the group membership anyway.
+                // Best-effort unsubscribe; disposing the connection drops the group membership
+                // anyway. Logged at Debug (expected during shutdown/reconnect races), not a fallback.
+                _logger.LogDebug(ex, "Best-effort unsubscribe from {HubPath} failed before disposing the connection.", HubPath);
             }
 
             await connection.DisposeAsync().ConfigureAwait(false);
+            _tracker.MarkNotConfigured();
         }
         finally
         {
+            _stopping = false;
             _gate.Release();
         }
     }

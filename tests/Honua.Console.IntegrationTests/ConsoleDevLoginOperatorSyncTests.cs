@@ -67,23 +67,39 @@ public sealed class ConsoleDevLoginOperatorSyncTests
         Assert.Equal(DevOperatorSubject, active.Account.AccountId);
     }
 
+    [Fact]
+    public async Task DevLoginSync_ServiceProfile_IsReboundToHumanAccountMode()
+    {
+        var httpContext = new DefaultHttpContext();
+        var (bridge, profiles) = BuildDevLoginStack(httpContext, ConsoleAccountAuthMode.ServiceApiKey);
+        var principal = BuildDevPrincipal();
+        httpContext.User = principal;
+
+        await bridge.SyncAsync(principal);
+
+        var active = await profiles.GetActiveProfileAsync();
+        Assert.Equal(ConsoleAccountAuthMode.AccountRbac, active!.Account.AuthMode);
+        Assert.Equal(DevOperatorSubject, active.Account.AccountId);
+    }
+
     // Wires the production dev-login server-sync stack for the given request:
     //  - the real ConsoleOperatorContext resolving from HttpContext.User (via IHttpContextAccessor), and
     //  - the operator-scoped profile/session stores seeded exactly like the Development browser dev-seed
     //    (BuildBrowserDevSeed): one active "Local honua-server" profile bound to the seed account, so the
     //    sync's rebind-to-operator write path (the one that fails closed on an unresolved operator) runs.
     private static (ConsoleOperatorSessionBridge Bridge, IConsoleEnvironmentProfileStore Profiles) BuildDevLoginStack(
-        HttpContext httpContext)
+        HttpContext httpContext,
+        ConsoleAccountAuthMode authMode = ConsoleAccountAuthMode.AccountRbac)
     {
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var operatorContext = new ConsoleOperatorContext(accessor);
 
-        var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext, DevSeedFactory);
+        var profiles = new OperatorScopedEnvironmentProfileStore(operatorContext, () => DevSeedFactory(authMode));
         var sessions = new OperatorScopedAccountSessionStore(operatorContext);
         return (new ConsoleOperatorSessionBridge(profiles, sessions), profiles);
     }
 
-    private static InMemoryConsoleEnvironmentProfileStore DevSeedFactory()
+    private static InMemoryConsoleEnvironmentProfileStore DevSeedFactory(ConsoleAccountAuthMode authMode)
     {
         var devProfile = new ConsoleEnvironmentProfile
         {
@@ -93,7 +109,7 @@ public sealed class ConsoleDevLoginOperatorSyncTests
             EnvironmentKind = "development",
             Account = new ConsoleAccountBinding
             {
-                AuthMode = ConsoleAccountAuthMode.AccountRbac,
+                AuthMode = authMode,
                 AccountId = "console-user",
                 DisplayName = "Console User",
             },

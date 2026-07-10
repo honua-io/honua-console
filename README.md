@@ -129,8 +129,10 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj
 
 Bind the Operate transition pages to a local honua-server by setting
 `HONUA_SERVER_BASE_URL` and, when needed, `HONUA_ADMIN_API_KEY` before
-starting the web host. The API key is sent to admin endpoints as
-`X-API-Key`.
+starting the web host. Read-only and explicitly headless paths may send the key as
+`X-API-Key`; interactive proposal decisions, deploy submit/rollback, and finding proposals
+require a forwardable operator bearer and fail closed without one. See
+[Console authentication](docs/console-authentication.md).
 
 Run the live Operate integration evidence only when Docker and a honua-server
 checkout are available:

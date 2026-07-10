@@ -135,6 +135,15 @@ public sealed record ConsoleProposalSummary(
     /// </summary>
     public ConsoleProposalSource Source { get; init; } = ConsoleProposalSource.Server;
 
+    /// <summary>Deterministic ops-finding id that created this proposal, when applicable.</summary>
+    public string? FindingId { get; init; }
+
+    /// <summary>Autonomy rule associated with the source finding, when applicable.</summary>
+    public string? AutonomyRule { get; init; }
+
+    /// <summary>Bounded action discriminator associated with the source finding.</summary>
+    public string? ActionDiscriminator { get; init; }
+
     /// <summary>Whether an operator can act on this proposal right now (approve / reject).</summary>
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
@@ -175,6 +184,15 @@ public sealed record ConsoleProposalDetail(
     /// <summary>The system that owns this proposal (server vs devops-bridge). See <see cref="ConsoleProposalSource"/>.</summary>
     public ConsoleProposalSource Source { get; init; } = ConsoleProposalSource.Server;
 
+    /// <summary>Deterministic ops-finding id that created this proposal, when applicable.</summary>
+    public string? FindingId { get; init; }
+
+    /// <summary>Autonomy rule associated with the source finding, when applicable.</summary>
+    public string? AutonomyRule { get; init; }
+
+    /// <summary>Bounded action discriminator associated with the source finding.</summary>
+    public string? ActionDiscriminator { get; init; }
+
     /// <summary>Whether an operator can act on this proposal right now (approve / reject).</summary>
     public bool IsAwaitingApproval => Status == ConsoleProposalStatus.AwaitingApproval;
 
@@ -198,6 +216,9 @@ public sealed record ConsoleProposalDetail(
         UpdatedAt)
     {
         Source = Source,
+        FindingId = FindingId,
+        AutonomyRule = AutonomyRule,
+        ActionDiscriminator = ActionDiscriminator,
     };
 }
 
@@ -311,17 +332,20 @@ public static class ConsoleProposalPresentation
         _ => "unknown",
     };
 
-    /// <summary>Neutral Console status CSS class for a proposal lifecycle state.</summary>
-    public static string StatusClass(ConsoleProposalStatus status) => status switch
-    {
-        ConsoleProposalStatus.Succeeded => "console-state-success",
-        ConsoleProposalStatus.Failed => "console-state-danger",
-        ConsoleProposalStatus.Rejected => "console-state-danger",
-        ConsoleProposalStatus.AwaitingApproval => "console-state-warning",
-        ConsoleProposalStatus.RolledBack => "console-state-warning",
-        ConsoleProposalStatus.Submitted or ConsoleProposalStatus.Reconciling => "console-state-info",
-        _ => "console-state-neutral",
-    };
+    /// <summary>
+    /// Neutral Console status CSS class for a proposal lifecycle state, derived from the shared
+    /// <see cref="OperateStatus"/> mapping table (console#293) so this stays identical to the
+    /// class every other Operate surface would render for the same word.
+    /// </summary>
+    public static string StatusClass(ConsoleProposalStatus status) => ToStatus(status).CssClass;
+
+    /// <summary>
+    /// Projects a proposal lifecycle status onto the shared <see cref="OperateStatus"/> status
+    /// vocabulary (console#293) so it can render through the shared <c>OperateStatusPill</c>
+    /// component.
+    /// </summary>
+    public static OperateStatus ToStatus(ConsoleProposalStatus status) =>
+        new(StatusLabel(status), string.Empty);
 
     /// <summary>Short, human label for a risk level.</summary>
     public static string RiskLabel(ConsoleProposalRisk risk) => risk switch

@@ -402,7 +402,12 @@ public sealed record ObservabilityAlertEventResponse
 {
     public long EventId { get; init; }
 
-    public long RuleId { get; init; }
+    /// <summary>
+    /// Owning alert-rule id, or <see langword="null"/> for operations-notification events
+    /// (deploy/job terminal events) that share the alert-event outbox but are not rule-driven.
+    /// Nullable to match the server contract after honua-server migration 075.
+    /// </summary>
+    public long? RuleId { get; init; }
 
     public string? RuleName { get; init; }
 

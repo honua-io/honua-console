@@ -24,6 +24,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Verify vendored honua-server ops parity map
+        run: ./scripts/sync-ops-parity-map.sh --check
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v5
         with:

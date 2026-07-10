@@ -1,7 +1,5 @@
 using System.Net.Http;
-using System.Net.Http.Headers;
 using Honua.Console.Shell.Models;
-using Honua.Console.Shell.Security;
 
 namespace Honua.Console.Shell.Services;
 
@@ -49,14 +47,14 @@ public sealed class HonuaServerBindingHandler : DelegatingHandler
         {
             RetargetToActiveProfile(request, profile.ServerBaseUri);
 
-            var bearer = await ResolveOperatorBearerAsync(profile, cancellationToken).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(bearer))
-            {
-                // Run as the real operator principal: forward the bearer and drop the shared admin
-                // key so honua-server's per-principal RBAC (not the admin super-principal) decides.
-                request.Headers.Remove("X-API-Key");
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
-            }
+            // The key, when present, was attached by the typed client. Passing no new key keeps it
+            // as the headless fallback while the shared helper prefers the human operator bearer.
+            await ConsoleServerHttp.AttachAuthenticationAsync(
+                request,
+                _sessions,
+                profile,
+                adminApiKey: null,
+                cancellationToken).ConfigureAwait(false);
         }
 
         return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
@@ -88,20 +86,4 @@ public sealed class HonuaServerBindingHandler : DelegatingHandler
         request.RequestUri = builder.Uri;
     }
 
-    private async Task<string?> ResolveOperatorBearerAsync(
-        ConsoleEnvironmentProfile profile,
-        CancellationToken cancellationToken)
-    {
-        if (profile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous)
-        {
-            return null;
-        }
-
-        var session = await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
-        var token = session?.AccessToken;
-
-        // A Console session sentinel marks "operator signed in" for read context but is not a real
-        // honua-server bearer; do not forward it — let the admin-key fallback handle the call.
-        return ConsoleAuthConstants.IsSessionSentinel(token) ? null : token;
-    }
 }

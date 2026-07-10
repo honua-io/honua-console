@@ -1,16 +1,26 @@
+@using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleDeployApprovalClient ApprovalClient
+@inject IServiceProvider ServiceProvider
 @implements IDisposable
 
 @* Human-in-the-loop approval panel for a single deploy-control operation. Shows the
    proposal detail (service/env/revision/action, change summary, evidence links, required
    approvals, suggested rollback) and the governed actions:
      Approve  -> POST /operations/{id}/submit  (optional reason)
-     Reject   -> records the operator's decision (no server reject endpoint; see note)
      Rollback -> POST /operations/{id}/rollback (data-affecting requires explicit confirm)
    Status polling reflects AwaitingApproval -> Submitted -> Reconciling -> Succeeded.
-   The server's OperatorApprovalGate is the real gate; this panel never bypasses it. *@
+   The server's OperatorApprovalGate is the real gate; this panel never bypasses it.
+
+   console#290 addendum (2026-07-07, item 2): there is no server reject endpoint for a
+   deploy-control operation, so there is no "Reject" button here. Approving is the ONLY
+   affirmative action a paused operation offers; the recovery lever for anything that has
+   already gone wrong is Rollback (below) or, for a ManualInterventionRequired operation, the
+   findings-driven recovery panel further down. A button that recorded a "rejection" while
+   leaving the operation AwaitingApproval on the server would silently no-op — worse than no
+   button at all — so the model is stated in prose instead (see the callout under the action
+   row) rather than faked. *@
 
 @if (_proposal is null)
 {
@@ -148,14 +158,15 @@ else
             </div>
         }
 
-        @* GOVERNED ACTIONS — reason field + approve/reject/rollback. Approve and Reject are
-           offered only while AwaitingApproval; Rollback only when rollback-eligible. *@
+        @* GOVERNED ACTIONS — reason field + approve/rollback. Approve is offered only while
+           AwaitingApproval; Rollback only when rollback-eligible. There is no Reject action:
+           see the "deploy operations are approved in the inbox" callout below the action row. *@
         <div class="operate-deploy-actions">
             <label class="operate-deploy-reason-label" for="deploy-approval-reason">Reason (optional)</label>
             <textarea id="deploy-approval-reason"
                       class="operate-deploy-reason"
                       rows="2"
-                      placeholder="Why are you approving / rejecting / rolling back?"
+                      placeholder="Why are you approving / rolling back?"
                       disabled="@_busy"
                       @bind="_reason"></textarea>
 
@@ -170,12 +181,6 @@ else
                                 : "Approve and submit this operation for execution.")"
                             @onclick="ApproveAsync">
                         Approve &amp; submit
-                    </button>
-                    <button type="button"
-                            class="console-button console-button-secondary"
-                            disabled="@_busy"
-                            @onclick="RejectAsync">
-                        Reject
                     </button>
                 }
 
@@ -229,7 +234,85 @@ else
             {
                 <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
             }
+
+            @* console#290 addendum item 2: state the model explicitly instead of a fake Reject.
+               Declining an AwaitingApproval operation is a decision made in the approval inbox
+               (the single approval seat — console#290/#292 golden path), not a local no-op here;
+               once submitted, Rollback above is the recovery lever. *@
+            @if (proposal.IsAwaitingApproval)
+            {
+                <p class="console-muted operate-deploy-no-reject" data-no-reject-note>
+                    There is no separate Reject here: deploy operations are approved in the
+                    <a class="console-link" href="/inbox">approval inbox</a> — declining one is
+                    done there (or by leaving it unsubmitted, where it stays AwaitingApproval until it expires or is
+                    cancelled out of band). Once submitted, <strong>Rollback</strong> is the recovery lever.
+                </p>
+            }
         </div>
+
+        @* MANUAL-INTERVENTION RECOVERY — console#290 acceptance criterion 4: surfaces the
+           EXISTING findings recovery (forward-deploy to the recorded prior revision), proposed
+           through the same findings/propose flow Copilot Findings already uses, rather than
+           rebuilding a bespoke recovery action. Converge/preflight-override style approvals land
+           in the inbox only (single-approval-seat rule); this panel only surfaces the option and
+           links to where it is decided. *@
+        @if (proposal.Lifecycle == DeployOperationLifecycle.ManualInterventionRequired && _findingsClient is not null)
+        {
+            <div class="operate-deploy-manual-intervention" data-manual-intervention-panel>
+                <h4>Manual intervention required</h4>
+                @if (!_recoveryLoaded)
+                {
+                    <p class="console-muted">Looking for a recorded recovery finding&hellip;</p>
+                }
+                else if (_recoveryFinding is { } finding)
+                {
+                    <p class="console-muted">
+                        A recorded recovery finding is available for this operation: forward-deploy to the last
+                        known-good revision.
+                    </p>
+                    <p><strong>@finding.RecommendedAction!.Summary</strong></p>
+                    <button type="button" class="console-button" disabled="@_busy" data-propose-recovery
+                            @onclick="ProposeRecoveryAsync">
+                        Propose recovery
+                    </button>
+                    @if (_recoveryOutcome is { } outcome)
+                    {
+                        @if (outcome.ProposalId is { Length: > 0 } recoveryProposalId)
+                        {
+                            <p class="console-state-success" data-recovery-proposal>
+                                Proposal created &mdash;
+                                <CorrelationIdChip Value="@recoveryProposalId" Kind="CorrelationIdKind.ProposalId" />
+                                approve it in the inbox to actuate the forward deploy.
+                            </p>
+                        }
+                        else if (outcome.ExecutionOperationId is { Length: > 0 } execId)
+                        {
+                            <p class="console-state-success" data-recovery-executed>
+                                Executed directly &mdash;
+                                <CorrelationIdChip Value="@execId" Kind="CorrelationIdKind.OperationId" />
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="console-state-warning" data-recovery-message>
+                                @(string.IsNullOrWhiteSpace(outcome.Message) ? "The propose call did not create a proposal or execute directly." : outcome.Message)
+                            </p>
+                        }
+                    }
+                }
+                else
+                {
+                    @* Honest guidance for the no-recorded-revision case (issue #290 AC4): there is
+                       nothing to propose, so no button pretends otherwise. *@
+                    <p class="console-muted" data-no-recovery-finding>
+                        No recorded prior revision is available for this operation, so there is no forward-deploy
+                        recovery to propose. <strong>Supersede with a new operation:</strong> create a fresh deploy
+                        operation targeting this same target id through your devops/agent tooling, then track its
+                        operation id on the <a class="console-link" href="@GitOpsReleaseRoutes.Deploy">Deploy page</a>.
+                    </p>
+                }
+            </div>
+        }
 
         <p class="operate-deploy-governed console-state-danger">
             Governed operation &middot; routed through the server's deploy-control approval gate;
@@ -249,9 +332,19 @@ else
     [Parameter]
     public TimeSpan? PollInterval { get; set; } = TimeSpan.FromSeconds(5);
 
-    /// <summary>Raised after a successful approve/reject/rollback so the parent can refresh its list.</summary>
+    /// <summary>Raised after a successful approve/rollback so the parent can refresh its list.</summary>
     [Parameter]
     public EventCallback<DeployOperationProposal> OnActioned { get; set; }
+
+    /// <summary>
+    /// Raised every time the loaded proposal changes (initial load, poll tick, or action
+    /// result) — including background poll ticks that never call <see cref="OnActioned"/>. Lets
+    /// a parent (the upgrade card's post-upgrade verify summary) react to a lifecycle
+    /// transition — most importantly reaching a terminal state — without duplicating the
+    /// polling loop.
+    /// </summary>
+    [Parameter]
+    public EventCallback<DeployOperationProposal?> OnStatusChanged { get; set; }
 
     private DeployOperationProposal? _proposal;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
@@ -263,8 +356,22 @@ else
     private string _actionMessageClass = string.Empty;
     private string? _loadedOperationId;
 
+    // Resolved OPTIONALLY (GetService, never a required inject — mirrors OpsSummaryStrip /
+    // OperateServerUpgradeCard): a host that has not wired up Copilot Findings degrades by
+    // skipping the manual-intervention recovery lookup, never throwing at render time.
+    private IConsoleOpsFindingsClient? _findingsClient;
+
+    private bool _recoveryLoaded;
+    private OpsFindingResponse? _recoveryFinding;
+    private OpsFindingProposeResponse? _recoveryOutcome;
+
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _pollCts;
+
+    protected override void OnInitialized()
+    {
+        _findingsClient = ServiceProvider.GetService<IConsoleOpsFindingsClient>();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -273,15 +380,31 @@ else
             _loadedOperationId = OperationId;
             _confirmingRollback = false;
             _actionMessage = null;
+            _recoveryLoaded = false;
+            _recoveryFinding = null;
+            _recoveryOutcome = null;
             await LoadAsync();
             StartPolling();
+        }
+
+        if (_findingsClient is not null
+            && _proposal?.Lifecycle == DeployOperationLifecycle.ManualInterventionRequired
+            && !_recoveryLoaded)
+        {
+            await LoadRecoveryFindingAsync();
         }
     }
 
     private async Task LoadAsync()
     {
         var result = await ApprovalClient.GetOperationAsync(OperationId);
+        await ApplyAsync(result);
+    }
+
+    private async Task ApplyAsync(OperateSectionResult<DeployOperationProposal> result)
+    {
         Apply(result);
+        await OnStatusChanged.InvokeAsync(_proposal);
     }
 
     private void Apply(OperateSectionResult<DeployOperationProposal> result)
@@ -291,26 +414,63 @@ else
         _proposal = result.IsAllowed ? result.Value : null;
     }
 
+    // console#290 acceptance criterion 4: surfaces the EXISTING findings recovery rather than
+    // rebuilding it. A finding whose subject pins this operation id and carries a recommended
+    // action is the recorded forward-deploy-to-prior-revision recovery; its absence is the
+    // honest "no recorded prior revision" case (no button, no fabricated recovery).
+    private async Task LoadRecoveryFindingAsync()
+    {
+        if (_findingsClient is null)
+        {
+            _recoveryLoaded = true;
+            return;
+        }
+
+        try
+        {
+            var result = await _findingsClient.ListAsync();
+            _recoveryFinding = result.IsAllowed
+                ? result.Value?.Findings?.FirstOrDefault(f =>
+                    string.Equals(f.Subject?.OperationId, OperationId, StringComparison.Ordinal)
+                    && f.RecommendedAction is not null)
+                : null;
+        }
+        finally
+        {
+            _recoveryLoaded = true;
+        }
+    }
+
+    private async Task ProposeRecoveryAsync()
+    {
+        if (_findingsClient is null || _busy || _recoveryFinding?.Id is not { Length: > 0 } findingId)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await _findingsClient.ProposeAsync(findingId);
+            _recoveryOutcome = result.IsAllowed ? result.Value : new OpsFindingProposeResponse
+            {
+                FindingId = findingId,
+                Message = string.IsNullOrWhiteSpace(result.Message)
+                    ? OperateSectionPresentation.FallbackMessage(result.Status)
+                    : result.Message,
+            };
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     private async Task ApproveAsync()
     {
         await RunActionAsync(
             () => ApprovalClient.SubmitAsync(OperationId, _reason),
             successMessage: "Approved — operation submitted for execution.");
-    }
-
-    private Task RejectAsync()
-    {
-        // The deploy-control surface has no server-side reject endpoint: an AwaitingApproval
-        // operation is rejected by simply NOT submitting it (and letting it expire / be
-        // cancelled out-of-band). We record the operator's intent locally and surface it
-        // honestly rather than calling an endpoint that would mutate state. This keeps the
-        // safety model intact (reject never advances the operation).
-        _confirmingRollback = false;
-        _actionMessage =
-            "Rejection recorded. This operation has no server reject endpoint; leaving it unsubmitted holds it at "
-            + "AwaitingApproval until it is cancelled or expires. It will not be executed.";
-        _actionMessageClass = "console-state-warning";
-        return Task.CompletedTask;
     }
 
     private void RequestRollbackAsync()
@@ -347,7 +507,7 @@ else
             var result = await action();
             if (result.IsAllowed && result.Value is not null)
             {
-                Apply(result);
+                await ApplyAsync(result);
                 _actionMessage = successMessage;
                 _actionMessageClass = "console-state-success";
                 await OnActioned.InvokeAsync(result.Value);
@@ -397,9 +557,9 @@ else
                 }
 
                 var result = await ApprovalClient.GetOperationAsync(OperationId, cancellationToken);
-                await InvokeAsync(() =>
+                await InvokeAsync(async () =>
                 {
-                    Apply(result);
+                    await ApplyAsync(result);
                     StateHasChanged();
                 });
             }

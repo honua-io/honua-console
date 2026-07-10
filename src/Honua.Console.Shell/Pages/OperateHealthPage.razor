@@ -1,5 +1,7 @@
 @page "/operate/health"
 @inject IOpsHealthDataSource HealthData
+@inject IServiceProvider ServiceProvider
+@implements IAsyncDisposable
 
 @* OPS HEALTH (ADR-0060 WS4) — the GIS-aware at-a-glance operational view. One consolidated
    snapshot from honua-server (GET /api/v1/admin/observability/ops-health): overall status,
@@ -50,6 +52,7 @@
             <a href="#deploy">Deploy readiness</a>
             <a href="#database">Database</a>
             <a href="#health-checks">Health checks</a>
+            <a href="#trends">Trends</a>
         </nav>
 
         <section id="serving-latency" class="operate-section" aria-labelledby="serving-latency-heading">
@@ -61,6 +64,9 @@
                 @if (_view.ServingLatency.HasBreach)
                 {
                     <span class="console-status console-state-warning">SLO breach on one or more protocols</span>
+                    <a class="console-button-link" href="/operate/copilot" data-health-drilldown="serving-latency">
+                        Investigate in Copilot Findings
+                    </a>
                 }
             </div>
 
@@ -115,6 +121,12 @@
                     <h2 id="geoprocessing-heading">Active Jobs By Status And Backend</h2>
                 </div>
                 <span class="console-status @_view.Geoprocessing.Status.CssClass">@_view.Geoprocessing.Status.Label</span>
+                @if (_view.Geoprocessing.Status.IsBreach)
+                {
+                    <a class="console-button-link" href="@OperateObservabilityRoutes.Geoprocessing" data-health-drilldown="geoprocessing">
+                        Open geoprocessing queue
+                    </a>
+                }
             </div>
 
             <article class="console-panel operate-metric-card">
@@ -167,6 +179,12 @@
                     <h2 id="alert-dispatch-heading">Backlog And Dead-Letters</h2>
                 </div>
                 <span class="console-status @_view.AlertDispatch.Status.CssClass">@_view.AlertDispatch.Status.Label</span>
+                @if (_view.AlertDispatch.Status.IsBreach)
+                {
+                    <a class="console-button-link" href="/operate/copilot" data-health-drilldown="alert-dispatch">
+                        Investigate in Copilot Findings
+                    </a>
+                }
             </div>
 
             <article class="console-panel operate-metric-card @(_view.AlertDispatch.HasDeadLetters ? "operate-metric-alerts" : null)">
@@ -193,6 +211,12 @@
                     <h2 id="deploy-heading">Deploy Readiness And Platform Release</h2>
                 </div>
                 <span class="console-status @_view.Deploy.Status.CssClass">@_view.Deploy.Status.Label</span>
+                @if (_view.Deploy.Status.IsBreach)
+                {
+                    <a class="console-button-link" href="/operate/deploy#deploy-approvals" data-health-drilldown="deploy">
+                        Open deploy approvals
+                    </a>
+                }
             </div>
 
             <div class="console-panel-grid">
@@ -248,6 +272,12 @@
                     <div class="console-panel-heading">
                         <div><h3>Connection pool</h3></div>
                         <span class="console-status @_view.Database.PoolUtilization.Status.CssClass">@_view.Database.PoolUtilization.Status.Label</span>
+                        @if (_view.Database.PoolUtilization.Status.IsBreach)
+                        {
+                            <a class="console-button-link" href="/operate/metrics" data-health-drilldown="database-pool">
+                                Open performance metrics
+                            </a>
+                        }
                     </div>
                     <MetricBar Bar="_view.Database.PoolUtilization" Label="Pool utilization" />
                     <dl class="console-definition-list">
@@ -264,6 +294,12 @@
                     <div class="console-panel-heading">
                         <div><h3>Cache hit ratio</h3></div>
                         <span class="console-status @_view.Database.CacheHitRatio.Status.CssClass">@_view.Database.CacheHitRatio.Status.Label</span>
+                        @if (_view.Database.CacheHitRatio.Status.IsBreach)
+                        {
+                            <a class="console-button-link" href="/operate/metrics" data-health-drilldown="database-cache">
+                                Open performance metrics
+                            </a>
+                        }
                     </div>
                     <MetricBar Bar="_view.Database.CacheHitRatio" Label="Hit ratio" />
                     <MetricBar Bar="_view.Database.ErrorRate" Label="Server error rate" />
@@ -320,17 +356,163 @@
                 }
             </div>
         </section>
+
+        <section id="trends" class="operate-section" aria-labelledby="trends-heading">
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Trend charts &middot; @CurrentRangeSelection.Label</p>
+                    <h2 id="trends-heading">Serving Latency, Error Rate, Queue, And Backlog Over Time</h2>
+                </div>
+                <span class="console-status @TrendRealtimeStateClass" data-realtime-pill title="@TrendRealtimeStateTitle">
+                    @TrendRealtimeStateLabel
+                </span>
+            </div>
+
+            @* Reconnect seam (console#288 addendum item 3, pinned choice): the history read
+               (honua-server PR #2576) is the sole gap-fill contract. Live pushes from the
+               ops-health hub group (PR #2591) are held in a SEPARATE live band at their native
+               30-60s cadence rather than appended onto the downsampled 5-min/hourly window; a
+               chart marks the boundary with a dashed rule instead of blending the two silently.
+               The live band is idempotent-appended (OpsHealthLiveBand.Append, keyed on the flush
+               timestamp) and cleared whenever a fresh history fetch subsumes it
+               (OpsHealthLiveBand.TrimToAfter). *@
+            <form class="console-panel operate-filter-bar" aria-label="Ops health trend controls"
+                  @onsubmit="ApplyTrendRangeAsync" @onsubmit:preventDefault="true">
+                <label>
+                    <span>Range</span>
+                    <select class="console-input" data-trend-range @bind="_selectedRangeLabel">
+                        @foreach (var option in OpsHealthTrendRangeSelection.Options)
+                        {
+                            <option value="@option.Label">@option.Label (@option.Resolution resolution)</option>
+                        }
+                    </select>
+                </label>
+                <label class="console-field">
+                    <input type="checkbox" data-per-replica-toggle @bind="_perReplica" />
+                    <span>Per-replica breakdown</span>
+                </label>
+                <button class="console-button" type="submit" data-refresh-trends>Apply</button>
+            </form>
+
+            @if (_trendResult is null)
+            {
+                <OperateSectionStatusPanel Heading="Trend charts" Loading="true" />
+            }
+            else if (!_trendResult.IsAllowed)
+            {
+                @if (_trendResult.Status == OperateSectionStatus.Unsupported)
+                {
+                    <OperateSectionStatusPanel Heading="Trend charts" Status="OperateSectionStatus.Unsupported"
+                        Message="The connected server does not yet expose ops-health history (honua-server PR #2576). Trend charts are unavailable; the at-a-glance snapshot above stays live." />
+                }
+                else
+                {
+                    <OperateSectionStatusPanel Heading="Trend charts" Status="_trendResult.Status" Message="@_trendResult.Message" />
+                }
+            }
+            else if (IsTrendFirstRun)
+            {
+                <OperateSectionStatusPanel Heading="Trend charts" Empty="true"
+                    EmptyTitle="Collecting baseline"
+                    EmptyMessage="Collecting baseline — first signal in ~60s; history fills over 24h." />
+            }
+            else
+            {
+                <div class="console-panel-grid operate-trend-grid" data-trend-grid>
+                    @foreach (var series in LatencyTrendSeries)
+                    {
+                        <article class="console-panel operate-metric-card">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <h3>@series.SeriesLabel latency (p50/p95/p99)</h3>
+                                </div>
+                                @if (series.HasBreach)
+                                {
+                                    <a class="console-chip correlation-id-chip" data-trend-breach-chip
+                                       href="/operate/copilot" data-health-drilldown="serving-latency-trend"
+                                       title="Investigate this SLO breach in Copilot Findings">
+                                        SLO breach
+                                    </a>
+                                }
+                            </div>
+                            <ChartPreview Title="p50 / p95 / p99" Spec="@LatencySpec(series)"
+                                          AriaLabel="@($"{series.SeriesLabel} latency trend")" />
+                        </article>
+
+                        <article class="console-panel operate-metric-card">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <h3>@series.SeriesLabel error rate</h3>
+                                </div>
+                            </div>
+                            <ChartPreview Title="Error rate" Spec="@ErrorRateSpec(series)"
+                                          AriaLabel="@($"{series.SeriesLabel} error rate trend")" />
+                        </article>
+                    }
+
+                    <article class="console-panel operate-metric-card">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>Geoprocessing queue</h3>
+                            </div>
+                        </div>
+                        <ChartPreview Title="Active jobs" Spec="@GpQueueSpec" AriaLabel="Geoprocessing queue trend" />
+                    </article>
+
+                    <article class="console-panel operate-metric-card">
+                        <div class="console-panel-heading">
+                            <div>
+                                <h3>Alert-dispatch backlog</h3>
+                            </div>
+                        </div>
+                        <ChartPreview Title="Pending / dead-lettered" Spec="@AlertBacklogSpec" AriaLabel="Alert-dispatch backlog trend" />
+                    </article>
+                </div>
+            }
+        </section>
     }
 </section>
 
 @code {
+    // Re-fetch the trend history on this cadence so the live band (held at native 30-60s cadence
+    // per the pinned reconnect-seam choice) never grows without bound and is regularly subsumed
+    // back into the confirmed, downsampled history window.
+    private static readonly TimeSpan TrendRefreshInterval = TimeSpan.FromMinutes(5);
+
     private bool _loaded;
     private bool _busy;
     private OpsHealthView? _view;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
     private string _message = string.Empty;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private OperateSectionResult<OpsHealthTrendView>? _trendResult;
+    private string _selectedRangeLabel = OpsHealthTrendRangeSelection.LastHour.Label;
+    private bool _perReplica;
+    private IReadOnlyList<OpsHealthSnapshotResponse> _liveBand = [];
+    private DateTimeOffset _historyCutoff = DateTimeOffset.MinValue;
+
+    private IConsoleOpsHealthRealtimeClient? _realtimeClient;
+    private PeriodicTimer? _trendRefreshTimer;
+    private CancellationTokenSource? _trendRefreshCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadAsync(), LoadTrendAsync());
+
+        _realtimeClient = ServiceProvider.GetService<IConsoleOpsHealthRealtimeClient>();
+        if (_realtimeClient is not null)
+        {
+            _realtimeClient.SnapshotReceived += OnSnapshotReceived;
+            if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
+            {
+                capability.ConnectionStateChanged += OnRealtimeConnectionStateChanged;
+            }
+
+            await _realtimeClient.StartAsync();
+        }
+
+        StartTrendRefreshTimer();
+    }
 
     private async Task RefreshAsync()
     {
@@ -364,5 +546,168 @@
             _loaded = true;
             _busy = false;
         }
+    }
+
+    private OpsHealthTrendRangeSelection CurrentRangeSelection =>
+        (OpsHealthTrendRangeSelection.Options.FirstOrDefault(o => o.Label == _selectedRangeLabel)
+            ?? OpsHealthTrendRangeSelection.LastHour)
+        .WithPerReplica(_perReplica);
+
+    private OpsHealthTrendView Trend =>
+        _trendResult?.Value ?? OpsHealthTrendView.Empty(CurrentRangeSelection.Label, CurrentRangeSelection.Resolution, _perReplica);
+
+    private bool IsTrendFirstRun => Trend.IsFirstRun && _liveBand.Count == 0;
+
+    // The seam annotation only renders once the live band is actually contributing points past
+    // the confirmed history window (console#288 addendum item 3) — a chart with no live band yet
+    // has nothing to mark a boundary against.
+    private DateTimeOffset? SeamAt => _liveBand.Count > 0 ? _historyCutoff : null;
+
+    private IReadOnlyList<OpsHealthVitalsTrendPointView> VitalsTrendPoints =>
+        Trend.VitalsPoints.Concat(OpsHealthLiveBand.ToVitalsPoints(_liveBand)).ToArray();
+
+    private string? GpQueueSpec => OpsHealthTrendCharts.BuildGpQueueSpec(VitalsTrendPoints, SeamAt);
+
+    private string? AlertBacklogSpec => OpsHealthTrendCharts.BuildAlertBacklogSpec(VitalsTrendPoints, SeamAt);
+
+    private string? LatencySpec(OpsHealthLatencyTrendSeriesView series) =>
+        OpsHealthTrendCharts.BuildLatencySpec(series, SeamAt);
+
+    private string? ErrorRateSpec(OpsHealthLatencyTrendSeriesView series) =>
+        OpsHealthTrendCharts.BuildErrorRateSpec(series, SeamAt);
+
+    // Extends each history-derived series with the matching live-band points (idempotent-appended
+    // and cutoff-filtered already by OpsHealthLiveBand), and re-tests the SLO breach heuristic over
+    // the combined points so a live-only breach is not missed between history refreshes. Also
+    // surfaces a protocol the live band has seen but the current history window predates (a
+    // brand-new protocol, or the very first samples after boot).
+    private IReadOnlyList<OpsHealthLatencyTrendSeriesView> LatencyTrendSeries
+    {
+        get
+        {
+            var result = new List<OpsHealthLatencyTrendSeriesView>();
+            foreach (var series in Trend.LatencySeries)
+            {
+                var livePoints = OpsHealthLiveBand.ToLatencyPoints(_liveBand, series.Protocol);
+                var points = livePoints.Count == 0 ? series.Points : series.Points.Concat(livePoints).ToArray();
+                result.Add(series with { Points = points, HasBreach = OpsHealthTrendMapper.HasBreach(points) });
+            }
+
+            foreach (var protocol in OpsHealthLiveBand.DistinctProtocols(_liveBand))
+            {
+                if (result.Any(r => r.ReplicaId is null && string.Equals(r.Protocol, protocol, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                var livePoints = OpsHealthLiveBand.ToLatencyPoints(_liveBand, protocol);
+                if (livePoints.Count == 0)
+                {
+                    continue;
+                }
+
+                result.Add(new OpsHealthLatencyTrendSeriesView(protocol, null, livePoints, OpsHealthTrendMapper.HasBreach(livePoints)));
+            }
+
+            return result;
+        }
+    }
+
+    private async Task ApplyTrendRangeAsync() => await LoadTrendAsync();
+
+    private async Task LoadTrendAsync()
+    {
+        var selection = CurrentRangeSelection;
+        var result = await HealthData.GetHistoryAsync(selection);
+        _trendResult = result;
+
+        if (result is { IsAllowed: true, Value: { } trend })
+        {
+            // The history read just re-confirmed everything up to trend.To: drop any live-band
+            // point it now covers so nothing renders twice across the refresh (the pinned
+            // reconnect-seam contract, console#288 addendum item 3).
+            _historyCutoff = trend.To;
+            _liveBand = OpsHealthLiveBand.TrimToAfter(_liveBand, _historyCutoff);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSnapshotReceived(OpsHealthSnapshotResponse snapshot)
+    {
+        _liveBand = OpsHealthLiveBand.Append(_liveBand, snapshot, _historyCutoff);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnRealtimeConnectionStateChanged(ConsoleRealtimeConnectionState state) => InvokeAsync(StateHasChanged);
+
+    private void StartTrendRefreshTimer()
+    {
+        _trendRefreshCts = new CancellationTokenSource();
+        _trendRefreshTimer = new PeriodicTimer(TrendRefreshInterval);
+        _ = TrendRefreshLoopAsync(_trendRefreshTimer, _trendRefreshCts.Token);
+    }
+
+    private async Task TrendRefreshLoopAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await LoadTrendAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Component disposed; expected.
+        }
+    }
+
+    private ConsoleRealtimeConnectionState TrendRealtimeConnectionState =>
+        _realtimeClient is IConsoleRealtimeCapabilityClient capability ? capability.ConnectionState : ConsoleRealtimeConnectionState.NotConfigured;
+
+    private string TrendRealtimeStateClass => TrendRealtimeConnectionState switch
+    {
+        ConsoleRealtimeConnectionState.Connected => "console-state-success",
+        ConsoleRealtimeConnectionState.Connecting => "console-state-info",
+        ConsoleRealtimeConnectionState.FallbackEngaged => "console-state-neutral",
+        _ => "console-state-neutral",
+    };
+
+    private string TrendRealtimeStateLabel => TrendRealtimeConnectionState switch
+    {
+        ConsoleRealtimeConnectionState.Connected => "Live",
+        ConsoleRealtimeConnectionState.Connecting => "Connecting…",
+        ConsoleRealtimeConnectionState.FallbackEngaged => "Manual (poll)",
+        _ => "Manual",
+    };
+
+    private string TrendRealtimeStateTitle => TrendRealtimeConnectionState switch
+    {
+        ConsoleRealtimeConnectionState.Connected => "Live ops-health updates via the admin realtime hub.",
+        ConsoleRealtimeConnectionState.Connecting => "Connecting to the admin realtime hub.",
+        ConsoleRealtimeConnectionState.FallbackEngaged =>
+            "The ops-health realtime group is unavailable (honua-server PR #2591 not on this server, or no Redis backplane); trend charts refresh every 5 minutes.",
+        _ => "No environment is bound; trend charts refresh every 5 minutes.",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        _trendRefreshCts?.Cancel();
+        _trendRefreshCts?.Dispose();
+        _trendRefreshTimer?.Dispose();
+
+        // The realtime client is an app-lifetime singleton shared across circuits (mirrors
+        // OperateDeployOperationsList): only detach this component's handlers, never dispose it.
+        if (_realtimeClient is not null)
+        {
+            _realtimeClient.SnapshotReceived -= OnSnapshotReceived;
+            if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
+            {
+                capability.ConnectionStateChanged -= OnRealtimeConnectionStateChanged;
+            }
+        }
+
+        await ValueTask.CompletedTask;
     }
 }

@@ -15,6 +15,9 @@ namespace Honua.Console.Contracts;
 //
 // Route (concrete v1), admin-authorized (X-API-Key):
 //   GET /api/v1/admin/observability/ops-health -> OpsHealthSnapshotResponse
+//   GET /api/v1/admin/observability/ops-health/history -> OpsHealthHistoryResponse
+//     (honua-server PR #2576; window/resolution/perReplica query params; the reconnect
+//     gap-fill contract for the ops-health realtime hub group, honua-server PR #2591)
 
 /// <summary>
 /// Concrete v1 route for the honua-server ops-health snapshot endpoint, kept in one
@@ -24,7 +27,18 @@ namespace Honua.Console.Contracts;
 public static class OpsHealthRoutes
 {
     /// <summary>The consolidated ops-health snapshot route.</summary>
+    [OpsParityRoute("GET")]
     public const string Snapshot = "api/v1/admin/observability/ops-health";
+
+    /// <summary>
+    /// The cluster-aggregated ops-health history route (honua-server PR #2576): accepts
+    /// <c>window</c> (e.g. <c>1h</c>/<c>24h</c>/<c>7d</c>), <c>resolution</c>
+    /// (<c>1m</c>/<c>5m</c>/<c>1h</c>), and <c>perReplica</c> query parameters. This is the
+    /// reconnect gap-fill contract for the <c>ops-health</c> realtime hub group — there is no
+    /// Last-Event-ID; a dropped connection backfills by re-requesting this window.
+    /// </summary>
+    [OpsParityRoute("GET")]
+    public const string History = "api/v1/admin/observability/ops-health/history";
 }
 
 /// <summary>
@@ -288,13 +302,160 @@ public sealed class OpsDatabaseResponse
 }
 
 /// <summary>
-/// Source-generated JSON context for the ops-health snapshot wire contract (trim/AOT
-/// safe), mirroring MonitoringMetricsJsonContext.
+/// Cluster-aggregated ops-health history response returned by
+/// <c>GET /api/v1/admin/observability/ops-health/history</c> (honua-server PR #2576). Mirrors
+/// the server <c>OpsHealthHistoryResponse</c> exactly. This is also the reconnect gap-fill
+/// contract for the <c>ops-health</c> realtime hub group (honua-server PR #2591): after a
+/// dropped connection a client backfills the missed interval by re-requesting this window
+/// rather than replaying a per-event cursor — there is no Last-Event-ID semantics.
+/// </summary>
+public sealed class OpsHealthHistoryResponse
+{
+    /// <summary>Gets or sets the UTC time the response was produced.</summary>
+    [JsonPropertyName("generatedAt")]
+    public DateTimeOffset GeneratedAt { get; set; }
+
+    /// <summary>Gets or sets the resolution label (<c>1m</c>/<c>5m</c>/<c>1h</c>).</summary>
+    [JsonPropertyName("resolution")]
+    public string? Resolution { get; set; }
+
+    /// <summary>Gets or sets the returned window length in seconds (clamped to the tier's retention cap).</summary>
+    [JsonPropertyName("windowSeconds")]
+    public double WindowSeconds { get; set; }
+
+    /// <summary>Gets or sets the inclusive lower bound of the returned window.</summary>
+    [JsonPropertyName("from")]
+    public DateTimeOffset From { get; set; }
+
+    /// <summary>Gets or sets the inclusive upper bound of the returned window.</summary>
+    [JsonPropertyName("to")]
+    public DateTimeOffset To { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the series is broken down per replica rather than cluster-merged.</summary>
+    [JsonPropertyName("perReplica")]
+    public bool PerReplica { get; set; }
+
+    /// <summary>Gets or sets the per-protocol serving-latency series.</summary>
+    [JsonPropertyName("latency")]
+    public List<OpsHealthHistoryLatencySeriesResponse>? Latency { get; set; }
+
+    /// <summary>Gets or sets the ops-vitals series (one entry per bucket, or per bucket/replica when broken down).</summary>
+    [JsonPropertyName("vitals")]
+    public List<OpsHealthHistoryVitalsPointResponse>? Vitals { get; set; }
+}
+
+/// <summary>A serving-latency series for one protocol (and optionally one replica).</summary>
+public sealed class OpsHealthHistoryLatencySeriesResponse
+{
+    /// <summary>Gets or sets the protocol family.</summary>
+    [JsonPropertyName("protocol")]
+    public string? Protocol { get; set; }
+
+    /// <summary>Gets or sets the replica identifier when broken down per replica; <see langword="null"/> for a cluster-merged series.</summary>
+    [JsonPropertyName("replicaId")]
+    public string? ReplicaId { get; set; }
+
+    /// <summary>Gets or sets the ordered time-series points.</summary>
+    [JsonPropertyName("points")]
+    public List<OpsHealthHistoryLatencyPointResponse>? Points { get; set; }
+}
+
+/// <summary>A single serving-latency time-series point.</summary>
+public sealed class OpsHealthHistoryLatencyPointResponse
+{
+    /// <summary>Gets or sets the bucket start (UTC).</summary>
+    [JsonPropertyName("bucketStart")]
+    public DateTimeOffset BucketStart { get; set; }
+
+    /// <summary>Gets or sets the request count.</summary>
+    [JsonPropertyName("requestCount")]
+    public long RequestCount { get; set; }
+
+    /// <summary>Gets or sets the server-error count.</summary>
+    [JsonPropertyName("errorCount")]
+    public long ErrorCount { get; set; }
+
+    /// <summary>Gets or sets the server-error rate (0.0 to 1.0).</summary>
+    [JsonPropertyName("errorRate")]
+    public double ErrorRate { get; set; }
+
+    /// <summary>Gets or sets the 50th-percentile duration in milliseconds.</summary>
+    [JsonPropertyName("p50Ms")]
+    public double P50Ms { get; set; }
+
+    /// <summary>Gets or sets the 95th-percentile duration in milliseconds.</summary>
+    [JsonPropertyName("p95Ms")]
+    public double P95Ms { get; set; }
+
+    /// <summary>Gets or sets the 99th-percentile duration in milliseconds.</summary>
+    [JsonPropertyName("p99Ms")]
+    public double P99Ms { get; set; }
+
+    /// <summary>Gets or sets the maximum duration in milliseconds.</summary>
+    [JsonPropertyName("maxMs")]
+    public double MaxMs { get; set; }
+}
+
+/// <summary>A single ops-vitals time-series point.</summary>
+public sealed class OpsHealthHistoryVitalsPointResponse
+{
+    /// <summary>Gets or sets the bucket start (UTC).</summary>
+    [JsonPropertyName("bucketStart")]
+    public DateTimeOffset BucketStart { get; set; }
+
+    /// <summary>Gets or sets the replica identifier when broken down per replica; <see langword="null"/> for a cluster-merged point.</summary>
+    [JsonPropertyName("replicaId")]
+    public string? ReplicaId { get; set; }
+
+    /// <summary>Gets or sets the overall health status.</summary>
+    [JsonPropertyName("overallStatus")]
+    public string? OverallStatus { get; set; }
+
+    /// <summary>Gets or sets the total active geoprocessing jobs.</summary>
+    [JsonPropertyName("gpQueueTotal")]
+    public int GpQueueTotal { get; set; }
+
+    /// <summary>
+    /// Gets or sets the GP queue depth broken down by status and backend, keyed
+    /// <c>"&lt;status&gt;|&lt;backend&gt;"</c>.
+    /// </summary>
+    [JsonPropertyName("gpQueueBreakdown")]
+    public Dictionary<string, int>? GpQueueBreakdown { get; set; }
+
+    /// <summary>Gets or sets the alert-dispatch pending backlog, when available.</summary>
+    [JsonPropertyName("alertPending")]
+    public long? AlertPending { get; set; }
+
+    /// <summary>Gets or sets the alert-dispatch dead-lettered count, when available.</summary>
+    [JsonPropertyName("alertDeadLettered")]
+    public long? AlertDeadLettered { get; set; }
+
+    /// <summary>Gets or sets the database connection-pool utilization ratio, when available.</summary>
+    [JsonPropertyName("dbPoolUtilization")]
+    public double? DbPoolUtilization { get; set; }
+
+    /// <summary>Gets or sets the number of active database connections.</summary>
+    [JsonPropertyName("dbActiveConnections")]
+    public int DbActiveConnections { get; set; }
+
+    /// <summary>Gets or sets the cache hit ratio (0.0 to 1.0).</summary>
+    [JsonPropertyName("cacheHitRatio")]
+    public double CacheHitRatio { get; set; }
+
+    /// <summary>Gets or sets the live HTTP server error rate (0.0 to 1.0).</summary>
+    [JsonPropertyName("errorRate")]
+    public double ErrorRate { get; set; }
+}
+
+/// <summary>
+/// Source-generated JSON context for the ops-health snapshot + history wire contracts
+/// (trim/AOT safe), mirroring MonitoringMetricsJsonContext.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(OpsHealthSnapshotResponse))]
+[JsonSerializable(typeof(OpsHealthHistoryResponse))]
 public sealed partial class OpsHealthJsonContext : JsonSerializerContext
 {
 }

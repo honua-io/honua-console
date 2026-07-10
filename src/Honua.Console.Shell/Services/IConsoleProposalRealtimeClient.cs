@@ -22,6 +22,15 @@ public interface IConsoleProposalRealtimeClient : IAsyncDisposable
     bool IsConnected { get; }
 
     /// <summary>
+    /// Whether the client has degraded to its fallback after a connect/subscribe/reconnect
+    /// failure (console#293, PA-233 fix), as opposed to simply having no environment bound.
+    /// Defaults to <see langword="false"/> for implementations that predate the shared realtime
+    /// seam (<see cref="IConsoleRealtimeCapabilityClient"/>); the live SignalR implementation
+    /// reports this honestly.
+    /// </summary>
+    bool IsFallbackEngaged => false;
+
+    /// <summary>
     /// Establishes the hub connection for the active environment and joins the proposals
     /// group. Idempotent and best-effort: a failure to connect leaves the client in the
     /// disconnected state (the inbox stays usable via manual refresh) and does not throw.

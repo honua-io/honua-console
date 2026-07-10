@@ -1,5 +1,7 @@
 @page "/operate/copilot"
 @inject IConsoleOpsFindingsClient Findings
+@inject IConsoleOpsAutonomyClient Autonomy
+@inject IConsoleProposalsClient Proposals
 
 @* COPILOT FINDINGS (#193) — the ops-copilot information + approval seat. Lists honua-server's
    DETERMINISTIC ops findings (GET /api/v1/admin/observability/findings): severity, plain-language
@@ -9,17 +11,18 @@
    /inbox. NO model/LLM anything: this renders deterministic server output (ADR-0028). A cleared
    condition (404) refreshes the list with an explanatory notice. Server-owned data only; a
    missing / unsupported / forbidden / unavailable read renders the shared status surface, never
-   seeded data (Console Patterns Charter section 11). *@
+   seeded data (Console Patterns Charter section 11). When honua-server exposes the graduated
+   autonomy API (#289/#2557), this same seat renders server-confirmed policy, kill-switch,
+   graduation and audit state. Older servers hide those controls and keep this propose-only flow. *@
 
 <section class="console-page console-operate-page">
     <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Human-in-the-loop</p>
+        <p class="console-kicker">Graduated operations</p>
         <h1>Copilot Findings</h1>
         <p>
             Deterministic operational findings computed from live server signals — no model
-            reasoning. Review each finding's plain-language explanation and evidence, then propose
-            its recommended fix through the governed approval gateway; you authorize the outcome in
-            the <a href="/inbox">approval inbox</a>.
+            reasoning. Findings stay propose-only unless a server-confirmed per-rule policy allows
+            a bounded, auto-safe remediation through the same governed operation gateway.
         </p>
     </div>
 
@@ -35,6 +38,256 @@
         <div class="console-panel operate-status-panel" role="status">
             <p class="console-muted">@_notice</p>
         </div>
+    }
+
+    @if (_autonomy is not null)
+    {
+        <section class="operate-section" aria-labelledby="autonomy-policy-heading" data-autonomy-controls>
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Server-confirmed safety policy</p>
+                    <h2 id="autonomy-policy-heading">Autonomy policy</h2>
+                    <p class="console-muted">
+                        Every toggle remains unchanged until honua-server returns the persisted state.
+                        Route-time safety, rate, blast-radius, and kill-switch checks remain authoritative.
+                    </p>
+                </div>
+            </div>
+
+            <article class="console-panel operate-status-panel" data-autonomy-kill-switch>
+                <div class="console-panel-heading">
+                    <div>
+                        <p class="console-kicker">Global kill switch</p>
+                        <h3>@(_autonomy.Settings.KillSwitchEnabled ? "Kill switch enabled" : "Kill switch disabled")</h3>
+                    </div>
+                    <OperateStatusPill Label="@(_autonomy.Settings.KillSwitchEnabled ? "All rules propose-only" : "Per-rule modes enforced")"
+                        CssClass="@(_autonomy.Settings.KillSwitchEnabled ? "console-state-warning" : "console-state-success")" />
+                </div>
+                <p>
+                    @(_autonomy.Settings.KillSwitchEnabled
+                        ? "No rule can auto-apply. In-flight actions finish under their existing gateway decision."
+                        : "Eligible rules may auto-apply only after every server-side guardrail passes.")
+                </p>
+                <p class="console-muted">
+                    Server-confirmed
+                    @FormatTimestamp(_autonomy.Settings.UpdatedAt)
+                    by @DisplayValue(_autonomy.Settings.UpdatedBy).
+                </p>
+
+                @if (_pendingKillSwitch is { } requestedKillSwitch)
+                {
+                    <div class="operate-metric-recommendations" role="alert">
+                        <strong>
+                            Confirm @(requestedKillSwitch ? "emergency stop" : "resume configured autonomy")?
+                        </strong>
+                        <p>
+                            @(requestedKillSwitch
+                                ? "This reverts every rule to propose-only at route time."
+                                : "This restores each rule's persisted mode; all other guardrails still apply.")
+                        </p>
+                        <button type="button" class="console-button console-button-primary"
+                                disabled="@_busy" data-confirm-kill-switch
+                                @onclick="ConfirmKillSwitchAsync">
+                            Confirm server change
+                        </button>
+                        <button type="button" class="console-button console-button-secondary"
+                                disabled="@_busy" @onclick="CancelConfirmation">
+                            Cancel
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <button type="button" class="console-button @(_autonomy.Settings.KillSwitchEnabled ? "console-button-secondary" : "console-button-primary")"
+                            disabled="@_busy" data-request-kill-switch
+                            @onclick="RequestKillSwitchChange">
+                        @(_autonomy.Settings.KillSwitchEnabled ? "Resume configured autonomy" : "Enable kill switch")
+                    </button>
+                }
+            </article>
+
+            <div class="console-panel-grid" data-autonomy-policy-list>
+                @foreach (var row in PolicyRows)
+                {
+                    var policy = row.Policy;
+                    var mode = policy?.Mode ?? "NotReported";
+                    var knownMode = IsKnownMode(mode);
+                    var actionSafety = PolicyActionSafety(row);
+                    var targetMode = policy is null
+                        ? "ProposeOnly"
+                        : string.Equals(mode, "AutoApply", StringComparison.Ordinal)
+                            ? "ProposeOnly"
+                            : "AutoApply";
+
+                    <article class="console-panel operate-metric-card" data-policy-rule="@row.Rule" data-policy-mode="@mode">
+                        <div class="console-panel-heading">
+                            <div>
+                                <p class="console-kicker">Deterministic rule</p>
+                                <h3>@row.Rule</h3>
+                            </div>
+                            <OperateStatusPill Label="@PolicyModeDisplay(mode)"
+                                CssClass="@(string.Equals(mode, "AutoApply", StringComparison.Ordinal) ? "console-state-success" : "console-state-neutral")" />
+                        </div>
+
+                        @if (policy is null)
+                        {
+                            <p class="console-muted">
+                                No durable policy row was reported. A config-backed effective mode and guardrails
+                                are not projected by this endpoint. Pin propose-only first to establish an auditable baseline.
+                            </p>
+                        }
+                        else
+                        {
+                            <dl class="console-definition-list">
+                                <dt>Rate cap</dt>
+                                <dd>@FormatRate(policy)</dd>
+                                <dt>Max blast radius</dt>
+                                <dd>@policy.MaxBlastRadius</dd>
+                                <dt>Auto-safe action</dt>
+                                <dd>@actionSafety.Label</dd>
+                                <dt>Policy source</dt>
+                                <dd>@PolicySource(policy)</dd>
+                                <dt>Last changed</dt>
+                                <dd>@FormatTimestamp(policy.UpdatedAt) by @DisplayValue(policy.UpdatedBy)</dd>
+                            </dl>
+
+                            <section class="operate-metric-recommendations" aria-label="Graduation evidence for @row.Rule">
+                                <strong>Graduation evidence</strong>
+                                <dl class="console-definition-list">
+                                    <dt>Proposals raised</dt><dd>@policy.TrackRecord.ProposalsRaised</dd>
+                                    <dt>Approved</dt><dd>@policy.TrackRecord.ProposalsApproved</dd>
+                                    <dt>Rejected</dt><dd>@policy.TrackRecord.ProposalsRejected</dd>
+                                    <dt>Auto-applied</dt><dd>@policy.TrackRecord.AutoApplied</dd>
+                                    <dt>Rolled back</dt><dd>@policy.TrackRecord.RolledBack</dd>
+                                    <dt>Failed</dt><dd>@policy.TrackRecord.Failed</dd>
+                                    <dt>Last activity</dt><dd>@FormatTimestamp(policy.TrackRecord.LastActivityAt)</dd>
+                                    <dt>Would-have-been-safe streak</dt><dd>Not reported by this server contract</dd>
+                                </dl>
+                            </section>
+                        }
+
+                        @if (_pendingPolicyRule == row.Rule)
+                        {
+                            <div class="operate-metric-recommendations" role="alert">
+                                <strong>Confirm @(_pendingPolicyMode == "AutoApply" ? "auto-apply" : "propose-only") for @row.Rule?</strong>
+                                <p>
+                                    The control stays on @mode until the server acknowledges the persisted policy.
+                                </p>
+                                <button type="button" class="console-button console-button-primary"
+                                        disabled="@_busy" data-confirm-policy="@row.Rule"
+                                        @onclick="ConfirmPolicyChangeAsync">
+                                    Confirm server change
+                                </button>
+                                <button type="button" class="console-button console-button-secondary"
+                                        disabled="@_busy" @onclick="CancelConfirmation">
+                                    Cancel
+                                </button>
+                            </div>
+                        }
+                        else if (policy is not null && !knownMode)
+                        {
+                            <button type="button" class="console-button console-button-secondary" disabled>
+                                Unknown server mode
+                            </button>
+                        }
+                        else if (actionSafety.NotAutomatable && targetMode == "AutoApply")
+                        {
+                            <button type="button" class="console-button console-button-secondary" disabled>
+                                Not automatable
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="console-button console-button-secondary"
+                                    disabled="@_busy" data-request-policy="@row.Rule"
+                                    @onclick="() => RequestPolicyChange(row.Rule, targetMode)">
+                                @(policy is null
+                                    ? "Pin propose-only"
+                                    : targetMode == "AutoApply" ? "Enable auto-apply" : "Return to propose-only")
+                            </button>
+                        }
+                    </article>
+                }
+            </div>
+        </section>
+
+        <section class="operate-section" aria-labelledby="autonomy-audit-heading" data-autonomy-audit>
+            <div class="operate-section-heading">
+                <div>
+                    <p class="console-kicker">Finding → policy → action → outcome</p>
+                    <h2 id="autonomy-audit-heading">Autonomous action and policy audit</h2>
+                </div>
+            </div>
+
+            @if (_autonomy.AuditPartialResult)
+            {
+                <p class="console-muted" role="status">@_autonomy.AuditMessage</p>
+            }
+
+            <OperateTimeline Entries="@AutonomyTimeline"
+                EmptyMessage="No autonomous action or policy-change events were returned." />
+
+            @if (_autonomy.AuditEntries.Count > 0)
+            {
+                <div class="console-panel-grid">
+                    @foreach (var entry in _autonomy.AuditEntries)
+                    {
+                        <article class="console-panel operate-metric-card" data-autonomy-audit-action="@entry.Action">
+                            <div class="console-panel-heading">
+                                <div>
+                                    <p class="console-kicker">@entry.Action</p>
+                                    <h3>@entry.Outcome.Label</h3>
+                                </div>
+                                <OperateStatusPill Label="@entry.Outcome.Label" CssClass="@entry.Outcome.Status.CssClass" />
+                            </div>
+                            <dl class="console-definition-list">
+                                <dt>When</dt><dd>@FormatTimestamp(entry.OccurredAt)</dd>
+                                <dt>Actor</dt><dd>@DisplayValue(entry.Actor)</dd>
+                                <dt>Finding</dt><dd><CorrelationIdChip Value="@entry.FindingId" Kind="CorrelationIdKind.FindingId" /></dd>
+                                <dt>Policy rule</dt><dd>@DisplayValue(entry.Rule)</dd>
+                                <dt>Correlation</dt><dd><CorrelationIdChip Value="@entry.CorrelationId" Kind="CorrelationIdKind.CorrelationId" /></dd>
+                                @if (!string.IsNullOrWhiteSpace(entry.OperationId))
+                                {
+                                    <dt>Operation</dt><dd><CorrelationIdChip Value="@entry.OperationId" Kind="CorrelationIdKind.OperationId" /></dd>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.OperationKind))
+                                {
+                                    <dt>Operation class</dt><dd>@entry.OperationKind</dd>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.ActionDiscriminator))
+                                {
+                                    <dt>Action</dt><dd>@entry.ActionDiscriminator</dd>
+                                }
+                            </dl>
+                            <section class="operate-metric-recommendations">
+                                <strong>Evidence before</strong>
+                                @if (entry.EvidenceRefs.Count == 0)
+                                {
+                                    <p class="console-muted">Not projected by this server event.</p>
+                                }
+                                else
+                                {
+                                    <ul>
+                                        @foreach (var evidence in entry.EvidenceRefs)
+                                        {
+                                            <li><code>@evidence</code></li>
+                                        }
+                                    </ul>
+                                }
+                                <strong>Outcome / evidence after</strong>
+                                <p>@entry.OutcomeEvidence</p>
+                            </section>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+    else if (_autonomyStatus is { } autonomyStatus
+        && autonomyStatus != OperateSectionStatus.Unsupported
+        && autonomyStatus != OperateSectionStatus.Missing)
+    {
+        <OperateSectionStatusPanel Heading="Autonomy policy" Status="autonomyStatus" Message="@_autonomyMessage" />
     }
 
     @if (!_loaded)
@@ -57,13 +310,22 @@
         <div class="console-panel-grid">
             @foreach (var finding in _findings)
             {
-                <article class="console-panel operate-metric-card">
+                var autonomyState = FindingAutonomyState(finding);
+                <article class="console-panel operate-metric-card" id="finding-@finding.Id" data-finding-id="@finding.Id">
                     <div class="console-panel-heading">
                         <div>
                             <p class="console-kicker">@finding.Rule</p>
                             <h2>@finding.Title</h2>
                         </div>
-                        <span class="console-status @finding.Severity.CssClass">@finding.SeverityLabel</span>
+                        <div>
+                            <span class="console-status @finding.Severity.CssClass">@finding.SeverityLabel</span>
+                            @if (autonomyState is not null)
+                            {
+                                <span data-finding-autonomy="@autonomyState.State">
+                                    <OperateStatusPill Label="@autonomyState.Label" CssClass="@autonomyState.Status.CssClass" />
+                                </span>
+                            }
+                        </div>
                     </div>
 
                     <p>@finding.Explanation</p>
@@ -75,7 +337,14 @@
                             @foreach (var row in finding.Subject)
                             {
                                 <dt>@row.Label</dt>
-                                <dd>@row.Value</dd>
+                                @if (string.Equals(row.Label, "Operation", StringComparison.Ordinal))
+                                {
+                                    <dd><CorrelationIdChip Value="@row.Value" Kind="CorrelationIdKind.OperationId" /></dd>
+                                }
+                                else
+                                {
+                                    <dd>@row.Value</dd>
+                                }
                             }
                         </dl>
                     }
@@ -103,6 +372,14 @@
                                 <p class="console-muted">Reason: @action.Reason</p>
                             }
 
+                            @if (!_outcomes.ContainsKey(finding.Id) && PendingProposal(finding.Id) is { } pendingProposal)
+                            {
+                                <p data-finding-pending-proposal="@pendingProposal.ProposalId">
+                                    Proposal <CorrelationIdChip Value="@pendingProposal.ProposalId" Kind="CorrelationIdKind.ProposalId" /> —
+                                    awaiting approval in the <a href="/inbox">inbox</a>.
+                                </p>
+                            }
+
                             @if (_outcomes.TryGetValue(finding.Id, out var outcome))
                             {
                                 <div class="console-panel operate-status-panel @(outcome.IsError ? "operate-status-denied" : null)" role="status">
@@ -110,17 +387,17 @@
                                     @if (outcome.ProposalId is { Length: > 0 } proposalId)
                                     {
                                         <p>
-                                            Proposal <code>@proposalId</code> —
+                                            Proposal <CorrelationIdChip Value="@proposalId" Kind="CorrelationIdKind.ProposalId" /> —
                                             <a href="/inbox">review in the approval inbox</a>.
                                         </p>
                                     }
                                 </div>
                             }
 
-                            @if (_outcomes.TryGetValue(finding.Id, out var done) && done.IsProposed)
+                            @if (_outcomes.TryGetValue(finding.Id, out var done) && done.IsCompleted)
                             {
                                 <button type="button" class="console-button console-button-secondary" disabled>
-                                    Proposed
+                                    @(done.IsProposed ? "Proposed" : "Executed")
                                 </button>
                             }
                             else
@@ -133,6 +410,19 @@
                             }
                         </section>
                     }
+                    else
+                    {
+                        @* Scope item 6 (console#292): an informational finding still gets a next
+                           step — it just is not proposable through the approval gateway. Route to
+                           the deploy operation it pins when known, else the correlated evidence
+                           timeline, so no finding is a dead end. *@
+                        <section class="operate-metric-recommendations">
+                            <a class="console-button console-button-secondary" data-investigate-finding="@finding.Id"
+                               href="@finding.InvestigateHref">
+                                Investigate
+                            </a>
+                        </section>
+                    }
                 </article>
             }
         </div>
@@ -143,10 +433,51 @@
     private bool _loaded;
     private bool _busy;
     private IReadOnlyList<OpsFindingView>? _findings;
+    private IReadOnlyList<ConsoleProposalSummary> _pendingProposals = [];
+    private OpsAutonomySnapshot? _autonomy;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
+    private OperateSectionStatus? _autonomyStatus;
     private string _message = string.Empty;
+    private string _autonomyMessage = string.Empty;
     private string? _notice;
+    private string? _pendingPolicyRule;
+    private string? _pendingPolicyMode;
+    private bool? _pendingKillSwitch;
     private readonly Dictionary<string, ProposeOutcome> _outcomes = new(StringComparer.Ordinal);
+
+    private IReadOnlyList<OperateTimelineEntry> AutonomyTimeline =>
+        _autonomy?.AuditEntries.Select(entry => entry.ToTimelineEntry()).ToArray() ?? [];
+
+    private IReadOnlyList<PolicyRow> PolicyRows
+    {
+        get
+        {
+            if (_autonomy is null)
+            {
+                return [];
+            }
+
+            var findingsByRule = (_findings ?? [])
+                .GroupBy(finding => finding.Rule, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var rows = _autonomy.Policies
+                .Select(policy => new PolicyRow(
+                    policy.Rule,
+                    policy,
+                    findingsByRule.GetValueOrDefault(policy.Rule)))
+                .ToList();
+            var knownRules = new HashSet<string>(rows.Select(row => row.Rule), StringComparer.Ordinal);
+            foreach (var finding in (_findings ?? []).Where(finding => finding.HasAction))
+            {
+                if (knownRules.Add(finding.Rule))
+                {
+                    rows.Add(new PolicyRow(finding.Rule, null, finding));
+                }
+            }
+
+            return rows.OrderBy(row => row.Rule, StringComparer.Ordinal).ToArray();
+        }
+    }
 
     protected override Task OnInitializedAsync() => LoadAsync(clearNotice: true);
 
@@ -157,6 +488,9 @@
             return;
         }
 
+        // A readback may change the rule/action safety context behind an open prompt.
+        // Require the operator to make a fresh choice against the refreshed snapshot.
+        CancelConfirmation();
         await LoadAsync(clearNotice: true);
     }
 
@@ -170,18 +504,40 @@
 
         try
         {
-            var result = await Findings.ListAsync();
-            if (result.IsAllowed)
+            var findingsTask = Findings.ListAsync();
+            var autonomyTask = Autonomy.LoadAsync();
+            var proposalsTask = Proposals.ListAsync(status: "AwaitingApproval");
+            await Task.WhenAll(findingsTask, autonomyTask, proposalsTask);
+
+            var findingsResult = await findingsTask;
+            if (findingsResult.IsAllowed)
             {
-                _findings = OpsFindingsMapper.Map(result.Value!);
+                _findings = OpsFindingsMapper.Map(findingsResult.Value!);
                 _outcomes.Clear();
             }
             else
             {
                 _findings = null;
-                _status = result.Status;
-                _message = result.Message;
+                _status = findingsResult.Status;
+                _message = findingsResult.Message;
             }
+
+            var autonomyResult = await autonomyTask;
+            _autonomyStatus = autonomyResult.Status;
+            _autonomyMessage = autonomyResult.Message;
+            _autonomy = autonomyResult.IsAllowed ? autonomyResult.Value : null;
+            if (_autonomy is null)
+            {
+                CancelConfirmation();
+            }
+
+            var proposalsResult = await proposalsTask;
+            _pendingProposals = proposalsResult.IsAllowed
+                ? proposalsResult.Value!
+                    .Where(proposal => proposal.Status == ConsoleProposalStatus.AwaitingApproval
+                        && !string.IsNullOrWhiteSpace(proposal.FindingId))
+                    .ToArray()
+                : [];
         }
         finally
         {
@@ -189,6 +545,448 @@
             _busy = false;
         }
     }
+
+    private void RequestKillSwitchChange()
+    {
+        if (_busy || _autonomy is null)
+        {
+            return;
+        }
+
+        _pendingPolicyRule = null;
+        _pendingPolicyMode = null;
+        _pendingKillSwitch = !_autonomy.Settings.KillSwitchEnabled;
+    }
+
+    private async Task ConfirmKillSwitchAsync()
+    {
+        if (_busy || _autonomy is null || _pendingKillSwitch is not { } requested)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var reason = requested
+                ? "Operator enabled the global autonomy kill switch from Honua Console."
+                : "Operator resumed persisted per-rule autonomy modes from Honua Console.";
+            var result = await Autonomy.SetKillSwitchAsync(requested, reason);
+            if (result.IsAllowed)
+            {
+                var confirmed = result.Value!;
+                _autonomy = _autonomy with { Settings = confirmed };
+                var readback = await RefreshAutonomyAfterMutationAsync();
+                var effective = _autonomy!.Settings.KillSwitchEnabled;
+                _notice = effective == requested
+                    ? $"Server confirmed the global kill switch is {(effective ? "enabled" : "disabled")}."
+                    : $"The server kept the global kill switch {(effective ? "enabled" : "disabled")}; the requested state was not assumed.";
+                if (!readback.IsAllowed)
+                {
+                    _notice += $" Audit refresh is unavailable: {readback.Message}";
+                }
+                else
+                {
+                    var matchingAudit = HasSettingsAudit(_autonomy, effective, confirmed.UpdatedAt);
+                    _notice += matchingAudit
+                        ? " The matching settings-change audit event is visible."
+                        : readback.PartialResult
+                            ? $" Settings readback succeeded, but audit confirmation is partial: {readback.Message}"
+                            : " The audit snapshot was refreshed, but the matching settings-change event is not yet visible.";
+                    if (confirmed.KillSwitchEnabled != effective)
+                    {
+                        _notice += " The immediate server readback differed from the PUT response; the Console shows the readback state.";
+                    }
+                }
+            }
+            else
+            {
+                _notice = result.Message;
+            }
+        }
+        finally
+        {
+            _pendingKillSwitch = null;
+            _busy = false;
+        }
+    }
+
+    private void RequestPolicyChange(string rule, string mode)
+    {
+        if (_busy || string.IsNullOrWhiteSpace(rule) || string.IsNullOrWhiteSpace(mode))
+        {
+            return;
+        }
+
+        _pendingKillSwitch = null;
+        _pendingPolicyRule = rule;
+        _pendingPolicyMode = mode;
+    }
+
+    private async Task ConfirmPolicyChangeAsync()
+    {
+        if (_busy
+            || _autonomy is null
+            || string.IsNullOrWhiteSpace(_pendingPolicyRule)
+            || string.IsNullOrWhiteSpace(_pendingPolicyMode))
+        {
+            return;
+        }
+
+        var rule = _pendingPolicyRule;
+        var requestedMode = _pendingPolicyMode;
+        _busy = true;
+        try
+        {
+            var result = await Autonomy.SetPolicyModeAsync(
+                rule,
+                requestedMode,
+                $"Operator requested {requestedMode} for rule {rule} from Honua Console.");
+            if (result.IsAllowed)
+            {
+                var confirmed = result.Value!;
+                if (!string.Equals(confirmed.Rule, rule, StringComparison.Ordinal))
+                {
+                    _notice = $"The server confirmed policy '{confirmed.Rule}' instead of requested rule '{rule}'. No local policy state was changed.";
+                    return;
+                }
+
+                var policies = _autonomy.Policies
+                    .Where(policy => !string.Equals(policy.Rule, confirmed.Rule, StringComparison.Ordinal))
+                    .Append(confirmed)
+                    .OrderBy(policy => policy.Rule, StringComparer.Ordinal)
+                    .ToArray();
+                _autonomy = _autonomy with { Policies = policies };
+                var readback = await RefreshAutonomyAfterMutationAsync();
+                var effective = _autonomy!.Policies.FirstOrDefault(policy =>
+                    string.Equals(policy.Rule, rule, StringComparison.Ordinal));
+                var effectiveMode = effective?.Mode ?? "NotReported";
+                _notice = string.Equals(effectiveMode, requestedMode, StringComparison.Ordinal)
+                    ? $"Server confirmed {rule} is {ModeLabel(effectiveMode)}."
+                    : $"The server kept {rule} {ModeLabel(effectiveMode)}; the requested mode was not assumed.";
+                if (!readback.IsAllowed)
+                {
+                    _notice += $" Audit refresh is unavailable: {readback.Message}";
+                }
+                else
+                {
+                    var matchingAudit = HasPolicyAudit(_autonomy, rule, effectiveMode, confirmed.UpdatedAt);
+                    _notice += matchingAudit
+                        ? " The matching policy-change audit event is visible."
+                        : readback.PartialResult
+                            ? $" Policy readback succeeded, but audit confirmation is partial: {readback.Message}"
+                            : " The audit snapshot was refreshed, but the matching policy-change event is not yet visible.";
+                    if (!string.Equals(confirmed.Mode, effectiveMode, StringComparison.Ordinal))
+                    {
+                        _notice += " The immediate server readback differed from the PUT response; the Console shows the readback state.";
+                    }
+                }
+            }
+            else
+            {
+                _notice = result.Message;
+            }
+        }
+        finally
+        {
+            _pendingPolicyRule = null;
+            _pendingPolicyMode = null;
+            _busy = false;
+        }
+    }
+
+    private void CancelConfirmation()
+    {
+        _pendingPolicyRule = null;
+        _pendingPolicyMode = null;
+        _pendingKillSwitch = null;
+    }
+
+    private async Task<OperateSectionResult<OpsAutonomySnapshot>> RefreshAutonomyAfterMutationAsync()
+    {
+        var readback = await Autonomy.LoadAsync();
+        if (readback.IsAllowed)
+        {
+            _autonomy = readback.Value!;
+            _autonomyStatus = OperateSectionStatus.Allowed;
+            _autonomyMessage = readback.Message;
+        }
+
+        return readback;
+    }
+
+    private static bool HasPolicyAudit(
+        OpsAutonomySnapshot? snapshot,
+        string rule,
+        string mode,
+        DateTimeOffset? changedAt) =>
+        snapshot?.AuditEntries.Any(entry =>
+            string.Equals(entry.Action, "ops_autonomy.policy.update", StringComparison.Ordinal)
+            && (string.Equals(entry.Rule, rule, StringComparison.Ordinal)
+                || string.Equals(entry.CorrelationId, rule, StringComparison.Ordinal))
+            && (changedAt.HasValue
+                ? entry.OccurredAt >= changedAt.Value
+                    && (string.IsNullOrWhiteSpace(entry.PolicyMode)
+                        || string.Equals(entry.PolicyMode, mode, StringComparison.Ordinal))
+                : string.Equals(entry.PolicyMode, mode, StringComparison.Ordinal))) == true;
+
+    private static bool HasSettingsAudit(
+        OpsAutonomySnapshot? snapshot,
+        bool enabled,
+        DateTimeOffset? changedAt) =>
+        snapshot?.AuditEntries.Any(entry =>
+            string.Equals(entry.Action, "ops_autonomy.settings.update", StringComparison.Ordinal)
+            && (changedAt.HasValue
+                ? entry.OccurredAt >= changedAt.Value
+                    && (entry.KillSwitchEnabled is null || entry.KillSwitchEnabled == enabled)
+                : entry.KillSwitchEnabled == enabled)) == true;
+
+    private PolicyActionSafetyView PolicyActionSafety(PolicyRow row)
+    {
+        var action = row.Finding?.RecommendedAction;
+        if (action is null)
+        {
+            return new PolicyActionSafetyView(
+                "Unknown — no active action; graduation to auto-apply is disabled",
+                NotAutomatable: true);
+        }
+
+        var destructive = action.Kind is "Deploy" or "MetadataRelease" or "Seed";
+        return !action.AutoSafe || destructive
+            ? new PolicyActionSafetyView(
+                destructive
+                    ? $"No — {action.Kind} is not automatable"
+                    : "No — server finding is not marked auto-safe",
+                NotAutomatable: true)
+            : new PolicyActionSafetyView(
+                $"Yes — blast radius {action.BlastRadius}",
+                NotAutomatable: false);
+    }
+
+    private FindingAutonomyPresentation? FindingAutonomyState(OpsFindingView finding)
+    {
+        if (_autonomy is null || finding.RecommendedAction is not { } action)
+        {
+            return null;
+        }
+
+        if (_outcomes.TryGetValue(finding.Id, out var localOutcome))
+        {
+            if (localOutcome.IsProposed)
+            {
+                return FindingState(
+                    "AwaitingApproval",
+                    "Proposed — awaiting approval",
+                    "awaiting approval",
+                    "The server created a governed proposal for human review.");
+            }
+
+            if (string.Equals(localOutcome.OutcomeStatus, "Executed", StringComparison.Ordinal))
+            {
+                return FindingState(
+                    "Executed",
+                    "Executed by gateway",
+                    "succeeded",
+                    localOutcome.Message);
+            }
+
+            if (localOutcome.OutcomeStatus is "RolledBack" or "Failed" or "Indeterminate" or "Canceled")
+            {
+                return localOutcome.OutcomeStatus switch
+                {
+                    "RolledBack" => FindingState(
+                        "RolledBack",
+                        "Auto-action rolled back",
+                        "rolled back",
+                        localOutcome.Message),
+                    "Indeterminate" => FindingState(
+                        "ManualInterventionRequired",
+                        "Manual intervention required",
+                        "manual intervention required",
+                        localOutcome.Message),
+                    "Failed" => FindingState(
+                        "Failed",
+                        "Auto-action failed",
+                        "failed",
+                        localOutcome.Message),
+                    _ => FindingState(
+                        "Canceled",
+                        "Auto-action canceled",
+                        "unknown",
+                        localOutcome.Message)
+                };
+            }
+
+            if (string.Equals(localOutcome.OutcomeStatus, "Blocked", StringComparison.Ordinal))
+            {
+                return FindingState(
+                    "GuardrailBlocked",
+                    "Blocked by guardrail",
+                    "blocked",
+                    localOutcome.Message);
+            }
+        }
+
+        if (PendingProposal(finding.Id) is { } pendingProposal)
+        {
+            return FindingState(
+                "AwaitingApproval",
+                "Proposed — awaiting approval",
+                "awaiting approval",
+                $"Server proposal {pendingProposal.ProposalId} is awaiting a human decision.");
+        }
+
+        var terminalAudit = _autonomy.AuditEntries.FirstOrDefault(entry =>
+            string.Equals(entry.FindingId, finding.Id, StringComparison.Ordinal)
+            && finding.DetectedAtValue != default
+            && entry.OccurredAt >= finding.DetectedAtValue
+            && entry.Action is "operation.auto_applied"
+                or "operation.auto_failed"
+                or "operation.auto_rolled_back"
+                or "operation.auto_indeterminate"
+                or "operation.auto_canceled");
+        if (terminalAudit is not null)
+        {
+            return terminalAudit.Action switch
+            {
+                "operation.auto_applied" => FindingState(
+                    "AutoApplied",
+                    "Auto-applied",
+                    "succeeded",
+                    terminalAudit.OutcomeEvidence),
+                "operation.auto_rolled_back" => FindingState(
+                    "RolledBack",
+                    "Auto-action rolled back",
+                    "rolled back",
+                    terminalAudit.OutcomeEvidence),
+                "operation.auto_indeterminate" => FindingState(
+                    "ManualInterventionRequired",
+                    "Manual intervention required",
+                    "manual intervention required",
+                    terminalAudit.OutcomeEvidence),
+                "operation.auto_failed" => FindingState(
+                    "Failed",
+                    "Auto-action failed",
+                    "failed",
+                    terminalAudit.OutcomeEvidence),
+                _ => FindingState(
+                    "Canceled",
+                    "Auto-action canceled",
+                    "unknown",
+                    terminalAudit.OutcomeEvidence)
+            };
+        }
+
+        var destructive = action.Kind is "Deploy" or "MetadataRelease" or "Seed";
+        if (!action.AutoSafe || destructive)
+        {
+            return FindingState(
+                "NotAutomatable",
+                "Not automatable",
+                "disabled",
+                destructive
+                    ? $"{action.Kind} actions always require human approval."
+                    : "The server did not mark this action auto-safe.");
+        }
+
+        var policy = _autonomy.Policies.FirstOrDefault(item =>
+            string.Equals(item.Rule, finding.Rule, StringComparison.Ordinal));
+        if (policy is null)
+        {
+            return FindingState(
+                "PolicyNotReported",
+                "Policy not reported",
+                "unknown",
+                "The server did not project a durable policy row; its config-backed effective mode is unknown.");
+        }
+
+        if (!string.Equals(policy.Mode, "AutoApply", StringComparison.Ordinal))
+        {
+            return FindingState(
+                "ProposeOnly",
+                "Propose-only",
+                "unknown",
+                IsKnownMode(policy.Mode)
+                    ? "The server policy requires human proposal and approval."
+                    : $"The server returned unknown mode '{policy.Mode}'; the Console will not treat it as auto-apply.");
+        }
+
+        if (_autonomy.Settings.KillSwitchEnabled)
+        {
+            return FindingState(
+                "GuardrailBlocked",
+                "Blocked by guardrail",
+                "blocked",
+                "The global autonomy kill switch is enabled.");
+        }
+
+        if (action.BlastRadius > policy.MaxBlastRadius)
+        {
+            return FindingState(
+                "GuardrailBlocked",
+                "Blocked by guardrail",
+                "blocked",
+                $"Action blast radius {action.BlastRadius} exceeds policy maximum {policy.MaxBlastRadius}.");
+        }
+
+        return FindingState(
+            "PendingAutoApply",
+            "Pending auto evaluation",
+            "waiting",
+            "The server evaluator still checks its live rate cap, safety catalog, and route-time guards.");
+    }
+
+    private static FindingAutonomyPresentation FindingState(
+        string state,
+        string label,
+        string status,
+        string description) =>
+        new(state, label, new OperateStatus(status, description));
+
+    private ConsoleProposalSummary? PendingProposal(string findingId) =>
+        _pendingProposals.FirstOrDefault(proposal =>
+            string.Equals(proposal.FindingId, findingId, StringComparison.Ordinal));
+
+    private static string FormatRate(OpsAutonomyPolicyResponse policy)
+    {
+        var window = policy.WindowSeconds % 60 == 0
+            ? $"{policy.WindowSeconds / 60} minutes"
+            : $"{policy.WindowSeconds} seconds";
+        return $"{policy.MaxAutoActionsPerWindow} actions / {window}";
+    }
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp) => timestamp is null
+        ? "not reported"
+        : timestamp.Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string DisplayValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "not reported" : value;
+
+    private static string PolicySource(OpsAutonomyPolicyResponse policy) => policy.IsPersisted switch
+    {
+        true => "Durable override",
+        false => "Effective config/default projection — the first change creates a durable override",
+        null => "Persistence marker not reported by this server version"
+    };
+
+    private static bool IsKnownMode(string? mode) =>
+        string.Equals(mode, "AutoApply", StringComparison.Ordinal)
+        || string.Equals(mode, "ProposeOnly", StringComparison.Ordinal);
+
+    private static string PolicyModeDisplay(string? mode) => mode switch
+    {
+        "AutoApply" => "Auto apply",
+        "ProposeOnly" => "Propose only",
+        "NotReported" => "Not reported",
+        _ => "Unknown server mode"
+    };
+
+    private static string ModeLabel(string? mode) => mode switch
+    {
+        "AutoApply" => "auto-apply",
+        "ProposeOnly" => "propose-only",
+        _ => $"unknown mode '{DisplayValue(mode)}'"
+    };
 
     private async Task ProposeAsync(string findingId)
     {
@@ -203,12 +1001,12 @@
             var result = await Findings.ProposeAsync(findingId);
             if (result.IsAllowed)
             {
-                var response = result.Value!;
-                _outcomes[findingId] = new ProposeOutcome(
-                    IsError: false,
-                    IsProposed: true,
-                    ProposalId: response.ProposalId,
-                    Message: BuildOutcomeMessage(response));
+                // The server returns HTTP 200 for every reached outcome, including Blocked
+                // and NotSupported (only FindingNotFound / NoRecommendedAction map to 404).
+                // Only ProposalCreated / Executed are real successes — a Blocked or
+                // NotSupported outcome must surface as an error and keep the propose button
+                // actionable, never as a "Proposed" state with a bogus proposal link.
+                _outcomes[findingId] = BuildProposeOutcome(result.Value!);
             }
             else if (result.Status == OperateSectionStatus.Missing)
             {
@@ -224,7 +1022,9 @@
                 _outcomes[findingId] = new ProposeOutcome(
                     IsError: true,
                     IsProposed: false,
+                    IsCompleted: false,
                     ProposalId: null,
+                    OutcomeStatus: result.Status.ToString(),
                     Message: result.Message);
             }
         }
@@ -232,6 +1032,29 @@
         {
             _busy = false;
         }
+    }
+
+    // The propose outcome statuses honua-server serializes (OperationGatewayOutcome ->
+    // OpsFindingProposalStatus, sent as its enum name). ProposalCreated / Executed are
+    // successes; Blocked / NotSupported are governed refusals returned with HTTP 200.
+    private const string ProposalCreatedStatus = "ProposalCreated";
+    private const string ExecutedStatus = "Executed";
+
+    private static ProposeOutcome BuildProposeOutcome(OpsFindingProposeResponse response)
+    {
+        var status = response.Status;
+        var proposed = string.Equals(status, ProposalCreatedStatus, StringComparison.Ordinal);
+        var executed = string.Equals(status, ExecutedStatus, StringComparison.Ordinal);
+
+        return new ProposeOutcome(
+            IsError: !proposed && !executed,
+            IsProposed: proposed,
+            IsCompleted: proposed || executed,
+            // A proposal link is only meaningful for a created proposal; never surface one
+            // for a Blocked / NotSupported (or otherwise unrecognized) outcome.
+            ProposalId: proposed ? response.ProposalId : null,
+            OutcomeStatus: status ?? string.Empty,
+            Message: BuildOutcomeMessage(response));
     }
 
     private static string BuildOutcomeMessage(OpsFindingProposeResponse response)
@@ -248,9 +1071,31 @@
             "Executed" => "The gateway executed the action directly.",
             "Blocked" => "The gateway blocked this action.",
             "NotSupported" => "The gateway does not support this action's operation class.",
+            "Failed" => "The autonomous action failed verification.",
+            "RolledBack" => "The autonomous action was compensated and rolled back.",
+            "Indeterminate" => "The autonomous action requires manual intervention.",
+            "Canceled" => "The autonomous action was canceled.",
             _ => $"Propose outcome: {status}."
         };
     }
 
-    private sealed record ProposeOutcome(bool IsError, bool IsProposed, string? ProposalId, string Message);
+    private sealed record ProposeOutcome(
+        bool IsError,
+        bool IsProposed,
+        bool IsCompleted,
+        string? ProposalId,
+        string OutcomeStatus,
+        string Message);
+
+    private sealed record PolicyRow(
+        string Rule,
+        OpsAutonomyPolicyResponse? Policy,
+        OpsFindingView? Finding);
+
+    private sealed record PolicyActionSafetyView(string Label, bool NotAutomatable);
+
+    private sealed record FindingAutonomyPresentation(
+        string State,
+        string Label,
+        OperateStatus Status);
 }

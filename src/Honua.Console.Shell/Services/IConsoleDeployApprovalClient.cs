@@ -16,10 +16,12 @@ namespace Honua.Console.Shell.Services;
 /// to a standing in-memory/mock source; when no environment is bound the read returns
 /// a missing-binding result rather than seeded data.
 ///
-/// The server intentionally exposes no list-all endpoint, so
-/// <see cref="ListPendingAsync"/> takes the caller-supplied set of operation ids to
-/// project (e.g. the deployOperationId of release operations in view). With an empty
-/// id set it returns an empty allowed result; it never fabricates operations.
+/// The server now has a real paged list endpoint (<see cref="IConsoleDeployOperationsClient"/>,
+/// console#290, honua-server PR #2577); <see cref="ListPendingAsync"/> remains as the tracked-id
+/// fallback for an older server where that list is unsupported, or for a caller that already
+/// knows the specific ids it cares about (e.g. the deployOperationId of release operations in
+/// view). With an empty id set it returns an empty allowed result; it never fabricates
+/// operations.
 /// </summary>
 public interface IConsoleDeployApprovalClient
 {

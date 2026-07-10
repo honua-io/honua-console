@@ -4,14 +4,24 @@
 @using Honua.Console.Shell.Services
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleApprovalInboxClient Inbox
+@inject IServiceProvider ServiceProvider
 @inject IConsoleHostCapabilities Host
+@implements IAsyncDisposable
 
 @* CONSOLE HOME — the information + approval landing (#193). The console's job is to
    witness and authorize the work agents and APIs propose, so the landing leads with the
    approval inbox (pending agent-proposed operations the operator can act on) rather than a
    dead grid of links. The inbox band binds to live server data through the aggregator and
    renders an honest missing-binding / empty state when no work — never seeded data. The
-   four area work surfaces follow as the entry points into the department's tools. *@
+   four area work surfaces follow as the entry points into the department's tools.
+
+   The inbox band goes live (console#292 scope item 4): it subscribes to the same admin-hub
+   proposals group the approval inbox uses (console#294's shared realtime seam), so a
+   ProposalPending/ProposalResolved event updates the count here without a page reload. A
+   failed connect degrades to the existing one-shot read (manual refresh via navigation) — the
+   Live/Manual pill states this honestly rather than claiming a liveness that failed. The
+   realtime client is resolved optionally (GetService, not a required inject): a host that has
+   not registered the seam gets the same honest Manual state, never a render exception. *@
 
 <section class="console-page">
     <div class="console-page-heading">
@@ -24,6 +34,11 @@
         </p>
     </div>
 
+    @* Ops-summary strip (console#292, founder decision 2026-07-07: ships on home, not hub-only):
+       the landing's "is my server healthy, what needs me?" glance — overall health, awaiting
+       approvals, open findings, and SLO breaches, each deep-linking to its actionable surface. *@
+    <OpsSummaryStrip />
+
     <div class="console-home-band">
         @* ── Pending approvals (the work queue at a glance) ──────────────────── *@
         <section class="console-panel console-home-inbox" aria-labelledby="home-inbox-heading">
@@ -31,6 +46,10 @@
                 <p class="console-kicker">Human-in-the-loop</p>
                 <h2 id="home-inbox-heading">Approval inbox</h2>
             </div>
+            <span class="approval-inbox-live @(RealtimeConnected ? "is-live" : null)" data-home-live-state
+                  data-fallback-engaged="@FallbackEngaged">
+                @(RealtimeConnected ? "Live" : "Manual")
+            </span>
             @if (!_inboxLoaded)
             {
                 <p class="console-muted">Reading the work queue…</p>
@@ -130,6 +149,14 @@
     private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
+    // Resolved optionally (console#292): a host without the realtime seam registered renders
+    // the honest Manual state instead of failing DI at render time. Never a required inject.
+    private IConsoleProposalRealtimeClient? _realtime;
+
+    private bool RealtimeConnected => _realtime?.IsConnected == true;
+
+    private bool FallbackEngaged => _realtime?.IsFallbackEngaged == true;
+
     protected override async Task OnInitializedAsync()
     {
         _profiles = await Profiles.ListProfilesAsync();
@@ -144,5 +171,37 @@
         {
             _inboxLoaded = true;
         }
+
+        // Console#292 scope item 4: subscribe to the same admin-hub proposals group the
+        // approval inbox uses so a pending/resolved event refreshes this band live, with no
+        // polling. Best-effort twice over: an unregistered client means Manual mode (no
+        // subscription to open), and a failed connect leaves the band on its one-shot read.
+        _realtime = ServiceProvider.GetService<IConsoleProposalRealtimeClient>();
+        if (_realtime is not null)
+        {
+            _realtime.ProposalChanged += OnProposalEvent;
+            await _realtime.StartAsync();
+        }
+    }
+
+    private void OnProposalEvent(ConsoleProposalEvent evt)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            _inbox = await Inbox.GetInboxAsync();
+            StateHasChanged();
+        });
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        // The realtime client is an app-lifetime singleton shared across circuits; only detach
+        // this page's handler (mirrors ApprovalInboxPage's disposal note).
+        if (_realtime is not null)
+        {
+            _realtime.ProposalChanged -= OnProposalEvent;
+        }
+
+        return ValueTask.CompletedTask;
     }
 }

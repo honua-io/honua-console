@@ -27,8 +27,8 @@ namespace Honua.Console.Web.Auth;
 /// configured proxy and forwards the operator's bearer to honua-server, where per-principal RBAC is
 /// enforced for real.</item>
 /// <item><b>Dev</b> — a documented developer login (Development only, or an explicit
-/// <c>Honua:Console:Auth:Mode=Dev</c> override) so local work is not blocked. The dev operator's
-/// server calls fall back to the configured shared admin key.</item>
+/// <c>Honua:Console:Auth:Mode=Dev</c> override) so local reads are not blocked. Human approval
+/// and recovery mutations still require a forwardable server bearer and fail closed otherwise.</item>
 /// </list>
 /// In every other case authentication is <b>fail-closed</b>: there is no anonymous access. The
 /// <see cref="AuthorizationOptions.FallbackPolicy"/> requires an authenticated operator on every
@@ -281,7 +281,8 @@ public static class ConsoleAuthentication
                 new Claim(ClaimTypes.Name, "Developer"),
             ],
             ConsoleAuthConstants.CookieScheme);
-        // No operator bearer: dev server calls use the admin-key fallback.
+        // No operator bearer: reads may use their documented fallback, while human
+        // approval/recovery mutations fail closed until a bearer is available.
         return new ClaimsPrincipal(identity);
     }
 

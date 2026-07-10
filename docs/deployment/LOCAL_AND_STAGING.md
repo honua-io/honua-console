@@ -25,7 +25,9 @@ Same-origin API expectations:
   `Honua:Server:BaseUrl`, `Honua__Server__BaseUrl`, or
   `HONUA_SERVER_BASE_URL` is configured with an absolute HTTP(S) URL.
   `Honua:Server:AdminApiKey`, `Honua__Server__AdminApiKey`, or
-  `HONUA_ADMIN_API_KEY` is optional and is forwarded as `X-API-Key`.
+  `HONUA_ADMIN_API_KEY` is optional and is forwarded as `X-API-Key` by
+  documented read/headless paths. Human approval, deploy rollback, and finding-proposal
+  mutations require an operator bearer by default and never silently use this key.
 - Without a valid server base URL, Operate renders a missing-binding state
   instead of seeded sample data.
 
@@ -36,6 +38,13 @@ HONUA_SERVER_BASE_URL=http://127.0.0.1:5000 \
 HONUA_ADMIN_API_KEY=dev-admin-key \
 dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
 ```
+
+That local command supports read-only Operate work. Human-attributable mutations require a trusted
+operator bearer exchange as documented in [Console authentication](../console-authentication.md).
+Non-interactive host composition can opt in with `HeadlessService` and an explicit `ServiceApiKey`
+environment profile; the key is then accepted only when that profile has no interactive account
+session. Interactive profile creation does not offer this mode. Do not use it to work around an
+expired or sentinel human session.
 
 Common commands:
 
