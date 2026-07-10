@@ -12,8 +12,8 @@ namespace Honua.Console.Shell.Services;
 /// Binds the human-in-the-loop deploy approval surface to a real honua-server through
 /// the deploy-control admin endpoints (<c>GET /api/v1/admin/deploy/operations/{id}</c>,
 /// <c>POST .../submit</c>, <c>POST .../rollback</c>). The active operator bearer is
-/// preferred so server audit records retain the human identity; a configured admin API
-/// key is an explicit headless fallback. The server's <c>OperatorApprovalGate</c> remains
+/// required so server audit records retain the human identity; a configured admin API
+/// key is available only in explicit, sessionless headless/service mode. The server's <c>OperatorApprovalGate</c> remains
 /// the real gate: a data-affecting rollback that the gate denies returns 403, which this client surfaces
 /// as a <see cref="OperateSectionStatus.Forbidden"/> result — the UI never bypasses it.
 ///
@@ -30,17 +30,27 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
+    private readonly IConsoleOperatorBearerProvider _operatorBearerProvider;
+    private readonly ConsoleServerCredentialMode _credentialMode;
 
     public HttpConsoleDeployApprovalClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
         IConsoleAccountSessionStore sessionStore,
-        string? adminApiKey = null)
+        string? adminApiKey = null,
+        IConsoleOperatorBearerProvider? operatorBearerProvider = null,
+        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
+        _operatorBearerProvider = operatorBearerProvider
+            ?? new ConsoleOperatorBearerProvider(
+                sessionStore,
+                new UnavailableConsoleOperatorBearerExchange(),
+                TimeProvider.System);
+        _credentialMode = credentialMode;
     }
 
     public async Task<OperateSectionResult<DeployOperationProposal>> GetOperationAsync(
@@ -173,12 +183,31 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(method, BuildUri(profile.ServerBaseUri, relativePath));
-        await ConsoleServerHttp.AttachAuthenticationAsync(
-            request,
-            _sessionStore,
-            profile,
-            _adminApiKey,
-            cancellationToken).ConfigureAwait(false);
+        if (method == HttpMethod.Get)
+        {
+            await ConsoleServerHttp.AttachAuthenticationAsync(
+                request,
+                _sessionStore,
+                profile,
+                _adminApiKey,
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var authentication = await ConsoleServerHttp.AttachMutationAuthenticationAsync(
+                request,
+                _operatorBearerProvider,
+                profile,
+                _adminApiKey,
+                _credentialMode,
+                cancellationToken).ConfigureAwait(false);
+            if (!authentication.IsAuthenticated)
+            {
+                return OperateSectionResult<DeployOperationProposal>.Denied(
+                    OperateSectionStatus.Forbidden,
+                    authentication.Message);
+            }
+        }
 
         if (content is not null)
         {

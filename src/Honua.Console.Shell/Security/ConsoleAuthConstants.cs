@@ -7,9 +7,9 @@ namespace Honua.Console.Shell.Security;
 /// edge-forwarded identity, or — in Development — a documented dev login) and then forwards
 /// that operator's identity to honua-server. The forwarded credential is the operator's
 /// bearer token when one is available (e.g. an oauth2-proxy <c>X-Forwarded-Access-Token</c>
-/// or honua-server's short-lived operator bearer), falling back to the configured shared admin key
-/// only when no operator bearer exists. Per-principal RBAC on honua-server is therefore
-/// honoured whenever a real operator bearer is present.
+/// or honua-server's short-lived operator bearer). Human-attributable mutations fail closed
+/// without that bearer; the shared admin key is reserved for an explicit, sessionless
+/// headless/service mode. Per-principal RBAC on honua-server is therefore preserved.
 /// </summary>
 public static class ConsoleAuthConstants
 {
@@ -23,8 +23,9 @@ public static class ConsoleAuthConstants
     /// Prefix of the placeholder access token written into the account session when an operator is
     /// authenticated to the Console but no forwardable honua-server bearer exists yet (dev login, or
     /// an edge proxy that does not pass an access token). It marks the session as "signed in" for
-    /// client-side read context, but is never forwarded to honua-server — the shared admin-key
-    /// fallback applies instead. A real operator bearer never carries this prefix.
+    /// client-side read context, but is never forwarded to honua-server. Human mutations with
+    /// this sentinel require bearer exchange or reauthentication and never use the shared admin
+    /// identity. A real operator bearer never carries this prefix.
     /// </summary>
     public const string SessionSentinelPrefix = "profile-session:";
 

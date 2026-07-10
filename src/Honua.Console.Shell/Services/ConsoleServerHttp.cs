@@ -20,10 +20,12 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 internal static class ConsoleServerHttp
 {
+    internal readonly record struct AuthenticationResult(bool IsAuthenticated, string Message);
+
     /// <summary>
-    /// Attaches the active operator's forwardable bearer to a honua-server request. A
-    /// configured admin key is used only when no real operator bearer exists, preserving
-    /// the explicit headless/dev fallback without replacing the human audit principal.
+    /// Attaches the active operator's forwardable bearer to a honua-server read request. A
+    /// configured admin key is used only when no real operator bearer exists. Human-attributable
+    /// mutations use <see cref="AttachMutationAuthenticationAsync"/> instead.
     /// </summary>
     public static async Task AttachAuthenticationAsync(
         HttpRequestMessage request,
@@ -53,6 +55,52 @@ internal static class ConsoleServerHttp
     }
 
     /// <summary>
+    /// Attaches a human-attributable credential for an approval or operational
+    /// mutation. Interactive mode never falls back to the shared admin API key.
+    /// Explicit headless mode may use that key only when no interactive session
+    /// exists and the profile is explicitly <c>ServiceApiKey</c>, so a missing/expired
+    /// human bearer can never change the audit actor.
+    /// </summary>
+    public static async Task<AuthenticationResult> AttachMutationAuthenticationAsync(
+        HttpRequestMessage request,
+        IConsoleOperatorBearerProvider bearerProvider,
+        ConsoleEnvironmentProfile profile,
+        string? adminApiKey,
+        ConsoleServerCredentialMode credentialMode,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(bearerProvider);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        request.Headers.Authorization = null;
+        request.Headers.Remove("X-API-Key");
+
+        var resolution = await bearerProvider.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
+        if (resolution.IsAvailable)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", resolution.AccessToken);
+            return new AuthenticationResult(true, string.Empty);
+        }
+
+        if (credentialMode == ConsoleServerCredentialMode.HeadlessService
+            && !resolution.HasInteractiveSession
+            && profile.Account.AuthMode == ConsoleAccountAuthMode.ServiceApiKey
+            && !string.IsNullOrWhiteSpace(adminApiKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-API-Key", adminApiKey);
+            return new AuthenticationResult(true, string.Empty);
+        }
+
+        var message = credentialMode == ConsoleServerCredentialMode.HeadlessService
+            && !resolution.HasInteractiveSession
+            && profile.Account.AuthMode == ConsoleAccountAuthMode.ServiceApiKey
+            ? "Headless/service credential mode is enabled, but no admin API key is configured."
+            : resolution.Message;
+        return new AuthenticationResult(false, message);
+    }
+
+    /// <summary>
     /// Resolves a relative path against an absolute honua-server base URI, ensuring the
     /// base authority + base path are preserved (a trailing slash is added when missing so
     /// the last base path segment is not dropped by <see cref="Uri"/> resolution).
@@ -67,8 +115,8 @@ internal static class ConsoleServerHttp
 
     /// <summary>
     /// Resolves the operator's forwardable honua-server bearer token for the active
-    /// profile, or <see langword="null"/> when the caller should fall back to the shared
-    /// admin <c>X-API-Key</c>. Returns <see langword="null"/> for anonymous profiles and
+    /// profile, or <see langword="null"/> when no forwardable bearer exists. Read callers may
+    /// apply their documented fallback. Returns <see langword="null"/> for anonymous profiles and
     /// for the non-forwardable Console session sentinel
     /// (<see cref="ConsoleAuthConstants.IsSessionSentinel"/>), mirroring
     /// <see cref="HonuaServerBindingHandler"/> so the single auth rule cannot diverge again.
@@ -87,7 +135,10 @@ internal static class ConsoleServerHttp
         var token = session?.AccessToken;
 
         // A Console session sentinel marks "operator signed in" for read context but is not
-        // a real honua-server bearer; do not forward it — let the admin-key fallback apply.
-        return ConsoleAuthConstants.IsSessionSentinel(token) ? null : token;
+        // a real honua-server bearer; do not forward it.
+        return ConsoleAuthConstants.IsSessionSentinel(token)
+            || session?.AccessTokenExpiresAt <= DateTimeOffset.UtcNow
+                ? null
+                : token;
     }
 }
