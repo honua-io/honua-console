@@ -16,6 +16,7 @@
     "smoke:matrix": "node smoke/parity/scenario-matrix.mjs",
     "smoke:parity:test": "node --test smoke/parity/__tests__/*.test.mjs",
     "e2e:smoke": "npm --prefix e2e/playwright run e2e:smoke",
-    "e2e:live": "node e2e/run-live.mjs"
+    "e2e:live": "node e2e/run-live.mjs",
+    "e2e:live-llm": "node e2e/run-live-llm.mjs"
   }
 }

@@ -1,0 +1,136 @@
+# Live-LLM smoke lane stack (honua-console#283).
+#
+# Stands up a LOCAL honua-server wired to a REAL AI generation provider so the
+# console studio generate-from-prompt surfaces (QUERY / MAP / FORM / WORKFLOW)
+# can be exercised against genuine prompt -> LLM -> result generation. This is a
+# separate, NON-BLOCKING nightly lane; it never runs on the PR gate and it never
+# points at the customer demo (demo.honua.io) — those specs mutate state.
+#
+# Topology (shared-network-namespace pattern, mirrors e2e/docker-compose.yml):
+#   postgis  — owns the network namespace; publishes every host port.
+#   redis    — joins postgis's namespace (network_mode: service:postgis).
+#   litellm  — joins postgis's namespace; OpenAI-compatible gateway -> Bedrock.
+#              Only started with `--profile bedrock` (the local Bedrock path).
+#   honua-server — joins postgis's namespace.
+#
+# Inside honua-server: localhost:5644 = PostGIS, localhost:6379 = Redis,
+# localhost:4000 = LiteLLM. The AI provider is configured entirely from env the
+# orchestrator (run-live-llm.mjs) exports:
+#   HONUA_LIVE_LLM_PROVIDER   local (LiteLLM->Bedrock, http) | openai (direct, https)
+#   HONUA_LIVE_LLM_ENDPOINT   base URL incl. /v1  (code appends /chat/completions)
+#   HONUA_LIVE_LLM_MODEL      model name
+#   HONUA_LIVE_LLM_API_KEY    bearer key (openai path; empty for local)
+#
+# Host-visible ports (Playwright + the Console run on the host):
+#   127.0.0.1:5644  -> PostGIS
+#   127.0.0.1:5681  -> honua-server HTTP (internal :8080)
+#   127.0.0.1:4000  -> LiteLLM (debug; bedrock profile only)
+
+name: honua-console-live-llm
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: honua
+      POSTGRES_USER: honua
+      POSTGRES_PASSWORD: honua
+      PGPORT: "5644"
+    ports:
+      - "127.0.0.1:5644:5644"   # PostGIS
+      - "127.0.0.1:5681:8080"   # honua-server Kestrel (shared namespace)
+      - "127.0.0.1:4000:4000"   # LiteLLM (bedrock profile)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honua -d honua -p 5644"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    network_mode: "service:postgis"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    profiles: ["bedrock"]
+    network_mode: "service:postgis"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      - ./config/litellm-config.yaml:/app/config.yaml:ro
+    environment:
+      AWS_REGION: "${AWS_REGION:-us-west-2}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+      AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN:-}"
+      HONUA_LIVE_LLM_BEDROCK_MODEL: "${HONUA_LIVE_LLM_BEDROCK_MODEL:-bedrock/invoke/us.anthropic.claude-haiku-4-5-20251001-v1:0}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  honua-server:
+    image: ${HONUA_LIVE_LLM_SERVER_IMAGE:-ghcr.io/honua-io/honua-server:nightly-20260711}
+    # postgis restarts once during first-run init after pg_isready first reports
+    # ready; retry the preflight instead of dying.
+    restart: on-failure:5
+    network_mode: "service:postgis"
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # --- Backing stores (localhost via the shared namespace) ---
+      ConnectionStrings__DefaultConnection: "Host=localhost;Port=5644;Database=honua;Username=honua;Password=honua"
+      ConnectionStrings__Redis: "localhost:6379"
+
+      # --- Auth & security ---
+      HONUA_ADMIN_PASSWORD: "honua-console-dev-key"
+      Security__ConnectionEncryption__MasterKey: "0000000000000000000000000000000000000000000000000000000000000001"
+
+      # --- Environment / licensing / host validation ---
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Licensing__DevGrantEdition: Enterprise
+      HostValidation__AllowedHosts: "*"
+      AllowedHosts: "*"
+
+      # --- AI generation: a REAL provider (the whole point of this lane) ---
+      # Enabling the shared WorkflowGeneration section turns on the entire studio
+      # generation surface (query + map + form + workflow all read this gate).
+      WorkflowGeneration__Enabled: "true"
+      WorkflowGeneration__DefaultProvider: "${HONUA_LIVE_LLM_PROVIDER:-local}"
+      # Both provider blocks are fed from the same orchestrator env; only the
+      # DefaultProvider block is validated at startup, so the unused one is inert.
+      # `local` allows a non-HTTPS endpoint (the LiteLLM gateway) and needs no key;
+      # `openai` requires HTTPS + a bearer key (direct OpenAI-compatible API).
+      WorkflowGeneration__Providers__local__Endpoint: "${HONUA_LIVE_LLM_ENDPOINT:-}"
+      WorkflowGeneration__Providers__local__Model: "${HONUA_LIVE_LLM_MODEL:-}"
+      WorkflowGeneration__Providers__local__MaxTokens: "8192"
+      WorkflowGeneration__Providers__local__TimeoutSeconds: "120"
+      WorkflowGeneration__Providers__openai__Endpoint: "${HONUA_LIVE_LLM_ENDPOINT:-}"
+      WorkflowGeneration__Providers__openai__Model: "${HONUA_LIVE_LLM_MODEL:-}"
+      WorkflowGeneration__Providers__openai__ApiKey: "${HONUA_LIVE_LLM_API_KEY:-}"
+      WorkflowGeneration__Providers__openai__MaxTokens: "8192"
+      WorkflowGeneration__Providers__openai__TimeoutSeconds: "90"
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO/dev/null http://localhost:8080/healthz/ready"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 45s

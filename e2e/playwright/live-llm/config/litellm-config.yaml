@@ -1,0 +1,31 @@
+# LiteLLM proxy config for the live-LLM smoke lane (honua-console#283), Bedrock path.
+#
+# When the lane runs in "bedrock" provider mode, this proxy exposes an
+# OpenAI-compatible /v1/chat/completions endpoint (model name `honua-llm`) and
+# translates every call — including strict `response_format: json_schema` — into
+# an AWS Bedrock call. That is what lets the honua-server QUERY/MAP/FORM
+# generation services (which speak ONLY OpenAI-compatible /chat/completions with
+# strict json_schema) exercise a real Bedrock-hosted model.
+#
+# IMPORTANT: the model id uses the `bedrock/invoke/...` (InvokeModel) path, NOT
+# the default Converse path. Bedrock's Converse *native* structured output
+# compiles the json_schema into a grammar that rejects the honua schemas
+# ("minItems other than 0/1 not supported", "compiled grammar too large").
+# The InvokeModel path instead satisfies json_schema via Anthropic native
+# tool-use, which has no such grammar limit — verified against the QUERY/MAP
+# schemas. run-live-llm.mjs defaults HONUA_LIVE_LLM_BEDROCK_MODEL accordingly.
+#
+# Credentials come from the standard AWS env vars (AWS_ACCESS_KEY_ID /
+# AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN), which run-live-llm.mjs resolves
+# from the ambient AWS credential chain and passes into the container. The model
+# id + region are injected the same way so nothing secret is baked here.
+model_list:
+  - model_name: honua-llm
+    litellm_params:
+      model: os.environ/HONUA_LIVE_LLM_BEDROCK_MODEL
+      aws_region_name: os.environ/AWS_REGION
+
+litellm_settings:
+  # Silently drop provider params the target model does not support instead of
+  # erroring — keeps the OpenAI-shaped requests from honua-server tolerant.
+  drop_params: true
