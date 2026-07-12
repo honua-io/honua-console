@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 
@@ -29,15 +28,20 @@ public sealed class OperatorScopedEnvironmentProfileStore : IConsoleEnvironmentP
 {
     private readonly IConsoleOperatorContext _operatorContext;
     private readonly Func<InMemoryConsoleEnvironmentProfileStore> _seedFactory;
-    private readonly ConcurrentDictionary<string, InMemoryConsoleEnvironmentProfileStore> _byOperator =
-        new(StringComparer.Ordinal);
+
+    // Bounded per-operator partition map. Departed operators are evicted on sign-out via EvictOperator,
+    // and idle/over-capacity partitions are pruned, so this no longer grows without bound
+    // (honua-console#279 PA-237).
+    private readonly OperatorPartitionTable<InMemoryConsoleEnvironmentProfileStore> _byOperator;
 
     public OperatorScopedEnvironmentProfileStore(
         IConsoleOperatorContext operatorContext,
-        Func<InMemoryConsoleEnvironmentProfileStore>? seedFactory = null)
+        Func<InMemoryConsoleEnvironmentProfileStore>? seedFactory = null,
+        TimeProvider? timeProvider = null)
     {
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
         _seedFactory = seedFactory ?? (() => new InMemoryConsoleEnvironmentProfileStore([]));
+        _byOperator = new OperatorPartitionTable<InMemoryConsoleEnvironmentProfileStore>(timeProvider);
     }
 
     // Reads use CurrentOperatorKey (an anonymous public surface legitimately sees an empty profile set).
@@ -45,10 +49,17 @@ public sealed class OperatorScopedEnvironmentProfileStore : IConsoleEnvironmentP
     // partition — an anonymous surface never writes a profile, so an unresolved operator on a write is a
     // fail-closed bug, not a silent shared-partition write (honua-console#256).
     private InMemoryConsoleEnvironmentProfileStore Current =>
-        _byOperator.GetOrAdd(_operatorContext.CurrentOperatorKey, _ => _seedFactory());
+        _byOperator.GetOrAdd(_operatorContext.CurrentOperatorKey, _seedFactory);
 
     private InMemoryConsoleEnvironmentProfileStore CurrentForWrite =>
-        _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), _ => _seedFactory());
+        _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), _seedFactory);
+
+    /// <summary>
+    /// Removes the operator's partition on sign-out so its profiles/active-selection/identity binding do
+    /// not linger for the life of the process (honua-console#279 PA-237). No-op if the operator has no
+    /// partition.
+    /// </summary>
+    public void EvictOperator(string operatorKey) => _byOperator.Evict(operatorKey);
 
     public Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default) =>
         Current.ListProfilesAsync(cancellationToken);
