@@ -71,9 +71,10 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
             Surface,
             "Unsupported",
             ListContract,
-            "honua-server does not yet expose a saved-query list endpoint, so existing queries cannot be "
-            + "enumerated from live data. Open a known query by id or create a new query. This list binds "
-            + "automatically once honua-server#1182 adds a list route.");
+            "honua-server exposes no saved-query list endpoint, so existing queries cannot be enumerated "
+            + "from live data. This list binds automatically once a saved-query list route ships.",
+            Summary: "This server version can't list saved queries yet — open a query by id, or create a new one.",
+            IssueRef: "honua-server#1182");
 
         return Task.FromResult(new StudioQueryWorkspace([], [listUnsupported]));
     }
@@ -447,7 +448,7 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
             Surface,
             issue.State,
             issue.Contract,
-            issue.StatusCode is null
-                ? issue.Detail
-                : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
+            issue.Detail,
+            Summary: StudioCapabilityCopy.Summary(Surface, issue.State),
+            StatusCode: issue.StatusCode);
 }

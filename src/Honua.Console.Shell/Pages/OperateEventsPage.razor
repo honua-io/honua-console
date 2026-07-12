@@ -10,14 +10,16 @@
 
     @if (_evidence is null)
     {
-        <article class="console-panel">
-            <h2>Event evidence not projected to this route</h2>
-            <p class="console-muted">
-                Open this route from a workflow publish result so the live job id is supplied. Server-owned
-                workflow event evidence is owned by honua-server's Operate job/event APIs; honua-server#1185
-                exposes no workflow job-evidence read, so projecting it into this route is a pending follow-on.
-                The in-memory demo adapter renders evidence inline.
-            </p>
+        <article class="console-panel" data-events-dead-end>
+            <h2>Open this from a workflow run</h2>
+            <ConsoleDiagnostics Summary="Workflow event evidence stays tied to the job that produced it. Open this route from a workflow's publish or dry-run result so its job id comes along — a direct visit has no run to show yet."
+                                Detail="Workflow event evidence is owned by honua-server's Operate job/event APIs; projecting it into this route without a supplied job id is a pending follow-on. The in-memory demo adapter renders evidence inline."
+                                Contract="GET /api/v1/admin/jobs/{jobId}"
+                                IssueRef="honua-server#1185" />
+            <div class="console-toolbar">
+                <a class="console-button-link" href="/studio/workflows/new" data-events-exit-workflows>Open workflow editors</a>
+                <a class="console-button-link" href="/operate/observability" data-events-exit-jobs>View workflow jobs</a>
+            </div>
         </article>
     }
     else

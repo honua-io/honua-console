@@ -55,7 +55,8 @@ public sealed class HttpConsoleDeployOperationsClient : IConsoleDeployOperations
             DeployControlJsonContext.Default.DeployOperationListResponse,
             DeployOperationListMapper.Map,
             "The honua-server deploy-operations list API",
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            discloseStatus: true).ConfigureAwait(false);
     }
 
     public async Task<OperateSectionResult<DeployPreflightView>> GetPreflightAsync(
@@ -136,7 +137,8 @@ public sealed class HttpConsoleDeployOperationsClient : IConsoleDeployOperations
         JsonTypeInfo<TWire> typeInfo,
         Func<TWire, TView> map,
         string apiLabel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool discloseStatus = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, ConsoleServerHttp.BuildUri(baseUri, relativePath));
         AttachAuth(request);
@@ -149,7 +151,14 @@ public sealed class HttpConsoleDeployOperationsClient : IConsoleDeployOperations
 
             if (!response.IsSuccessStatusCode)
             {
-                return OperateSectionResult<TView>.Denied(MapStatus(response.StatusCode), MapErrorMessage(response.StatusCode, apiLabel));
+                // discloseStatus surfaces the human first line and relocates the raw transport code to the
+                // diagnostics disclosure (honua-console#311); other callers keep the legacy blended message.
+                return discloseStatus
+                    ? OperateSectionResult<TView>.Denied(
+                        MapStatus(response.StatusCode),
+                        MapErrorHumanMessage(response.StatusCode, apiLabel),
+                        MapErrorDetail(response.StatusCode, apiLabel))
+                    : OperateSectionResult<TView>.Denied(MapStatus(response.StatusCode), MapErrorMessage(response.StatusCode, apiLabel));
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -187,6 +196,21 @@ public sealed class HttpConsoleDeployOperationsClient : IConsoleDeployOperations
             $"{apiLabel} is not available on the connected server (older server build, or the capability has not merged yet).",
         _ => $"{apiLabel} returned {(int)code}.",
     };
+
+    // Human-first variant (honua-console#311): the generic error no longer leads with the raw code —
+    // that moves into MapErrorDetail for the disclosure.
+    private static string MapErrorHumanMessage(HttpStatusCode code, string apiLabel) => code switch
+    {
+        HttpStatusCode.Forbidden =>
+            "The server's approval gate denied this action.",
+        HttpStatusCode.NotFound or HttpStatusCode.NotImplemented =>
+            $"{apiLabel} is not available on the connected server (older server build, or the capability has not merged yet).",
+        _ => $"{apiLabel} couldn't be read from the connected server right now. Retry once the environment is healthy.",
+    };
+
+    // Verbatim transport diagnostics preserved for the diagnostics disclosure.
+    private static string MapErrorDetail(HttpStatusCode code, string apiLabel) =>
+        $"{apiLabel} returned {(int)code} ({code}).";
 
     // 404 maps to Unsupported (not Missing): every route this client calls is a collection-level
     // GET or a speculative POST, none keyed by an id — a 404 here can only mean "the connected

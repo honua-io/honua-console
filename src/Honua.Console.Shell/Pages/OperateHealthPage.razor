@@ -139,7 +139,7 @@
 
                 @if (!_view.Geoprocessing.Available)
                 {
-                    <p class="console-muted">Geoprocessing queue telemetry is unavailable on the connected server.</p>
+                    <ConsoleDiagnostics Detail="No execution-job store is registered on the connected server, so geoprocessing queue depth cannot be reported." />
                 }
                 else if (_view.Geoprocessing.Buckets.Count == 0)
                 {

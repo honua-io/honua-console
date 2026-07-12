@@ -632,9 +632,17 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             Surface,
             issue.State,
             issue.Contract ?? contract,
-            issue.StatusCode is null
-                ? issue.Detail
-                : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
+            issue.Detail,
+            Summary: MapCapabilitySummary(issue.State, issue.Contract ?? contract),
+            StatusCode: issue.StatusCode);
+
+    // The list contract has no list verb on older servers (a 405/404 on package-drafts list): say what
+    // that means for authoring instead of leading with the transport code. Other states fall back to the
+    // shared Studio capability copy.
+    private static string MapCapabilitySummary(string? state, string contract) =>
+        contract.Contains("(list)", StringComparison.OrdinalIgnoreCase)
+            ? "Maps can't be listed on this server version yet — create one from a prompt instead."
+            : StudioCapabilityCopy.Summary(Surface, state);
 
     private static StudioMapCommandResult Failure(string message, StudioMapCapabilityState? issue = null) =>
         new(false, message, Issue: issue);

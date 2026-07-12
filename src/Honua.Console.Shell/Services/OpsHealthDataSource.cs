@@ -178,7 +178,7 @@ public sealed class OpsHealthDataSource : IOpsHealthDataSource
             return new OpsGpQueueView(
                 gp?.TotalActive ?? 0,
                 false,
-                Neutral("Geoprocessing queue telemetry is unavailable (no execution-job store is registered)."),
+                Neutral("Geoprocessing queue telemetry isn't available on the connected server yet."),
                 []);
         }
 

@@ -50,11 +50,12 @@
                                     <h2>@state.Surface</h2>
                                 </div>
                             </div>
-                            <p class="console-muted">@state.Detail</p>
-                            <dl class="console-definition-list">
-                                <dt>Contract</dt>
-                                <dd>@state.Contract</dd>
-                            </dl>
+                            <ConsoleDiagnostics Summary="@(state.Summary ?? StudioCapabilityCopy.Summary(state.Surface, state.State))"
+                                                Detail="@state.Detail"
+                                                State="@state.State"
+                                                Contract="@state.Contract"
+                                                StatusCode="@state.StatusCode"
+                                                IssueRef="@state.IssueRef" />
                         </article>
                     }
                 </div>

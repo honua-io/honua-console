@@ -337,6 +337,50 @@ p {
     overflow-wrap: anywhere;
 }
 
+/* Diagnostics disclosure (honua-console#311): human first line over an expandable
+   technical block that preserves the full verbatim diagnostics. */
+.console-diagnostics {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.console-diagnostics-summary {
+    margin: 0;
+}
+
+.console-diagnostics-detail {
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    background: var(--honua-surface-strong);
+    padding: 0 12px;
+}
+
+.console-diagnostics-detail[open] {
+    padding-bottom: 4px;
+}
+
+.console-diagnostics-toggle {
+    cursor: pointer;
+    padding: 8px 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--honua-muted);
+    list-style: revert;
+}
+
+.console-diagnostics-body {
+    padding-bottom: 8px;
+}
+
+.console-diagnostics-body .console-definition-list {
+    margin: 8px 0 0;
+}
+
+.console-diagnostics-body code {
+    overflow-wrap: anywhere;
+}
+
 .console-chip-row {
     display: flex;
     flex-wrap: wrap;
