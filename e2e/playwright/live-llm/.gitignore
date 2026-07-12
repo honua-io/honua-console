@@ -1,0 +1,3 @@
+# Per-run lane artifacts (surface ledger, Playwright json report, traces).
+results/
+test-results/
