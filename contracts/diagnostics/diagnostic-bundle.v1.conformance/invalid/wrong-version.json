@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2.0",
+  "contentClassification": "internal",
+  "consent": {
+    "redactionAcknowledged": true,
+    "shareWithSupport": true
+  },
+  "envelopes": [
+    {
+      "method": "GET",
+      "normalizedPath": "/healthz/ready"
+    }
+  ]
+}

@@ -332,6 +332,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // builder auto-captures session/env/build/route/recent-errors so
         // customers ship context, not log dumps.
         AddSupportTicketClient(services, honuaSupportBaseUrl);
+
+        // Canonical sanitized diagnostic-bundle emitter (honua-console#307). The exporter is the
+        // gate that validates every emitted bundle against the pinned diagnostic-bundle.v1 schema
+        // before it can be downloaded or uploaded; a non-conforming or unsafe bundle throws rather
+        // than emitting. Stateless — a single shared instance holds the parsed schema.
+        services.TryAddSingleton<Diagnostics.DiagnosticBundleExporter>();
+
         services.TryAddSingleton<ConsoleSupportContextBuilder>(serviceProvider =>
             new ConsoleSupportContextBuilder(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),

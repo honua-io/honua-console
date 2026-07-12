@@ -1,0 +1,4 @@
+# The diagnostic-bundle schema is pinned by SHA-256 (see diagnostic-bundle.v1.provenance.json
+# and DiagnosticBundleProvenanceTests). Force LF on every platform so the working-copy bytes
+# match the published digest regardless of core.autocrlf; a CRLF conversion would break the pin.
+* text eol=lf

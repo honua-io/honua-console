@@ -39,4 +39,15 @@
     <None Include="SupportKb\README.md" />
   </ItemGroup>
 
+  <!-- Canonical sanitized diagnostic-bundle v1 schema (honua-console#307). The pinned,
+       support-owned schema bytes (contracts/diagnostics/) are embedded so DiagnosticBundleSchema
+       validates every emitted bundle against the exact canonical contract. LogicalName fixes the
+       manifest resource name; DiagnosticBundleProvenanceTests pins these bytes to the published
+       SHA-256 so any drift fails CI. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\contracts\diagnostics\diagnostic-bundle.v1.json">
+      <LogicalName>Honua.Console.Shell.Diagnostics.diagnostic-bundle.v1.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>
