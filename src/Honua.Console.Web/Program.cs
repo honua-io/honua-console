@@ -364,7 +364,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             ConsoleMapProxyTelemetry.RecordTransportFault("features");
             mapProxyLogger.LogWarning(ex,
                 "Map-proxy features upstream request failed for service {ServiceId} layer {LayerId}: honua-server was unreachable or timed out.",
-                serviceId, layerId);
+                Honua.Console.Web.MapProxySupport.LogSafe(serviceId), layerId);
             return Results.StatusCode(StatusCodes.Status502BadGateway);
         }
 
@@ -375,7 +375,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             {
                 mapProxyLogger.LogWarning(
                     "Map-proxy features upstream returned {StatusCode} for service {ServiceId} layer {LayerId}.",
-                    (int)response.StatusCode, serviceId, layerId);
+                    (int)response.StatusCode, Honua.Console.Web.MapProxySupport.LogSafe(serviceId), layerId);
                 return Results.StatusCode((int)response.StatusCode);
             }
 

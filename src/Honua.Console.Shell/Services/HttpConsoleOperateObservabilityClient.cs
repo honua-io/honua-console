@@ -1128,9 +1128,9 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             {
                 _logger.LogWarning(
                     "Operate observability GET {RelativePath} returned {StatusCode} {ReasonPhrase} from the honua-server admin API.",
-                    relativePath,
+                    LogSafe(relativePath),
                     (int)response.StatusCode,
-                    response.ReasonPhrase);
+                    LogSafe(response.ReasonPhrase));
                 return FetchResult<T>.Failed(
                     MapStatus(response.StatusCode),
                     $"The honua-server admin API returned {(int)response.StatusCode} {response.ReasonPhrase}.",
@@ -1152,7 +1152,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             _logger.LogWarning(
                 ex,
                 "Operate observability GET {RelativePath} failed: the honua-server admin API is unreachable or returned an unreadable response.",
-                relativePath);
+                LogSafe(relativePath));
             return FetchResult<T>.Failed(
                 OperateSectionStatus.Unavailable,
                 "The honua-server admin API is unreachable or returned an unreadable response.",
@@ -1273,6 +1273,12 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
     private static Uri BuildUri(Uri baseUri, string relativePath) =>
         ConsoleServerHttp.BuildUri(baseUri, relativePath);
+
+    // Neutralizes CR/LF in caller-influenced values (query-built relative paths, upstream reason
+    // phrases) before they reach a log entry, so a crafted value cannot forge additional log lines
+    // (CodeQL cs/log-forging on the text-rendering sinks).
+    private static string LogSafe(string? value) =>
+        string.IsNullOrEmpty(value) ? string.Empty : value.ReplaceLineEndings(" ");
 
     private static OperateSectionStatus MapStatus(HttpStatusCode code) => code switch
     {
