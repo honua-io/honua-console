@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "contentClassification": "internal",
+  "consent": {
+    "redactionAcknowledged": true,
+    "shareWithSupport": true
+  },
+  "envelopes": [
+    {
+      "method": "GET",
+      "normalizedPath": "/rest/services/{service}/FeatureServer/{layer}/query"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "suiteVersion": "1.0",
+  "schemaId": "https://honua.io/schemas/diagnostic-bundle.v1.json",
+  "schemaVersion": "1.0",
+  "schemaSha256": "4dd7282d17bb417d56f1c3cfa243e03b612a401e5d22be766658849287e431a9",
+  "cases": [
+    {
+      "id": "minimal-valid",
+      "path": "valid/minimal.json",
+      "valid": true
+    },
+    {
+      "id": "sanitized-exchange-valid",
+      "path": "valid/sanitized-exchange.json",
+      "valid": true
+    },
+    {
+      "id": "missing-consent-invalid",
+      "path": "invalid/missing-consent.json",
+      "valid": false,
+      "expectedErrorContains": "missing required property 'consent'"
+    },
+    {
+      "id": "wrong-version-invalid",
+      "path": "invalid/wrong-version.json",
+      "valid": false,
+      "expectedErrorContains": "value must equal the constant"
+    },
+    {
+      "id": "additional-property-invalid",
+      "path": "invalid/additional-property.json",
+      "valid": false,
+      "expectedErrorContains": "unexpected property 'rawResponse'"
+    },
+    {
+      "id": "optional-null-invalid",
+      "path": "invalid/optional-null.json",
+      "valid": false,
+      "expectedErrorContains": "expected type 'string'"
+    },
+    {
+      "id": "status-out-of-range-invalid",
+      "path": "invalid/status-out-of-range.json",
+      "valid": false,
+      "expectedErrorContains": "exceeds maximum 599"
+    }
+  ]
+}
