@@ -468,6 +468,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         return services;
     }
 
+    // Shared honua-server base-URI guard (honua-console#279 PA-243). The DI composition root gates every
+    // live server binding on "the configured base URL is an absolute http(s) URI"; that two-line check was
+    // duplicated 24 times and could drift independently. Centralise it so every Add* method validates the
+    // server URL identically and a live binding is only registered for a well-formed absolute http(s) URL.
+    private static bool TryGetHonuaServerBaseUri(string? honuaServerBaseUrl, out Uri baseUri)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var parsed)
+            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
+        {
+            baseUri = parsed;
+            return true;
+        }
+
+        baseUri = null!;
+        return false;
+    }
+
     // Binds the Studio package draft/lifecycle/validation/preview-plan surface to honua-server
     // (#1180/#1181) through the Honua.Console.Contracts shim when a server base address is configured;
     // otherwise the shell renders a missing-binding state (never mock package data).
@@ -476,8 +493,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
             {
@@ -503,8 +519,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // NL->app generation grounds + validates + runs a bounded repair loop on the server, and against
             // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
@@ -536,8 +551,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaFormPackageClient>(serviceProvider =>
             {
@@ -564,8 +578,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // The query + analysis builders share this client, and it now carries the NL-generation routes
             // (POST .../queries/generate and .../generate). NL generation grounds + validates + runs a
@@ -598,8 +611,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // NL->map generation grounds + validates + runs a bounded repair loop on the server, and against
             // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
@@ -650,8 +662,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaStudioMapCollaborationClient>(serviceProvider =>
             {
@@ -676,8 +687,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // Shared with the query builder; the 10-minute timeout covers the NL-generation routes on this
             // client (see AddStudioQueryPackageDataSource for the rationale). TryAdd keeps whichever
@@ -708,8 +718,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
             {
@@ -749,8 +758,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
             {
@@ -776,8 +784,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IWorkflowPackageApiClient>(serviceProvider =>
             {
@@ -818,8 +825,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // Console Patterns Charter §11). Manual mode is unaffected and drives without an AI binding.
     private static void AddAiPublishDriver(IServiceCollection services, string? honuaServerBaseUrl)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IAiPublishDriver, ServerAiPublishDriver>();
             return;
@@ -842,8 +848,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaConsoleContentClient>(serviceProvider =>
             {
@@ -874,8 +879,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IConsoleSensorThingsClient>(serviceProvider =>
                 new HttpConsoleSensorThingsClient(
@@ -902,8 +906,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IConsoleSceneClient>(serviceProvider =>
                 new HttpConsoleSceneClient(
@@ -927,8 +930,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaConsoleShareClient>(serviceProvider =>
             {
@@ -949,8 +951,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaConsoleRbacClient>(serviceProvider =>
             {
@@ -978,8 +979,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaCatalogDiscoveryClient>(serviceProvider =>
             {
@@ -1000,8 +1000,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaAdminOperateClient>(serviceProvider =>
             {
@@ -1088,8 +1087,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerAdminApiKey,
         string? honuaServerTemporalSources)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaTemporalClient>(serviceProvider =>
             {
@@ -1125,8 +1123,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         bool registryIntentResolutionEnabled)
     {
         if (registryIntentResolutionEnabled
-            && Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+            && TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
             {
@@ -1175,8 +1172,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerAdminApiKey,
         string? honuaServerPublicationIds)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // Reuse the content publication client already registered by the report-builder binding when
             // present; otherwise register it here (TryAdd keeps a single client across both surfaces).
@@ -1214,8 +1210,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IConsoleAlertRulesClient>(serviceProvider =>
                 new HttpConsoleAlertRulesClient(
@@ -1244,8 +1239,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaVersionManagementClient>(serviceProvider =>
             {
@@ -1272,8 +1266,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // test/demo provider overridable.
     private static void AddOperateLayerStyleOverrideDataSource(IServiceCollection services, string? honuaServerBaseUrl)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // IOperateTransitionDataSource + IHonuaAdminOperateClient are registered by
             // AddOperateTransitionDataSource under the same base-URL gate.
