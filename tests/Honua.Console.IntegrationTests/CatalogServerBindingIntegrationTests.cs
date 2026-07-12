@@ -70,6 +70,7 @@ public sealed class CatalogServerBindingIntegrationTests
         using var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<IConsoleCatalogClient>(catalog);
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new AuthenticatedReadContextResolver());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
 
         var page = ctx.Render<CatalogPage>();
         page.WaitForAssertion(
