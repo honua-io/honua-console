@@ -357,14 +357,8 @@ public sealed class HonuaConsoleShareHttpClient : IHonuaConsoleShareClient, IDis
         CancellationToken cancellationToken)
     {
         var statusCode = response.StatusCode;
-        var state = statusCode switch
-        {
-            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
-            HttpStatusCode.Conflict => "Conflict",
-            HttpStatusCode.BadRequest => "Rejected",
-            HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-            _ => "Unavailable"
-        };
+        // Canonical status→state mapping shared across all admin shims (honua-console#279 PA-239).
+        var state = AdminEndpointIssueFactory.MapState(statusCode);
 
         // A 409 on access/embed change carries the dependency-closure body. Surface the server-authored
         // message (the blocking-dependency detail) so the Share panel can explain why the change is blocked.

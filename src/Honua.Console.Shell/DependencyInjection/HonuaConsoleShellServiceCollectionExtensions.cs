@@ -129,7 +129,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 CreateOperateObservabilityHttpClient(),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                honuaServerAdminApiKey));
+                honuaServerAdminApiKey,
+                serviceProvider.GetService<ILogger<HttpConsoleOperateObservabilityClient>>()));
 
         // GitOps metadata release visualization binds to a real honua-server through
         // the SHIPPED GitOps metadata release contracts (honua-server#1163 release
@@ -474,6 +475,23 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         return services;
     }
 
+    // Shared honua-server base-URI guard (honua-console#279 PA-243). The DI composition root gates every
+    // live server binding on "the configured base URL is an absolute http(s) URI"; that two-line check was
+    // duplicated 24 times and could drift independently. Centralise it so every Add* method validates the
+    // server URL identically and a live binding is only registered for a well-formed absolute http(s) URL.
+    private static bool TryGetHonuaServerBaseUri(string? honuaServerBaseUrl, out Uri baseUri)
+    {
+        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var parsed)
+            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
+        {
+            baseUri = parsed;
+            return true;
+        }
+
+        baseUri = null!;
+        return false;
+    }
+
     // Binds the Studio package draft/lifecycle/validation/preview-plan surface to honua-server
     // (#1180/#1181) through the Honua.Console.Contracts shim when a server base address is configured;
     // otherwise the shell renders a missing-binding state (never mock package data).
@@ -482,8 +500,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
             {
@@ -509,8 +526,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // NL->app generation grounds + validates + runs a bounded repair loop on the server, and against
             // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
@@ -542,8 +558,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaFormPackageClient>(serviceProvider =>
             {
@@ -570,8 +585,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // The query + analysis builders share this client, and it now carries the NL-generation routes
             // (POST .../queries/generate and .../generate). NL generation grounds + validates + runs a
@@ -604,8 +618,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // NL->map generation grounds + validates + runs a bounded repair loop on the server, and against
             // a local CPU model a single turn can take minutes. The default HttpClient.Timeout of 100s cancels
@@ -656,8 +669,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaStudioMapCollaborationClient>(serviceProvider =>
             {
@@ -682,8 +694,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // Shared with the query builder; the 10-minute timeout covers the NL-generation routes on this
             // client (see AddStudioQueryPackageDataSource for the rationale). TryAdd keeps whichever
@@ -714,8 +725,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IStudioPackageLifecycleClient>(serviceProvider =>
             {
@@ -755,8 +765,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaContentPublicationClient>(serviceProvider =>
             {
@@ -782,8 +791,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IWorkflowPackageApiClient>(serviceProvider =>
             {
@@ -824,8 +832,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // Console Patterns Charter §11). Manual mode is unaffected and drives without an AI binding.
     private static void AddAiPublishDriver(IServiceCollection services, string? honuaServerBaseUrl)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IAiPublishDriver, ServerAiPublishDriver>();
             return;
@@ -848,8 +855,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaConsoleContentClient>(serviceProvider =>
             {
@@ -880,8 +886,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IConsoleSensorThingsClient>(serviceProvider =>
                 new HttpConsoleSensorThingsClient(
@@ -908,8 +913,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IConsoleSceneClient>(serviceProvider =>
                 new HttpConsoleSceneClient(
@@ -933,8 +937,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaConsoleShareClient>(serviceProvider =>
             {
@@ -955,8 +958,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaConsoleRbacClient>(serviceProvider =>
             {
@@ -984,8 +986,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaCatalogDiscoveryClient>(serviceProvider =>
             {
@@ -1001,13 +1002,20 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<ICatalogDiscoveryDataSource, UnsupportedCatalogDiscoveryDataSource>();
     }
 
+    // Wires the Operate transition surface + the layer/service/connection admin OPERATIONS to honua-server
+    // (honua-console#279 PA-244). Previously one method bundled 16 unrelated singletons under a single URL
+    // gate with a second parallel 15-item "Unsupported" list, so the two lists could drift. It now resolves
+    // the URL gate ONCE and delegates to per-concern registration helpers aligned with the PA-242 admin role
+    // interfaces; each helper co-locates a concern's live vs. Unsupported binding so the pairing lives in one
+    // place. The live admin client is registered only when a server base URL is configured. Behavior-identical:
+    // live => admin client + the HonuaServer* operations; unbound => the Unsupported* operations, no client.
     private static void AddOperateTransitionDataSource(
         IServiceCollection services,
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        var live = TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri);
+        if (live)
         {
             services.TryAddSingleton<IHonuaAdminOperateClient>(serviceProvider =>
             {
@@ -1016,65 +1024,154 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                     httpClient,
                     new HonuaAdminOperateClientOptions(baseUri, honuaServerAdminApiKey));
             });
-            services.TryAddSingleton<IOperateTransitionDataSource, HonuaServerOperateTransitionDataSource>();
-            // The service-layer-publish OPERATION (issue #144) reuses the same admin client + base-URL gate
-            // so the publishing wizard's finish action performs a REAL publish against honua-server.
-            services.TryAddSingleton<IServiceLayerPublishOperation, HonuaServerServiceLayerPublishOperation>();
-            // The service-configuration OPERATIONS (Wave 5: layer enable/disable + service protocol/
-            // access-policy changes) reuse the same admin client + base-URL gate so the Operate layers/
-            // service-detail surfaces perform REAL mutations against honua-server.
-            services.TryAddSingleton<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation>();
-            // The connection-create OPERATION reuses the same admin client + base-URL gate so the Add
-            // Connection form performs a REAL create against honua-server (POST /api/v1/admin/connections).
-            services.TryAddSingleton<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation>();
-            // The file-import OPERATION reuses the same admin client so the Import UI uploads a real file to
-            // honua-server's streamed import endpoint (POST /api/v1/admin/import/upload).
-            services.TryAddSingleton<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation>();
-            // The service-import OPERATION discovers remote Esri/OGC services via honua-server
-            // (POST /api/v1/admin/external-services/discover).
-            services.TryAddSingleton<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation>();
-            // Layer field-domain authoring (GET/PUT /api/v1/admin/metadata/layers/{id}/fields).
-            services.TryAddSingleton<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation>();
-            // Layer relationships authoring (GET/PUT /api/v1/admin/metadata/layers/{id}/relationships).
-            services.TryAddSingleton<IConsoleLayerRelationshipsOperation, HonuaServerConsoleLayerRelationshipsOperation>();
-            // Layer subtypes + attribute-rules authoring
-            // (GET/PUT /api/v1/admin/metadata/layers/{id}/subtypes|attribute-rules).
-            services.TryAddSingleton<IConsoleLayerSubtypesOperation, HonuaServerConsoleLayerSubtypesOperation>();
-            // Layer permanent-filter authoring (GET/PUT /api/v1/admin/metadata/layers/{id}/filter) — the
-            // server-enforced query filter applied to every read of the layer.
-            services.TryAddSingleton<IConsoleLayerFilterOperation, HonuaServerConsoleLayerFilterOperation>();
-            // Layer display / editing / CRS metadata authoring
-            // (GET/PUT /api/v1/admin/metadata/layers/{id}/display|editing|spatial).
-            services.TryAddSingleton<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation>();
-            // Layer 3D extrusion / symbology + lifecycle status authoring
-            // (GET/PUT /api/v1/admin/metadata/layers/{id}/extrusion|status).
-            services.TryAddSingleton<IConsoleLayer3DOperation, HonuaServerConsoleLayer3DOperation>();
-            // Service time-info authoring (GET settings + PUT /api/v1/admin/services/{svc}/timeinfo).
-            services.TryAddSingleton<IConsoleTimeInfoOperation, HonuaServerConsoleTimeInfoOperation>();
-            // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives
-            // OGC API Records / STAC / DCAT / Esri documentInfo output.
-            services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, HonuaServerConsoleDiscoveryMetadataOperation>();
-            // Publication-overrides authoring (GET/PUT overrides for a publication — a layer's exposure within a
-            // service): titleOverride, per-publication field aliases, capabilities, supported formats, isPrimary.
-            services.TryAddSingleton<IConsolePublicationOverridesOperation, HonuaServerConsolePublicationOverridesOperation>();
-            return;
         }
 
-        services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
-        services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
-        services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
-        services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
-        services.TryAddSingleton<IConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>();
-        services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
-        services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
-        services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
-        services.TryAddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
-        services.TryAddSingleton<IConsoleLayerFilterOperation, UnsupportedConsoleLayerFilterOperation>();
-        services.TryAddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
-        services.TryAddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
-        services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
-        services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
-        services.TryAddSingleton<IConsolePublicationOverridesOperation, UnsupportedConsolePublicationOverridesOperation>();
+        AddOperateConnectionsOperations(services, live);
+        AddOperateImportOperations(services, live);
+        AddOperateLayerPublishingOperations(services, live);
+        AddOperateServiceSettingsOperations(services, live);
+        AddOperateLayerMetadataOperations(services, live);
+        AddOperateLayerSchemaOperations(services, live);
+        AddOperateLayer3DAndLifecycleOperations(services, live);
+        AddOperateDiscoveryOperations(services, live);
+        AddOperatePublicationOverridesOperations(services, live);
+    }
+
+    // Connection-create OPERATION: the Add Connection form performs a REAL create against honua-server
+    // (POST /api/v1/admin/connections) when a server is bound.
+    private static void AddOperateConnectionsOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IConsoleConnectionCreateOperation, HonuaServerConsoleConnectionCreateOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IConsoleConnectionCreateOperation, UnsupportedConsoleConnectionCreateOperation>();
+        }
+    }
+
+    // File + service import OPERATIONS: streamed file upload (POST /api/v1/admin/import/upload) and remote
+    // Esri/OGC service discovery (POST /api/v1/admin/external-services/discover).
+    private static void AddOperateImportOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IConsoleFileImportOperation, HonuaServerConsoleFileImportOperation>();
+            services.TryAddSingleton<IConsoleServiceImportOperation, HonuaServerConsoleServiceImportOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IConsoleFileImportOperation, UnsupportedConsoleFileImportOperation>();
+            services.TryAddSingleton<IConsoleServiceImportOperation, UnsupportedConsoleServiceImportOperation>();
+        }
+    }
+
+    // The Operate transition data source + the service-layer-publish OPERATION (issue #144): the publishing
+    // wizard's finish action performs a REAL publish against honua-server.
+    private static void AddOperateLayerPublishingOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IOperateTransitionDataSource, HonuaServerOperateTransitionDataSource>();
+            services.TryAddSingleton<IServiceLayerPublishOperation, HonuaServerServiceLayerPublishOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IOperateTransitionDataSource, UnsupportedOperateTransitionDataSource>();
+            services.TryAddSingleton<IServiceLayerPublishOperation, UnsupportedServiceLayerPublishOperation>();
+        }
+    }
+
+    // Service configuration (Wave 5: layer enable/disable + protocol/access-policy changes) and time-info
+    // authoring (PUT /api/v1/admin/services/{svc}/timeinfo).
+    private static void AddOperateServiceSettingsOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IServiceConfigurationOperation, HonuaServerServiceConfigurationOperation>();
+            services.TryAddSingleton<IConsoleTimeInfoOperation, HonuaServerConsoleTimeInfoOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IServiceConfigurationOperation, UnsupportedServiceConfigurationOperation>();
+            services.TryAddSingleton<IConsoleTimeInfoOperation, UnsupportedConsoleTimeInfoOperation>();
+        }
+    }
+
+    // Layer field-domain authoring (…/fields) and display/editing/CRS metadata authoring
+    // (…/display|editing|spatial).
+    private static void AddOperateLayerMetadataOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IConsoleLayerFieldsOperation, HonuaServerConsoleLayerFieldsOperation>();
+            services.TryAddSingleton<IConsoleLayerMetadataOperation, HonuaServerConsoleLayerMetadataOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IConsoleLayerFieldsOperation, UnsupportedConsoleLayerFieldsOperation>();
+            services.TryAddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
+        }
+    }
+
+    // Layer schema authoring: relationships (…/relationships), subtypes + attribute-rules (…/subtypes|
+    // attribute-rules), and the server-enforced permanent filter (…/filter).
+    private static void AddOperateLayerSchemaOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IConsoleLayerRelationshipsOperation, HonuaServerConsoleLayerRelationshipsOperation>();
+            services.TryAddSingleton<IConsoleLayerSubtypesOperation, HonuaServerConsoleLayerSubtypesOperation>();
+            services.TryAddSingleton<IConsoleLayerFilterOperation, HonuaServerConsoleLayerFilterOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
+            services.TryAddSingleton<IConsoleLayerSubtypesOperation, UnsupportedConsoleLayerSubtypesOperation>();
+            services.TryAddSingleton<IConsoleLayerFilterOperation, UnsupportedConsoleLayerFilterOperation>();
+        }
+    }
+
+    // Layer 3D extrusion / symbology + lifecycle status authoring (…/extrusion|status).
+    private static void AddOperateLayer3DAndLifecycleOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IConsoleLayer3DOperation, HonuaServerConsoleLayer3DOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IConsoleLayer3DOperation, UnsupportedConsoleLayer3DOperation>();
+        }
+    }
+
+    // Discovery / catalog metadata authoring (GET/PUT discovery for a layer or a service) — drives OGC API
+    // Records / STAC / DCAT / Esri documentInfo output.
+    private static void AddOperateDiscoveryOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, HonuaServerConsoleDiscoveryMetadataOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IConsoleDiscoveryMetadataOperation, UnsupportedConsoleDiscoveryMetadataOperation>();
+        }
+    }
+
+    // Publication-overrides authoring (GET/PUT overrides for a publication — a layer's exposure within a
+    // service): titleOverride, per-publication field aliases, capabilities, supported formats, isPrimary.
+    private static void AddOperatePublicationOverridesOperations(IServiceCollection services, bool live)
+    {
+        if (live)
+        {
+            services.TryAddSingleton<IConsolePublicationOverridesOperation, HonuaServerConsolePublicationOverridesOperation>();
+        }
+        else
+        {
+            services.TryAddSingleton<IConsolePublicationOverridesOperation, UnsupportedConsolePublicationOverridesOperation>();
+        }
     }
 
     // Binds the temporal data viewer + disconnected sync conflict review surface (/operate/temporal) to
@@ -1094,8 +1191,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerAdminApiKey,
         string? honuaServerTemporalSources)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaTemporalClient>(serviceProvider =>
             {
@@ -1131,8 +1227,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         bool registryIntentResolutionEnabled)
     {
         if (registryIntentResolutionEnabled
-            && Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+            && TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
             {
@@ -1181,8 +1276,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerAdminApiKey,
         string? honuaServerPublicationIds)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // Reuse the content publication client already registered by the report-builder binding when
             // present; otherwise register it here (TryAdd keeps a single client across both surfaces).
@@ -1220,8 +1314,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IConsoleAlertRulesClient>(serviceProvider =>
                 new HttpConsoleAlertRulesClient(
@@ -1250,8 +1343,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         string? honuaServerAdminApiKey)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<IHonuaVersionManagementClient>(serviceProvider =>
             {
@@ -1278,8 +1370,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // test/demo provider overridable.
     private static void AddOperateLayerStyleOverrideDataSource(IServiceCollection services, string? honuaServerBaseUrl)
     {
-        if (Uri.TryCreate(honuaServerBaseUrl, UriKind.Absolute, out var baseUri)
-            && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             // IOperateTransitionDataSource + IHonuaAdminOperateClient are registered by
             // AddOperateTransitionDataSource under the same base-URL gate.

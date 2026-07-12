@@ -16,6 +16,11 @@ public static class StudioQueryResultChart
 {
     public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v5.json";
 
+    // Cached once rather than allocated per BuildSpec() call. A fresh JsonSerializerOptions instance
+    // per serialization bypasses the type-metadata cache and reallocates on every chart render
+    // (honua-console#279 PA-238). JsonSerializerOptions is thread-safe for read after first use.
+    private static readonly JsonSerializerOptions IndentedOptions = new() { WriteIndented = true };
+
     /// <summary>
     /// True when the query is bound to a real source (service + layer) so its result can be fetched and
     /// charted. An unbound draft keeps the schematic placeholder.
@@ -95,6 +100,6 @@ public static class StudioQueryResultChart
             },
         };
 
-        return spec.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        return spec.ToJsonString(IndentedOptions);
     }
 }

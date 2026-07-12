@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -144,14 +141,8 @@ public sealed class HttpStudioMapGenerationClient : IStudioMapGenerationClient, 
 {
     private const string StudioRoot = "/api/v1/studio";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
     private readonly HttpClient _httpClient;
-    private readonly string? _apiKey;
+    private readonly StudioGenerationHttpInvoker _invoker;
 
     public HttpStudioMapGenerationClient(HttpClient httpClient, StudioMapGenerationClientOptions options)
     {
@@ -159,9 +150,9 @@ public sealed class HttpStudioMapGenerationClient : IStudioMapGenerationClient, 
         ArgumentNullException.ThrowIfNull(options);
 
         BaseUri = options.BaseUri;
-        _apiKey = options.ApiKey;
         _httpClient = httpClient;
         _httpClient.BaseAddress ??= BaseUri;
+        _invoker = new StudioGenerationHttpInvoker(_httpClient, options.ApiKey, "map generation");
     }
 
     public Uri BaseUri { get; }
@@ -171,7 +162,7 @@ public sealed class HttpStudioMapGenerationClient : IStudioMapGenerationClient, 
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SendAsync<GenerateMapPackageRequest, MapGenerationResult>(
+        return _invoker.SendAsync<GenerateMapPackageRequest, MapGenerationResult>(
             HttpMethod.Post,
             $"{StudioRoot}/map-packages/generate",
             request,
@@ -180,150 +171,6 @@ public sealed class HttpStudioMapGenerationClient : IStudioMapGenerationClient, 
     }
 
     public void Dispose() => _httpClient.Dispose();
-
-    private async Task<StudioEndpointResult<TResponse>> SendAsync<TBody, TResponse>(
-        HttpMethod method,
-        string path,
-        TBody? body,
-        string contract,
-        CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(method, path);
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", _apiKey);
-        }
-
-        if (body is not null)
-        {
-            request.Content = JsonContent.Create(body, body.GetType(), options: JsonOptions);
-        }
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
-                "Unavailable",
-                contract,
-                $"The Honua server map generation endpoint could not be reached: {ex.Message}"));
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
-                "Unavailable",
-                contract,
-                $"The Honua server map generation endpoint could not be reached: {ex.Message}"));
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
-            {
-                var serverDetail = await TryReadErrorDetailAsync(response, cancellationToken).ConfigureAwait(false);
-                return StudioEndpointResult<TResponse>.FromIssue(CreateIssue(contract, response.StatusCode, serverDetail));
-            }
-
-            // The generation endpoints return the BARE result object ({status, package, rationale, ...}) via
-            // Results.Json — NOT wrapped in the StudioApiResponse {success, data} envelope the package
-            // lifecycle endpoints use. Deserialize the payload directly (mirrors the query/dashboard
-            // generation clients); treating it as an envelope yields a null Data and a false "no data" error.
-            TResponse? payload;
-            try
-            {
-                payload = await response.Content
-                    .ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (JsonException ex)
-            {
-                return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
-                    "Unsupported",
-                    contract,
-                    $"The Honua server map generation response did not match the expected API shape: {ex.Message}",
-                    (int)response.StatusCode));
-            }
-
-            if (payload is not null)
-            {
-                return StudioEndpointResult<TResponse>.FromData(payload);
-            }
-
-            return StudioEndpointResult<TResponse>.FromIssue(new StudioEndpointIssue(
-                "Unavailable",
-                contract,
-                "The Honua server map generation response was empty.",
-                (int)response.StatusCode));
-        }
-    }
-
-    private static async Task<string?> TryReadErrorDetailAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                return null;
-            }
-
-            using var document = JsonDocument.Parse(raw);
-            var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
-            {
-                return null;
-            }
-
-            return root.TryGetProperty("message", out var messageElement) &&
-                messageElement.ValueKind == JsonValueKind.String
-                ? messageElement.GetString()
-                : root.TryGetProperty("detail", out var detailElement) && detailElement.ValueKind == JsonValueKind.String
-                    ? detailElement.GetString()
-                    : null;
-        }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    private static StudioEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode, string? serverDetail)
-    {
-        var state = statusCode switch
-        {
-            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
-            HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-            HttpStatusCode.BadRequest => "Validation failed",
-            HttpStatusCode.Conflict => "Conflict",
-            _ => "Unavailable"
-        };
-
-        var detail = serverDetail ?? statusCode switch
-        {
-            HttpStatusCode.Unauthorized => "The Honua server rejected the map generation request because admin authentication is missing.",
-            HttpStatusCode.Forbidden => "The Honua server rejected the map generation request because the current principal lacks admin permission.",
-            HttpStatusCode.NotFound => "The Honua server does not expose the map generation contract.",
-            HttpStatusCode.MethodNotAllowed => "The Honua server exposes the route but not the required map generation verb.",
-            HttpStatusCode.NotImplemented => "The Honua server reports map generation is not implemented.",
-            HttpStatusCode.BadRequest => "The Honua server rejected the map generation request as invalid.",
-            _ => string.Format(
-                CultureInfo.InvariantCulture,
-                "The Honua server returned HTTP {0} ({1}) for the map generation request.",
-                (int)statusCode,
-                statusCode)
-        };
-
-        return new StudioEndpointIssue(state, contract, detail, (int)statusCode);
-    }
 }
 
 #endregion

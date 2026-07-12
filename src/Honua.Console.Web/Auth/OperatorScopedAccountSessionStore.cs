@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 
@@ -20,12 +19,18 @@ namespace Honua.Console.Web.Auth;
 public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionStore
 {
     private readonly IConsoleOperatorContext _operatorContext;
-    private readonly ConcurrentDictionary<string, InMemoryConsoleAccountSessionStore> _byOperator =
-        new(StringComparer.Ordinal);
 
-    public OperatorScopedAccountSessionStore(IConsoleOperatorContext operatorContext)
+    // Bounded per-operator partition map. Departed operators are evicted on sign-out via EvictOperator,
+    // and idle/over-capacity partitions are pruned, so this no longer grows without bound
+    // (honua-console#279 PA-237).
+    private readonly OperatorPartitionTable<InMemoryConsoleAccountSessionStore> _byOperator;
+
+    public OperatorScopedAccountSessionStore(
+        IConsoleOperatorContext operatorContext,
+        TimeProvider? timeProvider = null)
     {
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
+        _byOperator = new OperatorPartitionTable<InMemoryConsoleAccountSessionStore>(timeProvider);
     }
 
     // Reads use CurrentOperatorKey (the shared anonymous partition is legitimately empty of operator
@@ -33,10 +38,16 @@ public sealed class OperatorScopedAccountSessionStore : IConsoleAccountSessionSt
     // must NEVER land in the shared anonymous partition — an anonymous surface never writes operator
     // sessions, so an unresolved operator on a write is a fail-closed bug, not a no-op (honua-console#256).
     private InMemoryConsoleAccountSessionStore Current =>
-        _byOperator.GetOrAdd(_operatorContext.CurrentOperatorKey, _ => new InMemoryConsoleAccountSessionStore());
+        _byOperator.GetOrAdd(_operatorContext.CurrentOperatorKey, static () => new InMemoryConsoleAccountSessionStore());
 
     private InMemoryConsoleAccountSessionStore CurrentForWrite =>
-        _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), _ => new InMemoryConsoleAccountSessionStore());
+        _byOperator.GetOrAdd(_operatorContext.RequireOperatorKey(), static () => new InMemoryConsoleAccountSessionStore());
+
+    /// <summary>
+    /// Removes the operator's partition on sign-out so its forwarded bearer/session state does not linger
+    /// for the life of the process (honua-console#279 PA-237). No-op if the operator has no partition.
+    /// </summary>
+    public void EvictOperator(string operatorKey) => _byOperator.Evict(operatorKey);
 
     public Task<ConsoleAccountSession?> GetSessionAsync(string profileId, CancellationToken cancellationToken = default) =>
         Current.GetSessionAsync(profileId, cancellationToken);

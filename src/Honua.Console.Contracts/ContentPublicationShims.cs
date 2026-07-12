@@ -398,14 +398,8 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
 
     private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
     {
-        var state = statusCode switch
-        {
-            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
-            HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-            HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed => "Conflict",
-            HttpStatusCode.BadRequest => "Rejected",
-            _ => "Unavailable"
-        };
+        // Canonical status→state mapping shared across all admin shims (honua-console#279 PA-239).
+        var state = AdminEndpointIssueFactory.MapState(statusCode);
 
         var detail = statusCode switch
         {
