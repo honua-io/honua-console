@@ -20,6 +20,10 @@ builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
     options.ClientTimeoutInterval = TimeSpan.FromMinutes(5);
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
 });
+// OpenTelemetry traces + metrics for the console host (honua-console#279 PA-234). Default-safe: only
+// exports when OTEL_EXPORTER_OTLP_ENDPOINT is configured.
+builder.AddConsoleObservability();
+
 builder.Services.AddHttpClient("honua-map-proxy");
 builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Server:BaseUrl"] ?? builder.Configuration["HONUA_SERVER_BASE_URL"],
@@ -148,6 +152,13 @@ var mapProxyServerUrl =
     (app.Configuration["Honua:Server:BaseUrl"] ?? app.Configuration["HONUA_SERVER_BASE_URL"])?.TrimEnd('/');
 var mapProxyAdminKey = app.Configuration["Honua:Server:AdminApiKey"] ?? app.Configuration["HONUA_ADMIN_API_KEY"];
 
+// The map proxy is the hottest console path but had no error logging, metrics, or trace on upstream
+// failure (honua-console#279 PA-235). A single category logger is captured by the endpoint closures so
+// an upstream honua-server fault is recorded here (with layerId / z,x,y / status) instead of vanishing
+// behind the browser's opaque status code, and ConsoleMapProxyTelemetry counts requests/failures.
+var mapProxyLogger = app.Services.GetRequiredService<ILoggerFactory>()
+    .CreateLogger("Honua.Console.Web.MapProxy");
+
 if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
 {
     app.MapGet("/map-proxy/styles/{layerId:int}.json", async (
@@ -180,9 +191,28 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{mapProxyServerUrl}/api/styles/{layerId}.json");
         Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
-        using var response = await client.SendAsync(request, cancellationToken);
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(request, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            ConsoleMapProxyTelemetry.RecordTransportFault("styles");
+            mapProxyLogger.LogWarning(ex,
+                "Map-proxy styles upstream request failed for layer {LayerId}: honua-server was unreachable or timed out.",
+                layerId);
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
+        }
+
+        using (response)
+        {
+        ConsoleMapProxyTelemetry.RecordResponse("styles", (int)response.StatusCode);
         if (!response.IsSuccessStatusCode)
         {
+            mapProxyLogger.LogWarning(
+                "Map-proxy styles upstream returned {StatusCode} for layer {LayerId}.",
+                (int)response.StatusCode, layerId);
             return Results.StatusCode((int)response.StatusCode);
         }
 
@@ -196,6 +226,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/map-proxy/tiles/";
         styleJson = Honua.Console.Web.MapProxySupport.RewriteTileUrls(styleJson, absoluteTileBase);
         return Results.Content(styleJson, "application/json");
+        }
     });
 
     app.MapGet("/map-proxy/tiles/{layerId:int}/{z:int}/{x:int}/{y:int}.mvt", async (
@@ -240,9 +271,23 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         // browser instead of buffering each tile into a byte[], and forward the upstream caching/validator
         // headers so the browser can cache tiles rather than re-fetching every tile through this admin-keyed
         // proxy on every view (honua-console#236). The response is disposed once the request completes.
-        var response = await client.SendAsync(
-            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            ConsoleMapProxyTelemetry.RecordTransportFault("tiles");
+            mapProxyLogger.LogWarning(ex,
+                "Map-proxy tile upstream request failed for layer {LayerId} z/x/y {Z}/{X}/{Y}: honua-server was unreachable or timed out.",
+                layerId, z, x, y);
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
+        }
+
         httpContext.Response.RegisterForDispose(response);
+        ConsoleMapProxyTelemetry.RecordResponse("tiles", (int)response.StatusCode);
 
         if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
         {
@@ -257,6 +302,9 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
 
         if (!response.IsSuccessStatusCode)
         {
+            mapProxyLogger.LogWarning(
+                "Map-proxy tile upstream returned {StatusCode} for layer {LayerId} z/x/y {Z}/{X}/{Y}.",
+                (int)response.StatusCode, layerId, z, x, y);
             return Results.StatusCode((int)response.StatusCode);
         }
 
@@ -306,14 +354,34 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
-        using var response = await client.SendAsync(request, cancellationToken);
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(request, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            ConsoleMapProxyTelemetry.RecordTransportFault("features");
+            mapProxyLogger.LogWarning(ex,
+                "Map-proxy features upstream request failed for service {ServiceId} layer {LayerId}: honua-server was unreachable or timed out.",
+                serviceId, layerId);
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
+        }
+
+        using (response)
+        {
+        ConsoleMapProxyTelemetry.RecordResponse("features", (int)response.StatusCode);
         if (!response.IsSuccessStatusCode)
         {
+            mapProxyLogger.LogWarning(
+                "Map-proxy features upstream returned {StatusCode} for service {ServiceId} layer {LayerId}.",
+                (int)response.StatusCode, serviceId, layerId);
             return Results.StatusCode((int)response.StatusCode);
         }
 
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
         return Results.Content(json, "application/json");
+        }
     });
 }
 

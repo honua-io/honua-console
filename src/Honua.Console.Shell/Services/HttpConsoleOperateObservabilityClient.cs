@@ -4,6 +4,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Services;
 
@@ -35,17 +37,20 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
+    private readonly ILogger _logger;
 
     public HttpConsoleOperateObservabilityClient(
         HttpClient http,
         IConsoleEnvironmentProfileStore profileStore,
         IConsoleAccountSessionStore sessionStore,
-        string? adminApiKey = null)
+        string? adminApiKey = null,
+        ILogger<HttpConsoleOperateObservabilityClient>? logger = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _adminApiKey = adminApiKey;
+        _logger = logger ?? (ILogger)NullLogger<HttpConsoleOperateObservabilityClient>.Instance;
     }
 
     public async Task<OperateSectionResult<OperateFleetOverview>> GetOverviewAsync(
@@ -1121,6 +1126,11 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
             if (!response.IsSuccessStatusCode)
             {
+                _logger.LogWarning(
+                    "Operate observability GET {RelativePath} returned {StatusCode} {ReasonPhrase} from the honua-server admin API.",
+                    relativePath,
+                    (int)response.StatusCode,
+                    response.ReasonPhrase);
                 return FetchResult<T>.Failed(
                     MapStatus(response.StatusCode),
                     $"The honua-server admin API returned {(int)response.StatusCode} {response.ReasonPhrase}.",
@@ -1139,6 +1149,10 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException)
         {
+            _logger.LogWarning(
+                ex,
+                "Operate observability GET {RelativePath} failed: the honua-server admin API is unreachable or returned an unreadable response.",
+                relativePath);
             return FetchResult<T>.Failed(
                 OperateSectionStatus.Unavailable,
                 "The honua-server admin API is unreachable or returned an unreadable response.",
@@ -1183,6 +1197,12 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
             if (!response.IsSuccessStatusCode)
             {
                 var body = await ReadBodySafelyAsync(response, cancellationToken).ConfigureAwait(false);
+                _logger.LogWarning(
+                    "Operate control action {Action} ({RelativePath}) returned {StatusCode} {ReasonPhrase} from the honua-server admin API.",
+                    action,
+                    relativePath,
+                    (int)response.StatusCode,
+                    response.ReasonPhrase);
                 return FetchResult<T>.Failed(
                     MapStatus(response.StatusCode),
                     MapControlErrorMessage(response.StatusCode, action, body),
@@ -1201,6 +1221,11 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException)
         {
+            _logger.LogWarning(
+                ex,
+                "Operate control action {Action} ({RelativePath}) failed: the honua-server admin API is unreachable or returned an unreadable response.",
+                action,
+                relativePath);
             return FetchResult<T>.Failed(
                 OperateSectionStatus.Unavailable,
                 "The honua-server admin API is unreachable or returned an unreadable response.",
