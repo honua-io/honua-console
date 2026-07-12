@@ -12,8 +12,11 @@ namespace Honua.Console.Web.Auth;
 /// <list type="bullet">
 /// <item>ensures the active environment profile is bound to a non-anonymous operator account; and</item>
 /// <item>writes an account session whose access token is the operator's forwarded bearer when one was
-/// supplied (real per-principal RBAC on honua-server), or a non-forwardable session sentinel
-/// otherwise (signed in for read context; human mutations require exchange/reauthentication).</item>
+/// supplied (real per-principal RBAC on honua-server); otherwise, because this runs per request, it
+/// preserves an existing forwardable bearer the operator obtained out-of-band through the server-session
+/// BFF (honua-console#306) rather than erasing it, and falls back to a non-forwardable session sentinel
+/// only when no forwardable bearer exists (signed in for read context; human mutations require
+/// exchange/reauthentication).</item>
 /// </list>
 /// When no environment profile is active (browser host first-run) there is nothing to bridge; the
 /// operator is still authenticated for routing and Family-A/B surfaces render their missing-binding
@@ -75,9 +78,37 @@ public sealed class ConsoleOperatorSessionBridge
             await _profiles.ActivateProfileAsync(updated.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        var accessToken = string.IsNullOrWhiteSpace(bearer)
-            ? ConsoleAuthConstants.SessionSentinelPrefix + profile.Id
-            : bearer;
+        // Which credential wins on this sign-in/identity request:
+        //  1. A principal-supplied bearer (an edge X-Forwarded-Access-Token, or the cookie operator's
+        //     forwarded bearer) is the edge/IdP-owned credential and always takes precedence.
+        //  2. Otherwise the identity source manages the operator's identity but NOT their server
+        //     credentials (an edge that forwards identity headers only). SyncAsync runs per request, so
+        //     erasing the session here would wipe a bearer the operator obtained out-of-band via the
+        //     server-session BFF (/auth/server/login -> /admin/auth/callback) on the very next request
+        //     (honua-console#306). Preserve an existing forwardable (BFF-exchanged) bearer and its expiry;
+        //     the bearer provider still enforces expiry and re-exchange downstream.
+        //  3. With neither a forwarded bearer nor a preserved one, write the non-forwardable session
+        //     sentinel: signed in for read context, human mutations require exchange/reauthentication.
+        string accessToken;
+        DateTimeOffset? accessTokenExpiresAt = null;
+        if (!string.IsNullOrWhiteSpace(bearer))
+        {
+            accessToken = bearer;
+        }
+        else
+        {
+            var existing = await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
+            if (existing is not null && !ConsoleAuthConstants.IsSessionSentinel(existing.AccessToken)
+                && !string.IsNullOrWhiteSpace(existing.AccessToken))
+            {
+                accessToken = existing.AccessToken;
+                accessTokenExpiresAt = existing.AccessTokenExpiresAt;
+            }
+            else
+            {
+                accessToken = ConsoleAuthConstants.SessionSentinelPrefix + profile.Id;
+            }
+        }
 
         await _sessions.SaveSessionAsync(new ConsoleAccountSession
         {
@@ -85,7 +116,8 @@ public sealed class ConsoleOperatorSessionBridge
             AccountId = accountId,
             DisplayName = displayName,
             TenantId = tenantId,
-            AccessToken = accessToken
+            AccessToken = accessToken,
+            AccessTokenExpiresAt = accessTokenExpiresAt
         }, cancellationToken).ConfigureAwait(false);
     }
 }
