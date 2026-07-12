@@ -1863,31 +1863,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         }
     }
 
-    private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
-    {
-        var state = statusCode switch
-        {
-            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
-            HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-            _ => "Unavailable"
-        };
-
-        var detail = statusCode switch
-        {
-            HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-            HttpStatusCode.Forbidden => "The Honua server rejected the request because the current principal lacks admin permission.",
-            HttpStatusCode.NotFound => "The Honua server does not expose this admin API contract.",
-            HttpStatusCode.MethodNotAllowed => "The Honua server exposes the route but not the required admin API verb.",
-            HttpStatusCode.NotImplemented => "The Honua server reports this admin capability is not implemented.",
-            _ => string.Format(
-                CultureInfo.InvariantCulture,
-                "The Honua server returned HTTP {0} ({1}).",
-                (int)statusCode,
-                statusCode)
-        };
-
-        return new HonuaAdminEndpointIssue(state, contract, detail, (int)statusCode);
-    }
+    // PA-239 fix (honua-console#279): this mapper had drifted — it lacked the Conflict and BadRequest
+    // arms, so 409/400 admin responses were mis-reported as "Unavailable" instead of "Conflict"/"Rejected".
+    // Delegate to the shared canonical mapper so this shim can never drift from the rest again.
+    private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode) =>
+        AdminEndpointIssueFactory.CreateIssue(contract, statusCode);
 }
 
 public sealed record HonuaAdminEndpointResult<T>(T? Data, HonuaAdminEndpointIssue? Issue)
