@@ -95,15 +95,29 @@ public sealed class FakeConsoleProposalsClient : IConsoleProposalsClient
 }
 
 /// <summary>
-/// Test double for <see cref="IConsoleProposalRealtimeClient"/>: lets a test raise
-/// <see cref="ConsoleProposalEvent"/>s to drive the inbox's live-update path without a real
-/// SignalR hub, and records whether the page started/stopped the subscription.
+/// Test double for <see cref="IConsoleProposalRealtimeClient"/> (and the shared capability seam
+/// <see cref="IConsoleRealtimeCapabilityClient"/>, console#293): lets a test raise
+/// <see cref="ConsoleProposalEvent"/>s to drive the inbox's live-update path, and drive the
+/// connection state (connect / degrade / reconnect) to exercise the freshness affordance
+/// (console#309), without a real SignalR hub. Records whether the page started/stopped the
+/// subscription.
 /// </summary>
-public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtimeClient
+public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtimeClient, IConsoleRealtimeCapabilityClient
 {
+    private ConsoleRealtimeConnectionState _state = ConsoleRealtimeConnectionState.NotConfigured;
+
     public event Action<ConsoleProposalEvent>? ProposalChanged;
 
-    public bool IsConnected { get; set; }
+    public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged;
+
+    /// <summary>Whether <see cref="StartAsync"/> connects (default) or degrades to fallback.</summary>
+    public bool ConnectOnStart { get; set; } = true;
+
+    public ConsoleRealtimeConnectionState ConnectionState => _state;
+
+    public bool IsConnected => _state == ConsoleRealtimeConnectionState.Connected;
+
+    public bool IsFallbackEngaged => _state == ConsoleRealtimeConnectionState.FallbackEngaged;
 
     public int StartCount { get; private set; }
 
@@ -112,15 +126,29 @@ public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtime
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         StartCount++;
-        IsConnected = true;
+        SetConnectionState(ConnectOnStart
+            ? ConsoleRealtimeConnectionState.Connected
+            : ConsoleRealtimeConnectionState.FallbackEngaged);
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
         StopCount++;
-        IsConnected = false;
+        SetConnectionState(ConsoleRealtimeConnectionState.NotConfigured);
         return Task.CompletedTask;
+    }
+
+    /// <summary>Drives a connection-state transition, raising <see cref="ConnectionStateChanged"/>.</summary>
+    public void SetConnectionState(ConsoleRealtimeConnectionState state)
+    {
+        if (_state == state)
+        {
+            return;
+        }
+
+        _state = state;
+        ConnectionStateChanged?.Invoke(state);
     }
 
     public void Raise(ConsoleProposalEvent evt) => ProposalChanged?.Invoke(evt);
@@ -128,9 +156,70 @@ public sealed class FakeConsoleProposalRealtimeClient : IConsoleProposalRealtime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
+/// <summary>
+/// A queue read that never completes, to exercise the ~5s bounded-loading budget (console#308):
+/// the surface must resolve to its explicit error card rather than spin on "Loading…" forever.
+/// </summary>
+public sealed class HangingApprovalInboxClient : IConsoleApprovalInboxClient
+{
+    public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
+        string? status = null, string? kind = null, CancellationToken cancellationToken = default)
+    {
+        var tcs = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>();
+        cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        return tcs.Task;
+    }
+}
+
+/// <summary>
+/// A queue read that returns an Unavailable error a fixed number of times, then succeeds — models
+/// a backend that recovers so a Retry after an error card can resolve back to the queue (console#308).
+/// </summary>
+public sealed class RecoveringApprovalInboxClient(int failuresBeforeSuccess, ApprovalInboxSnapshot onRecovery)
+    : IConsoleApprovalInboxClient
+{
+    private int _remainingFailures = failuresBeforeSuccess;
+
+    public int CallCount { get; private set; }
+
+    public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
+        string? status = null, string? kind = null, CancellationToken cancellationToken = default)
+    {
+        CallCount++;
+        if (_remainingFailures > 0)
+        {
+            _remainingFailures--;
+            return Task.FromResult(OperateSectionResult<ApprovalInboxSnapshot>.Denied(
+                OperateSectionStatus.Unavailable, "The honua-server admin API returned 500."));
+        }
+
+        return Task.FromResult(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(onRecovery));
+    }
+}
+
+/// <summary>
+/// A queue read whose result a test flips between calls — for asserting the persistent
+/// last-successful-refresh marker survives a later failure (console#308).
+/// </summary>
+public sealed class ScriptedApprovalInboxClient : IConsoleApprovalInboxClient
+{
+    public OperateSectionResult<ApprovalInboxSnapshot> Result { get; set; } =
+        OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
+
+    public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
+        string? status = null, string? kind = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result);
+}
+
 /// <summary>Shared builders for proposal projections in the render regressions.</summary>
 public static class FakeProposalFactory
 {
+    /// <summary>Projects proposals into an inbox snapshot, classified onto GIS-desk ticket types.</summary>
+    public static ApprovalInboxSnapshot Snapshot(params ConsoleProposalSummary[] proposals) =>
+        new(proposals
+            .Select(p => new ApprovalInboxItem(ApprovalTicketPresentation.Classify(p), p))
+            .ToArray());
+
     public static ConsoleProposalSummary Summary(
         string id,
         ConsoleProposalKind kind,

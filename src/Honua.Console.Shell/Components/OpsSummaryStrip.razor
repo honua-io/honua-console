@@ -68,6 +68,21 @@
             <text> &middot; health/findings as of @refreshed.ToString("HH:mm:ss", CultureInfo.InvariantCulture) UTC</text>
         }
     </span>
+
+    @* Bounded-loading error affordance (console#308): a health/findings/approvals read failed or
+       blew its ~5s budget. Name the failing source, keep the last good refresh time, and offer a
+       working Retry rather than leaving the strip stuck on "Loading…". *@
+    @if (_readError)
+    {
+        <span class="ops-summary-error" role="alert" data-summary-error>
+            <span data-summary-error-title>Couldn't reach @ServerName</span>
+            <span class="console-muted" data-summary-last-refreshed>&middot; @ConsoleFreshness.LastRefreshed(_lastRefreshedAtUtc)</span>
+            <button type="button" class="console-button console-button-secondary ops-summary-retry"
+                    disabled="@_busy" data-summary-retry @onclick="RetryAsync">
+                Retry
+            </button>
+        </span>
+    }
 </section>
 
 @code {
@@ -75,12 +90,25 @@
     [Parameter]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// The bounded-loading budget for each strip read (console#308). A parameter so tests can
+    /// drive the timeout path deterministically without waiting the full ~5s.
+    /// </summary>
+    [Parameter]
+    public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+
     private bool _loaded;
+    private bool _busy;
+    private bool _readError;
     private OperateStatus? _overallHealth;
     private int? _awaitingApprovals;
     private int? _openFindings;
     private int? _sloBreaches;
+
+    // Last SUCCESSFUL refresh — only stamped when a read actually returned data, so it persists
+    // as the last good time across subsequent failures (console#308) rather than the last attempt.
     private DateTimeOffset? _lastRefreshedAtUtc;
+    private string? _serverName;
 
     // All dependencies are optional (console#292): a missing registration degrades to that
     // metric's unavailable state / Manual mode, never a DI failure during render.
@@ -88,6 +116,11 @@
     private IConsoleOpsFindingsClient? _findings;
     private IConsoleApprovalInboxClient? _inbox;
     private IConsoleProposalRealtimeClient? _realtime;
+    private IConsoleEnvironmentProfileStore? _profiles;
+
+    // The concrete realtime client also implements the shared capability seam (console#293): its
+    // state-changed event flips the approvals liveness on reconnect without a reload (console#309).
+    private IConsoleRealtimeCapabilityClient? _realtimeState;
 
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _pollCts;
@@ -96,16 +129,27 @@
 
     private bool FallbackEngaged => _realtime?.IsFallbackEngaged == true;
 
+    private string ServerName =>
+        string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
+
     protected override async Task OnInitializedAsync()
     {
         _healthData = ServiceProvider.GetService<IOpsHealthDataSource>();
         _findings = ServiceProvider.GetService<IConsoleOpsFindingsClient>();
         _inbox = ServiceProvider.GetService<IConsoleApprovalInboxClient>();
         _realtime = ServiceProvider.GetService<IConsoleProposalRealtimeClient>();
+        _profiles = ServiceProvider.GetService<IConsoleEnvironmentProfileStore>();
+
+        await ResolveServerNameAsync();
 
         if (_realtime is not null)
         {
             _realtime.ProposalChanged += OnProposalEvent;
+            if (_realtime is IConsoleRealtimeCapabilityClient capability)
+            {
+                _realtimeState = capability;
+                _realtimeState.ConnectionStateChanged += OnConnectionStateChanged;
+            }
         }
 
         await RefreshAsync();
@@ -128,39 +172,109 @@
     private async Task RefreshAsync()
     {
         // Fan the registered reads out in parallel (no request waterfall); an unregistered
-        // client simply leaves its metric in the unavailable state.
-        var healthTask = _healthData?.GetSnapshotAsync();
-        var findingsTask = _findings?.ListAsync();
-        var inboxTask = _inbox?.GetInboxAsync();
+        // client simply leaves its metric in the unavailable state. Each read is bounded
+        // (console#308) so a hung admin API can never keep the strip on "Loading…".
+        var healthTask = _healthData is { } healthSource
+            ? ConsoleReadBudget.RunAsync(token => healthSource.GetSnapshotAsync(token), LoadBudget, ReadTimedOutMessage("server health"))
+            : null;
+        var findingsTask = _findings is { } findingsClient
+            ? ConsoleReadBudget.RunAsync(token => findingsClient.ListAsync(token), LoadBudget, ReadTimedOutMessage("findings"))
+            : null;
+        var inboxTask = _inbox is { } inboxClient
+            ? ConsoleReadBudget.RunAsync(token => inboxClient.GetInboxAsync(cancellationToken: token), LoadBudget, ReadTimedOutMessage("the approval queue"))
+            : null;
+
+        var anySucceeded = false;
+        var anyError = false;
 
         if (healthTask is not null)
         {
             var health = await healthTask;
             _overallHealth = health.IsAllowed ? health.Value!.Overall : null;
             _sloBreaches = health.IsAllowed ? health.Value!.BreachCount : null;
+            anySucceeded |= health.IsAllowed;
+            anyError |= ConsoleReadBudget.IsErrorState(health.Status);
         }
 
         if (findingsTask is not null)
         {
             var findingsResult = await findingsTask;
             _openFindings = findingsResult.IsAllowed ? OpsFindingsMapper.Map(findingsResult.Value!).Count : null;
+            anySucceeded |= findingsResult.IsAllowed;
+            anyError |= ConsoleReadBudget.IsErrorState(findingsResult.Status);
         }
 
         if (inboxTask is not null)
         {
             var inbox = await inboxTask;
             _awaitingApprovals = inbox.IsAllowed ? inbox.Value!.AwaitingApprovalCount : null;
+            anySucceeded |= inbox.IsAllowed;
+            anyError |= ConsoleReadBudget.IsErrorState(inbox.Status);
         }
 
-        // Only stamp the honest "as of" caption when something was actually read; with no
-        // clients registered there is no read to date, so no staleness claim is made.
-        if (healthTask is not null || findingsTask is not null || inboxTask is not null)
+        // Only stamp the "as of" time when a read actually succeeded, so it stays the last GOOD
+        // time across later failures (console#308) rather than the last attempt.
+        if (anySucceeded)
         {
             _lastRefreshedAtUtc = DateTimeOffset.UtcNow;
         }
 
+        // Surface the explicit error affordance only when a reachable-but-broken / hung read was
+        // seen (Unavailable) — capability absence (Missing/Unsupported/Forbidden) stays the
+        // metric's own honest cell, not a strip-wide "backend down" banner.
+        _readError = anyError;
         _loaded = true;
     }
+
+    private static string ReadTimedOutMessage(string source) =>
+        $"The {source} read did not respond in time.";
+
+    private async Task ResolveServerNameAsync()
+    {
+        if (_profiles is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var active = await _profiles.GetActiveProfileAsync();
+            if (active is { DisplayName.Length: > 0 })
+            {
+                _serverName = active.DisplayName;
+            }
+        }
+        catch
+        {
+            // The source name is a nicety, never a gate: fall back to the generic server label.
+        }
+    }
+
+    // Retry the bounded reads on demand (console#308) rather than waiting for the next poll tick.
+    private async Task RetryAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await RefreshAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        StateHasChanged();
+    }
+
+    // A realtime connect / reconnect / degrade: re-render so the approvals liveness reflects the
+    // true connection state immediately, with no proposal event and no page reload (console#309).
+    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state) =>
+        _ = InvokeAsync(StateHasChanged);
 
     // A live ProposalPending / ProposalResolved event: refresh just the approvals count so it
     // never waits for the next health/findings poll tick.
@@ -217,6 +331,11 @@
         if (_realtime is not null)
         {
             _realtime.ProposalChanged -= OnProposalEvent;
+        }
+
+        if (_realtimeState is not null)
+        {
+            _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
         }
 
         StopPolling();

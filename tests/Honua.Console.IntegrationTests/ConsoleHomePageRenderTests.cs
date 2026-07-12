@@ -62,6 +62,36 @@ public sealed class ConsoleHomePageRenderTests
     }
 
     [Fact]
+    public void HomeInboxBand_ErrorRead_ShowsExplicitErrorWithRetry_AndLastRefreshed()
+    {
+        // console#308: the home approval band uses the same bounded-loading error state as the
+        // inbox — an Unavailable read renders an explicit error naming the source, a Retry, and the
+        // persistent last-refreshed marker (never loaded), distinct from an empty-success band.
+        var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([]));
+        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(new ScriptedApprovalInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Denied(
+                OperateSectionStatus.Unavailable, "The honua-server admin API returned 500."),
+        });
+        ctx.Services.AddSingleton<IConsoleHostCapabilities>(new BrowserConsoleHostCapabilities());
+
+        var page = ctx.Render<ConsoleHomePage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                var error = page.Find("[data-home-inbox-error]");
+                Assert.Contains("Couldn't read the approval queue", error.TextContent, StringComparison.Ordinal);
+                Assert.NotNull(page.Find("[data-home-inbox-retry]"));
+                Assert.Contains("Never loaded", page.Find("[data-home-inbox-last-refreshed]").TextContent, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+
+        ctx.Dispose();
+    }
+
+    [Fact]
     public void Home_SurvivesWithoutRealtimeOrOpsSummaryServices_AndRendersTheirDegradedStates()
     {
         // console#292 regression (PR #295 CI): the home page embeds the ops-summary strip and a
@@ -76,8 +106,9 @@ public sealed class ConsoleHomePageRenderTests
         page.WaitForAssertion(
             () =>
             {
-                // Inbox band: no realtime client registered -> honest Manual pill.
-                Assert.Contains("Manual", page.Find("[data-home-live-state]").TextContent);
+                // Inbox band: no realtime client registered -> honest paused freshness signal
+                // (console#309), never a fake Live pill.
+                Assert.Contains("Updates paused", page.Find("[data-home-live-state]").TextContent, StringComparison.Ordinal);
 
                 // Ops-summary strip: health data source is unregistered -> unavailable, not a
                 // fabricated value; findings count is em-dashed; approvals still binds through

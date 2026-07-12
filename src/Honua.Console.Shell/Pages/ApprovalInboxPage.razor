@@ -5,6 +5,7 @@
 @using Honua.Console.Shell.Services
 @inject IConsoleApprovalInboxClient Inbox
 @inject IConsoleProposalRealtimeClient Realtime
+@inject IServiceProvider ServiceProvider
 @implements IAsyncDisposable
 
 @* APPROVAL INBOX (#193) — the GIS department's work queue as one human-in-the-loop surface.
@@ -30,11 +31,27 @@
         </p>
     </div>
 
-    <div class="approval-inbox-toolbar" role="group" aria-label="Inbox controls">
-        <span class="approval-inbox-live @(Realtime.IsConnected ? "is-live" : null)" data-live-state
-              data-fallback-engaged="@Realtime.IsFallbackEngaged">
-            @(Realtime.IsConnected ? "Live" : "Manual")
-        </span>
+    @* Freshness affordance (console#309): a persistent, honest currency signal. "Live" when the
+       proposals realtime hub is connected; when it has degraded to manual refresh the queue says
+       so and shows when the data was last good, so an approver is never silently handed a stale
+       queue. It flips on reconnect without a reload via the shared realtime state-changed seam. *@
+    <div class="approval-inbox-toolbar" role="group" aria-label="Inbox controls"
+         data-freshness-state="@(Realtime.IsConnected ? "live" : "paused")">
+        @if (Realtime.IsConnected)
+        {
+            <span class="approval-inbox-live is-live" data-live-state="live"
+                  data-fallback-engaged="@Realtime.IsFallbackEngaged">
+                Live
+            </span>
+        }
+        else
+        {
+            <span class="approval-inbox-live approval-inbox-paused" data-live-state="paused"
+                  data-fallback-engaged="@Realtime.IsFallbackEngaged">
+                Updates paused — last refreshed
+                <span data-inbox-paused-since>@ConsoleFreshness.LastRefreshedShort(_lastSuccessfulRefreshUtc)</span>
+            </span>
+        }
         <button type="button" class="console-button console-button-secondary"
                 disabled="@_busy" data-refresh-inbox @onclick="RefreshAsync">
             Refresh
@@ -44,6 +61,27 @@
     @if (!_loaded)
     {
         <OperateSectionStatusPanel Heading="Approval inbox" Loading="true" />
+    }
+    else if (!_result.IsAllowed && ConsoleReadBudget.IsErrorState(_result.Status))
+    {
+        @* Bounded-loading error card (console#308): the read either failed or blew its ~5s budget.
+           A surface of record must distinguish "backend down" from "nothing pending" — this names
+           the failing source, keeps the last good refresh time, and offers a working Retry. *@
+        <div class="console-panel approval-inbox-error" role="alert" data-inbox-error>
+            <p class="console-kicker">Approval inbox</p>
+            <h3 data-inbox-error-title>Couldn't read the approval queue from @ServerName</h3>
+            @if (!string.IsNullOrWhiteSpace(_result.Message))
+            {
+                <p class="console-muted approval-inbox-error-detail" data-inbox-error-detail>@_result.Message</p>
+            }
+            <p class="console-muted approval-inbox-error-refreshed" data-inbox-last-refreshed>
+                @ConsoleFreshness.LastRefreshed(_lastSuccessfulRefreshUtc)
+            </p>
+            <button type="button" class="console-button" disabled="@_busy"
+                    data-inbox-retry @onclick="RefreshAsync">
+                Retry
+            </button>
+        </div>
     }
     else if (!_result.IsAllowed)
     {
@@ -173,14 +211,38 @@
     [SupplyParameterFromQuery(Name = "proposalId")]
     public string? ProposalId { get; set; }
 
+    /// <summary>
+    /// The bounded-loading budget for the queue read (console#308). A parameter so component
+    /// tests can drive the timeout path deterministically without waiting the full ~5s.
+    /// </summary>
+    [Parameter]
+    public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+
     private bool _loaded;
     private bool _busy;
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
+    // The last time the queue read actually succeeded — persisted across subsequent failures so
+    // the error card / paused pill can show the last good data time rather than "never" (console#308).
+    private DateTimeOffset? _lastSuccessfulRefreshUtc;
+
+    // Resolved optionally so the existing render harnesses (which register no profile store) keep
+    // working; used only to name the failing source honestly in the error card.
+    private IConsoleEnvironmentProfileStore? _profiles;
+    private string? _serverName;
+
+    // The concrete realtime client also implements the shared capability seam (console#293), which
+    // raises a state-changed event on (re)connect. Subscribing to it lets the freshness pill flip
+    // Live<->paused without a page reload (console#309), independent of any proposal event.
+    private IConsoleRealtimeCapabilityClient? _realtimeState;
+
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
     private int _detailReloadToken;
+
+    private string ServerName =>
+        string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
 
     private IReadOnlyList<ApprovalInboxItem> VisibleItems
     {
@@ -201,9 +263,44 @@
         }
 
         Realtime.ProposalChanged += OnProposalEvent;
+
+        // Flip the freshness pill on (re)connect without a reload (console#309): the concrete
+        // realtime client exposes the shared capability seam's state-changed event.
+        if (Realtime is IConsoleRealtimeCapabilityClient capability)
+        {
+            _realtimeState = capability;
+            _realtimeState.ConnectionStateChanged += OnConnectionStateChanged;
+        }
+
+        // Best-effort: name the failing source honestly in the error card (console#308). A profile
+        // store may not be registered in a bare render harness; degrade to the generic server name.
+        _profiles = ServiceProvider.GetService<IConsoleEnvironmentProfileStore>();
+        await ResolveServerNameAsync();
+
         await RefreshAsync();
         // Best-effort: open the live subscription. A failure leaves the inbox on manual refresh.
         await Realtime.StartAsync();
+    }
+
+    private async Task ResolveServerNameAsync()
+    {
+        if (_profiles is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var active = await _profiles.GetActiveProfileAsync();
+            if (active is { DisplayName.Length: > 0 })
+            {
+                _serverName = active.DisplayName;
+            }
+        }
+        catch
+        {
+            // The source name is a nicety, never a gate: fall back to the generic server label.
+        }
     }
 
     private async Task RefreshAsync()
@@ -216,18 +313,29 @@
         _busy = true;
         try
         {
-            _result = await Inbox.GetInboxAsync();
+            // Bounded loading (console#308): a hung or failing read resolves to an explicit,
+            // retryable Unavailable error rather than an endless spinner.
+            _result = await ConsoleReadBudget.RunAsync(
+                token => Inbox.GetInboxAsync(cancellationToken: token),
+                LoadBudget,
+                $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.");
 
-            // Drop a stale selection / filter that no longer maps onto a queue item.
-            if (_selectedProposalId is { Length: > 0 } selected
-                && _result.Value?.Items.All(item => !string.Equals(item.ProposalId, selected, StringComparison.Ordinal)) == true)
+            if (_result.IsAllowed)
             {
-                _selectedProposalId = null;
-            }
+                // Only a real success advances the last-good marker; a failure keeps the prior time.
+                _lastSuccessfulRefreshUtc = DateTimeOffset.UtcNow;
 
-            if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
-            {
-                _filter = null;
+                // Drop a stale selection / filter that no longer maps onto a queue item.
+                if (_selectedProposalId is { Length: > 0 } selected
+                    && _result.Value?.Items.All(item => !string.Equals(item.ProposalId, selected, StringComparison.Ordinal)) == true)
+                {
+                    _selectedProposalId = null;
+                }
+
+                if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
+                {
+                    _filter = null;
+                }
             }
         }
         finally
@@ -236,6 +344,11 @@
             _loaded = true;
         }
     }
+
+    // A realtime connect / reconnect / degrade: re-render so the freshness pill reflects the true
+    // connection state immediately, with no proposal event and no page reload (console#309).
+    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state) =>
+        _ = InvokeAsync(StateHasChanged);
 
     // A live ProposalPending / ProposalResolved event: refresh the queue (and the open detail
     // if the resolved proposal is the selected one) without polling.
@@ -274,6 +387,11 @@
         // this page's handler. The connection is torn down by the DI container on shutdown, not
         // when one operator navigates away.
         Realtime.ProposalChanged -= OnProposalEvent;
+        if (_realtimeState is not null)
+        {
+            _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
+        }
+
         return ValueTask.CompletedTask;
     }
 }

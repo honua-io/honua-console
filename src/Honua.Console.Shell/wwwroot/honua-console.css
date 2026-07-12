@@ -9313,6 +9313,51 @@ button.console-chip:focus-visible {
     margin: -0.5rem 0 1rem;
 }
 
+/* Freshness affordance (console#309): the honest "updates paused" degraded state, distinct from
+   the live pill, so an approver is never silently handed a stale queue. */
+.approval-inbox-paused {
+    color: var(--honua-muted);
+    font-size: 0.9rem;
+}
+
+/* Bounded-loading error card (console#308): a surface of record must read "couldn't reach the
+   backend" distinctly from "nothing pending". A left danger accent + Retry make the error state
+   and its recovery action unmistakable. */
+.approval-inbox-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    box-shadow: inset 4px 0 0 var(--honua-danger);
+}
+
+.approval-inbox-error h3 {
+    margin: 0;
+}
+
+.approval-inbox-error-detail,
+.approval-inbox-error-refreshed {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* Home approval band error (console#308): same honest error/retry treatment, compact for the band. */
+.console-home-inbox-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--honua-border);
+    box-shadow: inset 3px 0 0 var(--honua-danger);
+}
+
+.console-home-inbox-error p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
 .approval-inbox-filters {
     display: flex;
     flex-wrap: wrap;
@@ -9609,6 +9654,22 @@ button.console-chip:focus-visible {
     content: "\25CF";
     margin-right: 0.35rem;
     color: #2f8f5b;
+}
+
+/* Ops-summary bounded-loading error affordance (console#308): when a strip read is down, name the
+   source and offer Retry inline rather than leaving the strip stuck on "Loading…". */
+.ops-summary-error {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--honua-danger);
+}
+
+.ops-summary-retry {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.8rem;
 }
 
 /* Correlation-id chip (console#292): a clickable variant of the existing read-only
