@@ -39,6 +39,21 @@ summary:focus-visible,
     border-radius: 4px;
 }
 
+/* Page-title focus treatment. <FocusOnNavigate Selector="h1"> (ConsoleRoutes) adds tabindex="-1" to the
+   page H1 and focuses it on every route change purely so screen readers announce the new page identity.
+   That focus otherwise triggered the interactive-control focus ring above, wrapping every page title in a
+   rounded, bordered box that read as an editable input field (UCD review 2026-07-12, honua-console#313).
+   Headings are not interactive controls, so the ring is suppressed here — the focus target itself is kept,
+   preserving the accessibility announcement — and typographic hierarchy carries page identity. The
+   h1[tabindex] qualifier is required so this out-specifies the global [tabindex]:focus-visible ring above
+   (FocusOnNavigate stamps tabindex="-1" on the focused heading). */
+h1[tabindex]:focus,
+h1[tabindex]:focus-visible {
+    outline: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
 body {
     margin: 0;
     background: var(--honua-bg);

@@ -78,7 +78,7 @@
                         <dt>Certificate</dt>
                         <dd>@FormatCertificate(profile)</dd>
                         <dt>Last connected</dt>
-                        <dd>@FormatLastConnected(state)</dd>
+                        <dd>@FormatLastConnected(state, isActive)</dd>
                     </dl>
 
                     <EnvironmentTransportIndicators Profile="profile" NativeAvailable="Host.SupportsNativeTransports" />
@@ -121,7 +121,16 @@
                         }
                         else
                         {
-                            <span class="console-status console-state-info">Connect · Native host only</span>
+                            @* The browser Console has no native connect/trust-validation action, but it is NOT a
+                               dead end: it binds and uses the ACTIVE profile automatically over HTTPS. State the
+                               browser-user path (Use Environment activates a profile) and where the native-only
+                               actions live, instead of a bare disabled "Connect" (honua-console#313). *@
+                            <span class="console-status console-state-info" data-native-only-note>Native connect &amp; trust validation · desktop Console only</span>
+                            <span class="console-muted" data-browser-alt-note>
+                                @(isActive
+                                    ? "This browser Console already uses this active profile automatically for catalog, data, and operate reads over HTTPS."
+                                    : "Use Environment makes this the active profile; the browser Console then uses it automatically over HTTPS.")
+                            </span>
                         }
                         <a href="@($"/environments/{profile.Id}")">Diagnostics</a>
                     </div>
@@ -232,8 +241,18 @@
         return reference is null ? "Client certificate bound" : $"{reference.Kind}: {reference.Value}";
     }
 
-    private static string FormatLastConnected(ConsoleEnvironmentState? state) =>
-        state?.LastConnectedAt is { } connectedAt
-            ? connectedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")
-            : "never";
+    // "Last connected" must reflect actual live use, not just an explicit native connect (honua-console#313).
+    // A recorded connect timestamp always wins. Otherwise the ACTIVE profile on the browser host is the one
+    // Console binds and serves HTTP features (catalog / data / operate) with automatically — there is no
+    // separate connect step there — so "never" misrepresents it; it is live right now. A non-active profile
+    // (or a native profile never connected) genuinely reads "never".
+    private string FormatLastConnected(ConsoleEnvironmentState? state, bool isActive)
+    {
+        if (state?.LastConnectedAt is { } connectedAt)
+        {
+            return connectedAt.ToString("yyyy-MM-dd HH:mm 'UTC'");
+        }
+
+        return isActive && !Host.SupportsNativeTransports ? "In use now · this browser session" : "never";
+    }
 }

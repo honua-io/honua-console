@@ -1,6 +1,7 @@
 @page "/catalog"
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
+@inject IOperateTransitionDataSource OperateData
 @inject NavigationManager Navigation
 
 <section class="console-page">
@@ -112,7 +113,30 @@
     }
     else if (_result.Items.Count == 0)
     {
-        <ConsoleStateView Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item into this workspace." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+        @if (_liveResourceCount is { } liveCount)
+        {
+            @* Server-binding bridge (honua-console#312): the workspace has published nothing, but the bound
+               server is data-rich. Without this line the empty catalog reads as a flat contradiction against
+               Operate → Data & Layers. The count comes from the same resources source Data & Layers uses and
+               is omitted entirely on read failure or when the server is unbound (the plain empty state below). *@
+            <section class="console-state console-state-empty" aria-live="polite" data-catalog-server-bridge>
+                <p class="console-kicker">Empty catalog</p>
+                <h1>No content matched</h1>
+                <p>
+                    This workspace hasn't published anything yet — the connected server has
+                    <strong>@liveCount</strong> live @(liveCount == 1 ? "resource" : "resources").
+                    Browse them in Operate, or publish the first item into this workspace.
+                </p>
+                <div class="console-action-row">
+                    <a class="console-button-link" href="/operate/data">Operate → Data &amp; Layers</a>
+                    <a class="console-button-link console-button-secondary" href="/operate/publishing">Open Publishing</a>
+                </div>
+            </section>
+        }
+        else
+        {
+            <ConsoleStateView Kind="empty" Kicker="Empty catalog" Title="No content matched" Message="Try a broader search or publish the first item into this workspace." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+        }
     }
     else
     {
@@ -180,6 +204,7 @@
     private CatalogSearchResult? _result;
     private bool _accessResolved;
     private bool _requiresAuthentication;
+    private int? _liveResourceCount;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -187,6 +212,7 @@
         _accessResolved = false;
         _requiresAuthentication = false;
         _result = null;
+        _liveResourceCount = null;
 
         var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
         _accessResolved = true;
@@ -197,6 +223,31 @@
         }
 
         _result = await Catalog.SearchAsync(_search.ToListRequest(), context);
+
+        // Only the genuine, successful empty state bridges to the server's live resource count. A failed
+        // read renders its own error/retry surface (never the bridge), and a populated catalog needs no bridge.
+        if (_result is { Succeeded: true } && _result.Items.Count == 0)
+        {
+            _liveResourceCount = await TryReadLiveResourceCountAsync();
+        }
+    }
+
+    // Sources the "N live resources" bridge count from the SAME resources projection Operate → Data & Layers
+    // renders (IOperateTransitionDataSource.GetResourcesViewAsync — no new endpoint). Returns null — omitting
+    // the bridge line — when the server is unbound (empty projection), the read fails, or the server genuinely
+    // has zero resources, so the plain empty state remains for every non-bridging case (honua-console#312).
+    private async Task<int?> TryReadLiveResourceCountAsync()
+    {
+        try
+        {
+            var resources = await OperateData.GetResourcesViewAsync();
+            var count = resources.ResourceEdits.Count;
+            return count > 0 ? count : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private bool IsVisibility(string value) => string.Equals(_search.Visibility, value, StringComparison.Ordinal);
