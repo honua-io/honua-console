@@ -168,7 +168,10 @@ public sealed record StudioMapCapabilityState(
     string Surface,
     string State,
     string Contract,
-    string Detail);
+    string Detail,
+    string? Summary = null,
+    int? StatusCode = null,
+    string? IssueRef = null);
 
 public sealed record StudioMapEditorLoad(
     StudioMapEditorState? State,

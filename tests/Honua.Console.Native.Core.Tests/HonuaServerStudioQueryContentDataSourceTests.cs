@@ -78,7 +78,10 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
         Assert.False(load.HasEditor);
         var state = Assert.Single(load.CapabilityStates);
         Assert.Equal("Unsupported", state.State);
-        Assert.Contains("404", state.Detail, StringComparison.Ordinal);
+        // honua-console#311: the transport code is relocated out of the human detail into StatusCode for the
+        // diagnostics disclosure; the detail stays verbatim from the server issue.
+        Assert.Equal(404, state.StatusCode);
+        Assert.Equal("Not found.", state.Detail);
     }
 
     [Fact]

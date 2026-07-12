@@ -238,6 +238,13 @@ public sealed record OperateSectionResult<T>
     public string Message { get; init; } = string.Empty;
 
     /// <summary>
+    /// Verbatim technical diagnostics (transport status, contract) relocated out of the
+    /// human-facing <see cref="Message"/> for the shared diagnostics disclosure (honua-console#311).
+    /// Null when the message needs no technical layer.
+    /// </summary>
+    public string? Detail { get; init; }
+
+    /// <summary>
     /// True when the server returned a partial result (e.g. one event source
     /// was unreachable). The data is still live; the surface should annotate it.
     /// </summary>
@@ -254,10 +261,11 @@ public sealed record OperateSectionResult<T>
             Message = message
         };
 
-    public static OperateSectionResult<T> Denied(OperateSectionStatus status, string message) =>
+    public static OperateSectionResult<T> Denied(OperateSectionStatus status, string message, string? detail = null) =>
         new()
         {
             Status = status,
-            Message = message
+            Message = message,
+            Detail = detail
         };
 }

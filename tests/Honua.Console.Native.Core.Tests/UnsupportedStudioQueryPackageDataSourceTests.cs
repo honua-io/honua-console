@@ -22,7 +22,9 @@ public sealed class UnsupportedStudioQueryPackageDataSourceTests
         var state = Assert.Single(workspace.CapabilityStates);
         Assert.Equal("Missing binding", state.State);
         Assert.Equal("Query builder", state.Surface);
-        Assert.Contains("#1182", state.Detail, StringComparison.Ordinal);
+        // honua-console#311: the missing-binding copy no longer prices operators as contributors — no issue ref.
+        Assert.DoesNotContain("#1182", state.Detail, StringComparison.Ordinal);
+        Assert.Contains("Honua:Server:BaseUrl", state.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

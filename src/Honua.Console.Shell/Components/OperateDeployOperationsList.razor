@@ -66,7 +66,7 @@
     }
     else if (!_result.IsAllowed)
     {
-        <OperateSectionStatusPanel Heading="Deploy operations" Status="@_result.Status" Message="@_result.Message" />
+        <OperateSectionStatusPanel Heading="Deploy operations" Status="@_result.Status" Message="@_result.Message" Detail="@_result.Detail" />
     }
     else
     {

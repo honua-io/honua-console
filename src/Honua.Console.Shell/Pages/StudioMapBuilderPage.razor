@@ -38,10 +38,16 @@
 
         @if (_listNotice is not null)
         {
-            <ConsoleStateView Kind="info"
-                              Kicker="@_listNotice.State"
-                              Title="Map packages cannot be listed yet"
-                              Message="@($"{_listNotice.Detail} (contract: {_listNotice.Contract})")" />
+            <article class="console-panel console-state-info" data-map-list-notice>
+                <p class="console-kicker">@_listNotice.State</p>
+                <h2>Map packages cannot be listed yet</h2>
+                <ConsoleDiagnostics Summary="@(_listNotice.Summary ?? StudioCapabilityCopy.Summary(_listNotice.Surface, _listNotice.State))"
+                                    Detail="@_listNotice.Detail"
+                                    State="@_listNotice.State"
+                                    Contract="@_listNotice.Contract"
+                                    StatusCode="@_listNotice.StatusCode"
+                                    IssueRef="@_listNotice.IssueRef" />
+            </article>
         }
 
         @if (_workspace.Packages.Count == 0 && _listNotice is null)
