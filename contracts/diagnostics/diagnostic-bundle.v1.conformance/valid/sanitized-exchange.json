@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "bundleId": "doctor-01J00000000000000000000000",
+  "contentClassification": "customer-data",
+  "consent": {
+    "redactionAcknowledged": true,
+    "shareWithSupport": true,
+    "grantedBy": "customer-operator"
+  },
+  "envelopes": [
+    {
+      "method": "POST",
+      "normalizedPath": "/api/v1/tickets/{ticketId}/diagnostics",
+      "statusCode": 400,
+      "mediaType": "application/problem+json",
+      "correlationId": "corr-redacted-01",
+      "traceId": "0123456789abcdef0123456789abcdef",
+      "capturedAt": "2026-07-11T12:00:00Z",
+      "requestHeaders": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "responseHeaders": [
+        {
+          "name": "Content-Type",
+          "value": "application/problem+json"
+        }
+      ],
+      "requestBody": {
+        "preview": "{\"query\":\"[REDACTED]\"}",
+        "contentSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "originalByteSize": 128,
+        "redactionApplied": true,
+        "truncated": false
+      },
+      "responseBody": {
+        "preview": "{\"error\":\"validation failed\"}",
+        "contentSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "originalByteSize": 38,
+        "redactionApplied": false,
+        "truncated": false
+      }
+    }
+  ]
+}
