@@ -13,6 +13,6 @@
     "e2e:live": "playwright test --config playwright.live.config.ts"
   },
   "devDependencies": {
-    "@playwright/test": "1.61.0"
+    "@playwright/test": "1.61.1"
   }
 }
