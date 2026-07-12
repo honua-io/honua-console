@@ -9,9 +9,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/certs"
 
-openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
+# MSYS_NO_PATHCONV stops Git Bash on Windows from rewriting the -subj path.
+MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
   -keyout kc.key -out kc.crt \
-  -subj "//CN=host.docker.internal" \
+  -subj "/CN=host.docker.internal" \
   -addext "subjectAltName=DNS:host.docker.internal,DNS:localhost,IP:127.0.0.1"
 
 openssl x509 -in kc.crt -noout -subject -ext subjectAltName
