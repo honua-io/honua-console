@@ -7,6 +7,10 @@
     <p class="console-kicker">@Heading</p>
     <h3>@ResolvedTitle</h3>
     <p class="console-muted">@ResolvedMessage</p>
+    @if (!Loading && !Empty && !string.IsNullOrWhiteSpace(Detail))
+    {
+        <ConsoleDiagnostics Detail="@Detail" />
+    }
 </div>
 
 @code {
@@ -23,6 +27,13 @@
     /// <summary>Server-provided message; falls back to the shared status copy.</summary>
     [Parameter]
     public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Verbatim technical diagnostics for the denied case; rendered in a diagnostics disclosure
+    /// beneath the human message (honua-console#311). Null/empty renders no disclosure.
+    /// </summary>
+    [Parameter]
+    public string? Detail { get; set; }
 
     /// <summary>Title/message for the allowed-but-empty case.</summary>
     [Parameter]

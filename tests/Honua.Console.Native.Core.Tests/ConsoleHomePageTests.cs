@@ -35,7 +35,7 @@ public sealed class ConsoleHomePageTests
     }
 
     [Fact]
-    public async Task RealtimeNotConnected_ShowsManualNotAFakeLivePill()
+    public async Task RealtimeNotConnected_ShowsPausedFreshness_NotAFakeLivePill()
     {
         var html = await RenderAsync(
             inbox: new StubInboxClient
@@ -44,7 +44,10 @@ public sealed class ConsoleHomePageTests
             },
             realtime: new StubRealtimeClient { Connected = false });
 
-        Assert.Contains("Manual", html, StringComparison.Ordinal);
+        // console#309: the degraded state is an honest "updates paused" freshness signal, never a
+        // fake Live pill.
+        Assert.Contains("Updates paused", html, StringComparison.Ordinal);
+        Assert.Contains("data-home-live-state=\"paused\"", html, StringComparison.Ordinal);
     }
 
     private static async Task<string> RenderAsync(StubInboxClient inbox, StubRealtimeClient realtime)

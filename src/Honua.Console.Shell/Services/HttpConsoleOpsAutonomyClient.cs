@@ -254,12 +254,20 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
             if (!response.IsSuccessStatusCode)
             {
                 var status = MapStatus(response.StatusCode);
+                if (status == OperateSectionStatus.Unsupported)
+                {
+                    return OperateSectionResult<T>.Denied(
+                        status,
+                        unsupportedMessage
+                            ?? "The connected honua-server does not expose graduated ops autonomy; findings remain propose-only.");
+                }
+
+                // Human first line; the raw transport detail is relocated to the diagnostics disclosure
+                // (honua-console#311) so operators are not priced as contributors on the first read.
                 return OperateSectionResult<T>.Denied(
                     status,
-                    status == OperateSectionStatus.Unsupported
-                        ? unsupportedMessage
-                            ?? "The connected honua-server does not expose graduated ops autonomy; findings remain propose-only."
-                        : $"The honua-server ops-autonomy API returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+                    "The connected server rejected the ops-autonomy request. Retry, or check the server logs.",
+                    detail: $"The honua-server ops-autonomy API returned {(int)response.StatusCode} {response.ReasonPhrase}.");
             }
 
             await using var stream = await response.Content

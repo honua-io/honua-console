@@ -287,7 +287,7 @@
         && autonomyStatus != OperateSectionStatus.Unsupported
         && autonomyStatus != OperateSectionStatus.Missing)
     {
-        <OperateSectionStatusPanel Heading="Autonomy policy" Status="autonomyStatus" Message="@_autonomyMessage" />
+        <OperateSectionStatusPanel Heading="Autonomy policy" Status="autonomyStatus" Message="@_autonomyMessage" Detail="@_autonomyDetail" />
     }
 
     @if (!_loaded)
@@ -296,7 +296,7 @@
     }
     else if (_findings is null)
     {
-        <OperateSectionStatusPanel Heading="Copilot findings" Status="_status" Message="@_message" />
+        <OperateSectionStatusPanel Heading="Copilot findings" Status="_status" Message="@_message" Detail="@_messageDetail" />
     }
     else if (_findings.Count == 0)
     {
@@ -438,7 +438,9 @@
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
     private OperateSectionStatus? _autonomyStatus;
     private string _message = string.Empty;
+    private string? _messageDetail;
     private string _autonomyMessage = string.Empty;
+    private string? _autonomyDetail;
     private string? _notice;
     private string? _pendingPolicyRule;
     private string? _pendingPolicyMode;
@@ -520,11 +522,13 @@
                 _findings = null;
                 _status = findingsResult.Status;
                 _message = findingsResult.Message;
+                _messageDetail = findingsResult.Detail;
             }
 
             var autonomyResult = await autonomyTask;
             _autonomyStatus = autonomyResult.Status;
             _autonomyMessage = autonomyResult.Message;
+            _autonomyDetail = autonomyResult.Detail;
             _autonomy = autonomyResult.IsAllowed ? autonomyResult.Value : null;
             if (_autonomy is null)
             {

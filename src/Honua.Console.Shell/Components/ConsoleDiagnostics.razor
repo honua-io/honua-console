@@ -1,0 +1,132 @@
+@*
+   Shared "Diagnostics" disclosure (honua-console#311). Layers the two audiences a
+   capability/error state serves: a plain-language first line — what this means for the
+   operator and what they can do — over an expandable technical block that preserves the
+   full diagnostics verbatim (state, verb/path contract, HTTP status, and a real link to
+   the tracking issue). Mirrors the capability-state / missing-binding surfaces so it reads
+   as native console vocabulary, not a new design language.
+
+   Summary is optional: when omitted (e.g. an existing muted line already carries the human
+   sentence) the component renders the disclosure alone.
+*@
+<div class="console-diagnostics" data-console-diagnostics>
+    @if (!string.IsNullOrWhiteSpace(Summary))
+    {
+        <p class="console-diagnostics-summary" data-diagnostics-summary>@Summary</p>
+    }
+
+    @if (HasTechnicalDetail)
+    {
+        <details class="console-diagnostics-detail" data-diagnostics-detail>
+            <summary class="console-diagnostics-toggle">@DisclosureLabel</summary>
+            <div class="console-diagnostics-body">
+                @if (!string.IsNullOrWhiteSpace(Detail))
+                {
+                    <p class="console-muted" data-diagnostics-detail-text>@Detail</p>
+                }
+                <dl class="console-definition-list">
+                    @if (!string.IsNullOrWhiteSpace(State))
+                    {
+                        <dt>State</dt>
+                        <dd data-diagnostics-state>@State</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Contract))
+                    {
+                        <dt>Contract</dt>
+                        <dd><code data-diagnostics-contract>@Contract</code></dd>
+                    }
+                    @if (StatusCode is { } status)
+                    {
+                        <dt>Status</dt>
+                        <dd data-diagnostics-status>HTTP @status.ToString(System.Globalization.CultureInfo.InvariantCulture)</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(IssueRef))
+                    {
+                        <dt>Tracked in</dt>
+                        <dd>
+                            <a href="@IssueUrl(IssueRef!)"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               data-diagnostics-issue>@IssueRef</a>
+                        </dd>
+                    }
+                </dl>
+                @ChildContent
+            </div>
+        </details>
+    }
+</div>
+
+@code {
+    /// <summary>Plain-language first line: what happened and what the operator can do. Optional.</summary>
+    [Parameter]
+    public string? Summary { get; set; }
+
+    /// <summary>Verbatim technical detail sentence(s), preserved from the original diagnostics.</summary>
+    [Parameter]
+    public string? Detail { get; set; }
+
+    /// <summary>Capability-state label, e.g. "Unsupported" or "Missing binding".</summary>
+    [Parameter]
+    public string? State { get; set; }
+
+    /// <summary>Verb + path contract, e.g. "GET /api/v1/studio/package-drafts (list)".</summary>
+    [Parameter]
+    public string? Contract { get; set; }
+
+    /// <summary>HTTP status code, when the diagnostic came from a transport response.</summary>
+    [Parameter]
+    public int? StatusCode { get; set; }
+
+    /// <summary>Tracking issue reference, e.g. "honua-server#1182" or "#193".</summary>
+    [Parameter]
+    public string? IssueRef { get; set; }
+
+    /// <summary>Label on the disclosure toggle.</summary>
+    [Parameter]
+    public string DisclosureLabel { get; set; } = "Technical detail";
+
+    /// <summary>Optional extra technical content rendered inside the disclosure body.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool HasTechnicalDetail =>
+        !string.IsNullOrWhiteSpace(Detail)
+        || !string.IsNullOrWhiteSpace(State)
+        || !string.IsNullOrWhiteSpace(Contract)
+        || StatusCode is not null
+        || !string.IsNullOrWhiteSpace(IssueRef)
+        || ChildContent is not null;
+
+    /// <summary>
+    /// Resolves an issue reference ("honua-server#1182", "console#290", "#193") to its GitHub URL.
+    /// A bare "#193" or a "console#"/"honua-console#" prefix targets the console repo; any other
+    /// "{repo}#{n}" prefix is treated as an honua-io repository name.
+    /// </summary>
+    public static string IssueUrl(string issueRef)
+    {
+        if (string.IsNullOrWhiteSpace(issueRef))
+        {
+            return "#";
+        }
+
+        var hashIndex = issueRef.IndexOf('#');
+        if (hashIndex < 0)
+        {
+            return "#";
+        }
+
+        var prefix = issueRef[..hashIndex].Trim();
+        var number = new string(issueRef[(hashIndex + 1)..].TakeWhile(char.IsDigit).ToArray());
+        if (number.Length == 0)
+        {
+            return "#";
+        }
+
+        var repo = prefix.Length == 0 || string.Equals(prefix, "console", StringComparison.OrdinalIgnoreCase)
+            ? "honua-console"
+            : prefix;
+
+        return $"https://github.com/honua-io/{repo}/issues/{number}";
+    }
+}

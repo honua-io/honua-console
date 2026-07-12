@@ -85,6 +85,8 @@ public sealed class ConsoleEndToEndSmokeTests
             catalogContext.Services.AddSingleton<IConsoleCatalogClient>(catalog);
             catalogContext.Services.AddSingleton<IConsoleCatalogReadContextResolver>(
                 new AuthenticatedReadContextResolver());
+            catalogContext.Services.AddSingleton<IOperateTransitionDataSource>(
+                new UnsupportedOperateTransitionDataSource());
             var catalogPage = catalogContext.Render<CatalogPage>();
             catalogPage.WaitForAssertion(
                 () => Assert.Contains(catalogTitle, catalogPage.Markup, StringComparison.Ordinal),

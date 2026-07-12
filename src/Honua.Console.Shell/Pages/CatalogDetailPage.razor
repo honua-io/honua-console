@@ -159,7 +159,9 @@
                     @if (!item.UsageBound)
                     {
                         <ConsoleStateView Kind="missing" Kicker="Missing binding" Title="Dependency usage is not bound"
-                                          Message="The connected honua-server does not expose a dependency/usage (blast-radius) endpoint for content items (honua-server#1162 metadata v2 has no usage projection). Console will not infer downstream consumers; review impact from Lineage until the usage contract lands." />
+                                          Message="This server version can't report which maps, apps, or workflows depend on this item. Console won't guess downstream consumers — review impact from Lineage instead." />
+                        <ConsoleDiagnostics Detail="The connected honua-server exposes no dependency/usage (blast-radius) endpoint for content items; metadata v2 has no usage projection."
+                                            IssueRef="honua-server#1162" />
                     }
                     else if (item.Usage.Length == 0)
                     {

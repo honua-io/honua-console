@@ -39,6 +39,21 @@ summary:focus-visible,
     border-radius: 4px;
 }
 
+/* Page-title focus treatment. <FocusOnNavigate Selector="h1"> (ConsoleRoutes) adds tabindex="-1" to the
+   page H1 and focuses it on every route change purely so screen readers announce the new page identity.
+   That focus otherwise triggered the interactive-control focus ring above, wrapping every page title in a
+   rounded, bordered box that read as an editable input field (UCD review 2026-07-12, honua-console#313).
+   Headings are not interactive controls, so the ring is suppressed here — the focus target itself is kept,
+   preserving the accessibility announcement — and typographic hierarchy carries page identity. The
+   h1[tabindex] qualifier is required so this out-specifies the global [tabindex]:focus-visible ring above
+   (FocusOnNavigate stamps tabindex="-1" on the focused heading). */
+h1[tabindex]:focus,
+h1[tabindex]:focus-visible {
+    outline: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
 body {
     margin: 0;
     background: var(--honua-bg);
@@ -334,6 +349,50 @@ p {
 .console-definition-list dd {
     margin: 0;
     min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* Diagnostics disclosure (honua-console#311): human first line over an expandable
+   technical block that preserves the full verbatim diagnostics. */
+.console-diagnostics {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.console-diagnostics-summary {
+    margin: 0;
+}
+
+.console-diagnostics-detail {
+    border: 1px solid var(--honua-border);
+    border-radius: 6px;
+    background: var(--honua-surface-strong);
+    padding: 0 12px;
+}
+
+.console-diagnostics-detail[open] {
+    padding-bottom: 4px;
+}
+
+.console-diagnostics-toggle {
+    cursor: pointer;
+    padding: 8px 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--honua-muted);
+    list-style: revert;
+}
+
+.console-diagnostics-body {
+    padding-bottom: 8px;
+}
+
+.console-diagnostics-body .console-definition-list {
+    margin: 8px 0 0;
+}
+
+.console-diagnostics-body code {
     overflow-wrap: anywhere;
 }
 
@@ -1222,6 +1281,14 @@ p {
     text-decoration: none;
 }
 
+/* Button-styled links keep their own foreground inside an action row: the plain-link color above
+   otherwise out-specifies .console-button-link and paints dark accent text on the accent button
+   (~1.4:1 contrast — catalog server-bridge CTA, #312). Secondary buttons already want the
+   accent-strong foreground, so only the filled primary variant is restored to white. */
+.console-action-row a.console-button-link:not(.console-button-secondary) {
+    color: #ffffff;
+}
+
 .console-state {
     padding: 28px;
     border: 1px solid var(--honua-border);
@@ -1369,7 +1436,8 @@ p {
 }
 
 .console-viewer-page {
-    width: min(1380px, calc(100vw - 48px));
+    /* Container-relative width (100%), not 100vw — see #310. */
+    width: min(1380px, 100%);
 }
 
 .console-map-surface {
@@ -1635,7 +1703,8 @@ p {
 }
 
 .studio-page {
-    width: min(1420px, calc(100vw - 48px));
+    /* Container-relative width (100%), not 100vw — see #310. */
+    width: min(1420px, 100%);
 }
 
 .studio-page-heading {
@@ -2019,7 +2088,10 @@ p {
 }
 
 .console-operate-page {
-    width: min(1360px, calc(100vw - 48px));
+    /* Size against the content column (100%), never the raw viewport. Using 100vw
+       here ignored the 280px rail + .console-main padding and forced the page wider
+       than its container at 1366-1440px, clipping right-edge content (#310). */
+    width: min(1360px, 100%);
 }
 
 .operate-heading {
@@ -3823,7 +3895,8 @@ p {
 }
 
 .workflow-page {
-    width: min(1440px, calc(100vw - 48px));
+    /* Container-relative width (100%), not 100vw — see #310. */
+    width: min(1440px, 100%);
 }
 
 .workflow-command-bar {
@@ -9313,6 +9386,51 @@ button.console-chip:focus-visible {
     margin: -0.5rem 0 1rem;
 }
 
+/* Freshness affordance (console#309): the honest "updates paused" degraded state, distinct from
+   the live pill, so an approver is never silently handed a stale queue. */
+.approval-inbox-paused {
+    color: var(--honua-muted);
+    font-size: 0.9rem;
+}
+
+/* Bounded-loading error card (console#308): a surface of record must read "couldn't reach the
+   backend" distinctly from "nothing pending". A left danger accent + Retry make the error state
+   and its recovery action unmistakable. */
+.approval-inbox-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    box-shadow: inset 4px 0 0 var(--honua-danger);
+}
+
+.approval-inbox-error h3 {
+    margin: 0;
+}
+
+.approval-inbox-error-detail,
+.approval-inbox-error-refreshed {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* Home approval band error (console#308): same honest error/retry treatment, compact for the band. */
+.console-home-inbox-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--honua-border);
+    box-shadow: inset 3px 0 0 var(--honua-danger);
+}
+
+.console-home-inbox-error p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
 .approval-inbox-filters {
     display: flex;
     flex-wrap: wrap;
@@ -9609,6 +9727,22 @@ button.console-chip:focus-visible {
     content: "\25CF";
     margin-right: 0.35rem;
     color: #2f8f5b;
+}
+
+/* Ops-summary bounded-loading error affordance (console#308): when a strip read is down, name the
+   source and offer Retry inline rather than leaving the strip stuck on "Loading…". */
+.ops-summary-error {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--honua-danger);
+}
+
+.ops-summary-retry {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.8rem;
 }
 
 /* Correlation-id chip (console#292): a clickable variant of the existing read-only

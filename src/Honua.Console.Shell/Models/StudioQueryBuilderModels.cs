@@ -207,7 +207,10 @@ public sealed record StudioQueryCapabilityState(
     string Surface,
     string State,
     string Contract,
-    string Detail);
+    string Detail,
+    string? Summary = null,
+    int? StatusCode = null,
+    string? IssueRef = null);
 
 /// <summary>
 /// The query builder workspace: the server's saved query packages plus any binding/permission capability

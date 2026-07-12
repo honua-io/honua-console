@@ -165,6 +165,79 @@ public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
             Assert.Equal("1", cut.Find("[data-summary-value='approvals']").TextContent.Trim()));
     }
 
+    [Fact]
+    public void FailedReads_SurfaceExplicitErrorAffordance_WithRetry_NamingSource()
+    {
+        // console#308: a backend-down read (Unavailable) surfaces an explicit, retryable error
+        // affordance naming the failing source — not just an em-dashed cell — on the health strip.
+        Services.AddSingleton<IOpsHealthDataSource>(new StubHealthDataSource
+        {
+            Result = OperateSectionResult<OpsHealthView>.Denied(OperateSectionStatus.Unavailable, "500 from admin API."),
+        });
+        Services.AddSingleton<IConsoleApprovalInboxClient>(new StubInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Unavailable, "500 from admin API."),
+        });
+        Services.AddSingleton<IConsoleProposalRealtimeClient>(new StubRealtimeClient());
+
+        var cut = Render<OpsSummaryStrip>();
+
+        var error = cut.Find("[data-summary-error]");
+        Assert.Contains("Couldn't reach", error.TextContent, StringComparison.Ordinal);
+        Assert.NotNull(cut.Find("[data-summary-retry]"));
+        // Never loaded successfully yet -> the persistent last-refreshed marker says so.
+        Assert.Contains("Never loaded", cut.Find("[data-summary-last-refreshed]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Retry_AfterError_ClearsErrorAffordance_AndShowsHealth()
+    {
+        var health = new StubHealthDataSource
+        {
+            Result = OperateSectionResult<OpsHealthView>.Denied(OperateSectionStatus.Unavailable, "500 from admin API."),
+        };
+        Services.AddSingleton<IOpsHealthDataSource>(health);
+        Services.AddSingleton<IConsoleProposalRealtimeClient>(new StubRealtimeClient());
+
+        var cut = Render<OpsSummaryStrip>();
+        Assert.NotNull(cut.Find("[data-summary-error]"));
+
+        // The backend recovers; a Retry re-reads and clears the error affordance.
+        health.Result = OperateSectionResult<OpsHealthView>.Allowed(HealthyView());
+        cut.Find("[data-summary-retry]").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("[data-summary-error]"));
+            Assert.Contains("healthy", cut.Find("[data-summary-tile='health'] .console-status").TextContent, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Reconnect_FlipsManualToLive_WithoutReload()
+    {
+        // console#309: the approvals liveness flips on reconnect with no page reload, driven by
+        // the shared realtime state-changed seam.
+        Services.AddSingleton<IOpsHealthDataSource>(new StubHealthDataSource
+        {
+            Result = OperateSectionResult<OpsHealthView>.Allowed(HealthyView()),
+        });
+        var realtime = new StubRealtimeClient { Connected = false };
+        Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
+
+        var cut = Render<OpsSummaryStrip>();
+        Assert.DoesNotContain("is-live", cut.Find("[data-summary-liveness]").ClassList);
+
+        cut.InvokeAsync(() => realtime.SetState(ConsoleRealtimeConnectionState.Connected));
+
+        cut.WaitForAssertion(() =>
+        {
+            var liveness = cut.Find("[data-summary-liveness]");
+            Assert.Contains("is-live", liveness.ClassList);
+            Assert.Contains("Approvals live", liveness.TextContent, StringComparison.Ordinal);
+        });
+    }
+
     private static ConsoleProposalSummary Proposal(string proposalId, ConsoleProposalStatus status) => new(
         ProposalId: proposalId,
         Kind: ConsoleProposalKind.MetadataRelease,
@@ -227,13 +300,23 @@ public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
             Task.FromResult(Result);
     }
 
-    private sealed class StubRealtimeClient : IConsoleProposalRealtimeClient
+    private sealed class StubRealtimeClient : IConsoleProposalRealtimeClient, IConsoleRealtimeCapabilityClient
     {
-        public bool Connected { get; set; }
+        private ConsoleRealtimeConnectionState _state = ConsoleRealtimeConnectionState.NotConfigured;
 
-        public bool IsConnected => Connected;
+        public bool Connected
+        {
+            get => _state == ConsoleRealtimeConnectionState.Connected;
+            set => SetState(value ? ConsoleRealtimeConnectionState.Connected : ConsoleRealtimeConnectionState.NotConfigured);
+        }
+
+        public ConsoleRealtimeConnectionState ConnectionState => _state;
+
+        public bool IsConnected => _state == ConsoleRealtimeConnectionState.Connected;
 
         public event Action<ConsoleProposalEvent>? ProposalChanged;
+
+        public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged;
 
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
@@ -242,5 +325,18 @@ public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public void RaiseProposalChanged(ConsoleProposalEvent evt) => ProposalChanged?.Invoke(evt);
+
+        // Drives a connection-state transition (console#309), raising ConnectionStateChanged so
+        // the strip can flip its liveness on reconnect without a reload.
+        public void SetState(ConsoleRealtimeConnectionState state)
+        {
+            if (_state == state)
+            {
+                return;
+            }
+
+            _state = state;
+            ConnectionStateChanged?.Invoke(state);
+        }
     }
 }

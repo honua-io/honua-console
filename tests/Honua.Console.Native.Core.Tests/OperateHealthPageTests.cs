@@ -98,7 +98,9 @@ public sealed class OperateHealthPageTests
             TrendResult = OperateSectionResult<OpsHealthTrendView>.Denied(OperateSectionStatus.Unsupported, "n/a")
         });
 
-        Assert.Contains("does not yet expose ops-health history", html);
+        // Human-first line up front; the route/PR diagnostics live in the disclosure (#311).
+        Assert.Contains("Trend charts aren&#x27;t available on this server version yet", html);
+        Assert.Contains("ops-health/history", html);
     }
 
     [Fact]

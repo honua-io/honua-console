@@ -15,7 +15,7 @@ public sealed class UnsupportedStudioQueryPackageDataSource : IStudioQueryPackag
         "Query builder",
         "Missing binding",
         "Honua:Server:BaseUrl",
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the query builder can bind the server-owned saved query content lifecycle from honua-server (#1182).");
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the query builder can bind the server-owned saved query content lifecycle from honua-server.");
 
     public Task<StudioQueryWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new StudioQueryWorkspace([], [MissingBinding]));

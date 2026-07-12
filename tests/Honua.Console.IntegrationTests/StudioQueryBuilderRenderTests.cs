@@ -41,6 +41,44 @@ public sealed class StudioQueryBuilderRenderTests
     }
 
     [Fact]
+    public void QueryBuilder_ListUnsupported_LayersHumanSummaryOverDiagnosticsDisclosure()
+    {
+        // The saved-query-list capability state (honua-console#311): the first line is plain language and
+        // carries no issue ref, while the verbatim contract + tracking issue relocate into the disclosure.
+        var listUnsupported = new StudioQueryCapabilityState(
+            "Query builder",
+            "Unsupported",
+            "GET /api/v1/analysis/content/items (saved-query list)",
+            "honua-server exposes no saved-query list endpoint, so existing queries cannot be enumerated from live data.",
+            Summary: "This server version can't list saved queries yet — open a query by id, or create a new one.",
+            IssueRef: "honua-server#1182");
+        var data = new FakeQueryDataSource
+        {
+            Workspace = new StudioQueryWorkspace([], [listUnsupported])
+        };
+        using var ctx = new Bunit.BunitContext();
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
+
+        var page = ctx.Render<StudioQueryBuilderPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-diagnostics-summary", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // First line: human, no issue ref, no HTTP code.
+        var summary = page.Find("[data-diagnostics-summary]").TextContent;
+        Assert.Contains("can't list saved queries", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("#1182", summary, StringComparison.Ordinal);
+
+        // Disclosure: the tracking issue is preserved as a real link, and the contract survives verbatim.
+        var issue = page.Find("[data-diagnostics-issue]");
+        Assert.Equal("honua-server#1182", issue.TextContent);
+        Assert.Equal("https://github.com/honua-io/honua-server/issues/1182", issue.GetAttribute("href"));
+        Assert.Contains("GET /api/v1/analysis/content/items (saved-query list)", page.Find("[data-diagnostics-contract]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void QueryBuilder_WhenBound_RendersSavedQueryPackageList()
     {
         var data = new FakeQueryDataSource

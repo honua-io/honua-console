@@ -70,6 +70,9 @@ public sealed class ShareHomeRenderTests
         // The merged runtime never falls back to seeded demo content on a server failure.
         Assert.DoesNotContain("data-share-home-table", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-share-kpis", page.Markup, StringComparison.Ordinal);
+        // The empty state carries a real CTA matching its prose (honua-console#313), mirroring Catalog's.
+        Assert.NotEmpty(page.FindAll("a.console-button-link[href='/operate/publishing']"));
+        Assert.Contains("Open Publishing", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]

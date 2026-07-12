@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Bunit;
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -188,12 +189,79 @@ public sealed class CatalogServerBindingRenderTests
         Assert.DoesNotContain("Catalog could not load", page.Markup, StringComparison.Ordinal);
     }
 
-    private static void RegisterCatalog(Bunit.BunitContext ctx, StubHandler handler, bool anonymous)
+    [Fact]
+    public void Catalog_EmptyCatalog_WithBoundServerResources_BridgesToLiveResourceCount()
+    {
+        // UCD review 2026-07-12 (honua-console#312): an empty workspace catalog bound to a data-rich server
+        // must bridge the mental model instead of reading as a flat "0 items" contradiction against
+        // Operate → Data & Layers. The count comes from the existing resources projection.
+        var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse { Total = 0, Items = [] }));
+        using var ctx = new Bunit.BunitContext();
+        RegisterCatalog(ctx, handler, anonymous: false, operateData: new StubOperateData(resourceCount: 14));
+
+        var page = ctx.Render<CatalogPage>();
+
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(page.FindAll("[data-catalog-server-bridge]")),
+            TimeSpan.FromSeconds(5));
+
+        // The bridge sentence names the live resource count and both exits (Operate + Publishing).
+        Assert.Contains("the connected server has", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("14", page.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll("[data-catalog-server-bridge] a[href='/operate/data']"));
+        Assert.NotEmpty(page.FindAll("[data-catalog-server-bridge] a[href='/operate/publishing']"));
+        // The bound-with-resources bridge replaces the plain "publish the first item" empty copy.
+        Assert.DoesNotContain("Try a broader search", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_EmptyCatalog_Unbound_RendersPlainEmptyState_NoBridge()
+    {
+        // No server binding (empty resources projection): the existing empty state is unchanged and no
+        // "N live resources" bridge is fabricated (honua-console#312 AC: unbound state remains).
+        var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse { Total = 0, Items = [] }));
+        using var ctx = new Bunit.BunitContext();
+        RegisterCatalog(ctx, handler, anonymous: false, operateData: new UnsupportedOperateTransitionDataSource());
+
+        var page = ctx.Render<CatalogPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("No content matched", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Empty(page.FindAll("[data-catalog-server-bridge]"));
+        Assert.Contains("Try a broader search or publish the first item", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("the connected server has", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_EmptyCatalog_WhenResourceReadFails_OmitsBridge()
+    {
+        // The bridge is a best-effort mental-model aid: a resources read failure omits the line and falls
+        // back to the plain empty state rather than surfacing an error (honua-console#312 AC: degrade gracefully).
+        var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse { Total = 0, Items = [] }));
+        using var ctx = new Bunit.BunitContext();
+        RegisterCatalog(ctx, handler, anonymous: false, operateData: new StubOperateData(resourceCount: 9, throwOnRead: true));
+
+        var page = ctx.Render<CatalogPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("No content matched", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Empty(page.FindAll("[data-catalog-server-bridge]"));
+        Assert.DoesNotContain("the connected server has", page.Markup, StringComparison.Ordinal);
+    }
+
+    private static void RegisterCatalog(
+        Bunit.BunitContext ctx,
+        StubHandler handler,
+        bool anonymous,
+        IOperateTransitionDataSource? operateData = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };
         var client = new HonuaConsoleContentHttpClient(httpClient, new HonuaConsoleContentClientOptions(BaseUri, "admin-key"));
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new HonuaServerConsoleCatalogClient(client));
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new StubReadContextResolver(anonymous));
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(operateData ?? new UnsupportedOperateTransitionDataSource());
     }
 
     private static HonuaConsoleContentItem ServerItem(string id, string title, string itemType, string visibility, string[] actions) =>
@@ -231,6 +299,41 @@ public sealed class CatalogServerBindingRenderTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(responder(request));
+    }
+
+    // Minimal resources-projection stub for the catalog server-binding bridge. Only the resource COUNT is
+    // load-bearing; the default IOperateTransitionDataSource.GetResourcesViewAsync derives from the workspace.
+    private sealed class StubOperateData(int resourceCount, bool throwOnRead = false) : IOperateTransitionDataSource
+    {
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        {
+            if (throwOnRead)
+            {
+                throw new InvalidOperationException("Simulated resources read failure.");
+            }
+
+            var edits = Enumerable.Range(0, resourceCount)
+                .Select(index => new OperateResourceEditPreview(
+                    $"res-{index}",
+                    $"Resource {index}",
+                    "source",
+                    "draft",
+                    "Published",
+                    new OperateBlastRadius([], [], [], [], [], []),
+                    [],
+                    []))
+                .ToArray();
+            return Task.FromResult(new OperateTransitionWorkspace([], edits, [], [], []));
+        }
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateConnectionSummary?>(null);
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateResourceEditPreview?>(null);
+
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateServiceDetail?>(null);
     }
 
     private sealed class StubCatalogClient(ConsoleContentDetail detail) : IConsoleCatalogClient
