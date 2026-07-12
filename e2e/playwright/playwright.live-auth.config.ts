@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 
 // Live shared-origin BFF auth proof (honua-console#303 / PR #305 deploy-proof lane).
 //
@@ -21,7 +22,8 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env.HONUA_CONSOLE_E2E_LIVE_AUTH_PORT ?? '5274');
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const SERVER_URL = process.env.HONUA_CONSOLE_E2E_LIVE_AUTH_SERVER_URL ?? 'http://127.0.0.1:5281';
-const REPO_ROOT = new URL('../../', import.meta.url).pathname;
+// fileURLToPath keeps the cwd valid on Windows too (URL.pathname yields /C:/...).
+const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 export default defineConfig({
   testDir: './live-auth/specs',

@@ -57,6 +57,9 @@ services:
 
   honua-server:
     image: ${HONUA_LIVE_AUTH_SERVER_IMAGE:-ghcr.io/honua-io/honua-server:nightly-20260711}
+    # The postgis image restarts postgres once during first-run init, after
+    # pg_isready already reports ready; retry the preflight instead of dying.
+    restart: on-failure:5
     depends_on:
       keycloak:
         condition: service_started
