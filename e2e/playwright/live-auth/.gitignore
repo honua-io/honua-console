@@ -1,0 +1,4 @@
+# Generated per-run: self-signed IdP TLS material (gen-certs.sh) and proof
+# artifacts (screenshots + flow log) written by the live-auth spec.
+certs/
+evidence/
