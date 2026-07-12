@@ -1,0 +1,75 @@
+{
+  "realm": "honua",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Honua operator admin role" },
+      { "name": "user", "description": "Honua operator base role" }
+    ]
+  },
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@live-proof.honua.test",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Operator",
+      "credentials": [
+        { "type": "password", "value": "alice-live-proof-pw", "temporary": false }
+      ],
+      "realmRoles": ["admin", "user"]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@live-proof.honua.test",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Operator",
+      "credentials": [
+        { "type": "password", "value": "bob-live-proof-pw", "temporary": false }
+      ],
+      "realmRoles": ["admin", "user"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "honua-console-bff",
+      "name": "Honua Console BFF live proof",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "honua-console-bff-live-proof-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:5274/admin/auth/callback"
+      ],
+      "webOrigins": ["http://127.0.0.1:5274"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1:5274/admin"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm-roles-flat",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

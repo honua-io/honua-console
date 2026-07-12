@@ -10,7 +10,8 @@
   },
   "scripts": {
     "e2e:smoke": "playwright test",
-    "e2e:live": "playwright test --config playwright.live.config.ts"
+    "e2e:live": "playwright test --config playwright.live.config.ts",
+    "e2e:live-auth": "playwright test --config playwright.live-auth.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1"

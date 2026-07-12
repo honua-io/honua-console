@@ -1,0 +1,104 @@
+# Live shared-origin BFF auth proof stack (honua-console#303 / PR #305).
+#
+# Boots the two REAL upstream pieces of the operator-session BFF topology:
+#   - Keycloak (real OIDC IdP) on https://host.docker.internal:8443, TLS via the
+#     self-signed cert in ./certs (SAN: host.docker.internal, localhost).
+#     Realm "honua" is imported from ./realm with users alice (admin) and bob (user)
+#     and the confidential client honua-console-bff whose ONLY registered redirect
+#     URI is the shared-origin Console callback http://127.0.0.1:5274/admin/auth/callback.
+#   - honua-server (pinned nightly image) on http://127.0.0.1:5281 with:
+#       * Generic OIDC provider -> the Keycloak realm (HTTPS authority, RequireHttps
+#         stays at its secure default),
+#       * PUBLIC_BASE_URL -> the Console origin (so the server-built OIDC redirect_uri
+#         lands on the Console's /admin/auth/callback — the documented shared-origin
+#         routing), and
+#       * the operator bearer issuance enabled (Authentication:OperatorBearer).
+#     NO dev-auth bypass is set: admin surfaces demand real operator credentials, so
+#     any admin data the Console renders can only have come through the exchanged bearer.
+#
+# The Console host itself is booted by playwright.live-auth.config.ts (stock
+# Honua.Console.Web on http://127.0.0.1:5274).
+#
+# Regenerate certs with:  ./gen-certs.sh   (see that script for the SAN set)
+
+name: honua-console-live-auth-proof
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: honua
+      POSTGRES_USER: honua
+      POSTGRES_PASSWORD: honua
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honua -d honua"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-live-proof-pw
+      KC_HOSTNAME: https://host.docker.internal:8443
+      KC_HTTP_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/certs/kc.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/certs/kc.key
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./certs:/opt/keycloak/certs:ro
+      - ./realm:/opt/keycloak/data/import:ro
+    ports:
+      - "8443:8443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  honua-server:
+    image: ${HONUA_LIVE_AUTH_SERVER_IMAGE:-ghcr.io/honua-io/honua-server:nightly-20260711}
+    # The postgis image restarts postgres once during first-run init, after
+    # pg_isready already reports ready; retry the preflight instead of dying.
+    restart: on-failure:5
+    depends_on:
+      keycloak:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Test
+      HONUA_REGISTER_TEST_INFRASTRUCTURE: "true"
+      Licensing__DevGrantEdition: Enterprise
+      # Same backing-store shape the in-repo Testcontainers live lane uses
+      # (tests/Honua.Console.IntegrationTests/ConsoleTrustIntegrationOptions.BuildServerEnvironment).
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua
+      Security__ConnectionEncryption__MasterKey: console-live-auth-proof-master-key-0123456789
+      # The server's fixed-window rate limiter shares ONE counter bucket per client
+      # IP across ALL rate-limited endpoints while enforcing each endpoint's own
+      # limit. The Console host funnels every operator through one IP, so ordinary
+      # page traffic exhausts the 5/min authorize-url allowance and 429s the sign-in
+      # bootstrap. Disable it for the proof; flagged as a deployment consideration.
+      RateLimiting__Enabled: "false"
+      # Shared-origin routing: the server's OIDC redirect_uri is built from the
+      # PUBLIC base URL, which is the CONSOLE origin — not the server's own origin.
+      PUBLIC_BASE_URL: http://127.0.0.1:5274
+      # Real IdP over HTTPS (RequireHttps stays true, the validator's secure default).
+      Oidc__Enabled: "true"
+      Oidc__Generic__Enabled: "true"
+      Oidc__Generic__DisplayName: "Keycloak (live proof)"
+      Oidc__Generic__Authority: https://host.docker.internal:8443/realms/honua
+      Oidc__Generic__ClientId: honua-console-bff
+      Oidc__Generic__ClientSecret: honua-console-bff-live-proof-secret
+      # Console-consumable operator bearer (honua-server#2258).
+      Authentication__OperatorBearer__Enabled: "true"
+      Authentication__OperatorBearer__SigningKey: live-proof-operator-bearer-signing-key-0123456789
+      # Trust the self-signed Keycloak TLS cert for the server's backchannel calls
+      # (discovery, JWKS, token endpoint).
+      SSL_CERT_FILE: /certs/kc.crt
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "5281:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

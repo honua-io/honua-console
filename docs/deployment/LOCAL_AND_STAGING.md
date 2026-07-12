@@ -39,8 +39,12 @@ HONUA_ADMIN_API_KEY=dev-admin-key \
 dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
 ```
 
-That local command supports read-only Operate work. Human-attributable mutations require a trusted
-operator bearer exchange as documented in [Console authentication](../console-authentication.md).
+That local command supports read-only Operate work immediately. For human-attributable mutations,
+configure honua-server's `PUBLIC_BASE_URL` as `http://127.0.0.1:5174` (the Console origin),
+register `http://127.0.0.1:5174/admin/auth/callback` with the development OIDC provider, and
+use Console's built-in per-operator server-session BFF as documented in
+[Console authentication](../console-authentication.md). The Console still calls the server directly
+at `HONUA_SERVER_BASE_URL`; only the browser callback returns to the Console origin.
 Non-interactive host composition can opt in with `HeadlessService` and an explicit `ServiceApiKey`
 environment profile; the key is then accepted only when that profile has no interactive account
 session. Interactive profile creation does not offer this mode. Do not use it to work around an
@@ -130,8 +134,11 @@ needs to:
 
 For smoke evidence during staging promotion, exercise:
 
-- Same-origin auth cookie set by `honua-server` survives navigation between
-  `/studio`, `/catalog`, `/operate`, and `/share`.
+- Console's HttpOnly operator cookie survives navigation between `/studio`, `/catalog`,
+  `/operate`, and `/share`; honua-server's HttpOnly session cookie remains only in the
+  operator/profile-partitioned BFF jar.
+- The OIDC provider returns `/admin/auth/callback` to Console on the configured shared public
+  origin, and a server-authenticated operator can perform one bearer-only approval mutation.
 - `HONUA_SERVER_BASE_URL` points at the absolute HTTP(S) staging honua-server
   origin or proxy used for admin API reads, and `/operate` shows either live
   admin data or named unsupported/missing-permission states for absent server

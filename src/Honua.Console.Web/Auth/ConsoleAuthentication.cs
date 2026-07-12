@@ -215,11 +215,19 @@ public static class ConsoleAuthentication
                 statusCode: StatusCodes.Status401Unauthorized);
         }).AllowAnonymous();
 
-        app.MapPost("/auth/logout", async (HttpContext context) =>
+        app.MapPost("/auth/logout", async (
+            HttpContext context,
+            ConsoleServerSessionBffCoordinator serverSessionBff,
+            CancellationToken cancellationToken) =>
         {
+            if (context.User.Identity?.IsAuthenticated == true)
+            {
+                await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             await context.SignOutAsync(ConsoleAuthConstants.CookieScheme).ConfigureAwait(false);
             return Results.Redirect("/auth/login");
-        }).AllowAnonymous();
+        });
 
         return app;
     }

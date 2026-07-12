@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Honua.Console.Native.Core.Tests" />
+    <InternalsVisibleTo Include="Honua.Console.Web" />
   </ItemGroup>
 
   <!-- L0 deflection (honua-console#165): bundle the honua-gis-llm support KB
