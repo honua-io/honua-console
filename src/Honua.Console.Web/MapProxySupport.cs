@@ -16,6 +16,15 @@ namespace Honua.Console.Web;
 public static class MapProxySupport
 {
     /// <summary>
+    /// Neutralizes CR/LF in a user-provided value before it reaches a log entry, so a crafted
+    /// route/query value cannot forge additional log lines (CodeQL cs/log-forging). Structured
+    /// logging keeps the value as a property, but text-rendering sinks (console formatter, file
+    /// exporters) would still emit embedded newlines verbatim.
+    /// </summary>
+    public static string LogSafe(string? value) =>
+        string.IsNullOrEmpty(value) ? string.Empty : value.ReplaceLineEndings(" ");
+
+    /// <summary>
     /// True when there is an authenticated console session, using the same definition as
     /// <see cref="ConsoleCatalogReadContextResolver"/>: an active environment profile whose
     /// account is not Anonymous and that has a non-empty access token.

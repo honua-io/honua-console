@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/diagnostic-bundle.v1.json",
+  "title": "Honua Sanitized Diagnostic Bundle (v1)",
+  "description": "Canonical, sanitized evidence contract for SDK/client interop tickets (honua-support#41). A diagnostic bundle NEVER carries raw request/response bytes. Each captured HTTP exchange is a sanitized envelope: HTTP method, a normalized path (path parameters and query values placeholdered), status code, media type, correlation/trace ids, an allowlist of safe headers ONLY, and redacted + truncated body previews. For each body, the ORIGINAL byte size and a content hash are recorded alongside a redaction-applied flag so integrity is verifiable without the bytes. The bundle carries explicit content-classification and consent fields. Intake VALIDATES submissions against this schema and enforces every string-length, array-count, and body-size bound below; violations are rejected with a 400. This is the canonical artifact SDK emitters and the console must conform to.",
+  "type": "object",
+  "required": ["schemaVersion", "contentClassification", "consent", "envelopes"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "Contract version. Bump only on breaking changes; additive fields keep v1.",
+      "type": "string",
+      "const": "1.0"
+    },
+    "bundleId": {
+      "description": "Optional client-assigned id for the bundle. The server assigns its own id on intake.",
+      "type": "string",
+      "maxLength": 64
+    },
+    "contentClassification": {
+      "description": "Declared sensitivity of the captured content, after client-side redaction.",
+      "type": "string",
+      "enum": ["unknown", "public", "internal", "customer-data", "secret-suspected"]
+    },
+    "consent": {
+      "description": "Explicit consent to share the sanitized bundle with Honua support.",
+      "type": "object",
+      "required": ["redactionAcknowledged", "shareWithSupport"],
+      "additionalProperties": false,
+      "properties": {
+        "redactionAcknowledged": {
+          "description": "The submitter acknowledges the bundle was redacted and carries no raw secrets.",
+          "type": "boolean"
+        },
+        "shareWithSupport": {
+          "description": "The submitter consents to sharing the sanitized bundle with Honua support.",
+          "type": "boolean"
+        },
+        "grantedBy": {
+          "description": "Optional identity of the human/automation that granted consent.",
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "envelopes": {
+      "description": "Sanitized HTTP exchanges. At least one; capped to bound bundle size.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["method", "normalizedPath"],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "description": "HTTP method (e.g. GET, POST).",
+            "type": "string",
+            "maxLength": 16
+          },
+          "normalizedPath": {
+            "description": "Request path with path parameters and query values placeholdered (e.g. /api/v1/tickets/{id}?status={value}).",
+            "type": "string",
+            "maxLength": 2048
+          },
+          "statusCode": {
+            "description": "HTTP status code, when the exchange produced a response.",
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "mediaType": {
+            "description": "Response media type (e.g. application/json).",
+            "type": "string",
+            "maxLength": 256
+          },
+          "correlationId": {
+            "description": "Correlation id linking the exchange to server logs.",
+            "type": "string",
+            "maxLength": 200
+          },
+          "traceId": {
+            "description": "Distributed-trace id for the exchange.",
+            "type": "string",
+            "maxLength": 200
+          },
+          "capturedAt": {
+            "description": "When the exchange was captured (ISO-8601).",
+            "type": "string",
+            "maxLength": 40
+          },
+          "requestHeaders": {
+            "description": "Allowlisted, non-secret request headers ONLY. Authorization, Cookie, and any header not on the server allowlist are never present.",
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/$defs/header" }
+          },
+          "responseHeaders": {
+            "description": "Allowlisted, non-secret response headers ONLY. Set-Cookie and any header not on the server allowlist are never present.",
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/$defs/header" }
+          },
+          "requestBody": { "$ref": "#/$defs/bodyPreview" },
+          "responseBody": { "$ref": "#/$defs/bodyPreview" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "header": {
+      "type": "object",
+      "required": ["name", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "maxLength": 128 },
+        "value": { "type": "string", "maxLength": 2048 }
+      }
+    },
+    "bodyPreview": {
+      "description": "A redacted, truncated preview of a body plus integrity metadata for the ORIGINAL bytes. The raw bytes are never included.",
+      "type": "object",
+      "required": ["originalByteSize", "redactionApplied", "truncated"],
+      "additionalProperties": false,
+      "properties": {
+        "preview": {
+          "description": "Redacted, truncated text preview of the body.",
+          "type": "string",
+          "maxLength": 8192
+        },
+        "contentSha256": {
+          "description": "Lowercase hex SHA-256 of the ORIGINAL (pre-redaction) body bytes.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "originalByteSize": {
+          "description": "Size in bytes of the ORIGINAL body before truncation/redaction.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 26214400
+        },
+        "redactionApplied": {
+          "description": "True when redaction removed content from the preview.",
+          "type": "boolean"
+        },
+        "truncated": {
+          "description": "True when the preview is shorter than the original body.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

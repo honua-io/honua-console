@@ -5,6 +5,8 @@ using Honua.Console.Contracts;
 using Honua.Console.Native.Core.Security;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Native.Core.Connections;
 
@@ -24,6 +26,7 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
     private readonly ConsoleTrustEvaluator _evaluator;
     private readonly NativeHonuaConnectionFactory _connectionFactory;
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger _logger;
 
     private readonly ConcurrentDictionary<string, NativeHonuaConnection> _connections =
         new(StringComparer.Ordinal);
@@ -35,7 +38,8 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
         IConsoleClientCertificateValidationClient validationClient,
         ConsoleTrustEvaluator evaluator,
         NativeHonuaConnectionFactory connectionFactory,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ILogger<ConsoleConnectionManager>? logger = null)
     {
         _profiles = profiles;
         _certificateResolver = certificateResolver;
@@ -44,6 +48,7 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
         _evaluator = evaluator;
         _connectionFactory = connectionFactory;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _logger = logger ?? (ILogger)NullLogger<ConsoleConnectionManager>.Instance;
     }
 
     public bool IsConnected(string profileId) =>
@@ -327,8 +332,18 @@ public sealed class ConsoleConnectionManager : IConsoleConnectionManager, IAsync
                     Detail = $"The account is not authorized to validate client certificates for this environment (HTTP {(int)ex.StatusCode!.Value})."
                 };
             }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
+                // A non-auth failure while validating trust means no usable connection, surfaced to the
+                // operator as a generic "Unreachable". Log it so an operator/support engineer can tell a
+                // transport fault (DNS/TLS/timeout) from a genuine unreachable server, instead of the trust
+                // gate failing completely silently (honua-console#279 PA-236).
+                _logger.LogWarning(
+                    ex,
+                    "Trust validation for environment profile {ProfileId} ({ServerBaseUri}) failed with {ExceptionType}; treating the environment as unreachable.",
+                    profile.Id,
+                    profile.ServerBaseUri,
+                    ex.GetType().Name);
                 unreachable = true;
             }
         }

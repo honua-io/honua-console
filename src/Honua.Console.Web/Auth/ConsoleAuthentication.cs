@@ -218,11 +218,25 @@ public static class ConsoleAuthentication
         app.MapPost("/auth/logout", async (
             HttpContext context,
             ConsoleServerSessionBffCoordinator serverSessionBff,
+            IConsoleEnvironmentProfileStore profileStore,
+            IConsoleAccountSessionStore sessionStore,
             CancellationToken cancellationToken) =>
         {
             if (context.User.Identity?.IsAuthenticated == true)
             {
                 await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
+
+                // Evict the departed operator's in-memory partitions so the profile/session stores do not
+                // accumulate one partition per operator for the life of the process (honua-console#279
+                // PA-237). Resolve the operator key from this request's still-authenticated principal
+                // before the cookie sign-out clears it. Only the browser host's operator-scoped stores
+                // carry per-operator partitions; the native single-operator Json stores are untouched.
+                var operatorKey = ConsoleOperatorContext.ResolveKey(context.User);
+                if (operatorKey is not null)
+                {
+                    (profileStore as OperatorScopedEnvironmentProfileStore)?.EvictOperator(operatorKey);
+                    (sessionStore as OperatorScopedAccountSessionStore)?.EvictOperator(operatorKey);
+                }
             }
 
             await context.SignOutAsync(ConsoleAuthConstants.CookieScheme).ConfigureAwait(false);

@@ -18,6 +18,11 @@ public static class StudioAnalysisInputChart
 {
     public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v5.json";
 
+    // Cached once rather than allocated per BuildSpec() call. A fresh JsonSerializerOptions instance
+    // per serialization bypasses the type-metadata cache and reallocates on every chart render
+    // (honua-console#279 PA-238). JsonSerializerOptions is thread-safe for read after first use.
+    private static readonly JsonSerializerOptions IndentedOptions = new() { WriteIndented = true };
+
     /// <summary>The first input bound to a real service+layer, or null when none is bound.</summary>
     public static StudioAnalysisInputEditor? BoundInput(StudioAnalysisPlanEditor plan)
     {
@@ -81,6 +86,6 @@ public static class StudioAnalysisInputChart
             },
         };
 
-        return spec.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        return spec.ToJsonString(IndentedOptions);
     }
 }
