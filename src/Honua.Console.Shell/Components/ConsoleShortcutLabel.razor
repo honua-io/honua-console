@@ -1,0 +1,17 @@
+@inject IServiceProvider Services
+
+@* Platform-adaptive shortcut hint. Renders "<Action> · ⌘↵" on macOS and "<Action> · Ctrl+↵" on
+   Windows/Linux so every shortcut label picks up the correct platform glyph from one shared place
+   (honua-console#313). The modifier comes from the registered IConsoleShortcutPlatform (the production
+   path via AddHonuaConsoleShell); a runtime default is used when the seam is not wired, so this purely
+   presentational glyph never hard-depends on DI registration. *@
+<span class="console-shortcut-label" data-console-shortcut="@Action">@ConsoleKeyboardShortcut.SubmitActionLabel(Action, UsesCommandKey)</span>
+
+@code {
+    /// <summary>The action verb shown before the chord, e.g. "Send".</summary>
+    [Parameter]
+    public string Action { get; set; } = "Send";
+
+    private bool UsesCommandKey =>
+        (Services.GetService<IConsoleShortcutPlatform>() ?? new RuntimeConsoleShortcutPlatform()).UsesCommandKey;
+}

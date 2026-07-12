@@ -29,6 +29,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
 
+        // Platform-adaptive keyboard-shortcut glyphs (honua-console#313): the primary modifier renders as
+        // ⌘ on macOS and Ctrl on Windows/Linux. The default follows the host OS (exact on the native desktop
+        // Console; Ctrl on Windows/Linux browser deployments — the overwhelming Console target).
+        services.TryAddSingleton<IConsoleShortcutPlatform, RuntimeConsoleShortcutPlatform>();
+
         // Capability-manifest gate for the deferred "exotic depth" surfaces (first-release cut-line,
         // docs/roadmap/FIRST_RELEASE_STRATEGY_AND_CUT_LINE.md). The advertised set is empty by default,
         // so temporal / disconnected-sync / realtime-alerting / cross-environment-promotion /

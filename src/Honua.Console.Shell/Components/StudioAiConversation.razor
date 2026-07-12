@@ -117,7 +117,14 @@
                         class="console-button studio-ai-send"
                         disabled="@(Busy || Disabled || string.IsNullOrWhiteSpace(_refine))"
                         @onclick="Send">
-                    @SendLabel
+                    @if (SendLabel is null)
+                    {
+                        <ConsoleShortcutLabel Action="Send" />
+                    }
+                    else
+                    {
+                        @SendLabel
+                    }
                 </button>
             </div>
         </footer>
@@ -170,9 +177,10 @@
     [Parameter]
     public string RefinePlaceholder { get; set; } = "Refine, or ask a follow-up…";
 
-    /// <summary>Send button label.</summary>
+    /// <summary>Send button label. When left null (the default) the button renders the shared
+    /// platform-adaptive "Send · ⌘↵" / "Send · Ctrl+↵" hint; a non-null value overrides it verbatim.</summary>
     [Parameter]
-    public string SendLabel { get; set; } = "Send ⌘↵";
+    public string? SendLabel { get; set; }
 
     /// <summary>In-flight state: the surface is awaiting the server for the current turn. Send and
     /// clarification choices are disabled and the "Honua is working…" + Cancel affordance shows, but the
