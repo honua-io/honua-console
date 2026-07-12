@@ -1369,7 +1369,8 @@ p {
 }
 
 .console-viewer-page {
-    width: min(1380px, calc(100vw - 48px));
+    /* Container-relative width (100%), not 100vw — see #310. */
+    width: min(1380px, 100%);
 }
 
 .console-map-surface {
@@ -1635,7 +1636,8 @@ p {
 }
 
 .studio-page {
-    width: min(1420px, calc(100vw - 48px));
+    /* Container-relative width (100%), not 100vw — see #310. */
+    width: min(1420px, 100%);
 }
 
 .studio-page-heading {
@@ -2019,7 +2021,10 @@ p {
 }
 
 .console-operate-page {
-    width: min(1360px, calc(100vw - 48px));
+    /* Size against the content column (100%), never the raw viewport. Using 100vw
+       here ignored the 280px rail + .console-main padding and forced the page wider
+       than its container at 1366-1440px, clipping right-edge content (#310). */
+    width: min(1360px, 100%);
 }
 
 .operate-heading {
@@ -3823,7 +3828,8 @@ p {
 }
 
 .workflow-page {
-    width: min(1440px, calc(100vw - 48px));
+    /* Container-relative width (100%), not 100vw — see #310. */
+    width: min(1440px, 100%);
 }
 
 .workflow-command-bar {
