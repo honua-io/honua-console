@@ -1281,6 +1281,14 @@ p {
     text-decoration: none;
 }
 
+/* Button-styled links keep their own foreground inside an action row: the plain-link color above
+   otherwise out-specifies .console-button-link and paints dark accent text on the accent button
+   (~1.4:1 contrast — catalog server-bridge CTA, #312). Secondary buttons already want the
+   accent-strong foreground, so only the filled primary variant is restored to white. */
+.console-action-row a.console-button-link:not(.console-button-secondary) {
+    color: #ffffff;
+}
+
 .console-state {
     padding: 28px;
     border: 1px solid var(--honua-border);
