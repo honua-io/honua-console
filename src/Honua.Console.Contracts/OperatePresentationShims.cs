@@ -31,46 +31,9 @@ public sealed record HonuaAdminLayerAuthoringDocument
     public JsonElement? Document { get; init; }
 }
 
-public partial interface IHonuaAdminOperateClient
-{
-    /// <summary>
-    /// Reads a layer's authored GeoServices popupInfo template
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/popup-info</c>). The document is the raw stored
-    /// template ({title, fieldInfos:[...]}) or null when none is authored.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerPopupInfoAsync(
-        int layerId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Writes (or clears, with a null document) a layer's GeoServices popupInfo template
-    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/popup-info</c>). The raw document object is sent as
-    /// the request body verbatim so the exact server shape round-trips.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerPopupInfoAsync(
-        int layerId,
-        JsonElement? document,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Reads a layer's authored drawingInfo renderer
-    /// (<c>GET /api/v1/admin/metadata/layers/{layerId}/drawing-info</c>). The document is the raw stored
-    /// template ({renderer:{...}}) or null when none is authored.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> GetLayerDrawingInfoAsync(
-        int layerId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Writes (or clears, with a null document) a layer's drawingInfo renderer
-    /// (<c>PUT /api/v1/admin/metadata/layers/{layerId}/drawing-info</c>). The raw document object is sent as
-    /// the request body verbatim so the exact server shape round-trips.
-    /// </summary>
-    Task<HonuaAdminEndpointResult<HonuaAdminLayerAuthoringDocument>> UpdateLayerDrawingInfoAsync(
-        int layerId,
-        JsonElement? document,
-        CancellationToken cancellationToken = default);
-}
+// The presentation authoring method declarations moved to IHonuaAdminPresentationClient
+// (OperateAdminRoleInterfaces.cs) as part of the PA-242 ISP decomposition; the aggregate
+// IHonuaAdminOperateClient inherits that role interface. The concrete implementations remain below.
 
 public sealed partial class HonuaAdminOperateHttpClient
 {
