@@ -31,6 +31,18 @@ public sealed class ApprovalInboxPageRenderTests
         return ctx;
     }
 
+    // Bounded-loading / trust-state tests (console#308) drive the page's own timeout, error, and
+    // last-refresh logic directly through the inbox client, without routing through the aggregator.
+    private static BunitContext NewContextWithInbox(
+        IConsoleApprovalInboxClient inbox,
+        FakeConsoleProposalRealtimeClient? realtime = null)
+    {
+        var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
+        ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime ?? new FakeConsoleProposalRealtimeClient());
+        return ctx;
+    }
+
     [Fact]
     public void DeniedRead_RendersStatusSurface()
     {
@@ -231,6 +243,162 @@ public sealed class ApprovalInboxPageRenderTests
             {
                 Assert.Equal("1", page.Find("[data-total-count] strong").TextContent.Trim());
                 Assert.NotNull(page.Find("[data-proposal-id=\"late-op\"]"));
+            },
+            TimeSpan.FromSeconds(5));
+
+        ctx.Dispose();
+    }
+
+    // ── Bounded loading + explicit error/retry/last-refreshed (console#308) ──────────────────
+
+    [Fact]
+    public void HungRead_BoundedLoading_ResolvesToErrorCard_WithRetryAndNeverLoaded()
+    {
+        // A backend that never answers must not spin on "Loading…" forever: the ~5s budget
+        // (driven small here) resolves to the explicit error card, distinct from the empty state.
+        var ctx = NewContextWithInbox(new HangingApprovalInboxClient());
+
+        var page = ctx.Render<ApprovalInboxPage>(p => p.Add(x => x.LoadBudget, TimeSpan.FromMilliseconds(150)));
+
+        page.WaitForAssertion(
+            () =>
+            {
+                var error = page.Find("[data-inbox-error]");
+                Assert.Contains("Couldn't read the approval queue", error.TextContent, StringComparison.Ordinal);
+                Assert.NotNull(page.Find("[data-inbox-retry]"));
+                Assert.Contains("Never loaded", page.Find("[data-inbox-last-refreshed]").TextContent, StringComparison.Ordinal);
+                // The error state is not the empty-success state.
+                Assert.DoesNotContain("No work in the queue", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+
+        ctx.Dispose();
+    }
+
+    [Fact]
+    public void Retry_AfterError_RecoversToQueue()
+    {
+        var recovering = new RecoveringApprovalInboxClient(
+            failuresBeforeSuccess: 1,
+            onRecovery: FakeProposalFactory.Snapshot(
+                FakeProposalFactory.Summary("recovered-op", ConsoleProposalKind.MetadataRelease, summary: "Promote roads")));
+        var ctx = NewContextWithInbox(recovering);
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        // The first read failed: error card with a working Retry.
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-inbox-retry]")), TimeSpan.FromSeconds(5));
+
+        page.Find("[data-inbox-retry]").Click();
+
+        // Retry re-reads; the now-recovered backend returns the queue.
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.NotNull(page.Find("[data-proposal-id=\"recovered-op\"]"));
+                Assert.Equal("1", page.Find("[data-total-count] strong").TextContent.Trim());
+            },
+            TimeSpan.FromSeconds(5));
+
+        ctx.Dispose();
+    }
+
+    [Fact]
+    public void ErrorAfterSuccess_KeepsLastSuccessfulRefresh_NotNever()
+    {
+        var scripted = new ScriptedApprovalInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty),
+        };
+        var ctx = NewContextWithInbox(scripted);
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        // Initial success renders the empty state (distinct from an error) and stamps the marker.
+        page.WaitForAssertion(
+            () => Assert.Contains("No work in the queue", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+
+        // The backend now fails; a manual refresh hits the error card, which must keep the last
+        // good refresh time rather than reverting to "never".
+        scripted.Result = OperateSectionResult<ApprovalInboxSnapshot>.Denied(
+            OperateSectionStatus.Unavailable, "The honua-server admin API returned 500.");
+        page.Find("[data-refresh-inbox]").Click();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                var refreshed = page.Find("[data-inbox-last-refreshed]").TextContent;
+                Assert.Contains("Last refreshed", refreshed, StringComparison.Ordinal);
+                Assert.DoesNotContain("Never loaded", refreshed, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+
+        ctx.Dispose();
+    }
+
+    // ── Freshness affordance: Live / paused / reconnect (console#309) ────────────────────────
+
+    [Fact]
+    public void Freshness_Connected_ShowsLive()
+    {
+        var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                var pill = page.Find("[data-live-state]");
+                Assert.Equal("live", pill.GetAttribute("data-live-state"));
+                Assert.Contains("Live", pill.TextContent, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Freshness_Degraded_ShowsPausedWithTimestamp_AndRefresh()
+    {
+        var realtime = new FakeConsoleProposalRealtimeClient { ConnectOnStart = false };
+        var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []), realtime);
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                var pill = page.Find("[data-live-state]");
+                Assert.Equal("paused", pill.GetAttribute("data-live-state"));
+                Assert.Contains("Updates paused", pill.TextContent, StringComparison.Ordinal);
+                // The successful (empty) read stamped a last-refreshed time, not "not yet".
+                Assert.Contains("UTC", page.Find("[data-inbox-paused-since]").TextContent, StringComparison.Ordinal);
+                Assert.NotNull(page.Find("[data-refresh-inbox]"));
+            },
+            TimeSpan.FromSeconds(5));
+
+        ctx.Dispose();
+    }
+
+    [Fact]
+    public void Freshness_Reconnect_FlipsPausedToLive_WithoutReload()
+    {
+        var realtime = new FakeConsoleProposalRealtimeClient { ConnectOnStart = false };
+        var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []), realtime);
+
+        var page = ctx.Render<ApprovalInboxPage>();
+        page.WaitForAssertion(
+            () => Assert.Equal("paused", page.Find("[data-live-state]").GetAttribute("data-live-state")),
+            TimeSpan.FromSeconds(5));
+
+        // The hub reconnects; the pill flips to Live with no manual refresh and no page reload.
+        page.InvokeAsync(() => realtime.SetConnectionState(ConsoleRealtimeConnectionState.Connected));
+
+        page.WaitForAssertion(
+            () =>
+            {
+                var pill = page.Find("[data-live-state]");
+                Assert.Equal("live", pill.GetAttribute("data-live-state"));
+                Assert.Contains("Live", pill.TextContent, StringComparison.Ordinal);
             },
             TimeSpan.FromSeconds(5));
 

@@ -46,13 +46,45 @@
                 <p class="console-kicker">Human-in-the-loop</p>
                 <h2 id="home-inbox-heading">Approval inbox</h2>
             </div>
-            <span class="approval-inbox-live @(RealtimeConnected ? "is-live" : null)" data-home-live-state
-                  data-fallback-engaged="@FallbackEngaged">
-                @(RealtimeConnected ? "Live" : "Manual")
-            </span>
+            @* Freshness affordance (console#309): Live when the proposals hub is connected;
+               otherwise an honest paused signal carrying the last good refresh time. Flips on
+               reconnect without a reload via the shared realtime state-changed seam. *@
+            @if (RealtimeConnected)
+            {
+                <span class="approval-inbox-live is-live" data-home-live-state="live"
+                      data-fallback-engaged="@FallbackEngaged">
+                    Live
+                </span>
+            }
+            else
+            {
+                <span class="approval-inbox-live approval-inbox-paused" data-home-live-state="paused"
+                      data-fallback-engaged="@FallbackEngaged">
+                    Updates paused — last refreshed
+                    <span data-home-inbox-paused-since>@ConsoleFreshness.LastRefreshedShort(_lastInboxSuccessUtc)</span>
+                </span>
+            }
             @if (!_inboxLoaded)
             {
                 <p class="console-muted">Reading the work queue…</p>
+            }
+            else if (!_inbox.IsAllowed && ConsoleReadBudget.IsErrorState(_inbox.Status))
+            {
+                @* Bounded-loading error (console#308): the queue read failed or blew its budget.
+                   Name the failing source, keep the last good refresh time, offer a working Retry —
+                   distinct from the "nothing pending" empty state below. *@
+                <div class="console-home-inbox-error" role="alert" data-home-inbox-error>
+                    <p data-home-inbox-error-title>Couldn't read the approval queue from @ServerName</p>
+                    @if (!string.IsNullOrWhiteSpace(_inbox.Message))
+                    {
+                        <p class="console-muted" data-home-inbox-error-detail>@_inbox.Message</p>
+                    }
+                    <p class="console-muted" data-home-inbox-last-refreshed>@ConsoleFreshness.LastRefreshed(_lastInboxSuccessUtc)</p>
+                    <button type="button" class="console-button console-button-secondary"
+                            disabled="@_inboxBusy" data-home-inbox-retry @onclick="RefreshInboxAsync">
+                        Retry
+                    </button>
+                </div>
             }
             else if (!_inbox.IsAllowed)
             {
@@ -144,34 +176,48 @@
 </section>
 
 @code {
+    /// <summary>
+    /// The bounded-loading budget for the inbox-band read (console#308). A parameter so tests can
+    /// drive the timeout path deterministically without waiting the full ~5s.
+    /// </summary>
+    [Parameter]
+    public TimeSpan LoadBudget { get; set; } = ConsoleReadBudget.Default;
+
     private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
 
     private bool _inboxLoaded;
+    private bool _inboxBusy;
     private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
+
+    // Last successful band read — persisted across failures so the paused pill / error card shows
+    // the last good time rather than "never" (console#308/#309).
+    private DateTimeOffset? _lastInboxSuccessUtc;
+    private string? _serverName;
 
     // Resolved optionally (console#292): a host without the realtime seam registered renders
     // the honest Manual state instead of failing DI at render time. Never a required inject.
     private IConsoleProposalRealtimeClient? _realtime;
 
+    // The concrete realtime client also implements the shared capability seam (console#293): its
+    // state-changed event flips the freshness pill on reconnect without a reload (console#309).
+    private IConsoleRealtimeCapabilityClient? _realtimeState;
+
     private bool RealtimeConnected => _realtime?.IsConnected == true;
 
     private bool FallbackEngaged => _realtime?.IsFallbackEngaged == true;
 
+    private string ServerName =>
+        string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
+
     protected override async Task OnInitializedAsync()
     {
         _profiles = await Profiles.ListProfilesAsync();
+        await ResolveServerNameAsync();
 
-        try
-        {
-            // The landing shows the queue at a glance; the inbox page is where operators
-            // filter and act. Both read the same first-class server proposals API.
-            _inbox = await Inbox.GetInboxAsync();
-        }
-        finally
-        {
-            _inboxLoaded = true;
-        }
+        // The landing shows the queue at a glance; the inbox page is where operators filter and
+        // act. Both read the same first-class server proposals API, under the same ~5s budget.
+        await RefreshInboxAsync();
 
         // Console#292 scope item 4: subscribe to the same admin-hub proposals group the
         // approval inbox uses so a pending/resolved event refreshes this band live, with no
@@ -181,7 +227,58 @@
         if (_realtime is not null)
         {
             _realtime.ProposalChanged += OnProposalEvent;
+            if (_realtime is IConsoleRealtimeCapabilityClient capability)
+            {
+                _realtimeState = capability;
+                _realtimeState.ConnectionStateChanged += OnConnectionStateChanged;
+            }
+
             await _realtime.StartAsync();
+        }
+    }
+
+    private async Task ResolveServerNameAsync()
+    {
+        try
+        {
+            var active = await Profiles.GetActiveProfileAsync();
+            if (active is { DisplayName.Length: > 0 })
+            {
+                _serverName = active.DisplayName;
+            }
+        }
+        catch
+        {
+            // The source name is a nicety, never a gate: fall back to the generic server label.
+        }
+    }
+
+    private async Task RefreshInboxAsync()
+    {
+        if (_inboxBusy)
+        {
+            return;
+        }
+
+        _inboxBusy = true;
+        try
+        {
+            // Bounded loading (console#308): a hung or failing read resolves to an explicit,
+            // retryable Unavailable error rather than sticking on "Reading the work queue…".
+            _inbox = await ConsoleReadBudget.RunAsync(
+                token => Inbox.GetInboxAsync(cancellationToken: token),
+                LoadBudget,
+                $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.");
+
+            if (_inbox.IsAllowed)
+            {
+                _lastInboxSuccessUtc = DateTimeOffset.UtcNow;
+            }
+        }
+        finally
+        {
+            _inboxBusy = false;
+            _inboxLoaded = true;
         }
     }
 
@@ -189,10 +286,15 @@
     {
         _ = InvokeAsync(async () =>
         {
-            _inbox = await Inbox.GetInboxAsync();
+            await RefreshInboxAsync();
             StateHasChanged();
         });
     }
+
+    // A realtime connect / reconnect / degrade: re-render so the freshness pill reflects the true
+    // connection state immediately, with no proposal event and no page reload (console#309).
+    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state) =>
+        _ = InvokeAsync(StateHasChanged);
 
     public ValueTask DisposeAsync()
     {
@@ -201,6 +303,11 @@
         if (_realtime is not null)
         {
             _realtime.ProposalChanged -= OnProposalEvent;
+        }
+
+        if (_realtimeState is not null)
+        {
+            _realtimeState.ConnectionStateChanged -= OnConnectionStateChanged;
         }
 
         return ValueTask.CompletedTask;
