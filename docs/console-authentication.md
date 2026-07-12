@@ -56,7 +56,7 @@ Operators sign in one of three ways, selected by `Honua:Console:Auth:Mode` / con
 
 | Mode | When | How the operator is established | Server credential |
 | --- | --- | --- | --- |
-| **EdgeForwarded** | `EdgeForwarded.Enabled=true` or `Mode=EdgeForwarded` | An ingress / oauth2-proxy authenticates against the customer IdP and injects forwarded-identity headers; `ConsoleEdgeIdentityMiddleware` builds the operator principal per request | Operator's `X-Forwarded-Access-Token` is forwarded as `Authorization: Bearer` (real per-principal RBAC). If the proxy supplies no token, human mutations require server bearer exchange or reauthentication. |
+| **EdgeForwarded** | `EdgeForwarded.Enabled=true` or `Mode=EdgeForwarded` | An ingress / oauth2-proxy authenticates against the customer IdP and injects forwarded-identity headers; `ConsoleEdgeIdentityMiddleware` builds the operator principal per request | Operator's `X-Forwarded-Access-Token` is forwarded as `Authorization: Bearer` (real per-principal RBAC). If the proxy supplies no token, the operator obtains a server bearer through the same-origin BFF; that bearer persists across subsequent identity-only requests (honua-console#306). An edge-supplied token still overrides a stored bearer. |
 | **Dev** | `Development` environment, or explicit `Mode=Dev` | `/auth/login` signs in a developer cookie | Reads may use the configured admin key; human approval/recovery mutations fail closed without a forwardable bearer. |
 | _unset_ (non-Development) | default | **Fail-closed** — `/auth/login` returns 401; no anonymous access | n/a |
 
@@ -112,6 +112,15 @@ exchange replaces it with the short-lived bearer and expiry in the profile-parti
 session store. Exchange denial, an expired bearer, or an unconfigured exchange returns a re-sign-in
 message and never falls back to `X-API-Key`.
 
+`ConsoleEdgeIdentityMiddleware` re-establishes the edge operator identity on **every** request and
+re-syncs the session. Absence of `X-Forwarded-Access-Token` means the edge manages the operator's
+identity, not their server credentials — so the per-request sync **preserves** a forwardable bearer the
+operator obtained out-of-band through the server-session BFF (below), together with its expiry, instead
+of overwriting it with the sentinel. The sentinel is written only when no forwardable bearer exists yet.
+An edge-supplied `X-Forwarded-Access-Token` remains the edge-owned credential and still takes precedence
+over any stored bearer. Downstream, `ConsoleOperatorBearerProvider` continues to enforce expiry and
+re-exchange, so a preserved bearer is honoured only until it expires or the operator signs out.
+
 ## Operator bearer exchange and deployment topology
 
 Honua-server ships `POST /api/v1/admin/auth/bearer`. It accepts the server's HttpOnly admin-session
@@ -155,7 +164,12 @@ Deployments may also use the trusted-edge topology:
 
 - use the built-in same-origin Console BFF described above; or
 - use a trusted edge that supplies a forwardable operator access
-  token to Console.
+  token to Console; or
+- front the Console with a trusted edge that forwards **identity headers only** (no
+  `X-Forwarded-Access-Token`) and let each operator obtain their server bearer through the same-origin
+  BFF. This combination is supported: the BFF-exchanged bearer persists across subsequent edge-identity
+  requests until it expires or the operator signs out, and an edge-supplied access token still overrides
+  it when present (honua-console#306).
 
 Do not replace the partitioned store with a process-wide `HttpClient`/`CookieContainer`, copy the
 server cookie into application config, relax it to a script-readable cookie, or add an actor header.
