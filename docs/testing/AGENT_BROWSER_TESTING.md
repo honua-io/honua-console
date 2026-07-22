@@ -81,7 +81,7 @@ services:
   honua:
     image: ghcr.io/honua-io/honua-server:nightly
     ports:
-      - "8088:8080"   # REST/admin — only needed for curl from WSL, not from Windows
+      - "8088:8080"   # REST/admin — only needed for the SDK check from WSL, not from Windows
       - "8089:8081"   # gRPC
     environment:
       ASPNETCORE_ENVIRONMENT: Development
@@ -121,11 +121,19 @@ CREATE SCHEMA IF NOT EXISTS honua;
 ```bash
 cd /path/to/testbed
 docker compose up -d
-# wait until healthy, then confirm the admin key works:
-curl -s -H "X-API-Key: honua-console-dev-key" http://127.0.0.1:8088/api/v1/admin/version
+python -m pip install honua-admin
+python - <<'PY'
+from honua_admin import HonuaAdminClient
+
+with HonuaAdminClient(
+    "http://127.0.0.1:8088",
+    api_key="honua-console-dev-key",
+) as admin:
+    print(admin.get_version())
+PY
 ```
 
-A JSON `{"success":true,...}` response means the server is up and the key is valid.
+The version response means the server is up and the key is valid.
 
 ### 1c. Run the Console, bound so Windows can reach it
 
@@ -143,20 +151,12 @@ Leave this running (it is a long-running server — do **not** wrap it in the bu
 
 ## Part 2 — Make the Console reachable from Windows
 
-From a **Windows** terminal:
-
-```powershell
-# Preferred: WSL2 forwards localhost to WSL services by default
-curl.exe http://localhost:5174/version.json
-```
+Preferred: WSL2 forwards localhost to WSL services by default. Open
+<http://localhost:5174/version.json> in the Windows browser.
 
 If `localhost` does not resolve to the WSL service (some WSL/network configs disable
 forwarding), use the WSL IP directly. In WSL run `hostname -I` (take the first address, e.g.
-`172.x.x.x`), then from Windows:
-
-```powershell
-curl.exe http://172.x.x.x:5174/version.json
-```
+`172.x.x.x`), then open `http://172.x.x.x:5174/version.json` in the Windows browser.
 
 Whichever URL returns `version.json` is the **base URL** you will give Claude/Playwright.
 
@@ -236,7 +236,7 @@ docker compose down -v      # also wipe the PostGIS volume
 | --- | --- |
 | Windows browser can't reach `localhost:5174` | Bind the Console to `0.0.0.0` (Part 1c) and/or use the WSL IP from `hostname -I` (Part 2). |
 | Every page renders then goes blank / "An unhandled error has occurred" | A Blazor circuit crash (e.g. an ambiguous-route regression). Check the `dotnet run` console output for the exception — this is an app bug, not a Playwright issue. |
-| Operate/Catalog show "missing binding" | `HONUA_SERVER_BASE_URL` / `HONUA_ADMIN_API_KEY` not set on the Console, or the server isn't up. Re-check Part 1c and the `admin/version` curl. |
+| Operate/Catalog show "missing binding" | `HONUA_SERVER_BASE_URL` / `HONUA_ADMIN_API_KEY` not set on the Console, or the server isn't up. Re-check Part 1c and the `admin.get_version()` SDK check. |
 | `401 API key required` from the server | `HONUA_ADMIN_API_KEY` (Console) must equal `HONUA_ADMIN_PASSWORD` (server). |
 | `claude mcp list` shows `✗ Failed to connect` | Run `npx -y @playwright/mcp@latest` directly on Windows to see the real error (Node missing, first-run browser download, PATH). Raise `MCP_TIMEOUT`. |
 | Pages are empty | Expected on a fresh DB — seed data first. |
