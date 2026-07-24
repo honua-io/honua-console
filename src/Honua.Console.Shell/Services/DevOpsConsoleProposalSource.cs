@@ -24,9 +24,9 @@ namespace Honua.Console.Shell.Services;
 /// consume for devops proposals yet.
 ///
 /// Therefore the DEFAULT implementation (<see cref="UnavailableConsoleDevOpsProposalsClient"/>)
-/// degrades gracefully to an empty allowed result: the inbox aggregation seam and the
-/// normalization (<see cref="ConsoleDevOpsProposalNormalization"/>) are fully in place, so the day
-/// honua-devops (or honua-server via the #1692 adapter) exposes a readable list of
+/// reports this source as unsupported. The inbox aggregation seam and the normalization
+/// (<see cref="ConsoleDevOpsProposalNormalization"/>) are fully in place, so the day honua-devops
+/// (or honua-server via the #1692 adapter) exposes a readable list of
 /// <c>GitOpsProposalBridge</c> records, an HTTP implementation of this interface drops in with no
 /// change to the inbox. See the class-level docs for exactly what devops-side endpoint is needed.
 /// </summary>
@@ -46,9 +46,10 @@ public interface IConsoleDevOpsProposalsClient
 /// <summary>
 /// The default <see cref="IConsoleDevOpsProposalsClient"/> for the merged build: honua-devops does
 /// not expose a console-facing proposals endpoint yet (see <see cref="IConsoleDevOpsProposalsClient"/>),
-/// so this returns an empty allowed result. The devops source is therefore present in the
-/// aggregation seam but contributes nothing until the endpoint lands — the inbox stays fully
-/// driven by the reachable server source, and no fabricated queue is ever shown (charter §11).
+/// so this reports the source as unsupported. That distinction is important: an unavailable
+/// server plus this placeholder must render the server's missing-binding state, not an
+/// authoritative empty queue. When the server source is reachable, the aggregator still renders
+/// its live proposals and marks the combined result as partial (charter §11).
 ///
 /// What is needed to make this source live (documented, not fabricated):
 /// honua-devops must expose an authenticated, read-only, console-facing HTTP list endpoint (e.g.
@@ -66,16 +67,17 @@ public sealed class UnavailableConsoleDevOpsProposalsClient : IConsoleDevOpsProp
         string? status = null,
         string? kind = null,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed(
-            Array.Empty<ConsoleProposalSummary>()));
+        Task.FromResult(OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
+            OperateSectionStatus.Unsupported,
+            "Honua DevOps proposals are not available in this Console build."));
 }
 
 /// <summary>
 /// The honua-devops proposal source: adapts <see cref="IConsoleDevOpsProposalsClient"/> onto the
 /// shared <see cref="IConsoleProposalSource"/> seam, tagging every summary
 /// <see cref="ConsoleProposalSource.DevOps"/>. A supplementary source: if it is unavailable the
-/// inbox degrades gracefully and still renders the server source (the client returns an empty
-/// allowed result by default, so no degradation is even visible until a live client is wired).
+/// inbox degrades gracefully, still renders the reachable server source, and marks the combined
+/// read as partial.
 /// </summary>
 public sealed class DevOpsConsoleProposalSource : IConsoleProposalSource
 {

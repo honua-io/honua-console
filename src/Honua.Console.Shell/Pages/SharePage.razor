@@ -19,10 +19,16 @@
 
     @if (_missingBinding)
     {
-        <ConsoleStateView Kind="error"
-                          Kicker="Missing binding"
-                          Title="Share is not bound to honua-server"
-                          Message="@MissingBindingMessage" />
+        <ConsoleStateView Kind="missing"
+                          Kicker="Environment required"
+                          Title="Connect an environment to manage sharing"
+                          Message="@MissingBindingMessage"
+                          ActionHref="/environments/new"
+                          ActionLabel="Connect environment" />
+        <details class="console-panel">
+            <summary>Technical details</summary>
+            <p>Share needs a honua-server binding. Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL for the host.</p>
+        </details>
     }
     else if (_items is null)
     {
@@ -116,9 +122,7 @@
 
 @code {
     internal const string MissingBindingMessage =
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
-        + "catalog/content metadata projection from honua-server. The merged runtime never renders seeded "
-        + "or demo share content (Console Patterns Charter section 11).";
+        "Choose the Honua environment whose public links, embeds, open-data pages, and exports you want to manage.";
 
     private IReadOnlyList<ConsoleContentSummary>? _items;
     private bool _missingBinding;

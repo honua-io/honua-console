@@ -33,8 +33,8 @@ public sealed class DataToPublishFlowState
     /// <summary>Go-live visibility (step ⑤).</summary>
     public PublishVisibility Visibility { get; set; } = PublishVisibility.Org;
 
-    /// <summary>Which driver is filling the flow. Manual is built; AI is a structural seam (redesign Phase 3).</summary>
-    public FlowDriver Driver { get; set; } = FlowDriver.Manual;
+    /// <summary>Which driver is filling the flow. AI leads; manual remains an always-available fallback.</summary>
+    public FlowDriver Driver { get; set; } = FlowDriver.Ai;
 
     /// <summary>The current step in the rail.</summary>
     public FlowStep Step { get; set; } = FlowStep.AddData;

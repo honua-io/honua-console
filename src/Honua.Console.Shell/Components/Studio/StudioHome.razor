@@ -25,6 +25,7 @@
         <p class="console-kicker" id="studio-home-hero-heading">What do you want to build?</p>
         <textarea class="studio-home-hero-input"
                   rows="2"
+                  aria-labelledby="studio-home-hero-heading"
                   placeholder="e.g. Show parcels coloured by use code, with a popup showing assessed value…"
                   @bind="_prompt"
                   @bind:event="oninput"
@@ -65,6 +66,15 @@
                               Title="Loading recent projects"
                               Message="Reading your workspace content from honua-server." />
         }
+        else if (_requiresEnvironment)
+        {
+            <ConsoleStateView Kind="missing"
+                              Kicker="Environment required"
+                              Title="Connect an environment to see recent projects"
+                              Message="Choose the Honua environment whose workspace content you want to use in Studio."
+                              ActionHref="/environments/new"
+                              ActionLabel="Connect environment" />
+        }
         else if (_requiresAuthentication)
         {
             <ConsoleStateView Kind="unauthenticated"
@@ -78,8 +88,10 @@
         {
             <ConsoleStateView Kind="missing"
                               Kicker="@MissingBindingKicker"
-                              Title="Recent projects are not bound"
-                              Message="@MissingBindingMessage" />
+                              Title="Connect an environment to see recent projects"
+                              Message="@MissingBindingMessage"
+                              ActionHref="/environments/new"
+                              ActionLabel="Connect environment" />
         }
         else if (_recent.Count == 0)
         {
@@ -145,11 +157,11 @@
     private const string MissingBindingKicker = "Missing binding";
 
     internal const string MissingBindingMessage =
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Studio can list your recent workspace "
-        + "content from the honua-server content/metadata projection (honua-server#1162).";
+        "Choose the Honua environment whose recent workspace content you want to use in Studio.";
 
     private string _prompt = string.Empty;
     private bool _loaded;
+    private bool _requiresEnvironment;
     private bool _requiresAuthentication;
     private bool _missingBinding;
     private IReadOnlyList<ConsoleContentSummary> _recent = [];
@@ -165,8 +177,15 @@
             return;
         }
 
-        var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
-        if (context.Anonymous)
+        var access = await ReadContexts.ResolveAccessAsync(publicLinkToken: null);
+        if (access.State == ConsoleCatalogAccessState.NoActiveEnvironment)
+        {
+            _requiresEnvironment = true;
+            _loaded = true;
+            return;
+        }
+
+        if (access.Context.Anonymous)
         {
             _requiresAuthentication = true;
             _loaded = true;
@@ -174,7 +193,7 @@
         }
 
         var request = new CatalogListRequest { Sort = CatalogSortOptions.ModifiedDesc };
-        var result = await Catalog.SearchAsync(request, context);
+        var result = await Catalog.SearchAsync(request, access.Context);
         _recent = result.Items
             .OrderByDescending(item => item.Modified)
             .Where(item => item.Modified >= DateTimeOffset.UtcNow.AddDays(-14))

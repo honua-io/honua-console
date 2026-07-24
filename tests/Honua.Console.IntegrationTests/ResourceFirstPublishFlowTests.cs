@@ -180,6 +180,92 @@ public sealed class ResourceFirstPublishFlowTests
         Assert.Contains("source=existingresource", cut.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Tree_UsesNativeListAndButtonSemantics_NotAnIncompleteAriaTree()
+    {
+        using var ctx = NewContext();
+        IReadOnlyList<ResourceTreeNode> nodes =
+        [
+            new("rsc_parcels", "parcels", "file", "Running", 0, null,
+                [new("FeatureServer", "FeatureServer", true, "/city/parcels/FeatureServer/0")]),
+        ];
+
+        var cut = ctx.Render<ResourcePublicationsTree>(p => p.Add(c => c.Nodes, nodes));
+
+        Assert.Empty(cut.FindAll("[role='tree'], [role='treeitem'], [role='group']"));
+        Assert.Equal("button", cut.Find(".resource-tree__name").TagName, ignoreCase: true);
+        Assert.Equal("false", cut.Find(".resource-tree__toggle").GetAttribute("aria-expanded"));
+    }
+
+    [Fact]
+    public void Tree_FilterWithNoMatches_DoesNotClaimTheEnvironmentHasNoResources()
+    {
+        using var ctx = NewContext();
+        IReadOnlyList<ResourceTreeNode> nodes =
+        [
+            new("rsc_parcels", "parcels", "file", "Draft", 0, null, []),
+        ];
+
+        var cut = ctx.Render<ResourcePublicationsTree>(p => p.Add(c => c.Nodes, nodes));
+        cut.Find("input[type='search']").Input("wetlands");
+
+        Assert.Contains("No resources match your filter", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("No resources yet", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddDataIntake_UsesPressedButtonsInsteadOfIncompleteTabSemantics()
+    {
+        using var ctx = NewContext();
+
+        var cut = ctx.Render<AddDataIntake>();
+
+        Assert.Empty(cut.FindAll("[role='tablist'], [role='tab']"));
+        Assert.Equal("true", cut.Find("[data-intake-mode='File']").GetAttribute("aria-pressed"));
+        Assert.Equal("false", cut.Find("[data-intake-mode='Table']").GetAttribute("aria-pressed"));
+    }
+
+    [Fact]
+    public void OperateData_MissingBinding_DoesNotRenderAnEmptyResourceClaim()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
+
+        var cut = ctx.Render<OperateDataPage>();
+
+        Assert.Contains("Connect an environment to browse data and layers", cut.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(cut.FindAll("a[href='/environments/new']"));
+        Assert.DoesNotContain("No resources yet", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OperateData_AuthoritativeEmptyRead_RendersTheAddDataEmptyState()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new WorkspaceDataSource(
+            new OperateTransitionWorkspace([], [], [], [], [])));
+
+        var cut = ctx.Render<OperateDataPage>();
+
+        Assert.Contains("No resources yet", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("/operate/data/new", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OperateData_UnavailableRead_RendersCapabilityStateNotEmptyState()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new WorkspaceDataSource(
+            new OperateTransitionWorkspace(
+                [], [], [], [],
+                [new OperateCapabilityState("Services", "Unavailable", "GET /api/v1/admin/services", "The connected server could not be reached.")])));
+
+        var cut = ctx.Render<OperateDataPage>();
+
+        Assert.Contains("The connected server could not be reached.", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("No resources yet", cut.Markup, StringComparison.Ordinal);
+    }
+
     // ----------------------------------------------------------------- protocol picker
 
     [Fact]
@@ -217,34 +303,50 @@ public sealed class ResourceFirstPublishFlowTests
     // ----------------------------------------------------------------- flow host
 
     [Fact]
-    public void Flow_RendersStepRailAndDriverToggle_ManualByDefault()
+    public void Flow_RendersStepRailAndDriverToggle_AiByDefault()
     {
         using var ctx = NewContext();
-        RegisterMissingBinding(ctx);
+        RegisterAiServer(ctx, FakeAiPublishDriver.Enabled());
 
         var cut = ctx.Render<DataToPublishFlow>();
 
         Assert.Contains("data-step-rail", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-step=\"AddData\"", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-step=\"Publish\"", cut.Markup, StringComparison.Ordinal);
-        // Manual driver is the default surface; AddData step body is shown.
-        Assert.Contains("data-step-body=\"AddData\"", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-ai-driver", cut.Markup, StringComparison.Ordinal);
+        Assert.Equal("true", cut.Find("[data-driver='ai']").GetAttribute("aria-pressed"));
+        Assert.Equal("false", cut.Find("[data-driver='manual']").GetAttribute("aria-pressed"));
     }
 
     [Fact]
-    public void Flow_AiDriver_WithNoServer_SurfacesHonestAiUnavailableState_NotACrash()
+    public void Flow_WithNoServer_RequiresEnvironmentBeforeRenderingUploadControls()
     {
         using var ctx = NewContext();
         RegisterMissingBinding(ctx);
 
-        var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialDriver, "ai"));
+        var cut = ctx.Render<DataToPublishFlow>();
 
-        // AI mode with no server bound is an honest "AI unavailable" surface (Charter §11) — never a crash,
-        // never a fabricated proposal, with a manual-mode escape hatch.
-        Assert.Contains("data-ai-driver", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-ai-unavailable", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-ai-use-manual", cut.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-ai-outcome-card", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-flow-missing-binding", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("Connect an environment before adding data", cut.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(cut.FindAll("a[href='/environments/new']"));
+        Assert.Empty(cut.FindAll("input[type='file']"));
+        Assert.DoesNotContain("data-step-rail", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Flow_UsesCapabilityStateForMissingBinding_NotConcreteSourceType()
+    {
+        using var ctx = NewContext();
+        RegisterMissingBinding(ctx);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new WorkspaceDataSource(
+            new OperateTransitionWorkspace(
+                [], [], [], [],
+                [new OperateCapabilityState("Operate", "Missing binding", "server", "No environment is connected.")])));
+
+        var cut = ctx.Render<DataToPublishFlow>();
+
+        Assert.Contains("Connect an environment before adding data", cut.Markup, StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll("input[type='file']"));
     }
 
     [Fact]
@@ -277,13 +379,9 @@ public sealed class ResourceFirstPublishFlowTests
 
         var cut = ctx.Render<DataToPublishFlow>(p => p.Add(c => c.InitialSource, "file"));
 
-        // Upload a file, then continue: the Unsupported import returns a missing-binding result, which the
-        // host renders as a first-class "unsupported" panel — never a fabricated successful ingest.
-        var file = InputFileContent.CreateFromText("{}", "parcels.geojson");
-        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(file);
-        cut.Find("button.console-button").Click();
-
+        // The binding requirement is surfaced before a user picks a file, not after a dead-end upload.
         Assert.Contains("data-flow-missing-binding", cut.Markup, StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll("input[type='file']"));
         Assert.DoesNotContain("data-step-body=\"Resource\"", cut.Markup, StringComparison.Ordinal);
     }
 
@@ -471,7 +569,7 @@ public sealed class ResourceFirstPublishFlowTests
         // dead-ending with "use the dedicated import surface".
         ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneConnectionDataSource("conn1", "Primary"));
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
         ctx.Services.AddSingleton<IConsoleServiceImportOperation>(new UnsupportedConsoleServiceImportOperation());
 
@@ -703,6 +801,27 @@ public sealed class ResourceFirstPublishFlowTests
             Task.FromResult<OperateResourceEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateServiceDetail?>(null);
+    }
+
+    private sealed class WorkspaceDataSource(OperateTransitionWorkspace workspace) : IOperateTransitionDataSource
+    {
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(workspace);
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(
+            string connectionId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateConnectionSummary?>(null);
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(
+            string resourceId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateResourceEditPreview?>(null);
+
+        public Task<OperateServiceDetail?> FindServiceAsync(
+            string serviceName,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateServiceDetail?>(null);
     }
 

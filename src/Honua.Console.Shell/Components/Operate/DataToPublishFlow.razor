@@ -42,35 +42,54 @@
         <p>One journey: add data → it becomes a resource → publish it as the services/protocols you choose → style → live.</p>
     </div>
 
-    <div class="data-publish-flow__header">
-        <ol class="data-publish-flow__rail" data-step-rail>
-            @foreach (var step in RailSteps)
-            {
-                <li class="data-publish-flow__rail-step @RailStateClass(step)" data-step="@step.ToString()">
-                    <span class="data-publish-flow__rail-dot"></span>
-                    <span class="data-publish-flow__rail-label">@StepLabel(step)</span>
-                </li>
-            }
-        </ol>
-
-        <div class="data-publish-flow__driver" role="group" aria-label="Flow driver">
-            <button type="button"
-                    class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Ai ? "data-publish-flow__driver-btn--on" : "")"
-                    data-driver="ai" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Ai)">AI</button>
-            <button type="button"
-                    class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Manual ? "data-publish-flow__driver-btn--on" : "")"
-                    data-driver="manual" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Manual)">Manual</button>
-        </div>
-    </div>
-
-    @if (_missingBinding is { } binding)
+    @if (_environmentRequired)
     {
-        <article class="console-panel console-state-warning" role="note" data-flow-missing-binding>
-            <p class="console-kicker">Unsupported — binding required</p>
-            <h2>This step needs a configured honua-server</h2>
-            <p>@binding</p>
-        </article>
+        <div data-flow-missing-binding>
+            <ConsoleStateView Kind="missing"
+                              Kicker="Environment required"
+                              Title="Connect an environment before adding data"
+                              Message="Choose the Honua environment that should receive this resource. The upload and publish controls will be ready once it is connected."
+                              ActionHref="/environments/new"
+                              ActionLabel="Connect environment" />
+            <details class="console-panel">
+                <summary>Technical details</summary>
+                <p>No honua-server is bound to this Console session. Configure the server binding, then return to this flow.</p>
+            </details>
+        </div>
     }
+    else
+    {
+        <div class="data-publish-flow__header">
+            <ol class="data-publish-flow__rail" data-step-rail>
+                @foreach (var step in RailSteps)
+                {
+                    <li class="data-publish-flow__rail-step @RailStateClass(step)" data-step="@step.ToString()">
+                        <span class="data-publish-flow__rail-dot"></span>
+                        <span class="data-publish-flow__rail-label">@StepLabel(step)</span>
+                    </li>
+                }
+            </ol>
+
+            <div class="data-publish-flow__driver" role="group" aria-label="Flow driver">
+                <button type="button"
+                        class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Ai ? "data-publish-flow__driver-btn--on" : "")"
+                        aria-pressed="@(_flow.Driver == FlowDriver.Ai ? "true" : "false")"
+                        data-driver="ai" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Ai)">AI</button>
+                <button type="button"
+                        class="data-publish-flow__driver-btn @(_flow.Driver == FlowDriver.Manual ? "data-publish-flow__driver-btn--on" : "")"
+                        aria-pressed="@(_flow.Driver == FlowDriver.Manual ? "true" : "false")"
+                        data-driver="manual" disabled="@_busy" @onclick="() => SetDriver(FlowDriver.Manual)">Manual</button>
+            </div>
+        </div>
+
+        @if (_missingBinding is { } binding)
+        {
+            <article class="console-panel console-state-warning" role="note" data-flow-missing-binding>
+                <p class="console-kicker">Unsupported — binding required</p>
+                <h2>This step needs a configured honua-server</h2>
+                <p>@binding</p>
+            </article>
+        }
 
     @if (_flow.Driver == FlowDriver.Ai && _flow.Step != FlowStep.Done)
     {
@@ -365,6 +384,7 @@
                 @DonePanel()
                 break;
         }
+        }
     }
 </section>
 
@@ -394,6 +414,7 @@
     private bool _slotChanging;
 
     private bool _busy;
+    private bool _environmentRequired;
     private string? _stepError;
     private string? _missingBinding;
     private string? _styleBinding;
@@ -421,7 +442,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (Enum.TryParse<FlowDriver>(InitialDriver, ignoreCase: true, out var driver))
+        var hasExplicitDriver = Enum.TryParse<FlowDriver>(InitialDriver, ignoreCase: true, out var driver);
+        if (hasExplicitDriver)
         {
             _flow.Driver = driver;
         }
@@ -435,9 +457,27 @@
 
         ApplyInitialSource(InitialSource);
 
-        _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
+        // An explicit source entry point is a request for the manual form at that source. A fresh flow
+        // remains AI-first, and callers can still force either driver through InitialDriver.
+        if (!hasExplicitDriver
+            && !string.IsNullOrWhiteSpace(InitialSource)
+            && _flow.Source.Mode != AddDataMode.Ai)
+        {
+            _flow.Driver = FlowDriver.Manual;
+        }
 
+        // All paths in this flow write to honua-server. Read the existing capability contract before
+        // rendering an actionable upload or publish form, so wrapped/custom sources preserve the same
+        // honest missing-binding behavior as the default source.
         var connectionsView = await OperateData.GetConnectionsViewAsync();
+        if (connectionsView.CapabilityStates.Any(state =>
+                string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase)))
+        {
+            _environmentRequired = true;
+            return;
+        }
+
+        _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
         _connectionOptions = connectionsView.Connections
             .Select(connection => new AddDataIntake.IntakeOption(connection.Id, $"{connection.Name} ({connection.Provider})"))
             .ToArray();

@@ -7,7 +7,31 @@ public interface IConsoleCatalogReadContextResolver
     Task<CatalogReadContext> ResolveAsync(
         string? publicLinkToken,
         CancellationToken cancellationToken = default);
+
+    async Task<ConsoleCatalogReadAccess> ResolveAccessAsync(
+        string? publicLinkToken,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await ResolveAsync(publicLinkToken, cancellationToken).ConfigureAwait(false);
+        return new ConsoleCatalogReadAccess(
+            context,
+            context.Anonymous
+                ? ConsoleCatalogAccessState.SignInRequired
+                : ConsoleCatalogAccessState.Authenticated);
+    }
 }
+
+public enum ConsoleCatalogAccessState
+{
+    Authenticated,
+    NoActiveEnvironment,
+    SignInRequired,
+    PublicLink,
+}
+
+public sealed record ConsoleCatalogReadAccess(
+    CatalogReadContext Context,
+    ConsoleCatalogAccessState State);
 
 public sealed class ConsoleCatalogReadContextResolver : IConsoleCatalogReadContextResolver
 {
@@ -24,30 +48,48 @@ public sealed class ConsoleCatalogReadContextResolver : IConsoleCatalogReadConte
 
     public async Task<CatalogReadContext> ResolveAsync(
         string? publicLinkToken,
+        CancellationToken cancellationToken = default) =>
+        (await ResolveAccessAsync(publicLinkToken, cancellationToken).ConfigureAwait(false)).Context;
+
+    public async Task<ConsoleCatalogReadAccess> ResolveAccessAsync(
+        string? publicLinkToken,
         CancellationToken cancellationToken = default)
     {
-        if (await HasSignedInSessionAsync(cancellationToken).ConfigureAwait(false))
+        var activeProfile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (activeProfile is null)
         {
-            return CatalogReadContext.Authenticated;
+            return PublicLinkOr(
+                publicLinkToken,
+                CatalogReadContext.AnonymousPublicLink(null),
+                ConsoleCatalogAccessState.NoActiveEnvironment);
         }
 
-        if (!string.IsNullOrWhiteSpace(publicLinkToken))
+        if (activeProfile.Account.AuthMode != ConsoleAccountAuthMode.Anonymous)
         {
-            return CatalogReadContext.AnonymousPublicLink(publicLinkToken);
+            var session = await _sessions.GetSessionAsync(activeProfile.Id, cancellationToken).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(session?.AccessToken))
+            {
+                return new ConsoleCatalogReadAccess(
+                    CatalogReadContext.Authenticated,
+                    ConsoleCatalogAccessState.Authenticated);
+            }
         }
 
-        return CatalogReadContext.AnonymousPublicLink(null);
+        return PublicLinkOr(
+            publicLinkToken,
+            CatalogReadContext.AnonymousPublicLink(null),
+            ConsoleCatalogAccessState.SignInRequired);
     }
 
-    private async Task<bool> HasSignedInSessionAsync(CancellationToken cancellationToken)
+    private static ConsoleCatalogReadAccess PublicLinkOr(
+        string? publicLinkToken,
+        CatalogReadContext fallback,
+        ConsoleCatalogAccessState fallbackState)
     {
-        var activeProfile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        if (activeProfile is null || activeProfile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous)
-        {
-            return false;
-        }
-
-        var session = await _sessions.GetSessionAsync(activeProfile.Id, cancellationToken).ConfigureAwait(false);
-        return !string.IsNullOrWhiteSpace(session?.AccessToken);
+        return !string.IsNullOrWhiteSpace(publicLinkToken)
+            ? new ConsoleCatalogReadAccess(
+                CatalogReadContext.AnonymousPublicLink(publicLinkToken),
+                ConsoleCatalogAccessState.PublicLink)
+            : new ConsoleCatalogReadAccess(fallback, fallbackState);
     }
 }

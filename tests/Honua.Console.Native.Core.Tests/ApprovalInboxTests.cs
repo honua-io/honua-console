@@ -103,6 +103,76 @@ public sealed class ApprovalInboxTests
         Assert.Equal("Approving requires the 'approve' permission.", result.Message);
     }
 
+    [Fact]
+    public async Task UnavailableDevOpsSource_ReportsUnsupported_InsteadOfFabricatingAnEmptyRead()
+    {
+        var client = new UnavailableConsoleDevOpsProposalsClient();
+
+        var result = await client.ListAsync();
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal(OperateSectionStatus.Unsupported, result.Status);
+        Assert.Contains("not available", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetInbox_WhenEverySourceIsUnavailable_PreservesPrimaryServerDenial()
+    {
+        const string serverMessage = "No active environment profile is selected.";
+        const string serverDetail = "HONUA_SERVER_BASE_URL is not configured.";
+        var server = new StubProposalSource(
+            ConsoleProposalSource.Server,
+            OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
+                OperateSectionStatus.Unavailable,
+                serverMessage,
+                serverDetail));
+        var devOps = new DevOpsConsoleProposalSource(new UnavailableConsoleDevOpsProposalsClient());
+        var client = new ConsoleApprovalInboxClient([server, devOps]);
+
+        var result = await client.GetInboxAsync();
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal(OperateSectionStatus.Unavailable, result.Status);
+        Assert.Equal(serverMessage, result.Message);
+        Assert.Equal(serverDetail, result.Detail);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public async Task GetInbox_WhenServerIsReachableAndDevOpsIsUnavailable_ReturnsPartialServerQueue()
+    {
+        var serverProposal = Proposal(
+            "server-proposal",
+            ConsoleProposalKind.MetadataRelease,
+            ConsoleProposalStatus.AwaitingApproval);
+        var server = new StubProposalSource(
+            ConsoleProposalSource.Server,
+            OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed([serverProposal]));
+        var devOps = new DevOpsConsoleProposalSource(new UnavailableConsoleDevOpsProposalsClient());
+        var client = new ConsoleApprovalInboxClient([server, devOps]);
+
+        var result = await client.GetInboxAsync();
+
+        Assert.True(result.IsAllowed);
+        Assert.True(result.PartialResult);
+        var item = Assert.Single(result.Value!.Items);
+        Assert.Equal("server-proposal", item.ProposalId);
+        Assert.Contains("DevOps", result.Message, StringComparison.Ordinal);
+        Assert.Contains("unavailable", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class StubProposalSource(
+        ConsoleProposalSource source,
+        OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>> result) : IConsoleProposalSource
+    {
+        public ConsoleProposalSource Source { get; } = source;
+
+        public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
+            string? status = null,
+            string? kind = null,
+            CancellationToken cancellationToken = default) => Task.FromResult(result);
+    }
+
     private sealed class StubProposalsClient : IConsoleProposalsClient
     {
         private readonly OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>> _list;

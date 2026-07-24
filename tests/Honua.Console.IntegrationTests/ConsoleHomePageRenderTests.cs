@@ -44,6 +44,73 @@ public sealed class ConsoleHomePageRenderTests
     }
 
     [Fact]
+    public void Home_WhenEveryProposalSourceIsUnavailable_DoesNotShowAZeroQueue()
+    {
+        const string serverMessage = "No active environment profile is selected.";
+        var proposals = new FakeConsoleProposalsClient(
+            deniedListStatus: OperateSectionStatus.Unavailable,
+            deniedListMessage: serverMessage);
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(
+            new InMemoryConsoleEnvironmentProfileStore([]));
+        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(
+            new ConsoleApprovalInboxClient(
+            [
+                new ServerConsoleProposalSource(proposals),
+                new DevOpsConsoleProposalSource(new UnavailableConsoleDevOpsProposalsClient()),
+            ]));
+        ctx.Services.AddSingleton<IConsoleHostCapabilities>(new BrowserConsoleHostCapabilities());
+
+        var page = ctx.Render<ConsoleHomePage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.Contains(serverMessage, page.Markup, StringComparison.Ordinal);
+                Assert.DoesNotContain("data-home-awaiting-count", page.Markup, StringComparison.Ordinal);
+                Assert.DoesNotContain("data-home-total-count", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Home_WhenServerIsReachableAndDevOpsIsUnavailable_DisclosesPartialQueue()
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals:
+            [
+                FakeProposalFactory.Summary(
+                    "server-op",
+                    ConsoleProposalKind.MetadataRelease,
+                    summary: "Promote parcels")
+            ]);
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(
+            new InMemoryConsoleEnvironmentProfileStore([]));
+        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(
+            new ConsoleApprovalInboxClient(
+            [
+                new ServerConsoleProposalSource(proposals),
+                new DevOpsConsoleProposalSource(new UnavailableConsoleDevOpsProposalsClient()),
+            ]));
+        ctx.Services.AddSingleton<IConsoleHostCapabilities>(new BrowserConsoleHostCapabilities());
+
+        var page = ctx.Render<ConsoleHomePage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.Equal("1", page.Find("[data-home-awaiting-count] strong").TextContent.Trim());
+                Assert.Equal("1", page.Find("[data-home-total-count] strong").TextContent.Trim());
+                Assert.Contains(
+                    "DevOps proposal source is unavailable",
+                    page.Find("[data-home-inbox-partial]").TextContent,
+                    StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void Home_StillRendersTheFourAreaWorkSurfaces()
     {
         using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));

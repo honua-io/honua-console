@@ -7,6 +7,8 @@
 @inject IConsoleCatalogClient Catalog
 @inject NavigationManager Navigation
 
+<PageTitle>@EmbedDocumentTitle</PageTitle>
+
 <section class="console-embed-page @( _options.Chrome ? "with-chrome" : "shellless" )">
     @if (_result is null)
     {
@@ -61,6 +63,16 @@
 
     private EmbedRouteOptions _options = new();
     private MapPackageReadResult? _result;
+    private string EmbedDocumentTitle
+    {
+        get
+        {
+            var mapTitle = _result?.MapPackage?.Summary.Title;
+            return string.IsNullOrWhiteSpace(mapTitle)
+                ? "Embedded Map | Honua Console"
+                : $"{mapTitle} | Honua Console";
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {

@@ -72,20 +72,18 @@ a {
     transition: grid-template-columns 0.18s ease;
 }
 
-/* CSS-only collapse driver — the checkbox is never shown; its state collapses the rail. */
-.console-collapse-toggle {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
-}
-
+/* The sidebar stays visible beside desktop content and becomes a compact menu bar on narrow screens. */
 .console-sidebar {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
     background: #17211d;
     color: #f8fbfa;
     padding: 24px 18px;
-    overflow: hidden;
+    overflow: hidden auto;
+    z-index: 1000;
 }
 
 .console-sidebar-head {
@@ -93,6 +91,13 @@ a {
     align-items: center;
     gap: 8px;
     margin-bottom: 28px;
+}
+
+.console-sidebar-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .console-brand {
@@ -138,10 +143,18 @@ a {
     width: 32px;
     height: 32px;
     flex: none;
+    padding: 0;
+    border: 0;
     border-radius: 8px;
+    background: transparent;
+    font: inherit;
     color: #b8cac4;
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
+}
+
+.console-menu-button {
+    display: none;
 }
 
 .console-collapse-button:hover {
@@ -191,7 +204,7 @@ a {
 }
 
 .console-nav a.active .console-nav-icon {
-    color: var(--honua-accent-strong, #5eead4);
+    color: #5eead4;
 }
 
 .console-nav-icon svg {
@@ -205,28 +218,30 @@ a {
     overflow: hidden;
 }
 
-/* ---- Collapsed state (checkbox checked) ---- */
-.console-shell:has(.console-collapse-toggle:checked) {
-    grid-template-columns: 76px minmax(0, 1fr);
-}
+/* ---- Desktop collapsed state ---- */
+@media (min-width: 761px) {
+    .console-shell.is-collapsed {
+        grid-template-columns: 76px minmax(0, 1fr);
+    }
 
-.console-shell:has(.console-collapse-toggle:checked) .console-brand-label,
-.console-shell:has(.console-collapse-toggle:checked) .console-nav-label {
-    display: none;
-}
+    .console-shell.is-collapsed .console-brand-label,
+    .console-shell.is-collapsed .console-nav-label {
+        display: none;
+    }
 
-.console-shell:has(.console-collapse-toggle:checked) .console-sidebar-head {
-    flex-direction: column;
-    gap: 12px;
-}
+    .console-shell.is-collapsed .console-sidebar-head {
+        flex-direction: column;
+        gap: 12px;
+    }
 
-.console-shell:has(.console-collapse-toggle:checked) .console-nav a {
-    justify-content: center;
-    padding: 10px 0;
-}
+    .console-shell.is-collapsed .console-nav a {
+        justify-content: center;
+        padding: 10px 0;
+    }
 
-.console-shell:has(.console-collapse-toggle:checked) .console-collapse-button svg {
-    transform: rotate(180deg);
+    .console-shell.is-collapsed .console-collapse-button svg {
+        transform: rotate(180deg);
+    }
 }
 
 .console-main {
@@ -4403,16 +4418,80 @@ p {
     }
 
     .console-sidebar {
-        position: static;
-        padding: 16px;
+        position: sticky;
+        height: auto;
+        padding: 12px 14px;
+        overflow: visible;
+        box-shadow: 0 2px 12px rgb(0 0 0 / 18%);
+    }
+
+    .console-sidebar-head {
+        margin-bottom: 0;
+    }
+
+    .console-collapse-button {
+        display: none;
+    }
+
+    .console-menu-button {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        flex: none;
+        padding: 0;
+        border: 1px solid rgb(255 255 255 / 24%);
+        border-radius: 8px;
+        background: transparent;
+        color: #f8fbfa;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .console-menu-button:hover {
+        background: rgb(255 255 255 / 11%);
+    }
+
+    .console-menu-button svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .console-sidebar-body {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        display: none;
+        max-height: calc(100vh - 64px);
+        padding: 12px 14px 18px;
+        overflow-y: auto;
+        background: #17211d;
+        border-top: 1px solid rgb(255 255 255 / 16%);
+        box-shadow: 0 12px 24px rgb(0 0 0 / 28%);
+    }
+
+    .console-sidebar-body.is-open {
+        display: block;
     }
 
     .console-nav {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .console-nav-secondary {
+        margin-top: 16px;
+        padding-top: 16px;
+    }
+
+    .console-main {
+        padding-inline: 14px;
+        overflow-x: clip;
+    }
+
     .console-page {
-        width: min(100vw - 28px, 720px);
+        width: 100%;
+        max-width: 720px;
         padding-top: 26px;
     }
 
@@ -4435,7 +4514,8 @@ p {
     }
 
     .studio-page {
-        width: min(100vw - 28px, 720px);
+        width: 100%;
+        max-width: 720px;
     }
 
     .studio-page-heading,
@@ -9180,12 +9260,21 @@ p {
 .resource-tree__toggle {
     border: 0;
     background: transparent;
-    cursor: pointer;
     font: inherit;
     width: 1.25rem;
 }
 
+button.resource-tree__toggle {
+    cursor: pointer;
+}
+
 .resource-tree__name {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
     font-weight: 600;
     cursor: pointer;
 }
@@ -9756,4 +9845,15 @@ button.console-chip:focus-visible {
 .correlation-id-chip:hover {
     border-color: var(--honua-accent);
     color: var(--honua-accent-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

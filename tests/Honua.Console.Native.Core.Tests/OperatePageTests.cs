@@ -74,6 +74,69 @@ public sealed class OperatePageTests
         Assert.DoesNotContain("No operator action recorded.", html);
     }
 
+    [Fact]
+    public async Task MissingBinding_UsesMergedDataAndLayersCardWithoutFalseZeroCounts()
+    {
+        var workspace = new OperateTransitionWorkspace(
+            Connections: [],
+            ResourceEdits: [],
+            Services: [],
+            SettingsChanges: [],
+            CapabilityStates:
+            [
+                new OperateCapabilityState(
+                    "Operate",
+                    "Missing binding",
+                    "Honua:Server:BaseUrl",
+                    "No server is configured."),
+            ]);
+
+        var html = await RenderAsync(workspace);
+
+        Assert.Contains("Connect an environment to use Operate", html);
+        Assert.Contains("href=\"/environments/new\"", html);
+        Assert.Contains("href=\"/operate/data\"", html);
+        Assert.Contains("Data &amp; Layers", html);
+        Assert.DoesNotContain("href=\"/operate/resources\"", html);
+        Assert.DoesNotContain("href=\"/operate/services\"", html);
+        Assert.DoesNotContain("console-profile-count", html);
+        Assert.DoesNotContain("data-ops-summary-strip", html);
+    }
+
+    [Fact]
+    public async Task BoundWorkspace_ShowsAuthoritativeCountsOnMergedCards()
+    {
+        var workspace = new OperateTransitionWorkspace(
+            Connections:
+            [
+                new OperateConnectionSummary(
+                    "conn-1", "PostGIS", "postgis", "db", "app", "connected", "now", null),
+            ],
+            ResourceEdits:
+            [
+                new OperateResourceEditPreview(
+                    "resource-1",
+                    "Parcels",
+                    "table",
+                    "No draft",
+                    "Valid",
+                    new OperateBlastRadius([], [], [], [], [], []),
+                    [],
+                    []),
+            ],
+            Services: [],
+            SettingsChanges: [],
+            CapabilityStates: []);
+
+        var html = await RenderAsync(workspace);
+
+        Assert.Contains("href=\"/operate/data\"", html);
+        Assert.Contains("console-profile-count\">1</span>", html);
+        Assert.Contains("data-ops-summary-strip", html);
+        Assert.DoesNotContain("href=\"/operate/resources\"", html);
+        Assert.DoesNotContain("href=\"/operate/services\"", html);
+    }
+
     private static async Task<string> RenderAsync(OperateTransitionWorkspace workspace)
     {
         var services = new ServiceCollection();

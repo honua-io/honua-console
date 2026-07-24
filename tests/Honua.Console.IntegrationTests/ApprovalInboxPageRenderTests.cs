@@ -58,6 +58,66 @@ public sealed class ApprovalInboxPageRenderTests
     }
 
     [Fact]
+    public void EverySourceUnavailable_RendersServerBindingError_NotAnEmptyQueue()
+    {
+        const string serverMessage = "No active environment profile is selected.";
+        var proposals = new FakeConsoleProposalsClient(
+            deniedListStatus: OperateSectionStatus.Unavailable,
+            deniedListMessage: serverMessage);
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(
+            new ConsoleApprovalInboxClient(
+            [
+                new ServerConsoleProposalSource(proposals),
+                new DevOpsConsoleProposalSource(new UnavailableConsoleDevOpsProposalsClient()),
+            ]));
+        ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(new FakeConsoleProposalRealtimeClient());
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.Contains(serverMessage, page.Markup, StringComparison.Ordinal);
+                Assert.DoesNotContain("No work in the queue", page.Markup, StringComparison.Ordinal);
+                Assert.DoesNotContain("data-awaiting-count", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void ReachableServerWithUnavailableDevOps_RendersServerQueueAsPartial()
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals:
+            [
+                FakeProposalFactory.Summary(
+                    "server-op",
+                    ConsoleProposalKind.MetadataRelease,
+                    summary: "Promote parcels")
+            ]);
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton<IConsoleApprovalInboxClient>(
+            new ConsoleApprovalInboxClient(
+            [
+                new ServerConsoleProposalSource(proposals),
+                new DevOpsConsoleProposalSource(new UnavailableConsoleDevOpsProposalsClient()),
+            ]));
+        ctx.Services.AddSingleton<IConsoleProposalRealtimeClient>(new FakeConsoleProposalRealtimeClient());
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(
+            () =>
+            {
+                Assert.NotNull(page.Find("[data-proposal-id=\"server-op\"]"));
+                Assert.Equal("1", page.Find("[data-awaiting-count] strong").TextContent.Trim());
+                Assert.Contains("DevOps proposal source is unavailable", page.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void EmptyQueue_RendersHonestEmptyState_AndZeroCounts()
     {
         using var ctx = NewContext(new FakeConsoleProposalsClient(proposals: []));

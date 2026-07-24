@@ -26,9 +26,15 @@
     <div id="blazor-error-ui" data-nosnippet>
         <span class="blazor-error-ui-text">The connection to Honua Console was interrupted.</span>
         <a href="." class="reload">Reload</a>
-        <span class="dismiss" role="button" tabindex="0" aria-label="Dismiss">🗙</span>
+        <button type="button"
+                class="dismiss"
+                data-blazor-error-dismiss
+                aria-label="Dismiss connection error">
+            🗙
+        </button>
     </div>
 
+    <script src="@Assets["_content/Honua.Console.Shell/console-accessibility.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script>
         // In-page section navigation: Blazor's interactive router intercepts same-page
@@ -44,7 +50,9 @@
             if (target) {
                 e.preventDefault();
                 e.stopPropagation();
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                var reduceMotion = window.matchMedia &&
+                    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
                 if (history.replaceState) { history.replaceState(null, '', '#' + id); }
             }
         }, true);

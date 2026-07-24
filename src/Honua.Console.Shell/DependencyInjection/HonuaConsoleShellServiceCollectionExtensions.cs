@@ -229,9 +229,11 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // surfaced by the primary (server) source's read.
         //
         // honua-devops does not expose a console-facing proposals endpoint yet (it is a CLI/MCP
-        // agent host; see IConsoleDevOpsProposalsClient), so the default devops client degrades
-        // gracefully to an empty allowed result — the seam and normalization are in place for the
-        // day that endpoint (or honua-server #1692's aggregating projection) lands.
+        // agent host; see IConsoleDevOpsProposalsClient), so the default devops client reports an
+        // unsupported source. A reachable server read remains available as a partial result; if
+        // the server is also unavailable, its primary denial drives the missing-binding surface.
+        // The seam and normalization are ready for the day that endpoint (or honua-server #1692's
+        // aggregating projection) lands.
         services.TryAddSingleton<IConsoleDevOpsProposalsClient, UnavailableConsoleDevOpsProposalsClient>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, ServerConsoleProposalSource>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConsoleProposalSource, DevOpsConsoleProposalSource>());

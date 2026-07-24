@@ -16,22 +16,55 @@
         <p class="console-kicker">Operate / Data &amp; Layers</p>
         <h1>Data &amp; Layers</h1>
         <p>Resources, and the services/protocols each is published on. Expand a resource to see its publications; pick one to preview its served endpoint.</p>
-        <div class="console-action-row">
-            <a class="console-button" href="/operate/data/new">+ Add data</a>
+        @if (_loaded && !HasMissingBinding)
+        {
+            <div class="console-action-row">
+                <a class="console-button" href="/operate/data/new">+ Add data</a>
+            </div>
+        }
+    </div>
+
+    @if (!_loaded)
+    {
+        <ConsoleStateView Kind="loading"
+                          Kicker="Loading"
+                          Title="Loading data and layers"
+                          Message="Reading resources and their live publications from the connected environment." />
+    }
+    else if (_nodes.Count == 0 && HasMissingBinding)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="Environment required"
+                          Title="Connect an environment to browse data and layers"
+                          Message="Choose the Honua environment whose resources and published endpoints you want to manage."
+                          ActionHref="/environments/new"
+                          ActionLabel="Connect environment" />
+        <details class="console-panel">
+            <summary>Technical details</summary>
+            @foreach (var state in _states)
+            {
+                <p><strong>@state.State:</strong> @state.Detail</p>
+            }
+        </details>
+    }
+    else if (_nodes.Count == 0 && _states.Count > 0)
+    {
+        <OperateCapabilityStateList States="@_states" />
+    }
+    else
+    {
+        <OperateCapabilityStateList States="@_states" />
+
+        <div class="operate-data-page__split">
+            <ResourcePublicationsTree Nodes="@_nodes"
+                                      FocusResourceId="@Focus"
+                                      OnPublicationSelected="OnPublicationSelected"
+                                      OnResourceSelected="OnResourceSelected" />
+            <LayerPreviewPane Selection="@_preview"
+                              Protocols="@_previewProtocols"
+                              OnProtocolSelected="OnPreviewProtocolChanged" />
         </div>
-    </div>
-
-    <OperateCapabilityStateList States="@_states" />
-
-    <div class="operate-data-page__split">
-        <ResourcePublicationsTree Nodes="@_nodes"
-                                  FocusResourceId="@Focus"
-                                  OnPublicationSelected="OnPublicationSelected"
-                                  OnResourceSelected="OnResourceSelected" />
-        <LayerPreviewPane Selection="@_preview"
-                          Protocols="@_previewProtocols"
-                          OnProtocolSelected="OnPreviewProtocolChanged" />
-    </div>
+    }
 </section>
 
 @code {
@@ -43,6 +76,11 @@
     private LayerPreviewPane.PreviewSelection? _preview;
     private IReadOnlyList<LayerPreviewPane.PreviewSelection> _previewProtocols = [];
     private ResourceTreeNode? _selectedResource;
+    private bool _loaded;
+
+    private bool HasMissingBinding =>
+        _states.Any(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
     {
@@ -53,6 +91,7 @@
         _states = OperateCapabilityStateFilters.ForSurface(
             resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),
             "Resources", "Layers", "Services");
+        _loaded = true;
 
         if (!string.IsNullOrWhiteSpace(Focus))
         {

@@ -200,6 +200,36 @@ public sealed class ConsoleCatalogClientTests
         Assert.DoesNotContain(
             ConsoleCatalogActionPolicy.Resolve(item.Item!.Summary, isAuthenticated: !item.AnonymousRead),
             action => action.Id is "studio" or "share");
+
+        var access = await resolver.ResolveAccessAsync(publicLinkToken: null);
+        Assert.Equal(ConsoleCatalogAccessState.SignInRequired, access.State);
+    }
+
+    [Fact]
+    public async Task NoActiveEnvironment_IsDistinctFromSignInRequired()
+    {
+        var resolver = new ConsoleCatalogReadContextResolver(
+            new InMemoryConsoleEnvironmentProfileStore([]),
+            new InMemoryConsoleAccountSessionStore());
+
+        var access = await resolver.ResolveAccessAsync(publicLinkToken: null);
+
+        Assert.Equal(ConsoleCatalogAccessState.NoActiveEnvironment, access.State);
+        Assert.True(access.Context.Anonymous);
+    }
+
+    [Fact]
+    public async Task PublicLinkRead_RemainsAvailableWithoutAnActiveEnvironment()
+    {
+        var resolver = new ConsoleCatalogReadContextResolver(
+            new InMemoryConsoleEnvironmentProfileStore([]),
+            new InMemoryConsoleAccountSessionStore());
+
+        var access = await resolver.ResolveAccessAsync(publicLinkToken: "public-link-token");
+
+        Assert.Equal(ConsoleCatalogAccessState.PublicLink, access.State);
+        Assert.True(access.Context.Anonymous);
+        Assert.Equal("public-link-token", access.Context.PublicLinkToken);
     }
 
     [Fact]

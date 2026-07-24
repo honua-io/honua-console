@@ -29,13 +29,12 @@
 *@
 <div class="add-data-intake" data-add-data-intake>
     <div class="add-data-intake__bar">
-        <div class="add-data-intake__modes" role="tablist" aria-label="Add data source">
+        <div class="add-data-intake__modes" role="group" aria-label="Add data source">
             @foreach (var option in ModeOptions)
             {
                 <button type="button"
-                        role="tab"
                         class="add-data-intake__mode @(option.Mode == _mode ? "add-data-intake__mode--on" : string.Empty)"
-                        aria-selected="@(option.Mode == _mode)"
+                        aria-pressed="@(option.Mode == _mode ? "true" : "false")"
                         data-intake-mode="@option.Mode.ToString()"
                         @onclick="() => SetMode(option.Mode)">
                     @option.Label

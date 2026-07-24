@@ -1,12 +1,15 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 
-<div class="console-shell">
-    @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has(). *@
-    <input type="checkbox" id="console-collapse" class="console-collapse-toggle" aria-hidden="true" />
-    <aside class="console-sidebar" aria-label="Honua Console navigation">
+<PageTitle>@DocumentTitle</PageTitle>
+
+<div class="console-shell @(_navigationCollapsed ? "is-collapsed" : null)">
+    <aside class="console-sidebar"
+           aria-label="Honua Console navigation"
+           @onkeydown="HandleNavigationKeyDown">
         <div class="console-sidebar-head">
             <a class="console-brand" href="/" title="Honua Console">
                 <span class="console-brand-mark">H</span>
@@ -15,11 +18,29 @@
                     <small>Unified surface</small>
                 </span>
             </a>
-            <label for="console-collapse" class="console-collapse-button" title="Collapse navigation" aria-label="Toggle navigation">
+            <button type="button"
+                    class="console-collapse-button"
+                    title="@(_navigationCollapsed ? "Expand navigation" : "Collapse navigation")"
+                    aria-label="@(_navigationCollapsed ? "Expand navigation" : "Collapse navigation")"
+                    aria-expanded="@(_navigationCollapsed ? "false" : "true")"
+                    aria-controls="console-navigation-panel"
+                    @onclick="ToggleNavigationCollapsed">
                 @Icon("collapse")
-            </label>
+            </button>
+            <button type="button"
+                    class="console-menu-button"
+                    @ref="_mobileMenuButton"
+                    title="@(_mobileNavigationOpen ? "Close navigation menu" : "Open navigation menu")"
+                    aria-label="@(_mobileNavigationOpen ? "Close navigation menu" : "Open navigation menu")"
+                    aria-expanded="@(_mobileNavigationOpen ? "true" : "false")"
+                    aria-controls="console-navigation-panel"
+                    @onclick="ToggleMobileNavigation">
+                @Icon(_mobileNavigationOpen ? "close" : "menu")
+            </button>
         </div>
 
+        <div id="console-navigation-panel"
+             class="console-sidebar-body @(_mobileNavigationOpen ? "is-open" : null)">
         <nav class="console-nav" aria-label="Primary">
             @* The approval inbox (#193) is the human-in-the-loop centerpiece: the GIS
                department's work queue. It is a top-level surface, not Operate-scoped. *@
@@ -78,6 +99,7 @@
                 <span class="console-nav-label"><span>Contact support</span></span>
             </NavLink>
         </nav>
+        </div>
     </aside>
 
     <main class="console-main">
@@ -90,8 +112,120 @@
 </div>
 
 @code {
+    private bool _navigationCollapsed;
+    private bool _mobileNavigationOpen;
+    private ElementReference _mobileMenuButton;
+
+    private string DocumentTitle =>
+        BuildDocumentTitle(Navigation.ToBaseRelativePath(Navigation.Uri));
+
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
+
+    protected override void OnInitialized() =>
+        Navigation.LocationChanged += OnLocationChanged;
+
+    private void ToggleNavigationCollapsed() =>
+        _navigationCollapsed = !_navigationCollapsed;
+
+    private void ToggleMobileNavigation() =>
+        _mobileNavigationOpen = !_mobileNavigationOpen;
+
+    private async Task HandleNavigationKeyDown(KeyboardEventArgs args)
+    {
+        if (string.Equals(args.Key, "Escape", StringComparison.Ordinal) && _mobileNavigationOpen)
+        {
+            _mobileNavigationOpen = false;
+            await _mobileMenuButton.FocusAsync();
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _mobileNavigationOpen = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    internal static string BuildDocumentTitle(string relativePath)
+    {
+        ArgumentNullException.ThrowIfNull(relativePath);
+
+        var queryOrFragmentIndex = relativePath.IndexOfAny(['?', '#']);
+        var path = (queryOrFragmentIndex >= 0 ? relativePath[..queryOrFragmentIndex] : relativePath)
+            .Trim('/')
+            .ToLowerInvariant();
+
+        var label = path switch
+        {
+            "" => "Home",
+            "inbox" or "approvals" => "Approval Inbox",
+            "catalog" => "Catalog",
+            _ when path.StartsWith("catalog/", StringComparison.Ordinal) => "Catalog Item",
+            "studio" or "studio/proof" or "studio/drafts" => "Studio",
+            "studio/query" => "Query Builder · Studio",
+            "studio/map" => "Map Builder · Studio",
+            "studio/dashboard" => "Dashboard Builder · Studio",
+            "studio/report" or "studio/report/ai" => "Report Builder · Studio",
+            "studio/form" or "studio/form/ai" or "studio/form/import" => "Form Builder · Studio",
+            "studio/app" => "App Builder · Studio",
+            "studio/styles" => "Style Editor · Studio",
+            _ when path.StartsWith("studio/styles/", StringComparison.Ordinal) => "Style Editor · Studio",
+            "studio/automations" => "Automations · Studio",
+            _ when path.StartsWith("studio/automations/", StringComparison.Ordinal) => "Automation · Studio",
+            "studio/workflows/new" => "New Workflow · Studio",
+            _ when path.StartsWith("studio/workflows/", StringComparison.Ordinal) => "Workflow · Studio",
+            "studio/ai" => "Ask Honua · Studio",
+            "operate" => "Operate",
+            _ when path.StartsWith("operate/", StringComparison.Ordinal) => BuildOperateDocumentLabel(path),
+            "share" or "share/public" or "public" => "Share",
+            "share/manage" => "Manage Sharing",
+            _ when path.StartsWith("share/public/items/", StringComparison.Ordinal)
+                || path.StartsWith("public/items/", StringComparison.Ordinal) => "Shared Item",
+            "maps/new" => "New Map",
+            _ when path.StartsWith("maps/", StringComparison.Ordinal) => "Map",
+            _ when path.StartsWith("embed/maps/", StringComparison.Ordinal) => "Embedded Map",
+            "environments" => "Environments",
+            "environments/new" => "Connect Environment",
+            _ when path.StartsWith("environments/", StringComparison.Ordinal) => "Environment",
+            "auth/signin" => "Sign In",
+            "support" => "Support",
+            _ when path.StartsWith("support/tickets/", StringComparison.Ordinal) => "Support Ticket",
+            "not-found" => "Page Not Found",
+            _ => "Honua Console",
+        };
+
+        return string.Equals(label, "Honua Console", StringComparison.Ordinal)
+            ? label
+            : $"{label} | Honua Console";
+    }
+
+    private static string BuildOperateDocumentLabel(string path)
+    {
+        var matchingSection = OperateSections
+            .Select(section => (Path: section.Path.Trim('/').ToLowerInvariant(), section.Label))
+            .Where(section => string.Equals(path, section.Path, StringComparison.Ordinal)
+                || path.StartsWith($"{section.Path}/", StringComparison.Ordinal))
+            .OrderByDescending(section => section.Path.Length)
+            .FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(matchingSection.Label))
+        {
+            return $"{matchingSection.Label} · Operate";
+        }
+
+        return path switch
+        {
+            _ when path.StartsWith("operate/layers", StringComparison.Ordinal)
+                || path.StartsWith("operate/resources", StringComparison.Ordinal)
+                || path.StartsWith("operate/services", StringComparison.Ordinal) => "Data & Layers · Operate",
+            _ when path.StartsWith("operate/events", StringComparison.Ordinal)
+                || path.StartsWith("operate/alerts", StringComparison.Ordinal)
+                || path.StartsWith("operate/jobs", StringComparison.Ordinal) => "Observability · Operate",
+            _ when path.StartsWith("operate/publications", StringComparison.Ordinal) => "Publishing · Operate",
+            "operate/health" => "Health · Operate",
+            _ => "Operate",
+        };
+    }
 
     // Capability-gated depth surfaces (first-release cut-line) are hidden from the Operate nav until the
     // deployment advertises the capability, so the rail never links to a surface that only renders the
@@ -139,6 +273,9 @@
         ("/operate/ai", "Ask Honua (AI)", "studio"),
     ];
 
+    public void Dispose() =>
+        Navigation.LocationChanged -= OnLocationChanged;
+
     // Minimal inline line-icon set (24x24, currentColor). Subpaths separated by '|'.
     private static MarkupString Icon(string key)
     {
@@ -172,6 +309,8 @@
             "support" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z|M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3|M12 17h.01",
             "inbox" => "M22 12h-6l-2 3h-4l-2-3H2|M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z",
             "collapse" => "M15 18l-6-6 6-6|M9 18l-6-6 6-6",
+            "menu" => "M4 6h16|M4 12h16|M4 18h16",
+            "close" => "M6 6l12 12|M18 6 6 18",
             _ => "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
         };
 

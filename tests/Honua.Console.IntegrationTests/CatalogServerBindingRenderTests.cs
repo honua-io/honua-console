@@ -251,6 +251,21 @@ public sealed class CatalogServerBindingRenderTests
         Assert.DoesNotContain("the connected server has", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Catalog_WithNoActiveEnvironment_OffersConnectInsteadOfSignIn()
+    {
+        var handler = new StubHandler(_ => throw new InvalidOperationException("Catalog must not read before an environment is selected."));
+        using var ctx = new Bunit.BunitContext();
+        RegisterCatalog(ctx, handler, anonymous: true);
+        ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new NoEnvironmentReadContextResolver());
+
+        var page = ctx.Render<CatalogPage>();
+
+        Assert.Contains("Connect an environment to browse Catalog", page.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll("a[href='/environments/new']"));
+        Assert.DoesNotContain("Sign in to browse catalog", page.Markup, StringComparison.Ordinal);
+    }
+
     private static void RegisterCatalog(
         Bunit.BunitContext ctx,
         StubHandler handler,
@@ -293,6 +308,21 @@ public sealed class CatalogServerBindingRenderTests
     {
         public Task<CatalogReadContext> ResolveAsync(string? publicLinkToken, CancellationToken cancellationToken = default) =>
             Task.FromResult(anonymous ? CatalogReadContext.AnonymousPublicLink(publicLinkToken) : CatalogReadContext.Authenticated);
+    }
+
+    private sealed class NoEnvironmentReadContextResolver : IConsoleCatalogReadContextResolver
+    {
+        public Task<CatalogReadContext> ResolveAsync(
+            string? publicLinkToken,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(CatalogReadContext.AnonymousPublicLink(publicLinkToken));
+
+        public Task<ConsoleCatalogReadAccess> ResolveAccessAsync(
+            string? publicLinkToken,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConsoleCatalogReadAccess(
+                CatalogReadContext.AnonymousPublicLink(publicLinkToken),
+                ConsoleCatalogAccessState.NoActiveEnvironment));
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler

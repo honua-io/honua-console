@@ -17,7 +17,7 @@
         </div>
     </div>
 
-    @if (_accessResolved && !_requiresAuthentication)
+    @if (_accessResolved && !_requiresEnvironment && !_requiresAuthentication)
     {
         <form class="console-filter-bar" method="get" action="/catalog">
             <label>
@@ -98,6 +98,15 @@
     @if (!_accessResolved)
     {
         <ConsoleStateView Kind="loading" Kicker="Loading" Title="Checking catalog access" Message="The workspace session is being checked before catalog summaries load." />
+    }
+    else if (_requiresEnvironment)
+    {
+        <ConsoleStateView Kind="missing"
+                          Kicker="Environment required"
+                          Title="Connect an environment to browse Catalog"
+                          Message="Choose the Honua environment whose workspace content you want to search."
+                          ActionHref="/environments/new"
+                          ActionLabel="Connect environment" />
     }
     else if (_requiresAuthentication)
     {
@@ -203,6 +212,7 @@
     private CatalogSearchState _search = new();
     private CatalogSearchResult? _result;
     private bool _accessResolved;
+    private bool _requiresEnvironment;
     private bool _requiresAuthentication;
     private int? _liveResourceCount;
 
@@ -210,19 +220,26 @@
     {
         _search = CatalogSearchState.FromUri(Navigation.Uri);
         _accessResolved = false;
+        _requiresEnvironment = false;
         _requiresAuthentication = false;
         _result = null;
         _liveResourceCount = null;
 
-        var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
+        var access = await ReadContexts.ResolveAccessAsync(publicLinkToken: null);
         _accessResolved = true;
-        if (context.Anonymous)
+        if (access.State == ConsoleCatalogAccessState.NoActiveEnvironment)
+        {
+            _requiresEnvironment = true;
+            return;
+        }
+
+        if (access.Context.Anonymous)
         {
             _requiresAuthentication = true;
             return;
         }
 
-        _result = await Catalog.SearchAsync(_search.ToListRequest(), context);
+        _result = await Catalog.SearchAsync(_search.ToListRequest(), access.Context);
 
         // Only the genuine, successful empty state bridges to the server's live resource count. A failed
         // read renders its own error/retry surface (never the bridge), and a populated catalog needs no bridge.

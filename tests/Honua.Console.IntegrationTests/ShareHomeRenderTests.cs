@@ -85,11 +85,12 @@ public sealed class ShareHomeRenderTests
         var page = ctx.Render<SharePage>();
 
         page.WaitForAssertion(
-            () => Assert.Contains("Share is not bound to honua-server", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Connect an environment to manage sharing", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         // Missing-binding is a distinct first-class state, not the "no public items" empty surface (Charter §11).
         Assert.DoesNotContain("No public open-data items", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-share-home-table", page.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll("a[href='/environments/new']"));
     }
 
     [Fact]

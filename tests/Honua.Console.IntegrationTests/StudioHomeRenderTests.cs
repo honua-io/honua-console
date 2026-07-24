@@ -32,6 +32,9 @@ public sealed class StudioHomeRenderTests
 
         Assert.Contains("What do you want to build?", page.Markup, StringComparison.Ordinal);
         Assert.NotEmpty(page.FindAll("textarea.studio-home-hero-input"));
+        Assert.Equal(
+            "studio-home-hero-heading",
+            page.Find("textarea.studio-home-hero-input").GetAttribute("aria-labelledby"));
 
         // Every suggestion chip from the mockup is present.
         foreach (var suggestion in StudioHomeContentTypes.PromptSuggestions)
@@ -157,8 +160,8 @@ public sealed class StudioHomeRenderTests
             () => Assert.NotEmpty(page.FindAll(".console-state-missing")),
             TimeSpan.FromSeconds(5));
 
-        Assert.Contains("Recent projects are not bound", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Honua:Server:BaseUrl", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Connect an environment to see recent projects", page.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll("a[href='/environments/new']"));
         Assert.Empty(page.FindAll("[data-recent-project]"));
         // The pure-UI hero + omni-prompt entry remain available even without a server binding.
         Assert.NotEmpty(page.FindAll("[data-studio-home-hero='true']"));

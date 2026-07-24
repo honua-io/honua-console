@@ -36,5 +36,16 @@
     cursor: pointer;
     position: absolute;
     right: 0.9rem;
-    top: 0.55rem;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1;
+    transform: translateY(-50%);
 }

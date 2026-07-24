@@ -6,13 +6,8 @@
     <div class="console-page-heading">
         <p class="console-kicker">Operator workflow</p>
         <h1>Operate</h1>
-        <p>Connections, data resources, services, layers, and control-plane settings live under Operate while Studio, Catalog, and Share keep their builder and end-user workflows separate.</p>
+        <p>Connect data, manage resources and their published layers, and keep the deployment healthy.</p>
     </div>
-
-    @* Ops-summary strip (console#292, founder decision 2026-07-07): the hub's "is my server
-       healthy, what needs me?" glance — overall health, awaiting approvals, open findings, and
-       SLO breaches, each deep-linking to its actionable surface. *@
-    <OpsSummaryStrip />
 
     @if (_workspace is null)
     {
@@ -20,7 +15,34 @@
     }
     else
     {
-        <OperateCapabilityStateList States="@_workspace.CapabilityStates" />
+        @* The summary answers "is my server healthy?" only after a server is actually bound.
+           Rendering its unavailable metrics above the connection CTA implies a failed connection
+           where none exists and contradicts the first-class missing-binding state. *@
+        @if (!HasMissingBinding)
+        {
+            <OpsSummaryStrip />
+        }
+
+        @if (HasMissingBinding)
+        {
+            <ConsoleStateView Kind="missing"
+                              Kicker="Environment required"
+                              Title="Connect an environment to use Operate"
+                              Message="Choose the Honua environment you want to manage. Once connected, Operate will load its live data and health state."
+                              ActionHref="/environments/new"
+                              ActionLabel="Connect environment" />
+            <details class="console-panel">
+                <summary>Technical details</summary>
+                @foreach (var state in _workspace.CapabilityStates)
+                {
+                    <p><strong>@state.State:</strong> @state.Detail</p>
+                }
+            </details>
+        }
+        else
+        {
+            <OperateCapabilityStateList States="@_workspace.CapabilityStates" />
+        }
 
         <div class="console-panel-grid console-panel-grid-wide">
             <a class="console-panel console-area-link" href="/operate/connections">
@@ -29,31 +51,22 @@
                         <p class="console-kicker">Connections</p>
                         <h2>Data Connections</h2>
                     </div>
-                    <span class="console-profile-count">@_workspace.Connections.Count</span>
+                    @if (CanShowCount("Connections"))
+                    {
+                        <span class="console-profile-count">@_workspace.Connections.Count</span>
+                    }
                 </div>
                 <p class="console-muted">Test connections and inspect operator-safe diagnostics.</p>
             </a>
 
-            <a class="console-panel console-area-link" href="/operate/resources">
+            <a class="console-panel console-area-link" href="/operate/data">
                 <div class="console-panel-heading">
                     <div>
-                        <p class="console-kicker">Resources</p>
-                        <h2>Data Resource Edits</h2>
+                        <p class="console-kicker">Data</p>
+                        <h2>Data &amp; Layers</h2>
                     </div>
-                    <span class="console-profile-count">@_workspace.ResourceEdits.Count</span>
                 </div>
-                <p class="console-muted">Review validation state, blast radius, and publish impact before applying changes.</p>
-            </a>
-
-            <a class="console-panel console-area-link" href="/operate/services">
-                <div class="console-panel-heading">
-                    <div>
-                        <p class="console-kicker">Services</p>
-                        <h2>Services And Layers</h2>
-                    </div>
-                    <span class="console-profile-count">@_workspace.Services.Count</span>
-                </div>
-                <p class="console-muted">Operate runtime settings and publication slots while resource metadata remains canonical.</p>
+                <p class="console-muted">Browse canonical resources with every service and protocol that publishes them, then preview the live endpoint.</p>
             </a>
 
             <a class="console-panel console-area-link" href="/operate/publishing">
@@ -72,7 +85,10 @@
                         <p class="console-kicker">Settings</p>
                         <h2>Operator Settings</h2>
                     </div>
-                    <span class="console-profile-count">@_workspace.SettingsChanges.Count</span>
+                    @if (CanShowCount("Settings"))
+                    {
+                        <span class="console-profile-count">@_workspace.SettingsChanges.Count</span>
+                    }
                 </div>
                 <p class="console-muted">Preview apply scope, policy requirements, and restart impact for settings changes.</p>
             </a>
@@ -170,38 +186,63 @@
             </a>
         </div>
 
-        <section class="console-section">
-            <div class="console-page-heading">
-                <p class="console-kicker">Current attention</p>
-                <h2>Actionable Items</h2>
-            </div>
+        @if (HasActionableItems)
+        {
+            <section class="console-section">
+                <div class="console-page-heading">
+                    <p class="console-kicker">Current attention</p>
+                    <h2>Actionable Items</h2>
+                </div>
 
-            <ul class="console-event-list">
-                @foreach (var connection in _workspace.Connections.Where(connection => connection.LastDiagnostic is not null))
-                {
-                    var diagnostic = connection.LastDiagnostic!;
-                    <li>
-                        <strong>@connection.Name</strong>
-                        <span>@diagnostic.FailureCode</span>
-                        <small>@(diagnostic.OperatorActions.Count > 0 ? diagnostic.OperatorActions[0] : "No operator action recorded.")</small>
-                    </li>
-                }
+                <ul class="console-event-list">
+                    @foreach (var connection in _workspace.Connections.Where(connection => connection.LastDiagnostic is not null))
+                    {
+                        var diagnostic = connection.LastDiagnostic!;
+                        <li>
+                            <strong>@connection.Name</strong>
+                            <span>@diagnostic.FailureCode</span>
+                            <small>@(diagnostic.OperatorActions.Count > 0 ? diagnostic.OperatorActions[0] : "No operator action recorded.")</small>
+                        </li>
+                    }
 
-                @foreach (var resource in _workspace.ResourceEdits)
-                {
-                    <li>
-                        <strong>@resource.Name</strong>
-                        <span>@resource.ValidationState</span>
-                        <small>@resource.DraftChange</small>
-                    </li>
-                }
-            </ul>
-        </section>
+                    @foreach (var resource in _workspace.ResourceEdits)
+                    {
+                        <li>
+                            <strong>@resource.Name</strong>
+                            <span>@resource.ValidationState</span>
+                            <small>@resource.DraftChange</small>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
     }
 </section>
 
 @code {
     private OperateTransitionWorkspace? _workspace;
+
+    private bool HasMissingBinding =>
+        _workspace?.CapabilityStates.Any(state =>
+            string.Equals(state.State, "Missing binding", StringComparison.OrdinalIgnoreCase)) == true;
+
+    private bool HasActionableItems =>
+        _workspace is not null
+        && (_workspace.ResourceEdits.Count > 0
+            || _workspace.Connections.Any(connection => connection.LastDiagnostic is not null));
+
+    private bool CanShowCount(params string[] surfaces)
+    {
+        if (_workspace is null)
+        {
+            return false;
+        }
+
+        var requested = surfaces.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return !_workspace.CapabilityStates.Any(state =>
+            string.Equals(state.Surface, "Operate", StringComparison.OrdinalIgnoreCase)
+            || requested.Contains(state.Surface));
+    }
 
     protected override async Task OnInitializedAsync()
     {

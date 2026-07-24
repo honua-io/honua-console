@@ -58,7 +58,8 @@ public sealed class OmniPromptConsolePageRenderTests
             },
             TimeSpan.FromSeconds(5));
 
-        // Confirming the suggested Studio lane mounts the data→publish flow's AI driver surface.
+        // Confirming the suggested Studio lane mounts the data→publish flow, which requires an
+        // environment before exposing server-touching AI or upload controls.
         page.Find("[data-omni-confirm-studio]").Click();
 
         page.WaitForAssertion(
@@ -66,7 +67,9 @@ public sealed class OmniPromptConsolePageRenderTests
             {
                 Assert.Contains("Routed to", page.Markup, StringComparison.Ordinal);
                 Assert.NotEmpty(page.FindAll("[data-data-publish-flow]"));
-                Assert.NotEmpty(page.FindAll("[data-ai-driver]"));
+                Assert.NotEmpty(page.FindAll("[data-flow-missing-binding]"));
+                Assert.Contains("Connect an environment before adding data", page.Markup, StringComparison.Ordinal);
+                Assert.Empty(page.FindAll("[data-ai-driver]"));
                 Assert.Empty(page.FindAll("[data-omni-devops-surface]"));
             },
             TimeSpan.FromSeconds(5));
@@ -194,15 +197,42 @@ public sealed class OmniPromptConsolePageRenderTests
         ctx.Services.AddSingleton<IConsoleGitOpsReleaseClient>(new StubReleaseClient());
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(new UnsupportedConsoleDeployApprovalClient());
 
-        // Studio lane backend — the unified data→publish flow's dependencies. The Unsupported impls render the
-        // honest missing-binding / AI-unavailable posture (Charter §11); the AI driver surface still mounts.
+        // Studio lane backend — the unified data→publish flow's dependencies. Without a capable AI
+        // driver the source stays honestly unbound. The seed test supplies a capable driver plus a
+        // bound-empty workspace so it can exercise the intent handoff rather than the connection gate.
         ctx.Services.AddSingleton<IConsoleFileImportOperation>(new UnsupportedConsoleFileImportOperation());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(
+            aiDriver is null
+                ? new UnsupportedOperateTransitionDataSource()
+                : new BoundEmptyOperateDataSource());
         ctx.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
         ctx.Services.AddSingleton<IAiPublishDriver>(aiDriver ?? new UnsupportedAiPublishDriver());
 
         return ctx;
+    }
+
+    private sealed class BoundEmptyOperateDataSource : IOperateTransitionDataSource
+    {
+        private static readonly OperateTransitionWorkspace Workspace = new([], [], [], [], []);
+
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Workspace);
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(
+            string connectionId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateConnectionSummary?>(null);
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(
+            string resourceId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateResourceEditPreview?>(null);
+
+        public Task<OperateServiceDetail?> FindServiceAsync(
+            string serviceName,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateServiceDetail?>(null);
     }
 
     // A capability-enabled AI driver so the data→publish flow renders its intent textarea (the Unsupported

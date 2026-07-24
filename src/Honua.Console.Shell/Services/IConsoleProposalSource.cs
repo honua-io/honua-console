@@ -14,8 +14,9 @@ namespace Honua.Console.Shell.Services;
 /// A source returns an <see cref="OperateSectionResult{T}"/> whose status drives the shared
 /// missing / forbidden / unsupported / unavailable surfaces. Per the Console Patterns Charter
 /// (section 11) a source binds to a live owning system and never to a standing in-memory / mock
-/// source; a source that is not reachable yet degrades gracefully (an empty allowed result)
-/// rather than fabricating a queue, so it never blocks the reachable sources.
+/// source. A source that is not reachable reports a denied state; the aggregator still returns
+/// data from any reachable source as an explicitly partial result, and denies the combined read
+/// only when no source is reachable.
 /// </summary>
 public interface IConsoleProposalSource
 {

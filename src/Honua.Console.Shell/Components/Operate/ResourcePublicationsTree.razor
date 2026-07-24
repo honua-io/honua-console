@@ -15,35 +15,49 @@
                @bind="_filter" @bind:event="oninput" />
     </div>
 
-    @if (FilteredNodes.Count == 0)
+    @if (Nodes.Count == 0)
     {
         <p class="console-muted" data-tree-empty>
             No resources yet. <a href="/operate/data/new">Add data</a> — it becomes a resource you can publish.
         </p>
     }
+    else if (FilteredNodes.Count == 0)
+    {
+        <p class="console-muted" data-tree-no-results>No resources match your filter.</p>
+    }
     else
     {
-        <ul class="resource-tree__list" role="tree">
+        <ul class="resource-tree__list" aria-label="Resources and publications">
             @foreach (var node in FilteredNodes)
             {
                 <li class="resource-tree__node @(node.HasPublications ? "resource-tree__node--running" : "resource-tree__node--draft")"
-                    data-resource-node="@node.ResourceId" role="treeitem" aria-expanded="@(_expanded.Contains(node.ResourceId))">
+                    data-resource-node="@node.ResourceId">
                     <div class="resource-tree__row">
-                        <button type="button" class="resource-tree__toggle" @onclick="() => ToggleExpand(node.ResourceId)"
-                                aria-label="@(_expanded.Contains(node.ResourceId) ? "Collapse" : "Expand") @node.Name">
-                            @(node.HasPublications ? (_expanded.Contains(node.ResourceId) ? "▼" : "▶") : "○")
-                        </button>
-                        <span class="resource-tree__name" @onclick="() => SelectResource(node)">@node.Name</span>
+                        @if (node.HasPublications)
+                        {
+                            <button type="button"
+                                    class="resource-tree__toggle"
+                                    aria-expanded="@(_expanded.Contains(node.ResourceId) ? "true" : "false")"
+                                    @onclick="() => ToggleExpand(node.ResourceId)"
+                                    aria-label="@(_expanded.Contains(node.ResourceId) ? "Collapse" : "Expand") @node.Name publications">
+                                @(_expanded.Contains(node.ResourceId) ? "▼" : "▶")
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="resource-tree__toggle" aria-hidden="true">○</span>
+                        }
+                        <button type="button" class="resource-tree__name" @onclick="() => SelectResource(node)">@node.Name</button>
                         <span class="resource-tree__meta console-muted">@node.Source</span>
                         <span class="console-status @(node.HasPublications ? "console-status-success" : "console-status-warning")">@node.Status</span>
                     </div>
 
                     @if (_expanded.Contains(node.ResourceId))
                     {
-                        <ul class="resource-tree__publications" role="group">
+                        <ul class="resource-tree__publications" aria-label="@node.Name publications">
                             @foreach (var publication in node.Publications)
                             {
-                                <li class="resource-tree__publication" data-publication="@publication.ProtocolId" role="treeitem">
+                                <li class="resource-tree__publication" data-publication="@publication.ProtocolId">
                                     <button type="button" class="resource-tree__publication-row"
                                             @onclick="() => SelectPublication(node, publication)">
                                         <span class="resource-tree__publication-check">✓</span>
@@ -111,7 +125,11 @@
 
     private async Task SelectResource(ResourceTreeNode node)
     {
-        ToggleExpand(node.ResourceId);
+        if (node.HasPublications)
+        {
+            _expanded.Add(node.ResourceId);
+        }
+
         if (OnResourceSelected.HasDelegate)
         {
             await OnResourceSelected.InvokeAsync(node);

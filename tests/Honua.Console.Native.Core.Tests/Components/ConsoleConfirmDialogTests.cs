@@ -1,5 +1,6 @@
 using Bunit;
 using Honua.Console.Shell.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace Honua.Console.Native.Core.Tests.Components;
 
@@ -134,5 +135,45 @@ public sealed class ConsoleConfirmDialogTests : ConsoleComponentTestBase
         await cut.InvokeAsync(() => cut.Instance.Open("Publish?", () => Task.CompletedTask));
 
         Assert.Equal("alertdialog", cut.Find("[aria-modal='true']").GetAttribute("role"));
+    }
+
+    [Fact]
+    public async Task Dialog_exposes_label_description_and_safe_initial_focus_target()
+    {
+        var cut = Render<ConsoleConfirmDialog>();
+
+        await cut.InvokeAsync(() => cut.Instance.Open(
+            "Delete this layer?",
+            () => Task.CompletedTask,
+            body: "Published services that use it will stop working."));
+
+        var dialog = cut.Find("[data-console-confirm-dialog]");
+        var title = cut.Find(".console-confirm-title");
+        var body = cut.Find(".console-confirm-body");
+        var cancel = cut.Find("[data-console-confirm-cancel]");
+
+        Assert.Equal(title.Id, dialog.GetAttribute("aria-labelledby"));
+        Assert.Equal(body.Id, dialog.GetAttribute("aria-describedby"));
+        Assert.True(cancel.HasAttribute("autofocus"));
+    }
+
+    [Fact]
+    public async Task Escape_closes_dialog_without_calling_onConfirm()
+    {
+        var called = false;
+        var cut = Render<ConsoleConfirmDialog>();
+
+        await cut.InvokeAsync(() => cut.Instance.Open(
+            "Delete?",
+            () =>
+            {
+                called = true;
+                return Task.CompletedTask;
+            }));
+
+        cut.Find("[data-console-confirm-dialog]").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Empty(cut.FindAll("[data-console-confirm]"));
+        Assert.False(called);
     }
 }

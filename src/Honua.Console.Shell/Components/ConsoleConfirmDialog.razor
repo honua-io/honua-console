@@ -16,17 +16,23 @@
         <div class="console-confirm-dialog"
              role="alertdialog"
              aria-modal="true"
-             aria-labelledby="console-confirm-title"
+             aria-labelledby="@_titleId"
+             aria-describedby="@(!string.IsNullOrWhiteSpace(_body) ? _bodyId : null)"
+             tabindex="-1"
+             data-console-confirm-dialog
+             @onkeydown="HandleKeyDown"
              @onclick:stopPropagation="true">
-            <h2 id="console-confirm-title" class="console-confirm-title">@_title</h2>
+            <h2 id="@_titleId" class="console-confirm-title">@_title</h2>
             @if (!string.IsNullOrWhiteSpace(_body))
             {
-                <p class="console-confirm-body">@_body</p>
+                <p id="@_bodyId" class="console-confirm-body">@_body</p>
             }
             <div class="console-confirm-actions">
                 <button type="button"
                         class="console-button console-button-secondary"
                         disabled="@_pending"
+                        data-console-confirm-cancel
+                        autofocus
                         @onclick="Cancel">
                     @_cancelLabel
                 </button>
@@ -50,6 +56,8 @@
     private string _confirmLabel = "Confirm";
     private string _cancelLabel = "Cancel";
     private Func<Task>? _onConfirm;
+    private readonly string _titleId = $"console-confirm-title-{Guid.NewGuid():N}";
+    private readonly string _bodyId = $"console-confirm-body-{Guid.NewGuid():N}";
 
     /// <summary>
     /// Opens the dialog. <paramref name="onConfirm"/> runs only when the operator clicks the confirm
@@ -82,6 +90,14 @@
 
         _open = false;
         _onConfirm = null;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (string.Equals(args.Key, "Escape", StringComparison.Ordinal))
+        {
+            Cancel();
+        }
     }
 
     private async Task ConfirmAsync()

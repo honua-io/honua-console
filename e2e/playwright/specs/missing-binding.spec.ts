@@ -12,8 +12,9 @@ test('share degrades into an explicit missing-binding state, not a crash', async
   await expect(state).toBeVisible();
   await expect(state.locator('.console-kicker')).toBeVisible();
 
-  // The Share area explicitly reports it is not bound (no mock/seeded data shown).
-  await expect(page.getByText('Share is not bound to honua-server')).toBeVisible();
+  // The Share area gives a human-first connection path (no mock/seeded data shown).
+  await expect(page.getByText('Connect an environment to manage sharing')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Connect environment' })).toBeVisible();
 });
 
 test('studio map builder renders the missing-binding surface', async ({ page }) => {

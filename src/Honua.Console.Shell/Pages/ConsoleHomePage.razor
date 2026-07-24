@@ -108,6 +108,12 @@
                         <span class="console-muted">in the queue</span>
                     </span>
                 </div>
+                @if (_inbox.PartialResult && !string.IsNullOrWhiteSpace(_inbox.Message))
+                {
+                    <p class="console-muted approval-inbox-partial" role="note" data-home-inbox-partial>
+                        @_inbox.Message
+                    </p>
+                }
                 <p class="console-muted">
                     @if (snapshot.AwaitingApprovalCount > 0)
                     {
