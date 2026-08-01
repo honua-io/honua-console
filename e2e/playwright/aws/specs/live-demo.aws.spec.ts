@@ -17,6 +17,17 @@ test('Console boots against AWS and renders the live resource/publication tree',
   expect(await resources.count(), 'the AWS-bound Console should render live resources').toBeGreaterThan(0);
   await expect(page.locator('.console-state-error')).toHaveCount(0);
 
+  // The server prerenders this page before the Blazor circuit is interactive.
+  // Prove an input event has reached the live circuit before clicking the tree;
+  // otherwise a fast browser can click inert prerendered markup.
+  const filter = page.getByRole('searchbox', { name: 'Filter resources' });
+  await expect(async () => {
+    await filter.fill('__console_interactivity_probe__');
+    await expect(resources).toHaveCount(0, { timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+  await filter.fill('');
+  await expect(resources.first()).toBeVisible();
+
   // Draft-only resources legitimately have no publications. Exercise the
   // first server-confirmed running resource instead of relying on API order.
   const firstResource = page.locator('.resource-tree__node--running').first();
@@ -41,7 +52,8 @@ test('Console catalog resolves against the same AWS environment without a read f
 
   const tableRows = page.locator('.console-content-table tbody tr');
   const serverBridge = page.locator('[data-catalog-server-bridge]');
+  const emptyState = page.locator('.console-state-empty');
   await expect
-    .poll(async () => (await tableRows.count()) + (await serverBridge.count()))
+    .poll(async () => (await tableRows.count()) + (await serverBridge.count()) + (await emptyState.count()))
     .toBeGreaterThan(0);
 });

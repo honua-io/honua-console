@@ -18,13 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 20.x
 
@@ -33,7 +33,7 @@ jobs:
 
       - name: Restore and publish Console
         run: |
-          dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj
+          dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj --locked-mode
           dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
 
       - name: Install Playwright
@@ -53,7 +53,7 @@ jobs:
 
       - name: Upload live AWS browser evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-live-aws-browser
           path: |
@@ -61,3 +61,4 @@ jobs:
             e2e/playwright/playwright-report
             e2e/playwright/test-results
           if-no-files-found: error
+          include-hidden-files: true
