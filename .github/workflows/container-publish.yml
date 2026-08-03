@@ -16,7 +16,9 @@ permissions:
 
 concurrency:
   group: console-container-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR updates may supersede their own read-only validation. A workflow_run completion must never
+  # cancel an active publisher: failed/PR CI completions also resolve github.ref to trunk here.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   IMAGE: ghcr.io/honua-io/honua-console
@@ -253,6 +255,13 @@ jobs:
           assert set(payload["areas"]) == {"studio", "catalog", "operate", "share"}, payload
           PY
 
+      - name: Attest verified candidate image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+
       - name: Promote verified digest to release tags
         shell: bash
         run: |
@@ -273,13 +282,6 @@ jobs:
           released_digest="$(docker buildx imagetools inspect \
             "${release_ref}" --format '{{.Manifest.Digest}}')"
           [[ "${released_digest}" == '${{ steps.image.outputs.digest }}' ]]
-
-      - name: Attest published image provenance
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
-        with:
-          subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ steps.image.outputs.digest }}
-          push-to-registry: true
 
       - name: Record immutable image coordinates
         run: |

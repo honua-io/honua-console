@@ -27,6 +27,7 @@ describe("Console container publication contract", () => {
     assert.match(workflow, /validate:[\s\S]*if: github\.event_name == 'pull_request'[\s\S]*packages: read/);
     assert.match(workflow, /workflow_run:[\s\S]*workflows:[\s\S]*- CI[\s\S]*- completed/);
     assert.doesNotMatch(workflow, /workflow_dispatch:/);
+    assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
     assert.match(
       workflow,
       /publish:[\s\S]*github\.event\.workflow_run\.conclusion == 'success'[\s\S]*github\.event\.workflow_run\.event == 'push'[\s\S]*packages: write/,
@@ -44,8 +45,13 @@ describe("Console container publication contract", () => {
     assert.match(workflow, /actions\/attest-build-provenance@[0-9a-f]{40} # v3/);
 
     const smoke = workflow.indexOf("Smoke-test the published Console");
+    const attest = workflow.indexOf("Attest verified candidate image provenance");
     const promote = workflow.indexOf("Promote verified digest to release tags");
     assert.ok(smoke >= 0 && promote > smoke, "release tags must be promoted after runtime smoke");
+    assert.ok(
+      attest > smoke && promote > attest,
+      "release tags must be promoted only after candidate provenance is attached",
+    );
     assert.match(workflow, /imagetools create --prefer-index=false/);
     assert.match(workflow, /released_digest[\s\S]*steps\.image\.outputs\.digest/);
     assert.deepEqual(
