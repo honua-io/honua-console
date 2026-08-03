@@ -66,7 +66,12 @@ describe("Console container publication contract", () => {
     );
     assert.match(workflow, /gh api --method PATCH[\s\S]*visibility=public/);
     assert.match(workflow, /imagetools create --prefer-index=false/);
+    assert.match(
+      workflow,
+      /existing_sha_digest[\s\S]*Refusing to move immutable tag[\s\S]*exit 1[\s\S]*imagetools create/,
+    );
     assert.match(workflow, /released_digest[\s\S]*steps\.image\.outputs\.digest/);
+    assert.match(workflow, /nightly_digest[\s\S]*steps\.image\.outputs\.digest/);
     assert.deepEqual(
       [...workflow.matchAll(/uses:\s+\S+@(v\d+)\s*$/gm)].map((match) => match[0]),
       [],

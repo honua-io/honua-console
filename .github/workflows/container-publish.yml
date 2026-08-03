@@ -189,19 +189,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve candidate and release tags
+      - name: Resolve candidate tag
         id: tags
         shell: bash
         run: |
           set -euo pipefail
           short_sha="${SOURCE_SHA:0:12}"
-          {
-            echo "candidate=${IMAGE}:candidate-${short_sha}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-            echo "value<<EOF"
-            echo "${IMAGE}:nightly"
-            echo "${IMAGE}:nightly-${short_sha}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          echo "candidate=${IMAGE}:candidate-${short_sha}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
       - name: Build and publish candidate image
         id: image
@@ -278,12 +272,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=()
-          while IFS= read -r tag; do
-            [[ -n "${tag}" ]] && args+=(--tag "${tag}")
-          done <<< '${{ steps.tags.outputs.value }}'
+          candidate_digest='${{ steps.image.outputs.digest }}'
+          release_ref="${IMAGE}:nightly-${SOURCE_SHA:0:12}"
+          args=(--tag "${IMAGE}:nightly")
+
+          if docker buildx imagetools inspect "${release_ref}" >/dev/null 2>&1; then
+            existing_sha_digest="$(docker buildx imagetools inspect \
+              "${release_ref}" --format '{{.Manifest.Digest}}')"
+            if [[ "${existing_sha_digest}" != "${candidate_digest}" ]]; then
+              echo "::error::Refusing to move immutable tag ${release_ref} from ${existing_sha_digest} to ${candidate_digest}."
+              exit 1
+            fi
+          else
+            args+=(--tag "${release_ref}")
+          fi
+
           docker buildx imagetools create --prefer-index=false \
-            "${args[@]}" "${IMAGE}@${{ steps.image.outputs.digest }}"
+            "${args[@]}" "${IMAGE}@${candidate_digest}"
 
       - name: Verify released multi-architecture manifest
         shell: bash
@@ -293,7 +298,10 @@ jobs:
           docker buildx imagetools inspect "${release_ref}"
           released_digest="$(docker buildx imagetools inspect \
             "${release_ref}" --format '{{.Manifest.Digest}}')"
+          nightly_digest="$(docker buildx imagetools inspect \
+            "${IMAGE}:nightly" --format '{{.Manifest.Digest}}')"
           [[ "${released_digest}" == '${{ steps.image.outputs.digest }}' ]]
+          [[ "${nightly_digest}" == '${{ steps.image.outputs.digest }}' ]]
 
       - name: Record immutable image coordinates
         run: |
