@@ -104,9 +104,17 @@ Console next to the server, pre-wired with the server URL and admin key:
 HONUA_CONSOLE_IMAGE=<compatible-console-image> docker compose --profile console up -d
 ```
 
-A public Console image is not published yet, so supply your own via
-`HONUA_CONSOLE_IMAGE`; the deployable artifact it should contain is defined in
-[BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
+Trunk publishes a multi-architecture Console image at
+`ghcr.io/honua-io/honua-console:nightly`. Release automation resolves that tag
+to an immutable digest; self-hosted deployments should pin the same way:
+
+```bash
+HONUA_CONSOLE_IMAGE=ghcr.io/honua-io/honua-console@sha256:<digest> \
+  docker compose --profile console up -d
+```
+
+The directory packaged into that image remains the deployable artifact defined
+in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
 
 ## Development
 

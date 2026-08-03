@@ -49,11 +49,18 @@ function parseArgs(argv) {
   return args;
 }
 
-export async function runParitySmoke({ originUrl, repoRoot = REPO_ROOT, steps = SCENARIO_STEPS, fetchImpl } = {}) {
+export async function runParitySmoke({
+  originUrl,
+  repoRoot = REPO_ROOT,
+  steps = SCENARIO_STEPS,
+  fetchImpl,
+  artifactPath,
+  fixturePath,
+} = {}) {
   if (!originUrl) throw new Error("runParitySmoke requires originUrl");
   const normalizedOriginUrl = new URL(originUrl).origin;
   const ranAt = new Date().toISOString();
-  const ctx = { repoRoot, originUrl: normalizedOriginUrl, itemIds: {}, fetchImpl };
+  const ctx = { repoRoot, originUrl: normalizedOriginUrl, itemIds: {}, fetchImpl, artifactPath, fixturePath };
   const executed = [];
   let failure = null;
 
