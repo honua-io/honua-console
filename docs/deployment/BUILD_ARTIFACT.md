@@ -20,6 +20,24 @@ writer has no third-party npm dependencies; it writes `version.json` beside the
 published host so promotion tooling can inspect the artifact before deployment.
 The running web host also exposes the same schema at `/version.json`.
 
+The root `Dockerfile` packages this exact directory into the public non-root
+ASP.NET runtime image; it does not restore packages or rebuild source inside the
+container build. After producing and stamping the artifact locally:
+
+```bash
+docker build \
+  --build-arg HONUA_CONSOLE_COMMIT_SHA="$(git rev-parse HEAD)" \
+  --build-arg HONUA_CONSOLE_REF="$(git branch --show-current)" \
+  --tag honua-console:local .
+docker run --rm --publish 4174:8080 honua-console:local
+curl --fail http://127.0.0.1:4174/version.json
+```
+
+`.github/workflows/container-publish.yml` repeats that contract on every pull
+request, then publishes `linux/amd64` and `linux/arm64` manifests from trunk as
+`ghcr.io/honua-io/honua-console:nightly` and `nightly-<short-sha>`. Promotion
+pins the resulting digest, not the moving tag.
+
 Environment variables consumed by the web host and metadata writer:
 
 - `HONUA_CONSOLE_COMMIT_SHA` - Override the git SHA stamped into metadata.
