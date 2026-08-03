@@ -263,6 +263,17 @@ jobs:
           subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
 
+      - name: Make GHCR package publicly pullable
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          package_path="/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/honua-console"
+          gh api --method PATCH "${package_path}" -f visibility=public >/dev/null
+          visibility="$(gh api "${package_path}" --jq '.visibility')"
+          [[ "${visibility}" == "public" ]]
+
       - name: Promote verified digest to release tags
         shell: bash
         run: |

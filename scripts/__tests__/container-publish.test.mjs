@@ -53,12 +53,18 @@ describe("Console container publication contract", () => {
 
     const smoke = workflow.indexOf("Smoke-test the published Console");
     const attest = workflow.indexOf("Attest verified candidate image provenance");
+    const publicPackage = workflow.indexOf("Make GHCR package publicly pullable");
     const promote = workflow.indexOf("Promote verified digest to release tags");
     assert.ok(smoke >= 0 && promote > smoke, "release tags must be promoted after runtime smoke");
     assert.ok(
       attest > smoke && promote > attest,
       "release tags must be promoted only after candidate provenance is attached",
     );
+    assert.ok(
+      publicPackage > attest && promote > publicPackage,
+      "release tags must be promoted only after public package visibility is verified",
+    );
+    assert.match(workflow, /gh api --method PATCH[\s\S]*visibility=public/);
     assert.match(workflow, /imagetools create --prefer-index=false/);
     assert.match(workflow, /released_digest[\s\S]*steps\.image\.outputs\.digest/);
     assert.deepEqual(
