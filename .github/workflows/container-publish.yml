@@ -14,12 +14,6 @@ permissions:
   contents: read
   packages: read
 
-concurrency:
-  group: console-container-${{ github.workflow }}-${{ github.ref }}
-  # PR updates may supersede their own read-only validation. A workflow_run completion must never
-  # cancel an active publisher: failed/PR CI completions also resolve github.ref to trunk here.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 env:
   IMAGE: ghcr.io/honua-io/honua-console
 
@@ -31,6 +25,9 @@ jobs:
     permissions:
       contents: read
       packages: read
+    concurrency:
+      group: console-container-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
 
     steps:
       - name: Check out repository
@@ -128,6 +125,10 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+    # Ineligible workflow_run completions skip this job before they can enter the queue.
+    concurrency:
+      group: console-container-publish-trunk
+      cancel-in-progress: false
     env:
       SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
       SOURCE_REF: ${{ github.event.workflow_run.head_branch }}

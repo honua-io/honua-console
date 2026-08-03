@@ -27,7 +27,14 @@ describe("Console container publication contract", () => {
     assert.match(workflow, /validate:[\s\S]*if: github\.event_name == 'pull_request'[\s\S]*packages: read/);
     assert.match(workflow, /workflow_run:[\s\S]*workflows:[\s\S]*- CI[\s\S]*- completed/);
     assert.doesNotMatch(workflow, /workflow_dispatch:/);
-    assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
+    assert.match(
+      workflow,
+      /validate:[\s\S]*group: console-container-pr-\$\{\{ github\.event\.pull_request\.number \}\}[\s\S]*cancel-in-progress: true/,
+    );
+    assert.match(
+      workflow,
+      /publish:[\s\S]*group: console-container-publish-trunk[\s\S]*cancel-in-progress: false/,
+    );
     assert.match(
       workflow,
       /publish:[\s\S]*github\.event\.workflow_run\.conclusion == 'success'[\s\S]*github\.event\.workflow_run\.event == 'push'[\s\S]*packages: write/,
