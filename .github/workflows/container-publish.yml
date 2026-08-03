@@ -1,12 +1,12 @@
 name: Console Container
 
 on:
-  push:
-    branches:
-      - trunk
-      - main
   pull_request:
-  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
 
 # Pull requests receive read-only package access. The publishing job is excluded
 # from pull_request events before its narrowly-scoped write token is issued.
@@ -32,15 +32,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.302
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 20.x
 
@@ -53,7 +53,7 @@ jobs:
           --configfile NuGet.config
 
       - name: Restore Console
-        run: dotnet restore Honua.Console.slnx
+        run: dotnet restore Honua.Console.slnx --locked-mode
 
       - name: Publish Console artifact
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
@@ -66,10 +66,10 @@ jobs:
           HONUA_CONSOLE_REF: ${{ github.ref_name }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build validation image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile
@@ -115,25 +115,35 @@ jobs:
 
   publish:
     name: Build, smoke, and publish
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.head_branch == 'trunk' ||
+      github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
       id-token: write
       attestations: write
+    env:
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      SOURCE_REF: ${{ github.event.workflow_run.head_branch }}
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.302
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 20.x
 
@@ -146,7 +156,7 @@ jobs:
           --configfile NuGet.config
 
       - name: Restore Console
-        run: dotnet restore Honua.Console.slnx
+        run: dotnet restore Honua.Console.slnx --locked-mode
 
       - name: Publish Console artifact
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
@@ -155,54 +165,55 @@ jobs:
         run: npm run build:metadata
         env:
           HONUA_CONSOLE_ARTIFACT_DIR: artifacts/honua-console-web
-          HONUA_CONSOLE_COMMIT_SHA: ${{ github.sha }}
-          HONUA_CONSOLE_REF: ${{ github.ref_name }}
+          HONUA_CONSOLE_COMMIT_SHA: ${{ env.SOURCE_SHA }}
+          HONUA_CONSOLE_REF: ${{ env.SOURCE_REF }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve immutable tags
+      - name: Resolve candidate and release tags
         id: tags
         shell: bash
         run: |
           set -euo pipefail
-          short_sha="${GITHUB_SHA:0:12}"
+          short_sha="${SOURCE_SHA:0:12}"
           {
+            echo "candidate=${IMAGE}:candidate-${short_sha}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
             echo "value<<EOF"
             echo "${IMAGE}:nightly"
             echo "${IMAGE}:nightly-${short_sha}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build and publish image
+      - name: Build and publish candidate image
         id: image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.tags.outputs.value }}
+          tags: ${{ steps.tags.outputs.candidate }}
           build-args: |
-            HONUA_CONSOLE_COMMIT_SHA=${{ github.sha }}
-            HONUA_CONSOLE_REF=${{ github.ref_name }}
+            HONUA_CONSOLE_COMMIT_SHA=${{ env.SOURCE_SHA }}
+            HONUA_CONSOLE_REF=${{ env.SOURCE_REF }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
           provenance: mode=max
           sbom: true
 
-      - name: Verify published multi-architecture manifest
+      - name: Verify candidate multi-architecture manifest
         run: docker buildx imagetools inspect "${IMAGE}@${{ steps.image.outputs.digest }}"
 
       - name: Smoke-test the published Console
@@ -233,12 +244,25 @@ jobs:
 
           payload = json.loads(Path("/tmp/version.json").read_text(encoding="utf-8"))
           assert payload["name"] == "honua-console", payload
-          assert payload["commit"] == os.environ["GITHUB_SHA"], payload
+          assert payload["commit"] == os.environ["SOURCE_SHA"], payload
           assert set(payload["areas"]) == {"studio", "catalog", "operate", "share"}, payload
           PY
 
+      - name: Promote verified digest to release tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          while IFS= read -r tag; do
+            [[ -n "${tag}" ]] && args+=(--tag "${tag}")
+          done <<< '${{ steps.tags.outputs.value }}'
+          docker buildx imagetools create "${args[@]}" "${IMAGE}@${{ steps.image.outputs.digest }}"
+
+      - name: Verify released multi-architecture manifest
+        run: docker buildx imagetools inspect "${IMAGE}:nightly-${SOURCE_SHA:0:12}"
+
       - name: Attest published image provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.image.outputs.digest }}
@@ -249,7 +273,7 @@ jobs:
           {
             echo "## Honua Console image"
             echo
-            echo "- Source: \`${GITHUB_SHA}\`"
+            echo "- Source: \`${SOURCE_SHA}\`"
             echo "- Image: \`${IMAGE}@${{ steps.image.outputs.digest }}\`"
             echo "- Platforms: \`linux/amd64\`, \`linux/arm64\`"
           } >> "$GITHUB_STEP_SUMMARY"
