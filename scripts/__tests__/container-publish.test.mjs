@@ -68,6 +68,14 @@ describe("Console container publication contract", () => {
     assert.match(workflow, /imagetools create --prefer-index=false/);
     assert.match(
       workflow,
+      /package_versions_path=.*packages\/container\/honua-console\/versions[\s\S]*existing_sha_digest="\$\(gh api --paginate/,
+    );
+    assert.match(
+      workflow,
+      /Promote verified digest to release tags[\s\S]*GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/,
+    );
+    assert.match(
+      workflow,
       /existing_sha_digest[\s\S]*Refusing to move immutable tag[\s\S]*exit 1[\s\S]*imagetools create/,
     );
     assert.match(workflow, /released_digest[\s\S]*steps\.image\.outputs\.digest/);

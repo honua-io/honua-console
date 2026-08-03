@@ -270,15 +270,28 @@ jobs:
 
       - name: Promote verified digest to release tags
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           candidate_digest='${{ steps.image.outputs.digest }}'
           release_ref="${IMAGE}:nightly-${SOURCE_SHA:0:12}"
+          release_tag="${release_ref##*:}"
+          package_versions_path="/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/honua-console/versions?per_page=100"
           args=(--tag "${IMAGE}:nightly")
 
-          if docker buildx imagetools inspect "${release_ref}" >/dev/null 2>&1; then
-            existing_sha_digest="$(docker buildx imagetools inspect \
-              "${release_ref}" --format '{{.Manifest.Digest}}')"
+          existing_sha_digest="$(gh api --paginate "${package_versions_path}" \
+            --jq ".[] | select((.metadata.container.tags // []) | index(\"${release_tag}\")) | .name")"
+          if [[ "${existing_sha_digest}" == *$'\n'* ]]; then
+            echo "::error::Immutable tag ${release_ref} resolved to multiple package versions."
+            exit 1
+          fi
+
+          if [[ -n "${existing_sha_digest}" ]]; then
+            if [[ ! "${existing_sha_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::Immutable tag ${release_ref} resolved to invalid digest ${existing_sha_digest}."
+              exit 1
+            fi
             if [[ "${existing_sha_digest}" != "${candidate_digest}" ]]; then
               echo "::error::Refusing to move immutable tag ${release_ref} from ${existing_sha_digest} to ${candidate_digest}."
               exit 1
