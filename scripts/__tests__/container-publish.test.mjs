@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { describe, test } from "node:test";
+import { fileURLToPath } from "node:url";
 
-const root = resolve(import.meta.dirname, "../..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 describe("Console container publication contract", () => {
   test("packages the published artifact into a non-root ASP.NET runtime", async () => {
