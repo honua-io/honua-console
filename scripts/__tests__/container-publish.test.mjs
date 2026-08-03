@@ -30,6 +30,11 @@ describe("Console container publication contract", () => {
       workflow,
       /publish:[\s\S]*github\.event\.workflow_run\.conclusion == 'success'[\s\S]*github\.event\.workflow_run\.event == 'push'[\s\S]*packages: write/,
     );
+    assert.match(workflow, /with:\n\s+ref: trunk/);
+    assert.match(
+      workflow,
+      /Verify successful CI belongs to checked-out trunk head[\s\S]*git rev-parse HEAD[\s\S]*SOURCE_SHA/,
+    );
     assert.match(workflow, /packages: write/);
     assert.match(workflow, /platforms: linux\/amd64,linux\/arm64/);
     assert.match(workflow, /IMAGE_REF: \$\{\{ env\.IMAGE \}\}@\$\{\{ steps\.image\.outputs\.digest \}\}/);
