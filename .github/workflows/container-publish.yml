@@ -261,10 +261,18 @@ jobs:
           while IFS= read -r tag; do
             [[ -n "${tag}" ]] && args+=(--tag "${tag}")
           done <<< '${{ steps.tags.outputs.value }}'
-          docker buildx imagetools create "${args[@]}" "${IMAGE}@${{ steps.image.outputs.digest }}"
+          docker buildx imagetools create --prefer-index=false \
+            "${args[@]}" "${IMAGE}@${{ steps.image.outputs.digest }}"
 
       - name: Verify released multi-architecture manifest
-        run: docker buildx imagetools inspect "${IMAGE}:nightly-${SOURCE_SHA:0:12}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_ref="${IMAGE}:nightly-${SOURCE_SHA:0:12}"
+          docker buildx imagetools inspect "${release_ref}"
+          released_digest="$(docker buildx imagetools inspect \
+            "${release_ref}" --format '{{.Manifest.Digest}}')"
+          [[ "${released_digest}" == '${{ steps.image.outputs.digest }}' ]]
 
       - name: Attest published image provenance
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3

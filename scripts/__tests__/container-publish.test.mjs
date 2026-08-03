@@ -45,6 +45,8 @@ describe("Console container publication contract", () => {
     const smoke = workflow.indexOf("Smoke-test the published Console");
     const promote = workflow.indexOf("Promote verified digest to release tags");
     assert.ok(smoke >= 0 && promote > smoke, "release tags must be promoted after runtime smoke");
+    assert.match(workflow, /imagetools create --prefer-index=false/);
+    assert.match(workflow, /released_digest[\s\S]*steps\.image\.outputs\.digest/);
     assert.deepEqual(
       [...workflow.matchAll(/uses:\s+\S+@(v\d+)\s*$/gm)].map((match) => match[0]),
       [],
