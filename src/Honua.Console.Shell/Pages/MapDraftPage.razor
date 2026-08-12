@@ -2,6 +2,7 @@
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page console-viewer-page">
     @if (!_accessResolved)
@@ -34,7 +35,11 @@
                 <p>@map.Summary.Summary</p>
             </div>
             <div class="console-detail-actions">
-                <a class="console-button-link" href="/studio?source=catalog&itemId=@_sourceItemId">Continue In Studio</a>
+                @* Studio is shelved behind the studio-builders capability; hide the hand-off. *@
+                @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+                {
+                    <a class="console-button-link" href="/studio?source=catalog&itemId=@_sourceItemId">Continue In Studio</a>
+                }
             </div>
         </div>
 

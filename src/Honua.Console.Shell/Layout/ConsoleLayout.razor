@@ -30,7 +30,7 @@
                     <small>Approvals</small>
                 </span>
             </NavLink>
-            @foreach (var area in ConsoleRouteMap.Areas)
+            @foreach (var area in VisibleAreas)
             {
                 <NavLink href="@area.Path" Match="NavLinkMatch.Prefix" title="@area.Name">
                     <span class="console-nav-icon">@Icon(area.Name)</span>
@@ -92,6 +92,16 @@
 @code {
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
+
+    // The Studio area is the Console's non-realtime builder entry, shelved behind the studio-builders
+    // capability: "Studio" is now the realtime, SDK-driven app builder that lives outside the Console.
+    // Hide it from the primary rail until advertised so the nav never links to a shelved surface; the
+    // route itself still renders the first-class shelved state if reached by URL. ConsoleRouteMap.Areas
+    // stays the canonical IA list (Charter/route-map source of truth) — visibility is a shell concern.
+    private IEnumerable<ConsoleWorkflowArea> VisibleAreas =>
+        ConsoleRouteMap.Areas.Where(area =>
+            !string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
+            || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders));
 
     // Capability-gated depth surfaces (first-release cut-line) are hidden from the Operate nav until the
     // deployment advertises the capability, so the rail never links to a surface that only renders the

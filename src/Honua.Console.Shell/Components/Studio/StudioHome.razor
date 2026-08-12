@@ -46,7 +46,9 @@
             @* No "pick a type" selector: the AI infers the sub-type (map / dashboard / analysis / ETL / style /
                publish) from the prompt, so the omni-prompt AI console is the single entry (honua-console#203). *@
             <a class="console-button-link" data-studio-home-send="true" href="@PromptHref(_prompt)"><ConsoleShortcutLabel Action="Send" /></a>
-            <a class="console-button-link console-button-secondary" data-studio-home-omni="true" href="/studio/ai">Ask Honua anything →</a>
+            @* The omni-prompt console is an Operate surface; its "/studio/ai" alias was removed when the
+               Console's non-realtime Studio builder surfaces were shelved. *@
+            <a class="console-button-link console-button-secondary" data-studio-home-omni="true" href="/operate/ai">Ask Honua anything →</a>
         </div>
     </section>
 

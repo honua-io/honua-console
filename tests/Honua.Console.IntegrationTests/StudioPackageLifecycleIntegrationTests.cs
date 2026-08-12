@@ -57,6 +57,7 @@ public sealed class StudioPackageLifecycleIntegrationTests
 
         // 4. The shared inspector renders from the live draft.
         using var inspectorContext = new Bunit.BunitContext();
+        inspectorContext.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         var inspector = inspectorContext.Render<StudioPackageInspector>(
             parameters => parameters.Add(component => component.Package, session.ActivePackage));
         Assert.Contains(session.ActivePackage.PackageRef, inspector.Markup, StringComparison.Ordinal);
@@ -78,6 +79,7 @@ public sealed class StudioPackageLifecycleIntegrationTests
             $"The live server did not return Studio package families: {probe.BindingState?.Detail}");
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton(shell);
 
         var page = ctx.Render<StudioPage>();

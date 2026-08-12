@@ -1,5 +1,14 @@
 # Studio Package Editor Routes
 
+> **SHELVED (`studio-builders` capability).** These Console-native builder routes are gated OFF by
+> default and removed from navigation: "Studio" is now the realtime, SDK-driven app builder, which is
+> not a Console surface. Nothing here was deleted — every route below still resolves and renders an
+> explicit *shelved* state (`ConsoleStateView Kind="unsupported"`, kicker `Shelved`) until a
+> deployment advertises `studio-builders` through `Honua:Console:Capabilities` /
+> `HONUA_CONSOLE_CAPABILITIES`, at which point the editors return unchanged. `/studio/form`,
+> `/studio/form/import`, and `/studio/report` are NOT shelved. See
+> [`docs/console-route-map.md`](../console-route-map.md) for the full shelved/live split.
+
 Status: implemented for the remaining `honua-console#39` editor routes. `/studio/form` is server-bound by `honua-console#57` and `/studio/analysis` is server-bound by `honua-console#53`; the other editor routes retain stable Console mock lifecycle refs.
 
 The first Console-native Studio editor set lives in the shared Razor shell library and is served by the same Blazor Web and future native host surface as the rest of Console.

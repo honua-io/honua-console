@@ -68,6 +68,10 @@ export default defineConfig({
       // The Console authenticates to the server with the admin key; the same key
       // the specs use for the independent server-side generation assertion.
       HONUA_ADMIN_API_KEY: ADMIN_KEY,
+      // The Console's non-realtime Studio builder surfaces are SHELVED (gated off by default behind
+      // the studio-builders capability) in favour of the realtime SDK-driven Studio. These lanes still
+      // certify those builders, so advertise the capability for the browser under test.
+      HONUA_CONSOLE_CAPABILITIES: 'studio-builders',
     },
   },
 });
