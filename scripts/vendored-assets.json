@@ -1,0 +1,25 @@
+{
+  "$comment": [
+    "Third-party browser assets the Console serves from its own origin instead of a runtime CDN",
+    "(honua-console#333). The Console has no bundler — package.json has zero dependencies and Node is",
+    "only the smoke/parity harness — so these are committed static files under wwwroot, fetched and",
+    "verified by scripts/vendor-assets.mjs.",
+    "",
+    "To bump a version: change `version` here, run `node scripts/vendor-assets.mjs --update`, and commit",
+    "the rewritten assets together with scripts/vendored-assets.lock.json. `npm test` fails if the",
+    "committed bytes ever stop matching the lock."
+  ],
+  "packages": [
+    {
+      "name": "maplibre-gl",
+      "version": "4.7.1",
+      "license": "BSD-3-Clause",
+      "destination": "src/Honua.Console.Shell/wwwroot/vendor/maplibre-gl",
+      "files": [
+        "dist/maplibre-gl.js",
+        "dist/maplibre-gl.css",
+        "dist/LICENSE.txt"
+      ]
+    }
+  ]
+}
