@@ -19,6 +19,7 @@ public sealed class StudioFormReportAiPageTests
     public void FormAi_WhenGenerationOff_RendersHonestUnavailableState_AndDisablesChat()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(new FakeFormData());
 
         var page = ctx.Render<StudioFormAiPage>();
@@ -34,6 +35,7 @@ public sealed class StudioFormReportAiPageTests
     public void FormAi_WhenUnbound_RendersSharedMissingBindingSurface()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(new FakeFormData { Unbound = true });
 
         var page = ctx.Render<StudioFormAiPage>();
@@ -48,6 +50,7 @@ public sealed class StudioFormReportAiPageTests
     public void ReportAi_WhenGenerationOff_RendersHonestUnavailableState_AndDisablesChat()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(new FakeReportData());
 
         var page = ctx.Render<StudioReportAiPage>();
@@ -62,6 +65,7 @@ public sealed class StudioFormReportAiPageTests
     public void ReportAi_WhenUnbound_RendersSharedMissingBindingSurface()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(new FakeReportData { Unbound = true });
 
         var page = ctx.Render<StudioReportAiPage>();

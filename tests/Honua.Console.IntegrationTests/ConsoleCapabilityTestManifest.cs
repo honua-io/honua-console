@@ -18,5 +18,10 @@ internal static class ConsoleCapabilityTestManifest
         ConsoleCapabilityKeys.RealtimeAlerting,
         ConsoleCapabilityKeys.CrossEnvironmentPromotion,
         ConsoleCapabilityKeys.SiemInvestigations,
+        // The Console's non-realtime Studio builder surfaces are SHELVED (gated off by default) in
+        // favour of the realtime SDK-driven Studio. Advertising the capability here keeps the existing
+        // builder coverage exercising the real builders; the shelved state itself is asserted in
+        // StudioBuildersShelvedRenderTests.
+        ConsoleCapabilityKeys.StudioBuilders,
     ]);
 }

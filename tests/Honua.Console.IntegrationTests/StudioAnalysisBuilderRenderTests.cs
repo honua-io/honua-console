@@ -23,6 +23,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             Workspace = new StudioAnalysisWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
@@ -51,6 +52,7 @@ public sealed class StudioAnalysisBuilderRenderTests
                 [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
@@ -78,6 +80,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(ReadyPlan(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
@@ -132,6 +135,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(incomplete, [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
@@ -170,6 +174,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(plan, [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
@@ -207,6 +212,7 @@ public sealed class StudioAnalysisBuilderRenderTests
                 ["layer", "content", "workflow"])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 
@@ -250,6 +256,7 @@ public sealed class StudioAnalysisBuilderRenderTests
             EditorLoad = new StudioAnalysisEditorLoad(plan, [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAnalysisPackageDataSource>(data);
 

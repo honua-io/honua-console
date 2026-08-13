@@ -24,6 +24,7 @@ public sealed class StudioDashboardBuilderRenderTests
             Workspace = new StudioDashboardWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
         var page = ctx.Render<StudioDashboardBuilderPage>();
@@ -45,6 +46,7 @@ public sealed class StudioDashboardBuilderRenderTests
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
         var page = ctx.Render<StudioDashboardBuilderPage>();
@@ -88,6 +90,7 @@ public sealed class StudioDashboardBuilderRenderTests
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         // Switching the breakpoint marks the editor dirty, arming the <UnsavedChangesGuard/> (a JS module
         // import); run Loose JSInterop so bUnit auto-handles that import.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -119,6 +122,7 @@ public sealed class StudioDashboardBuilderRenderTests
             EditorLoad = new StudioDashboardEditorLoad(editor, [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
         var page = ctx.Render<StudioDashboardBuilderPage>();
@@ -141,6 +145,7 @@ public sealed class StudioDashboardBuilderRenderTests
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
         var page = ctx.Render<StudioDashboardBuilderPage>();
@@ -188,6 +193,7 @@ public sealed class StudioDashboardBuilderRenderTests
             }
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         // A generated outcome marks the editor dirty, so the UnsavedChangesGuard syncs its beforeunload
         // handler over JS interop; loose mode lets that no-op in the renderer harness.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
@@ -222,6 +228,7 @@ public sealed class StudioDashboardBuilderRenderTests
             EditorLoad = new StudioDashboardEditorLoad(ReadyEditor(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(data);
 
         var page = ctx.Render<StudioDashboardBuilderPage>();

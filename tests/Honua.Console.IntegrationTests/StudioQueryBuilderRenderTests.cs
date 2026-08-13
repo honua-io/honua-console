@@ -29,6 +29,7 @@ public sealed class StudioQueryBuilderRenderTests
             Workspace = new StudioQueryWorkspace([], [MissingBinding])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
 
@@ -57,6 +58,7 @@ public sealed class StudioQueryBuilderRenderTests
             Workspace = new StudioQueryWorkspace([], [listUnsupported])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
 
@@ -96,6 +98,7 @@ public sealed class StudioQueryBuilderRenderTests
                 [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
 
@@ -117,6 +120,7 @@ public sealed class StudioQueryBuilderRenderTests
         var data = new FakeQueryDataSource { NewQuery = template };
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
         var page = ctx.Render<StudioQueryBuilderPage>();
@@ -179,6 +183,7 @@ public sealed class StudioQueryBuilderRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
         var page = ctx.Render<StudioQueryBuilderPage>();
@@ -231,6 +236,7 @@ public sealed class StudioQueryBuilderRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(data);
         var page = ctx.Render<StudioQueryBuilderPage>();

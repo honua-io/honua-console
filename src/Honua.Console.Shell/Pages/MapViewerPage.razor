@@ -2,6 +2,7 @@
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page console-viewer-page">
     @if (_result is null)
@@ -30,7 +31,7 @@
                 </div>
             </div>
             <div class="console-detail-actions">
-                @foreach (var action in ResolveViewerActions(map.Summary, isAuthenticated: !_result.AnonymousRead))
+                @foreach (var action in ResolveViewerActions(map.Summary, isAuthenticated: !_result.AnonymousRead, studioAuthoringAvailable: Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders)))
                 {
                     <a class="console-button-link" href="@action.Href">@action.Label</a>
                 }
@@ -88,9 +89,14 @@
         builder.CloseComponent();
     };
 
+    /// <param name="studioAuthoringAvailable">
+    /// Whether the "Edit In Studio" viewer action is offered. The Console's non-realtime Studio is
+    /// shelved behind the <c>studio-builders</c> capability, so this defaults to <see langword="false"/>.
+    /// </param>
     public static IReadOnlyList<ConsoleCatalogAction> ResolveViewerActions(
         ConsoleContentSummary map,
-        bool isAuthenticated)
+        bool isAuthenticated,
+        bool studioAuthoringAvailable = false)
     {
         ArgumentNullException.ThrowIfNull(map);
 
@@ -99,7 +105,7 @@
             return [];
         }
 
-        return ConsoleCatalogActionPolicy.Resolve(map, isAuthenticated: true)
+        return ConsoleCatalogActionPolicy.Resolve(map, isAuthenticated: true, studioAuthoringAvailable: studioAuthoringAvailable)
             .Where(action => action.Id is "detail" or "studio" or "share")
             .Select(action => action.Id == "studio"
                 ? action with { Href = $"/studio?source=map&itemId={Uri.EscapeDataString(map.Id)}" }
