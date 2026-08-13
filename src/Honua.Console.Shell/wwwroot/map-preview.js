@@ -1,19 +1,31 @@
 // Minimal MapLibre GL interop for the shared MapPreview component.
 //
-// The Console has no bundled MapLibre dependency yet, so this module loads MapLibre GL
-// lazily from a CDN ONLY when a style URL is provided. When MapLibre is unavailable
-// (offline, no style bound, or a non-browser host such as the bUnit render harness),
-// every entry point fails gracefully: the .NET component keeps its inline SVG schematic
-// placeholder and never throws. This preserves the no-mock / missing-binding contract —
-// a live map appears only when a real style source is bound.
+// MapLibre GL is VENDORED (honua-console#333): it is a committed, version-pinned asset served from
+// this same origin, never fetched from a CDN at page load. This module runs in the privileged
+// Console origin (Blazor session + admin-keyed BFF proxy), so third-party code fetched at runtime
+// would execute with full session and proxy access; it also meant an air-gapped or egress-restricted
+// deployment got a broken map preview, and the CSP had to admit a script origin nothing else needed.
+// The pinned version and the update procedure live in scripts/vendored-assets.json — see
+// wwwroot/vendor/maplibre-gl/README.md. `npm test` fails if the committed bytes ever drift.
+//
+// The library is still loaded LAZILY, only when a style URL is provided: MapLibre is ~800 KB and
+// most Console pages never mount a map. When it is unavailable (no style bound, or a non-browser
+// host such as the bUnit render harness), every entry point fails gracefully — the .NET component
+// keeps its inline SVG schematic placeholder and never throws. This preserves the no-mock /
+// missing-binding contract: a live map appears only when a real style source is bound.
 
-const MAPLIBRE_JS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
-const MAPLIBRE_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
-// Subresource Integrity: this module runs in the privileged Console origin (Blazor session +
-// admin-keyed BFF proxy), so a tampered CDN asset would execute with full access. Pin the exact
-// bytes for the versioned URLs above; a mismatched/altered asset fails to load instead of running.
-const MAPLIBRE_JS_SRI = 'sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj';
-const MAPLIBRE_CSS_SRI = 'sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V';
+// Resolved against document.baseURI rather than a root-absolute path so the Console still works
+// when hosted under a path prefix, and against the DOCUMENT rather than import.meta.url because
+// this module is imported from a blob: URL in some hosts (see e2e map-preview-interop.spec.ts),
+// where relative resolution would have nothing to resolve against.
+const VENDOR_BASE = '_content/Honua.Console.Shell/vendor/maplibre-gl/';
+const maplibreAsset = (file) =>
+    (typeof document !== 'undefined' ? new URL(`${VENDOR_BASE}${file}`, document.baseURI).href : file);
+
+// No Subresource Integrity here, deliberately: SRI exists to constrain bytes served by an origin you
+// do not control, and these bytes are this origin's own static assets. Their integrity is pinned
+// where it is actually verifiable — sha384 digests in scripts/vendored-assets.lock.json, checked at
+// test time against the committed files.
 
 const instances = new Map();
 let maplibrePromise = null;
@@ -33,16 +45,12 @@ function loadMapLibre() {
             if (!document.querySelector('link[data-honua-maplibre]')) {
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
-                link.href = MAPLIBRE_CSS;
-                link.integrity = MAPLIBRE_CSS_SRI;
-                link.crossOrigin = 'anonymous';
+                link.href = maplibreAsset('maplibre-gl.css');
                 link.setAttribute('data-honua-maplibre', '');
                 document.head.appendChild(link);
             }
             const script = document.createElement('script');
-            script.src = MAPLIBRE_JS;
-            script.integrity = MAPLIBRE_JS_SRI;
-            script.crossOrigin = 'anonymous';
+            script.src = maplibreAsset('maplibre-gl.js');
             script.async = true;
             script.onload = () => resolve(window.maplibregl ?? null);
             script.onerror = () => resolve(null);

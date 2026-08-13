@@ -4,3 +4,34 @@ Copyright (c) Honua
 This product is licensed under the Apache License, Version 2.0.
 See the LICENSE file in the project root for the full license text, or
 obtain a copy at http://www.apache.org/licenses/LICENSE-2.0.
+
+---
+
+This product redistributes the following third-party components as vendored,
+version-pinned browser assets so the Console serves them from its own origin
+instead of fetching them from a CDN at runtime. Their exact versions and
+digests are recorded in scripts/vendored-assets.lock.json.
+
+MapLibre GL JS (maplibre-gl)
+  Copyright (c) MapLibre contributors
+  Licensed under the BSD-3-Clause license.
+  Full license text: src/Honua.Console.Shell/wwwroot/vendor/maplibre-gl/LICENSE.txt
+  Upstream: https://github.com/maplibre/maplibre-gl-js
+
+Vega (vega)
+  Copyright (c) University of Washington Interactive Data Lab
+  Licensed under the BSD-3-Clause license.
+  Full license text: src/Honua.Console.Shell/wwwroot/vendor/vega/LICENSE
+  Upstream: https://github.com/vega/vega
+
+Vega-Lite (vega-lite)
+  Copyright (c) University of Washington Interactive Data Lab
+  Licensed under the BSD-3-Clause license.
+  Full license text: src/Honua.Console.Shell/wwwroot/vendor/vega-lite/LICENSE
+  Upstream: https://github.com/vega/vega-lite
+
+Vega-Embed (vega-embed)
+  Copyright (c) University of Washington Interactive Data Lab
+  Licensed under the BSD-3-Clause license.
+  Full license text: src/Honua.Console.Shell/wwwroot/vendor/vega-embed/LICENSE
+  Upstream: https://github.com/vega/vega-embed
