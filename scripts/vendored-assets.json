@@ -1,7 +1,7 @@
 {
   "$comment": [
     "Third-party browser assets the Console serves from its own origin instead of a runtime CDN",
-    "(honua-console#333). The Console has no bundler — package.json has zero dependencies and Node is",
+    "(honua-console#333, #334). The Console has no bundler — package.json has zero dependencies and Node is",
     "only the smoke/parity harness — so these are committed static files under wwwroot, fetched and",
     "verified by scripts/vendor-assets.mjs.",
     "",
@@ -19,6 +19,36 @@
         "dist/maplibre-gl.js",
         "dist/maplibre-gl.css",
         "dist/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "vega",
+      "version": "5.30.0",
+      "license": "BSD-3-Clause",
+      "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega",
+      "files": [
+        "build/vega.min.js",
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "vega-lite",
+      "version": "5.21.0",
+      "license": "BSD-3-Clause",
+      "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega-lite",
+      "files": [
+        "build/vega-lite.min.js",
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "vega-embed",
+      "version": "6.26.0",
+      "license": "BSD-3-Clause",
+      "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega-embed",
+      "files": [
+        "build/vega-embed.min.js",
+        "LICENSE"
       ]
     }
   ]

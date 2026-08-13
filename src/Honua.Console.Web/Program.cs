@@ -72,10 +72,14 @@ var app = builder.Build();
 // so it must constrain where executable code, styles, images, and network connections may come from
 // — a tampered or injected script here would run with full session/proxy access. MapLibre is served
 // from this origin as a committed, version-pinned asset (honua-console#333), so unpkg.com is gone
-// from the policy entirely. jsdelivr remains only for the two interops still loading their runtime
-// from a CDN — Cesium in scene-viewer.js and Vega in chart-preview.js, tracked in honua-console#334
-// to be vendored the same way — whose exact assets are meanwhile pinned with Subresource
-// Integrity. object-src/base-uri/frame-ancestors/form-action are locked down to block plugin,
+// from the policy entirely, and so are Vega/Vega-Lite/Vega-Embed for the chart preview
+// (honua-console#334). jsdelivr remains for exactly one interop: Cesium in scene-viewer.js, whose
+// multi-megabyte Build/Cesium tree is resolved dynamically through window.CESIUM_BASE_URL and needs
+// its own decision about where those bytes live before it can follow; its entry assets are meanwhile
+// pinned with Subresource Integrity, and honua-console#334 stays open until it does. When Cesium is
+// vendored, every jsdelivr entry below goes with it — scripts/__tests__/vendored-assets.test.mjs
+// fails if the policy admits an origin no interop script still uses.
+// object-src/base-uri/frame-ancestors/form-action are locked down to block plugin,
 // base-tag, clickjacking, and form-hijack vectors. 'unsafe-eval' is required by the Vega chart
 // runtime (and Cesium WASM); 'unsafe-inline' (style/script) by the MapLibre/Cesium/Vega inline
 // styles and the Blazor bootstrap. 'blob:' in script-src lets same-origin code execute module bytes

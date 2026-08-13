@@ -1,10 +1,17 @@
 // Minimal Vega-Lite interop for the shared ChartPreview component.
 //
-// Mirrors map-preview.js: the Console bundles no Vega dependency, so this module loads
-// vega + vega-lite + vega-embed lazily from a CDN ONLY when a chart spec is supplied. When
-// the Vega runtime is unavailable (offline, blocked CDN, or a non-browser host such as the
-// bUnit render harness) every entry point fails gracefully — the .NET component keeps its
-// inline SVG schematic placeholder and never throws. This preserves the no-mock /
+// Vega is VENDORED (honua-console#334, the same treatment MapLibre got in #333): vega, vega-lite,
+// and vega-embed are committed, version-pinned assets served from this same origin, never fetched
+// from a CDN at page load. This module runs in the privileged Console origin (Blazor session +
+// admin-keyed BFF proxy), so third-party code fetched at runtime would execute with full session and
+// proxy access; it also meant an air-gapped or egress-restricted deployment got a broken chart
+// preview. The pinned versions and the update procedure live in scripts/vendored-assets.json — see
+// wwwroot/vendor/vega/README.md. `npm test` fails if the committed bytes ever drift.
+//
+// The libraries are still loaded LAZILY, only when a chart spec is supplied: the three bundles are
+// ~820 KB and most Console pages never mount a chart. When the runtime is unavailable (no spec, or a
+// non-browser host such as the bUnit render harness) every entry point fails gracefully — the .NET
+// component keeps its inline SVG schematic placeholder and never throws. This preserves the no-mock /
 // missing-binding contract: a live chart appears only when a real Vega-Lite spec is bound.
 //
 // Data is REAL: when a featuresUrl is supplied the module fetches the bound layer's actual
@@ -13,33 +20,37 @@
 // no inline data in the spec the embed is skipped and the placeholder stays.
 
 // vega-embed's standalone build does NOT bundle vega + vega-lite; they are peer deps that must be
-// present first. Load all three from the CDN in order (vega → vega-lite → vega-embed).
-const VEGA_JS = 'https://cdn.jsdelivr.net/npm/vega@5.30.0/build/vega.min.js';
-const VEGA_LITE_JS = 'https://cdn.jsdelivr.net/npm/vega-lite@5.21.0/build/vega-lite.min.js';
-const VEGA_EMBED_JS = 'https://cdn.jsdelivr.net/npm/vega-embed@6.26.0/build/vega-embed.min.js';
+// present first, so the three are loaded in order (vega → vega-lite → vega-embed).
+//
+// Resolved against document.baseURI rather than a root-absolute path so the Console still works when
+// hosted under a path prefix, and against the DOCUMENT rather than import.meta.url because this
+// module is imported from a blob: URL in some hosts (see the e2e interop specs), where relative
+// resolution would have nothing to resolve against.
+const VENDOR_BASE = '_content/Honua.Console.Shell/vendor/';
+const vendorAsset = (path) =>
+    (typeof document !== 'undefined' ? new URL(`${VENDOR_BASE}${path}`, document.baseURI).href : path);
 
-// Subresource Integrity for the CDN peer scripts. This module runs in the privileged Console origin
-// (Blazor session + admin-keyed BFF proxy), so a tampered CDN asset would execute with full access;
-// pinning the exact bytes of the versioned URLs above makes an altered asset fail to load.
-const VEGA_SRI = {
-    [VEGA_JS]: 'sha384-em7CHpJd+SsMugVFf6TY7AKQcLWMcbPhD84hmNK8o6WFDkK+2uHSUQRVQV1/w827',
-    [VEGA_LITE_JS]: 'sha384-GhkD6ks9/zgY1m5EFOUZWz/vMVMUFF/92DL61RZc+B42J8osL+jNufKv68bNHHZ2',
-    [VEGA_EMBED_JS]: 'sha384-TqXb8su49m5OnEpKGO8m+VrgHesrUxyP22HgpXi4hnh1Hm43dXroiSYemNf5D8lv',
-};
+const VEGA_JS = 'vega/vega.min.js';
+const VEGA_LITE_JS = 'vega-lite/vega-lite.min.js';
+const VEGA_EMBED_JS = 'vega-embed/vega-embed.min.js';
+
+// No Subresource Integrity here, deliberately: SRI exists to constrain bytes served by an origin you
+// do not control, and these bytes are this origin's own static assets. Their integrity is pinned
+// where it is actually verifiable — sha384 digests in scripts/vendored-assets.lock.json, checked at
+// test time against the committed files. (Those digests are byte-identical to the SRI hashes this
+// module used to pin for the CDN URLs: the vendored bytes are the bytes that were being served.)
+//
+// vega-embed carries its own CSS inside the bundle and injects it as a <style> element, so unlike
+// MapLibre there is no stylesheet to link.
 
 const instances = new Map();
 let vegaEmbedPromise = null;
 
-function loadScript(src) {
+function loadScript(path) {
     return new Promise((resolve) => {
         try {
             const script = document.createElement('script');
-            script.src = src;
-            const integrity = VEGA_SRI[src];
-            if (integrity) {
-                script.integrity = integrity;
-                script.crossOrigin = 'anonymous';
-            }
+            script.src = vendorAsset(path);
             script.async = false; // preserve execution order across the three peer scripts
             script.onload = () => resolve(true);
             script.onerror = () => resolve(false);
