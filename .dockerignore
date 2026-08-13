@@ -1,0 +1,5 @@
+*
+!Dockerfile
+!artifacts/
+!artifacts/honua-console-web/
+!artifacts/honua-console-web/**
