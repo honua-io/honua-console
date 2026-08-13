@@ -3,6 +3,7 @@
 @using Honua.Console.Shell.Models
 @inject IStudioWorkflowPackageClient Workflows
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
 @*
     Studio · Workflow · New from prompt (screens-studio-form-workflow.jsx → StudioWorkflowAI).
@@ -19,6 +20,14 @@
     state - never a fabricated workflow. "Open editor →" saves and hands the persisted draft to the editor.
 *@
 
+@* SHELVED (studio-builders capability). The Console's non-realtime Studio builder surfaces are gated
+   OFF by default: "Studio" is now the realtime, SDK-driven app builder, which lives outside the Console.
+   The page, its services, and its generation clients are untouched behind this gate, so advertising
+   studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
+                       Kicker="Shelved"
+                       Title="Workflow from prompt is shelved"
+                       Message="Generating workflow packages from a prompt in the Console is shelved: Honua Studio is now the realtime, SDK-driven app builder, which is not a Console surface. The Console keeps its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows. Nothing was deleted: this surface returns as-is once the deployment advertises the studio-builders capability. Existing workflow drafts stay editable at /studio/workflows/{draftId}.">
 <section class="console-page workflow-page studio-workflow-ai-page">
     <div class="console-page-heading">
         <p class="console-kicker">Studio · Workflow · New from prompt</p>
@@ -219,6 +228,7 @@
         </StudioAiConversation>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private bool _loading = true;
@@ -248,6 +258,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of this
+        // builder, so there is nothing to read from honua-server.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        {
+            return;
+        }
+
         // Single bound/blocked load: a new draft + node registry, or the shared missing-binding surface
         // when workflow data cannot bind to honua-server (#1185). Never fabricates package state.
         var context = await Workflows.OpenEditorAsync(null);

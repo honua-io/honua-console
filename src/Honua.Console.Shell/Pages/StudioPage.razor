@@ -4,7 +4,16 @@
 @page "/studio/apps/{ItemId}/preview"
 @inject IStudioAuthoringShell AuthoringShell
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
+@* SHELVED (studio-builders capability). Studio home, the inline authoring shell, and the generated-app
+   preview route all render this one component, so the whole page is gated: "Studio" is now the realtime,
+   SDK-driven app builder, which lives outside the Console. Nothing was deleted — advertising
+   studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
+                       Kicker="Shelved"
+                       Title="Console Studio is shelved"
+                       Message="The Console's non-realtime Studio — the home landing, the inline authoring shell, and the per-family package builders — is shelved. Honua Studio is now the realtime, SDK-driven app builder, which is not a Console surface. The Console keeps its back-office roles: Catalog, Operate, Share, support, and the publish/approval flows. Nothing was deleted; these surfaces return as-is once the deployment advertises the studio-builders capability.">
 @if (IsHome)
 {
     <section class="console-page studio-page studio-home-page">
@@ -329,6 +338,7 @@ else
     </section>
 </section>
 }
+</ConsoleCapabilityGate>
 
 @code {
     private StudioAuthoringSession _session = StudioAuthoringSession.Empty;
@@ -372,6 +382,14 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
+        // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of Studio, so the
+        // authoring shell session is never created and honua-server is never read.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        {
+            _loading = false;
+            return;
+        }
+
         // Route- and query-dependent initialization lives here (not OnInitializedAsync) because a
         // client-side nav from /studio to /studio/proof?prompt=... reuses this same StudioPage instance,
         // so OnInitializedAsync does not run again; only OnParametersSetAsync sees the new route/query.

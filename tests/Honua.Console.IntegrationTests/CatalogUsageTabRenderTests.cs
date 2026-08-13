@@ -63,6 +63,7 @@ public sealed class CatalogUsageTabRenderTests
     private static IRenderedComponent<CatalogDetailPage> RenderUsageTab(ConsoleContentDetail detail)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new StubCatalogClient(detail));
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new StubReadContextResolver());
 

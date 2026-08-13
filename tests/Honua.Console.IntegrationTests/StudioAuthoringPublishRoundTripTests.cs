@@ -102,6 +102,7 @@ public sealed class StudioMapPublishRoundTripTests
 
         // --- Console reflection: the builder page renders the live data source, not the missing-binding state. ---
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioMapPackageDataSource>(source);
@@ -220,6 +221,7 @@ public sealed class StudioDashboardPublishRoundTripTests
 
         // --- Console reflection: the builder page renders the live data source, not the missing-binding state. ---
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(source);
         var page = ctx.Render<StudioDashboardBuilderPage>();
         page.WaitForAssertion(
@@ -356,6 +358,7 @@ public sealed class StudioReportPublishRoundTripTests
 
         // --- Console reflection: the report builder page renders the live publication + version history. ---
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(dataSource);
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(navigation.GetUriWithQueryParameter("publicationId", publicationId));
@@ -473,6 +476,7 @@ public sealed class StudioFormPublishRoundTripTests
 
         // --- Console reflection: the form builder page renders the published form from the live data source. ---
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioFormPackageDataSource>(dataSource);
         var page = ctx.Render<StudioFormBuilderPage>();
         page.WaitForAssertion(

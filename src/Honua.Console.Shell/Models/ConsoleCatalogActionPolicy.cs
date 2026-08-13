@@ -4,10 +4,18 @@ namespace Honua.Console.Shell.Models;
 
 public static class ConsoleCatalogActionPolicy
 {
+    /// <param name="studioAuthoringAvailable">
+    /// Whether the "Edit In Studio" action should be offered. The Console's non-realtime Studio
+    /// builder surfaces are shelved behind the <c>studio-builders</c> capability, so the caller
+    /// supplies the advertised state (<c>IConsoleCapabilityManifest</c>) rather than this pure policy
+    /// reaching for DI. Defaults to <see langword="false"/> to match the shipped default: no caller
+    /// silently re-exposes a shelved route by forgetting the argument.
+    /// </param>
     public static IReadOnlyList<ConsoleCatalogAction> Resolve(
         ConsoleContentSummary item,
         bool isAuthenticated,
-        string publicLinkToken = "")
+        string publicLinkToken = "",
+        bool studioAuthoringAvailable = false)
     {
         ArgumentNullException.ThrowIfNull(item);
 
@@ -40,7 +48,8 @@ public static class ConsoleCatalogActionPolicy
         }
 
         var canEdit = IsOwnerOrEditor(item.ResolvedRole);
-        if (canEdit
+        if (studioAuthoringAvailable
+            && canEdit
             && item.ViewerSupport.CanEditInStudio
             && item.ViewerSupport.SupportState == ConsoleContentSupportState.Supported)
         {

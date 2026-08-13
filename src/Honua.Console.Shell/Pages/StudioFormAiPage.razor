@@ -3,6 +3,7 @@
 @using Honua.Console.Shell.Models
 @inject IStudioFormPackageDataSource FormData
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
 @*
     Studio · Form · New from prompt. Conversational authoring for a form.package, mirroring the
@@ -13,6 +14,14 @@
     an honest "AI generation unavailable" state. Nothing is fabricated.
 *@
 
+@* SHELVED (studio-builders capability). The Console's non-realtime Studio builder surfaces are gated
+   OFF by default: "Studio" is now the realtime, SDK-driven app builder, which lives outside the Console.
+   The page, its services, and its generation clients are untouched behind this gate, so advertising
+   studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
+                       Kicker="Shelved"
+                       Title="Form from prompt is shelved"
+                       Message="Generating form packages from a prompt in the Console is shelved: Honua Studio is now the realtime, SDK-driven app builder, which is not a Console surface. The Console keeps its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows. Nothing was deleted: this surface returns as-is once the deployment advertises the studio-builders capability. The hand-authored form builder at /studio/form stays available.">
 <section class="console-page studio-ai-page studio-form-ai-page">
     <div class="console-page-heading">
         <p class="console-kicker">Studio · Form · New from prompt</p>
@@ -129,6 +138,7 @@
         </StudioAiConversation>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private bool _loading = true;
@@ -158,6 +168,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of this
+        // builder, so there is nothing to read from honua-server.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        {
+            return;
+        }
+
         var load = await FormData.LoadAsync(null);
         if (load.CapabilityStates.Count > 0)
         {

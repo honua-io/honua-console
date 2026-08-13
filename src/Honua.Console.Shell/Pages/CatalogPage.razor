@@ -3,6 +3,7 @@
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject IOperateTransitionDataSource OperateData
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page">
     <div class="console-page-heading console-detail-heading">
@@ -13,7 +14,12 @@
         </div>
         <div class="console-detail-actions">
             <a class="console-button-link console-button-secondary" href="/operate/publishing">Import…</a>
-            <a class="console-button-link" href="/studio">+ New from Studio</a>
+            @* Studio create-CTA is hidden while the Console's non-realtime Studio is shelved
+               (studio-builders capability); Import stays the Console-native way in. *@
+            @if (StudioBuildersAvailable)
+            {
+                <a class="console-button-link" href="/studio">+ New from Studio</a>
+            }
         </div>
     </div>
 
@@ -185,7 +191,7 @@
                             <td>@item.Modified.ToLocalTime().ToString("MMM d, yyyy")</td>
                             <td>
                                 <div class="console-action-row">
-                                    @foreach (var action in ConsoleCatalogActionPolicy.Resolve(item, isAuthenticated: true))
+                                    @foreach (var action in ConsoleCatalogActionPolicy.Resolve(item, isAuthenticated: true, studioAuthoringAvailable: StudioBuildersAvailable))
                                     {
                                         <a href="@action.Href">@action.Label</a>
                                     }
@@ -200,6 +206,10 @@
 </section>
 
 @code {
+    // The Console's non-realtime Studio is shelved behind the studio-builders capability, so the
+    // "New from Studio" CTA and the per-item "Edit In Studio" action are hidden until it is advertised.
+    private bool StudioBuildersAvailable => Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders);
+
     private CatalogSearchState _search = new();
     private CatalogSearchResult? _result;
     private bool _accessResolved;
