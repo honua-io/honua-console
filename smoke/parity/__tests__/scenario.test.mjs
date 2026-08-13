@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { OWNING_LAYER_IDS } from "../owning-layers.mjs";
 import { SCENARIO_STEPS } from "../scenario.mjs";
@@ -9,6 +10,8 @@ import { runParitySmoke } from "../run.mjs";
 
 const ORIGIN = "http://127.0.0.1:4174";
 const REMOTE_ORIGIN = "https://console.smoke.honua.example";
+const FIXTURE_PATH = fileURLToPath(new URL("../fixtures/version.json", import.meta.url));
+const ABSENT_ARTIFACT_PATH = fileURLToPath(new URL("../fixtures/absent-version.json", import.meta.url));
 const REMOTE_BUILD_ARTIFACT = {
   name: "honua-console",
   version: "2026.05.23-smoke",
@@ -22,7 +25,11 @@ const REMOTE_BUILD_ARTIFACT = {
 
 describe("parity scenario", () => {
   test("happy path completes every step and records owning-layer-tagged evidence", async () => {
-    const { report, ctx } = await runParitySmoke({ originUrl: ORIGIN });
+    const { report, ctx } = await runParitySmoke({
+      originUrl: ORIGIN,
+      artifactPath: ABSENT_ARTIFACT_PATH,
+      fixturePath: FIXTURE_PATH,
+    });
     assert.equal(report.result, "ok", `parity smoke failed: ${report.failure?.message ?? "unknown"}`);
     assert.equal(report.failure, null);
 

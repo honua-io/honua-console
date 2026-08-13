@@ -1,0 +1,327 @@
+name: Console Container
+
+on:
+  pull_request:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+# Pull requests receive read-only package access. The publishing job is excluded
+# from pull_request events before its narrowly-scoped write token is issued.
+permissions:
+  contents: read
+  packages: read
+
+env:
+  IMAGE: ghcr.io/honua-io/honua-console
+
+jobs:
+  validate:
+    name: Build and smoke
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: console-container-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 20.x
+
+      - name: Authenticate GitHub Packages feed
+        run: >-
+          dotnet nuget update source github-honua
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+          --configfile NuGet.config
+
+      - name: Restore Console
+        run: dotnet restore Honua.Console.slnx --locked-mode
+
+      - name: Publish Console artifact
+        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+
+      - name: Stamp artifact metadata
+        run: npm run build:metadata
+        env:
+          HONUA_CONSOLE_ARTIFACT_DIR: artifacts/honua-console-web
+          HONUA_CONSOLE_COMMIT_SHA: ${{ github.sha }}
+          HONUA_CONSOLE_REF: ${{ github.ref_name }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build validation image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ env.IMAGE }}:pr-${{ github.event.number }}
+          build-args: |
+            HONUA_CONSOLE_COMMIT_SHA=${{ github.sha }}
+            HONUA_CONSOLE_REF=${{ github.ref_name }}
+
+      - name: Smoke-test the packaged Console
+        shell: bash
+        env:
+          IMAGE_REF: ${{ env.IMAGE }}:pr-${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          container_id="$(docker run --detach --publish 4174:8080 "${IMAGE_REF}")"
+          cleanup() { docker rm --force "${container_id}" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:4174/version.json > /tmp/version.json; then
+              break
+            fi
+            if [[ "${attempt}" == "30" ]]; then
+              docker logs "${container_id}"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/version.json").read_text(encoding="utf-8"))
+          assert payload["name"] == "honua-console", payload
+          assert payload["commit"] == os.environ["GITHUB_SHA"], payload
+          assert set(payload["areas"]) == {"studio", "catalog", "operate", "share"}, payload
+          PY
+
+  publish:
+    name: Build, smoke, and publish
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'trunk'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    # Ineligible workflow_run completions skip this job before they can enter the queue.
+    concurrency:
+      group: console-container-publish-trunk
+      cancel-in-progress: false
+    env:
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      SOURCE_REF: ${{ github.event.workflow_run.head_branch }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: trunk
+
+      - name: Verify successful CI belongs to checked-out trunk head
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${SOURCE_SHA}" ]]
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 20.x
+
+      - name: Authenticate GitHub Packages feed
+        run: >-
+          dotnet nuget update source github-honua
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+          --configfile NuGet.config
+
+      - name: Restore Console
+        run: dotnet restore Honua.Console.slnx --locked-mode
+
+      - name: Publish Console artifact
+        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+
+      - name: Stamp artifact metadata
+        run: npm run build:metadata
+        env:
+          HONUA_CONSOLE_ARTIFACT_DIR: artifacts/honua-console-web
+          HONUA_CONSOLE_COMMIT_SHA: ${{ env.SOURCE_SHA }}
+          HONUA_CONSOLE_REF: ${{ env.SOURCE_REF }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve candidate tag
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${SOURCE_SHA:0:12}"
+          echo "candidate=${IMAGE}:candidate-${short_sha}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish candidate image
+        id: image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.candidate }}
+          build-args: |
+            HONUA_CONSOLE_COMMIT_SHA=${{ env.SOURCE_SHA }}
+            HONUA_CONSOLE_REF=${{ env.SOURCE_REF }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Verify candidate multi-architecture manifest
+        run: docker buildx imagetools inspect "${IMAGE}@${{ steps.image.outputs.digest }}"
+
+      - name: Smoke-test the published Console
+        shell: bash
+        env:
+          IMAGE_REF: ${{ env.IMAGE }}@${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          container_id="$(docker run --detach --publish 4174:8080 "${IMAGE_REF}")"
+          cleanup() { docker rm --force "${container_id}" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:4174/version.json > /tmp/version.json; then
+              break
+            fi
+            if [[ "${attempt}" == "30" ]]; then
+              docker logs "${container_id}"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/version.json").read_text(encoding="utf-8"))
+          assert payload["name"] == "honua-console", payload
+          assert payload["commit"] == os.environ["SOURCE_SHA"], payload
+          assert set(payload["areas"]) == {"studio", "catalog", "operate", "share"}, payload
+          PY
+
+      - name: Attest verified candidate image provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+
+      - name: Make GHCR package publicly pullable
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          package_path="/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/honua-console"
+          gh api --method PATCH "${package_path}" -f visibility=public >/dev/null
+          visibility="$(gh api "${package_path}" --jq '.visibility')"
+          [[ "${visibility}" == "public" ]]
+
+      - name: Promote verified digest to release tags
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          candidate_digest='${{ steps.image.outputs.digest }}'
+          release_ref="${IMAGE}:nightly-${SOURCE_SHA:0:12}"
+          release_tag="${release_ref##*:}"
+          package_versions_path="/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/honua-console/versions?per_page=100"
+          args=(--tag "${IMAGE}:nightly")
+
+          existing_sha_digest="$(gh api --paginate "${package_versions_path}" \
+            --jq ".[] | select((.metadata.container.tags // []) | index(\"${release_tag}\")) | .name")"
+          if [[ "${existing_sha_digest}" == *$'\n'* ]]; then
+            echo "::error::Immutable tag ${release_ref} resolved to multiple package versions."
+            exit 1
+          fi
+
+          if [[ -n "${existing_sha_digest}" ]]; then
+            if [[ ! "${existing_sha_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::Immutable tag ${release_ref} resolved to invalid digest ${existing_sha_digest}."
+              exit 1
+            fi
+            if [[ "${existing_sha_digest}" != "${candidate_digest}" ]]; then
+              echo "::error::Refusing to move immutable tag ${release_ref} from ${existing_sha_digest} to ${candidate_digest}."
+              exit 1
+            fi
+          else
+            args+=(--tag "${release_ref}")
+          fi
+
+          docker buildx imagetools create --prefer-index=false \
+            "${args[@]}" "${IMAGE}@${candidate_digest}"
+
+      - name: Verify released multi-architecture manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_ref="${IMAGE}:nightly-${SOURCE_SHA:0:12}"
+          docker buildx imagetools inspect "${release_ref}"
+          released_digest="$(docker buildx imagetools inspect \
+            "${release_ref}" --format '{{.Manifest.Digest}}')"
+          nightly_digest="$(docker buildx imagetools inspect \
+            "${IMAGE}:nightly" --format '{{.Manifest.Digest}}')"
+          [[ "${released_digest}" == '${{ steps.image.outputs.digest }}' ]]
+          [[ "${nightly_digest}" == '${{ steps.image.outputs.digest }}' ]]
+
+      - name: Record immutable image coordinates
+        run: |
+          {
+            echo "## Honua Console image"
+            echo
+            echo "- Source: \`${SOURCE_SHA}\`"
+            echo "- Image: \`${IMAGE}@${{ steps.image.outputs.digest }}\`"
+            echo "- Platforms: \`linux/amd64\`, \`linux/arm64\`"
+          } >> "$GITHUB_STEP_SUMMARY"
