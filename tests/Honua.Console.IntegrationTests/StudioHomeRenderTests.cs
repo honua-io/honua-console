@@ -77,9 +77,11 @@ public sealed class StudioHomeRenderTests
         Assert.Empty(page.FindAll("[data-content-type]"));
         Assert.Empty(page.FindAll("[data-studio-home-types='true']"));
 
-        // The omni-prompt AI console is the single entry that replaces the type grid.
+        // The omni-prompt AI console is the single entry that replaces the type grid. It is an Operate
+        // surface: its "/studio/ai" alias was removed when the Console's non-realtime Studio builder
+        // surfaces were shelved, so the hero links at the canonical "/operate/ai" route.
         var omni = page.Find("[data-studio-home-omni='true']");
-        Assert.Equal("/studio/ai", omni.GetAttribute("href"));
+        Assert.Equal("/operate/ai", omni.GetAttribute("href"));
     }
 
     [Fact]
@@ -189,6 +191,7 @@ public sealed class StudioHomeRenderTests
     private static Bunit.BunitContext NewContext(IConsoleCatalogClient catalog)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton(catalog);
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new StubReadContextResolver());
         return ctx;

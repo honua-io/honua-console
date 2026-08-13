@@ -3,6 +3,7 @@
 @using Honua.Console.Shell.Models
 @inject IStudioReportPublicationDataSource ReportData
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
 @*
     Studio · Report · New from prompt. Conversational authoring for a report.document, mirroring the
@@ -12,6 +13,14 @@
     report, a structured clarification request, or an honest "AI generation unavailable" state.
 *@
 
+@* SHELVED (studio-builders capability). The Console's non-realtime Studio builder surfaces are gated
+   OFF by default: "Studio" is now the realtime, SDK-driven app builder, which lives outside the Console.
+   The page, its services, and its generation clients are untouched behind this gate, so advertising
+   studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
+                       Kicker="Shelved"
+                       Title="Report from prompt is shelved"
+                       Message="Generating report documents from a prompt in the Console is shelved: Honua Studio is now the realtime, SDK-driven app builder, which is not a Console surface. The Console keeps its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows. Nothing was deleted: this surface returns as-is once the deployment advertises the studio-builders capability.">
 <section class="console-page studio-ai-page studio-report-ai-page">
     <div class="console-page-heading">
         <p class="console-kicker">Studio · Report · New from prompt</p>
@@ -119,6 +128,7 @@
         </StudioAiConversation>
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private bool _loading = true;
@@ -144,6 +154,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of this
+        // builder, so there is nothing to read from honua-server.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        {
+            return;
+        }
+
         _capability = await ReportData.GetGenerationCapabilityAsync();
         if (_capability.BindingState is { } bound)
         {

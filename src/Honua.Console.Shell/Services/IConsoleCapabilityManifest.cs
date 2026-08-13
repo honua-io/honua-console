@@ -48,6 +48,20 @@ public static class ConsoleCapabilityKeys
 
     /// <summary>Full SIEM / investigations / AI DevOps advisory over Operate event volume.</summary>
     public const string SiemInvestigations = "siem-investigations";
+
+    /// <summary>
+    /// The Console's non-realtime Studio builder surfaces (Studio home / inline authoring shell, and
+    /// the map, app, dashboard, analysis, query, report-from-prompt, form-from-prompt, and
+    /// workflow-from-prompt builders).
+    ///
+    /// SHELVED, not deleted. "Studio" is now the realtime, SDK-driven app builder, which is not a
+    /// Console surface; the Console keeps its back-office roles (Catalog, Operate, Share, support,
+    /// publish/approval flows). The pages, services, and generation clients stay in the tree behind
+    /// this capability so the decision is reversible: advertise <c>studio-builders</c> in
+    /// <c>Honua:Console:Capabilities</c> / <c>HONUA_CONSOLE_CAPABILITIES</c> and every surface lights
+    /// back up unchanged.
+    /// </summary>
+    public const string StudioBuilders = "studio-builders";
 }
 
 /// <summary>

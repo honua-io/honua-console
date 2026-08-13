@@ -119,6 +119,7 @@ public sealed class StudioWorkflowAiPageTests
     public void Unbound_RendersSharedMissingBindingSurface_NotSeededWorkflow()
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
 
         var page = ctx.Render<StudioWorkflowAiPage>();
@@ -164,6 +165,7 @@ public sealed class StudioWorkflowAiPageTests
     private static IRenderedComponent<StudioWorkflowAiPage> RenderWith(IStudioWorkflowPackageClient client)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton(client);
 
         var page = ctx.Render<StudioWorkflowAiPage>();

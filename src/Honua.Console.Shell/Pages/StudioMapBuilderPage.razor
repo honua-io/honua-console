@@ -6,9 +6,18 @@
 @inject IStudioMapPackageDataSource MapData
 @inject IStudioMapStyleCatalogDataSource StyleCatalog
 @inject Honua.Console.Shell.Services.IConsoleNotificationService Notifications
+@inject IConsoleCapabilityManifest Capabilities
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved map changes. Leave this page and discard them?" />
 
+@* SHELVED (studio-builders capability). The Console's non-realtime Studio builder surfaces are gated
+   OFF by default: "Studio" is now the realtime, SDK-driven app builder, which lives outside the Console.
+   The page, its services, and its generation clients are untouched behind this gate, so advertising
+   studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
+                       Kicker="Shelved"
+                       Title="The Studio map builder is shelved"
+                       Message="Authoring map packages in the Console is shelved: Honua Studio is now the realtime, SDK-driven app builder, which is not a Console surface. The Console keeps its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows. Nothing was deleted: this builder returns as-is once the deployment advertises the studio-builders capability.">
 <section class="console-page studio-map-builder">
     <div class="console-page-heading">
         <p class="console-kicker">Builder workflow</p>
@@ -485,6 +494,7 @@
         }
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private enum EditorView
@@ -579,7 +589,17 @@
     private static string PackageJson(StudioMapEditorState editor) =>
         JsonSerializer.Serialize(StudioMapPackageMapper.BuildEnvelopeBody(editor), PackageJsonOptions);
 
-    protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
+    protected override Task OnInitializedAsync()
+    {
+        // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of this
+        // builder, so there is nothing to read from honua-server.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        {
+            return Task.CompletedTask;
+        }
+
+        return LoadWorkspaceAsync();
+    }
 
     /// <summary>
     /// Re-runs the client cross-field/bounds validator over the current editor and flags the editor dirty.
