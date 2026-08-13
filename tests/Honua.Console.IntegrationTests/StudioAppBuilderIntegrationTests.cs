@@ -91,6 +91,7 @@ public sealed class StudioAppBuilderIntegrationTests
         var source = new HonuaServerStudioAppPackageDataSource(client);
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(source);
 

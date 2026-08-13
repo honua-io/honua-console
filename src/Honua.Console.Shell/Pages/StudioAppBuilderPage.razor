@@ -4,6 +4,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
 @inject IStudioAppPackageDataSource AppData
+@inject IConsoleCapabilityManifest Capabilities
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved app changes. Leave this page and discard them?" />
 
@@ -14,6 +15,14 @@
    Honua.Console.Contracts shim; renders the missing-binding surface (not mock data) when no server base
    URL is configured. Reopened edits create new content versions rather than mutating published state. *@
 
+@* SHELVED (studio-builders capability). The Console's non-realtime Studio builder surfaces are gated
+   OFF by default: "Studio" is now the realtime, SDK-driven app builder, which lives outside the Console.
+   The page, its services, and its generation clients are untouched behind this gate, so advertising
+   studio-builders in Honua:Console:Capabilities / HONUA_CONSOLE_CAPABILITIES restores it unchanged. *@
+<ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.StudioBuilders"
+                       Kicker="Shelved"
+                       Title="The Studio app builder is shelved"
+                       Message="Assembling app packages in the Console is shelved: Honua Studio is now the realtime, SDK-driven app builder, which is not a Console surface. The Console keeps its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows. Nothing was deleted: this builder returns as-is once the deployment advertises the studio-builders capability.">
 <section class="console-page studio-page studio-app-builder">
     <div class="console-page-heading">
         <p class="console-kicker">Builder workflow</p>
@@ -432,6 +441,7 @@
         }
     }
 </section>
+</ConsoleCapabilityGate>
 
 @code {
     private enum EditorView
@@ -502,6 +512,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Shelved surface: ConsoleCapabilityGate renders the shelved state instead of this
+        // builder, so there is nothing to read from honua-server.
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders))
+        {
+            return;
+        }
+
         _loading = true;
         var load = await AppData.LoadAsync(null);
         ApplyStates(load.CapabilityStates);

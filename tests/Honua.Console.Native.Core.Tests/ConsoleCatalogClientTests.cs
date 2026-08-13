@@ -246,7 +246,8 @@ public sealed class ConsoleCatalogClientTests
         var actions = ConsoleCatalogActionPolicy.Resolve(
             linkItem.Item!.Summary,
             isAuthenticated: !linkItem.AnonymousRead,
-            publicLinkToken: "stale-token");
+            publicLinkToken: "stale-token",
+            studioAuthoringAvailable: true);
 
         Assert.False(context.Anonymous);
         Assert.Equal(CatalogReadStatus.Allowed, linkItem.Status);
@@ -333,14 +334,27 @@ public sealed class ConsoleCatalogClientTests
             "storm-response-map",
             CatalogReadContext.AnonymousPublicLink("pl-storm-map"));
 
-        var anonymousActions = ConsoleCatalogActionPolicy.Resolve(result.Item!.Summary, isAuthenticated: false);
-        var authenticatedActions = ConsoleCatalogActionPolicy.Resolve(result.Item!.Summary, isAuthenticated: true);
+        var anonymousActions = ConsoleCatalogActionPolicy.Resolve(
+            result.Item!.Summary,
+            isAuthenticated: false,
+            studioAuthoringAvailable: true);
+        var authenticatedActions = ConsoleCatalogActionPolicy.Resolve(
+            result.Item!.Summary,
+            isAuthenticated: true,
+            studioAuthoringAvailable: true);
+        // The Console's non-realtime Studio is shelved by default (studio-builders capability), so the
+        // "Edit In Studio" action is absent unless the caller reports the capability as advertised.
+        var shelvedStudioActions = ConsoleCatalogActionPolicy.Resolve(
+            result.Item!.Summary,
+            isAuthenticated: true);
 
         Assert.DoesNotContain(anonymousActions, action => action.Id == "studio");
         Assert.DoesNotContain(anonymousActions, action => action.Id == "share");
         Assert.Contains(authenticatedActions, action => action.Id == "studio");
         Assert.Contains(authenticatedActions, action => action.Id == "share");
         Assert.Contains(authenticatedActions, action => action.Id == "viewer" && action.Href == "/maps/storm-response-map");
+        Assert.DoesNotContain(shelvedStudioActions, action => action.Id == "studio");
+        Assert.Contains(shelvedStudioActions, action => action.Id == "share");
     }
 
     [Fact]
@@ -356,13 +370,19 @@ public sealed class ConsoleCatalogClientTests
 
         var viewerActions = MapViewerPage.ResolveViewerActions(
             viewerMap.MapPackage!.Summary,
-            isAuthenticated: true);
+            isAuthenticated: true,
+            studioAuthoringAvailable: true);
         var ownerActions = MapViewerPage.ResolveViewerActions(
             ownerMap.MapPackage!.Summary,
-            isAuthenticated: true);
+            isAuthenticated: true,
+            studioAuthoringAvailable: true);
         var anonymousActions = MapViewerPage.ResolveViewerActions(
             ownerMap.MapPackage!.Summary,
             isAuthenticated: false);
+        // Studio shelved (the shipped default): the viewer offers no "Edit In Studio" hand-off.
+        var shelvedStudioOwnerActions = MapViewerPage.ResolveViewerActions(
+            ownerMap.MapPackage!.Summary,
+            isAuthenticated: true);
 
         Assert.Contains(viewerActions, action => action.Id == "detail");
         Assert.DoesNotContain(viewerActions, action => action.Id is "studio" or "share");
@@ -371,6 +391,8 @@ public sealed class ConsoleCatalogClientTests
             action => action.Id == "studio" && action.Href == "/studio?source=map&itemId=map-storm-response");
         Assert.Contains(ownerActions, action => action.Id == "share");
         Assert.DoesNotContain(ownerActions, action => action.Id is "viewer" or "retire");
+        Assert.DoesNotContain(shelvedStudioOwnerActions, action => action.Id == "studio");
+        Assert.Contains(shelvedStudioOwnerActions, action => action.Id == "share");
         Assert.Empty(anonymousActions);
     }
 

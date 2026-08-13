@@ -21,6 +21,7 @@ public sealed class StudioPageRenderTests
     {
         var shell = new ControllableStudioAuthoringShell();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
 
         // CreateInitialSessionAsync is still pending here: the first render must show the loading view
@@ -48,6 +49,7 @@ public sealed class StudioPageRenderTests
     {
         var shell = new ControllableStudioAuthoringShell();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
 
         var page = ctx.Render<StudioPage>();
@@ -74,6 +76,7 @@ public sealed class StudioPageRenderTests
     {
         var shell = new ControllableStudioAuthoringShell();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
 
         var page = ctx.Render<StudioPage>();
@@ -97,6 +100,7 @@ public sealed class StudioPageRenderTests
         // authoring shell on its default prompt.
         var shell = new ControllableStudioAuthoringShell();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioAuthoringShell>(shell);
         // The /studio home landing renders <StudioHome />, which binds recent projects to the catalog.
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new EmptyCatalogClient());

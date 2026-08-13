@@ -81,6 +81,7 @@ public sealed class StudioMapCollaborationRenderTests
         // the missing-binding state. This is Console-local test composition — never the merged runtime path.
         var session = BoundSession();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IStudioMapCollaborationDataSource>(new StubCollaborationDataSource(session));
 
@@ -113,6 +114,7 @@ public sealed class StudioMapCollaborationRenderTests
     {
         var session = BoundSession();
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IStudioMapCollaborationDataSource>(new StubCollaborationDataSource(session));
 
@@ -142,6 +144,7 @@ public sealed class StudioMapCollaborationRenderTests
     private static Bunit.BunitContext CreatePageContext(out FakeMapDataSource data)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.AddConsoleNotifications();
         data = new FakeMapDataSource
         {

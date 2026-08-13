@@ -76,6 +76,7 @@ public sealed class StudioQueryBuilderIntegrationTests
 
         // 4. The query builder page renders the seeded query from the live data source.
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioQueryPackageDataSource>(dataSource);
         var page = ctx.Render<StudioQueryBuilderPage>();
