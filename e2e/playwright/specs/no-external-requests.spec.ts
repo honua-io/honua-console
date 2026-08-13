@@ -22,15 +22,16 @@ import { test, expect } from '@playwright/test';
 // is the standing invariant: page load, boot, and the interactive circuit must stay on-origin, and
 // any new always-on external fetch (a font, an analytics beacon, a stylesheet) fails here loudly.
 //
-// The #333 regression itself is caught by the last test, which forces the lazy path: it mounts a
-// real map and asserts the library that executed came from this origin, at the pinned version, with
-// nothing fetched off-origin while doing it. That combination is what makes the pair honest —
-// breadth from the walk, depth where the CDN dependency actually lived.
+// The #333 and #334 regressions themselves are caught by the last two tests, which force the lazy
+// path: they mount a real map and a real chart and assert the libraries that executed came from this
+// origin, at the pinned versions, with nothing fetched off-origin while doing it. That combination is
+// what makes the set honest — breadth from the walk, depth where the CDN dependency actually lived.
 //
-// Still uncovered, and deliberately so: CDN fetches reachable only with a live honua-server bound —
-// Cesium in scene-viewer.js and Vega in chart-preview.js (honua-console#334), plus the optional
-// OpenStreetMap raster basemap in map-preview.js. All three are declared with their reasons in
-// scripts/__tests__/vendored-assets.test.mjs, which fails if an undeclared origin ever appears.
+// Still uncovered, and deliberately so: Cesium in scene-viewer.js, which is the one remaining runtime
+// CDN consumer (honua-console#334 stays open for it — its Build/Cesium tree is tens of megabytes
+// resolved through window.CESIUM_BASE_URL and needs its own decision about where those bytes live),
+// plus the optional OpenStreetMap raster basemap in map-preview.js. Both are declared with their
+// reasons in scripts/__tests__/vendored-assets.test.mjs, which fails if an undeclared origin appears.
 
 const lockPath = fileURLToPath(new URL('../../../scripts/vendored-assets.lock.json', import.meta.url));
 const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
@@ -38,6 +39,14 @@ const MAPLIBRE_VERSION: string = lock.packages['maplibre-gl'].version;
 const MAPLIBRE_JS = '/_content/Honua.Console.Shell/vendor/maplibre-gl/maplibre-gl.js';
 const MAPLIBRE_CSS = '/_content/Honua.Console.Shell/vendor/maplibre-gl/maplibre-gl.css';
 const MODULE_PATH = '/_content/Honua.Console.Shell/map-preview.js';
+
+const VEGA_VERSION: string = lock.packages['vega'].version;
+const VEGA_LITE_VERSION: string = lock.packages['vega-lite'].version;
+const VEGA_EMBED_VERSION: string = lock.packages['vega-embed'].version;
+const VEGA_JS = '/_content/Honua.Console.Shell/vendor/vega/vega.min.js';
+const VEGA_LITE_JS = '/_content/Honua.Console.Shell/vendor/vega-lite/vega-lite.min.js';
+const VEGA_EMBED_JS = '/_content/Honua.Console.Shell/vendor/vega-embed/vega-embed.min.js';
+const CHART_MODULE_PATH = '/_content/Honua.Console.Shell/chart-preview.js';
 
 // The four product areas plus the routes whose components own a browser interop module
 // (map preview, 3D scene viewer, chart preview) — i.e. every page that could plausibly reach
@@ -101,6 +110,18 @@ test('MapLibre is served from this origin as the pinned vendored asset', async (
   expect(await stylesheet.text()).not.toMatch(/url\(\s*["']?https?:/i);
 });
 
+test('the three vendored Vega bundles are served from this origin', async ({ request }) => {
+  for (const [asset, minimumBytes] of [
+    [VEGA_JS, 400_000],
+    [VEGA_LITE_JS, 200_000],
+    [VEGA_EMBED_JS, 40_000],
+  ] as const) {
+    const script = await request.get(asset);
+    expect(script.status(), `${asset} must be served by the host`).toBe(200);
+    expect((await script.body()).byteLength).toBeGreaterThan(minimumBytes);
+  }
+});
+
 test('the CSP no longer admits the MapLibre CDN origin', async ({ request }) => {
   const response = await request.get('/studio');
   const csp = response.headers()['content-security-policy'];
@@ -148,4 +169,80 @@ test('a mounted map runs the vendored MapLibre build, fetched from this origin',
 
   // And loading it pulled nothing from anywhere else.
   expect(offOrigin, 'mounting a map reached off-origin').toEqual([]);
+});
+
+test('a mounted chart runs the vendored Vega build, fetched from this origin', async ({ page, baseURL }) => {
+  const origin = new URL(baseURL!).origin;
+  const offOrigin = recordOffOriginRequests(page, origin);
+  await page.goto('/studio', { waitUntil: 'domcontentloaded' });
+
+  // The same forced-lazy-path trick as the map test above, for the other interop that used to reach
+  // for jsdelivr. The spec carries inline data so no features proxy (and so no live server) is
+  // needed, and it keeps its real `$schema` URL: vega-embed parses that string to pick its mode and
+  // must never fetch it — if it ever did, the recorder below would catch it.
+  const result = await page.evaluate(
+    async ({ modulePath, spec }) => {
+      const source = await (await fetch(modulePath)).text();
+      const blobUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+      const mod = await import(/* @vite-ignore */ blobUrl);
+      URL.revokeObjectURL(blobUrl);
+
+      const container = document.createElement('div');
+      container.style.width = '320px';
+      container.style.height = '240px';
+      document.body.appendChild(container);
+      const mounted = await mod.init(container, { spec });
+      const scriptSrc = (file: string) =>
+        document.querySelector<HTMLScriptElement>(`script[src*="${file}"]`)?.src ?? null;
+      const globals = window as unknown as {
+        vega?: { version: string };
+        vegaLite?: { version: string };
+        vegaEmbed?: { version: string };
+      };
+      const rendered = container.querySelector('svg') !== null;
+      const versions = {
+        vega: globals.vega?.version,
+        vegaLite: globals.vegaLite?.version,
+        vegaEmbed: globals.vegaEmbed?.version,
+      };
+      const sources = {
+        vega: scriptSrc('vega.min.js'),
+        vegaLite: scriptSrc('vega-lite.min.js'),
+        vegaEmbed: scriptSrc('vega-embed.min.js'),
+      };
+      mod.dispose(container);
+      container.remove();
+      return { mounted, rendered, versions, sources };
+    },
+    {
+      modulePath: CHART_MODULE_PATH,
+      spec: JSON.stringify({
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        mark: 'bar',
+        data: { values: [{ category: 'a', amount: 28 }, { category: 'b', amount: 55 }] },
+        encoding: {
+          x: { field: 'category', type: 'nominal' },
+          y: { field: 'amount', type: 'quantitative' },
+        },
+      }),
+    },
+  );
+
+  // All three libraries really loaded and really drew a chart (not the graceful-degradation path).
+  expect(result.mounted, 'Vega failed to load — the vendored assets are not reachable').toBe(true);
+  expect(result.rendered, 'vega-embed did not render an SVG into the container').toBe(true);
+  // …at the versions this repo pins, from this repo's own origin.
+  expect(result.versions).toEqual({
+    vega: VEGA_VERSION,
+    vegaLite: VEGA_LITE_VERSION,
+    vegaEmbed: VEGA_EMBED_VERSION,
+  });
+  expect(result.sources).toEqual({
+    vega: `${origin}${VEGA_JS}`,
+    vegaLite: `${origin}${VEGA_LITE_JS}`,
+    vegaEmbed: `${origin}${VEGA_EMBED_JS}`,
+  });
+
+  // And loading them pulled nothing from anywhere else — including the $schema URL.
+  expect(offOrigin, 'mounting a chart reached off-origin').toEqual([]);
 });

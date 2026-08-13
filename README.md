@@ -136,11 +136,19 @@ in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
 
 The Console has no bundler, so third-party browser libraries are committed under
 `src/Honua.Console.Shell/wwwroot/vendor/` and served from the Console's own
-origin — never fetched from a CDN at page load (honua-console#333). Executing
-third-party code pulled at runtime into this origin would give it the Blazor
-session and the admin-keyed map proxy, an air-gapped deployment would get a
-broken surface, and the CSP would have to admit a script origin nothing else
+origin — never fetched from a CDN at page load (honua-console#333, #334).
+Executing third-party code pulled at runtime into this origin would give it the
+Blazor session and the admin-keyed map proxy, an air-gapped deployment would get
+a broken surface, and the CSP would have to admit a script origin nothing else
 needs.
+
+Vendored today: MapLibre GL JS (map preview) and Vega / Vega-Lite / Vega-Embed
+(chart preview). Cesium (`scene-viewer.js`) is the one remaining runtime-CDN
+consumer and is tracked by honua-console#334: its `Build/Cesium` tree is tens of
+megabytes of workers, assets, and widgets resolved dynamically through
+`window.CESIUM_BASE_URL`, so where those bytes should live is its own decision
+rather than a mechanical port. It is why `https://cdn.jsdelivr.net` is still in
+the CSP.
 
 Versions are pinned exactly in [`scripts/vendored-assets.json`](scripts/vendored-assets.json).
 To bump one: change `version` there, run `node scripts/vendor-assets.mjs --update`,

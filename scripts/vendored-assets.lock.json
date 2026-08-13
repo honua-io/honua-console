@@ -12,6 +12,39 @@
         "maplibre-gl.css": "sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V",
         "LICENSE.txt": "sha384-3Zf/f+K0L6bn+JFiUedpEU79XsEmWDOSzj/+j17JomfRWmlkO60ByjZbpgZkeRiL"
       }
+    },
+    "vega": {
+      "version": "5.30.0",
+      "license": "BSD-3-Clause",
+      "resolved": "https://registry.npmjs.org/vega/-/vega-5.30.0.tgz",
+      "integrity": "sha512-ZGoC8LdfEUV0LlXIuz7hup9jxuQYhSaWek2M7r9dEHAPbPrzSQvKXZ0BbsJbrarM100TGRpTVN/l1AFxCwDkWw==",
+      "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega",
+      "files": {
+        "vega.min.js": "sha384-em7CHpJd+SsMugVFf6TY7AKQcLWMcbPhD84hmNK8o6WFDkK+2uHSUQRVQV1/w827",
+        "LICENSE": "sha384-puD7w/J78MNcQVg3AsAdoeumUef9STEq7kVRPrCJ4xmKxK55a7zjrg7iyjeJTusD"
+      }
+    },
+    "vega-lite": {
+      "version": "5.21.0",
+      "license": "BSD-3-Clause",
+      "resolved": "https://registry.npmjs.org/vega-lite/-/vega-lite-5.21.0.tgz",
+      "integrity": "sha512-hNxM9nuMqpI1vkUOhEx6ewEf23WWLmJxSFJ4TA86AW43ixJyqcLV+iSCO0NipuVTE0rlDcc2e8joSewWyOlEwA==",
+      "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega-lite",
+      "files": {
+        "vega-lite.min.js": "sha384-GhkD6ks9/zgY1m5EFOUZWz/vMVMUFF/92DL61RZc+B42J8osL+jNufKv68bNHHZ2",
+        "LICENSE": "sha384-Fxbc20s5b5sHb+hlO0bmNxH5JRzfTVX40NAV+gJUHhYh37NxnKSn48aGw7oC9n32"
+      }
+    },
+    "vega-embed": {
+      "version": "6.26.0",
+      "license": "BSD-3-Clause",
+      "resolved": "https://registry.npmjs.org/vega-embed/-/vega-embed-6.26.0.tgz",
+      "integrity": "sha512-AZCTdKHDAuhp6TFZRQOOs332tStCwZr/5e4uZMNEuJL69A57cT66NNZJdNiCP6u66REzIToYtMJhMTL9wl5B3A==",
+      "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega-embed",
+      "files": {
+        "vega-embed.min.js": "sha384-TqXb8su49m5OnEpKGO8m+VrgHesrUxyP22HgpXi4hnh1Hm43dXroiSYemNf5D8lv",
+        "LICENSE": "sha384-gYPu06QKHSybnYPFW9fS/HlvnL38Blq0P89f2AOvc5Am051E+eK9/yUJX0SYx9Hr"
+      }
     }
   }
 }

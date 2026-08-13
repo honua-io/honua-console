@@ -17,3 +17,21 @@ MapLibre GL JS (maplibre-gl)
   Licensed under the BSD-3-Clause license.
   Full license text: src/Honua.Console.Shell/wwwroot/vendor/maplibre-gl/LICENSE.txt
   Upstream: https://github.com/maplibre/maplibre-gl-js
+
+Vega (vega)
+  Copyright (c) University of Washington Interactive Data Lab
+  Licensed under the BSD-3-Clause license.
+  Full license text: src/Honua.Console.Shell/wwwroot/vendor/vega/LICENSE
+  Upstream: https://github.com/vega/vega
+
+Vega-Lite (vega-lite)
+  Copyright (c) University of Washington Interactive Data Lab
+  Licensed under the BSD-3-Clause license.
+  Full license text: src/Honua.Console.Shell/wwwroot/vendor/vega-lite/LICENSE
+  Upstream: https://github.com/vega/vega-lite
+
+Vega-Embed (vega-embed)
+  Copyright (c) University of Washington Interactive Data Lab
+  Licensed under the BSD-3-Clause license.
+  Full license text: src/Honua.Console.Shell/wwwroot/vendor/vega-embed/LICENSE
+  Upstream: https://github.com/vega/vega-embed
