@@ -30,7 +30,7 @@ docker build \
   --build-arg HONUA_CONSOLE_REF="$(git branch --show-current)" \
   --tag honua-console:local .
 docker run --rm --publish 4174:8080 honua-console:local
-curl --fail http://127.0.0.1:4174/version.json
+node -e "fetch('http://127.0.0.1:4174/version.json').then((r) => r.ok || process.exit(1))"
 ```
 
 `.github/workflows/container-publish.yml` repeats that contract on every pull
