@@ -63,6 +63,7 @@ public sealed class StudioDashboardBuilderIntegrationTests
 
         // 5. The page renders the live-loaded draft editor (not the missing-binding surface).
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IStudioDashboardPackageDataSource>(dataSource);
 
         var page = ctx.Render<StudioDashboardBuilderPage>();

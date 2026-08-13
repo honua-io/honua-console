@@ -2,7 +2,7 @@ import { test, expect } from '../admin-api';
 
 // Live e2e for the AI honesty guarantees introduced in feat/console-ai-honesty:
 //
-//   1. OMNI-PROMPT CONFIRM CHIP — the omni-prompt page (/studio/ai, /operate/ai) NEVER silently
+//   1. OMNI-PROMPT CONFIRM CHIP — the omni-prompt page (/operate/ai) NEVER silently
 //      routes a prompt to the Studio or DevOps lane. Every verdict — including high-confidence
 //      keyword matches — stops at a confirmable suggestion chip the user accepts with one click.
 //      "Best guess · confirm or change?" for a high-confidence verdict; "Which lane?" for an
@@ -41,7 +41,7 @@ test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
 
   test('a Studio-keyword prompt shows "Best guess" chip, not the Studio lane surface', async ({ page }) => {
     test.setTimeout(60_000);
-    await page.goto('/studio/ai');
+    await page.goto('/operate/ai');
 
     await fillAndAwaitCircuit(page, 'publish Maui parcels as a feature service');
     await page.locator('[data-omni-prompt-submit]').click();
@@ -77,7 +77,7 @@ test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
 
   test('an ambiguous prompt shows "Which lane?" chip with equal choices', async ({ page }) => {
     test.setTimeout(60_000);
-    await page.goto('/studio/ai');
+    await page.goto('/operate/ai');
 
     await fillAndAwaitCircuit(page, 'help me with this');
     await page.locator('[data-omni-prompt-submit]').click();
@@ -94,7 +94,7 @@ test.describe('AI honesty · omni-prompt confirm chip (live)', () => {
 
   test('confirming the suggested lane routes to that lane surface', async ({ page }) => {
     test.setTimeout(60_000);
-    await page.goto('/studio/ai');
+    await page.goto('/operate/ai');
 
     await fillAndAwaitCircuit(page, 'publish parcels as a feature service');
     await page.locator('[data-omni-prompt-submit]').click();

@@ -40,20 +40,21 @@ routes. Path prefixes are frozen for downstream tickets:
 /auth/callback                 OIDC callback (anonymous)
 /auth/signed-out               Post-signout landing (anonymous)
 
-/studio                        Studio entry (AI-assisted creation)
-/studio/ai                     Omni-prompt AI console alias (one prompt; AI infers intent + routes Studio↔DevOps; honua-console#203)
-/studio/query                  Generated query.package editor
-/studio/analysis               Server-bound spatial analysis builder (honua-server#1182 closed; list + cost-estimate degraded until honua-server#1237)
-/studio/map                    Generated map.package editor
-/studio/dashboard              Generated dashboard.package editor
+/studio                        Studio entry (AI-assisted creation) — SHELVED (studio-builders)
+/studio/query                  Generated query.package editor — SHELVED (studio-builders)
+/studio/analysis               Server-bound spatial analysis builder (honua-server#1182 closed; list + cost-estimate degraded until honua-server#1237) — SHELVED (studio-builders)
+/studio/map                    Generated map.package editor — SHELVED (studio-builders)
+/studio/dashboard              Generated dashboard.package editor — SHELVED (studio-builders)
 /studio/report                 Generated report.package editor
 /studio/form                   Server-bound form package builder (honua-server#1184)
 /studio/form/import            XLSForm (ODK Collect) import surface over Honua.Collect.Core XlsFormImporter (honua-console#220)
-/studio/app                    Server-bound app.package builder (honua-server#1180/#1183)
-/studio/proof                  Legacy alias for current proof flow
-/studio/drafts                 Source-scoped draft start (source, id)
-/studio/apps/:itemId/preview   Generated-app preview / publish lifecycle
-/studio/workflows/new          New unified GP/ETL workflow package draft
+/studio/app                    Server-bound app.package builder (honua-server#1180/#1183) — SHELVED (studio-builders)
+/studio/proof                  Legacy alias for current proof flow — SHELVED (studio-builders)
+/studio/drafts                 Source-scoped draft start (source, id) — SHELVED (studio-builders)
+/studio/apps/:itemId/preview   Generated-app preview / publish lifecycle — SHELVED (studio-builders)
+/studio/report/ai              Report-from-prompt conversational authoring — SHELVED (studio-builders)
+/studio/form/ai                Form-from-prompt conversational authoring — SHELVED (studio-builders)
+/studio/workflows/new          New unified GP/ETL workflow package draft — SHELVED (studio-builders)
 /studio/workflows/:draftId     Reopen a workflow.package draft editor
 
 /catalog                       Search / list (q, type, tag, owner, visibility, sort, cursor)
@@ -146,6 +147,32 @@ routes. Path prefixes are frozen for downstream tickets:
 
 *                              404 NotFound
 ```
+
+> **SHELVED (`studio-builders` capability).** The Console's *non-realtime* Studio builder
+> surfaces are gated OFF by default and removed from navigation. "Studio" is now the
+> realtime, SDK-driven app builder, which is **not** a Console surface; the Console keeps
+> its back-office roles — Catalog, Operate, Share, support, and the publish/approval flows.
+>
+> Shelved is not deleted. The pages, their services, and the generation clients in
+> `Honua.Console.Contracts` stay in the tree behind `ConsoleCapabilityKeys.StudioBuilders`
+> (`ConsoleCapabilityGate`, the same first-release capability-manifest seam used by the
+> deferred Operate depth surfaces). A shelved route renders the first-class
+> `ConsoleStateView Kind="unsupported"` state with the kicker `Shelved` — never a blank
+> page and never fabricated data — and the Studio area is hidden from the primary nav.
+> Re-enable a deployment with `Honua:Console:Capabilities` /
+> `HONUA_CONSOLE_CAPABILITIES` = `studio-builders`; every surface returns unchanged.
+>
+> Shelved routes: `/studio`, `/studio/proof`, `/studio/drafts`,
+> `/studio/apps/:itemId/preview` (all four resolve to the same `StudioPage` component),
+> `/studio/map`, `/studio/app`, `/studio/dashboard`, `/studio/analysis`, `/studio/query`,
+> `/studio/report/ai`, `/studio/form/ai`, `/studio/workflows/new`.
+>
+> Removed: the `/studio/ai` alias on the omni-prompt AI console. That page is an Operate
+> surface and keeps its canonical `/operate/ai` route.
+>
+> Still live: `/studio/form`, `/studio/form/import`, `/studio/report`, `/studio/styles*`,
+> `/studio/automations*`, and `/studio/workflows/:draftId` (existing drafts stay editable).
+
 
 Top-level placement notes:
 

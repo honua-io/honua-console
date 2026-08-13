@@ -2,6 +2,7 @@
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
+@inject IConsoleCapabilityManifest Capabilities
 
 <section class="console-page">
     @if (_result is null)
@@ -41,7 +42,7 @@
                 </div>
             </div>
             <div class="console-detail-actions">
-                @foreach (var action in ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: !_result.AnonymousRead, publicLinkToken: _token))
+                @foreach (var action in ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: !_result.AnonymousRead, publicLinkToken: _token, studioAuthoringAvailable: Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders)))
                 {
                     <a class="console-button-link" href="@action.Href">@action.Label</a>
                 }
