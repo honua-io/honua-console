@@ -102,7 +102,8 @@ test("every pinned version is recorded and updatable through a documented step",
     assert.match(pkg.version, /^\d+\.\d+\.\d+$/, `the ${name} pin must be an exact version, never a range`);
 
     const readme = readFileSync(resolve(repoRoot, pkg.destination, "README.md"), "utf8");
-    assert.match(readme, new RegExp(`${name}@${pkg.version.replace(/\./g, "\\.")}`));
+    const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(readme, new RegExp(`${escapeRegExp(name)}@${escapeRegExp(pkg.version)}`));
     assert.match(readme, /node scripts\/vendor-assets\.mjs --update/, "the update step must be documented");
   }
 });
