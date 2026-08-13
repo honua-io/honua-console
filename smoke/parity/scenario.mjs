@@ -58,6 +58,8 @@ export const SCENARIO_STEPS = [
         repoRoot: ctx.repoRoot,
         originUrl: ctx.originUrl,
         fetchImpl: ctx.fetchImpl,
+        artifactPath: ctx.artifactPath,
+        fixturePath: ctx.fixturePath,
       });
       ctx.buildArtifact = { metadata, source, path };
       return {

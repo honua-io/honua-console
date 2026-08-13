@@ -10,6 +10,7 @@
   },
   "scripts": {
     "e2e:smoke": "playwright test",
+    "e2e:aws": "playwright test --config playwright.aws.config.ts",
     "e2e:live": "playwright test --config playwright.live.config.ts",
     "e2e:live-auth": "playwright test --config playwright.live-auth.config.ts",
     "e2e:live-llm": "playwright test --config playwright.live-llm.config.ts"
