@@ -34,6 +34,7 @@ public sealed class CatalogServerBindingRenderTests
             ]
         }));
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         RegisterCatalog(ctx, handler, anonymous: false);
 
         var page = ctx.Render<CatalogPage>();
@@ -59,6 +60,7 @@ public sealed class CatalogServerBindingRenderTests
             ]
         }));
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         RegisterCatalog(ctx, handler, anonymous: false);
 
         var page = ctx.Render<CatalogPage>();
@@ -112,6 +114,7 @@ public sealed class CatalogServerBindingRenderTests
         };
 
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleCatalogClient>(new StubCatalogClient(item));
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new StubReadContextResolver(anonymous: false));
 
@@ -146,6 +149,7 @@ public sealed class CatalogServerBindingRenderTests
         // genuine empty-catalog "publish the first item" surface (a silent failure shown as success).
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         RegisterCatalog(ctx, handler, anonymous: false);
 
         var page = ctx.Render<CatalogPage>();
@@ -176,6 +180,7 @@ public sealed class CatalogServerBindingRenderTests
             Items = []
         }));
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         RegisterCatalog(ctx, handler, anonymous: false);
 
         var page = ctx.Render<CatalogPage>();
@@ -197,6 +202,7 @@ public sealed class CatalogServerBindingRenderTests
         // Operate → Data & Layers. The count comes from the existing resources projection.
         var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse { Total = 0, Items = [] }));
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         RegisterCatalog(ctx, handler, anonymous: false, operateData: new StubOperateData(resourceCount: 14));
 
         var page = ctx.Render<CatalogPage>();
@@ -221,6 +227,7 @@ public sealed class CatalogServerBindingRenderTests
         // "N live resources" bridge is fabricated (honua-console#312 AC: unbound state remains).
         var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse { Total = 0, Items = [] }));
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         RegisterCatalog(ctx, handler, anonymous: false, operateData: new UnsupportedOperateTransitionDataSource());
 
         var page = ctx.Render<CatalogPage>();
@@ -240,6 +247,7 @@ public sealed class CatalogServerBindingRenderTests
         // back to the plain empty state rather than surfacing an error (honua-console#312 AC: degrade gracefully).
         var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse { Total = 0, Items = [] }));
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         RegisterCatalog(ctx, handler, anonymous: false, operateData: new StubOperateData(resourceCount: 9, throwOnRead: true));
 
         var page = ctx.Render<CatalogPage>();

@@ -1,5 +1,7 @@
 @page "/operate/ai"
-@page "/studio/ai"
+@* The "/studio/ai" alias was removed when the Console's non-realtime Studio builder surfaces were
+   shelved (studio-builders capability). This page is an Operate surface — the omni-prompt AI console —
+   and keeps its "/operate/ai" route; only the Studio-namespaced alias is gone. *@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models

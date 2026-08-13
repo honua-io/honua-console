@@ -25,6 +25,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(null, [MissingBinding])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -44,6 +45,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(StudioAppPackageMapper.CreateTemplate(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -71,6 +73,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -125,6 +128,7 @@ public sealed class StudioAppBuilderRenderTests
         });
         var data = new FakeAppDataSource { Load = new StudioAppEditorLoad(state, []) };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -152,6 +156,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -184,6 +189,7 @@ public sealed class StudioAppBuilderRenderTests
             ])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -218,6 +224,7 @@ public sealed class StudioAppBuilderRenderTests
             PreviewResult = new StudioAppCommandResult(true, "Preview plan ready (inline). Steps: validate-envelope.", existing)
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -242,6 +249,7 @@ public sealed class StudioAppBuilderRenderTests
             Load = new StudioAppEditorLoad(ReadyApp(), [])
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IStudioAppPackageDataSource>(data);
 
@@ -292,6 +300,7 @@ public sealed class StudioAppBuilderRenderTests
             }
         };
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         // A generated outcome marks the editor dirty, so the UnsavedChangesGuard syncs its beforeunload
         // handler over JS interop; loose mode lets that no-op in the renderer harness.
         ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
