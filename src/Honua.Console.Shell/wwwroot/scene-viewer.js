@@ -1,21 +1,26 @@
 // Minimal CesiumJS interop for the shared SceneViewer (3D Tiles) component.
 //
-// The Console has no bundled Cesium dependency, so this module loads CesiumJS
-// lazily from a CDN ONLY when a tileset URL is provided. When Cesium is
-// unavailable (offline, blocked CDN, no tileset bound, or a non-browser host
-// such as the bUnit render harness), every entry point fails gracefully: the
-// .NET component keeps its inline SVG schematic placeholder and never throws.
-// This preserves the no-mock / missing-binding contract — a live 3D scene
-// appears only when a real tileset is bound.
+// Cesium is served from THIS origin, never a CDN (honua-console#334). Its
+// Build/Cesium tree is ~69 MB across Workers/, Assets/, ThirdParty/, and
+// Widgets/, resolved dynamically through window.CESIUM_BASE_URL, so committing
+// it would put that weight in every clone and CI checkout forever. Instead it is
+// fetched at deploy/build time by scripts/fetch-cesium.mjs into
+// wwwroot/vendor/cesium (gitignored), the same version pin the manifest carries.
+//
+// When those bytes are absent — a checkout that never ran the fetch, or a
+// deployment that deliberately ships without 3D — loading fails and every entry
+// point degrades exactly as it always has: the .NET component keeps its inline
+// SVG schematic placeholder and never throws. 3D is therefore a capability that
+// lights up when its assets are present, which is also what makes an air-gapped
+// deployment work instead of hanging on an unreachable CDN.
+//
+// Same-origin assets need no Subresource Integrity: SRI defends against a
+// third-party CDN serving tampered bytes, and there is no third party left in
+// this path.
 
-const CESIUM_JS = 'https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Cesium.js';
-const CESIUM_CSS = 'https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Widgets/widgets.css';
-const CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/';
-// Subresource Integrity for the entry assets loaded into the privileged Console origin, so a
-// tampered CDN bundle fails to load instead of running with full session/proxy access. (Cesium's
-// own runtime chunks under CESIUM_BASE_URL are fetched dynamically and constrained by the CSP.)
-const CESIUM_JS_SRI = 'sha384-N4idLd6+vStyaOmPvzdeBLB/s3TY1Q17pMYKWRj+L5WuTq/2xY8namucn3yOVswy';
-const CESIUM_CSS_SRI = 'sha384-ghEeMdcWWzRv/BPeUcX835vcKDGrxvROXisl/Btpv3GeekBUXTSPVcFJpI1Tcrgp';
+const CESIUM_BASE_URL = '/vendor/cesium/';
+const CESIUM_JS = `${CESIUM_BASE_URL}Cesium.js`;
+const CESIUM_CSS = `${CESIUM_BASE_URL}Widgets/widgets.css`;
 
 const instances = new Map();
 let cesiumPromise = null;
@@ -39,16 +44,12 @@ function loadCesium() {
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
                 link.href = CESIUM_CSS;
-                link.integrity = CESIUM_CSS_SRI;
-                link.crossOrigin = 'anonymous';
                 link.setAttribute('data-cesium-css', 'true');
                 document.head.appendChild(link);
             }
 
             const script = document.createElement('script');
             script.src = CESIUM_JS;
-            script.integrity = CESIUM_JS_SRI;
-            script.crossOrigin = 'anonymous';
             script.async = true;
             script.onload = () => resolve(window.Cesium ?? null);
             script.onerror = () => resolve(null);

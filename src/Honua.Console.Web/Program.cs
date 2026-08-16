@@ -75,12 +75,14 @@ var app = builder.Build();
 // — a tampered or injected script here would run with full session/proxy access. MapLibre is served
 // from this origin as a committed, version-pinned asset (honua-console#333), so unpkg.com is gone
 // from the policy entirely, and so are Vega/Vega-Lite/Vega-Embed for the chart preview
-// (honua-console#334). jsdelivr remains for exactly one interop: Cesium in scene-viewer.js, whose
-// multi-megabyte Build/Cesium tree is resolved dynamically through window.CESIUM_BASE_URL and needs
-// its own decision about where those bytes live before it can follow; its entry assets are meanwhile
-// pinned with Subresource Integrity, and honua-console#334 stays open until it does. When Cesium is
-// vendored, every jsdelivr entry below goes with it — scripts/__tests__/vendored-assets.test.mjs
-// fails if the policy admits an origin no interop script still uses.
+// (honua-console#334). Cesium now follows too: scene-viewer.js loads it from this origin under
+// /vendor/cesium/, fetched at deploy/build time by scripts/fetch-cesium.mjs rather than committed —
+// its Build/Cesium tree is ~20 MB resolved dynamically through window.CESIUM_BASE_URL, which is
+// deploy weight rather than repo weight. When the assets are absent SceneViewer keeps its inline
+// SVG placeholder, so 3D is a capability that lights up when its bytes are present and an
+// air-gapped deployment no longer hangs on an unreachable CDN. **cdn.jsdelivr.net is gone from this
+// policy entirely** — scripts/__tests__/vendored-assets.test.mjs fails if the policy admits an
+// origin no interop script still uses, and vice versa.
 // object-src/base-uri/frame-ancestors/form-action are locked down to block plugin,
 // base-tag, clickjacking, and form-hijack vectors. 'unsafe-eval' is required by the Vega chart
 // runtime (and Cesium WASM); 'unsafe-inline' (style/script) by the MapLibre/Cesium/Vega inline
@@ -96,13 +98,13 @@ var contentSecurityPolicy = string.Join("; ", new[]
     "object-src 'none'",
     "frame-ancestors 'self'",
     "form-action 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net",
-    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-    "img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org",
-    "font-src 'self' data: https://cdn.jsdelivr.net",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://tile.openstreetmap.org",
+    "font-src 'self' data:",
     "worker-src 'self' blob:",
     "child-src 'self' blob:",
-    "connect-src 'self' https://cdn.jsdelivr.net https://tile.openstreetmap.org",
+    "connect-src 'self' https://tile.openstreetmap.org",
 });
 app.Use(async (context, next) =>
 {
