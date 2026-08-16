@@ -8,6 +8,11 @@ import { verify } from "../vendor-assets.mjs";
 
 // honua-console#333, #334 — the Console must not fetch executable code from a CDN at page load.
 //
+// As of #334 there is NO remaining executable-code CDN: MapLibre and Vega are committed vendored
+// assets, and Cesium is fetched from this origin under /vendor/cesium (placed at deploy/build time
+// by scripts/fetch-cesium.mjs, gitignored because its Build tree is ~20 MB). The only external
+// origin left is raster tile imagery.
+//
 // Three invariants, all offline so they run in the blocking CI gate (`npm test`):
 //
 //   1. The committed vendored assets are the bytes the lock says they are.
@@ -32,15 +37,6 @@ const programPath = resolve(repoRoot, "src/Honua.Console.Web/Program.cs");
  * needs it and the CSP directive that admits it.
  */
 const DECLARED_EXTERNAL_ORIGINS = new Map([
-  [
-    "https://cdn.jsdelivr.net",
-    "Cesium (scene-viewer.js) still loads its runtime from the CDN — it is the ONLY remaining " +
-      "consumer now that Vega is vendored (honua-console#334). Cesium's Build/Cesium tree is tens " +
-      "of megabytes across Workers/, Assets/, ThirdParty/, and Widgets/, resolved dynamically " +
-      "through window.CESIUM_BASE_URL, so where those bytes should live needs its own decision " +
-      "(no Git LFS here) rather than a mechanical port. When it lands, this entry and the matching " +
-      "CSP directives must go together — the set-equality test below enforces that.",
-  ],
   [
     "https://tile.openstreetmap.org",
     "Optional raster basemap tiles under the feature layers in map-preview.js. Tile IMAGERY, not " +
@@ -169,17 +165,50 @@ test("the CSP admits exactly the external origins the interop scripts still use"
 
 // jsdelivr is still in the CSP, and #334 is explicit that it stays only for Cesium. Pinning that
 // down here is what turns "we deferred Cesium" from a comment into a checked fact: the day
-// scene-viewer.js stops needing the CDN, this test and the set-equality test above both fail until
-// the directives are removed, and the day anything else reaches for jsdelivr again, this one fails.
-test("Cesium's scene-viewer is the only remaining consumer of the jsdelivr CDN", () => {
-  const users = interopScripts
-    .filter(({ source }) => fetchedOrigins(source).has("https://cdn.jsdelivr.net"))
-    .map(({ name }) => name);
+// As of #334 no interop script reaches a CDN for executable code at all: MapLibre and Vega are
+// committed vendored assets, and Cesium is served from this origin under /vendor/cesium. This test
+// is now an absolute — the day ANY script reaches for a code CDN again, it fails.
+test("no interop script fetches executable code from a CDN", () => {
+  // Absolute, not a shrinking allowlist. Tile imagery is the only external origin the Console may
+  // reach (asserted by the set-equality test above); executable code must come from this origin.
+  const CODE_CDNS = [
+    "https://cdn.jsdelivr.net",
+    "https://unpkg.com",
+    "https://cdnjs.cloudflare.com",
+    "https://esm.sh",
+    "https://cdn.skypack.dev",
+  ];
+  const offenders = [];
+  for (const { name, source } of interopScripts) {
+    const origins = fetchedOrigins(source);
+    for (const cdn of CODE_CDNS) {
+      if (origins.has(cdn)) offenders.push(`${name} -> ${cdn}`);
+    }
+  }
   assert.deepEqual(
-    users,
-    ["scene-viewer.js"],
-    "https://cdn.jsdelivr.net must be reached by scene-viewer.js alone — Vega was vendored in " +
-      "honua-console#334; vendor the new consumer rather than leaning on the CDN entry Cesium keeps alive",
+    offenders,
+    [],
+    "Executable code must be served from this origin. MapLibre and Vega are committed under " +
+      "wwwroot/vendor; Cesium is placed at /vendor/cesium by scripts/fetch-cesium.mjs at " +
+      "deploy time (honua-console#334). Vendor the new dependency rather than reaching for a CDN.",
+  );
+});
+
+test("scene-viewer loads Cesium from this origin", () => {
+  // The deploy-time fetch is only a real fix if the loader actually points at it. If Cesium is ever
+  // pointed back at a CDN, the CDN test above catches it; this catches the subtler regression of a
+  // wrong same-origin path that silently degrades every deployment to the SVG placeholder.
+  const sceneViewer = readFileSync(resolve(wwwroot, "scene-viewer.js"), "utf8");
+  assert.match(
+    sceneViewer,
+    /const CESIUM_BASE_URL = '\/vendor\/cesium\/'/,
+    "scene-viewer.js must resolve Cesium under /vendor/cesium on this origin",
+  );
+  assert.doesNotMatch(
+    sceneViewer,
+    /integrity\s*=/,
+    "same-origin assets need no Subresource Integrity — SRI defends against a third-party CDN, " +
+      "and there is no third party left in this path",
   );
 });
 
