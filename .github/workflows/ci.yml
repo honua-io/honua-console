@@ -51,6 +51,9 @@ jobs:
           NUGET_PLUGINS_CACHE_PATH: ${{ runner.temp }}/honua-console-public-plugin-cache
         run: dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache
 
+      - name: Verify public package locks are current
+        run: git diff --exit-code -- ':(glob)**/packages.lock.json'
+
       - name: Verify .NET formatting
         run: dotnet format Honua.Console.slnx --verify-no-changes --verbosity minimal --no-restore
 

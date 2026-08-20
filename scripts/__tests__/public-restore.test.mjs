@@ -43,6 +43,8 @@ test("blocking CI proves a clean credential-free restore", () => {
   assert.match(workflow, /Restore \.NET projects anonymously from public sources/);
   assert.match(workflow, /dotnet restore Honua\.Console\.slnx --configfile NuGet\.config --no-cache/);
   assert.match(workflow, /NUGET_PACKAGES: \$\{\{ runner\.temp \}\}\/honua-console-public-packages/);
+  assert.match(workflow, /Verify public package locks are current/);
+  assert.match(workflow, /git diff --exit-code -- ':\(glob\)\*\*\/packages\.lock\.json'/);
   assert.doesNotMatch(workflow, /Authenticate GitHub Packages|nuget update source github-honua/);
   assert.doesNotMatch(workflow, /^\s*packages:\s*read\s*$/m);
 });
@@ -71,6 +73,7 @@ test("onboarding does not ask public contributors for package credentials", () =
 
   assert.match(readme, /pins `Honua\.Sdk\.Studio` 1\.6\.0/);
   assert.match(readme, /intentionally fails restore until that exact version is available/);
+  assert.match(readme, /commit the regenerated `packages\.lock\.json` files/);
   assert.match(readme, /dotnet restore Honua\.Console\.slnx --configfile NuGet\.config/);
   assert.doesNotMatch(readme, /read:packages|nuget\.pkg\.github\.com|github-honua/i);
 });

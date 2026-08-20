@@ -63,7 +63,9 @@ Prerequisites:
 - Anonymous access to nuget.org. This checkout pins `Honua.Sdk.Studio` 1.6.0
   and intentionally fails restore until that exact version is available from
   the public feed declared in [NuGet.config](NuGet.config); no GitHub Packages
-  credential is part of the build contract.
+  credential is part of the build contract. After 1.6.0 is public, run the
+  restore below and commit the regenerated `packages.lock.json` files; CI
+  rejects lock drift before it builds or tests the Console.
 
 ```bash
 git clone https://github.com/honua-io/honua-console.git
