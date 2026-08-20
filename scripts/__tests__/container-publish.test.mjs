@@ -66,16 +66,16 @@ describe("Console container publication contract", () => {
     );
     assert.match(
       workflow,
-      /Verify GHCR candidate is publicly pullable[\s\S]*ghcr\.io\/token\?scope=repository:[\s\S]*Docker-Content-Digest[\s\S]*steps\.image\.outputs\.digest/,
+      /Verify GHCR candidate is publicly pullable[\s\S]*ghcr\.io\/token\?service=ghcr\.io&scope=repository:[\s\S]*manifests\/\$\{candidate_digest\}[\s\S]*\^docker-content-digest:[\s\S]*public_digest\}" == "\$\{candidate_digest\}/,
     );
     assert.match(workflow, /imagetools create --prefer-index=false/);
     assert.match(
       workflow,
-      /existing_sha_digest="\$\(docker buildx imagetools inspect "\$\{release_ref\}" --format '\{\{\.Manifest\.Digest\}\}' 2>\/dev\/null \|\| true\)"/,
+      /existing_sha_digest="\$\(docker buildx imagetools inspect "\$\{release_ref\}"[\s\S]*?--format '\{\{\.Manifest\.Digest\}\}' 2>\/dev\/null \|\| true\)"/,
     );
     assert.match(
       workflow,
-      /Promote verified digest to release tags[\s\S]*GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/,
+      /Log in to GHCR[\s\S]*password: \$\{\{ secrets\.GITHUB_TOKEN \}\}[\s\S]*Promote verified digest to release tags/,
     );
     assert.match(
       workflow,
