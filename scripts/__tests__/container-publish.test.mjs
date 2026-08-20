@@ -53,7 +53,7 @@ describe("Console container publication contract", () => {
 
     const smoke = workflow.indexOf("Smoke-test the published Console");
     const attest = workflow.indexOf("Attest verified candidate image provenance");
-    const publicPackage = workflow.indexOf("Make GHCR package publicly pullable");
+    const publicPackage = workflow.indexOf("Verify GHCR candidate is publicly pullable");
     const promote = workflow.indexOf("Promote verified digest to release tags");
     assert.ok(smoke >= 0 && promote > smoke, "release tags must be promoted after runtime smoke");
     assert.ok(
@@ -64,15 +64,18 @@ describe("Console container publication contract", () => {
       publicPackage > attest && promote > publicPackage,
       "release tags must be promoted only after public package visibility is verified",
     );
-    assert.match(workflow, /gh api --method PATCH[\s\S]*visibility=public/);
+    assert.match(
+      workflow,
+      /Verify GHCR candidate is publicly pullable[\s\S]*ghcr\.io\/token\?service=ghcr\.io&scope=repository:[\s\S]*manifests\/\$\{candidate_digest\}[\s\S]*\^docker-content-digest:[\s\S]*public_digest\}" == "\$\{candidate_digest\}/,
+    );
     assert.match(workflow, /imagetools create --prefer-index=false/);
     assert.match(
       workflow,
-      /package_versions_path=.*packages\/container\/honua-console\/versions[\s\S]*existing_sha_digest="\$\(gh api --paginate/,
+      /existing_sha_digest="\$\(docker buildx imagetools inspect "\$\{release_ref\}"[\s\S]*?--format '\{\{\.Manifest\.Digest\}\}' 2>\/dev\/null \|\| true\)"/,
     );
     assert.match(
       workflow,
-      /Promote verified digest to release tags[\s\S]*GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/,
+      /Log in to GHCR[\s\S]*password: \$\{\{ secrets\.GITHUB_TOKEN \}\}[\s\S]*Promote verified digest to release tags/,
     );
     assert.match(
       workflow,
