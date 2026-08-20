@@ -60,24 +60,16 @@ Prerequisites:
 
 - **.NET 10 SDK**
 - **Node.js >= 20** (only for the smoke/e2e harnesses and build-metadata stamping)
-- A GitHub token with `read:packages` — the `Honua.Sdk.*` packages resolve from
-  the `github-honua` GitHub Packages feed declared in [NuGet.config](NuGet.config),
-  and GitHub Packages requires authentication even for public packages.
+- Anonymous access to nuget.org. This checkout pins `Honua.Sdk.Studio` 1.6.0
+  and intentionally fails restore until that exact version is available from
+  the public feed declared in [NuGet.config](NuGet.config); no GitHub Packages
+  credential is part of the build contract.
 
 ```bash
 git clone https://github.com/honua-io/honua-console.git
 cd honua-console
 
-# Authenticate the Honua SDK package feed (once). This stores the credential in
-# your user-level NuGet config — never put the token in the repo's tracked
-# NuGet.config. Credentials are matched to the feed by source name.
-dotnet nuget add source https://nuget.pkg.github.com/honua-io/index.json \
-  --name github-honua \
-  --username <your-github-username> --password <token-with-read:packages> \
-  --store-password-in-clear-text \
-  --configfile "$HOME/.nuget/NuGet/NuGet.Config"
-
-dotnet restore Honua.Console.slnx
+dotnet restore Honua.Console.slnx --configfile NuGet.config
 dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
 ```
 
