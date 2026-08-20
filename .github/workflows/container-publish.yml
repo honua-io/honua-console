@@ -261,36 +261,32 @@ jobs:
           subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
 
-      - name: Make GHCR package publicly pullable
+      - name: Verify GHCR candidate is publicly pullable
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          package_path="/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/honua-console"
-          gh api --method PATCH "${package_path}" -f visibility=public >/dev/null
-          visibility="$(gh api "${package_path}" --jq '.visibility')"
-          [[ "${visibility}" == "public" ]]
+          candidate_digest='${{ steps.image.outputs.digest }}'
+          token="$(curl --fail --silent --show-error \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:${GITHUB_REPOSITORY_OWNER}/honua-console:pull" \
+            | jq -er '.token | select(length > 0)')"
+          public_digest="$(curl --fail --silent --show-error --head \
+            -H "Authorization: Bearer ${token}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            "https://ghcr.io/v2/${GITHUB_REPOSITORY_OWNER}/honua-console/manifests/${candidate_digest}" \
+            | awk 'BEGIN { IGNORECASE=1 } /^docker-content-digest:/ { gsub("\r", "", $2); print $2 }')"
+          [[ "${public_digest}" == "${candidate_digest}" ]]
 
       - name: Promote verified digest to release tags
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           candidate_digest='${{ steps.image.outputs.digest }}'
           release_ref="${IMAGE}:nightly-${SOURCE_SHA:0:12}"
           release_tag="${release_ref##*:}"
-          package_versions_path="/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/honua-console/versions?per_page=100"
           args=(--tag "${IMAGE}:nightly")
 
-          existing_sha_digest="$(gh api --paginate "${package_versions_path}" \
-            --jq ".[] | select((.metadata.container.tags // []) | index(\"${release_tag}\")) | .name")"
-          if [[ "${existing_sha_digest}" == *$'\n'* ]]; then
-            echo "::error::Immutable tag ${release_ref} resolved to multiple package versions."
-            exit 1
-          fi
-
+          existing_sha_digest="$(docker buildx imagetools inspect "${release_ref}" \
+            --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
           if [[ -n "${existing_sha_digest}" ]]; then
             if [[ ! "${existing_sha_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
               echo "::error::Immutable tag ${release_ref} resolved to invalid digest ${existing_sha_digest}."
