@@ -82,6 +82,13 @@ test("vendored assets match the digests recorded at vendoring time", async () =>
 
 const manifest = JSON.parse(readFileSync(resolve(repoRoot, "scripts/vendored-assets.json"), "utf8"));
 
+test("the vendored chart stack is on the patched Vega 6 compatibility line", () => {
+  const versions = Object.fromEntries(manifest.packages.map((entry) => [entry.name, entry.version]));
+  assert.equal(versions.vega, "6.4.0", "Vega must remain at or above the 6.2.0 XSS fix line");
+  assert.equal(versions["vega-lite"], "6.4.3", "Vega-Lite must remain on its Vega 6 peer line");
+  assert.equal(versions["vega-embed"], "7.1.0", "vega-embed must remain on its Vega 6-compatible line");
+});
+
 // Every library the Console vendors, and the interop module that must consume it from this origin.
 // Adding a package here is what makes the two tests below cover it.
 const VENDORED = [
