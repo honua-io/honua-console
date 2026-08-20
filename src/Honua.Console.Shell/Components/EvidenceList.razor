@@ -5,7 +5,7 @@
         <ul class="operate-evidence-list">
             @foreach (var item in Items)
             {
-                <li>
+                <li data-evidence-id="@item.Identifier">
                     <a href="@item.Href">@item.Label</a>
                     <span>@item.Kind</span>
                     <p>@item.Detail</p>

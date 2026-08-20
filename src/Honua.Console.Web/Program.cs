@@ -52,7 +52,11 @@ builder.Services.AddHonuaConsoleShell(
     // for approval/recovery mutations. API-key fallback is available only through the
     // exact HeadlessService opt-in, a ServiceApiKey profile, and no interactive session.
     builder.Configuration["Honua:Server:CredentialMode"]
-        ?? builder.Configuration["HONUA_SERVER_CREDENTIAL_MODE"]);
+        ?? builder.Configuration["HONUA_SERVER_CREDENTIAL_MODE"],
+    // The normal image is the focused human Console. Witness mode keeps only the read/approve
+    // candidate-certification navigation; it does not weaken or replace server authorization.
+    builder.Configuration["Honua:Console:Mode"]
+        ?? builder.Configuration["HONUA_CONSOLE_MODE"]);
 
 static bool ParseFlag(string? value) =>
     bool.TryParse(value, out var parsed) && parsed;

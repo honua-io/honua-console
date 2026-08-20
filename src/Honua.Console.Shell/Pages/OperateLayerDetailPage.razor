@@ -6,7 +6,7 @@
 @inject IConsoleLayerFieldsOperation LayerFields
 @inject IConsoleNotificationService Notifications
 
-<section class="console-page">
+<section class="console-page" data-layer-resource-id="@ResourceId" data-layer-loaded="@(_exposures.Count > 0)">
     @if (_exposures.Count == 0)
     {
         <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />

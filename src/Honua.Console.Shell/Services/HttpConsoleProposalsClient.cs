@@ -79,7 +79,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
         if (!result.IsAllowed)
         {
-            return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(result.Status, result.Message);
+            return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(result.Status, result.Message, result.Detail);
         }
 
         var summaries = (result.Value?.Proposals ?? [])
@@ -162,7 +162,8 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
                 result.Status,
                 string.IsNullOrWhiteSpace(result.Message)
                     ? "The honua-server proposals API returned an empty response."
-                    : result.Message);
+                    : result.Message,
+                result.Detail);
     }
 
     private async Task<OperateSectionResult<T>> SendAsync<T>(
@@ -213,9 +214,14 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
             if (!response.IsSuccessStatusCode)
             {
+                var problem = await ConsoleServerHttp.ReadProblemAsync(
+                    response,
+                    MapErrorMessage(response.StatusCode, method, relativePath),
+                    cancellationToken).ConfigureAwait(false);
                 return OperateSectionResult<T>.Denied(
                     MapStatus(response.StatusCode),
-                    MapErrorMessage(response.StatusCode, method, relativePath));
+                    problem.Message,
+                    problem.Detail);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
