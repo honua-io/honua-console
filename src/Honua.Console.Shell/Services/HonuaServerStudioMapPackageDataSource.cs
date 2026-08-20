@@ -338,12 +338,16 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             // HonuaServerStudioAnalysisContentDataSource's 404/501 handling.
             if (issue.StatusCode is 404 or 501)
             {
-                return SeedBaselineMap(currentState, request.Prompt, availableSources)
-                    ?? new StudioMapGenerationOutcome
-                    {
-                        Status = StudioMapGenerationStatuses.Unsupported,
-                        Rationale = "This server does not offer AI map generation yet."
-                    };
+                if (!hasMap && SeedBaselineMap(currentState, request.Prompt, availableSources) is { } transportBaseline)
+                {
+                    return transportBaseline;
+                }
+
+                return new StudioMapGenerationOutcome
+                {
+                    Status = StudioMapGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI map generation yet."
+                };
             }
 
             return StudioMapGenerationOutcome.Blocked(ToCapabilityState(GenerateContract, issue));
@@ -355,7 +359,8 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         // or the route answered without the generation contract at all) but a real catalog source is
         // available, seed a baseline single-layer map. This mirrors the analysis/query baseline pattern: the
         // operator gets a real, viewable starting point rather than a dead end.
-        if (string.Equals(outcome.Status, StudioMapGenerationStatuses.Unsupported, StringComparison.Ordinal)
+        if (!hasMap
+            && string.Equals(outcome.Status, StudioMapGenerationStatuses.Unsupported, StringComparison.Ordinal)
             && SeedBaselineMap(currentState, request.Prompt, availableSources) is { } baseline)
         {
             return baseline;

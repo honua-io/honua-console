@@ -237,12 +237,16 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
             // exactly what HonuaServerStudioAnalysisContentDataSource does for its own 404/501.
             if (issue.StatusCode is 404 or 501)
             {
-                return SeedBaselineQuery(request.Prompt, availableSources)
-                    ?? new StudioQueryGenerationOutcome
-                    {
-                        Status = StudioQueryGenerationStatuses.Unsupported,
-                        Rationale = "This server does not offer AI query generation yet."
-                    };
+                if (!hasContent && SeedBaselineQuery(request.Prompt, availableSources) is { } transportBaseline)
+                {
+                    return transportBaseline;
+                }
+
+                return new StudioQueryGenerationOutcome
+                {
+                    Status = StudioQueryGenerationStatuses.Unsupported,
+                    Rationale = "This server does not offer AI query generation yet."
+                };
             }
 
             return StudioQueryGenerationOutcome.Blocked(ToCapabilityState(issue));
@@ -254,7 +258,8 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
         // configured) but a real catalog source is available, seed a baseline all-features query bound to
         // that source. The operator gets a real, data-bound starting point rather than a dead end -
         // clearly labelled as a baseline in the rationale. Mirrors the analysis baseline pattern.
-        if (string.Equals(outcome.Status, StudioQueryGenerationStatuses.Unsupported, StringComparison.Ordinal)
+        if (!hasContent
+            && string.Equals(outcome.Status, StudioQueryGenerationStatuses.Unsupported, StringComparison.Ordinal)
             && SeedBaselineQuery(request.Prompt, availableSources) is { } baseline)
         {
             return baseline;

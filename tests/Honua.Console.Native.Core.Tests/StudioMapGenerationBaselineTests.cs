@@ -40,6 +40,34 @@ public sealed class StudioMapGenerationBaselineTests
     }
 
     [Fact]
+    public async Task Generate_RouteMissingDuringRefinement_PreservesExistingMapWithoutAddingBaseline()
+    {
+        var source = CreateSource(
+            StudioEndpointResult<MapGenerationResult>.FromIssue(
+                new StudioEndpointIssue("Unsupported", "POST generate", "Not found.", 404)),
+            CatalogWith(("parcels", 4, "Parcels")));
+        var current = new StudioMapEditorState { Title = "Authored map" };
+        current.Layers.Add(new StudioMapLayerEditor
+        {
+            BoundLayerId = "9",
+            BoundServiceId = "authored",
+            Title = "Authored layer",
+            SourceRef = "service:authored/9",
+            Visible = true,
+        });
+
+        var outcome = await source.GenerateAsync(
+            current,
+            new StudioMapGenerationRequest { Prompt = "refine the map" });
+
+        Assert.Equal(StudioMapGenerationStatuses.Unsupported, outcome.Status);
+        Assert.Null(outcome.State);
+        var layer = Assert.Single(current.Layers);
+        Assert.Equal("9", layer.BoundLayerId);
+        Assert.Equal("authored", layer.BoundServiceId);
+    }
+
+    [Fact]
     public async Task Generate_RouteMissingAndCatalogEmpty_StaysUnsupportedRatherThanInventingALayer()
     {
         var source = CreateSource(

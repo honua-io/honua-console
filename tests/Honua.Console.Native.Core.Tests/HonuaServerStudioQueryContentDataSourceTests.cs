@@ -359,6 +359,35 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
     }
 
     [Fact]
+    public async Task Generate_ServerLacksContractDuringRefinement_PreservesExistingQuery()
+    {
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST queries/generate", "Not found.", 404))
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client, CatalogWith(("parcels", 7, "Parcels")));
+        var current = new StudioQueryEditor
+        {
+            Title = "Authored query",
+            NaturalLanguageQuery = "existing intent",
+            ServiceName = "authored",
+            LayerId = 9,
+        };
+
+        var outcome = await source.GenerateAsync(
+            current,
+            new StudioQueryGenerationRequest { Prompt = "refine the query" });
+
+        Assert.Equal(StudioQueryGenerationStatuses.Unsupported, outcome.Status);
+        Assert.Null(outcome.Query);
+        Assert.Equal("Authored query", current.Title);
+        Assert.Equal("existing intent", current.NaturalLanguageQuery);
+        Assert.Equal("authored", current.ServiceName);
+        Assert.Equal(9, current.LayerId);
+    }
+
+    [Fact]
     public async Task Generate_ServerLacksContractAndCatalogIsEmpty_StaysUnsupportedRatherThanInventingALayer()
     {
         var client = new FakeQueryContentClient
