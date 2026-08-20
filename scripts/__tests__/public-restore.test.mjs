@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,25 @@ test("blocking CI proves a clean credential-free restore", () => {
   assert.match(workflow, /NUGET_PACKAGES: \$\{\{ runner\.temp \}\}\/honua-console-public-packages/);
   assert.doesNotMatch(workflow, /Authenticate GitHub Packages|nuget update source github-honua/);
   assert.doesNotMatch(workflow, /^\s*packages:\s*read\s*$/m);
+});
+
+test("every Console workflow restores without private package credentials", () => {
+  const workflowDir = resolve(repoRoot, ".github/workflows");
+  const workflows = readdirSync(workflowDir)
+    .filter((name) => /\.ya?ml$/.test(name))
+    .map((name) => [name, readFileSync(resolve(workflowDir, name), "utf8")]);
+
+  for (const [name, workflow] of workflows) {
+    assert.doesNotMatch(
+      workflow,
+      /github-honua|nuget\.pkg\.github\.com|Authenticate GitHub Packages|packages:\s*read/i,
+      `${name} must not depend on private package credentials`,
+    );
+    for (const restore of workflow.split(/\r?\n/).filter((line) => line.includes("dotnet restore"))) {
+      assert.match(restore, /--configfile .*NuGet\.config/);
+      assert.match(restore, /--no-cache/);
+    }
+  }
 });
 
 test("onboarding does not ask public contributors for package credentials", () => {

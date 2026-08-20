@@ -21,10 +21,20 @@ describe("Console container publication contract", () => {
   });
 
   test("keeps pull requests read-only and publishes immutable multi-architecture images", async () => {
-    const workflow = await readFile(resolve(root, ".github/workflows/container-publish.yml"), "utf8");
+    const workflow = (
+      await readFile(resolve(root, ".github/workflows/container-publish.yml"), "utf8")
+    ).replace(/\r\n/g, "\n");
 
-    assert.match(workflow, /permissions:\n  contents: read\n  packages: read/);
-    assert.match(workflow, /validate:[\s\S]*if: github\.event_name == 'pull_request'[\s\S]*packages: read/);
+    assert.match(workflow, /permissions:\r?\n  contents: read\r?\n\r?\nenv:/);
+    assert.doesNotMatch(workflow, /^\s*packages:\s*read\s*$/m);
+    assert.match(
+      workflow,
+      /validate:[\s\S]*if: github\.event_name == 'pull_request'[\s\S]*permissions:\r?\n      contents: read/,
+    );
+    assert.match(
+      workflow,
+      /Restore Console anonymously from public sources[\s\S]*--configfile \.\.\/\.\.\/NuGet\.config --no-cache/,
+    );
     assert.match(workflow, /workflow_run:[\s\S]*workflows:[\s\S]*- CI[\s\S]*- completed/);
     assert.doesNotMatch(workflow, /workflow_dispatch:/);
     assert.match(
