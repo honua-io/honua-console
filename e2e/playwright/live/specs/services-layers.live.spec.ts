@@ -214,7 +214,15 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     test.slow();
     const base = admin.serverUrl;
     const headers = { 'X-API-Key': ADMIN_KEY, 'Content-Type': 'application/json' };
-    const LID = 1; // e2e_src_fs's published layer is the first global layer on the fresh dedicated DB.
+    // Resolve the published layer's id instead of assuming it. Honua layer ids are GLOBAL — the
+    // FeatureServer exposes the very id the admin metadata API takes — so a literal 1 is right only
+    // when e2e_src_fs is the first layer ever published on this server. That holds on the console's
+    // own throwaway testbed and nowhere else: against a harness that seeded services of its own the
+    // PUTs below silently retargeted somebody else's layer and the read-back failed.
+    const fsMeta = await (await page.request.get(`${base}/rest/services/${SERVICE_NAME}/FeatureServer?f=json`, { headers })).json();
+    const publishedLayer = (fsMeta.layers ?? []).find((l: any) => l.name === LAYER_NAME) ?? (fsMeta.layers ?? [])[0];
+    expect(publishedLayer, `${SERVICE_NAME} should expose its published layer`).toBeTruthy();
+    const LID = publishedLayer.id;
 
     // Author a UniqueValue renderer, a popupInfo template, and a (self-)relationship via the new admin setters.
     await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/drawing-info`, {
