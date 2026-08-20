@@ -26,8 +26,13 @@ public static class StudioQueryReadoutGenerator
             projection = "*";
         }
 
+        // An unbound query has no service, and its LayerId is still the scaffold's default 0 — which is a
+        // VALID layer id, so `layer:0` reads exactly like a real binding. Rendering that made a draft that
+        // resolves against nothing look like a runnable query ("SELECT * FROM layer:0"). Mark the source as
+        // the placeholder it is, in a form no reader can mistake for a table reference, while keeping the
+        // layer id visible for diagnostics.
         var source = string.IsNullOrWhiteSpace(query.ServiceName)
-            ? $"layer:{query.LayerId.ToString(CultureInfo.InvariantCulture)}"
+            ? $"<unbound service>/layer/{query.LayerId.ToString(CultureInfo.InvariantCulture)}"
             : $"{query.ServiceName}/layer/{query.LayerId.ToString(CultureInfo.InvariantCulture)}";
 
         var builder = new StringBuilder();
