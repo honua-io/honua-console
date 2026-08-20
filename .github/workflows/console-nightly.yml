@@ -25,7 +25,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 concurrency:
   group: console-nightly-${{ github.ref }}
@@ -108,11 +107,8 @@ jobs:
           echo "Pulling pinned honua-server image: ${HONUA_CONSOLE_SERVER_IMAGE}"
           docker pull "${HONUA_CONSOLE_SERVER_IMAGE}"
 
-      - name: Authenticate GitHub Packages feed
-        run: dotnet nuget update source github-honua --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
-
-      - name: Restore .NET projects
-        run: dotnet restore Honua.Console.slnx
+      - name: Restore .NET projects anonymously from public sources
+        run: dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache
 
       - name: Run Native.Core live-server + Testcontainers tests
         run: |

@@ -8,11 +8,10 @@ on:
     types:
       - completed
 
-# Pull requests receive read-only package access. The publishing job is excluded
-# from pull_request events before its narrowly-scoped write token is issued.
+# Pull requests need only source access. The publishing job is excluded from
+# pull_request events before its narrowly-scoped package write token is issued.
 permissions:
   contents: read
-  packages: read
 
 env:
   IMAGE: ghcr.io/honua-io/honua-console
@@ -24,7 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
     concurrency:
       group: console-container-pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -43,17 +41,9 @@ jobs:
         with:
           node-version: 20.x
 
-      - name: Authenticate GitHub Packages feed
-        run: >-
-          dotnet nuget update source github-honua
-          --username "${{ github.actor }}"
-          --password "${{ secrets.GITHUB_TOKEN }}"
-          --store-password-in-clear-text
-          --configfile NuGet.config
-
-      - name: Restore Console
+      - name: Restore Console anonymously from public sources
         working-directory: src/Honua.Console.Web
-        run: dotnet restore ../../Honua.Console.slnx --locked-mode
+        run: dotnet restore ../../Honua.Console.slnx --configfile ../../NuGet.config --no-cache
 
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
@@ -157,17 +147,9 @@ jobs:
         with:
           node-version: 20.x
 
-      - name: Authenticate GitHub Packages feed
-        run: >-
-          dotnet nuget update source github-honua
-          --username "${{ github.actor }}"
-          --password "${{ secrets.GITHUB_TOKEN }}"
-          --store-password-in-clear-text
-          --configfile NuGet.config
-
-      - name: Restore Console
+      - name: Restore Console anonymously from public sources
         working-directory: src/Honua.Console.Web
-        run: dotnet restore ../../Honua.Console.slnx --locked-mode
+        run: dotnet restore ../../Honua.Console.slnx --configfile ../../NuGet.config --no-cache
 
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web

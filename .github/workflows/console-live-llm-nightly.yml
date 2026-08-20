@@ -30,7 +30,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 concurrency:
   group: console-live-llm-${{ github.ref }}
@@ -73,11 +72,8 @@ jobs:
         with:
           node-version: 20.x
 
-      - name: Authenticate GitHub Packages feed
-        run: dotnet nuget update source github-honua --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
-
-      - name: Restore Console Web project
-        run: dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj
+      - name: Restore Console Web project anonymously from public sources
+        run: dotnet restore src/Honua.Console.Web/Honua.Console.Web.csproj --configfile NuGet.config --no-cache
 
       - name: Install Playwright (Chromium)
         working-directory: e2e/playwright

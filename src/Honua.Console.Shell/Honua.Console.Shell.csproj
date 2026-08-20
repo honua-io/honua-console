@@ -18,7 +18,7 @@
     <!-- Server-owned Studio capability-manifest projection (GET /api/v1/capabilities/manifest).
          The registry-driven Studio-AI intent resolver (honua-console#266) binds this SDK client so
          deferred/unavailable capabilities are gated out of Studio AI. -->
-    <PackageReference Include="Honua.Sdk.Studio" Version="1.5.0" />
+    <PackageReference Include="Honua.Sdk.Studio" Version="1.6.0" />
   </ItemGroup>
 
   <ItemGroup>
