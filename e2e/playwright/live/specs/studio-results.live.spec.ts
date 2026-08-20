@@ -1,4 +1,5 @@
 ﻿import { test, expect } from '../admin-api';
+import { isServicePublished } from '../published';
 
 // Live e2e for the STUDIO workflow goal: each Studio builder must work all the way to its FINAL OUTPUT —
 // a real rendered result from real server data — not just a structural package. This drives the real
@@ -38,8 +39,8 @@ async function openFromPrompt(page: import('@playwright/test').Page) {
 
 test.describe('Studio · workflow result rendering (live)', () => {
   test.beforeEach(async ({ page, admin }) => {
-    const res = await page.request.get(`${admin.serverUrl}/rest/services/e2e_src_fs/FeatureServer?f=json`, { headers: ADMIN_HEADERS });
-    test.skip(!res.ok(), 'e2e_src_fs is not published on this server — run services-layers.live.spec first.');
+    const published = await isServicePublished(page, admin.serverUrl, 'e2e_src_fs', ADMIN_HEADERS);
+    test.skip(!published, 'e2e_src_fs is not published on this server — run services-layers.live.spec first.');
   });
 
   test('QUERY renders a chart of the bound layer\'s real rows (baseline binding when generation is unavailable)', async ({ page }) => {

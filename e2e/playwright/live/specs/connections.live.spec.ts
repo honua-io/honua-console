@@ -1,13 +1,15 @@
 import { test, expect } from '../admin-api';
+import { SOURCE_DB, sourceConnectionBody } from '../source-db';
 
 // Live e2e for the Operate "Add Connection" flow (create + test) against a real honua-server.
-// Targets the testbed databases reachable from the server host: PostGIS on localhost:5432.
+// Targets the source datasource described by SOURCE_DB — by default the console testbed's PostGIS
+// (localhost:5544/honua_dev), overridable so the suite can run against another harness's topology.
 
 // Unique per run so reruns don't collide on the unique-name constraint; cleaned up by the fixture.
 const stamp = `${Date.now().toString(36)}`;
 
-// The testbed's dedicated PostGIS (the honua-server's own DB) is reachable from the server host on port 5544.
-const DATA_PORT = '5544';
+// Host/port/credentials must be resolvable FROM INSIDE the server (it is the process that connects).
+const DATA_PORT = SOURCE_DB.port;
 
 function fillConnectionForm(
   page: import('@playwright/test').Page,
@@ -35,10 +37,10 @@ test.describe('Operate · Add Connection (live)', () => {
       await page.getByPlaceholder('prod-postgis').fill(name);
       // Provider defaults to PostgreSQL/PostGIS (port 5432).
       await fillConnectionForm(page, {
-        host: 'localhost',
-        database: 'honua_dev',
-        username: 'honua_user',
-        password: 'honua_password',
+        host: SOURCE_DB.host,
+        database: SOURCE_DB.database,
+        username: SOURCE_DB.username,
+        password: SOURCE_DB.password,
       });
       // Draft test (POST /api/v1/admin/connections/test → PostgresConnectionDriver).
       await page.getByRole('button', { name: 'Test connection' }).click();
@@ -53,7 +55,7 @@ test.describe('Operate · Add Connection (live)', () => {
     const created = await admin.findConnectionByName(name);
     expect(created, 'connection should exist on the server').toBeTruthy();
     expect(created!.provider).toBe('postgis');
-    expect(created!.databaseName).toBe('honua_dev');
+    expect(created!.databaseName).toBe(SOURCE_DB.database);
 
     // Existing-connection test on the detail page persists health → badge flips to Passed.
     await page.getByRole('button', { name: 'Test connection' }).click();
@@ -102,25 +104,15 @@ test.describe('Operate · Add Connection (live)', () => {
   test('duplicate connection name is blocked before any POST', async ({ page, admin }) => {
     const name = `e2e-dup-${stamp}`;
     // Seed an existing connection via the admin API (not the UI).
-    await admin.createConnection({
-      name,
-      host: 'localhost',
-      port: Number(DATA_PORT),
-      databaseName: 'honua_dev',
-      username: 'honua_user',
-      password: 'honua_password',
-      provider: 'postgis',
-      sslRequired: false,
-      sslMode: 'Disable',
-    });
+    await admin.createConnection(sourceConnectionBody(name));
 
     await page.goto('/operate/connections/new');
     await page.getByPlaceholder('prod-postgis').fill(name);
     await fillConnectionForm(page, {
-      host: 'localhost',
-      database: 'honua_dev',
-      username: 'honua_user',
-      password: 'honua_password',
+      host: SOURCE_DB.host,
+      database: SOURCE_DB.database,
+      username: SOURCE_DB.username,
+      password: SOURCE_DB.password,
     });
     await page.getByRole('button', { name: 'Create connection' }).click();
 

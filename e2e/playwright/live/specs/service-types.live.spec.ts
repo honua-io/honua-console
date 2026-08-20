@@ -1,4 +1,5 @@
 import { test, expect } from '../admin-api';
+import { isServicePublished } from '../published';
 
 // Live e2e for the service CREATION paths — "can I create each service type, and do its layers function and
 // appear in the catalog?". The Honua platform creates served layers three ways: (1) publish a table from a
@@ -20,8 +21,8 @@ test.describe('Service types · connection publish (live)', () => {
   // the resulting property directly: the published PostGIS service is in the catalog and its layer functions.
   test('a published PostGIS layer is listed in the catalog and answers a live query', async ({ page, admin }) => {
     const base = admin.serverUrl;
-    const featureServer = await page.request.get(`${base}/rest/services/e2e_src_fs/FeatureServer?f=json`, { headers: ADMIN_HEADERS });
-    test.skip(!featureServer.ok(), 'e2e_src_fs is not published — run services-layers.live.spec first.');
+    const published = await isServicePublished(page, base, 'e2e_src_fs', ADMIN_HEADERS);
+    test.skip(!published, 'e2e_src_fs is not published — run services-layers.live.spec first.');
 
     // (a) catalog lists it
     const catalog = await (await page.request.get(`${base}/rest/services?f=json`, { headers: ADMIN_HEADERS })).json();
