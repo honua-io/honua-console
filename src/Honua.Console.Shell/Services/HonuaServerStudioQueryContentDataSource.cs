@@ -227,8 +227,21 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
         {
             // A 404/501 means this server lacks the query generation contract: AI is simply off here
             // (honest "unsupported"), not a missing server binding. Other issues block the surface.
+            //
+            // "Unsupported" must not mean "dead end". A server that never shipped the route reports it the
+            // SAME way as one that shipped it and turned it off (a 404 vs. a body-level status="unsupported"
+            // is a server-version detail, not an operator-visible difference), so both have to land on the
+            // same honest baseline: an all-features query bound to a REAL catalog layer, plainly labelled a
+            // baseline. Seeding on only one of the two paths left the transport-404 case showing the blank
+            // scaffold's unbound `layer:0` placeholder instead of a query the operator could run. This is
+            // exactly what HonuaServerStudioAnalysisContentDataSource does for its own 404/501.
             if (issue.StatusCode is 404 or 501)
             {
+                if (!hasContent && SeedBaselineQuery(request.Prompt, availableSources) is { } transportBaseline)
+                {
+                    return transportBaseline;
+                }
+
                 return new StudioQueryGenerationOutcome
                 {
                     Status = StudioQueryGenerationStatuses.Unsupported,
@@ -245,7 +258,8 @@ public sealed class HonuaServerStudioQueryContentDataSource : IStudioQueryPackag
         // configured) but a real catalog source is available, seed a baseline all-features query bound to
         // that source. The operator gets a real, data-bound starting point rather than a dead end -
         // clearly labelled as a baseline in the rationale. Mirrors the analysis baseline pattern.
-        if (string.Equals(outcome.Status, StudioQueryGenerationStatuses.Unsupported, StringComparison.Ordinal)
+        if (!hasContent
+            && string.Equals(outcome.Status, StudioQueryGenerationStatuses.Unsupported, StringComparison.Ordinal)
             && SeedBaselineQuery(request.Prompt, availableSources) is { } baseline)
         {
             return baseline;
