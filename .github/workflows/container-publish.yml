@@ -52,10 +52,12 @@ jobs:
           --configfile NuGet.config
 
       - name: Restore Console
-        run: dotnet restore Honua.Console.slnx --locked-mode
+        working-directory: src/Honua.Console.Web
+        run: dotnet restore ../../Honua.Console.slnx --locked-mode
 
       - name: Publish Console artifact
-        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+        working-directory: src/Honua.Console.Web
+        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
 
       - name: Stamp artifact metadata
         run: npm run build:metadata
@@ -164,10 +166,12 @@ jobs:
           --configfile NuGet.config
 
       - name: Restore Console
-        run: dotnet restore Honua.Console.slnx --locked-mode
+        working-directory: src/Honua.Console.Web
+        run: dotnet restore ../../Honua.Console.slnx --locked-mode
 
       - name: Publish Console artifact
-        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+        working-directory: src/Honua.Console.Web
+        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
 
       - name: Stamp artifact metadata
         run: npm run build:metadata
