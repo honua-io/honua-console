@@ -1,4 +1,5 @@
 import { test, expect } from '../admin-api';
+import { SOURCE_DB, sourceConnectionBody } from '../source-db';
 
 // Live e2e for the core admin workflow: data connection -> pick a datasource table -> publish a service
 // layer, then verify the output THREE independent ways (per the workflow goal):
@@ -12,7 +13,9 @@ import { test, expect } from '../admin-api';
 // state, so it is independent of which run created the layer or which connection published it).
 
 const stamp = Date.now().toString(36);
-const SOURCE_TABLE = 'public.e2e_layer_src';
+// Overridable so the suite can publish out of whatever PostGIS the surrounding harness booted; the
+// default is the console testbed's seeded table. See live/source-db.ts.
+const SOURCE_TABLE = SOURCE_DB.table;
 const SERVICE_NAME = 'e2e_src_fs';
 const LAYER_NAME = 'E2E Source';
 
@@ -22,17 +25,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // created connection — especially under full-suite load — so allow generous headroom.
     test.setTimeout(300_000);
     const connName = `e2e-pub-conn-${stamp}`;
-    const conn = await admin.createConnection({
-      name: connName,
-      host: 'localhost',
-      port: 5544,
-      databaseName: 'honua_dev',
-      username: 'honua_user',
-      password: 'honua_password',
-      provider: 'postgis',
-      sslRequired: false,
-      sslMode: 'Disable',
-    });
+    const conn = await admin.createConnection(sourceConnectionBody(connName));
     admin.trackConnectionName(connName);
     // Warm server-side table discovery AND confirm the just-created connection is resolvable + the source
     // table is discoverable before driving the UI (a freshly created connection's first cold scan can lag).
@@ -173,17 +166,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
   test('the layer renders through the map-preview proxy (credentials stay server-side)', async ({ page, admin }) => {
     // Resolve the published layer's global id from the admin layer listing.
     const connName = `e2e-preview-conn-${stamp}`;
-    const conn = await admin.createConnection({
-      name: connName,
-      host: 'localhost',
-      port: 5544,
-      databaseName: 'honua_dev',
-      username: 'honua_user',
-      password: 'honua_password',
-      provider: 'postgis',
-      sslRequired: false,
-      sslMode: 'Disable',
-    });
+    const conn = await admin.createConnection(sourceConnectionBody(connName));
     admin.trackConnectionName(connName);
     const layers =
       (await admin.getJson(`/api/v1/admin/connections/${conn.connectionId}/layers/?serviceName=${SERVICE_NAME}`)).data ?? [];
@@ -207,17 +190,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     test.slow();
     // A connection must exist for the layer to appear in the console's layers view.
     const connName = `e2e-domains-conn-${stamp}`;
-    await admin.createConnection({
-      name: connName,
-      host: 'localhost',
-      port: 5544,
-      databaseName: 'honua_dev',
-      username: 'honua_user',
-      password: 'honua_password',
-      provider: 'postgis',
-      sslRequired: false,
-      sslMode: 'Disable',
-    });
+    await admin.createConnection(sourceConnectionBody(connName));
     admin.trackConnectionName(connName);
 
     // Open the published layer's detail page from the layers list.
