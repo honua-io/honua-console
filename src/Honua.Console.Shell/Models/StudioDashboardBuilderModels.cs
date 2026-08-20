@@ -150,7 +150,7 @@ public static class StudioDashboardBreakpoints
 /// <summary>Builds a default Vega-Lite bar-chart spec for a freshly added chart panel.</summary>
 public static class StudioDashboardChartSpec
 {
-    public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v5.json";
+    public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v6.json";
 
     private static readonly JsonSerializerOptions SpecOptions = new() { WriteIndented = true };
 

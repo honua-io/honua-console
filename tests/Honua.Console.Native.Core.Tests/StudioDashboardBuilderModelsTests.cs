@@ -15,7 +15,7 @@ public sealed class StudioDashboardBuilderModelsTests
         var spec = StudioDashboardChartSpec.DefaultBarChart("district", "request_count");
 
         Assert.True(StudioDashboardChartSpec.DeclaresVegaLiteSchema(spec));
-        Assert.Contains("vega-lite", spec, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("vega-lite/v6.json", spec, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

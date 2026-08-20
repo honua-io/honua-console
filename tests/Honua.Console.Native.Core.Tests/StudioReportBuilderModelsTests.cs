@@ -17,7 +17,7 @@ public sealed class StudioReportBuilderModelsTests
         var spec = StudioReportChartSpec.DefaultBarChart("district", "incident_count");
 
         Assert.True(StudioReportChartSpec.DeclaresVegaLiteSchema(spec));
-        Assert.Contains("vega-lite", spec, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("vega-lite/v6.json", spec, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
