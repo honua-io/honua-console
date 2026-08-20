@@ -21,11 +21,20 @@ test("Console restore has one anonymous public package source", () => {
 });
 
 test("Console pins the 2026.1 public SDK train", () => {
-  const project = read("src/Honua.Console.Shell/Honua.Console.Shell.csproj");
-  assert.match(
-    project,
-    /<PackageReference\s+Include="Honua\.Sdk\.Studio"\s+Version="1\.6\.0"\s*\/>/,
-  );
+  const sourceRoot = resolve(repoRoot, "src");
+  const sdkReferences = readdirSync(sourceRoot, { recursive: true })
+    .filter((name) => name.endsWith(".csproj"))
+    .flatMap((name) => {
+      const project = readFileSync(resolve(sourceRoot, name), "utf8");
+      return [...project.matchAll(
+        /<PackageReference\s+Include="Honua\.Sdk\.Studio"\s+Version="([^"]+)"\s*\/>/g,
+      )].map((match) => [name, match[1]]);
+    });
+
+  assert.ok(sdkReferences.length > 0, "at least one Console project must consume Studio SDK");
+  for (const [name, version] of sdkReferences) {
+    assert.equal(version, "1.6.0", `${name} must pin the 2026.1 public SDK train`);
+  }
 });
 
 test("blocking CI proves a clean credential-free restore", () => {
