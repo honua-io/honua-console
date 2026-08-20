@@ -43,7 +43,7 @@ jobs:
 
       - name: Restore Console anonymously from public sources
         working-directory: src/Honua.Console.Web
-        run: dotnet restore ../../Honua.Console.slnx --locked-mode --configfile ../../NuGet.config --no-cache
+        run: dotnet restore ../../Honua.Console.slnx --configfile ../../NuGet.config --no-cache
 
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
@@ -149,7 +149,7 @@ jobs:
 
       - name: Restore Console anonymously from public sources
         working-directory: src/Honua.Console.Web
-        run: dotnet restore ../../Honua.Console.slnx --locked-mode --configfile ../../NuGet.config --no-cache
+        run: dotnet restore ../../Honua.Console.slnx --configfile ../../NuGet.config --no-cache
 
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web

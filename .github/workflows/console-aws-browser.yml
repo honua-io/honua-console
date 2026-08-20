@@ -30,7 +30,7 @@ jobs:
       - name: Restore and publish Console
         working-directory: src/Honua.Console.Web
         run: |
-          dotnet restore Honua.Console.Web.csproj --locked-mode --configfile ../../NuGet.config --no-cache
+          dotnet restore Honua.Console.Web.csproj --configfile ../../NuGet.config --no-cache
           dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
 
       - name: Install Playwright
