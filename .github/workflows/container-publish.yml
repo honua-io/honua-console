@@ -55,9 +55,15 @@ jobs:
         working-directory: src/Honua.Console.Web
         run: dotnet restore ../../Honua.Console.slnx --locked-mode
 
+      - name: Fetch digest-verified Cesium assets
+        run: node scripts/fetch-cesium.mjs --force
+
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
         run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Stamp artifact metadata
         run: npm run build:metadata
@@ -169,9 +175,15 @@ jobs:
         working-directory: src/Honua.Console.Web
         run: dotnet restore ../../Honua.Console.slnx --locked-mode
 
+      - name: Fetch digest-verified Cesium assets
+        run: node scripts/fetch-cesium.mjs --force
+
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
         run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Stamp artifact metadata
         run: npm run build:metadata

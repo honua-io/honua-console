@@ -24,6 +24,9 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const CESIUM_VERSION = "1.119.0";
+// Exact npm archive bytes for cesium@1.119.0. A custom HONUA_NPM_REGISTRY
+// mirror must serve this reviewed payload before executable assets are staged.
+const CESIUM_ARCHIVE_SHA256 = "2daa7203af810ddb320d7990ef26812309336f4559b3d9b2d1b1450f8110cd7d";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const destination = resolve(repoRoot, "src/Honua.Console.Shell/wwwroot/vendor/cesium");
 const registryBase = process.env.HONUA_NPM_REGISTRY ?? "https://registry.npmjs.org";
@@ -65,6 +68,14 @@ if (!response.ok) {
   process.exit(1);
 }
 const bytes = Buffer.from(await response.arrayBuffer());
+const archiveSha256 = createHash("sha256").update(bytes).digest("hex");
+if (archiveSha256 !== CESIUM_ARCHIVE_SHA256) {
+  console.error(
+    `integrity check failed for cesium@${CESIUM_VERSION}: expected sha256 ` +
+      `${CESIUM_ARCHIVE_SHA256}, received ${archiveSha256}`,
+  );
+  process.exit(1);
+}
 console.log(`  ${(bytes.length / 1_048_576).toFixed(1)} MB, sha256 ${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}…`);
 
 // Stage beside the destination: /tmp is often a different filesystem and rename() would EXDEV.

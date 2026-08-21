@@ -76,7 +76,8 @@ var app = builder.Build();
 // from this origin as a committed, version-pinned asset (honua-console#333), so unpkg.com is gone
 // from the policy entirely, and so are Vega/Vega-Lite/Vega-Embed for the chart preview
 // (honua-console#334). Cesium now follows too: scene-viewer.js loads it from this origin under
-// /vendor/cesium/, fetched at deploy/build time by scripts/fetch-cesium.mjs rather than committed —
+// /_content/Honua.Console.Shell/vendor/cesium/, fetched at deploy/build time by
+// scripts/fetch-cesium.mjs rather than committed —
 // its Build/Cesium tree is ~20 MB resolved dynamically through window.CESIUM_BASE_URL, which is
 // deploy weight rather than repo weight. When the assets are absent SceneViewer keeps its inline
 // SVG placeholder, so 3D is a capability that lights up when its bytes are present and an

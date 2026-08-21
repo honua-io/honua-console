@@ -4,8 +4,9 @@
 // Build/Cesium tree is ~69 MB across Workers/, Assets/, ThirdParty/, and
 // Widgets/, resolved dynamically through window.CESIUM_BASE_URL, so committing
 // it would put that weight in every clone and CI checkout forever. Instead it is
-// fetched at deploy/build time by scripts/fetch-cesium.mjs into
-// wwwroot/vendor/cesium (gitignored), the same version pin the manifest carries.
+// fetched at deploy/build time by scripts/fetch-cesium.mjs into this Razor class
+// library's wwwroot/vendor/cesium tree (gitignored), which publishes under the
+// standard _content/Honua.Console.Shell static-asset prefix.
 //
 // When those bytes are absent — a checkout that never ran the fetch, or a
 // deployment that deliberately ships without 3D — loading fails and every entry
@@ -18,7 +19,7 @@
 // third-party CDN serving tampered bytes, and there is no third party left in
 // this path.
 
-const CESIUM_BASE_URL = '/vendor/cesium/';
+const CESIUM_BASE_URL = '/_content/Honua.Console.Shell/vendor/cesium/';
 const CESIUM_JS = `${CESIUM_BASE_URL}Cesium.js`;
 const CESIUM_CSS = `${CESIUM_BASE_URL}Widgets/widgets.css`;
 
