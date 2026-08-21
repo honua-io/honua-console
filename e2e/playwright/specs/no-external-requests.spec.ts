@@ -22,16 +22,13 @@ import { test, expect } from '@playwright/test';
 // is the standing invariant: page load, boot, and the interactive circuit must stay on-origin, and
 // any new always-on external fetch (a font, an analytics beacon, a stylesheet) fails here loudly.
 //
-// The #333 and #334 regressions themselves are caught by the last two tests, which force the lazy
-// path: they mount a real map and a real chart and assert the libraries that executed came from this
-// origin, at the pinned versions, with nothing fetched off-origin while doing it. That combination is
-// what makes the set honest — breadth from the walk, depth where the CDN dependency actually lived.
+// The #333 and #334 regressions themselves are caught by the final tests, which force the lazy
+// path: they mount a real map, chart, and 3D Tiles document and assert the libraries that executed
+// came from this origin, at the pinned versions, with nothing fetched off-origin. That combination
+// gives breadth from the walk and depth where the CDN dependency actually lived.
 //
-// Still uncovered, and deliberately so: Cesium in scene-viewer.js, which is the one remaining runtime
-// CDN consumer (honua-console#334 stays open for it — its Build/Cesium tree is tens of megabytes
-// resolved through window.CESIUM_BASE_URL and needs its own decision about where those bytes live),
-// plus the optional OpenStreetMap raster basemap in map-preview.js. Both are declared with their
-// reasons in scripts/__tests__/vendored-assets.test.mjs, which fails if an undeclared origin appears.
+// The optional OpenStreetMap raster basemap in map-preview.js remains the one deliberately declared
+// external imagery origin. scripts/__tests__/vendored-assets.test.mjs fails if another origin appears.
 
 const lockPath = fileURLToPath(new URL('../../../scripts/vendored-assets.lock.json', import.meta.url));
 const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
@@ -47,6 +44,7 @@ const VEGA_JS = '/_content/Honua.Console.Shell/vendor/vega/vega.min.js';
 const VEGA_LITE_JS = '/_content/Honua.Console.Shell/vendor/vega-lite/vega-lite.min.js';
 const VEGA_EMBED_JS = '/_content/Honua.Console.Shell/vendor/vega-embed/vega-embed.min.js';
 const CHART_MODULE_PATH = '/_content/Honua.Console.Shell/chart-preview.js';
+const SCENE_MODULE_PATH = '/_content/Honua.Console.Shell/scene-viewer.js';
 
 // The four product areas plus the routes whose components own a browser interop module
 // (map preview, 3D scene viewer, chart preview) — i.e. every page that could plausibly reach
@@ -245,4 +243,60 @@ test('a mounted chart runs the vendored Vega build, fetched from this origin', a
 
   // And loading them pulled nothing from anywhere else — including the $schema URL.
   expect(offOrigin, 'mounting a chart reached off-origin').toEqual([]);
+});
+
+test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only this origin', async ({ page, baseURL }) => {
+  test.setTimeout(60_000);
+  const origin = new URL(baseURL!).origin;
+  const offOrigin = recordOffOriginRequests(page, origin);
+  const tilesetRequests: string[] = [];
+  await page.route('**/scene-proxy/scenes/reviewed/tileset.json', async (route) => {
+    tilesetRequests.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        asset: { version: '1.1' },
+        geometricError: 0,
+        root: {
+          boundingVolume: { region: [-0.001, -0.001, 0.001, 0.001, 0, 20] },
+          geometricError: 0,
+          refine: 'ADD',
+        },
+      }),
+    });
+  });
+  await page.goto('/operate/scenes', { waitUntil: 'domcontentloaded' });
+
+  const result = await page.evaluate(async ({ modulePath, splitHostTileset }) => {
+    const source = await (await fetch(modulePath)).text();
+    const blobUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    const mod = await import(/* @vite-ignore */ blobUrl);
+    URL.revokeObjectURL(blobUrl);
+
+    const container = document.createElement('div');
+    container.style.width = '640px';
+    container.style.height = '360px';
+    document.body.appendChild(container);
+    const mounted = await mod.init(container, splitHostTileset);
+    const inspection = mod.inspect(container);
+    const version = (window as unknown as { Cesium?: { VERSION?: string } }).Cesium?.VERSION;
+    const canvas = container.querySelector('canvas') !== null;
+    mod.dispose(container);
+    container.remove();
+    return { mounted, inspection, version, canvas };
+  }, {
+    modulePath: SCENE_MODULE_PATH,
+    splitHostTileset: 'https://server.example/scenes/reviewed/tileset.json',
+  });
+
+  expect(result.mounted, 'Cesium failed to mount the reviewed 3D Tiles document').toBe(true);
+  expect(result.canvas, 'Cesium did not create its WebGL canvas').toBe(true);
+  expect(result.version).toBe('1.119');
+  expect(result.inspection).toEqual({
+    imageryLayerCount: 0,
+    tilesetUrl: `${origin}/scene-proxy/scenes/reviewed/tileset.json`,
+  });
+  expect(tilesetRequests).toEqual([`${origin}/scene-proxy/scenes/reviewed/tileset.json`]);
+  expect(offOrigin, 'mounting a 3D Tiles scene reached off-origin (including Cesium Ion)').toEqual([]);
 });

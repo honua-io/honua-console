@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { verifyTree } from "./lib/cesium-extracted-tree.mjs";
 
 const artifactArgument = process.argv[2];
 if (!artifactArgument) {
@@ -18,11 +19,14 @@ const cesiumRoot = resolve(
   "vendor",
   "cesium",
 );
-const required = ["Cesium.js", "Widgets/widgets.css", "Workers", "Assets", "ThirdParty"];
-const missing = required.filter((entry) => !existsSync(resolve(cesiumRoot, entry)));
-if (missing.length > 0) {
-  console.error(`published Console is missing Cesium assets under ${cesiumRoot}: ${missing.join(", ")}`);
+try {
+  const lock = JSON.parse(await readFile(resolve(import.meta.dirname, "cesium-extracted-tree.lock.json"), "utf8"));
+  const manifest = await verifyTree(cesiumRoot, lock, { requirePublishedManifest: true });
+  console.log(
+    `published Console contains exact cesium@${manifest.version} tree ` +
+    `${manifest.treeSha256} with ${manifest.files.length} files and ${manifest.license.spdx} license evidence`,
+  );
+} catch (error) {
+  console.error(`published Console Cesium verification failed under ${cesiumRoot}: ${error.message}`);
   process.exit(1);
 }
-
-console.log(`published Console contains digest-verified Cesium assets under ${cesiumRoot}`);
