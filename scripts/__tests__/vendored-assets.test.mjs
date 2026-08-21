@@ -31,6 +31,8 @@ const repoRoot = resolve(here, "../..");
 const wwwroot = resolve(repoRoot, "src/Honua.Console.Shell/wwwroot");
 const programPath = resolve(repoRoot, "src/Honua.Console.Web/Program.cs");
 const cesiumFetchPath = resolve(repoRoot, "scripts/fetch-cesium.mjs");
+const cesiumTreeContractPath = resolve(repoRoot, "scripts/lib/cesium-extracted-tree.mjs");
+const cesiumTreeLockPath = resolve(repoRoot, "scripts/cesium-extracted-tree.lock.json");
 
 /**
  * External origins the Console is currently permitted to reach at runtime, each with the reason it
@@ -164,11 +166,9 @@ test("the CSP admits exactly the external origins the interop scripts still use"
   assert.doesNotMatch(csp, /unpkg\.com/, "the CSP must no longer admit unpkg.com");
 });
 
-// jsdelivr is still in the CSP, and #334 is explicit that it stays only for Cesium. Pinning that
-// down here is what turns "we deferred Cesium" from a comment into a checked fact: the day
 // As of #334 no interop script reaches a CDN for executable code at all: MapLibre and Vega are
 // committed vendored assets, and Cesium is served from the Shell static-asset prefix. This test
-// is now an absolute — the day ANY script reaches for a code CDN again, it fails.
+// is absolute: the day any script reaches for a code CDN again, it fails.
 test("no interop script fetches executable code from a CDN", () => {
   // Absolute, not a shrinking allowlist. Tile imagery is the only external origin the Console may
   // reach (asserted by the set-equality test above); executable code must come from this origin.
@@ -211,23 +211,53 @@ test("scene-viewer loads Cesium from this origin", () => {
     "same-origin assets need no Subresource Integrity — SRI defends against a third-party CDN, " +
       "and there is no third party left in this path",
   );
+  assert.match(sceneViewer, /baseLayer:\s*false/, "Cesium Viewer must not create the default Ion base layer");
+  assert.match(
+    sceneViewer,
+    /\/scene-proxy\/scenes\//,
+    "server-owned 3D Tiles must be rewritten through the authenticated same-origin proxy",
+  );
 });
 
-test("Cesium is fetched only from the exact digest-pinned archive", () => {
+test("Cesium is fetched only from the exact digest-pinned archive and extracted-tree contract", () => {
   const source = readFileSync(cesiumFetchPath, "utf8");
-  assert.match(source, /const CESIUM_VERSION = "1\.119\.0";/);
+  const contract = readFileSync(cesiumTreeContractPath, "utf8");
+  assert.match(contract, /export const CESIUM_VERSION = "1\.119\.0";/);
   assert.match(
-    source,
-    /const CESIUM_ARCHIVE_SHA256 = "2daa7203af810ddb320d7990ef26812309336f4559b3d9b2d1b1450f8110cd7d";/,
+    contract,
+    /export const CESIUM_ARCHIVE_SHA256 = "2daa7203af810ddb320d7990ef26812309336f4559b3d9b2d1b1450f8110cd7d";/,
     "the reviewed cesium@1.119.0 npm archive must remain pinned by its full SHA-256",
   );
 
   const compareAt = source.indexOf("archiveSha256 !== CESIUM_ARCHIVE_SHA256");
   const writeAt = source.indexOf("await writeFile(tarball, bytes)");
-  const extractAt = source.indexOf('spawnSync("tar"');
+  const extractAt = source.indexOf("const extract = spawnSync(");
   assert.ok(compareAt >= 0, "the downloaded archive must be compared with the pin");
   assert.ok(writeAt > compareAt, "integrity verification must happen before the archive is staged");
   assert.ok(extractAt > compareAt, "integrity verification must happen before executable assets are extracted");
+  assert.match(source, /canonicalJson\(actualManifest\) !== canonicalJson\(expectedManifest\)/);
+  assert.match(source, /CESIUM_PUBLISHED_MANIFEST/);
+});
+
+test("Cesium extracted-tree lock binds every published byte, version, and license", () => {
+  const lock = JSON.parse(readFileSync(cesiumTreeLockPath, "utf8"));
+  assert.equal(lock.schemaVersion, "honua.console.cesium-extracted-tree/v1");
+  assert.equal(lock.package, "cesium");
+  assert.equal(lock.version, "1.119.0");
+  assert.equal(lock.archiveSha256, "2daa7203af810ddb320d7990ef26812309336f4559b3d9b2d1b1450f8110cd7d");
+  assert.equal(lock.license.spdx, "Apache-2.0");
+  assert.equal(lock.license.path, "LICENSE.md");
+  assert.match(lock.license.sha256, /^[a-f0-9]{64}$/);
+  assert.match(lock.treeSha256, /^[a-f0-9]{64}$/);
+  assert.ok(lock.files.length > 300, "the lock must inventory Cesium workers, assets, widgets, and runtime files");
+  assert.equal(new Set(lock.files.map((file) => file.path)).size, lock.files.length);
+  assert.ok(lock.files.some((file) => file.path === "Cesium.js"));
+  assert.equal(lock.files.find((file) => file.path === "LICENSE.md")?.sha256, lock.license.sha256);
+  for (const file of lock.files) {
+    assert.match(file.path, /^(?!\/)(?!.*\.\.)/);
+    assert.ok(Number.isInteger(file.bytes) && file.bytes >= 0);
+    assert.match(file.sha256, /^[a-f0-9]{64}$/);
+  }
 });
 
 test("every deployment artifact fetches verified Cesium before publish", () => {

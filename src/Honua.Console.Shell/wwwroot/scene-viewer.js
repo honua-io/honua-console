@@ -74,7 +74,11 @@ export async function init(element, tilesetUrl) {
     }
 
     try {
+        const safeTilesetUrl = sameOriginTilesetUrl(tilesetUrl);
         const viewer = new Cesium.Viewer(element, {
+            // Cesium's implicit default is an Ion-backed base layer. The Console
+            // scene surface renders only the supplied candidate-owned tileset.
+            baseLayer: false,
             baseLayerPicker: false,
             geocoder: false,
             homeButton: false,
@@ -86,25 +90,54 @@ export async function init(element, tilesetUrl) {
             infoBox: false,
         });
 
-        const tileset = await Cesium.Cesium3DTileset.fromUrl(tilesetUrl);
+        const tileset = await Cesium.Cesium3DTileset.fromUrl(safeTilesetUrl);
         viewer.scene.primitives.add(tileset);
         await viewer.zoomTo(tileset);
 
-        instances.set(element, viewer);
+        instances.set(element, { viewer, tilesetUrl: safeTilesetUrl });
         return true;
     } catch {
         return false;
     }
 }
 
+export function inspect(element) {
+    const instance = instances.get(element);
+    if (!instance) {
+        return null;
+    }
+    return {
+        imageryLayerCount: instance.viewer.imageryLayers.length,
+        tilesetUrl: instance.tilesetUrl,
+    };
+}
+
 export function dispose(element) {
-    const viewer = instances.get(element);
-    if (viewer) {
+    const instance = instances.get(element);
+    if (instance) {
         try {
-            viewer.destroy();
+            instance.viewer.destroy();
         } catch {
             // Ignore teardown failures.
         }
         instances.delete(element);
     }
+}
+
+function sameOriginTilesetUrl(value) {
+    const source = new URL(value, window.location.href);
+    if (source.username || source.password || source.hash) {
+        throw new Error('tileset URL must not contain credentials or a fragment');
+    }
+
+    // A server-bound Console commonly has a different origin from honua-server.
+    // Derive the upstream from the active environment inside the same-origin BFF;
+    // never widen browser CSP or forward an operator credential cross-origin.
+    if (source.pathname.startsWith('/scenes/')) {
+        return new URL(`/scene-proxy${source.pathname}${source.search}`, window.location.origin).href;
+    }
+    if (source.origin !== window.location.origin || !source.pathname.startsWith('/scene-proxy/scenes/')) {
+        throw new Error('tileset URL must be a Honua scene route');
+    }
+    return source.href;
 }
