@@ -34,7 +34,8 @@ else
                     <span class="console-mono">@detail.ProposalId</span>
                 </h3>
             </div>
-            <span class="console-status @ConsoleProposalPresentation.StatusClass(detail.Status)" data-proposal-status>
+            <span class="console-status @ConsoleProposalPresentation.StatusClass(detail.Status)"
+                  data-proposal-status="@detail.Status">
                 @ConsoleProposalPresentation.StatusLabel(detail.Status)
             </span>
         </div>

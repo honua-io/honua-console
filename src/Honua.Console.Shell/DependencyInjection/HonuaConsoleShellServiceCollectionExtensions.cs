@@ -211,6 +211,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
                 serverCredentialMode));
 
+        services.TryAddSingleton<IConsoleReleaseWitnessClient>(serviceProvider =>
+            new HttpConsoleReleaseWitnessClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                honuaServerAdminApiKey));
+
         // Live approval-inbox updates (issue #193, honua-server #1695): the console connects
         // from its server process to the honua-server admin realtime hub's proposals group at
         // {server}/hubs/admin and projects ProposalPending / ProposalResolved events onto the

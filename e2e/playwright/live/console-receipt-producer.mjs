@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 
 const CHECKPOINT_SCHEMA = 'honua.zero-to-map.checkpoint/v1';
-const RECEIPT_SCHEMA = 'honua.zero-to-map.receipt/v1';
 const STUDIO_HANDOFF_SCHEMA = 'honua.studio.real-model-ai-arc-handoff/v1';
 const CONSOLE_RECEIPT_SCHEMA = 'honua.zero-to-map.console-receipt/v1';
 const REQUEST_SCHEMA = 'honua.zero-to-map.console-receipt-request/v1';
@@ -31,23 +30,13 @@ export function readConsoleBoundary(checkpointValue, preConsoleEvidenceValue) {
   verifyCheckpointIntegrity(checkpoint);
 
   const checkpointCaptures = record(resume.capturedVariables, 'checkpoint.resume.capturedVariables');
-  let receiptCaptures = {};
-  let evidenceActions = [];
-  let endpointSha256;
-  if (preConsoleEvidence.schemaVersion === RECEIPT_SCHEMA) {
-    evidenceActions = verifyPausedSdkReceipt(preConsoleEvidence, checkpoint);
-    receiptCaptures = capturesFrom(evidenceActions);
-    for (const [name, value] of Object.entries(receiptCaptures)) {
-      if (!Object.hasOwn(checkpointCaptures, name) || canonicalJson(checkpointCaptures[name]) !== canonicalJson(value)) {
-        throw new Error(`checkpoint and paused SDK receipt disagree on ${name}`);
-      }
-    }
-  } else if (preConsoleEvidence.schemaVersion === STUDIO_HANDOFF_SCHEMA) {
-    endpointSha256 = verifyStudioHandoff(preConsoleEvidence, checkpoint, checkpointCaptures);
-  } else {
-    throw new Error('pre-Console evidence must be a paused SDK receipt or sealed Studio handoff');
+  if (preConsoleEvidence.schemaVersion !== STUDIO_HANDOFF_SCHEMA) {
+    throw new Error('pre-Console evidence must be the sealed Studio handoff');
   }
-  const captures = { ...receiptCaptures, ...checkpointCaptures };
+  const endpointSha256 = verifyStudioHandoff(preConsoleEvidence, checkpoint, checkpointCaptures);
+  const handoffDigest = preConsoleEvidence.integrity.digest;
+  const components = { ...preConsoleEvidence.components };
+  const captures = { ...checkpointCaptures };
   const matches = record(request.matches, 'checkpoint.consoleReceiptRequest.matches');
   const capture = (name) => requiredCapture(captures, name);
   const familyFacts = Object.fromEntries(FAMILIES.map((family) => {
@@ -70,6 +59,8 @@ export function readConsoleBoundary(checkpointValue, preConsoleEvidenceValue) {
   const boundary = {
     target: checkpoint.target,
     ...(endpointSha256 ? { endpointSha256 } : {}),
+    ...(handoffDigest ? { handoffDigest } : {}),
+    ...(components ? { components } : {}),
     checkpointDigest: stringValue(record(checkpoint.integrity, 'checkpoint.integrity').digest, 'checkpoint.integrity.digest'),
     journeyId: stringValue(checkpoint.journeyId, 'checkpoint.journeyId'),
     releaseContract: stringValue(checkpoint.releaseContract, 'checkpoint.releaseContract'),
@@ -113,14 +104,14 @@ export function readConsoleBoundary(checkpointValue, preConsoleEvidenceValue) {
       }])),
     },
   };
-  const gpServerAction = [...evidenceActions, ...checkpointActions(resume)]
+  const gpServerAction = checkpointActions(resume)
     .find((action) => action.id === 'buffer-esri-gpserver');
   const resultNames = gpServerAction ? stringArrayOrEmpty(gpServerAction.evidence?.resultNames) : [];
   if (resultNames.length > 0) boundary.resources.gpServerResultNames = resultNames;
   return boundary;
 }
 
-export async function produceConsoleReceipts({ endpoint, credential, mode = 'full', boundary, transport = fetchTransport }) {
+export async function observeConsoleApiWitness({ endpoint, credential, mode = 'witness', boundary, transport = fetchTransport }) {
   const baseUrl = validateEndpoint(endpoint, boundary.target);
   if (boundary.endpointSha256) {
     const actualEndpointSha256 = createHash('sha256').update(baseUrl.replace(/\/$/, '')).digest('hex');
@@ -128,11 +119,16 @@ export async function produceConsoleReceipts({ endpoint, credential, mode = 'ful
   }
   const token = stringValue(credential, 'scoped Console credential');
   if (!['full', 'witness'].includes(mode)) throw new Error('mode must be full or witness');
+  if (mode !== 'witness') {
+    throw new Error('direct server API production is witness-only; canonical approval must run through the Console browser');
+  }
   const client = createClient(baseUrl, token, transport);
 
   await client.json('/healthz/ready', { auth: false });
   const version = await client.json('/api/v1/admin/version');
   stringValue(version.data?.version ?? version.version, 'candidate admin release version');
+  const serverSourceRevision = stringValue(version.data?.sourceRevision, 'candidate admin sourceRevision');
+  equal(serverSourceRevision, boundary.components['honua-server'], 'running server source revision');
   await assertResources(client, boundary.resources);
   // Witness mode must also be able to select already-resolved, still-active
   // proposals. Filtering the inventory to AwaitingApproval would make that
@@ -144,10 +140,9 @@ export async function produceConsoleReceipts({ endpoint, credential, mode = 'ful
 
   for (const family of FAMILIES) {
     const facts = boundary.families[family];
-    let proposal = await selectProposal(client, listed, facts);
+    const proposal = await selectProposal(client, listed, facts);
     if (proposal.status === 'AwaitingApproval') {
-      if (mode === 'witness') throw new Error(`witness mode cannot approve pending ${family} proposal ${proposal.proposalId}`);
-      proposal = await client.json(`/api/v1/admin/proposals/${encodeURIComponent(proposal.proposalId)}/approve`, { method: 'POST' });
+      throw new Error(`witness mode cannot approve pending ${family} proposal ${proposal.proposalId}`);
     }
     assertResolvedProposal(proposal, family);
     const executionOperationId = stringValue(proposal.executionOperationId, `${family} executionOperationId`);
@@ -162,69 +157,29 @@ export async function produceConsoleReceipts({ endpoint, credential, mode = 'ful
       executionOperationId,
     };
     publications[family] = publication;
-    audit[family] = { correlationId: auditRow.correlationId, operationId: executionOperationId };
+    equal(auditRow.executionOperationId, executionOperationId, `${family} audit executionOperationId`);
+    audit[family] = { correlationId: auditRow.correlationId, operationId: auditRow.executionOperationId };
   }
 
   const integrity = await client.json('/api/v1/admin/observability/audit/verify');
   if (integrity.verified !== true) throw new Error('audit integrity verification did not pass');
   for (const family of FAMILIES) {
-    await assertRecovery(client, proposals[family], publications[family]);
     await client.ok(publications[family].publicUrl, { auth: false });
   }
 
-  const releaseReceipt = {
-    schemaVersion: CONSOLE_RECEIPT_SCHEMA,
-    journeyId: boundary.journeyId,
-    releaseContract: boundary.releaseContract,
-    status: 'passed',
+  const witness = {
+    schemaVersion: 'honua.console.api-witness/v1',
+    status: 'observed',
     candidate: boundary.candidate,
+    runtime: { serverSourceRevision },
     proposals,
     publications,
     audit,
     resources: boundary.resources,
-    checks: { health: 'passed', audit: 'passed', recovery: 'passed' },
-    shareUrl: publications.app.publicUrl,
+    checks: { health: 'observed', audit: 'observed', publication: 'observed' },
   };
-  const sdkResources = {
-    connectionId: boundary.resources.connectionId,
-    serviceId: boundary.resources.serviceId,
-    layerIds: boundary.resources.layerIds,
-    jobs: boundary.resources.jobs,
-    gp: boundary.resources.gp,
-    ...(boundary.resources.gpServerResultNames ? { gpServerResultNames: boundary.resources.gpServerResultNames } : {}),
-    artifactId: boundary.resources.artifactId,
-    draftId: boundary.families.app.draftId,
-  };
-  const sdkReceipt = {
-    schemaVersion: CONSOLE_RECEIPT_SCHEMA,
-    journeyId: boundary.journeyId,
-    releaseContract: boundary.releaseContract,
-    status: 'passed',
-    proposal: { ...proposals.app, draftId: boundary.families.app.draftId },
-    audit: audit.app,
-    resources: sdkResources,
-    candidate: boundary.candidate,
-    checks: releaseReceipt.checks,
-    shareUrl: releaseReceipt.shareUrl,
-  };
-  validateRequestedReceipt(boundary.receiptRequest, releaseReceipt, sdkReceipt);
-  rejectSecretSerialization(releaseReceipt, 'release Console receipt');
-  rejectSecretSerialization(sdkReceipt, 'SDK Console receipt');
-  return { releaseReceipt, sdkReceipt };
-}
-
-export function browserTransport(page) {
-  return async ({ url, method, headers }) => page.evaluate(async (request) => {
-    const response = await fetch(request.url, { method: request.method, headers: request.headers, redirect: 'manual' });
-    return { status: response.status, body: await response.text() };
-  }, { url, method, headers });
-}
-
-export function playwrightRequestTransport(request) {
-  return async ({ url, method, headers }) => {
-    const response = await request.fetch(url, { method, headers, failOnStatusCode: false, maxRedirects: 0 });
-    return { status: response.status(), body: await response.text() };
-  };
+  rejectSecretSerialization(witness, 'Console API witness');
+  return witness;
 }
 
 async function fetchTransport({ url, method, headers }) {
@@ -345,14 +300,13 @@ async function observeAudit(client, proposalId) {
   const row = rows.find((candidate) => candidate?.resourceId === proposalId && candidate?.action === 'operation.applied');
   if (!row) throw new Error(`audit trail omits approved proposal ${proposalId}`);
   if (String(row.outcome).toLowerCase() !== 'success') throw new Error(`audit trail did not record success for ${proposalId}`);
-  return { correlationId: stringValue(row.correlationId, `audit correlation for ${proposalId}`) };
-}
-
-async function assertRecovery(client, proposal, publication) {
-  const recoveredProposal = await client.json(`/api/v1/admin/proposals/${encodeURIComponent(proposal.proposalId)}`);
-  equal(recoveredProposal.executionOperationId, proposal.executionOperationId, 'recovered proposal operation');
-  const recoveredPublication = await client.json(`/api/v1/console/publications/${encodeURIComponent(publication.publicationId)}`);
-  equal(recoveredPublication.route?.publicationId, publication.publicationId, 'recovered publication id');
+  let details;
+  try { details = record(JSON.parse(stringValue(row.details, `audit details for ${proposalId}`)), 'audit details'); }
+  catch { throw new Error(`audit details for ${proposalId} must be structured JSON`); }
+  return {
+    correlationId: stringValue(row.correlationId, `audit correlation for ${proposalId}`),
+    executionOperationId: stringValue(details.executionOperationId, `audit executionOperationId for ${proposalId}`),
+  };
 }
 
 function verifyCheckpointIntegrity(checkpoint) {
@@ -363,27 +317,6 @@ function verifyCheckpointIntegrity(checkpoint) {
   delete unsigned.integrity;
   const actual = createHash('sha256').update(canonicalJson(unsigned)).digest('hex');
   equal(actual, expected, 'checkpoint.integrity.digest');
-}
-
-function verifyPausedSdkReceipt(pausedReceipt, checkpoint) {
-  equal(pausedReceipt.mode, 'live', 'paused SDK receipt.mode');
-  equal(pausedReceipt.status, 'blocked', 'paused SDK receipt.status');
-  equal(pausedReceipt.journeyId, checkpoint.journeyId, 'paused SDK receipt.journeyId');
-  equal(pausedReceipt.releaseContract, checkpoint.releaseContract, 'paused SDK receipt.releaseContract');
-  const actions = receiptActions(pausedReceipt);
-  const consoleIndex = actions.findIndex((action) => action.id === 'console-approval');
-  if (consoleIndex < 0) throw new Error('paused SDK receipt is missing console-approval');
-  const consoleAction = actions[consoleIndex];
-  if (consoleAction.status !== 'blocked' || consoleAction.code !== 'external-receipt-missing') {
-    throw new Error('paused SDK receipt is not blocked only on external-receipt-missing');
-  }
-  for (const action of actions.slice(0, consoleIndex)) {
-    if (action.status !== 'passed') throw new Error(`pre-Console action ${action.id} is ${action.status}`);
-  }
-  for (const action of actions.slice(consoleIndex + 1)) {
-    if (action.status !== 'skipped') throw new Error(`post-Console action ${action.id} is ${action.status}`);
-  }
-  return actions;
 }
 
 function verifyStudioHandoff(handoff, checkpoint, checkpointCaptures) {
@@ -471,38 +404,6 @@ function verifyStudioHandoff(handoff, checkpoint, checkpointCaptures) {
   return endpointSha256;
 }
 
-function validateRequestedReceipt(request, releaseReceipt, sdkReceipt) {
-  const pointers = [
-    ...Object.keys(request.matches),
-    ...request.requiredPointers,
-    ...request.equalPointers.flat(),
-  ];
-  const receipt = pointers.some((pointer) =>
-    pointer.startsWith('/proposals/') || pointer.startsWith('/publications/') || /^\/audit\/(map|app|dashboard)\//.test(pointer))
-    ? releaseReceipt
-    : sdkReceipt;
-  for (const [pointer, expected] of Object.entries(request.matches)) {
-    equal(jsonPointer(receipt, pointer), expected, `Console receipt request ${pointer}`);
-  }
-  for (const pointer of request.requiredPointers) {
-    const value = jsonPointer(receipt, pointer);
-    if (value === undefined || value === null || value === '') throw new Error(`Console receipt request is missing ${pointer}`);
-  }
-  for (const [left, right] of request.equalPointers) {
-    equal(jsonPointer(receipt, left), jsonPointer(receipt, right), `Console receipt equality ${left} = ${right}`);
-  }
-}
-
-function jsonPointer(value, pointer) {
-  if (pointer === '') return value;
-  if (typeof pointer !== 'string' || !pointer.startsWith('/')) throw new Error(`invalid JSON pointer ${String(pointer)}`);
-  return pointer.slice(1).split('/').reduce((current, segment) => {
-    if (current === undefined || current === null) return undefined;
-    const key = segment.replaceAll('~1', '/').replaceAll('~0', '~');
-    return current[key];
-  }, value);
-}
-
 function rejectSecretSerialization(value, label, path = label) {
   if (!value || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value)) {
@@ -521,31 +422,10 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
-function receiptActions(receipt) {
-  const result = [];
-  for (const stage of arrayValue(receipt.stages, 'paused SDK receipt.stages')) {
-    for (const action of arrayValue(stage.actions, 'paused SDK receipt stage actions')) result.push(action);
-  }
-  return result;
-}
-
 function checkpointActions(resume) {
   const result = [];
   for (const stage of resume.completedStages ?? []) {
     for (const action of stage.actions ?? []) result.push(action);
-  }
-  return result;
-}
-
-function capturesFrom(actions) {
-  const result = {};
-  for (const action of actions) {
-    if (action.captures && typeof action.captures === 'object') {
-      for (const [name, value] of Object.entries(action.captures)) {
-        if (Object.hasOwn(result, name)) throw new Error(`paused SDK receipt repeats capture ${name}`);
-        result[name] = value;
-      }
-    }
   }
   return result;
 }

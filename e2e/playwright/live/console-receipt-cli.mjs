@@ -1,32 +1,81 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { readConsoleBoundary, produceConsoleReceipts } from './console-receipt-producer.mjs';
+import { chromium } from '@playwright/test';
+import { buildConsoleEvidence, produceConsoleReceiptInBrowser } from './console-receipt-browser.mjs';
+import { buildReceiptAliasBytes } from './console-receipt-output.mjs';
+import { readConsoleBoundary } from './console-receipt-producer.mjs';
 
 const options = parse(process.argv.slice(2));
 
 try {
-  const endpoint = required(options.endpoint ?? process.env.HONUA_AI_ARC_ENDPOINT, 'endpoint');
-  const checkpointPath = resolve(required(options.checkpoint ?? process.env.HONUA_AI_ARC_CHECKPOINT, 'checkpoint'));
-  const preConsoleEvidencePath = resolve(required(
-    options.preConsoleEvidence ?? process.env.HONUA_AI_ARC_REAL_MODEL_EVIDENCE ?? process.env.HONUA_AI_ARC_PRE_CONSOLE_RECEIPT,
-    'pre-Console Studio handoff or SDK receipt',
-  ));
-  const outputPath = resolve(required(options.output ?? process.env.HONUA_AI_ARC_CONSOLE_RECEIPT, 'release receipt output'));
-  const sdkOutputPath = resolve(options.sdkOutput ?? process.env.HONUA_AI_ARC_SDK_CONSOLE_RECEIPT ?? `${outputPath}.sdk.json`);
-  const mode = options.mode ?? process.env.HONUA_CONSOLE_MODE ?? 'full';
-  const credentialEnv = options.credentialEnv ?? 'HONUA_AI_ARC_CONSOLE_TOKEN';
   if (process.env.HONUA_ADMIN_KEY || process.env.HONUA_API_KEY) {
     throw new Error('broad admin-key variables are not accepted; supply a scoped read + admin:approve bearer');
   }
-  const credential = required(process.env[credentialEnv], `credential environment ${credentialEnv}`);
+  const endpoint = required(options.endpoint ?? process.env.HONUA_AI_ARC_ENDPOINT, 'endpoint');
+  const consoleOrigin = required(options.consoleOrigin ?? process.env.HONUA_AI_ARC_CONSOLE_ORIGIN, 'Console origin');
+  const checkpointPath = resolve(required(options.checkpoint ?? process.env.HONUA_AI_ARC_CHECKPOINT, 'checkpoint'));
+  const receiptSchemaPath = resolve(required(
+    options.receiptSchema ?? process.env.HONUA_AI_ARC_CONSOLE_RECEIPT_SCHEMA,
+    'pinned SDK Console receipt schema',
+  ));
+  const preConsoleEvidencePath = resolve(required(
+    options.preConsoleEvidence ?? process.env.HONUA_AI_ARC_REAL_MODEL_EVIDENCE,
+    'sealed pre-Console Studio handoff',
+  ));
+  const outputPath = resolve(required(options.output ?? process.env.HONUA_AI_ARC_CONSOLE_RECEIPT, 'release receipt output'));
+  const sdkOutputPath = resolve(options.sdkOutput ?? process.env.HONUA_AI_ARC_SDK_CONSOLE_RECEIPT ?? `${outputPath}.sdk.json`);
+  const evidenceOutputPath = resolve(required(
+    options.evidenceOutput ?? process.env.HONUA_AI_ARC_CONSOLE_EVIDENCE,
+    'Console evidence output',
+  ));
+  if (outputPath === sdkOutputPath || outputPath === evidenceOutputPath || sdkOutputPath === evidenceOutputPath) {
+    throw new Error('aggregate, SDK alias, and Console evidence outputs must be distinct files');
+  }
+  const mode = options.mode ?? process.env.HONUA_CONSOLE_MODE ?? 'full';
+  const credential = required(process.env.HONUA_AI_ARC_CONSOLE_TOKEN, 'HONUA_AI_ARC_CONSOLE_TOKEN');
   const checkpoint = JSON.parse(await readFile(checkpointPath, 'utf8'));
   const preConsoleEvidence = JSON.parse(await readFile(preConsoleEvidencePath, 'utf8'));
+  const receiptSchema = JSON.parse(await readFile(receiptSchemaPath, 'utf8'));
   const boundary = readConsoleBoundary(checkpoint, preConsoleEvidence);
-  const receipts = await produceConsoleReceipts({ endpoint, credential, mode, boundary });
-  await writeJsonAtomic(outputPath, receipts.releaseReceipt);
-  await writeJsonAtomic(sdkOutputPath, receipts.sdkReceipt);
-  process.stdout.write(`Console receipt passed (${mode}); release=${outputPath}; sdk=${sdkOutputPath}\n`);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext();
+    const origin = new URL(consoleOrigin).origin;
+    await context.route(`${origin}/**`, async (route) => {
+      await route.continue({
+        headers: {
+          ...route.request().headers(),
+          'x-forwarded-user': 'honua-release-console',
+          'x-forwarded-email': 'honua-release-console@honua.invalid',
+          'x-forwarded-access-token': credential,
+        },
+      });
+    });
+    const page = await context.newPage();
+    const produced = await produceConsoleReceiptInBrowser({
+      page,
+      consoleOrigin,
+      serverEndpoint: endpoint,
+      mode,
+      boundary,
+      receiptSchema,
+    });
+    const { aggregateBytes, sdkBytes } = buildReceiptAliasBytes(produced.aggregate, receiptSchema);
+    const aggregateSha256 = createHash('sha256').update(aggregateBytes).digest('hex');
+    const evidence = buildConsoleEvidence({ boundary, aggregateSha256, observations: produced.observations });
+    const evidenceBytes = `${JSON.stringify(evidence, null, 2)}\n`;
+    await writeBytesAtomic(outputPath, aggregateBytes);
+    await writeBytesAtomic(sdkOutputPath, sdkBytes);
+    await writeBytesAtomic(evidenceOutputPath, evidenceBytes);
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+  process.stdout.write(
+    `Console receipt passed (${mode}); aggregate=${outputPath}; sdk-alias=${sdkOutputPath}; evidence=${evidenceOutputPath}\n`,
+  );
 } catch (error) {
   process.stderr.write(`Console receipt refused: ${error instanceof Error ? error.message : 'unknown failure'}\n`);
   process.exitCode = 1;
@@ -35,9 +84,11 @@ try {
 function parse(argv) {
   const result = {};
   const names = new Map([
-    ['--endpoint', 'endpoint'], ['--checkpoint', 'checkpoint'],
-    ['--pre-console-evidence', 'preConsoleEvidence'], ['--pre-console-receipt', 'preConsoleEvidence'],
-    ['--output', 'output'], ['--sdk-output', 'sdkOutput'], ['--mode', 'mode'], ['--credential-env', 'credentialEnv'],
+    ['--endpoint', 'endpoint'], ['--console-origin', 'consoleOrigin'], ['--checkpoint', 'checkpoint'],
+    ['--receipt-schema', 'receiptSchema'],
+    ['--pre-console-evidence', 'preConsoleEvidence'],
+    ['--output', 'output'], ['--sdk-output', 'sdkOutput'], ['--evidence-output', 'evidenceOutput'],
+    ['--mode', 'mode'],
   ]);
   for (let index = 0; index < argv.length; index += 1) {
     const name = names.get(argv[index]);
@@ -49,10 +100,10 @@ function parse(argv) {
   return result;
 }
 
-async function writeJsonAtomic(path, value) {
+async function writeBytesAtomic(path, bytes) {
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  await writeFile(temporary, bytes, { encoding: 'utf8', mode: 0o600 });
   await rename(temporary, path);
 }
 

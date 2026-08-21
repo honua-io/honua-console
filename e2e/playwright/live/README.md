@@ -1,43 +1,55 @@
 # Candidate-bound Console receipt producer
 
-The producer runs only at the SDK's `console-approval` pause. It validates the
-checkpoint digest and the sealed paused Studio real-model handoff (a paused live
-SDK receipt remains accepted for the direct SDK path), joins exact connection,
-service, layer, GP, and Studio identities, then selects the unique map, app, and
-dashboard proposals whose server-owned review evidence contains those identities.
-It never accepts proposal IDs, publication IDs, or pass/fail claims from command
-line flags.
+The canonical producer runs only at the SDK's `console-approval` pause. It opens
+the exact published Console in Chromium, validates the checkpoint digest and the
+sealed paused Studio handoff, inspects connection/service/layer and three GP job
+identities, selects the unique candidate-bound map/app/dashboard proposals, and
+uses the real Console approval controls. It then observes publication, structured
+audit operation identity, deliberate-failure diagnostics, and stable-job recovery
+in the Console UI. The direct server client is a read-only witness and cannot
+produce a release receipt.
 
 Use a bearer limited to read access plus `admin:approve`. Supply it only through
 `HONUA_AI_ARC_CONSOLE_TOKEN`; `HONUA_ADMIN_KEY` and `HONUA_API_KEY` are refused.
-The credential is sent only to the configured same-origin candidate endpoint and
-is never written to stdout, receipts, temporary files, or public-route requests.
+The credential is attached in-process to requests for the configured Console
+origin as a trusted-edge operator session. It is never attached to server/public
+origins and is never written to stdout, receipts, or temporary files.
 
 ```sh
 HONUA_AI_ARC_ENDPOINT=http://127.0.0.1:8080 \
+HONUA_AI_ARC_CONSOLE_ORIGIN=http://127.0.0.1:8081 \
 HONUA_AI_ARC_CHECKPOINT=out/checkpoint.json \
+HONUA_AI_ARC_CONSOLE_RECEIPT_SCHEMA=honua-sdk-js/mcp/release/zero-to-map/contracts/console-receipt.schema.json \
 HONUA_AI_ARC_REAL_MODEL_EVIDENCE=out/studio-real-model-evidence.json \
 HONUA_AI_ARC_CONSOLE_RECEIPT=out/console-release.json \
 HONUA_AI_ARC_SDK_CONSOLE_RECEIPT=out/console-sdk.json \
+HONUA_AI_ARC_CONSOLE_EVIDENCE=out/console-evidence.json \
 HONUA_AI_ARC_CONSOLE_TOKEN='<scoped bearer>' \
 npm run receipt:console
 ```
 
 For AWS, `HONUA_AI_ARC_ENDPOINT` must be HTTPS. Local Docker accepts HTTP or
-HTTPS. `HONUA_CONSOLE_MODE=full` approves pending proposals; `witness` never
-mutates and passes only when the exact proposals were already resolved.
+HTTPS for its private endpoint and Console origin; the SDK-owned receipt contract
+still requires each externally shared publication URL to use HTTPS.
+`HONUA_CONSOLE_MODE=full` approves pending proposals; `witness` never mutates and
+passes only when the exact proposals were already resolved. The command exits 0
+only after all three files are written, and exits 1 without a passed receipt on
+missing input, mismatch, browser failure, or write failure.
 
-Two outputs are intentional. `HONUA_AI_ARC_CONSOLE_RECEIPT` is the release and
-DevOps three-family evidence document. `HONUA_AI_ARC_SDK_CONSOLE_RECEIPT` is the
-manifest-pinned SDK's app-gate projection. Both are derived from the same live
-observations and exact candidate boundary; neither is a self-declared receipt.
+The two receipt paths are intentional distinct files containing byte-identical
+copies of the one manifest-pinned SDK schema `honua.zero-to-map.console-receipt/v1`.
+The producer loads and validates that exact pinned schema before either write.
+`HONUA_AI_ARC_CONSOLE_EVIDENCE` is a separate Console-owned
+`honua.console.ai-arc-evidence/v1` sidecar binding aggregate/handoff/checkpoint
+digests, component and observed runtime SHAs, browser observations, and canonical
+integrity. It is evidence, not an authentication signature.
 
 The release ordering is strict:
 
 1. Studio `release:real-model-ai-arc -- prepare --execute --yes` writes the
    paused handoff to `HONUA_AI_ARC_REAL_MODEL_EVIDENCE` and exits 2.
-2. This producer reads that handoff plus `HONUA_AI_ARC_CHECKPOINT`, then writes
-   the aggregate and SDK Console projections.
+2. This producer reads that handoff, checkpoint, and pinned SDK schema, then
+   writes the byte-identical aggregate aliases and the Console evidence sidecar.
 3. Studio `release:real-model-ai-arc -- resume --execute --yes` reads the paused
    handoff plus the aggregate `HONUA_AI_ARC_CONSOLE_RECEIPT` and replaces the handoff with
    final real-model evidence.
@@ -45,6 +57,6 @@ The release ordering is strict:
    release/DevOps aggregate validator consumes `HONUA_AI_ARC_CONSOLE_RECEIPT`.
 
 `--pre-console-evidence` is the CLI equivalent of
-`HONUA_AI_ARC_REAL_MODEL_EVIDENCE`. The legacy
-`HONUA_AI_ARC_PRE_CONSOLE_RECEIPT`/`--pre-console-receipt` aliases are limited to
-the direct paused-SDK-receipt path.
+`HONUA_AI_ARC_REAL_MODEL_EVIDENCE`. The canonical CLI accepts only the sealed
+Studio handoff at this boundary; it does not accept a self-declared or legacy
+pre-Console receipt alias.

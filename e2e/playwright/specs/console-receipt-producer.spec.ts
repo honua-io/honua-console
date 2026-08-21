@@ -1,105 +1,112 @@
 import { createHash } from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
-import { createServer } from 'node:http';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
-import {
-  browserTransport,
-  produceConsoleReceipts,
-  readConsoleBoundary,
-} from '../live/console-receipt-producer.mjs';
+import { buildConsoleEvidence, produceConsoleReceiptInBrowser } from '../live/console-receipt-browser.mjs';
+import { buildReceiptAliasBytes } from '../live/console-receipt-output.mjs';
+import { observeConsoleApiWitness, readConsoleBoundary } from '../live/console-receipt-producer.mjs';
 
-const endpoint = 'http://127.0.0.1:5174';
+const consoleOrigin = 'http://console.test';
+const serverEndpoint = 'https://server.example';
 const families = ['map', 'app', 'dashboard'] as const;
 
-test('browser harness approves exact checkpoint-bound map/app/dashboard proposals and emits both strict receipts', async ({ page }) => {
-  const { checkpoint, handoff } = candidateBoundary(endpoint);
+test('real browser drives exact Console UI approvals and emits one SDK-owned aggregate', async ({ page }) => {
+  const fixture = candidateBoundary();
   const approved = new Set<string>();
-  const authorization: string[] = [];
-  const posts: string[] = [];
+  await installConsoleUi(page, fixture, approved);
 
-  await page.route('**/*', async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const auth = request.headers().authorization;
-    if (auth) authorization.push(auth);
-    const body = responseFor(url, request.method(), approved, posts);
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  const boundary = readConsoleBoundary(fixture.checkpoint, fixture.handoff);
+  const produced = await produceConsoleReceiptInBrowser({
+    page,
+    consoleOrigin,
+    serverEndpoint,
+    mode: 'full',
+    boundary,
+    receiptSchema: receiptSchemaFixture(),
   });
-  await page.goto(`${endpoint}/healthz/ready`);
 
-  const boundary = readConsoleBoundary(checkpoint, handoff);
-  const { releaseReceipt, sdkReceipt } = await produceConsoleReceipts({
-    endpoint,
+  expect([...approved]).toEqual(families);
+  expect(produced.aggregate.proposals.app).toEqual(expect.objectContaining({
+    proposalId: 'app-proposal',
+    executionOperationId: 'app-operation',
+  }));
+  expect(produced.aggregate.audit.app.operationId).toBe('app-operation');
+  expect(produced.aggregate.publications.app.publicUrl).toBe('https://server.example/share/app-route');
+  expect(produced.aggregate.resources.gp.jobId).toBe(produced.aggregate.resources.jobs.esriMcp);
+  expect(JSON.stringify(produced)).not.toContain('scoped-test-token');
+
+  const aggregateBytes = `${JSON.stringify(produced.aggregate, null, 2)}\n`;
+  const aliases = buildReceiptAliasBytes(produced.aggregate, receiptSchemaFixture());
+  expect(aliases.aggregateBytes).toBe(aliases.sdkBytes);
+  expect(aliases.aggregateBytes).toBe(aggregateBytes);
+  const evidence = buildConsoleEvidence({
+    boundary,
+    aggregateSha256: createHash('sha256').update(aggregateBytes).digest('hex'),
+    observations: produced.observations,
+  });
+  expect(evidence).toEqual(expect.objectContaining({
+    schemaVersion: 'honua.console.ai-arc-evidence/v1',
+    aggregateSha256: createHash('sha256').update(aggregateBytes).digest('hex'),
+    handoffDigest: fixture.handoff.integrity.digest,
+    checkpointDigest: fixture.checkpoint.integrity.digest,
+    runtime: {
+      consoleCommit: fixture.handoff.components['honua-console'],
+      serverSourceRevision: fixture.handoff.components['honua-server'],
+    },
+  }));
+  expect(evidence.publications.map.recovery).toEqual(expect.objectContaining({
+    status: 'passed',
+    resumedJobId: 'esri-job',
+    actionableDiagnostics: true,
+  }));
+  expect(Object.keys(evidence)).toEqual([
+    'schemaVersion', 'status', 'target', 'candidate', 'endpointSha256', 'components', 'handoffDigest',
+    'checkpointDigest', 'aggregateSha256', 'runtime', 'publications', 'checks', 'integrity',
+  ]);
+  expect(evidence.integrity.algorithm).toBe('sha256');
+  const unsignedEvidence = { ...evidence } as any;
+  delete unsignedEvidence.integrity;
+  expect(evidence.integrity.digest).toBe(digest(unsignedEvidence));
+});
+
+test('browser witness mode is read-only and refuses a pending UI proposal', async ({ page }) => {
+  const fixture = candidateBoundary();
+  await installConsoleUi(page, fixture, new Set());
+  const boundary = readConsoleBoundary(fixture.checkpoint, fixture.handoff);
+
+  await expect(produceConsoleReceiptInBrowser({
+    page,
+    consoleOrigin,
+    serverEndpoint,
+    mode: 'witness',
+    boundary,
+    receiptSchema: receiptSchemaFixture(),
+  })).rejects.toThrow('witness mode cannot approve pending Map proposal');
+});
+
+test('direct server producer is retained only as a read-only witness', async () => {
+  const fixture = candidateBoundary();
+  const boundary = readConsoleBoundary(fixture.checkpoint, fixture.handoff);
+  await expect(observeConsoleApiWitness({
+    endpoint: serverEndpoint,
     credential: 'scoped-test-token',
     mode: 'full',
     boundary,
-    transport: browserTransport(page),
-  });
-
-  expect(posts).toEqual(families.map((family) => `/api/v1/admin/proposals/${family}-proposal/approve`));
-  expect(releaseReceipt.proposals).toEqual(expect.objectContaining({
-    map: expect.objectContaining({ proposalId: 'map-proposal', executionOperationId: 'map-operation' }),
-    app: expect.objectContaining({ proposalId: 'app-proposal', executionOperationId: 'app-operation' }),
-    dashboard: expect.objectContaining({ proposalId: 'dashboard-proposal', executionOperationId: 'dashboard-operation' }),
-  }));
-  expect(releaseReceipt.publications.app.publicUrl).toBe(`${endpoint}/api/v1/published/app-route`);
-  expect(releaseReceipt.audit.app.operationId).toBe(releaseReceipt.proposals.app.executionOperationId);
-  expect(releaseReceipt.resources.gp.jobId).toBe(releaseReceipt.resources.jobs.esriMcp);
-  expect(sdkReceipt.proposal).toEqual({ ...releaseReceipt.proposals.app, draftId: 'app-original-draft' });
-  expect(sdkReceipt.audit).toEqual(releaseReceipt.audit.app);
-  expect(sdkReceipt.resources.draftId).toBe('app-original-draft');
-  expect(sdkReceipt.resources).not.toHaveProperty('studio');
-  expect(JSON.stringify({ releaseReceipt, sdkReceipt })).not.toContain('scoped-test-token');
-  expect(authorization.every((value) => value === 'Bearer scoped-test-token')).toBeTruthy();
+    transport: async () => ({ status: 500, body: '{}' }),
+  })).rejects.toThrow('direct server API production is witness-only');
 });
 
-test('witness mode stays read-only and refuses a pending candidate', async () => {
+test('candidate boundary rejects tampering and carries exact component/digest identity', () => {
   const fixture = candidateBoundary();
-  const boundary = readConsoleBoundary(fixture.checkpoint, fixture.pausedReceipt);
-  await expect(produceConsoleReceipts({
-    endpoint,
-    credential: 'witness-token',
-    mode: 'witness',
-    boundary,
-    transport: mockTransport(new Set(), []),
-  })).rejects.toThrow('witness mode cannot approve pending map proposal');
-});
+  const boundary = readConsoleBoundary(fixture.checkpoint, fixture.handoff);
+  expect(boundary.components).toEqual(fixture.handoff.components);
+  expect(boundary.handoffDigest).toBe(fixture.handoff.integrity.digest);
 
-test('witness mode emits evidence for already-resolved proposals without mutation', async () => {
-  const fixture = candidateBoundary();
-  const boundary = readConsoleBoundary(fixture.checkpoint, fixture.pausedReceipt);
-  const posts: string[] = [];
-  const approved = new Set<string>(families);
-  const { releaseReceipt } = await produceConsoleReceipts({
-    endpoint,
-    credential: 'witness-token',
-    mode: 'witness',
-    boundary,
-    transport: mockTransport(approved, posts),
-  });
-  expect(releaseReceipt.status).toBe('passed');
-  expect(posts).toEqual([]);
-});
-
-test('candidate boundary rejects tampering and pre-Console failures', () => {
-  const fixture = candidateBoundary();
   fixture.checkpoint.resume.capturedVariables.connectionId = 'tampered';
-  expect(() => readConsoleBoundary(fixture.checkpoint, fixture.pausedReceipt)).toThrow('checkpoint.integrity.digest');
-
-  const second = candidateBoundary();
-  second.pausedReceipt.stages[0].actions[0].status = 'failed';
-  expect(() => readConsoleBoundary(second.checkpoint, second.pausedReceipt)).toThrow('pre-Console action create-connection is failed');
-
-  const third = candidateBoundary(endpoint);
-  third.handoff.candidateId = 'manifest-sha256:tampered';
-  expect(() => readConsoleBoundary(third.checkpoint, third.handoff)).toThrow('Studio handoff.candidateId');
+  expect(() => readConsoleBoundary(fixture.checkpoint, fixture.handoff)).toThrow('checkpoint.integrity.digest');
 });
 
-test('CLI fails closed without endpoint, scoped credential, and candidate inputs', () => {
+test('CLI fails closed without endpoint, Console origin, credential, and candidate inputs', () => {
   const cli = new URL('../live/console-receipt-cli.mjs', import.meta.url);
   const result = spawnSync(process.execPath, [fileURLToPath(cli)], {
     encoding: 'utf8',
@@ -110,12 +117,9 @@ test('CLI fails closed without endpoint, scoped credential, and candidate inputs
   expect(result.stdout).toBe('');
 });
 
-test('CLI refuses broad admin-key credentials before reading candidate files', () => {
+test('CLI refuses broad admin-key credentials without logging their value', () => {
   const cli = new URL('../live/console-receipt-cli.mjs', import.meta.url);
-  const result = spawnSync(process.execPath, [
-    fileURLToPath(cli), '--endpoint', endpoint, '--checkpoint', 'missing-checkpoint.json',
-    '--pre-console-evidence', 'missing-handoff.json', '--output', 'unused-receipt.json',
-  ], {
+  const result = spawnSync(process.execPath, [fileURLToPath(cli)], {
     encoding: 'utf8',
     env: { PATH: process.env.PATH ?? '', HONUA_ADMIN_KEY: 'must-not-be-used', HONUA_AI_ARC_CONSOLE_TOKEN: 'scoped' },
   });
@@ -124,59 +128,93 @@ test('CLI refuses broad admin-key credentials before reading candidate files', (
   expect(result.stderr).not.toContain('must-not-be-used');
 });
 
-test('CLI consumes the sealed Studio handoff and writes secret-free release and SDK artifacts', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'honua-console-receipt-'));
-  const approved = new Set<string>();
-  const posts: string[] = [];
-  const server = createServer((request, response) => {
-    try {
-      const url = new URL(request.url!, `http://${request.headers.host}`);
-      const body = responseFor(url, request.method ?? 'GET', approved, posts);
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify(body));
-    } catch (error) {
-      response.writeHead(500, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ error: error instanceof Error ? error.message : 'mock failure' }));
+async function installConsoleUi(page: import('@playwright/test').Page, fixture: ReturnType<typeof candidateBoundary>, approved: Set<string>) {
+  await page.context().route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === 'https://server.example') {
+      await route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>published</title>' });
+      return;
+    }
+    if (url.origin !== consoleOrigin) {
+      await route.abort('blockedbyclient');
+      return;
+    }
+    const body = consoleHtml(url, fixture, approved);
+    if (url.pathname === '/version.json') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    } else {
+      await route.fulfill({ status: 200, contentType: 'text/html', body: String(body) });
     }
   });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  try {
-    const address = server.address();
-    if (!address || typeof address === 'string') throw new Error('mock server did not bind TCP');
-    const candidateEndpoint = `http://127.0.0.1:${address.port}`;
-    const fixture = candidateBoundary(candidateEndpoint);
-    const checkpointPath = join(root, 'checkpoint.json');
-    const handoffPath = join(root, 'studio-handoff.json');
-    const releasePath = join(root, 'release.json');
-    const sdkPath = join(root, 'sdk.json');
-    await writeFile(checkpointPath, JSON.stringify(fixture.checkpoint), 'utf8');
-    await writeFile(handoffPath, JSON.stringify(fixture.handoff), 'utf8');
-    const cli = fileURLToPath(new URL('../live/console-receipt-cli.mjs', import.meta.url));
-    const env = { ...process.env };
-    delete env.HONUA_ADMIN_KEY;
-    delete env.HONUA_API_KEY;
-    Object.assign(env, {
-      HONUA_AI_ARC_ENDPOINT: candidateEndpoint,
-      HONUA_AI_ARC_CHECKPOINT: checkpointPath,
-      HONUA_AI_ARC_REAL_MODEL_EVIDENCE: handoffPath,
-      HONUA_AI_ARC_CONSOLE_RECEIPT: releasePath,
-      HONUA_AI_ARC_SDK_CONSOLE_RECEIPT: sdkPath,
-      HONUA_AI_ARC_CONSOLE_TOKEN: 'cli-scoped-token',
-    });
-    const result = await run(cli, env);
-    expect(result.code, result.stderr).toBe(0);
-    const release = await readFile(releasePath, 'utf8');
-    const sdk = await readFile(sdkPath, 'utf8');
-    expect(JSON.parse(release).proposals.dashboard.proposalId).toBe('dashboard-proposal');
-    expect(JSON.parse(sdk).proposal.proposalId).toBe('app-proposal');
-    expect(release + sdk + result.stdout + result.stderr).not.toContain('cli-scoped-token');
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    await rm(root, { recursive: true, force: true });
-  }
-});
+}
 
-function candidateBoundary(candidateEndpoint = endpoint) {
+function consoleHtml(url: URL, fixture: ReturnType<typeof candidateBoundary>, approved: Set<string>): string | object {
+  if (url.pathname === '/version.json') return { commit: fixture.handoff.components['honua-console'], version: '2026.1' };
+  if (url.pathname === '/operate/health') return html('<div class="approval-inbox-toolbar"><span class="console-status console-state-success">Healthy</span></div><div id="health-checks">ready</div>');
+  if (url.pathname === '/operate/connections/connection-1') return html('<div data-connection-id="connection-1" data-connection-loaded="True">connection-1</div>');
+  if (url.pathname === '/operate/services/zero-to-map/settings') return html('<div data-service-name="zero-to-map" data-service-loaded="True"><i data-layer-id="1">1</i><i data-layer-id="2">2</i></div>');
+  if (url.pathname === '/operate/layers') return html('<i data-layer-id="1">1</i><i data-layer-id="2">2</i>');
+  if (url.pathname.startsWith('/operate/geoprocessing/')) {
+    const jobId = decodeURIComponent(url.pathname.split('/').at(-1)!);
+    if (jobId.startsWith('console-recovery-missing-')) {
+      return html('<a href="/operate/geoprocessing">Back to jobs</a><div class="operate-status-denied">Not found<div data-console-diagnostics><span data-diagnostics-detail-text>HTTP 404; use the stable job link to recover.</span></div></div>');
+    }
+    const gp = jobId === 'esri-job' || jobId === 'gpserver-job';
+    return html(`<h2 id="job-detail-heading">${jobId}</h2>${gp ? '<span data-gpserver-service-id>analysis</span><span data-gpserver-task-name>Buffer</span><span data-canonical-process-id>geometry.buffer</span>' : ''}${jobId === 'esri-job' ? '<span data-result-package-id>esri-job:v1</span><i data-evidence-id="esri-artifact">esri-artifact</i>' : ''}${jobId === 'direct-job' ? '<i data-evidence-id="direct-artifact">direct-artifact</i>' : ''}`);
+  }
+  if (url.pathname === '/inbox' && !url.searchParams.has('proposalId')) {
+    return html(families.map((family) => `<article data-proposal-id="${family}-proposal">${family}</article>`).join(''));
+  }
+  if (url.pathname === '/inbox') {
+    const proposalId = url.searchParams.get('proposalId')!;
+    const family = proposalId.split('-')[0];
+    const status = approved.has(family) ? 'Submitted' : 'AwaitingApproval';
+    return html(`<article data-proposal-id="${proposalId}">
+      <span data-proposal-status="${status}">${status}</span>
+      <div data-proposal-diff>${family}-item ${family}-publication-version ${family}-reopened-draft ${family}-route</div>
+      ${approved.has(family) ? operationChip(family) : `<button data-proposal-approve>Approve</button>`}
+      <p data-proposal-action-message hidden></p>
+      <script>document.querySelector('[data-proposal-approve]')?.addEventListener('click',()=>{
+        const root=document.querySelector('[data-proposal-id]');
+        root.querySelector('[data-proposal-status]').setAttribute('data-proposal-status','Submitted');
+        root.querySelector('[data-proposal-status]').textContent='Submitted';
+        root.querySelector('[data-proposal-approve]').remove();
+        root.insertAdjacentHTML('beforeend',${JSON.stringify(operationChip(family))});
+        const message=root.querySelector('[data-proposal-action-message]'); message.hidden=false; message.textContent='Approved';
+        fetch('/mock-approved/${family}',{method:'POST'});
+      });</script>
+    </article>`);
+  }
+  if (url.pathname.startsWith('/mock-approved/')) {
+    approved.add(url.pathname.split('/').at(-1)!);
+    return html('ok');
+  }
+  if (url.pathname === '/operate/release-witness') {
+    const family = url.searchParams.get('family')!;
+    return html(`<article data-release-witness
+      data-server-source-revision="${fixture.handoff.components['honua-server']}"
+      data-family="${family}" data-item-id="${family}-item"
+      data-version-id="${family}-publication-version" data-content-hash="${family}-publication-hash"
+      data-proposal-id="${family}-proposal" data-publication-id="${family}-publication"
+      data-public-url="https://server.example/share/${family}-route"
+      data-audit-correlation-id="${family}-correlation" data-audit-operation-id="${family}-operation"
+      data-audit-verified="true">${family} release witness</article>`);
+  }
+  if (url.pathname === '/operate/publishing') {
+    return html(`<article data-publishing-review data-publication-id="${url.searchParams.get('publicationId')}">publication review</article>`);
+  }
+  throw new Error(`unexpected Console UI route ${url}`);
+}
+
+function operationChip(family: string) {
+  return `<a data-correlation-chip data-correlation-kind="OperationId" data-correlation-id="${family}-operation">${family}-operation</a>`;
+}
+
+function html(body: string) {
+  return `<!doctype html><html><body>${body}</body></html>`;
+}
+
+function candidateBoundary() {
   const captures: Record<string, unknown> = {
     candidateId: `manifest-sha256:${'a'.repeat(64)}`,
     releaseId: '2026.1-rc.2',
@@ -185,159 +223,95 @@ function candidateBoundary(candidateEndpoint = endpoint) {
     esriMcpServiceId: 'analysis', esriMcpTaskName: 'Buffer', esriMcpProcessId: 'geometry.buffer',
     esriMcpResultPackageId: 'esri-job:v1', esriMcpArtifactId: 'esri-artifact', bufferArtifactId: 'direct-artifact',
   };
-  for (const [index, family] of families.entries()) {
-    Object.assign(captures, {
-      [`${family}DraftId`]: `${family}-original-draft`,
-      [`${family}ItemId`]: `${family}-item`,
-      [`${family}VersionId`]: `${family}-version`,
-      [`${family}ContentHash`]: `${family}-content-hash`,
-      [`${family}ReopenedDraftId`]: `${family}-reopened-draft`,
-      [`${family}ProposalGeneration`]: index + 2,
-      [`${family}PublicationVersionId`]: `${family}-publication-version`,
-      [`${family}PublicationContentHash`]: `${family}-publication-hash`,
-      [`${family}Route`]: `${family}-route`,
-    });
-  }
+  families.forEach((family, index) => Object.assign(captures, {
+    [`${family}DraftId`]: `${family}-original-draft`,
+    [`${family}ItemId`]: `${family}-item`,
+    [`${family}VersionId`]: `${family}-version`,
+    [`${family}ContentHash`]: `${family}-content-hash`,
+    [`${family}ReopenedDraftId`]: `${family}-reopened-draft`,
+    [`${family}ProposalGeneration`]: index + 2,
+    [`${family}PublicationVersionId`]: `${family}-publication-version`,
+    [`${family}PublicationContentHash`]: `${family}-publication-hash`,
+    [`${family}Route`]: `${family}-route`,
+  }));
   const checkpoint: any = {
     schemaVersion: 'honua.zero-to-map.checkpoint/v1', state: 'paused', target: 'local-docker',
-    journeyId: '2026.1-zero-to-map', releaseContract: 'honua-release#123/D9.3',
-    sourceRevision: '2'.repeat(40),
+    journeyId: '2026.1-zero-to-map', releaseContract: 'honua-release#123/D9.3', sourceRevision: '2'.repeat(40),
     candidateId: captures.candidateId, releaseId: captures.releaseId,
-    resume: {
-      resumeAt: { stageId: 'console', actionId: 'console-approval' },
-      capturedVariables: captures,
-    },
+    resume: { resumeAt: { stageId: 'console', actionId: 'console-approval' }, capturedVariables: captures },
     consoleReceiptRequest: {
-      schemaVersion: 'honua.zero-to-map.console-receipt-request/v1',
-      actionId: 'console-approval', receiptSchema: 'honua.zero-to-map.console-receipt/v1',
-      matches: {
-        '/journeyId': '2026.1-zero-to-map', '/releaseContract': 'honua-release#123/D9.3', '/status': 'passed',
-        '/candidate/candidateId': captures.candidateId, '/candidate/releaseId': captures.releaseId,
-        '/resources/connectionId': captures.connectionId,
-      },
-      requiredPointers: families.flatMap((family) => [
-        `/proposals/${family}/proposalId`, `/proposals/${family}/executionOperationId`,
-        `/publications/${family}/publicationId`, `/publications/${family}/publicUrl`,
-        `/audit/${family}/correlationId`,
-      ]).concat(['/shareUrl']),
-      equalPointers: families.flatMap((family) => [
-        [`/proposals/${family}/proposalId`, `/publications/${family}/requestId`],
-        [`/proposals/${family}/executionOperationId`, `/audit/${family}/operationId`],
-      ]).concat([[`/resources/gp/jobId`, `/resources/jobs/esriMcp`], ['/shareUrl', '/publications/app/publicUrl']]),
+      schemaVersion: 'honua.zero-to-map.console-receipt-request/v1', actionId: 'console-approval',
+      receiptSchema: 'honua.zero-to-map.console-receipt/v1',
+      matches: { '/journeyId': '2026.1-zero-to-map', '/releaseContract': 'honua-release#123/D9.3', '/status': 'passed', '/candidate/candidateId': captures.candidateId, '/candidate/releaseId': captures.releaseId },
+      requiredPointers: families.flatMap((family) => [`/proposals/${family}/proposalId`, `/proposals/${family}/executionOperationId`, `/publications/${family}/publicationId`, `/publications/${family}/publicUrl`, `/audit/${family}/correlationId`]).concat(['/shareUrl']),
+      equalPointers: families.flatMap((family) => [[`/proposals/${family}/proposalId`, `/publications/${family}/requestId`], [`/proposals/${family}/executionOperationId`, `/audit/${family}/operationId`]]).concat([[`/resources/gp/jobId`, `/resources/jobs/esriMcp`], ['/shareUrl', '/publications/app/publicUrl']]),
     },
   };
   checkpoint.integrity = { algorithm: 'sha256', digest: digest(checkpoint) };
-  const pausedReceipt: any = {
-    schemaVersion: 'honua.zero-to-map.receipt/v1', mode: 'live', status: 'blocked',
-    journeyId: checkpoint.journeyId, releaseContract: checkpoint.releaseContract,
-    stages: [
-      { actions: [{ id: 'create-connection', status: 'passed', captures }] },
-      { actions: [{ id: 'buffer-esri-gpserver', status: 'passed', evidence: { resultNames: ['outputFeatureLayer'] } }] },
-      { actions: [{ id: 'console-approval', status: 'blocked', code: 'external-receipt-missing' }] },
-      { actions: [{ id: 'verify-share-url', status: 'skipped' }] },
-    ],
-  };
   const components = Object.fromEntries(
     ['honua-server', 'honua-sdk-js', 'honua-console', 'honua-studio', 'honua-devops', 'honua-iac']
       .map((name, index) => [name, name === 'honua-sdk-js' ? checkpoint.sourceRevision : String(index + 1).repeat(40)]),
   );
-  const lanes = Object.fromEntries(['admin', 'esriGp', 'nativeAnalysis', 'studioPublication'].map((name) => [name, {
-    promptSha256: 'b'.repeat(64), transcriptSha256: 'c'.repeat(64), calls: [{ status: 'passed' }],
-  }]));
   const handoff: any = {
     schemaVersion: 'honua.studio.real-model-ai-arc-handoff/v1', status: 'paused', target: checkpoint.target,
     candidateId: checkpoint.candidateId, releaseId: checkpoint.releaseId,
-    endpointSha256: createHash('sha256').update(candidateEndpoint.replace(/\/$/, '')).digest('hex'),
+    endpointSha256: createHash('sha256').update(serverEndpoint).digest('hex'),
     source: { repository: 'honua-io/honua-studio', sha: components['honua-studio'] }, components,
     model: { provider: 'bedrock', modelId: 'claude-sonnet' }, promptVersion: '2026.1-v1', evalVersion: '2026.1-v1',
     transcriptSha256: 'd'.repeat(64),
     deterministic: { target: checkpoint.target, checkpointDigest: checkpoint.integrity.digest },
-    lanes, joins: { ...captures }, consoleReceiptRequest: checkpoint.consoleReceiptRequest,
+    lanes: Object.fromEntries(['admin', 'esriGp', 'nativeAnalysis', 'studioPublication'].map((name) => [name, { promptSha256: 'b'.repeat(64), transcriptSha256: 'c'.repeat(64), calls: [{ status: 'passed' }] }])),
+    joins: { ...captures }, consoleReceiptRequest: checkpoint.consoleReceiptRequest,
   };
   handoff.integrity = { algorithm: 'sha256', digest: digest(handoff) };
-  return { checkpoint, pausedReceipt, handoff };
+  return { checkpoint, handoff };
 }
 
-function mockTransport(approved: Set<string>, posts: string[]) {
-  return async ({ url, method, headers }: any) => ({
-    status: 200,
-    body: JSON.stringify(responseFor(new URL(url), method, approved, posts, headers)),
-  });
-}
-
-function responseFor(url: URL, method: string, approved: Set<string>, posts: string[], _headers?: unknown): any {
-  const path = url.pathname;
-  if (path === '/healthz/ready') return { status: 'Healthy' };
-  if (path === '/api/v1/admin/version') return { data: { version: '2026.1.0-test' } };
-  if (path === '/api/v1/admin/connections/') return { data: [{ connectionId: 'connection-1' }] };
-  if (path === '/api/v1/admin/services/') return { data: [{ serviceName: 'zero-to-map' }] };
-  if (path === '/api/v1/admin/connections/connection-1/layers/') return { data: [{ layerId: 1 }, { layerId: 2 }] };
-  if (path.startsWith('/api/v1/admin/jobs/')) {
-    const jobId = decodeURIComponent(path.split('/').at(-1)!);
-    return jobId === 'esri-job'
-      ? { jobId, selectedMetadata: { serviceId: 'analysis', taskName: 'Buffer', processId: 'geometry.buffer', resultPackageId: 'esri-job:v1' }, evidence: ['esri-artifact'] }
-      : { jobId, evidence: jobId === 'direct-job' ? ['direct-artifact'] : [] };
-  }
-  if (path === '/api/v1/admin/proposals') return { proposals: families.map((family) => ({ proposalId: `${family}-proposal` })) };
-  const proposalMatch = path.match(/^\/api\/v1\/admin\/proposals\/(map|app|dashboard)-proposal(\/approve)?$/);
-  if (proposalMatch) {
-    const family = proposalMatch[1];
-    if (method === 'POST') { approved.add(family); posts.push(path); }
-    return proposal(family, approved.has(family));
-  }
-  if (path === '/api/v1/studio/content-items') {
-    const family = url.searchParams.get('family')!;
-    return { items: [{ itemId: `${family}-item`, publishedVersionId: `${family}-publication-version`, publication: { publicationId: `${family}-publication`, routePath: `/api/v1/published/${family}-route` } }] };
-  }
-  const publicationMatch = path.match(/^\/api\/v1\/console\/publications\/(map|app|dashboard)-publication$/);
-  if (publicationMatch) return publication(publicationMatch[1]);
-  if (path === '/api/v1/admin/observability/audit') {
-    const proposalId = url.searchParams.get('resourceId')!;
-    const family = proposalId.split('-')[0];
-    return { items: [{ resourceId: proposalId, action: 'operation.applied', outcome: 'Success', correlationId: `${family}-correlation`, details: JSON.stringify({ executionOperationId: `${family}-operation` }) }] };
-  }
-  if (path === '/api/v1/admin/observability/audit/verify') return { verified: true };
-  if (path.startsWith('/api/v1/published/')) return { status: 'published' };
-  throw new Error(`unexpected mock request ${method} ${url}`);
-}
-
-function proposal(family: string, isApproved: boolean) {
-  return {
-    proposalId: `${family}-proposal`, status: isApproved ? 'Submitted' : 'AwaitingApproval',
-    executionOperationId: isApproved ? `${family}-operation` : null,
-    summary: `${family}-item ${family}-publication-version ${family}-reopened-draft ${family}-route`,
-    diff: [], dryRun: [],
-  };
-}
-
-function publication(family: string) {
-  return {
-    route: { publicationId: `${family}-publication`, activeVersionId: `${family}-active`, routePath: `/api/v1/published/${family}-route` },
-    versions: [{
-      versionId: `${family}-active`, sourceContentId: `${family}-item`, contentVersionId: `${family}-publication-version`,
-      contentHash: `${family}-publication-hash`, operationId: `${family}-operation`,
-    }],
-  };
-}
-
-function digest(checkpoint: any) {
-  return createHash('sha256').update(canonical(checkpoint)).digest('hex');
-}
-
-function run(cli: string, env: NodeJS.ProcessEnv): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [cli], { env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
-    child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
-    child.once('error', reject);
-    child.once('close', (code) => resolve({ code, stdout, stderr }));
-  });
+function digest(value: any) {
+  return createHash('sha256').update(canonical(value)).digest('hex');
 }
 
 function canonical(value: any): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
   return JSON.stringify(value);
+}
+
+function receiptSchemaFixture() {
+  const text = { type: 'string', minLength: 1 };
+  const strict = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({
+    type: 'object', required, properties, additionalProperties: false,
+  });
+  const familiesOf = (child: unknown) => strict({ map: child, app: child, dashboard: child });
+  const proposal = strict({
+    draftId: text, generation: { type: 'integer', minimum: 1 }, route: text, proposalId: text,
+    executionOperationId: text,
+  });
+  const publication = strict({
+    requestId: text, itemId: text, versionId: text, status: { const: 'published' }, publicationId: text,
+    publicUrl: { type: 'string', pattern: '^https://' },
+  });
+  const audit = strict({ correlationId: text, operationId: text });
+  const studio = strict({ draftId: text, itemId: text, versionId: text, contentHash: text, reopenedDraftId: text });
+  return strict({
+    schemaVersion: { const: 'honua.zero-to-map.console-receipt/v1' },
+    journeyId: { const: '2026.1-zero-to-map' },
+    releaseContract: { const: 'honua-release#123/D9.3' },
+    status: { const: 'passed' },
+    proposals: familiesOf(proposal),
+    publications: familiesOf(publication),
+    audit: familiesOf(audit),
+    resources: strict({
+      connectionId: text,
+      serviceId: text,
+      layerIds: strict({ parcels: { type: 'integer', minimum: 0 }, zoning: { type: 'integer', minimum: 0 } }),
+      jobs: strict({ esriMcp: text, gpServer: text, directAnalysis: text }),
+      gp: strict({ jobId: text, serviceId: text, taskName: text, processId: text, resultPackageId: text, artifactId: text }),
+      artifactId: text,
+      studio: familiesOf(studio),
+    }),
+    candidate: strict({ candidateId: text, releaseId: text }),
+    checks: strict({ health: { const: 'passed' }, audit: { const: 'passed' }, recovery: { const: 'passed' } }),
+    shareUrl: { type: 'string', pattern: '^https://' },
+  });
 }
