@@ -6,11 +6,11 @@ const CONSOLE_RECEIPT_SCHEMA = 'honua.zero-to-map.console-receipt/v1';
 const REQUEST_SCHEMA = 'honua.zero-to-map.console-receipt-request/v1';
 const FAMILIES = ['map', 'app', 'dashboard'];
 
-export function readConsoleBoundary(checkpointValue, preConsoleEvidenceValue) {
+export function readConsoleBoundary(checkpointValue, studioHandoffValue) {
   const checkpoint = record(checkpointValue, 'checkpoint');
-  const preConsoleEvidence = record(preConsoleEvidenceValue, 'pre-Console evidence');
+  const studioHandoff = record(studioHandoffValue, 'Studio handoff');
   rejectSecretSerialization(checkpoint, 'checkpoint');
-  rejectSecretSerialization(preConsoleEvidence, 'pre-Console evidence');
+  rejectSecretSerialization(studioHandoff, 'Studio handoff');
   equal(checkpoint.schemaVersion, CHECKPOINT_SCHEMA, 'checkpoint.schemaVersion');
   equal(checkpoint.state, 'paused', 'checkpoint.state');
   if (!['local-docker', 'aws-ecs'].includes(checkpoint.target)) {
@@ -30,12 +30,12 @@ export function readConsoleBoundary(checkpointValue, preConsoleEvidenceValue) {
   verifyCheckpointIntegrity(checkpoint);
 
   const checkpointCaptures = record(resume.capturedVariables, 'checkpoint.resume.capturedVariables');
-  if (preConsoleEvidence.schemaVersion !== STUDIO_HANDOFF_SCHEMA) {
-    throw new Error('pre-Console evidence must be the sealed Studio handoff');
+  if (studioHandoff.schemaVersion !== STUDIO_HANDOFF_SCHEMA) {
+    throw new Error('Studio handoff input must be the sealed immutable paused handoff');
   }
-  const endpointSha256 = verifyStudioHandoff(preConsoleEvidence, checkpoint, checkpointCaptures);
-  const handoffDigest = preConsoleEvidence.integrity.digest;
-  const components = { ...preConsoleEvidence.components };
+  const endpointSha256 = verifyStudioHandoff(studioHandoff, checkpoint, checkpointCaptures);
+  const handoffDigest = studioHandoff.integrity.digest;
+  const components = { ...studioHandoff.components };
   const captures = { ...checkpointCaptures };
   const matches = record(request.matches, 'checkpoint.consoleReceiptRequest.matches');
   const capture = (name) => requiredCapture(captures, name);

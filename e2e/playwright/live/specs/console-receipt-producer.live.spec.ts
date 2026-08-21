@@ -12,7 +12,7 @@ test('drives the published Console UI and writes one strict aggregate plus its e
     process.env.HONUA_AI_ARC_CONSOLE_ORIGIN,
     process.env.HONUA_AI_ARC_CHECKPOINT,
     process.env.HONUA_AI_ARC_CONSOLE_RECEIPT_SCHEMA,
-    process.env.HONUA_AI_ARC_REAL_MODEL_EVIDENCE,
+    process.env.HONUA_AI_ARC_REAL_MODEL_HANDOFF,
     process.env.HONUA_AI_ARC_CONSOLE_RECEIPT,
     process.env.HONUA_AI_ARC_SDK_CONSOLE_RECEIPT,
     process.env.HONUA_AI_ARC_CONSOLE_EVIDENCE,
@@ -30,7 +30,7 @@ test('drives the published Console UI and writes one strict aggregate plus its e
     process.env.HONUA_AI_ARC_CONSOLE_RECEIPT_SCHEMA,
     'HONUA_AI_ARC_CONSOLE_RECEIPT_SCHEMA',
   ));
-  const handoffPath = resolve(required(process.env.HONUA_AI_ARC_REAL_MODEL_EVIDENCE, 'HONUA_AI_ARC_REAL_MODEL_EVIDENCE'));
+  const handoffPath = resolve(required(process.env.HONUA_AI_ARC_REAL_MODEL_HANDOFF, 'HONUA_AI_ARC_REAL_MODEL_HANDOFF'));
   const outputPath = resolve(required(process.env.HONUA_AI_ARC_CONSOLE_RECEIPT, 'HONUA_AI_ARC_CONSOLE_RECEIPT'));
   const sdkOutputPath = resolve(required(process.env.HONUA_AI_ARC_SDK_CONSOLE_RECEIPT, 'HONUA_AI_ARC_SDK_CONSOLE_RECEIPT'));
   const evidenceOutputPath = resolve(required(process.env.HONUA_AI_ARC_CONSOLE_EVIDENCE, 'HONUA_AI_ARC_CONSOLE_EVIDENCE'));

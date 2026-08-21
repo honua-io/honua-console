@@ -20,9 +20,9 @@ try {
     options.receiptSchema ?? process.env.HONUA_AI_ARC_CONSOLE_RECEIPT_SCHEMA,
     'pinned SDK Console receipt schema',
   ));
-  const preConsoleEvidencePath = resolve(required(
-    options.preConsoleEvidence ?? process.env.HONUA_AI_ARC_REAL_MODEL_EVIDENCE,
-    'sealed pre-Console Studio handoff',
+  const realModelHandoffPath = resolve(required(
+    options.realModelHandoff ?? process.env.HONUA_AI_ARC_REAL_MODEL_HANDOFF,
+    'immutable paused Studio handoff',
   ));
   const outputPath = resolve(required(options.output ?? process.env.HONUA_AI_ARC_CONSOLE_RECEIPT, 'release receipt output'));
   const sdkOutputPath = resolve(options.sdkOutput ?? process.env.HONUA_AI_ARC_SDK_CONSOLE_RECEIPT ?? `${outputPath}.sdk.json`);
@@ -36,9 +36,9 @@ try {
   const mode = options.mode ?? process.env.HONUA_CONSOLE_MODE ?? 'full';
   const credential = required(process.env.HONUA_AI_ARC_CONSOLE_TOKEN, 'HONUA_AI_ARC_CONSOLE_TOKEN');
   const checkpoint = JSON.parse(await readFile(checkpointPath, 'utf8'));
-  const preConsoleEvidence = JSON.parse(await readFile(preConsoleEvidencePath, 'utf8'));
+  const realModelHandoff = JSON.parse(await readFile(realModelHandoffPath, 'utf8'));
   const receiptSchema = JSON.parse(await readFile(receiptSchemaPath, 'utf8'));
-  const boundary = readConsoleBoundary(checkpoint, preConsoleEvidence);
+  const boundary = readConsoleBoundary(checkpoint, realModelHandoff);
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext();
@@ -86,7 +86,7 @@ function parse(argv) {
   const names = new Map([
     ['--endpoint', 'endpoint'], ['--console-origin', 'consoleOrigin'], ['--checkpoint', 'checkpoint'],
     ['--receipt-schema', 'receiptSchema'],
-    ['--pre-console-evidence', 'preConsoleEvidence'],
+    ['--real-model-handoff', 'realModelHandoff'],
     ['--output', 'output'], ['--sdk-output', 'sdkOutput'], ['--evidence-output', 'evidenceOutput'],
     ['--mode', 'mode'],
   ]);

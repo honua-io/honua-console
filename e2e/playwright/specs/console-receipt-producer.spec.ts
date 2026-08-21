@@ -128,6 +128,31 @@ test('CLI refuses broad admin-key credentials without logging their value', () =
   expect(result.stderr).not.toContain('must-not-be-used');
 });
 
+test('CLI makes no use of the final Studio evidence output path', () => {
+  const cli = new URL('../live/console-receipt-cli.mjs', import.meta.url);
+  const result = spawnSync(process.execPath, [fileURLToPath(cli)], {
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH ?? '',
+      HONUA_AI_ARC_REAL_MODEL_EVIDENCE: 'must-not-be-read',
+    },
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('endpoint is required');
+  expect(result.stderr).not.toContain('must-not-be-read');
+});
+
+test('CLI refuses the retired pre-Console evidence argument', () => {
+  const cli = new URL('../live/console-receipt-cli.mjs', import.meta.url);
+  const result = spawnSync(process.execPath, [fileURLToPath(cli), '--pre-console-evidence', 'must-not-be-read'], {
+    encoding: 'utf8',
+    env: { PATH: process.env.PATH ?? '' },
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('unsupported argument --pre-console-evidence');
+  expect(result.stderr).not.toContain('must-not-be-read');
+});
+
 async function installConsoleUi(page: import('@playwright/test').Page, fixture: ReturnType<typeof candidateBoundary>, approved: Set<string>) {
   await page.context().route('**/*', async (route) => {
     const url = new URL(route.request().url());

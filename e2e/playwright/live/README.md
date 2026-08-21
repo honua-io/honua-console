@@ -20,7 +20,7 @@ HONUA_AI_ARC_ENDPOINT=http://127.0.0.1:8080 \
 HONUA_AI_ARC_CONSOLE_ORIGIN=http://127.0.0.1:8081 \
 HONUA_AI_ARC_CHECKPOINT=out/checkpoint.json \
 HONUA_AI_ARC_CONSOLE_RECEIPT_SCHEMA=honua-sdk-js/mcp/release/zero-to-map/contracts/console-receipt.schema.json \
-HONUA_AI_ARC_REAL_MODEL_EVIDENCE=out/studio-real-model-evidence.json \
+HONUA_AI_ARC_REAL_MODEL_HANDOFF=out/studio-real-model-handoff.json \
 HONUA_AI_ARC_CONSOLE_RECEIPT=out/console-release.json \
 HONUA_AI_ARC_SDK_CONSOLE_RECEIPT=out/console-sdk.json \
 HONUA_AI_ARC_CONSOLE_EVIDENCE=out/console-evidence.json \
@@ -47,16 +47,18 @@ integrity. It is evidence, not an authentication signature.
 The release ordering is strict:
 
 1. Studio `release:real-model-ai-arc -- prepare --execute --yes` writes the
-   paused handoff to `HONUA_AI_ARC_REAL_MODEL_EVIDENCE` and exits 2.
+   immutable paused handoff to `HONUA_AI_ARC_REAL_MODEL_HANDOFF` and exits 2.
 2. This producer reads that handoff, checkpoint, and pinned SDK schema, then
    writes the byte-identical aggregate aliases and the Console evidence sidecar.
-3. Studio `release:real-model-ai-arc -- resume --execute --yes` reads the paused
-   handoff plus the aggregate `HONUA_AI_ARC_CONSOLE_RECEIPT` and replaces the handoff with
-   final real-model evidence.
+3. Studio `release:real-model-ai-arc -- resume --execute --yes` reads the immutable
+   handoff plus the aggregate `HONUA_AI_ARC_CONSOLE_RECEIPT` and writes final
+   real-model evidence to `HONUA_AI_ARC_REAL_MODEL_EVIDENCE` without replacing
+   the handoff.
 4. The manifest-pinned SDK resumes with `HONUA_AI_ARC_SDK_CONSOLE_RECEIPT`; the
    release/DevOps aggregate validator consumes `HONUA_AI_ARC_CONSOLE_RECEIPT`.
 
-`--pre-console-evidence` is the CLI equivalent of
-`HONUA_AI_ARC_REAL_MODEL_EVIDENCE`. The canonical CLI accepts only the sealed
-Studio handoff at this boundary; it does not accept a self-declared or legacy
-pre-Console receipt alias.
+`--real-model-handoff` is the CLI equivalent of
+`HONUA_AI_ARC_REAL_MODEL_HANDOFF`. The canonical CLI accepts only the sealed
+Studio handoff at this boundary. `HONUA_AI_ARC_REAL_MODEL_EVIDENCE` is reserved
+for Studio's post-Console output; Console never reads or writes it. The retired
+`--pre-console-evidence` input is refused.
