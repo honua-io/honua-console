@@ -9,7 +9,7 @@ import { verify } from "../vendor-assets.mjs";
 // honua-console#333, #334 — the Console must not fetch executable code from a CDN at page load.
 //
 // As of #334 there is NO remaining executable-code CDN: MapLibre and Vega are committed vendored
-// assets, and Cesium is fetched from this origin under /vendor/cesium (placed at deploy/build time
+// assets, and Cesium is fetched from this origin under the Shell static-asset prefix (placed at build time
 // by scripts/fetch-cesium.mjs, gitignored because its Build tree is ~20 MB). The only external
 // origin left is raster tile imagery.
 //
@@ -30,6 +30,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
 const wwwroot = resolve(repoRoot, "src/Honua.Console.Shell/wwwroot");
 const programPath = resolve(repoRoot, "src/Honua.Console.Web/Program.cs");
+const cesiumFetchPath = resolve(repoRoot, "scripts/fetch-cesium.mjs");
 
 /**
  * External origins the Console is currently permitted to reach at runtime, each with the reason it
@@ -173,7 +174,7 @@ test("the CSP admits exactly the external origins the interop scripts still use"
 // jsdelivr is still in the CSP, and #334 is explicit that it stays only for Cesium. Pinning that
 // down here is what turns "we deferred Cesium" from a comment into a checked fact: the day
 // As of #334 no interop script reaches a CDN for executable code at all: MapLibre and Vega are
-// committed vendored assets, and Cesium is served from this origin under /vendor/cesium. This test
+// committed vendored assets, and Cesium is served from the Shell static-asset prefix. This test
 // is now an absolute — the day ANY script reaches for a code CDN again, it fails.
 test("no interop script fetches executable code from a CDN", () => {
   // Absolute, not a shrinking allowlist. Tile imagery is the only external origin the Console may
@@ -196,7 +197,7 @@ test("no interop script fetches executable code from a CDN", () => {
     offenders,
     [],
     "Executable code must be served from this origin. MapLibre and Vega are committed under " +
-      "wwwroot/vendor; Cesium is placed at /vendor/cesium by scripts/fetch-cesium.mjs at " +
+      "wwwroot/vendor; Cesium is placed under the Shell static-asset prefix by scripts/fetch-cesium.mjs at " +
       "deploy time (honua-console#334). Vendor the new dependency rather than reaching for a CDN.",
   );
 });
@@ -208,8 +209,8 @@ test("scene-viewer loads Cesium from this origin", () => {
   const sceneViewer = readFileSync(resolve(wwwroot, "scene-viewer.js"), "utf8");
   assert.match(
     sceneViewer,
-    /const CESIUM_BASE_URL = '\/vendor\/cesium\/'/,
-    "scene-viewer.js must resolve Cesium under /vendor/cesium on this origin",
+    /const CESIUM_BASE_URL = '\/_content\/Honua\.Console\.Shell\/vendor\/cesium\/'/,
+    "scene-viewer.js must resolve Cesium through the Razor class-library static-asset path",
   );
   assert.doesNotMatch(
     sceneViewer,
@@ -217,6 +218,68 @@ test("scene-viewer loads Cesium from this origin", () => {
     "same-origin assets need no Subresource Integrity — SRI defends against a third-party CDN, " +
       "and there is no third party left in this path",
   );
+});
+
+test("Cesium is fetched only from the exact digest-pinned archive", () => {
+  const source = readFileSync(cesiumFetchPath, "utf8");
+  assert.match(source, /const CESIUM_VERSION = "1\.119\.0";/);
+  assert.match(
+    source,
+    /const CESIUM_ARCHIVE_SHA256 = "2daa7203af810ddb320d7990ef26812309336f4559b3d9b2d1b1450f8110cd7d";/,
+    "the reviewed cesium@1.119.0 npm archive must remain pinned by its full SHA-256",
+  );
+
+  const compareAt = source.indexOf("archiveSha256 !== CESIUM_ARCHIVE_SHA256");
+  const writeAt = source.indexOf("await writeFile(tarball, bytes)");
+  const extractAt = source.indexOf('spawnSync("tar"');
+  assert.ok(compareAt >= 0, "the downloaded archive must be compared with the pin");
+  assert.ok(writeAt > compareAt, "integrity verification must happen before the archive is staged");
+  assert.ok(extractAt > compareAt, "integrity verification must happen before executable assets are extracted");
+});
+
+test("every deployment artifact fetches verified Cesium before publish", () => {
+  const workflowPaths = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/container-publish.yml",
+    ".github/workflows/console-aws-browser.yml",
+    ".github/workflows/console-e2e.yml",
+  ];
+
+  for (const workflowPath of workflowPaths) {
+    const lines = readFileSync(resolve(repoRoot, workflowPath), "utf8").split("\n");
+    let fetchAt = -1;
+    let awaitingArtifactVerification = false;
+    let publishes = 0;
+    for (let index = 0; index < lines.length; index += 1) {
+      if (lines[index].includes("node scripts/fetch-cesium.mjs --force")) fetchAt = index;
+      if (lines[index].includes("node scripts/verify-published-cesium.mjs")) {
+        assert.ok(
+          awaitingArtifactVerification,
+          `${workflowPath} may verify Cesium only after publishing a Console artifact`,
+        );
+        awaitingArtifactVerification = false;
+      }
+      if (!lines[index].includes("dotnet publish") || !lines[index].includes("Honua.Console.Web")) continue;
+      assert.equal(
+        awaitingArtifactVerification,
+        false,
+        `${workflowPath} must verify the prior Console artifact before another publish`,
+      );
+      publishes += 1;
+      assert.ok(
+        fetchAt >= 0 && fetchAt < index,
+        `${workflowPath} must fetch the digest-verified Cesium archive before every Console publish`,
+      );
+      fetchAt = -1;
+      awaitingArtifactVerification = true;
+    }
+    assert.ok(publishes > 0, `${workflowPath} must contain a Console publish path covered by this contract`);
+    assert.equal(
+      awaitingArtifactVerification,
+      false,
+      `${workflowPath} must verify the published artifact contains the Cesium static assets`,
+    );
+  }
 });
 
 test("the NOTICE records the vendored third-party asset and its license", () => {

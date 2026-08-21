@@ -84,8 +84,14 @@ jobs:
       - name: Run Node smoke and metadata tests
         run: npm test
 
+      - name: Fetch digest-verified Cesium assets
+        run: node scripts/fetch-cesium.mjs --force
+
       - name: Publish Blazor Web artifact
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Stamp artifact metadata
         run: npm run build:metadata
