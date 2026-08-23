@@ -16,6 +16,6 @@
     "e2e:live-llm": "playwright test --config playwright.live-llm.config.ts"
   },
   "devDependencies": {
-    "@playwright/test": "1.61.1"
+    "@playwright/test": "1.62.0"
   }
 }
