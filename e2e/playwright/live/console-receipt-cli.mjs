@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { buildConsoleEvidence, produceConsoleReceiptInBrowser } from './console-receipt-browser.mjs';
 import { buildReceiptAliasBytes } from './console-receipt-output.mjs';
-import { readConsoleBoundary } from './console-receipt-producer.mjs';
+import { exerciseConsoleReadApproveKeyRecipe, readConsoleBoundary } from './console-receipt-producer.mjs';
 
 const options = parse(process.argv.slice(2));
 
@@ -39,6 +39,13 @@ try {
   const realModelHandoff = JSON.parse(await readFile(realModelHandoffPath, 'utf8'));
   const receiptSchema = JSON.parse(await readFile(receiptSchemaPath, 'utf8'));
   const boundary = readConsoleBoundary(checkpoint, realModelHandoff);
+  const readApproveKey = process.env.HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY?.trim();
+  if (readApproveKey && mode !== 'witness') {
+    throw new Error('the admin:read + admin:approve key recipe resolves proposals before the browser; use witness mode');
+  }
+  const keyRecipe = readApproveKey
+    ? await exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey: readApproveKey, boundary })
+    : undefined;
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext();
@@ -64,7 +71,11 @@ try {
     });
     const { aggregateBytes, sdkBytes } = buildReceiptAliasBytes(produced.aggregate, receiptSchema);
     const aggregateSha256 = createHash('sha256').update(aggregateBytes).digest('hex');
-    const evidence = buildConsoleEvidence({ boundary, aggregateSha256, observations: produced.observations });
+    const evidence = buildConsoleEvidence({
+      boundary,
+      aggregateSha256,
+      observations: { ...produced.observations, keyRecipe },
+    });
     const evidenceBytes = `${JSON.stringify(evidence, null, 2)}\n`;
     await writeBytesAtomic(outputPath, aggregateBytes);
     await writeBytesAtomic(sdkOutputPath, sdkBytes);

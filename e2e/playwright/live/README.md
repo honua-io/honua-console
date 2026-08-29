@@ -9,11 +9,18 @@ audit operation identity, deliberate-failure diagnostics, and stable-job recover
 in the Console UI. The direct server client is a read-only witness and cannot
 produce a release receipt.
 
-Use a bearer limited to read access plus `admin:approve`. Supply it only through
+Use an operator bearer for the interactive browser through
 `HONUA_AI_ARC_CONSOLE_TOKEN`; `HONUA_ADMIN_KEY` and `HONUA_API_KEY` are refused.
 The credential is attached in-process to requests for the configured Console
 origin as a trusted-edge operator session. It is never attached to server/public
 origins and is never written to stdout, receipts, or temporary files.
+
+To exercise the focused server API-key recipe, also supply
+`HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY` with a key minted using exactly
+`["admin:read","admin:approve"]` and run in `HONUA_CONSOLE_MODE=witness`. The
+preflight reads and approves the exact candidate proposals with `X-API-Key`;
+the browser then independently witnesses those same proposal, operation, audit,
+and publication identities. The key is never serialized into either receipt.
 
 ```sh
 HONUA_AI_ARC_ENDPOINT=http://127.0.0.1:8080 \
@@ -25,6 +32,8 @@ HONUA_AI_ARC_CONSOLE_RECEIPT=out/console-release.json \
 HONUA_AI_ARC_SDK_CONSOLE_RECEIPT=out/console-sdk.json \
 HONUA_AI_ARC_CONSOLE_EVIDENCE=out/console-evidence.json \
 HONUA_AI_ARC_CONSOLE_TOKEN='<scoped bearer>' \
+HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY='<admin:read + admin:approve key>' \
+HONUA_CONSOLE_MODE=witness \
 npm run receipt:console
 ```
 

@@ -182,12 +182,45 @@ export async function observeConsoleApiWitness({ endpoint, credential, mode = 'w
   return witness;
 }
 
+export async function exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey, boundary, transport = fetchTransport }) {
+  const baseUrl = validateEndpoint(endpoint, boundary.target);
+  const client = createClient(baseUrl, stringValue(apiKey, 'scoped Console API key'), transport, 'api-key');
+  const listed = proposalList(await client.json('/api/v1/admin/proposals'));
+  const proposals = {};
+
+  for (const family of FAMILIES) {
+    const facts = boundary.families[family];
+    const proposal = await selectProposal(client, listed, facts);
+    if (proposal.status === 'AwaitingApproval') {
+      await client.json(
+        `/api/v1/admin/proposals/${encodeURIComponent(proposal.proposalId)}/approve`,
+        { method: 'POST' },
+      );
+    }
+    const resolved = await client.json(
+      `/api/v1/admin/proposals/${encodeURIComponent(proposal.proposalId)}`,
+    );
+    assertProposalBinding(resolved, facts);
+    assertResolvedProposal(resolved, family);
+    proposals[family] = {
+      proposalId: stringValue(resolved.proposalId, `${family} proposalId`),
+      executionOperationId: stringValue(resolved.executionOperationId, `${family} executionOperationId`),
+    };
+  }
+
+  return {
+    credential: 'api-key',
+    grants: ['admin:read', 'admin:approve'],
+    proposals,
+  };
+}
+
 async function fetchTransport({ url, method, headers }) {
   const response = await fetch(url, { method, headers, redirect: 'error' });
   return { status: response.status, body: await response.text() };
 }
 
-function createClient(baseUrl, credential, transport) {
+function createClient(baseUrl, credential, transport, credentialKind = 'bearer') {
   return {
     async json(pathOrUrl, { method = 'GET', auth = true } = {}) {
       const { response, url } = await send(pathOrUrl, method, auth);
@@ -206,7 +239,8 @@ function createClient(baseUrl, credential, transport) {
     const headers = { accept: 'application/json', 'user-agent': 'honua-console-receipt/1' };
     if (auth) {
       if (!sameOrigin) throw new Error('refusing to send the Console credential to a different origin');
-      headers.authorization = `Bearer ${credential}`;
+      if (credentialKind === 'api-key') headers['x-api-key'] = credential;
+      else headers.authorization = `Bearer ${credential}`;
     }
     const response = await transport({ url: url.toString(), method, headers });
     if (response.status < 200 || response.status >= 300) {

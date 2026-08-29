@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { buildConsoleEvidence, produceConsoleReceiptInBrowser } from '../console-receipt-browser.mjs';
 import { buildReceiptAliasBytes } from '../console-receipt-output.mjs';
-import { readConsoleBoundary } from '../console-receipt-producer.mjs';
+import { exerciseConsoleReadApproveKeyRecipe, readConsoleBoundary } from '../console-receipt-producer.mjs';
 
 test('drives the published Console UI and writes one strict aggregate plus its evidence sidecar', async ({ page }) => {
   const configured = [
@@ -17,6 +17,7 @@ test('drives the published Console UI and writes one strict aggregate plus its e
     process.env.HONUA_AI_ARC_SDK_CONSOLE_RECEIPT,
     process.env.HONUA_AI_ARC_CONSOLE_EVIDENCE,
     process.env.HONUA_AI_ARC_CONSOLE_TOKEN,
+    process.env.HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY,
   ].some(Boolean);
   test.skip(!configured, 'Set the HONUA_AI_ARC_* boundary inputs to run the candidate-backed Console producer.');
   test.setTimeout(240_000);
@@ -48,11 +49,17 @@ test('drives the published Console UI and writes one strict aggregate plus its e
   const receiptSchema = JSON.parse(await readFile(receiptSchemaPath, 'utf8')) as unknown;
   const handoff = JSON.parse(await readFile(handoffPath, 'utf8')) as unknown;
   const boundary = readConsoleBoundary(checkpoint, handoff);
+  const mode = process.env.HONUA_CONSOLE_MODE ?? 'full';
+  const readApproveKey = process.env.HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY?.trim();
+  expect(!readApproveKey || mode === 'witness', 'the focused API-key recipe requires witness mode').toBe(true);
+  const keyRecipe = readApproveKey
+    ? await exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey: readApproveKey, boundary })
+    : undefined;
   const produced = await produceConsoleReceiptInBrowser({
     page,
     consoleOrigin,
     serverEndpoint: endpoint,
-    mode: process.env.HONUA_CONSOLE_MODE ?? 'full',
+    mode,
     boundary,
     receiptSchema,
   });
@@ -60,7 +67,7 @@ test('drives the published Console UI and writes one strict aggregate plus its e
   const evidence = buildConsoleEvidence({
     boundary,
     aggregateSha256: createHash('sha256').update(aggregateBytes).digest('hex'),
-    observations: produced.observations,
+    observations: { ...produced.observations, keyRecipe },
   });
   await writeAtomic(outputPath, aggregateBytes);
   await writeAtomic(sdkOutputPath, sdkBytes);

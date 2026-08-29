@@ -155,6 +155,7 @@ export function buildConsoleEvidence({ boundary, aggregateSha256, observations }
       publication: 'passed',
       audit: 'passed',
       recovery: 'passed',
+      ...(observations.keyRecipe ? { adminReadApproveKeyRecipe: 'passed' } : {}),
     },
   };
   evidence.integrity = {

@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import { buildConsoleEvidence, produceConsoleReceiptInBrowser } from '../live/console-receipt-browser.mjs';
 import { buildReceiptAliasBytes } from '../live/console-receipt-output.mjs';
-import { observeConsoleApiWitness, readConsoleBoundary } from '../live/console-receipt-producer.mjs';
+import {
+  exerciseConsoleReadApproveKeyRecipe,
+  observeConsoleApiWitness,
+  readConsoleBoundary,
+} from '../live/console-receipt-producer.mjs';
 
 const consoleOrigin = 'http://console.test';
 const serverEndpoint = 'https://server.example';
@@ -94,6 +98,48 @@ test('direct server producer is retained only as a read-only witness', async () 
     boundary,
     transport: async () => ({ status: 500, body: '{}' }),
   })).rejects.toThrow('direct server API production is witness-only');
+});
+
+test('candidate preflight reads and approves exact proposals with only the focused API key', async () => {
+  const fixture = candidateBoundary();
+  const boundary = readConsoleBoundary(fixture.checkpoint, fixture.handoff);
+  const approved = new Set<string>();
+  const requests: Array<{ method: string; path: string; headers: Record<string, string> }> = [];
+  const transport = async ({ url, method, headers }: any) => {
+    const path = new URL(url).pathname;
+    requests.push({ method, path, headers });
+    if (path === '/api/v1/admin/proposals') {
+      return { status: 200, body: JSON.stringify({ proposals: families.map((family) => ({ proposalId: `${family}-proposal` })) }) };
+    }
+    const family = families.find((candidate) => path.includes(`${candidate}-proposal`));
+    if (!family) return { status: 404, body: '{}' };
+    if (method === 'POST') approved.add(family);
+    return { status: 200, body: JSON.stringify({
+      proposalId: `${family}-proposal`,
+      status: approved.has(family) ? 'Submitted' : 'AwaitingApproval',
+      executionOperationId: `${family}-operation`,
+      binding: `${family}-item ${family}-publication-version ${family}-reopened-draft ${family}-route`,
+    }) };
+  };
+
+  const result = await exerciseConsoleReadApproveKeyRecipe({
+    endpoint: serverEndpoint,
+    apiKey: 'focused-read-approve-key',
+    boundary,
+    transport,
+  });
+
+  expect([...approved]).toEqual(families);
+  expect(result).toEqual(expect.objectContaining({
+    credential: 'api-key',
+    grants: ['admin:read', 'admin:approve'],
+  }));
+  expect(result.proposals.app).toEqual({ proposalId: 'app-proposal', executionOperationId: 'app-operation' });
+  expect(requests.some((request) => request.method === 'GET')).toBe(true);
+  expect(requests.some((request) => request.method === 'POST')).toBe(true);
+  expect(requests.every((request) => request.headers['x-api-key'] === 'focused-read-approve-key')).toBe(true);
+  expect(requests.every((request) => !request.headers.authorization)).toBe(true);
+  expect(JSON.stringify(result)).not.toContain('focused-read-approve-key');
 });
 
 test('candidate boundary rejects tampering and carries exact component/digest identity', () => {
