@@ -280,15 +280,19 @@ public sealed class ServerOperateAlertRulesDataSource : IOperateAlertRulesDataSo
         }
 
         long? zoneId = null;
-        if (!string.IsNullOrWhiteSpace(draft.Condition.GeofenceZoneId)
-            && !long.TryParse(draft.Condition.GeofenceZoneId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedZone))
+        if (!string.IsNullOrWhiteSpace(draft.Condition.GeofenceZoneId))
         {
-            request = new AlertRuleRequest();
-            error = "Geofence zone must be a numeric server zone id.";
-            return false;
-        }
-        else if (!string.IsNullOrWhiteSpace(draft.Condition.GeofenceZoneId))
-        {
+            if (!long.TryParse(
+                draft.Condition.GeofenceZoneId,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var parsedZone))
+            {
+                request = new AlertRuleRequest();
+                error = "Geofence zone must be a numeric server zone id.";
+                return false;
+            }
+
             zoneId = parsedZone;
         }
 
