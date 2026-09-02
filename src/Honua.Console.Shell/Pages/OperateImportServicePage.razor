@@ -145,6 +145,22 @@
                     </button>
                 </div>
 
+                @if (_confirmReplacement)
+                {
+                    <div class="console-validation-summary" role="alertdialog" aria-labelledby="replace-confirm-title" data-replace-confirmation>
+                        <h2 id="replace-confirm-title">Confirm destructive replacement</h2>
+                        <p>Replace @_replaceTargets.Count of @_selected.Count selected layer target(s). Existing tables and their data will be replaced:</p>
+                        <ul>
+                            @foreach (var target in SelectedReplacementTargets())
+                            {
+                                <li class="console-mono">public.@target</li>
+                            }
+                        </ul>
+                        <button class="console-button" type="button" @onclick="QueueImportsAsync" data-confirm-replacement>Confirm and queue replacements</button>
+                        <button class="console-button-link" type="button" @onclick="CancelReplacement" data-cancel-replacement>Cancel</button>
+                    </div>
+                }
+
                 @if (_importError is not null)
                 {
                     <div class="console-validation-summary" role="alert" data-import-error>
@@ -219,6 +235,15 @@
                                         <span class="console-tree-icon">◇</span>
                                         <span class="console-tree-name">@layer.Display</span>
                                         <span class="console-muted">@(layer.GeometryType ?? "—")@(layer.FeatureCount is { } fc ? $" · {fc:N0}" : string.Empty)</span>
+                                        @if (_selected.Contains(layer.Key) && layer.LayerId is not null)
+                                        {
+                                            <label class="console-inline-check">
+                                                <input type="checkbox" checked="@_replaceTargets.Contains(layer.Key)"
+                                                       @onchange="e => SetReplacement(layer.Key, (bool)e.Value!)"
+                                                       aria-label="@($"Authorize replacement of public.{TargetTable(service, layer)}")" data-replace-target />
+                                                <span>Replace <span class="console-mono">public.@TargetTable(service, layer)</span></span>
+                                            </label>
+                                        }
                                     </div>
                                 }
                             }
@@ -247,6 +272,7 @@
 
     private readonly List<FolderNode> _tree = new();
     private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _replaceTargets = new(StringComparer.Ordinal);
     private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
     private int _totalLayers;
 
@@ -269,6 +295,8 @@
         _result = null;
         _tree.Clear();
         _selected.Clear();
+        _replaceTargets.Clear();
+        _confirmReplacement = false;
         _expanded.Clear();
         _totalLayers = 0;
         StopPolling();
@@ -466,10 +494,12 @@
             else
             {
                 _selected.Remove(layer.Key);
+                _replaceTargets.Remove(layer.Key);
             }
         }
 
         _importError = null;
+        _confirmReplacement = false;
     }
 
     private void ToggleLayer(string key, bool selected)
@@ -481,9 +511,11 @@
         else
         {
             _selected.Remove(key);
+            _replaceTargets.Remove(key);
         }
 
         _importError = null;
+        _confirmReplacement = false;
     }
 
     private void SelectAll()
@@ -499,11 +531,25 @@
     private void DeselectAll()
     {
         _selected.Clear();
+        _replaceTargets.Clear();
         _importError = null;
+        _confirmReplacement = false;
     }
 
     private async Task StartImportsAsync()
     {
+        _confirmReplacement = _replaceTargets.Any(_selected.Contains);
+        if (_confirmReplacement)
+        {
+            return;
+        }
+
+        await QueueImportsAsync();
+    }
+
+    private async Task QueueImportsAsync()
+    {
+        _confirmReplacement = false;
         _importError = null;
         StopPolling();
         _jobs.Clear();
@@ -557,6 +603,7 @@
                         ServiceUrl = service.ServiceUrl!,
                         LayerId = layer.LayerId!.Value,
                         TableName = table,
+                        OverwriteExisting = _replaceTargets.Contains(layer.Key),
                         AutoPublish = _autoPublish,
                         ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
                         Auth = auth,
@@ -611,8 +658,38 @@
         finally
         {
             _importing = false;
+            // Replacement consent is scoped to this queue action. A retry or later import must
+            // collect fresh per-target authorization, including after a queue failure.
+            _replaceTargets.Clear();
         }
     }
+
+    private bool _confirmReplacement;
+
+    private void SetReplacement(string key, bool replace)
+    {
+        if (replace)
+        {
+            _replaceTargets.Add(key);
+        }
+        else
+        {
+            _replaceTargets.Remove(key);
+        }
+
+        _confirmReplacement = false;
+    }
+
+    private void CancelReplacement() => _confirmReplacement = false;
+
+    private IEnumerable<string> SelectedReplacementTargets() =>
+        from service in _tree.SelectMany(static folder => folder.Services)
+        from layer in service.Layers
+        where _selected.Contains(layer.Key) && _replaceTargets.Contains(layer.Key) && layer.LayerId is not null
+        select BuildTableName(service.Name, layer.LayerId.GetValueOrDefault(), layer.RawName);
+
+    private static string TargetTable(ServiceNode service, LayerNode layer) =>
+        BuildTableName(service.Name, layer.LayerId!.Value, layer.RawName);
 
     private void StartPolling()
     {

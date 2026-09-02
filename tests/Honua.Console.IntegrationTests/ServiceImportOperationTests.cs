@@ -15,6 +15,34 @@ public sealed class ServiceImportOperationTests
 {
     private static readonly Uri BaseAddress = new("https://server.example/");
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartLayerImport_MapsOnlyTheCurrentTargetsOverwriteAuthorization(bool overwriteExisting)
+    {
+        string? requestJson = null;
+        var operation = CreateOperation(request =>
+        {
+            requestJson = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { jobId = "job-1", status = 1 }),
+            };
+        });
+
+        await operation.StartLayerImportAsync(new()
+        {
+            ServiceUrl = "https://source.example/FeatureServer",
+            LayerId = 7,
+            TableName = "roads_7",
+            OverwriteExisting = overwriteExisting,
+        });
+
+        Assert.NotNull(requestJson);
+        using var document = System.Text.Json.JsonDocument.Parse(requestJson);
+        Assert.Equal(overwriteExisting, document.RootElement.GetProperty("overwriteExisting").GetBoolean());
+    }
+
     [Fact]
     public async Task GetImportJob_TransientServerError_IsNotTerminal_AndFlagsTransient()
     {
