@@ -40,8 +40,10 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // siem-investigations render the first-class "unsupported" state until the deployment opts them
         // in via Honua:Console:Capabilities. This is the interim source; the honua-server
         // capability-manifest document feeds the same seam once its full-document consumption lands.
-        services.TryAddSingleton<IConsoleCapabilityManifest>(
-            _ => ConsoleCapabilityManifest.FromConfigurationList(honuaConsoleAdvertisedCapabilities));
+        services.TryAddSingleton<IConsoleCapabilityManifest>(serviceProvider =>
+            new ManifestBackedConsoleCapabilityManifest(
+                serviceProvider.GetRequiredService<ICapabilityRegistryClient>(),
+                ConsoleCapabilityManifest.SplitList(honuaConsoleAdvertisedCapabilities)));
 
         // Shell-owned toast/notification surface. Scoped = one queue per Blazor circuit so a toast a
         // page raises is shown only to that connected user. The single ConsoleNotificationHost in
@@ -1226,8 +1228,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaServerBaseUrl,
         bool registryIntentResolutionEnabled)
     {
-        if (registryIntentResolutionEnabled
-            && TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
             {
@@ -1238,9 +1239,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 new HonuaServerCapabilityRegistryClient(
                     serviceProvider.GetRequiredService<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>()));
             services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
-                new StudioIntentResolver(
-                    serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>(),
-                    serviceProvider.GetRequiredService<ICapabilityRegistryClient>()));
+                registryIntentResolutionEnabled
+                    ? new StudioIntentResolver(
+                        serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>(),
+                        serviceProvider.GetRequiredService<ICapabilityRegistryClient>())
+                    : new NoopStudioIntentResolver(
+                        serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
             return;
         }
 

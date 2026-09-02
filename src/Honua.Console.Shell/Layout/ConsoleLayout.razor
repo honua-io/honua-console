@@ -90,6 +90,11 @@
 </div>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Capabilities.RefreshAsync();
+    }
+
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
 
