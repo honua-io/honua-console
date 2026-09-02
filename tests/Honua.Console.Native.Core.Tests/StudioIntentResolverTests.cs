@@ -199,14 +199,15 @@ public sealed class StudioIntentResolverTests
     }
 
     [Fact]
-    public void FlagOff_RegistersNoopResolverAndMissingBindingRegistry()
+    public void FlagOff_RegistersNoopResolverButKeepsLiveRegistryForConsoleGates()
     {
         using var provider = new ServiceCollection()
             .AddHonuaConsoleShell(honuaServerBaseUrl: ServerBaseUrl, registryIntentResolutionEnabled: false)
             .BuildServiceProvider();
 
         Assert.IsType<NoopStudioIntentResolver>(provider.GetRequiredService<IStudioIntentResolver>());
-        Assert.IsType<UnsupportedCapabilityRegistryClient>(provider.GetRequiredService<ICapabilityRegistryClient>());
+        Assert.IsType<HonuaServerCapabilityRegistryClient>(provider.GetRequiredService<ICapabilityRegistryClient>());
+        Assert.IsType<ManifestBackedConsoleCapabilityManifest>(provider.GetRequiredService<IConsoleCapabilityManifest>());
     }
 
     [Fact]
