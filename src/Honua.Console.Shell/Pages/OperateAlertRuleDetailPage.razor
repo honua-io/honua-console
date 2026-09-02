@@ -70,10 +70,6 @@
             <h2>Condition builder</h2>
             <div class="studio-field-grid">
                 <label>
-                    <span>Enabled</span>
-                    <input type="checkbox" @bind="_enabled" data-rule-enabled />
-                </label>
-                <label>
                     <span>Name</span>
                     <input class="console-input" @bind="_name" data-rule-name />
                 </label>
@@ -111,7 +107,25 @@
                 <button class="console-button" type="button" disabled="@_saving" @onclick="SaveAsync" data-rule-save>
                     @(_saving ? "Saving..." : "Save rule")
                 </button>
+                <button class="console-button-secondary" type="button" disabled="@_testing" @onclick="TestAsync" data-rule-test>
+                    @(_testing ? "Testing..." : "Test rule")
+                </button>
+                <button class="console-button-secondary" type="button"
+                        disabled="@(_enabling || (!_rule.Enabled && !_explicitTestPassed))"
+                        @onclick="ToggleEnabledAsync" data-rule-enable>
+                    @(_enabling ? "Updating..." : _rule.Enabled ? "Disable rule" : "Enable tested rule")
+                </button>
             </div>
+
+            @if (_testResult is { } test)
+            {
+                <div class="console-panel @(test.Succeeded ? "console-state-success" : "console-state-warning")" role="status" data-rule-test-result>
+                    <p class="console-kicker">Non-production test</p>
+                    <p>@(test.Succeeded ? "Draft validation passed. No event was emitted and the rule remains disabled." : "Draft validation failed. The rule was not enabled.")</p>
+                    @foreach (var error in test.Errors) { <p>@error</p> }
+                    @foreach (var warning in test.Warnings) { <p>@warning</p> }
+                </div>
+            }
 
             @if (_saveResult is { } result)
             {
@@ -144,7 +158,11 @@
     private OperateAlertRuleDefinition? _rule;
 
     private bool _saving;
+    private bool _testing;
+    private bool _enabling;
+    private bool _explicitTestPassed;
     private OperateAlertRuleSaveResult? _saveResult;
+    private OperateAlertRuleTestResult? _testResult;
 
     private bool _enabled;
     private string _name = string.Empty;
@@ -200,6 +218,7 @@
                     _dwellMinutes);
                 var edit = new OperateAlertRuleEdit(RuleId, _name, _enabled, condition, channels);
                 _saveResult = await RulesData.SaveRuleAsync(edit);
+                _explicitTestPassed = false;
                 if (_saveResult.Succeeded)
                 {
                     _rule = _saveResult.Rule;
@@ -208,6 +227,30 @@
             setBusy: busy => { _saving = busy; StateHasChanged(); },
             failureMessage: "Couldn't save alert rule");
     }
+
+    private OperateAlertRuleEdit CurrentEdit() => new(
+        RuleId, _name, _rule?.Enabled ?? false,
+        new OperateAlertRuleCondition(_subject, _operator, _threshold, _window,
+            string.IsNullOrWhiteSpace(_geofenceZoneId) ? null : _geofenceZoneId, _dwellMinutes),
+        _deliveryChannels.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private Task TestAsync() => Notifications.RunGuardedAsync(async () =>
+    {
+        _testResult = await RulesData.TestRuleAsync(CurrentEdit());
+        _explicitTestPassed = _testResult.Succeeded;
+    }, busy => { _testing = busy; StateHasChanged(); }, "Couldn't test alert rule");
+
+    private Task ToggleEnabledAsync() => Notifications.RunGuardedAsync(async () =>
+    {
+        var result = await RulesData.SetRuleEnabledAsync(RuleId, !_rule!.Enabled);
+        _saveResult = result;
+        if (result.Succeeded)
+        {
+            _rule = result.Rule;
+            _enabled = _rule!.Enabled;
+            _explicitTestPassed = false;
+        }
+    }, busy => { _enabling = busy; StateHasChanged(); }, "Couldn't update alert rule state");
 
     private static string StateKind(string state) => state switch
     {

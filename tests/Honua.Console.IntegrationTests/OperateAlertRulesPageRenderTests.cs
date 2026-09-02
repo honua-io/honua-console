@@ -54,6 +54,7 @@ public sealed class OperateAlertRulesPageRenderTests
             () => Assert.Contains("data-alert-rule=\"rule-1\"", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Speeding geofence", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-alert-rule-create", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Alert rules are not bound", page.Markup, StringComparison.Ordinal);
     }
 
@@ -98,6 +99,8 @@ public sealed class OperateAlertRulesPageRenderTests
             TimeSpan.FromSeconds(5));
         Assert.Contains("Condition builder", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Speeding geofence", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-rule-test", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-rule-enable", page.Markup, StringComparison.Ordinal);
     }
 
     private static IRenderedComponent<OperateAlertRulesPage> RenderList(IOperateAlertRulesDataSource data)
@@ -142,6 +145,18 @@ public sealed class OperateAlertRulesPageRenderTests
             Task.FromResult(DetailView);
 
         public Task<OperateAlertRuleSaveResult> SaveRuleAsync(OperateAlertRuleEdit edit, CancellationToken cancellationToken = default) =>
+            Task.FromResult(SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
+
+        public Task<OperateAlertRuleTestResult> TestRuleAsync(OperateAlertRuleDraft draft, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateAlertRuleTestResult(true, [], []));
+
+        public Task<OperateAlertRuleTestResult> TestRuleAsync(OperateAlertRuleEdit edit, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateAlertRuleTestResult(true, [], []));
+
+        public Task<OperateAlertRuleSaveResult> CreateRuleAsync(OperateAlertRuleDraft draft, CancellationToken cancellationToken = default) =>
+            Task.FromResult(SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
+
+        public Task<OperateAlertRuleSaveResult> SetRuleEnabledAsync(string ruleId, bool enabled, CancellationToken cancellationToken = default) =>
             Task.FromResult(SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
     }
 }
