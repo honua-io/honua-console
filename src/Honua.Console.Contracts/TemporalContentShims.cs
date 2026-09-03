@@ -353,7 +353,8 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<T>.FromIssue(
+                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
         }
 
         T? payload;
@@ -404,7 +405,8 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(
+                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
         }
 
         TResponse? payload;
@@ -447,7 +449,8 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<T>.FromIssue(
+                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
         }
 
         HonuaTemporalApiResponse<T>? envelope;
@@ -502,7 +505,8 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(
+                await CreateTemporalIssueAsync(contract, http, cancellationToken).ConfigureAwait(false));
         }
 
         HonuaTemporalApiResponse<TResponse>? envelope;
@@ -619,6 +623,22 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         };
 
         return new HonuaAdminEndpointIssue(state, contract, detail, (int)statusCode);
+    }
+
+    private static async Task<HonuaAdminEndpointIssue> CreateTemporalIssueAsync(
+        string contract,
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var parsed = await AdminEndpointIssueFactory
+            .CreateIssueAsync(contract, response, cancellationToken)
+            .ConfigureAwait(false);
+        var temporal = CreateIssue(contract, response.StatusCode);
+        return temporal with
+        {
+            Receipt = parsed.Receipt,
+            FieldErrors = parsed.FieldErrors
+        };
     }
 }
 
