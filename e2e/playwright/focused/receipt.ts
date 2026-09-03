@@ -20,6 +20,7 @@ export interface FocusedResourceIdentity {
   kind: FocusedResourceKind;
   id: string;
   route: string;
+  displayValue?: string;
   versionId?: string;
   contentHash?: string;
 }
@@ -123,6 +124,9 @@ export function focusedResourceIdentities(receipt: TerminalJourneyReceipt): Focu
     const id = nonEmpty(resources[key]);
     if (!id) return [];
     const identity: FocusedResourceIdentity = { kind, id, route: routeFor(kind, id, resources) };
+    if (kind === 'service') {
+      identity.displayValue = nonEmpty(resources.serviceName) ?? id;
+    }
     if (kind === 'savedMap' || kind === 'savedDashboard') {
       identity.versionId = nonEmpty(resources[`${key.slice(0, -2)}VersionId`]);
       identity.contentHash = nonEmpty(resources[`${key.slice(0, -2)}Hash`]);
