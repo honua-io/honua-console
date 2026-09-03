@@ -60,7 +60,7 @@ jobs:
 
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
-        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
 
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
@@ -180,7 +180,7 @@ jobs:
 
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
-        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ env.SOURCE_SHA }}
 
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web

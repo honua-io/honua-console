@@ -73,9 +73,10 @@ export async function init(element, tilesetUrl) {
         return false;
     }
 
+    let viewer;
     try {
         const safeTilesetUrl = sameOriginTilesetUrl(tilesetUrl);
-        const viewer = new Cesium.Viewer(element, {
+        viewer = new Cesium.Viewer(element, {
             // Cesium's implicit default is an Ion-backed base layer. The Console
             // scene surface renders only the supplied candidate-owned tileset.
             baseLayer: false,
@@ -97,6 +98,11 @@ export async function init(element, tilesetUrl) {
         instances.set(element, { viewer, tilesetUrl: safeTilesetUrl });
         return true;
     } catch {
+        try {
+            if (viewer && !viewer.isDestroyed()) viewer.destroy();
+        } catch {
+            // Ignore teardown failures while reporting the initialization failure.
+        }
         return false;
     }
 }

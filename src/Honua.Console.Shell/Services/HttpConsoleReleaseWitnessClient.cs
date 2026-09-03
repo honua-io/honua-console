@@ -61,14 +61,27 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
                     "GET /api/v1/admin/version data.sourceRevision must be a lowercase 40-character Git SHA.");
             }
 
-            var items = await GetAsync(
-                profile,
-                $"api/v1/studio/content-items?family={Uri.EscapeDataString(request.Family)}&limit=100",
-                ReleaseWitnessJsonContext.Default.ReleaseStudioItemsResponse,
-                cancellationToken).ConfigureAwait(false);
-            if (!items.IsAllowed) return Denied(items.Message, items.Detail, items.Status);
-            var item = items.Value?.Items.SingleOrDefault(candidate =>
-                string.Equals(candidate.ItemId, request.ItemId, StringComparison.Ordinal));
+            ReleaseStudioItem? item = null;
+            string? cursor = null;
+            for (var page = 0; page < 1000 && item is null; page++)
+            {
+                var path = $"api/v1/studio/content-items?family={Uri.EscapeDataString(request.Family)}&limit=100";
+                if (!string.IsNullOrWhiteSpace(cursor))
+                {
+                    path += $"&cursor={Uri.EscapeDataString(cursor)}";
+                }
+
+                var items = await GetAsync(
+                    profile,
+                    path,
+                    ReleaseWitnessJsonContext.Default.ReleaseStudioItemsResponse,
+                    cancellationToken).ConfigureAwait(false);
+                if (!items.IsAllowed) return Denied(items.Message, items.Detail, items.Status);
+                item = items.Value?.Items.SingleOrDefault(candidate =>
+                    string.Equals(candidate.ItemId, request.ItemId, StringComparison.Ordinal));
+                cursor = items.Value?.NextCursor?.Trim();
+                if (string.IsNullOrWhiteSpace(cursor)) break;
+            }
             if (item is null)
             {
                 return Denied($"Studio {request.Family} item {request.ItemId} was not found on the candidate.");
@@ -235,7 +248,11 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
 
 public sealed record ReleaseVersionEnvelope { public ReleaseVersionData? Data { get; init; } }
 public sealed record ReleaseVersionData { public string? SourceRevision { get; init; } }
-public sealed record ReleaseStudioItemsResponse { public IReadOnlyList<ReleaseStudioItem> Items { get; init; } = []; }
+public sealed record ReleaseStudioItemsResponse
+{
+    public IReadOnlyList<ReleaseStudioItem> Items { get; init; } = [];
+    public string? NextCursor { get; init; }
+}
 public sealed record ReleaseStudioItem
 {
     public string? ItemId { get; init; }

@@ -70,6 +70,38 @@ public sealed class ConsoleReleaseWitnessClientTests
         Assert.Contains("omits executionOperationId", result.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ObservePagesStudioItemsUntilTheBoundItemIsFound()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/version" => Json("{\"data\":{\"sourceRevision\":\"" + new string('a', 40) + "\"}}"),
+            "/api/v1/studio/content-items" when !request.RequestUri.Query.Contains("cursor=", StringComparison.Ordinal) => Json("""
+                {"items":[{"itemId":"item-other"}],"nextCursor":"page-2"}
+                """),
+            "/api/v1/studio/content-items" when request.RequestUri.Query.Contains("cursor=page-2", StringComparison.Ordinal) => Json("""
+                {"items":[{"itemId":"item-1","publishedVersionId":"version-1","publication":{"publicationId":"pub-1"}}]}
+                """),
+            "/api/v1/console/publications/pub-1" => Json("""
+                {"route":{"publicationId":"pub-1","activeVersionId":"active-1","routePath":"/share/map-1"},
+                 "versions":[{"versionId":"active-1","sourceContentId":"item-1","contentVersionId":"version-1","contentHash":"sha256-content"}]}
+                """),
+            "/api/v1/admin/observability/audit" => Json("""
+                {"items":[{"auditId":7,"resourceType":"operation_proposal","resourceId":"proposal-1",
+                 "action":"operation.applied","outcome":"Success","correlationId":"corr-1",
+                 "details":"{\"executionOperationId\":\"operation-1\"}"}]}
+                """),
+            "/api/v1/admin/observability/audit/verify" => Json("""{"verified":true}"""),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.ObserveAsync(new("map", "item-1", "version-1", "sha256-content", "proposal-1"));
+
+        Assert.True(result.IsAllowed, result.Message + " " + result.Detail);
+        Assert.Equal(2, handler.Requests.Count(request => request.RequestUri!.AbsolutePath == "/api/v1/studio/content-items"));
+    }
+
     private static HttpConsoleReleaseWitnessClient CreateClient(HttpMessageHandler handler)
     {
         var profile = new ConsoleEnvironmentProfile

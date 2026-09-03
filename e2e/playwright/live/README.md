@@ -16,9 +16,11 @@ origin as a trusted-edge operator session. It is never attached to server/public
 origins and is never written to stdout, receipts, or temporary files.
 
 To exercise the focused server API-key recipe, also supply
-`HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY` with a key minted using exactly
-`["admin:read","admin:approve"]` and run in `HONUA_CONSOLE_MODE=witness`. The
-preflight reads and approves the exact candidate proposals with `X-API-Key`;
+`HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY` and its
+`HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY_ID`, and run in
+`HONUA_CONSOLE_MODE=witness`. The preflight verifies the key's effective active
+grants are exactly `admin:read` and `admin:approve`, then reads and approves the
+exact candidate proposals with `X-API-Key`;
 the browser then independently witnesses those same proposal, operation, audit,
 and publication identities. The key is never serialized into either receipt.
 
@@ -33,6 +35,8 @@ HONUA_AI_ARC_SDK_CONSOLE_RECEIPT=out/console-sdk.json \
 HONUA_AI_ARC_CONSOLE_EVIDENCE=out/console-evidence.json \
 HONUA_AI_ARC_CONSOLE_TOKEN='<scoped bearer>' \
 HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY='<admin:read + admin:approve key>' \
+HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY_ID='<key UUID>' \
+HONUA_CONSOLE_EDGE_AUTH='<trusted edge shared secret, when configured>' \
 HONUA_CONSOLE_MODE=witness \
 npm run receipt:console
 ```

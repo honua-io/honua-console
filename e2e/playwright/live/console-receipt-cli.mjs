@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { chromium } from '@playwright/test';
-import { buildConsoleEvidence, produceConsoleReceiptInBrowser } from './console-receipt-browser.mjs';
-import { buildReceiptAliasBytes } from './console-receipt-output.mjs';
+import { buildConsoleEvidence, produceConsoleReceiptInBrowser, validateConsoleReceiptInputs } from './console-receipt-browser.mjs';
+import { buildReceiptAliasBytes, clearReceiptOutputs, writeReceiptSetAtomic } from './console-receipt-output.mjs';
 import { exerciseConsoleReadApproveKeyRecipe, readConsoleBoundary } from './console-receipt-producer.mjs';
 
 const options = parse(process.argv.slice(2));
@@ -33,18 +33,28 @@ try {
   if (outputPath === sdkOutputPath || outputPath === evidenceOutputPath || sdkOutputPath === evidenceOutputPath) {
     throw new Error('aggregate, SDK alias, and Console evidence outputs must be distinct files');
   }
+  const outputPaths = [outputPath, sdkOutputPath, evidenceOutputPath];
+  const inputPaths = [checkpointPath, receiptSchemaPath, realModelHandoffPath];
+  if (outputPaths.some((output) => inputPaths.includes(output))) {
+    throw new Error('receipt outputs must not overwrite checkpoint, schema, or immutable Studio handoff inputs');
+  }
+  await clearReceiptOutputs(outputPaths);
   const mode = options.mode ?? process.env.HONUA_CONSOLE_MODE ?? 'full';
   const credential = required(process.env.HONUA_AI_ARC_CONSOLE_TOKEN, 'HONUA_AI_ARC_CONSOLE_TOKEN');
   const checkpoint = JSON.parse(await readFile(checkpointPath, 'utf8'));
   const realModelHandoff = JSON.parse(await readFile(realModelHandoffPath, 'utf8'));
   const receiptSchema = JSON.parse(await readFile(receiptSchemaPath, 'utf8'));
   const boundary = readConsoleBoundary(checkpoint, realModelHandoff);
+  validateConsoleReceiptInputs({ boundary, receiptSchema });
   const readApproveKey = process.env.HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY?.trim();
+  const readApproveKeyId = readApproveKey
+    ? required(process.env.HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY_ID, 'HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY_ID')
+    : undefined;
   if (readApproveKey && mode !== 'witness') {
     throw new Error('the admin:read + admin:approve key recipe resolves proposals before the browser; use witness mode');
   }
   const keyRecipe = readApproveKey
-    ? await exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey: readApproveKey, boundary })
+    ? await exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey: readApproveKey, apiKeyId: readApproveKeyId, boundary })
     : undefined;
   const browser = await chromium.launch({ headless: true });
   try {
@@ -57,6 +67,9 @@ try {
           'x-forwarded-user': 'honua-release-console',
           'x-forwarded-email': 'honua-release-console@honua.invalid',
           'x-forwarded-access-token': credential,
+          ...(process.env.HONUA_CONSOLE_EDGE_AUTH
+            ? { 'x-honua-edge-auth': process.env.HONUA_CONSOLE_EDGE_AUTH }
+            : {}),
         },
       });
     });
@@ -77,9 +90,11 @@ try {
       observations: { ...produced.observations, keyRecipe },
     });
     const evidenceBytes = `${JSON.stringify(evidence, null, 2)}\n`;
-    await writeBytesAtomic(outputPath, aggregateBytes);
-    await writeBytesAtomic(sdkOutputPath, sdkBytes);
-    await writeBytesAtomic(evidenceOutputPath, evidenceBytes);
+    await writeReceiptSetAtomic([
+      { path: outputPath, bytes: aggregateBytes },
+      { path: sdkOutputPath, bytes: sdkBytes },
+      { path: evidenceOutputPath, bytes: evidenceBytes },
+    ]);
     await context.close();
   } finally {
     await browser.close();
@@ -109,13 +124,6 @@ function parse(argv) {
     result[name] = value;
   }
   return result;
-}
-
-async function writeBytesAtomic(path, bytes) {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, bytes, { encoding: 'utf8', mode: 0o600 });
-  await rename(temporary, path);
 }
 
 function required(value, label) {

@@ -144,8 +144,8 @@ export async function observeConsoleApiWitness({ endpoint, credential, mode = 'w
     if (proposal.status === 'AwaitingApproval') {
       throw new Error(`witness mode cannot approve pending ${family} proposal ${proposal.proposalId}`);
     }
-    assertResolvedProposal(proposal, family);
-    const executionOperationId = stringValue(proposal.executionOperationId, `${family} executionOperationId`);
+    const resolved = await waitForResolvedProposal(client, proposal, family);
+    const executionOperationId = stringValue(resolved.executionOperationId, `${family} executionOperationId`);
 
     const publication = await observePublication(client, baseUrl, family, facts, proposal.proposalId);
     const auditRow = await observeAudit(client, proposal.proposalId);
@@ -153,7 +153,7 @@ export async function observeConsoleApiWitness({ endpoint, credential, mode = 'w
       draftId: facts.reopenedDraftId,
       generation: facts.generation,
       route: facts.route,
-      proposalId: proposal.proposalId,
+      proposalId: resolved.proposalId,
       executionOperationId,
     };
     publications[family] = publication;
@@ -182,9 +182,20 @@ export async function observeConsoleApiWitness({ endpoint, credential, mode = 'w
   return witness;
 }
 
-export async function exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey, boundary, transport = fetchTransport }) {
+export async function exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey, apiKeyId, boundary, transport = fetchTransport }) {
   const baseUrl = validateEndpoint(endpoint, boundary.target);
+  const keyId = stringValue(apiKeyId, 'scoped Console API key id');
   const client = createClient(baseUrl, stringValue(apiKey, 'scoped Console API key'), transport, 'api-key');
+  const keyPermissions = await client.json(`/api/v1/admin/api-keys/${encodeURIComponent(keyId)}/effective-permissions`);
+  const keyMetadata = record(keyPermissions.data ?? keyPermissions, 'scoped Console API key effective permissions');
+  if (keyMetadata.status !== 'active' || keyMetadata.canAuthenticate !== true) {
+    throw new Error('scoped Console API key is not active and eligible for authentication');
+  }
+  const grants = arrayValue(keyMetadata.permissions, 'scoped Console API key permissions')
+    .map((grant) => stringValue(grant, 'scoped Console API key permission')).sort();
+  if (JSON.stringify(grants) !== JSON.stringify(['admin:approve', 'admin:read'])) {
+    throw new Error(`scoped Console API key grants must be exactly admin:read and admin:approve; received ${grants.join(',')}`);
+  }
   const listed = proposalList(await client.json('/api/v1/admin/proposals'));
   const proposals = {};
 
@@ -201,10 +212,10 @@ export async function exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey, bo
       `/api/v1/admin/proposals/${encodeURIComponent(proposal.proposalId)}`,
     );
     assertProposalBinding(resolved, facts);
-    assertResolvedProposal(resolved, family);
+    const final = await waitForResolvedProposal(client, resolved, family);
     proposals[family] = {
-      proposalId: stringValue(resolved.proposalId, `${family} proposalId`),
-      executionOperationId: stringValue(resolved.executionOperationId, `${family} executionOperationId`),
+      proposalId: stringValue(final.proposalId, `${family} proposalId`),
+      executionOperationId: stringValue(final.executionOperationId, `${family} executionOperationId`),
     };
   }
 
@@ -213,6 +224,26 @@ export async function exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey, bo
     grants: ['admin:read', 'admin:approve'],
     proposals,
   };
+}
+
+async function waitForResolvedProposal(client, initial, family) {
+  let proposal = initial;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const status = stringValue(proposal.status, `${family} proposal status`);
+    if (status === 'Succeeded') {
+      assertResolvedProposal(proposal, family);
+      return proposal;
+    }
+    if (['Failed', 'RolledBack', 'Rejected'].includes(status)) {
+      throw new Error(`${family} proposal resolved as terminal failure ${status}`);
+    }
+    if (!['Submitted', 'Reconciling'].includes(status)) {
+      throw new Error(`${family} proposal resolved as ${status}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    proposal = await client.json(`/api/v1/admin/proposals/${encodeURIComponent(proposal.proposalId)}`);
+  }
+  throw new Error(`${family} proposal did not reach Succeeded before the receipt timeout`);
 }
 
 async function fetchTransport({ url, method, headers }) {
@@ -299,7 +330,7 @@ function assertProposalBinding(proposal, facts) {
 
 function assertResolvedProposal(proposal, family) {
   const status = stringValue(proposal.status, `${family} proposal status`);
-  if (!['Submitted', 'Succeeded'].includes(status)) throw new Error(`${family} proposal resolved as ${status}, not Submitted/Succeeded`);
+  if (status !== 'Succeeded') throw new Error(`${family} proposal resolved as ${status}, not Succeeded`);
   stringValue(proposal.proposalId, `${family} proposalId`);
   stringValue(proposal.executionOperationId, `${family} executionOperationId`);
 }
@@ -423,6 +454,7 @@ function verifyStudioHandoff(handoff, checkpoint, checkpointCaptures) {
     sha256Value(lane.promptSha256, `Studio handoff.lanes.${name}.promptSha256`);
     sha256Value(lane.transcriptSha256, `Studio handoff.lanes.${name}.transcriptSha256`);
     const calls = arrayValue(lane.calls, `Studio handoff.lanes.${name}.calls`);
+    if (calls.length === 0) throw new Error(`Studio handoff lane ${name} contains no real-model call evidence`);
     if (calls.some((call) => call?.status !== 'passed')) throw new Error(`Studio handoff lane ${name} is not fully passed`);
   }
 

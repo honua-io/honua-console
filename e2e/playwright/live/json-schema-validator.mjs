@@ -10,11 +10,19 @@ const VALIDATION_KEYS = new Set([
  * closed so a future SDK contract cannot silently bypass this gate.
  */
 export function validatePinnedJsonSchema(value, schema) {
+  validatePinnedJsonSchemaDefinition(schema);
+  validate(value, schema, schema, '$');
+}
+
+export function validatePinnedJsonSchemaDefinition(schema, expectedSchemaVersion) {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     throw new Error('pinned Console receipt schema must be a JSON object');
   }
   assertSupportedSchema(schema, '#');
-  validate(value, schema, schema, '$');
+  if (schema.type !== 'object' || !schema.properties?.schemaVersion ||
+      (expectedSchemaVersion !== undefined && schema.properties.schemaVersion.const !== expectedSchemaVersion)) {
+    throw new Error('pinned Console receipt schema has an unexpected schemaVersion contract');
+  }
 }
 
 function validate(value, schema, root, path) {

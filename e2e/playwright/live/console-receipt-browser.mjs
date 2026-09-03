@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { validatePinnedJsonSchema } from './json-schema-validator.mjs';
+import { validatePinnedJsonSchema, validatePinnedJsonSchemaDefinition } from './json-schema-validator.mjs';
 
 const FAMILIES = ['map', 'app', 'dashboard'];
 const AGGREGATE_SCHEMA = 'honua.zero-to-map.console-receipt/v1';
@@ -19,6 +19,7 @@ export async function produceConsoleReceiptInBrowser({
   receiptSchema,
 }) {
   if (!['full', 'witness'].includes(mode)) throw new Error('mode must be full or witness');
+  validateConsoleReceiptInputs({ boundary, receiptSchema });
   const consoleBase = validateOrigin(consoleOrigin, boundary.target, 'Console origin');
   const serverBase = validateEndpoint(serverEndpoint, boundary.target);
   const components = boundary.components;
@@ -102,9 +103,6 @@ export async function produceConsoleReceiptInBrowser({
     checks: { health: 'passed', audit: 'passed', recovery: 'passed' },
     shareUrl: publications.app.publicUrl,
   };
-  if (receiptSchema?.properties?.schemaVersion?.const !== AGGREGATE_SCHEMA) {
-    throw new Error('pinned SDK Console receipt schema has an unexpected schemaVersion contract');
-  }
   validatePinnedJsonSchema(aggregate, receiptSchema);
   validateRequestedReceipt(boundary.receiptRequest, aggregate);
   rejectSecretSerialization(aggregate, 'Console aggregate');
@@ -118,6 +116,21 @@ export async function produceConsoleReceiptInBrowser({
     recovery,
   };
   return { aggregate, observations };
+}
+
+export function validateConsoleReceiptInputs({ boundary, receiptSchema }) {
+  validatePinnedJsonSchemaDefinition(receiptSchema, AGGREGATE_SCHEMA);
+  const request = boundary?.receiptRequest;
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    throw new Error('Console receipt request must be an object');
+  }
+  for (const pointer of [...Object.keys(request.matches ?? {}), ...(request.requiredPointers ?? [])]) {
+    assertJsonPointer(pointer, 'Console receipt request pointer');
+  }
+  for (const pair of request.equalPointers ?? []) {
+    if (!Array.isArray(pair) || pair.length !== 2) throw new Error('Console receipt equality must contain two pointers');
+    pair.forEach((pointer) => assertJsonPointer(pointer, 'Console receipt equality pointer'));
+  }
 }
 
 export function buildConsoleEvidence({ boundary, aggregateSha256, observations }) {
@@ -246,10 +259,30 @@ async function approveProposalInUi(page, consoleBase, proposalId, facts, mode) {
     if (!message.includes('Approved')) throw new Error(`Console approval failed for ${proposalId}: ${message.trim()}`);
     status = await requiredAttribute(proposal.locator('[data-proposal-status]'), 'data-proposal-status', 'resolved proposal status');
   }
-  if (!['Submitted', 'Succeeded'].includes(status)) throw new Error(`proposal ${proposalId} resolved as ${status}`);
+  if (status === 'AwaitingApproval') {
+    throw new Error(`proposal ${proposalId} remained AwaitingApproval after the approval attempt`);
+  }
+  await waitForProposalSuccess(page, consoleBase, proposalId, facts);
   const operationChip = proposal.locator('[data-correlation-chip][data-correlation-kind="OperationId"]');
   const executionOperationId = await requiredAttribute(operationChip, 'data-correlation-id', 'proposal executionOperationId');
   return { executionOperationId };
+}
+
+async function waitForProposalSuccess(page, consoleBase, proposalId, facts) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const proposal = proposalDetail(page, proposalId);
+    const status = await requiredAttribute(proposal.locator('[data-proposal-status]'), 'data-proposal-status', 'proposal status');
+    if (status === 'Succeeded') return;
+    if (['Failed', 'RolledBack', 'Rejected'].includes(status)) {
+      throw new Error(`${facts.familyTitle} proposal ${proposalId} resolved as terminal failure ${status}`);
+    }
+    if (!['Submitted', 'Reconciling'].includes(status)) {
+      throw new Error(`proposal ${proposalId} resolved as ${status}`);
+    }
+    await page.waitForTimeout(1000);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+  }
+  throw new Error(`${facts.familyTitle} proposal ${proposalId} did not reach Succeeded before the receipt timeout`);
 }
 
 async function inspectReleaseWitnessUi(page, consoleBase, family, facts, proposalId) {
@@ -364,7 +397,12 @@ function revision(value, label) {
 function httpsUrl(value, label) {
   const url = new URL(value);
   if (url.protocol !== 'https:') throw new Error(`${label} must use HTTPS`);
+  if (url.searchParams.has('embedToken')) throw new Error(`${label} must not carry embedToken in the query string`);
   return url.toString();
+}
+
+function assertJsonPointer(value, label) {
+  if (typeof value !== 'string' || !value.startsWith('/')) throw new Error(`${label} must be an RFC 6901 JSON pointer`);
 }
 
 function validateOrigin(value, target, label) {

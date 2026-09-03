@@ -88,7 +88,7 @@ jobs:
         run: node scripts/fetch-cesium.mjs --force
 
       - name: Publish Blazor Web artifact
-        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+        run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
 
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web

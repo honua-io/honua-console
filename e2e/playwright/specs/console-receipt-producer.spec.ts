@@ -108,6 +108,11 @@ test('candidate preflight reads and approves exact proposals with only the focus
   const transport = async ({ url, method, headers }: any) => {
     const path = new URL(url).pathname;
     requests.push({ method, path, headers });
+    if (path.endsWith('/effective-permissions')) {
+      return { status: 200, body: JSON.stringify({
+        data: { status: 'active', canAuthenticate: true, permissions: ['admin:read', 'admin:approve'] },
+      }) };
+    }
     if (path === '/api/v1/admin/proposals') {
       return { status: 200, body: JSON.stringify({ proposals: families.map((family) => ({ proposalId: `${family}-proposal` })) }) };
     }
@@ -116,7 +121,7 @@ test('candidate preflight reads and approves exact proposals with only the focus
     if (method === 'POST') approved.add(family);
     return { status: 200, body: JSON.stringify({
       proposalId: `${family}-proposal`,
-      status: approved.has(family) ? 'Submitted' : 'AwaitingApproval',
+      status: approved.has(family) ? 'Succeeded' : 'AwaitingApproval',
       executionOperationId: `${family}-operation`,
       binding: `${family}-item ${family}-publication-version ${family}-reopened-draft ${family}-route`,
     }) };
@@ -125,6 +130,7 @@ test('candidate preflight reads and approves exact proposals with only the focus
   const result = await exerciseConsoleReadApproveKeyRecipe({
     endpoint: serverEndpoint,
     apiKey: 'focused-read-approve-key',
+    apiKeyId: '00000000-0000-0000-0000-000000000001',
     boundary,
     transport,
   });
@@ -239,7 +245,7 @@ function consoleHtml(url: URL, fixture: ReturnType<typeof candidateBoundary>, ap
   if (url.pathname === '/inbox') {
     const proposalId = url.searchParams.get('proposalId')!;
     const family = proposalId.split('-')[0];
-    const status = approved.has(family) ? 'Submitted' : 'AwaitingApproval';
+    const status = approved.has(family) ? 'Succeeded' : 'AwaitingApproval';
     return html(`<article data-proposal-id="${proposalId}">
       <span data-proposal-status="${status}">${status}</span>
       <div data-proposal-diff>${family}-item ${family}-publication-version ${family}-reopened-draft ${family}-route</div>
@@ -247,8 +253,8 @@ function consoleHtml(url: URL, fixture: ReturnType<typeof candidateBoundary>, ap
       <p data-proposal-action-message hidden></p>
       <script>document.querySelector('[data-proposal-approve]')?.addEventListener('click',()=>{
         const root=document.querySelector('[data-proposal-id]');
-        root.querySelector('[data-proposal-status]').setAttribute('data-proposal-status','Submitted');
-        root.querySelector('[data-proposal-status]').textContent='Submitted';
+        root.querySelector('[data-proposal-status]').setAttribute('data-proposal-status','Succeeded');
+        root.querySelector('[data-proposal-status]').textContent='Succeeded';
         root.querySelector('[data-proposal-approve]').remove();
         root.insertAdjacentHTML('beforeend',${JSON.stringify(operationChip(family))});
         const message=root.querySelector('[data-proposal-action-message]'); message.hidden=false; message.textContent='Approved';

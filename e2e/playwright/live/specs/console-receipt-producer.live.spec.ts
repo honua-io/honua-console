@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { dirname, resolve } from 'node:path';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
-import { buildConsoleEvidence, produceConsoleReceiptInBrowser } from '../console-receipt-browser.mjs';
-import { buildReceiptAliasBytes } from '../console-receipt-output.mjs';
+import { buildConsoleEvidence, produceConsoleReceiptInBrowser, validateConsoleReceiptInputs } from '../console-receipt-browser.mjs';
+import { buildReceiptAliasBytes, clearReceiptOutputs, writeReceiptSetAtomic } from '../console-receipt-output.mjs';
 import { exerciseConsoleReadApproveKeyRecipe, readConsoleBoundary } from '../console-receipt-producer.mjs';
 
 test('drives the published Console UI and writes one strict aggregate plus its evidence sidecar', async ({ page }) => {
@@ -36,6 +36,12 @@ test('drives the published Console UI and writes one strict aggregate plus its e
   const sdkOutputPath = resolve(required(process.env.HONUA_AI_ARC_SDK_CONSOLE_RECEIPT, 'HONUA_AI_ARC_SDK_CONSOLE_RECEIPT'));
   const evidenceOutputPath = resolve(required(process.env.HONUA_AI_ARC_CONSOLE_EVIDENCE, 'HONUA_AI_ARC_CONSOLE_EVIDENCE'));
   const credential = required(process.env.HONUA_AI_ARC_CONSOLE_TOKEN, 'HONUA_AI_ARC_CONSOLE_TOKEN');
+  const outputPaths = [outputPath, sdkOutputPath, evidenceOutputPath];
+  const inputPaths = [checkpointPath, receiptSchemaPath, handoffPath];
+  if (new Set(outputPaths).size !== outputPaths.length || outputPaths.some((path) => inputPaths.includes(path))) {
+    throw new Error('aggregate, SDK alias, and Console evidence outputs must be distinct and must not overwrite inputs');
+  }
+  await clearReceiptOutputs(outputPaths);
 
   const origin = new URL(consoleOrigin).origin;
   await page.route(`${origin}/**`, async (route) => route.continue({ headers: {
@@ -43,17 +49,24 @@ test('drives the published Console UI and writes one strict aggregate plus its e
     'x-forwarded-user': 'honua-release-console',
     'x-forwarded-email': 'honua-release-console@honua.invalid',
     'x-forwarded-access-token': credential,
+    ...(process.env.HONUA_CONSOLE_EDGE_AUTH
+      ? { 'x-honua-edge-auth': process.env.HONUA_CONSOLE_EDGE_AUTH }
+      : {}),
   } }));
 
   const checkpoint = JSON.parse(await readFile(checkpointPath, 'utf8')) as unknown;
   const receiptSchema = JSON.parse(await readFile(receiptSchemaPath, 'utf8')) as unknown;
   const handoff = JSON.parse(await readFile(handoffPath, 'utf8')) as unknown;
   const boundary = readConsoleBoundary(checkpoint, handoff);
-  const mode = process.env.HONUA_CONSOLE_MODE ?? 'full';
+  validateConsoleReceiptInputs({ boundary, receiptSchema });
+  const mode = process.env.HONUA_CONSOLE_MODE ?? (process.env.HONUA_ZERO_TO_MAP_RECEIPT ? 'witness' : 'full');
   const readApproveKey = process.env.HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY?.trim();
+  const readApproveKeyId = readApproveKey
+    ? required(process.env.HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY_ID, 'HONUA_AI_ARC_CONSOLE_READ_APPROVE_KEY_ID')
+    : undefined;
   expect(!readApproveKey || mode === 'witness', 'the focused API-key recipe requires witness mode').toBe(true);
   const keyRecipe = readApproveKey
-    ? await exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey: readApproveKey, boundary })
+    ? await exerciseConsoleReadApproveKeyRecipe({ endpoint, apiKey: readApproveKey, apiKeyId: readApproveKeyId, boundary })
     : undefined;
   const produced = await produceConsoleReceiptInBrowser({
     page,
@@ -69,21 +82,16 @@ test('drives the published Console UI and writes one strict aggregate plus its e
     aggregateSha256: createHash('sha256').update(aggregateBytes).digest('hex'),
     observations: { ...produced.observations, keyRecipe },
   });
-  await writeAtomic(outputPath, aggregateBytes);
-  await writeAtomic(sdkOutputPath, sdkBytes);
-  await writeAtomic(evidenceOutputPath, `${JSON.stringify(evidence, null, 2)}\n`);
+  await writeReceiptSetAtomic([
+    { path: outputPath, bytes: aggregateBytes },
+    { path: sdkOutputPath, bytes: sdkBytes },
+    { path: evidenceOutputPath, bytes: `${JSON.stringify(evidence, null, 2)}\n` },
+  ]);
 
   expect(await readFile(outputPath, 'utf8')).toBe(await readFile(sdkOutputPath, 'utf8'));
   expect(produced.aggregate.status).toBe('passed');
   expect(evidence.integrity.algorithm).toBe('sha256');
 });
-
-async function writeAtomic(path: string, bytes: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, bytes, { encoding: 'utf8', mode: 0o600 });
-  await rename(temporary, path);
-}
 
 function required(value: string | undefined, name: string): string {
   const trimmed = value?.trim();
