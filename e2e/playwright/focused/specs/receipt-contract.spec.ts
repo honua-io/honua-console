@@ -18,7 +18,9 @@ test('projects exact terminal identities onto existing focused read routes', () 
   const identities = focusedResourceIdentities(receipt);
   expect(identities).toHaveLength(11);
   expect(identities.find(({ kind }) => kind === 'connection')?.route).toBe('/operate/connections/conn%2Fa');
-  expect(identities.find(({ kind }) => kind === 'service')?.route).toBe('/operate/services/parcels%20prod/settings');
+  expect(identities.find(({ kind }) => kind === 'service')).toMatchObject({
+    route: '/operate/services/parcels%20prod/settings', displayValue: 'parcels prod',
+  });
   expect(identities.find(({ kind }) => kind === 'proposal')?.route).toBe('/inbox?proposalId=proposal-1');
   expect(identities.find(({ kind }) => kind === 'savedMap')).toMatchObject({ versionId: 'v7', contentHash: 'sha256:map' });
 });

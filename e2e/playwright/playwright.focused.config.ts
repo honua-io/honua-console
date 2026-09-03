@@ -21,8 +21,10 @@ export default defineConfig({
     env: {
       ASPNETCORE_ENVIRONMENT: 'Development', DOTNET_CLI_TELEMETRY_OPTOUT: '1',
       HONUA_SERVER_BASE_URL: serverURL,
-      // Intentionally no HONUA_ADMIN_API_KEY: interactive reads must fail closed unless the
-      // active operator completes the bearer exchange.
+      // Clear both supported configuration spellings so inherited runner credentials cannot
+      // turn an interactive bearer-auth check into a shared-admin-key check.
+      HONUA_ADMIN_API_KEY: '',
+      'Honua__Server__AdminApiKey': '',
     },
   },
 });
