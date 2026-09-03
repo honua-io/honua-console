@@ -161,7 +161,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         {
             if (!response.IsSuccessStatusCode)
             {
-                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(CreateIssue(contract, response));
+                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
             }
 
             // This endpoint returns a bare { "tables": [...] } body, NOT the ApiResponse<T> envelope.
@@ -211,7 +213,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         {
             if (!response.IsSuccessStatusCode)
             {
-                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(CreateIssue(contract, response));
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
             }
 
             try
@@ -987,7 +991,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
                 .ConfigureAwait(false);
             return response.IsSuccessStatusCode
                 ? HonuaAdminEndpointResult<bool>.FromData(true)
-                : HonuaAdminEndpointResult<bool>.FromIssue(CreateIssue(contract, response));
+                : HonuaAdminEndpointResult<bool>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
@@ -1030,7 +1036,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         {
             if (!response.IsSuccessStatusCode)
             {
-                return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, response));
+                return HonuaAdminEndpointResult<T>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
             }
 
             HonuaAdminApiResponse<T>? envelope;

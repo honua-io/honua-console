@@ -75,4 +75,40 @@ public sealed class AdminEndpointIssueFactoryTests
         var field = Assert.Single(issue.FieldErrors);
         Assert.Equal("layerId", field.FieldId);
     }
+
+    [Fact]
+    public async Task OperateAdminGetResponse_RetainsFailureReceipt()
+    {
+        using var http = new HttpClient(new FailureResponseHandler())
+        {
+            BaseAddress = new Uri("https://server.example")
+        };
+        using var client = new HonuaAdminOperateHttpClient(
+            http,
+            new HonuaAdminOperateClientOptions(http.BaseAddress!));
+
+        var result = await client.ListConnectionsAsync();
+
+        Assert.NotNull(result.Issue);
+        Assert.Equal("invalid-admin-request", result.Issue?.Receipt?.Code);
+        Assert.Equal("operate-correlation", result.Issue?.Receipt?.CorrelationId);
+        Assert.Single(result.Issue?.FieldErrors ?? []);
+    }
+
+    private sealed class FailureResponseHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("""
+                    {"kind":"validation","code":"invalid-admin-request","errors":[{"fieldId":"serviceName","message":"Required"}]}
+                    """)
+            };
+            response.Headers.TryAddWithoutValidation("X-Correlation-ID", "operate-correlation");
+            return Task.FromResult(response);
+        }
+    }
 }
