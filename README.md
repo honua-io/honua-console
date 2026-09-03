@@ -153,10 +153,14 @@ needs.
 Vendored today: MapLibre GL JS (map preview), Vega / Vega-Lite / Vega-Embed
 (chart preview), and Cesium (3D Tiles preview). Cesium's exact extracted
 `Build/Cesium` tree, version, archive digest, and Apache-2.0 license bytes are
-locked in `scripts/cesium-extracted-tree.lock.json` and verified again in every
-published artifact. The viewer disables Cesium Ion's default base layer and
-loads server-owned 3D Tiles through the authenticated same-origin scene proxy;
-neither executable code nor scene assets require a new CSP origin.
+locked in `scripts/cesium-extracted-tree.lock.json`. The Web project's MSBuild
+`Build` and `Publish` targets run `scripts/fetch-cesium.mjs`, which verifies an
+existing tree or fetches the exact pinned archive into the gitignored static-asset
+directory. This covers `dotnet run`, `dotnet build`, and `dotnet publish`; the
+published artifact is verified again before deployment. The viewer disables
+Cesium Ion's default base layer and loads server-owned 3D Tiles through the
+authenticated same-origin scene proxy; neither executable code nor scene assets
+require a new CSP origin.
 
 Versions are pinned exactly in [`scripts/vendored-assets.json`](scripts/vendored-assets.json).
 To bump one: change `version` there, run `node scripts/vendor-assets.mjs --update`,
