@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Honua.Console.Contracts;
 
 namespace Honua.Console.Native.Core.Tests;
@@ -46,5 +47,32 @@ public sealed class AdminEndpointIssueFactoryTests
         Assert.Equal("Rejected", issue.State);
         Assert.NotEqual("Unavailable", issue.State);
         Assert.Equal(400, issue.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateIssueAsync_RetainsBodyHeadersAndStructuredFailures()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+        {
+            Content = JsonContent.Create(new
+            {
+                kind = "validation",
+                code = "invalid-layer",
+                retryable = false,
+                errors = new[]
+                {
+                    new { code = "required", path = "$.layerId", fieldId = "layerId", message = "Required" }
+                }
+            })
+        };
+        response.Headers.TryAddWithoutValidation("X-Correlation-ID", "console-validation");
+
+        var issue = await AdminEndpointIssueFactory.CreateIssueAsync("test/contract", response);
+
+        Assert.Equal("Rejected", issue.State);
+        Assert.Equal("invalid-layer", issue.Receipt?.Code);
+        Assert.Equal("console-validation", issue.Receipt?.CorrelationId);
+        var field = Assert.Single(issue.FieldErrors);
+        Assert.Equal("layerId", field.FieldId);
     }
 }

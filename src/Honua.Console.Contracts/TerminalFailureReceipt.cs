@@ -212,7 +212,7 @@ public static class ConsoleFailureReceiptParser
         TerminalFailureKind.NotFound => "resource_not_found",
         TerminalFailureKind.Validation => "validation_failed",
         TerminalFailureKind.Conflict => "resource_conflict",
-        TerminalFailureKind.Throttled => "rate_limited",
+        TerminalFailureKind.Throttled => "rate_limit_exceeded",
         TerminalFailureKind.Unavailable => "service_unavailable",
         _ => "unknown_failure"
     };

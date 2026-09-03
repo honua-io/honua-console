@@ -353,7 +353,9 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<T>.FromIssue(
+                await AdminEndpointIssueFactory.CreateIssueAsync(contract, http, cancellationToken)
+                    .ConfigureAwait(false));
         }
 
         T? payload;
@@ -404,7 +406,9 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(
+                await AdminEndpointIssueFactory.CreateIssueAsync(contract, http, cancellationToken)
+                    .ConfigureAwait(false));
         }
 
         TResponse? payload;
@@ -447,7 +451,9 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<T>.FromIssue(
+                await AdminEndpointIssueFactory.CreateIssueAsync(contract, http, cancellationToken)
+                    .ConfigureAwait(false));
         }
 
         HonuaTemporalApiResponse<T>? envelope;
@@ -502,7 +508,9 @@ public sealed class HonuaTemporalHttpClient : IHonuaTemporalClient, IDisposable
         using var http = response!;
         if (!http.IsSuccessStatusCode)
         {
-            return HonuaAdminEndpointResult<TResponse>.FromIssue(CreateIssue(contract, http.StatusCode));
+            return HonuaAdminEndpointResult<TResponse>.FromIssue(
+                await AdminEndpointIssueFactory.CreateIssueAsync(contract, http, cancellationToken)
+                    .ConfigureAwait(false));
         }
 
         HonuaTemporalApiResponse<TResponse>? envelope;

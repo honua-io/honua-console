@@ -54,6 +54,26 @@ public static class AdminEndpointIssueFactory
         return CreateIssue(contract, response.StatusCode, receipt);
     }
 
+    /// <summary>Reads the failure payload before creating the issue so no caller drops its receipt.</summary>
+    public static async Task<HonuaAdminEndpointIssue> CreateIssueAsync(
+        string contract,
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        string? body = null;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+        {
+            // Headers and status remain a useful terminal receipt when a broken body stream cannot be read.
+        }
+
+        return CreateIssue(contract, response, body);
+    }
+
     private static HonuaAdminEndpointIssue CreateIssue(
         string contract,
         HttpStatusCode statusCode,

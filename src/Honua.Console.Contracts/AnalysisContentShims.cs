@@ -379,19 +379,8 @@ public sealed class HonuaAnalysisContentHttpClient : IHonuaAnalysisContentClient
         {
             if (!response.IsSuccessStatusCode)
             {
-                var issue = CreateIssue(contract, response.StatusCode);
-
-                // A 400 carries the shared field-addressable validation contract (RFC-7807 ProblemDetails
-                // errors[] of FieldValidationError, honua-server Wave 4); parse it so Console can bind each
-                // finding onto the offending plan input rather than only surfacing the flat detail.
-                if (response.StatusCode == HttpStatusCode.BadRequest)
-                {
-                    var fieldErrors = await ReadFieldErrorsAsync(response, cancellationToken).ConfigureAwait(false);
-                    if (fieldErrors.Count > 0)
-                    {
-                        issue = issue with { FieldErrors = fieldErrors };
-                    }
-                }
+                var issue = await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                    .ConfigureAwait(false);
 
                 return HonuaAdminEndpointResult<T>.FromIssue(issue);
             }

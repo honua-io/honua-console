@@ -40,6 +40,8 @@ public sealed class OperateSectionStatusPanelTests : ConsoleComponentTestBase
     [Theory]
     [InlineData(OperateSectionStatus.Missing, "Not found")]
     [InlineData(OperateSectionStatus.Forbidden, "Permission required")]
+    [InlineData(OperateSectionStatus.Rejected, "Request rejected")]
+    [InlineData(OperateSectionStatus.Conflict, "Conflict requires attention")]
     [InlineData(OperateSectionStatus.Unsupported, "Unsupported by this server")]
     [InlineData(OperateSectionStatus.Unavailable, "Temporarily unavailable")]
     public void Status_drives_shared_title_when_not_loading_or_empty(
