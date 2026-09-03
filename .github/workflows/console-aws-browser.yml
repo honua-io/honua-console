@@ -31,11 +31,17 @@ jobs:
       - name: Authenticate GitHub Packages feed
         run: dotnet nuget update source github-honua --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
 
+      - name: Fetch digest-verified Cesium assets
+        run: node scripts/fetch-cesium.mjs --force
+
       - name: Restore and publish Console
         working-directory: src/Honua.Console.Web
         run: |
           dotnet restore Honua.Console.Web.csproj --locked-mode
           dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Install Playwright
         working-directory: e2e/playwright

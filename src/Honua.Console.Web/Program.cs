@@ -75,12 +75,15 @@ var app = builder.Build();
 // — a tampered or injected script here would run with full session/proxy access. MapLibre is served
 // from this origin as a committed, version-pinned asset (honua-console#333), so unpkg.com is gone
 // from the policy entirely, and so are Vega/Vega-Lite/Vega-Embed for the chart preview
-// (honua-console#334). jsdelivr remains for exactly one interop: Cesium in scene-viewer.js, whose
-// multi-megabyte Build/Cesium tree is resolved dynamically through window.CESIUM_BASE_URL and needs
-// its own decision about where those bytes live before it can follow; its entry assets are meanwhile
-// pinned with Subresource Integrity, and honua-console#334 stays open until it does. When Cesium is
-// vendored, every jsdelivr entry below goes with it — scripts/__tests__/vendored-assets.test.mjs
-// fails if the policy admits an origin no interop script still uses.
+// (honua-console#334). Cesium now follows too: scene-viewer.js loads it from this origin under
+// /_content/Honua.Console.Shell/vendor/cesium/, fetched at deploy/build time by
+// scripts/fetch-cesium.mjs rather than committed —
+// its Build/Cesium tree is ~20 MB resolved dynamically through window.CESIUM_BASE_URL, which is
+// deploy weight rather than repo weight. When the assets are absent SceneViewer keeps its inline
+// SVG placeholder, so 3D is a capability that lights up when its bytes are present and an
+// air-gapped deployment no longer hangs on an unreachable CDN. **cdn.jsdelivr.net is gone from this
+// policy entirely** — scripts/__tests__/vendored-assets.test.mjs fails if the policy admits an
+// origin no interop script still uses, and vice versa.
 // object-src/base-uri/frame-ancestors/form-action are locked down to block plugin,
 // base-tag, clickjacking, and form-hijack vectors. 'unsafe-eval' is required by the Vega chart
 // runtime (and Cesium WASM); 'unsafe-inline' (style/script) by the MapLibre/Cesium/Vega inline
@@ -96,13 +99,13 @@ var contentSecurityPolicy = string.Join("; ", new[]
     "object-src 'none'",
     "frame-ancestors 'self'",
     "form-action 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net",
-    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-    "img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org",
-    "font-src 'self' data: https://cdn.jsdelivr.net",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://tile.openstreetmap.org",
+    "font-src 'self' data:",
     "worker-src 'self' blob:",
     "child-src 'self' blob:",
-    "connect-src 'self' https://cdn.jsdelivr.net https://tile.openstreetmap.org",
+    "connect-src 'self' https://tile.openstreetmap.org",
 });
 app.Use(async (context, next) =>
 {
@@ -390,6 +393,83 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             return Results.Content(json, "application/json");
         }
+    });
+
+    // Same-origin 3D Tiles BFF. SceneViewer rewrites the server-owned
+    // /scenes/{id}/... tree to this route so Cesium workers, tileset JSON, and
+    // binary descendants never require a split-host CSP exception and never
+    // receive an operator credential in the browser.
+    app.MapGet("/scene-proxy/scenes/{sceneId}/{**assetPath}", async (
+        string sceneId,
+        string assetPath,
+        HttpContext httpContext,
+        IHttpClientFactory httpClientFactory,
+        Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
+        Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
+        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
+        CancellationToken cancellationToken) =>
+    {
+        var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
+        if (operatorIdentity is null)
+        {
+            return Results.StatusCode(StatusCodes.Status401Unauthorized);
+        }
+
+        var safeSceneId = Honua.Console.Web.MapProxySupport.NormalizeSceneAssetPath(sceneId);
+        var safeAssetPath = Honua.Console.Web.MapProxySupport.NormalizeSceneAssetPath(assetPath);
+        if (safeSceneId is null || safeSceneId.Contains('/') || safeAssetPath is null)
+        {
+            return Results.BadRequest();
+        }
+
+        var activeProfile = await profileStore.GetActiveProfileAsync(cancellationToken);
+        if (activeProfile is null)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
+            profileStore, sessionStore, cancellationToken);
+        var client = httpClientFactory.CreateClient("honua-map-proxy");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            Honua.Console.Web.MapProxySupport.BuildSceneAssetUri(
+                activeProfile.ServerBaseUri, safeSceneId, safeAssetPath));
+        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
+        Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            ConsoleMapProxyTelemetry.RecordTransportFault("scenes");
+            mapProxyLogger.LogWarning(ex,
+                "Scene proxy upstream request failed for scene {SceneId} asset {AssetPath}.",
+                Honua.Console.Web.MapProxySupport.LogSafe(sceneId),
+                Honua.Console.Web.MapProxySupport.LogSafe(assetPath));
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
+        }
+
+        httpContext.Response.RegisterForDispose(response);
+        ConsoleMapProxyTelemetry.RecordResponse("scenes", (int)response.StatusCode);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+        {
+            Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
+            return Results.StatusCode(StatusCodes.Status304NotModified);
+        }
+        if (!response.IsSuccessStatusCode)
+        {
+            return Results.StatusCode((int)response.StatusCode);
+        }
+
+        Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
+        var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return Results.Stream(stream, contentType);
     });
 }
 
