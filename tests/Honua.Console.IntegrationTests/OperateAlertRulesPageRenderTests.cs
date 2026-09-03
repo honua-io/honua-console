@@ -103,6 +103,93 @@ public sealed class OperateAlertRulesPageRenderTests
         Assert.Contains("data-rule-enable", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RuleCreate_WhenBindingMissing_RendersStateBeforeForm()
+    {
+        var page = RenderCreate(new FakeRulesDataSource
+        {
+            ListView = new OperateAlertRulesView([], MissingBinding)
+        });
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Alert-rule creation is not bound", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("honua-server#1169", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-rule-create-submit", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuleCreate_WhenCreateIsForbidden_RendersForbiddenState()
+    {
+        var forbidden = new OperateAlertRulesBindingState(
+            "Alert rules", OperateAlertRulesBindingState.Forbidden, "honua-server#1169", "Operator is not allowed.");
+        var page = RenderCreate(new FakeRulesDataSource
+        {
+            CreateResult = OperateAlertRuleSaveResult.Blocked(forbidden)
+        });
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-create-submit]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rule-create-submit]").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Operator is not allowed.", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("forbidden", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuleDetail_WhenTestBindingFails_RendersBindingState()
+    {
+        var forbidden = new OperateAlertRulesBindingState(
+            "Alert rules", OperateAlertRulesBindingState.Forbidden, "honua-server#1169", "Testing is forbidden.");
+        var page = RenderDetail(
+            new FakeRulesDataSource
+            {
+                DetailView = new OperateAlertRuleDetailView(SampleDefinition),
+                TestResult = new OperateAlertRuleTestResult(false, [], [], forbidden)
+            },
+            "rule-1");
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-test]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rule-test]").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Testing is forbidden.", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("Rule test is not bound", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Draft validation failed", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuleDetail_WhenEnablingTestedDraft_PersistsDraftBeforeEnable()
+    {
+        OperateAlertRuleEdit? savedEdit = null;
+        var page = RenderDetail(
+            new FakeRulesDataSource
+            {
+                DetailView = new OperateAlertRuleDetailView(SampleDefinition with { Enabled = false }),
+                TestResult = new OperateAlertRuleTestResult(true, [], []),
+                SaveHandler = edit =>
+                {
+                    savedEdit = edit;
+                    return new OperateAlertRuleSaveResult(SampleDefinition with { Enabled = false });
+                },
+                EnableHandler = (_, enabled) => new OperateAlertRuleSaveResult(SampleDefinition with { Enabled = enabled })
+            },
+            "rule-1");
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rule-test]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rule-test]").Click();
+        page.WaitForAssertion(() => Assert.False(page.Find("[data-rule-enable]").HasAttribute("disabled")), TimeSpan.FromSeconds(5));
+
+        page.Find("[data-rule-enable]").Click();
+
+        page.WaitForAssertion(() => Assert.NotNull(savedEdit), TimeSpan.FromSeconds(5));
+        Assert.Equal("rule-1", savedEdit!.RuleId);
+        Assert.False(savedEdit.Enabled);
+        Assert.Contains("speed", savedEdit.Condition.Subject, StringComparison.Ordinal);
+    }
+
     private static IRenderedComponent<OperateAlertRulesPage> RenderList(IOperateAlertRulesDataSource data)
     {
         var ctx = new Bunit.BunitContext();
@@ -118,6 +205,15 @@ public sealed class OperateAlertRulesPageRenderTests
         ctx.Services.AddSingleton(data);
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         return ctx.Render<OperateAlertRuleDetailPage>(parameters => parameters.Add(p => p.RuleId, ruleId));
+    }
+
+    private static IRenderedComponent<OperateAlertRuleCreatePage> RenderCreate(IOperateAlertRulesDataSource data)
+    {
+        var ctx = new Bunit.BunitContext();
+        ctx.AddConsoleNotifications();
+        ctx.Services.AddSingleton(data);
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        return ctx.Render<OperateAlertRuleCreatePage>();
     }
 
     private static readonly OperateAlertRule SampleRule = new(
@@ -137,6 +233,10 @@ public sealed class OperateAlertRulesPageRenderTests
         public OperateAlertRulesView ListView { get; set; } = new([]);
         public OperateAlertRuleDetailView DetailView { get; set; } = new(Rule: null);
         public OperateAlertRuleSaveResult? SaveResult { get; set; }
+        public OperateAlertRuleSaveResult? CreateResult { get; set; }
+        public OperateAlertRuleTestResult? TestResult { get; set; }
+        public Func<OperateAlertRuleEdit, OperateAlertRuleSaveResult>? SaveHandler { get; set; }
+        public Func<string, bool, OperateAlertRuleSaveResult>? EnableHandler { get; set; }
 
         public Task<OperateAlertRulesView> GetRulesAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(ListView);
@@ -145,18 +245,18 @@ public sealed class OperateAlertRulesPageRenderTests
             Task.FromResult(DetailView);
 
         public Task<OperateAlertRuleSaveResult> SaveRuleAsync(OperateAlertRuleEdit edit, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
+            Task.FromResult(SaveHandler?.Invoke(edit) ?? SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
 
         public Task<OperateAlertRuleTestResult> TestRuleAsync(OperateAlertRuleDraft draft, CancellationToken cancellationToken = default) =>
             Task.FromResult(new OperateAlertRuleTestResult(true, [], []));
 
         public Task<OperateAlertRuleTestResult> TestRuleAsync(OperateAlertRuleEdit edit, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateAlertRuleTestResult(true, [], []));
+            Task.FromResult(TestResult ?? new OperateAlertRuleTestResult(true, [], []));
 
         public Task<OperateAlertRuleSaveResult> CreateRuleAsync(OperateAlertRuleDraft draft, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
+            Task.FromResult(CreateResult ?? SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
 
         public Task<OperateAlertRuleSaveResult> SetRuleEnabledAsync(string ruleId, bool enabled, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
+            Task.FromResult(EnableHandler?.Invoke(ruleId, enabled) ?? SaveResult ?? OperateAlertRuleSaveResult.Blocked(MissingBinding));
     }
 }

@@ -111,7 +111,7 @@
                     @(_testing ? "Testing..." : "Test rule")
                 </button>
                 <button class="console-button-secondary" type="button"
-                        disabled="@(_enabling || (!_rule.Enabled && !_explicitTestPassed))"
+                        disabled="@(_enabling || (!_rule.Enabled && !CanEnable))"
                         @onclick="ToggleEnabledAsync" data-rule-enable>
                     @(_enabling ? "Updating..." : _rule.Enabled ? "Disable rule" : "Enable tested rule")
                 </button>
@@ -119,12 +119,22 @@
 
             @if (_testResult is { } test)
             {
-                <div class="console-panel @(test.Succeeded ? "console-state-success" : "console-state-warning")" role="status" data-rule-test-result>
-                    <p class="console-kicker">Non-production test</p>
-                    <p>@(test.Succeeded ? "Draft validation passed. No event was emitted and the rule remains disabled." : "Draft validation failed. The rule was not enabled.")</p>
-                    @foreach (var error in test.Errors) { <p>@error</p> }
-                    @foreach (var warning in test.Warnings) { <p>@warning</p> }
-                </div>
+                @if (test.BindingState is { } testBinding)
+                {
+                    <ConsoleStateView Kind="@StateKind(testBinding.State)"
+                                      Kicker="@testBinding.State"
+                                      Title="Rule test is not bound"
+                                      Message="@(testBinding.Detail + " (contract: " + testBinding.Contract + ")")" />
+                }
+                else
+                {
+                    <div class="console-panel @(test.Succeeded ? "console-state-success" : "console-state-warning")" role="status" data-rule-test-result>
+                        <p class="console-kicker">Non-production test</p>
+                        <p>@(test.Succeeded ? "Draft validation passed. No event was emitted and the rule remains disabled." : "Draft validation failed. The rule was not enabled.")</p>
+                        @foreach (var error in test.Errors) { <p>@error</p> }
+                        @foreach (var warning in test.Warnings) { <p>@warning</p> }
+                    </div>
+                }
             }
 
             @if (_saveResult is { } result)
@@ -161,6 +171,7 @@
     private bool _testing;
     private bool _enabling;
     private bool _explicitTestPassed;
+    private OperateAlertRuleEdit? _testedEdit;
     private OperateAlertRuleSaveResult? _saveResult;
     private OperateAlertRuleTestResult? _testResult;
 
@@ -186,6 +197,9 @@
 
         _loading = true;
         _saveResult = null;
+        _testResult = null;
+        _explicitTestPassed = false;
+        _testedEdit = null;
         _view = await RulesData.GetRuleAsync(RuleId);
         _rule = _view.Rule;
         if (_rule is not null)
@@ -219,6 +233,7 @@
                 var edit = new OperateAlertRuleEdit(RuleId, _name, _enabled, condition, channels);
                 _saveResult = await RulesData.SaveRuleAsync(edit);
                 _explicitTestPassed = false;
+                _testedEdit = null;
                 if (_saveResult.Succeeded)
                 {
                     _rule = _saveResult.Rule;
@@ -234,23 +249,58 @@
             string.IsNullOrWhiteSpace(_geofenceZoneId) ? null : _geofenceZoneId, _dwellMinutes),
         _deliveryChannels.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
+    private bool CanEnable => _rule is { Enabled: false }
+        && _explicitTestPassed
+        && _testedEdit is not null
+        && EditsEqual(_testedEdit, CurrentEdit());
+
     private Task TestAsync() => Notifications.RunGuardedAsync(async () =>
     {
-        _testResult = await RulesData.TestRuleAsync(CurrentEdit());
+        var testedEdit = CurrentEdit();
+        _testResult = await RulesData.TestRuleAsync(testedEdit);
         _explicitTestPassed = _testResult.Succeeded;
+        _testedEdit = _testResult.Succeeded ? testedEdit : null;
     }, busy => { _testing = busy; StateHasChanged(); }, "Couldn't test alert rule");
 
     private Task ToggleEnabledAsync() => Notifications.RunGuardedAsync(async () =>
     {
-        var result = await RulesData.SetRuleEnabledAsync(RuleId, !_rule!.Enabled);
+        var enabling = !_rule!.Enabled;
+        if (enabling)
+        {
+            // Qualification applies to the exact draft the operator tested. Persist that disabled
+            // snapshot before enabling so the server cannot activate an older definition by ID.
+            if (!CanEnable)
+            {
+                return;
+            }
+
+            var persisted = await RulesData.SaveRuleAsync(CurrentEdit());
+            _saveResult = persisted;
+            if (!persisted.Succeeded)
+            {
+                return;
+            }
+
+            _rule = persisted.Rule;
+        }
+
+        var result = await RulesData.SetRuleEnabledAsync(RuleId, enabling);
         _saveResult = result;
         if (result.Succeeded)
         {
             _rule = result.Rule;
             _enabled = _rule!.Enabled;
             _explicitTestPassed = false;
+            _testedEdit = null;
         }
     }, busy => { _enabling = busy; StateHasChanged(); }, "Couldn't update alert rule state");
+
+    private static bool EditsEqual(OperateAlertRuleEdit left, OperateAlertRuleEdit right) =>
+        string.Equals(left.RuleId, right.RuleId, StringComparison.Ordinal)
+        && string.Equals(left.Name, right.Name, StringComparison.Ordinal)
+        && left.Enabled == right.Enabled
+        && left.Condition == right.Condition
+        && left.DeliveryChannels.SequenceEqual(right.DeliveryChannels, StringComparer.Ordinal);
 
     private static string StateKind(string state) => state switch
     {

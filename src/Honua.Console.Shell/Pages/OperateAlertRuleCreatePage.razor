@@ -17,31 +17,48 @@
     </div>
 
     <article class="console-panel">
-        <div class="studio-field-grid">
-            <label><span>Service ID</span><input class="console-input" @bind="_serviceId" data-rule-service /></label>
-            <label><span>Layer ID</span><input class="console-input" type="number" @bind="_layerId" data-rule-layer /></label>
-            <label><span>Name</span><input class="console-input" @bind="_name" data-rule-name /></label>
-            <label><span>Trigger type</span>
-                <select class="console-input" @bind="_triggerType" data-rule-trigger>
-                    <option value="threshold">Threshold</option><option value="enter">Enter</option>
-                    <option value="exit">Exit</option><option value="dwell">Dwell</option>
-                </select>
-            </label>
-            <label><span>Subject field</span><input class="console-input" @bind="_subject" data-rule-subject /></label>
-            <label><span>Operator</span><input class="console-input" @bind="_operator" data-rule-operator /></label>
-            <label><span>Threshold</span><input class="console-input" @bind="_threshold" data-rule-threshold /></label>
-            <label><span>Geofence zone ID</span><input class="console-input" @bind="_zone" data-rule-zone /></label>
-            <label><span>Dwell minutes</span><input class="console-input" type="number" @bind="_dwell" data-rule-dwell /></label>
-            <label><span>Delivery channels</span><input class="console-input" @bind="_channels" data-rule-channels /></label>
-        </div>
-        <div class="console-action-row">
-            <button class="console-button" type="button" disabled="@_saving" @onclick="CreateAsync" data-rule-create-submit>
-                @(_saving ? "Creating..." : "Create disabled rule")
-            </button>
-        </div>
-        @if (_result?.BindingState is { } binding)
+        @if (_loading)
         {
-            <ConsoleStateView Kind="missing" Kicker="Create blocked" Title="Rule was not created" Message="@binding.Detail" />
+            <ConsoleStateView Kind="loading" Kicker="Alert rules" Title="Checking alert-rule binding" Message="Checking the connected honua-server before opening the authoring form." />
+        }
+        else if (_binding is { } binding)
+        {
+            <ConsoleStateView Kind="@StateKind(binding.State)"
+                              Kicker="@binding.State"
+                              Title="Alert-rule creation is not bound"
+                              Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
+        }
+        else
+        {
+            <div class="studio-field-grid">
+                <label><span>Service ID</span><input class="console-input" @bind="_serviceId" data-rule-service /></label>
+                <label><span>Layer ID</span><input class="console-input" type="number" @bind="_layerId" data-rule-layer /></label>
+                <label><span>Name</span><input class="console-input" @bind="_name" data-rule-name /></label>
+                <label><span>Trigger type</span>
+                    <select class="console-input" @bind="_triggerType" data-rule-trigger>
+                        <option value="threshold">Threshold</option><option value="enter">Enter</option>
+                        <option value="exit">Exit</option><option value="dwell">Dwell</option>
+                    </select>
+                </label>
+                <label><span>Subject field</span><input class="console-input" @bind="_subject" data-rule-subject /></label>
+                <label><span>Operator</span><input class="console-input" @bind="_operator" data-rule-operator /></label>
+                <label><span>Threshold</span><input class="console-input" @bind="_threshold" data-rule-threshold /></label>
+                <label><span>Geofence zone ID</span><input class="console-input" @bind="_zone" data-rule-zone /></label>
+                <label><span>Dwell minutes</span><input class="console-input" type="number" @bind="_dwell" data-rule-dwell /></label>
+                <label><span>Delivery channels</span><input class="console-input" @bind="_channels" data-rule-channels /></label>
+            </div>
+            <div class="console-action-row">
+                <button class="console-button" type="button" disabled="@_saving" @onclick="CreateAsync" data-rule-create-submit>
+                    @(_saving ? "Creating..." : "Create disabled rule")
+                </button>
+            </div>
+            @if (_result?.BindingState is { } resultBinding)
+            {
+                <ConsoleStateView Kind="@StateKind(resultBinding.State)"
+                                  Kicker="@resultBinding.State"
+                                  Title="Rule was not created"
+                                  Message="@(resultBinding.Detail + " (contract: " + resultBinding.Contract + ")")" />
+            }
         }
     </article>
 </section>
@@ -59,7 +76,19 @@
     private int? _dwell;
     private string _channels = "webhook";
     private bool _saving;
+    private bool _loading = true;
+    private OperateAlertRulesBindingState? _binding;
     private OperateAlertRuleSaveResult? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
+        {
+            _binding = (await RulesData.GetRulesAsync()).BindingState;
+        }
+
+        _loading = false;
+    }
 
     private OperateAlertRuleDraft Draft() => new(
         _serviceId, _layerId, _name, _triggerType,
@@ -75,4 +104,11 @@
             Navigation.NavigateTo(OperateAlertRulesRoutes.Detail(_result.Rule!.RuleId));
         }
     }, busy => { _saving = busy; StateHasChanged(); }, "Couldn't create alert rule");
+
+    private static string StateKind(string state) => state switch
+    {
+        OperateAlertRulesBindingState.Forbidden => "forbidden",
+        OperateAlertRulesBindingState.Unsupported => "unsupported",
+        _ => "missing"
+    };
 }
