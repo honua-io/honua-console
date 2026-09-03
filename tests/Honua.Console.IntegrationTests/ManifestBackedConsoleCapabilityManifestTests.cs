@@ -104,6 +104,27 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders));
     }
 
+    [Fact]
+    public async Task StudioBuildersOnlyPolicy_DoesNotNarrowServerCapabilities()
+    {
+        var subject = new ManifestBackedConsoleCapabilityManifest(
+            new StubRegistry(new CapabilityRegistrySnapshot
+            {
+                Bound = true,
+                Descriptors = [
+                    new CapabilityDescriptor("temporal.filtering", true, true, null),
+                    new CapabilityDescriptor("sync.offline", true, true, null),
+                ],
+            }),
+            [ConsoleCapabilityKeys.StudioBuilders]);
+
+        await subject.RefreshAsync();
+
+        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders));
+        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.Temporal));
+        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync));
+    }
+
     private static ManifestBackedConsoleCapabilityManifest Create(string localKey, CapabilityRegistrySnapshot snapshot)
         => new(new StubRegistry(snapshot), [localKey]);
 

@@ -1,6 +1,7 @@
 @page "/environments"
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleHostCapabilities Host
+@inject IConsoleCapabilityManifest Capabilities
 @inject IServiceProvider Services
 
 <section class="console-page">
@@ -159,6 +160,20 @@
     private async Task ActivateAsync(string profileId)
     {
         await Profiles.ActivateProfileAsync(profileId);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await Capabilities.RefreshAsync(timeout.Token);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            // The manifest is fail-closed during and after a timed-out environment switch.
+        }
+        catch
+        {
+            // A binding failure is rendered as unavailable by the capability gate; activation itself succeeded.
+        }
+
         await LoadAsync();
     }
 

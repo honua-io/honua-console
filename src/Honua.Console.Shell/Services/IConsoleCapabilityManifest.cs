@@ -119,6 +119,7 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
 
     private readonly ICapabilityRegistryClient _registry;
     private readonly HashSet<string> _localPolicy;
+    private readonly HashSet<string> _serverPolicy;
     private HashSet<string> _available = new(StringComparer.OrdinalIgnoreCase);
 
     public ManifestBackedConsoleCapabilityManifest(
@@ -127,6 +128,12 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
     {
         _registry = registry;
         _localPolicy = new HashSet<string>(localPolicy ?? [], StringComparer.OrdinalIgnoreCase);
+        _serverPolicy = new HashSet<string>(
+            _localPolicy.Where(key => !string.Equals(
+                key,
+                ConsoleCapabilityKeys.StudioBuilders,
+                StringComparison.OrdinalIgnoreCase)),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public bool IsAdvertised(string capabilityKey)
@@ -141,6 +148,9 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        // A refresh is fail-closed while the current binding is being read. This also prevents a
+        // timed-out environment switch from leaving the previous server's capabilities visible.
+        Interlocked.Exchange(ref _available, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         var snapshot = await _registry.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
         var next = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (snapshot.Bound)
@@ -150,7 +160,7 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
                 var descriptor = snapshot.Descriptors.FirstOrDefault(item =>
                     string.Equals(item.Id, mapping.Value, StringComparison.Ordinal));
                 if (descriptor is { Supported: true, Available: true }
-                    && (_localPolicy.Count == 0 || _localPolicy.Contains(mapping.Key)))
+                    && (_serverPolicy.Count == 0 || _serverPolicy.Contains(mapping.Key)))
                 {
                     next.Add(mapping.Key);
                 }

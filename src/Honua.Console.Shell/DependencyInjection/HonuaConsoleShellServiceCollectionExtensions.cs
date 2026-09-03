@@ -40,7 +40,9 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // siem-investigations render the first-class "unsupported" state until the deployment opts them
         // in via Honua:Console:Capabilities. This is the interim source; the honua-server
         // capability-manifest document feeds the same seam once its full-document consumption lands.
-        services.TryAddSingleton<IConsoleCapabilityManifest>(serviceProvider =>
+        // Capability snapshots are mutable and belong to the current Blazor circuit. The registry
+        // remains request-time/operator-aware, but the snapshot itself must not be shared between circuits.
+        services.TryAddScoped<IConsoleCapabilityManifest>(serviceProvider =>
             new ManifestBackedConsoleCapabilityManifest(
                 serviceProvider.GetRequiredService<ICapabilityRegistryClient>(),
                 ConsoleCapabilityManifest.SplitList(honuaConsoleAdvertisedCapabilities)));

@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
@@ -90,9 +91,50 @@
 </div>
 
 @code {
-    protected override async Task OnInitializedAsync()
+    private const int CapabilityRefreshTimeoutSeconds = 5;
+    private CancellationTokenSource? _capabilityRefreshCancellation;
+    private bool _disposed;
+
+    protected override Task OnInitializedAsync()
     {
-        await Capabilities.RefreshAsync();
+        // Start fail-closed: navigation renders immediately while live capability truth is loaded.
+        // A slow or unreachable server must not hold the prerendered shell behind HttpClient's long
+        // default timeout.
+        _capabilityRefreshCancellation = new CancellationTokenSource(
+            TimeSpan.FromSeconds(CapabilityRefreshTimeoutSeconds));
+        _ = RefreshCapabilitiesAsync(_capabilityRefreshCancellation.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task RefreshCapabilitiesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Capabilities.RefreshAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The initial state is deliberately fail-closed when the manifest cannot be read promptly.
+            return;
+        }
+        catch
+        {
+            // Registry clients normally project failures into an unavailable snapshot. Keep the shell
+            // usable and fail closed if a host-specific implementation throws before doing so.
+            return;
+        }
+
+        if (!_disposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _capabilityRefreshCancellation?.Cancel();
+        _capabilityRefreshCancellation?.Dispose();
     }
 
     private bool ShowOperateNavigation =>

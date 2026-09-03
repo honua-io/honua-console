@@ -211,6 +211,17 @@ public sealed class StudioIntentResolverTests
     }
 
     [Fact]
+    public void ConsoleCapabilityManifest_IsScopedPerCircuit()
+    {
+        var services = new ServiceCollection();
+        services.AddHonuaConsoleShell(honuaServerBaseUrl: ServerBaseUrl);
+
+        var descriptor = services.Single(item => item.ServiceType == typeof(IConsoleCapabilityManifest));
+
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+    }
+
+    [Fact]
     public void FlagOn_WithServerBound_RegistersRegistryBackedResolver()
     {
         using var provider = new ServiceCollection()
