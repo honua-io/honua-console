@@ -27,4 +27,12 @@
     <InternalsVisibleTo Include="Honua.Console.IntegrationTests" />
   </ItemGroup>
 
+  <!-- Cesium is intentionally gitignored, but every supported Web build path must still produce a
+       complete same-origin 3D runtime. The script verifies an existing tree and fetches it when a
+       checkout has not populated it yet. Keeping this target here covers dotnet run, build, and
+       publish without making the large runtime part of the repository. -->
+  <Target Name="FetchCesiumAssets" BeforeTargets="Build;Publish">
+    <Exec Command="node &quot;scripts/fetch-cesium.mjs&quot;" WorkingDirectory="$(MSBuildProjectDirectory)/../.." />
+  </Target>
+
 </Project>

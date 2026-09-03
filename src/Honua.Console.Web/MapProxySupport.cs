@@ -50,6 +50,18 @@ public static class MapProxySupport
         return string.Join('/', encoded);
     }
 
+    /// <summary>Builds a scene asset URI against the selected environment's server.</summary>
+    public static Uri BuildSceneAssetUri(Uri serverBaseUri, string sceneId, string assetPath)
+    {
+        ArgumentNullException.ThrowIfNull(serverBaseUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
+
+        return ConsoleServerHttp.BuildUri(
+            serverBaseUri,
+            $"scenes/{sceneId}/{assetPath}");
+    }
+
     /// <summary>
     /// Neutralizes CR/LF in a user-provided value before it reaches a log entry, so a crafted
     /// route/query value cannot forge additional log lines (CodeQL cs/log-forging). Structured

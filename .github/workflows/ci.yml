@@ -75,6 +75,11 @@ jobs:
         # console-nightly.yml lane runs those for real. Coverage is collected for visibility only.
         run: dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/integration
 
+      - name: Fetch digest-verified Cesium assets
+        # The Web project target also makes a direct local dotnet build/run/publish complete. Fetch
+        # first here so the following build verifies the exact tree instead of fetching it twice.
+        run: node scripts/fetch-cesium.mjs --force
+
       - name: Build Blazor Web host
         run: dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj --no-restore --nologo --verbosity minimal
 
@@ -83,9 +88,6 @@ jobs:
 
       - name: Run Node smoke and metadata tests
         run: npm test
-
-      - name: Fetch digest-verified Cesium assets
-        run: node scripts/fetch-cesium.mjs --force
 
       - name: Publish Blazor Web artifact
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal

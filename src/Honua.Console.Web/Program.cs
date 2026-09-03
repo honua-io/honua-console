@@ -422,12 +422,19 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             return Results.BadRequest();
         }
 
+        var activeProfile = await profileStore.GetActiveProfileAsync(cancellationToken);
+        if (activeProfile is null)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
         var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
             profileStore, sessionStore, cancellationToken);
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"{mapProxyServerUrl}/scenes/{safeSceneId}/{safeAssetPath}");
+            Honua.Console.Web.MapProxySupport.BuildSceneAssetUri(
+                activeProfile.ServerBaseUri, safeSceneId, safeAssetPath));
         Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
         Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
 
