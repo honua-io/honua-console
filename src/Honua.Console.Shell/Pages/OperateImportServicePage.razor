@@ -549,6 +549,11 @@
 
     private async Task QueueImportsAsync()
     {
+        // Capture consent before the first await so changes made while the batch is queueing
+        // cannot authorize a later request in this batch.
+        var authorizedReplacementTargets = _replaceTargets
+            .Where(_selected.Contains)
+            .ToHashSet(StringComparer.Ordinal);
         _confirmReplacement = false;
         _importError = null;
         StopPolling();
@@ -603,7 +608,7 @@
                         ServiceUrl = service.ServiceUrl!,
                         LayerId = layer.LayerId!.Value,
                         TableName = table,
-                        OverwriteExisting = _replaceTargets.Contains(layer.Key),
+                        OverwriteExisting = authorizedReplacementTargets.Contains(layer.Key),
                         AutoPublish = _autoPublish,
                         ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
                         Auth = auth,
