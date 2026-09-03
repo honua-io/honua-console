@@ -30,7 +30,7 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
         {
             manifest = await _manifestClient.GetManifestAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             // The manifest could not be read (unreachable/forbidden/unsupported). Surface an honest
             // unavailable snapshot — never fabricate availability so an intent slips through the gate.
