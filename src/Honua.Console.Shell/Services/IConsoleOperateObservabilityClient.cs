@@ -127,6 +127,8 @@ public enum OperateSectionStatus
     Allowed,
     Missing,
     Forbidden,
+    Rejected,
+    Conflict,
     Unavailable,
     Unsupported
 }

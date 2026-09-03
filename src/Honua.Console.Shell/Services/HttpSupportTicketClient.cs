@@ -73,9 +73,12 @@ public sealed class HttpSupportTicketClient : IConsoleSupportTicketClient
 
             if (!response.IsSuccessStatusCode)
             {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                var receipt = ConsoleFailureReceiptParser.Parse(response, body);
                 return SupportTicketResult.Denied(
                     MapStatus(response.StatusCode),
-                    $"The honua-support API returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+                    $"The honua-support API returned {(int)response.StatusCode} {response.ReasonPhrase}.",
+                    receipt);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -124,6 +127,8 @@ public sealed class HttpSupportTicketClient : IConsoleSupportTicketClient
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => OperateSectionStatus.Forbidden,
         HttpStatusCode.NotFound => OperateSectionStatus.Missing,
+        HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => OperateSectionStatus.Rejected,
+        HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed or HttpStatusCode.PreconditionRequired => OperateSectionStatus.Conflict,
         HttpStatusCode.NotImplemented => OperateSectionStatus.Unsupported,
         _ => OperateSectionStatus.Unavailable
     };
