@@ -30,4 +30,21 @@ public interface IOperateAlertRulesDataSource
     Task<OperateAlertRuleSaveResult> SaveRuleAsync(
         OperateAlertRuleEdit edit,
         CancellationToken cancellationToken = default);
+
+    Task<OperateAlertRuleTestResult> TestRuleAsync(
+        OperateAlertRuleDraft draft,
+        CancellationToken cancellationToken = default);
+
+    Task<OperateAlertRuleTestResult> TestRuleAsync(
+        OperateAlertRuleEdit edit,
+        CancellationToken cancellationToken = default);
+
+    Task<OperateAlertRuleSaveResult> CreateRuleAsync(
+        OperateAlertRuleDraft draft,
+        CancellationToken cancellationToken = default);
+
+    Task<OperateAlertRuleSaveResult> SetRuleEnabledAsync(
+        string ruleId,
+        bool enabled,
+        CancellationToken cancellationToken = default);
 }

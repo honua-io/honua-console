@@ -8,6 +8,8 @@ public static class OperateAlertRulesRoutes
 {
     public const string List = "/operate/alerts/rules";
 
+    public const string Create = "/operate/alerts/rules/new";
+
     public static string Detail(string ruleId) => $"/operate/alerts/rules/{Uri.EscapeDataString(ruleId)}";
 }
 
@@ -85,4 +87,21 @@ public sealed record OperateAlertRuleSaveResult(
 
     public static OperateAlertRuleSaveResult Blocked(OperateAlertRulesBindingState state) =>
         new(Rule: null, state);
+}
+
+public sealed record OperateAlertRuleDraft(
+    string ServiceId,
+    int LayerId,
+    string Name,
+    string TriggerType,
+    OperateAlertRuleCondition Condition,
+    IReadOnlyList<string> DeliveryChannels);
+
+public sealed record OperateAlertRuleTestResult(
+    bool IsValid,
+    IReadOnlyList<string> Errors,
+    IReadOnlyList<string> Warnings,
+    OperateAlertRulesBindingState? BindingState = null)
+{
+    public bool Succeeded => BindingState is null && IsValid;
 }

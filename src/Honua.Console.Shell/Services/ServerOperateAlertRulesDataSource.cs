@@ -150,6 +150,169 @@ public sealed class ServerOperateAlertRulesDataSource : IOperateAlertRulesDataSo
         return new OperateAlertRuleSaveResult(definition);
     }
 
+    public async Task<OperateAlertRuleTestResult> TestRuleAsync(
+        OperateAlertRuleDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (!TryBuildDraftRequest(draft, isActive: false, out var request, out var error))
+        {
+            return new OperateAlertRuleTestResult(false, [error], []);
+        }
+
+        var result = await _rules.TestRuleAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!result.IsAllowed || result.Value is null)
+        {
+            return new OperateAlertRuleTestResult(false, [], [], BindingState(result.Status, result.Message));
+        }
+
+        return new OperateAlertRuleTestResult(
+            result.Value.IsValid,
+            result.Value.Errors ?? [],
+            result.Value.Warnings ?? []);
+    }
+
+    public async Task<OperateAlertRuleTestResult> TestRuleAsync(
+        OperateAlertRuleEdit edit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(edit);
+        if (!TryParseRuleId(edit.RuleId, out var id))
+        {
+            return new OperateAlertRuleTestResult(false, ["Rule id is invalid."], []);
+        }
+
+        var current = await _rules.GetRuleAsync(id, cancellationToken).ConfigureAwait(false);
+        if (!current.IsAllowed || current.Value is null)
+        {
+            return new OperateAlertRuleTestResult(false, [], [], BindingState(current.Status, current.Message));
+        }
+
+        if (!OperateAlertRuleMapper.TryBuildRequest(edit, current.Value, out var request, out var error))
+        {
+            return new OperateAlertRuleTestResult(false, [error], []);
+        }
+
+        request = request with { IsActive = false };
+        var result = await _rules.TestRuleAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!result.IsAllowed || result.Value is null)
+        {
+            return new OperateAlertRuleTestResult(false, [], [], BindingState(result.Status, result.Message));
+        }
+
+        return new OperateAlertRuleTestResult(result.Value.IsValid, result.Value.Errors ?? [], result.Value.Warnings ?? []);
+    }
+
+    public async Task<OperateAlertRuleSaveResult> CreateRuleAsync(
+        OperateAlertRuleDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (!TryBuildDraftRequest(draft, isActive: false, out var request, out var error))
+        {
+            return OperateAlertRuleSaveResult.Blocked(new OperateAlertRulesBindingState(
+                Surface, OperateAlertRulesBindingState.MissingBinding, DefinitionContract, error));
+        }
+
+        var result = await _rules.SaveRuleAsync(ruleId: null, request, cancellationToken).ConfigureAwait(false);
+        if (!result.IsAllowed || result.Value is null)
+        {
+            return OperateAlertRuleSaveResult.Blocked(BindingState(result.Status, result.Message));
+        }
+
+        var definition = OperateAlertRuleMapper.MapDefinition(result.Value, health: null, validation: null);
+        return new OperateAlertRuleSaveResult(definition);
+    }
+
+    public async Task<OperateAlertRuleSaveResult> SetRuleEnabledAsync(
+        string ruleId,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryParseRuleId(ruleId, out var id))
+        {
+            return OperateAlertRuleSaveResult.Blocked(new OperateAlertRulesBindingState(
+                Surface, OperateAlertRulesBindingState.MissingBinding, DefinitionContract,
+                $"Alert rule '{ruleId}' is not a valid rule identifier."));
+        }
+
+        var result = await _rules.SetRuleEnabledAsync(id, enabled, cancellationToken).ConfigureAwait(false);
+        if (!result.IsAllowed || result.Value is null)
+        {
+            return OperateAlertRuleSaveResult.Blocked(BindingState(result.Status, result.Message));
+        }
+
+        var health = await _rules.GetRuleHealthAsync(id, cancellationToken).ConfigureAwait(false);
+        return new OperateAlertRuleSaveResult(OperateAlertRuleMapper.MapDefinition(
+            result.Value, health.IsAllowed ? health.Value : null, validation: null));
+    }
+
+    private static bool TryBuildDraftRequest(
+        OperateAlertRuleDraft draft,
+        bool isActive,
+        out AlertRuleRequest request,
+        out string error)
+    {
+        error = string.Empty;
+        string conditions;
+        if (string.Equals(draft.TriggerType, "threshold", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!double.TryParse(draft.Condition.Threshold, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            {
+                request = new AlertRuleRequest();
+                error = "Threshold rules require a numeric threshold.";
+                return false;
+            }
+
+            conditions = System.Text.Json.JsonSerializer.Serialize(
+                new AlertThresholdConditions { Field = draft.Condition.Subject, Operator = draft.Condition.Operator, Value = value },
+                AlertAdminJsonContext.Default.AlertThresholdConditions);
+        }
+        else if (string.Equals(draft.TriggerType, "dwell", StringComparison.OrdinalIgnoreCase))
+        {
+            conditions = System.Text.Json.JsonSerializer.Serialize(
+                new AlertDwellConditions { DwellSeconds = draft.Condition.DwellMinutes * 60 },
+                AlertAdminJsonContext.Default.AlertDwellConditions);
+        }
+        else
+        {
+            conditions = "{}";
+        }
+
+        long? zoneId = null;
+        if (!string.IsNullOrWhiteSpace(draft.Condition.GeofenceZoneId))
+        {
+            if (!long.TryParse(
+                draft.Condition.GeofenceZoneId,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var parsedZone))
+            {
+                request = new AlertRuleRequest();
+                error = "Geofence zone must be a numeric server zone id.";
+                return false;
+            }
+
+            zoneId = parsedZone;
+        }
+
+        request = new AlertRuleRequest
+        {
+            ServiceId = draft.ServiceId.Trim(),
+            LayerId = draft.LayerId,
+            ZoneId = zoneId,
+            RuleName = draft.Name.Trim(),
+            TriggerType = draft.TriggerType.Trim(),
+            ConditionsJson = conditions,
+            CooldownSeconds = 0,
+            Severity = "warning",
+            EditionRequired = "pro",
+            Channels = [.. draft.DeliveryChannels],
+            IsActive = isActive
+        };
+        return true;
+    }
+
     private static AlertRuleRequest ToRequest(AlertRuleResponse rule) => new()
     {
         ServiceId = rule.ServiceId,

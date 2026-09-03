@@ -16,6 +16,7 @@
         <p class="console-kicker">Operator workflow</p>
         <h1>Alert rules</h1>
         <p>Author and review the realtime, geofence, threshold, and dwell rules that raise alerts. This is the rule definition surface; a firing alert opens its own evidence detail. Rule definitions are server-owned: the list and editor render a capability explanation rather than fabricated rules when the server rule contract is not bound.</p>
+        <p><a class="console-button-link" href="@OperateAlertRulesRoutes.Create" data-alert-rule-create>Create alert rule</a></p>
     </div>
 
     @if (_loading)
@@ -34,7 +35,10 @@
     }
     else if (_view.Rules.Count == 0)
     {
-        <EmptyState Area="operate" Subject="alert rules" />
+        <ConsoleStateView Kind="empty"
+                          Kicker="Alert rules"
+                          Title="No alert rules"
+                          Message="Create a disabled webhook rule, test it explicitly, then enable it when qualification succeeds." />
     }
     else
     {
