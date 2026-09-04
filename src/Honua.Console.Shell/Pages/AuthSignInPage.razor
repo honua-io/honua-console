@@ -17,6 +17,11 @@
     }
     else
     {
+        @if (!string.IsNullOrWhiteSpace(_profile.TenantId))
+        {
+            <TenancyPreviewNotice />
+        }
+
         @if (!string.IsNullOrWhiteSpace(_serverAuthMessage))
         {
             <article class="console-panel console-status-danger" role="alert">
