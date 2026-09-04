@@ -13,13 +13,15 @@
         <h1>@(Host.SupportsNativeTransports ? "Add Environment" : "Connect to a Honua Server")</h1>
         @if (Host.SupportsNativeTransports)
         {
-            <p>Create a managed Honua Server profile. The profile stores server URL, account binding, transport capabilities, and an optional client-certificate reference. Private keys are never stored - only a certificate reference.</p>
+            <p>Create a self-hosted Honua Server connection profile. The profile stores server URL, account binding, transport capabilities, and an optional client-certificate reference. Private keys are never stored - only a certificate reference.</p>
         }
         else
         {
             <p>Point this Console at your Honua Server over HTTPS and bind an account to start working. The browser host connects over HTTPS and realtime transports; native gRPC, client-certificate (mTLS), and trust validation are added by the optional desktop host.</p>
         }
     </div>
+
+    <TenancyPreviewNotice />
 
     <article class="console-panel">
         <div class="studio-field-grid">
@@ -42,8 +44,8 @@
                     </select>
                 </label>
                 <label>
-                    <span>Tenant ID</span>
-                    <input class="console-input" @bind="_tenantId" @bind:after="OnEdit" placeholder="honua-prod" />
+                    <span>Tenant ID (Preview/trial only)</span>
+                    <input class="console-input" @bind="_tenantId" @bind:after="OnEdit" placeholder="trial-a" />
                 </label>
                 <label>
                     <span>Account model</span>
