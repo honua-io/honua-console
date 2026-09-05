@@ -53,6 +53,19 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
         component.WaitForAssertion(() => Assert.Empty(component.FindAll("[role=alert]")));
     }
 
+    [Fact]
+    public async Task Disposal_CancelsPendingStatusRequest()
+    {
+        var handler = new WaitingHandler();
+        Services.AddSingleton<IHonuaAdminOperateClient>(_ => new HonuaAdminOperateHttpClient(
+            new HttpClient(handler),
+            new HonuaAdminOperateClientOptions(new Uri("https://synthetic.example"))));
+        Render<LicenseExpiryBanner>();
+        await handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await DisposeAsync();
+        Assert.True(handler.WasCancelled);
+    }
+
     private ReplyHandler Register(string edition, int days)
     {
         var handler = new ReplyHandler(Response(edition, days));
@@ -108,6 +121,27 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
             public bool Change(TimeSpan dueTime, TimeSpan period) => true;
             public void Dispose() { }
             public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class WaitingHandler : HttpMessageHandler
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool WasCancelled { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Started.SetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                throw new InvalidOperationException("The request must be cancelled by disposal.");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                WasCancelled = true;
+                throw;
+            }
         }
     }
 }
