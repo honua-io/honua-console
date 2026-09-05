@@ -40,6 +40,7 @@
     private async Task RefreshAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
     {
         var result = await client.GetLicenseStatusAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         _license = result.Data;
     }
 
