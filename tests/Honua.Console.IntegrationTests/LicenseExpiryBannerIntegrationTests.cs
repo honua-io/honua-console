@@ -55,6 +55,8 @@ public sealed class LicenseExpiryBannerIntegrationTests
                 "HONUA_DEV_AUTH=false",
                 "HONUA_DEV_AUTH_ALLOW_BYPASS=false",
                 "HONUA_REGISTER_TEST_INFRASTRUCTURE=false",
+                "HostValidation__AllowedHosts__0=license-fixture.example",
+                "Security__DisableHttpsRedirection=true",
                 "HONUA_ADMIN_PASSWORD=" + adminKey,
                 "Licensing__DevGrantEdition=",
                 "Licensing__Edition=Pro",
@@ -64,7 +66,9 @@ public sealed class LicenseExpiryBannerIntegrationTests
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         await using var server = await HonuaServerTestcontainer.StartAsync(options, timeout.Token);
-        using var client = new HonuaAdminOperateHttpClient(new HttpClient(),
+        var httpClient = new HttpClient();
+        httpClient.DefaultRequestHeaders.Host = "license-fixture.example";
+        using var client = new HonuaAdminOperateHttpClient(httpClient,
             new HonuaAdminOperateClientOptions(server.BaseAddress, adminKey));
         var status = await client.GetLicenseStatusAsync(timeout.Token);
         Assert.Null(status.Issue);
