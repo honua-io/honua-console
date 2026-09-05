@@ -53,6 +53,36 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
         component.WaitForAssertion(() => Assert.Empty(component.FindAll("[role=alert]")));
     }
 
+    [Theory]
+    [InlineData("unreachable")]
+    [InlineData("non-success")]
+    [InlineData("malformed")]
+    [InlineData("missing-data")]
+    public void FailedRefresh_RetainsWarningUntilSuccessfulRenewal(string failure)
+    {
+        var clock = new MinuteClock();
+        Services.AddSingleton<TimeProvider>(clock);
+        var handler = Register("Pro", 1);
+        var component = Render<LicenseExpiryBanner>();
+        component.WaitForAssertion(() => Assert.Equal("1",
+            component.Find("[role=alert]").GetAttribute("data-license-warning-days")));
+
+        handler.Failure = failure;
+        clock.UtcNow = clock.UtcNow.AddDays(2);
+        clock.Tick();
+        // A new threshold proves the failed poll has rendered, rather than inspecting the old render.
+        component.WaitForAssertion(() =>
+        {
+            Assert.Equal("0", component.Find("[role=alert]").GetAttribute("data-license-warning-days"));
+            Assert.Contains("Pro license expired", component.Markup);
+        });
+
+        handler.Failure = null;
+        handler.Response = Response("Pro", 60);
+        clock.Tick();
+        component.WaitForAssertion(() => Assert.Empty(component.FindAll("[role=alert]")));
+    }
+
     [Fact]
     public async Task Disposal_CancelsPendingStatusRequest()
     {
@@ -92,18 +122,35 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
     private sealed class ReplyHandler(string response) : HttpMessageHandler
     {
         public string Response { get; set; } = response;
+        public string? Failure { get; set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            if (Failure == "unreachable")
             {
-                Content = new StringContent(Response, Encoding.UTF8, "application/json")
+                throw new HttpRequestException("Synthetic server outage.");
+            }
+            var payload = Failure switch
+            {
+                "malformed" => "{",
+                "missing-data" => "{\"success\":true,\"data\":null}",
+                _ => Response
+            };
+            return Task.FromResult(new HttpResponseMessage(
+                Failure == "non-success" ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
             });
+        }
     }
 
     private sealed class MinuteClock : TimeProvider
     {
         private TimerCallback? _callback;
         private object? _state;
+        public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
