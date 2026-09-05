@@ -56,6 +56,7 @@ public sealed class LicenseExpiryBannerIntegrationTests
                 "HONUA_DEV_AUTH_ALLOW_BYPASS=false",
                 "HONUA_REGISTER_TEST_INFRASTRUCTURE=false",
                 "HONUA_ADMIN_PASSWORD=" + adminKey,
+                "Licensing__DevGrantEdition=",
                 "Licensing__Edition=Pro",
                 "Licensing__LicenseContent=" + envelope,
                 "Licensing__TrustedKeys__synthetic=base64url:" + Base64Url(privateKey.GeneratePublicKey().GetEncoded()))
@@ -66,6 +67,7 @@ public sealed class LicenseExpiryBannerIntegrationTests
         using var client = new HonuaAdminOperateHttpClient(new HttpClient(),
             new HonuaAdminOperateClientOptions(server.BaseAddress, adminKey));
         var status = await client.GetLicenseStatusAsync(timeout.Token);
+        Assert.Null(status.Issue);
         Assert.Equal("Pro", status.Data?.Edition);
         Assert.True(status.Data?.IsValid);
 
