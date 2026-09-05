@@ -43,7 +43,7 @@ public sealed class LicenseExpiryBannerIntegrationTests
             payload = Base64Url(payload),
             signature = Base64Url(signer.GenerateSignature())
         });
-        var adminKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        var adminKey = "Synthetic1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         options = options with
         {
             ExternalBaseUri = null,
@@ -55,7 +55,6 @@ public sealed class LicenseExpiryBannerIntegrationTests
                 "HONUA_DEV_AUTH=false",
                 "HONUA_DEV_AUTH_ALLOW_BYPASS=false",
                 "HONUA_REGISTER_TEST_INFRASTRUCTURE=false",
-                "HONUA_ADMIN_API_KEY=" + adminKey,
                 "HONUA_ADMIN_PASSWORD=" + adminKey,
                 "Licensing__Edition=Pro",
                 "Licensing__LicenseContent=" + envelope,
