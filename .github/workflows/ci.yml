@@ -65,7 +65,7 @@ jobs:
         # Executes the support-owned diagnostic-bundle v1 conformance manifest + valid/invalid
         # fixtures (mirrored read-only under contracts/diagnostics/) against the Console emitter and
         # validator, and enforces the pinned provenance SHA-256 (honua-console#307, honua-support#54/#57).
-        # Contract drift â€” a tampered schema, a mismatched pin, or a diverged embedded copy â€” fails
+        # Contract drift — a tampered schema, a mismatched pin, or a diverged embedded copy — fails
         # here with a clear provenance/hash error, distinct from the general test lane above.
         run: dotnet test tests/Honua.Console.Native.Core.Tests/Honua.Console.Native.Core.Tests.csproj --no-build --no-restore --nologo --verbosity minimal --filter "FullyQualifiedName~DiagnosticBundle"
 
@@ -113,7 +113,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload code coverage (cobertura)
-        # Visibility only â€” no coverage threshold gate.
+        # Visibility only — no coverage threshold gate.
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

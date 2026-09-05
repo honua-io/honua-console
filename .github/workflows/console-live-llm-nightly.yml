@@ -11,7 +11,7 @@ name: Console Live-LLM Smoke (nightly)
 #   - HONUA_LIVE_LLM_OPENAI_API_KEY secret set  -> direct OpenAI-compatible, all 4 surfaces.
 #   - HONUA_LIVE_LLM_AWS_* secrets set           -> Bedrock via a LiteLLM sidecar, all 4 surfaces.
 #   - neither                                    -> gated mode: every spec skips, job stays green.
-# The lane never fails for missing credentials â€” only for a genuine generation regression.
+# The lane never fails for missing credentials — only for a genuine generation regression.
 
 on:
   schedule:
@@ -45,7 +45,7 @@ jobs:
     env:
       # Pinned, override-able honua-server image (dispatch input > repo var > literal).
       HONUA_LIVE_LLM_SERVER_IMAGE: ${{ github.event.inputs.server_image || vars.HONUA_LIVE_LLM_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
-      # Provider credentials â€” empty when the secret is unset; the orchestrator
+      # Provider credentials — empty when the secret is unset; the orchestrator
       # then resolves mode=none and the lane skips cleanly (non-blocking).
       HONUA_LIVE_LLM_MODE: ${{ github.event.inputs.mode }}
       HONUA_LIVE_LLM_OPENAI_API_KEY: ${{ secrets.HONUA_LIVE_LLM_OPENAI_API_KEY }}
