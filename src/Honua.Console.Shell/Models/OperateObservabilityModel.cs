@@ -261,7 +261,8 @@ public sealed record OperateEvidenceLink(
     string Kind,
     string Label,
     string Href,
-    string Detail);
+    string Detail,
+    string? Identifier = null);
 
 public sealed record OperateAiAdvisory(
     string Summary,
@@ -436,6 +437,45 @@ public sealed record OperateJobAction(
     bool IsAllowed,
     string Reason);
 
+/// <summary>
+/// Stable identifiers which let an operator correlate one Console job with the
+/// Admin API, <c>honua admin</c>, MCP, OGC API Processes, and the Esri-compatible
+/// GPServer projection. Values are copied from the server-owned job detail and
+/// its allow-listed <c>selectedMetadata</c>; Console never invents an alias or a
+/// second job identity.
+/// </summary>
+public sealed record OperateJobIdentity(
+    string CorrelationId,
+    string TraceId,
+    string ProviderOperationId,
+    string DefinitionId,
+    string ProcessId,
+    string GpServerServiceId,
+    string GpServerTaskName,
+    string ResultPackageId,
+    IReadOnlyList<OperateJobStepMetadata> SelectedMetadata)
+{
+    public bool IsEsriGpServer =>
+        !string.IsNullOrWhiteSpace(GpServerServiceId)
+        || !string.IsNullOrWhiteSpace(GpServerTaskName);
+
+    public string GpServerJobPath(string jobRunId) =>
+        IsEsriGpServer
+            ? $"/rest/services/{Uri.EscapeDataString(GpServerServiceId)}/GPServer/{Uri.EscapeDataString(GpServerTaskName)}/jobs/{Uri.EscapeDataString(jobRunId)}"
+            : string.Empty;
+
+    public static OperateJobIdentity Empty { get; } = new(
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        []);
+}
+
 public sealed record OperateJobRun(
     string JobRunId,
     string Source,
@@ -458,7 +498,8 @@ public sealed record OperateJobRun(
     OperateSectionStatus LogsStatus = OperateSectionStatus.Allowed,
     string LogsMessage = "",
     OperateSectionStatus ArtifactsStatus = OperateSectionStatus.Allowed,
-    string ArtifactsMessage = "")
+    string ArtifactsMessage = "",
+    OperateJobIdentity? Identity = null)
 {
     public string DetailHref => OperateObservabilityRoutes.JobDetail(JobRunId);
 
@@ -469,6 +510,8 @@ public sealed record OperateJobRun(
     public bool LogsAllowed => LogsStatus == OperateSectionStatus.Allowed;
 
     public bool ArtifactsAllowed => ArtifactsStatus == OperateSectionStatus.Allowed;
+
+    public OperateJobIdentity EffectiveIdentity => Identity ?? OperateJobIdentity.Empty;
 
     /// <summary>
     /// Cancel is offered while the job is non-terminal. The server's Execute +

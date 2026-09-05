@@ -1,0 +1,82 @@
+@page "/operate/release-witness"
+@using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Services
+@inject IConsoleReleaseWitnessClient WitnessClient
+
+<section class="console-page console-operate-page" data-release-witness-page>
+    <div class="console-page-heading operate-heading">
+        <p class="console-kicker">Operate / Release witness</p>
+        <h1>Candidate publication evidence</h1>
+        <p>Read-only runtime, publication, and audit evidence for one sealed candidate approval.</p>
+    </div>
+
+    @if (!_loaded)
+    {
+        <OperateSectionStatusPanel Heading="Candidate evidence" Loading="true" />
+    }
+    else if (_result is null || !_result.IsAllowed || _result.Value is null)
+    {
+        <OperateSectionStatusPanel Heading="Candidate evidence"
+                                   Status="@(_result?.Status ?? OperateSectionStatus.Unavailable)"
+                                   Message="@(_result?.Message ?? "The release witness request was incomplete.")"
+                                   Detail="@_result?.Detail" />
+    }
+    else
+    {
+        var evidence = _result.Value;
+        <article class="console-panel"
+                 data-release-witness
+                 data-server-source-revision="@evidence.ServerSourceRevision"
+                 data-family="@evidence.Family"
+                 data-item-id="@evidence.ItemId"
+                 data-version-id="@evidence.VersionId"
+                 data-content-hash="@evidence.ContentHash"
+                 data-proposal-id="@evidence.ProposalId"
+                 data-publication-id="@evidence.PublicationId"
+                 data-public-url="@evidence.PublicUrl"
+                 data-audit-correlation-id="@evidence.AuditCorrelationId"
+                 data-audit-operation-id="@evidence.AuditExecutionOperationId"
+                 data-audit-verified="@evidence.AuditVerified.ToString().ToLowerInvariant()">
+            <div class="console-panel-heading">
+                <div><p class="console-kicker">@evidence.Family</p><h2>@evidence.PublicationId</h2></div>
+                <span class="console-status console-state-success">verified</span>
+            </div>
+            <dl class="console-definition-list">
+                <dt>Server source revision</dt><dd><code>@evidence.ServerSourceRevision</code></dd>
+                <dt>Studio item/version</dt><dd><code>@evidence.ItemId / @evidence.VersionId</code></dd>
+                <dt>Proposal</dt><dd><CorrelationIdChip Value="@evidence.ProposalId" Kind="CorrelationIdKind.ProposalId" /></dd>
+                <dt>Audit correlation</dt><dd><CorrelationIdChip Value="@evidence.AuditCorrelationId" Kind="CorrelationIdKind.CorrelationId" /></dd>
+                <dt>Audit operation</dt><dd><CorrelationIdChip Value="@evidence.AuditExecutionOperationId" Kind="CorrelationIdKind.OperationId" /></dd>
+                <dt>Public route</dt><dd><a href="@evidence.PublicUrl" data-release-public-link>@evidence.PublicUrl</a></dd>
+            </dl>
+        </article>
+    }
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "family")] private string? Family { get; set; }
+    [SupplyParameterFromQuery(Name = "itemId")] private string? ItemId { get; set; }
+    [SupplyParameterFromQuery(Name = "versionId")] private string? VersionId { get; set; }
+    [SupplyParameterFromQuery(Name = "contentHash")] private string? ContentHash { get; set; }
+    [SupplyParameterFromQuery(Name = "proposalId")] private string? ProposalId { get; set; }
+
+    private bool _loaded;
+    private OperateSectionResult<ConsoleReleaseWitnessEvidence>? _result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        if (new[] { Family, ItemId, VersionId, ContentHash, ProposalId }.Any(string.IsNullOrWhiteSpace))
+        {
+            _result = OperateSectionResult<ConsoleReleaseWitnessEvidence>.Denied(
+                OperateSectionStatus.Unavailable,
+                "The release witness requires a complete sealed candidate query.");
+        }
+        else
+        {
+            _result = await WitnessClient.ObserveAsync(new(
+                Family!.Trim(), ItemId!.Trim(), VersionId!.Trim(), ContentHash!.Trim(), ProposalId!.Trim()));
+        }
+        _loaded = true;
+    }
+}
