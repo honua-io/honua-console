@@ -72,16 +72,16 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Optional: check out honua-server source so the two source-build live lanes
       # (GitOps release + Operate transition) run too. Gated on an explicit ref so
-      # the lane never hard-fails when the cross-repo token is absent — those two
+      # the lane never hard-fails when the cross-repo token is absent â€” those two
       # SkippableFacts simply skip with their "project was not found" reason.
       - name: Check out honua-server (source-build lanes)
         id: server_src
         if: ${{ github.event.inputs.server_ref != '' }}
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: honua-io/honua-server
           ref: ${{ github.event.inputs.server_ref }}
@@ -93,12 +93,12 @@ jobs:
         run: echo "HONUA_SERVER_PROJECT=${GITHUB_WORKSPACE}/honua-server/src/Honua.Server/Honua.Server.csproj" >> "$GITHUB_ENV"
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20.x
           cache: npm
@@ -153,7 +153,7 @@ jobs:
               | sort | uniq -c || echo "no trx files found"
             echo '```'
             echo ""
-            echo "### Cross-cutting (Wave 6) — version / contract drift"
+            echo "### Cross-cutting (Wave 6) â€” version / contract drift"
             echo ""
             echo "Pinned server version + metadata contract the cross-cutting suite recorded (drift evidence):"
             echo ""
@@ -166,7 +166,7 @@ jobs:
 
       - name: Upload test results (trx)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-nightly-trx
           path: artifacts/test-results/**/*.trx
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload code coverage (cobertura)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-nightly-coverage
           path: artifacts/test-results/**/coverage.cobertura.xml
@@ -182,7 +182,7 @@ jobs:
 
       - name: Upload cross-cutting contract-drift evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-nightly-contract-drift
           path: smoke-evidence/console-contract-drift.json

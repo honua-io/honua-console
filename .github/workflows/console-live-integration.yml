@@ -6,7 +6,7 @@ name: Console Live Integration (PR)
 # because that job never sets HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS and the PR
 # runner is not asked to boot a server. Those suites are the only automated
 # proof that Console <-> honua-server Studio wiring works, so they must run on
-# every PR — not just in the nightly schedule (console-nightly.yml).
+# every PR â€” not just in the nightly schedule (console-nightly.yml).
 #
 # This lane runs on a Docker-enabled ubuntu runner, sets the opt-in flags, and
 # pins a connect-only honua-server image so the SkippableFacts execute instead
@@ -68,15 +68,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20.x
           cache: npm
@@ -107,7 +107,7 @@ jobs:
       # fixture 500 is fixed.
       # Two classes are structurally incompatible with THIS lane (opt-in env SET,
       # connect-only HTTP image) and are excluded so they don't red the lane for
-      # reasons unrelated to Studio wiring — they still run where they belong:
+      # reasons unrelated to Studio wiring â€” they still run where they belong:
       #   - ConsoleEndToEndSmokeHarnessTests: asserts the *absent*-opt-in-env
       #     clean-skip contract, so it only holds on the standard ci.yml runner
       #     (with the flag SET it throws SkipException = fail here).
@@ -148,7 +148,7 @@ jobs:
 
       - name: Upload test results (trx)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-live-integration-trx
           path: artifacts/test-results/**/*.trx
