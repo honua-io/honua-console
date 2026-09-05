@@ -41,7 +41,10 @@
     {
         var result = await client.GetLicenseStatusAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        _license = result.Data;
+        if (result is { Issue: null, Data: { } license })
+        {
+            _license = license;
+        }
     }
 
     private async Task PollAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
