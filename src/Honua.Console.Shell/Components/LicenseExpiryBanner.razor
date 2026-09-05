@@ -1,0 +1,80 @@
+@namespace Honua.Console.Shell.Components
+@implements IAsyncDisposable
+@inject IServiceProvider Services
+
+@if (WarningDays is { } days && _license?.ExpiresAt is { } expires)
+{
+    <aside class="console-panel" role="alert" aria-atomic="true" data-license-warning-days="@days">
+        <strong>@_license.Edition license @(days == 0 ? "expired" : $"expires in {DaysRemaining} day(s)").</strong>
+        <p>Expiry: @expires.ToString("u"). Reads and exports stop at expiry, and in-flight jobs fail with reason "license expired".</p>
+        <p>Renew or complete your backup/export before expiry. Renewal is checked every minute; failed jobs need to be submitted again.</p>
+        <a href="/operate/settings">View license settings</a>
+    </aside>
+}
+
+@code {
+    private readonly CancellationTokenSource _stopping = new();
+    private HonuaAdminLicenseStatusResponse? _license;
+    private Task? _polling;
+    private TimeProvider _clock = TimeProvider.System;
+    private int DaysRemaining => _license?.ExpiresAt is { } expires
+        ? Math.Max(0, (int)Math.Ceiling((expires - _clock.GetUtcNow()).TotalDays)) : 0;
+    private int? WarningDays => _license is { ExpiresAt: not null } &&
+        (string.Equals(_license.Edition, "Pro", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(_license.Edition, "Enterprise", StringComparison.OrdinalIgnoreCase))
+        ? DaysRemaining switch { 0 => 0, <= 1 => 1, <= 7 => 7, <= 14 => 14, <= 30 => 30, _ => null }
+        : null;
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        var client = Services.GetService<IHonuaAdminOperateClient>();
+        if (!firstRender || client is null)
+        {
+            return Task.CompletedTask;
+        }
+        _clock = Services.GetService<TimeProvider>() ?? TimeProvider.System;
+        _polling = PollAsync(client, _stopping.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task RefreshAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
+    {
+        var result = await client.GetLicenseStatusAsync(cancellationToken);
+        _license = result.Data;
+    }
+
+    private async Task PollAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RefreshAsync(client, cancellationToken);
+            await InvokeAsync(StateHasChanged);
+            using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1), _clock);
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await RefreshAsync(client, cancellationToken);
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await DispatchExceptionAsync(exception);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stopping.CancelAsync();
+        if (_polling is not null)
+        {
+            await _polling;
+        }
+        _stopping.Dispose();
+    }
+}
