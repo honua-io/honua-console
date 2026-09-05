@@ -76,7 +76,7 @@ jobs:
 
       # Optional: check out honua-server source so the two source-build live lanes
       # (GitOps release + Operate transition) run too. Gated on an explicit ref so
-      # the lane never hard-fails when the cross-repo token is absent â€” those two
+      # the lane never hard-fails when the cross-repo token is absent — those two
       # SkippableFacts simply skip with their "project was not found" reason.
       - name: Check out honua-server (source-build lanes)
         id: server_src
@@ -153,7 +153,7 @@ jobs:
               | sort | uniq -c || echo "no trx files found"
             echo '```'
             echo ""
-            echo "### Cross-cutting (Wave 6) â€” version / contract drift"
+            echo "### Cross-cutting (Wave 6) — version / contract drift"
             echo ""
             echo "Pinned server version + metadata contract the cross-cutting suite recorded (drift evidence):"
             echo ""

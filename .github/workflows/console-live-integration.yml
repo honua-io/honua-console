@@ -6,7 +6,7 @@ name: Console Live Integration (PR)
 # because that job never sets HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS and the PR
 # runner is not asked to boot a server. Those suites are the only automated
 # proof that Console <-> honua-server Studio wiring works, so they must run on
-# every PR â€” not just in the nightly schedule (console-nightly.yml).
+# every PR — not just in the nightly schedule (console-nightly.yml).
 #
 # This lane runs on a Docker-enabled ubuntu runner, sets the opt-in flags, and
 # pins a connect-only honua-server image so the SkippableFacts execute instead
@@ -107,7 +107,7 @@ jobs:
       # fixture 500 is fixed.
       # Two classes are structurally incompatible with THIS lane (opt-in env SET,
       # connect-only HTTP image) and are excluded so they don't red the lane for
-      # reasons unrelated to Studio wiring â€” they still run where they belong:
+      # reasons unrelated to Studio wiring — they still run where they belong:
       #   - ConsoleEndToEndSmokeHarnessTests: asserts the *absent*-opt-in-env
       #     clean-skip contract, so it only holds on the standard ci.yml runner
       #     (with the flag SET it throws SkipException = fail here).

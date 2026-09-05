@@ -6,8 +6,8 @@ name: Console E2E
 # transport teardown, a re-introduced ambiguous route, or any console/page error). The
 # ambiguous `/operate/jobs/{...}` circuit defect this smoke used to tolerate was fixed in
 # #140, and the boot assertion was unblinded in #244 (app-shell.spec.ts now asserts zero
-# console/page errors), so the previous `continue-on-error` escape hatch â€” which blinded the
-# smoke to exactly the failures it exists to catch â€” has been removed (honua-console#239).
+# console/page errors), so the previous `continue-on-error` escape hatch — which blinded the
+# smoke to exactly the failures it exists to catch — has been removed (honua-console#239).
 # Enforce it as a required check in branch protection.
 
 on:
