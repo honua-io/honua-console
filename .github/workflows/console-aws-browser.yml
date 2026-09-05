@@ -41,7 +41,7 @@ jobs:
         working-directory: e2e/playwright
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx --no-install playwright install --with-deps chromium
 
       - name: Run the AWS-bound Console journeys
         working-directory: e2e/playwright

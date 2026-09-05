@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Enforce maintained documentation command policy
         run: |
@@ -35,12 +35,15 @@ jobs:
         run: ./scripts/sync-ops-parity-map.sh --check
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 10.0.x
+          global-json-file: src/Honua.Console.Web/global.json
+
+      - name: Select the pinned SDK for solution commands
+        run: cp src/Honua.Console.Web/global.json global.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20.x
           cache: npm
@@ -51,7 +54,7 @@ jobs:
         run: dotnet nuget update source github-honua --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
 
       - name: Restore .NET projects
-        run: dotnet restore Honua.Console.slnx
+        run: dotnet restore Honua.Console.slnx --locked-mode
 
       - name: Verify .NET formatting
         run: dotnet format Honua.Console.slnx --verify-no-changes --verbosity minimal --no-restore
@@ -98,7 +101,7 @@ jobs:
         run: npm run smoke:parity
 
       - name: Upload Console artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: honua-console-web
           path: artifacts/honua-console-web/
@@ -106,7 +109,7 @@ jobs:
 
       - name: Upload parity evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-parity-evidence
           path: smoke-evidence/console-parity.json
@@ -115,7 +118,7 @@ jobs:
       - name: Upload code coverage (cobertura)
         # Visibility only — no coverage threshold gate.
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-coverage
           path: artifacts/test-results/**/coverage.cobertura.xml
