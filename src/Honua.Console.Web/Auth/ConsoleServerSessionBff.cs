@@ -621,7 +621,13 @@ internal sealed class PartitionedConsoleOperatorBearerExchange : IConsoleOperato
     {
         try
         {
-            var partition = _serverSessions.GetOrCreate(_operatorContext.RequireOperatorKey(), profile);
+            if (!_serverSessions.TryGet(_operatorContext.RequireOperatorKey(), profile, out var partition)
+                || partition is null)
+            {
+                return Task.FromResult(ConsoleOperatorBearerExchangeResult.Denied(
+                    "No honua-server session is available. Sign in to the server again."));
+            }
+
             return new HttpConsoleOperatorBearerExchange(partition.Client)
                 .ExchangeAsync(profile, cancellationToken);
         }
