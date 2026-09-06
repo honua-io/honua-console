@@ -10,20 +10,15 @@ on:
 
 permissions:
   contents: read
+  security-events: write
+  id-token: write
+  actions: read
 
 jobs:
   trivy:
-    permissions:
-      contents: read
-      security-events: write # Upload Trivy SARIF.
-    uses: honua-io/.github/.github/workflows/reusable-trivy.yml@aebfacd3f3c6b551fa9bf703501c0a12a050faf3 # v0.36.0 Trivy workflow snapshot
+    uses: honua-io/.github/.github/workflows/reusable-trivy.yml@aebfacd3f3c6b551fa9bf703501c0a12a050faf3 # main
     with:
       scan-type: fs
 
   scorecard:
-    permissions:
-      contents: read
-      actions: read
-      security-events: write # Upload Scorecard SARIF.
-      id-token: write # Publish results to OpenSSF on trunk.
-    uses: honua-io/.github/.github/workflows/reusable-scorecard.yml@e26b67e904f2c23796fe677d267d73188a764545 # v2.4.4 image fix
+    uses: honua-io/.github/.github/workflows/reusable-scorecard.yml@e26b67e904f2c23796fe677d267d73188a764545 # main; Scorecard 2.4.4 fixes retired action image
