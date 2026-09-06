@@ -58,3 +58,10 @@ Run the browser evidence with `npm --prefix e2e/playwright run e2e:smoke --
 specs/chart-runtime.spec.ts specs/no-external-requests.spec.ts`, alongside `npm test`,
 `./scripts/fast-local-check.sh`, the chart-related integration tests, and the formatting check.
 No acceptance criterion needs an exact release candidate or is released from #337.
+
+Local verification on the resumed branch (2026-09-05): all 18 Chromium runtime
+fixtures passed against the committed assets on a temporary same-origin static host.
+Serving the trunk Vega 5.33.0 bundle to the unchanged parser test instead failed at
+the `toString` rejection assertion (`accepted`), as intended. The native-core suite
+passed 1,382 tests; its three opt-in live-server tests were skipped by their existing
+environment guards and are not counted as evidence for this upgrade.
