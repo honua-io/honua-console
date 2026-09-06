@@ -39,6 +39,33 @@ all page requests and require zero off-origin requests.
   explicitly adds files created after project evaluation, covering first builds.
   The Playwright CI job moves the prefetched tree aside before its first publish;
   published-tree verification and real rendering then enforce this build path.
+- Downloaded the published artifact from CI run `34017349874` (code commit
+  `84ef274b5f94a7016a19005905f54445e093686c`), verified all 377 Cesium files locally,
+  and ran the complete off-origin Chromium spec against that artifact: 7/7 passed.
+  Chromium used the host's existing libraries under
+  `/tmp/js-8a0755c-browser-libs/root/usr/lib/x86_64-linux-gnu`.
+- `dotnet format Honua.Console.slnx --verify-no-changes` passed locally with
+  sandbox escalation for restore; workflow `actionlint` passed.
+
+## CI evidence
+
+[Validate Console](https://github.com/honua-io/honua-console/actions/runs/34017349874)
+passed: 1,382 native-core tests, 12 diagnostic-contract tests, 837 render/integration
+tests, and 102 Node tests, plus build, publish, and artifact verification. The
+general .NET jobs retain their existing 3/56 opt-in live skips; the separate
+[pinned-image integration job](https://github.com/honua-io/honua-console/actions/runs/34017349931)
+passed. [Browser CI](https://github.com/honua-io/honua-console/actions/runs/34017349922)
+passed all 54 tests against its first-publish artifact, including the populated
+scene and chart. Container smoke, CodeQL, and Trivy also passed.
+
+The duplicate local `fast-local-check.sh` remained queued before MSBuild because
+both shared build slots were occupied. It was cancelled after equivalent CI
+checks and the local published-artifact browser proof passed. No local .NET
+suite success is claimed, and no MSB4216/MSB4027 failure occurred.
+
+The non-required Scorecard job remains red because its upstream
+`gcr.io/openssf/scorecard-action:v2.4.0` image returns a billing denial. This is
+separate from the green required `Validate Console` gate; no check was weakened.
 
 No acceptance criterion requires an unavailable release candidate. The local
 published artifact proves packaging and runtime behavior; exact-candidate
