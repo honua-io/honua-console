@@ -36,3 +36,8 @@ expected gate and feature-client call count, including a delayed initial respons
 `LiveManifestBindingTests` switches between two server authorities and operator
 bearers and checks the existing navigation. Refresh-order and cancellation
 regressions live in `ManifestBackedConsoleCapabilityManifestTests`.
+
+Local verification on 2026-09-06 used the .NET 10.0.400 lane shim with the four-node
+MSBuild cap. The focused `LiveManifest` and
+`ManifestBackedConsoleCapabilityManifestTests` filter executed 77 tests: 77 passed,
+zero failed, zero skipped (55 SDK-to-page cases plus binding/policy/refresh tests).
