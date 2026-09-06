@@ -42,7 +42,6 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
                 Detail = $"The server capability manifest ({Contract}) could not be read: {ex.Message}",
             };
         }
-
     }
 
     // Projects the SDK manifest into the console view model: each advertised capability entry becomes a

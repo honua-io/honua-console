@@ -125,6 +125,54 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync));
     }
 
+    [Fact]
+    public async Task OlderBindingResponse_CannotReenableNewerUnavailableBinding()
+    {
+        var old = new TaskCompletionSource<CapabilityRegistrySnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var current = new TaskCompletionSource<CapabilityRegistrySnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var registry = new DeferredRegistry(new Queue<Task<CapabilityRegistrySnapshot>>([old.Task, current.Task]));
+        var subject = new ManifestBackedConsoleCapabilityManifest(registry);
+        var first = subject.RefreshAsync();
+        var second = subject.RefreshAsync();
+        current.SetResult(new CapabilityRegistrySnapshot { Bound = false });
+        await second;
+        old.SetResult(new CapabilityRegistrySnapshot
+        {
+            Bound = true,
+            Descriptors = [new CapabilityDescriptor("temporal.filtering", true, true, null)],
+        });
+        await first;
+        Assert.False(subject.IsAdvertised(ConsoleCapabilityKeys.Temporal));
+    }
+
+    [Fact]
+    public async Task CancelledRefresh_RevokesPreviouslyAvailableCapabilities()
+    {
+        var registry = new DeferredRegistry(new Queue<Task<CapabilityRegistrySnapshot>>([
+            Task.FromResult(new CapabilityRegistrySnapshot
+            {
+                Bound = true,
+                Descriptors = [new CapabilityDescriptor("temporal.filtering", true, true, null)],
+            }),
+            new TaskCompletionSource<CapabilityRegistrySnapshot>().Task,
+        ]));
+        var subject = new ManifestBackedConsoleCapabilityManifest(registry);
+        await subject.RefreshAsync();
+        Assert.True(subject.IsAdvertised(ConsoleCapabilityKeys.Temporal));
+        using var cancellation = new CancellationTokenSource();
+        var refresh = subject.RefreshAsync(cancellation.Token);
+        Assert.False(subject.IsAdvertised(ConsoleCapabilityKeys.Temporal));
+        cancellation.Cancel();
+        await refresh;
+        Assert.False(subject.IsAdvertised(ConsoleCapabilityKeys.Temporal));
+    }
+
+    private sealed class DeferredRegistry(Queue<Task<CapabilityRegistrySnapshot>> responses) : ICapabilityRegistryClient
+    {
+        public Task<CapabilityRegistrySnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
+            => responses.Dequeue();
+    }
+
     private static ManifestBackedConsoleCapabilityManifest Create(string localKey, CapabilityRegistrySnapshot snapshot)
         => new(new StubRegistry(snapshot), [localKey]);
 

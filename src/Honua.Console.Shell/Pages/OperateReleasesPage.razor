@@ -810,9 +810,10 @@
     private static string? DeployApprovalOperationId(GitOpsReleaseOperation operation) =>
         string.IsNullOrWhiteSpace(operation.DeployOperationId) ? null : operation.DeployOperationId;
 
+    protected override Task OnInitializedAsync() => Capabilities.RefreshAsync();
+
     protected override async Task OnParametersSetAsync()
     {
-        await Capabilities.RefreshAsync();
         // Capability-gated: when cross-environment promotion is not advertised the page renders the
         // first-class unsupported state (via ConsoleCapabilityGate), so skip the server reads entirely.
         if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.CrossEnvironmentPromotion))

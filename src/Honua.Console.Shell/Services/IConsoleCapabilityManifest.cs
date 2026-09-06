@@ -124,10 +124,11 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
     private readonly object _refreshLock = new();
     private long _refreshVersion;
 
-    public event Action? Changed;
     private readonly HashSet<string> _localPolicy;
     private readonly HashSet<string> _serverPolicy;
     private HashSet<string> _available = new(StringComparer.OrdinalIgnoreCase);
+
+    public event Action? Changed;
 
     public ManifestBackedConsoleCapabilityManifest(
         ICapabilityRegistryClient registry,
@@ -150,7 +151,10 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
             return _localPolicy.Contains(capabilityKey);
         }
 
-        return _available.Contains(capabilityKey);
+        lock (_refreshLock)
+        {
+            return _available.Contains(capabilityKey);
+        }
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)

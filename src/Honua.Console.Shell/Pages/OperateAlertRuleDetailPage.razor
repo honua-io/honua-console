@@ -156,9 +156,10 @@
     private int? _dwellMinutes;
     private string _deliveryChannels = string.Empty;
 
+    protected override Task OnInitializedAsync() => Capabilities.RefreshAsync();
+
     protected override async Task OnParametersSetAsync()
     {
-        await Capabilities.RefreshAsync();
         // Capability-manifest gate: when realtime/geofence alerting is not advertised for this release
         // the page renders the first-class "unsupported" state, so skip the server read entirely.
         if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
