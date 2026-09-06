@@ -65,3 +65,5 @@ Serving the trunk Vega 5.33.0 bundle to the unchanged parser test instead failed
 the `toString` rejection assertion (`accepted`), as intended. The native-core suite
 passed 1,382 tests; its three opt-in live-server tests were skipped by their existing
 environment guards and are not counted as evidence for this upgrade.
+The web-host build also passed with zero warnings and errors, completing
+`./scripts/fast-local-check.sh` on the lane's capped .NET SDK.
