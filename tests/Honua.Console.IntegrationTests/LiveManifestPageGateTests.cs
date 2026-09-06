@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Text;
 using Bunit;
 using Honua.Console.Shell.Models;
-using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Honua.Sdk.Studio.Capabilities;
@@ -69,8 +68,15 @@ public sealed class LiveManifestPageGateTests
             builder.OpenComponent(0, pageType);
             builder.CloseComponent();
         });
-        var gate = rendered.FindComponent<ConsoleCapabilityGate>();
-        var initialRenderCount = gate.RenderCount;
+        Func<int> pageRenderCount = key switch
+        {
+            "temporal" => () => rendered.FindComponent<OperateTemporalPage>().RenderCount,
+            "disconnected-sync" => () => rendered.FindComponent<OperateSyncPage>().RenderCount,
+            "realtime-alerting" => () => rendered.FindComponent<OperateAlertRulesPage>().RenderCount,
+            "cross-environment-promotion" => () => rendered.FindComponent<OperateReleasesPage>().RenderCount,
+            _ => () => rendered.FindComponent<OperateObservabilityPage>().RenderCount,
+        };
+        var initialRenderCount = pageRenderCount();
         Assert.Equal(0, FeatureCalls());
         Assert.False(manifest.IsAdvertised(key));
         handler.Release.TrySetResult();
@@ -79,7 +85,7 @@ public sealed class LiveManifestPageGateTests
         rendered.WaitForAssertion(() =>
         {
             Assert.True(handler.Completed);
-            Assert.True(gate.RenderCount > initialRenderCount);
+            Assert.True(pageRenderCount() > initialRenderCount);
             Assert.Equal(available, manifest.IsAdvertised(key));
             Assert.Equal(available ? 1 : 0, FeatureCalls());
             if (available)
