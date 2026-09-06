@@ -3,6 +3,8 @@
 The release promise is the optional, supported inspect/approve/operate/recover Console surface,
 with every privileged interactive request attributed to the active human and no shared-key fallback.
 This work does not change the terminal journey's independent support or evidence status.
+Deployment release/version and recovery inspection uses `/operate/deploy`; the existing
+`/operate/releases` workspace remains the separately capability-gated cross-environment GitOps surface.
 
 | Acceptance area | Pre-cut implementation and evidence | Remaining qualification |
 | --- | --- | --- |
@@ -37,6 +39,8 @@ candidate-only work. #351 must remain open until those criteria are satisfied or
 - Focused .NET transport, presentation, session-BFF and cache regressions: **54 passed, 0 skipped**.
 - Focused terminal-receipt contract/adjudication tests: **4 passed**.
 - Current Web host rebuild: **passed, 0 warnings, 0 errors**.
+- Full integration suite, including the no-session exchange regression: **858 passed; 56 existing opt-in live-server tests not run**.
+- Node smoke/metadata suite: **97 passed, 0 skipped**.
 - Browser, full local suites and final-head CI results are recorded in PR #360 after execution.
 
 The local lane required escalation for MSBuild's denied IPC socket. Shared compilation stayed
