@@ -145,6 +145,8 @@
                     </button>
                 </div>
 
+                <p class="console-muted" data-import-behavior>Create selected targets without replacing existing tables. Existing-target conflicts leave data unchanged and appear in the job results. Deselect a layer to skip it, or authorize its named replacement below.</p>
+
                 @if (_confirmReplacement)
                 {
                     <div class="console-validation-summary" role="alertdialog" aria-labelledby="replace-confirm-title" data-replace-confirmation>
@@ -153,10 +155,10 @@
                         <ul>
                             @foreach (var target in SelectedReplacementTargets())
                             {
-                                <li class="console-mono">public.@target</li>
+                                <li class="console-mono">@ImportTargetSchema.@target</li>
                             }
                         </ul>
-                        <button class="console-button" type="button" @onclick="QueueImportsAsync" data-confirm-replacement>Confirm and queue replacements</button>
+                        <button class="console-button" type="button" @onclick="ConfirmReplacementAsync" data-confirm-replacement>Confirm and queue replacements</button>
                         <button class="console-button-link" type="button" @onclick="CancelReplacement" data-cancel-replacement>Cancel</button>
                     </div>
                 }
@@ -240,8 +242,8 @@
                                             <label class="console-inline-check">
                                                 <input type="checkbox" checked="@_replaceTargets.Contains(layer.Key)"
                                                        @onchange="e => SetReplacement(layer.Key, (bool)e.Value!)"
-                                                       aria-label="@($"Authorize replacement of public.{TargetTable(service, layer)}")" data-replace-target />
-                                                <span>Replace <span class="console-mono">public.@TargetTable(service, layer)</span></span>
+                                                       aria-label="@($"Authorize replacement of {ImportTargetSchema}.{TargetTable(service, layer)}")" data-replace-target />
+                                                <span>Replace <span class="console-mono">@ImportTargetSchema.@TargetTable(service, layer)</span></span>
                                             </label>
                                         }
                                     </div>
@@ -256,6 +258,8 @@
 </section>
 
 @code {
+    private const string ImportTargetSchema = "public";
+
     private string _serviceUrl = string.Empty;
     private string _authMode = "anonymous";
     private string _username = string.Empty;
@@ -526,6 +530,7 @@
         }
 
         _importError = null;
+        _confirmReplacement = false;
     }
 
     private void DeselectAll()
@@ -538,6 +543,11 @@
 
     private async Task StartImportsAsync()
     {
+        if (_importing)
+        {
+            return;
+        }
+
         _confirmReplacement = _replaceTargets.Any(_selected.Contains);
         if (_confirmReplacement)
         {
@@ -546,6 +556,9 @@
 
         await QueueImportsAsync();
     }
+
+    private Task ConfirmReplacementAsync() =>
+        _confirmReplacement && !_importing ? QueueImportsAsync() : Task.CompletedTask;
 
     private async Task QueueImportsAsync()
     {
@@ -608,6 +621,7 @@
                         ServiceUrl = service.ServiceUrl!,
                         LayerId = layer.LayerId!.Value,
                         TableName = table,
+                        TargetSchema = ImportTargetSchema,
                         OverwriteExisting = authorizedReplacementTargets.Contains(layer.Key),
                         AutoPublish = _autoPublish,
                         ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
@@ -685,7 +699,11 @@
         _confirmReplacement = false;
     }
 
-    private void CancelReplacement() => _confirmReplacement = false;
+    private void CancelReplacement()
+    {
+        _confirmReplacement = false;
+        _replaceTargets.Clear();
+    }
 
     private IEnumerable<string> SelectedReplacementTargets() =>
         from service in _tree.SelectMany(static folder => folder.Services)
