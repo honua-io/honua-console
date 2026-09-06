@@ -167,8 +167,11 @@ To bump one: change `version` there, run `node scripts/vendor-assets.mjs --updat
 and commit the rewritten assets together with `scripts/vendored-assets.lock.json`.
 For a reviewed Cesium version bump, update the constants in
 `scripts/lib/cesium-extracted-tree.mjs`, then run
-`node scripts/fetch-cesium.mjs --force --update-lock` and commit the rewritten
-`scripts/cesium-extracted-tree.lock.json`.
+`node scripts/vendor-assets.mjs --update` and commit the rewritten
+`scripts/cesium-extracted-tree.lock.json` and `scripts/vendored-assets.lock.json`.
+The common lock records Cesium's version, archive digest, and extracted-tree digest;
+the tree lock inventories every packaged file. The same update command refreshes
+the committed MapLibre and Vega assets. Cesium's runtime remains build-time output.
 The script re-fetches from the npm registry, checks the tarball against npm's own
 `dist.integrity`, and records a sha384 digest of every byte it writes; `npm test`
 fails if a committed asset ever stops matching its digest, if a wwwroot interop

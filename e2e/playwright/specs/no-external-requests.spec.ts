@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { test, expect } from '@playwright/test';
+import { scenePoints } from '../fixtures/scene-points';
 
 // Spec 6 (honua-console#333): the Console serves its own assets. Nothing it loads may come from an
 // origin outside the app.
@@ -125,6 +126,7 @@ test('the CSP no longer admits the MapLibre CDN origin', async ({ request }) => 
   const csp = response.headers()['content-security-policy'];
   expect(csp, 'every response must carry a CSP').toBeTruthy();
   expect(csp).not.toContain('unpkg.com');
+  expect(csp).not.toContain('cdn.jsdelivr.net');
   expect(csp).toContain("script-src 'self'");
 });
 
@@ -198,6 +200,8 @@ test('a mounted chart runs the vendored Vega build, fetched from this origin', a
         vegaEmbed?: { version: string };
       };
       const rendered = container.querySelector('svg') !== null;
+      const bars = Array.from(container.querySelectorAll('svg .mark-rect path'))
+        .map((bar) => bar.getAttribute('aria-label'));
       const versions = {
         vega: globals.vega?.version,
         vegaLite: globals.vegaLite?.version,
@@ -210,7 +214,7 @@ test('a mounted chart runs the vendored Vega build, fetched from this origin', a
       };
       mod.dispose(container);
       container.remove();
-      return { mounted, rendered, versions, sources };
+      return { mounted, rendered, bars, versions, sources };
     },
     {
       modulePath: CHART_MODULE_PATH,
@@ -229,6 +233,7 @@ test('a mounted chart runs the vendored Vega build, fetched from this origin', a
   // All three libraries really loaded and really drew a chart (not the graceful-degradation path).
   expect(result.mounted, 'Vega failed to load — the vendored assets are not reachable').toBe(true);
   expect(result.rendered, 'vega-embed did not render an SVG into the container').toBe(true);
+  expect(result.bars).toEqual(['category: a; amount: 28', 'category: b; amount: 55']);
   // …at the versions this repo pins, from this repo's own origin.
   expect(result.versions).toEqual({
     vega: VEGA_VERSION,
@@ -250,18 +255,25 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
   const origin = new URL(baseURL!).origin;
   const offOrigin = recordOffOriginRequests(page, origin);
   const tilesetRequests: string[] = [];
+  const pointRequests: string[] = [];
+  await page.route('**/scene-proxy/scenes/reviewed/points.pnts', async (route) => {
+    pointRequests.push(route.request().url());
+    await route.fulfill({ status: 200, contentType: 'application/octet-stream', body: scenePoints() });
+  });
   await page.route('**/scene-proxy/scenes/reviewed/tileset.json', async (route) => {
     tilesetRequests.push(route.request().url());
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        asset: { version: '1.1' },
+        asset: { version: '1.0' },
         geometricError: 0,
         root: {
-          boundingVolume: { region: [-0.001, -0.001, 0.001, 0.001, 0, 20] },
+          // All three fixture points are within 15m of (6378137, 0, 10).
+          boundingVolume: { sphere: [6378137, 0, 10, 15] },
           geometricError: 0,
           refine: 'ADD',
+          content: { uri: 'points.pnts' },
         },
       }),
     });
@@ -279,6 +291,11 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
     container.style.height = '360px';
     document.body.appendChild(container);
     const mounted = await mod.init(container, splitHostTileset);
+    const deadline = performance.now() + 20_000;
+    while (mounted && (!mod.inspect(container)?.tilesLoaded || mod.inspect(container)?.pointsLength !== 3)
+        && performance.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
     const inspection = mod.inspect(container);
     const version = (window as unknown as { Cesium?: { VERSION?: string } }).Cesium?.VERSION;
     const canvas = container.querySelector('canvas') !== null;
@@ -296,7 +313,10 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
   expect(result.inspection).toEqual({
     imageryLayerCount: 0,
     tilesetUrl: `${origin}/scene-proxy/scenes/reviewed/tileset.json`,
+    tilesLoaded: true,
+    pointsLength: 3,
   });
   expect(tilesetRequests).toEqual([`${origin}/scene-proxy/scenes/reviewed/tileset.json`]);
+  expect(pointRequests).toEqual([`${origin}/scene-proxy/scenes/reviewed/points.pnts`]);
   expect(offOrigin, 'mounting a 3D Tiles scene reached off-origin (including Cesium Ion)').toEqual([]);
 });
