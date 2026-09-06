@@ -113,6 +113,12 @@ for (const schema of [5, 6]) {
 
       expect(rendered.mounted).toBe(true);
       expect(rendered.points).toHaveLength(series.length * 2);
+      expect(rendered.seams).toHaveLength(1);
+      expect(rendered.seams[0].dash).toBe('4,4');
+      const seamCoordinates = rendered.seams[0].transform?.match(/^translate\(([-\d.]+),0\)$/);
+      expect(seamCoordinates).toBeTruthy();
+      const seamX = Number(seamCoordinates![1]);
+      expect(seamX).toBeGreaterThan(0);
       for (const [name, first, second] of series) {
         const ordinates: number[] = [];
         for (const [index, value] of [first, second].entries()) {
@@ -121,13 +127,13 @@ for (const schema of [5, 6]) {
           expect(matches).toHaveLength(1);
           const coordinates = matches[0].transform?.match(/^translate\(([-\d.]+),([-\d.]+)\)$/);
           expect(coordinates).toBeTruthy();
-          expect(Number(coordinates![1])).toBeCloseTo(index * 300, 5);
+          // The seam timestamp is the exact midpoint, independent of axis/legend padding.
+          expect(Number(coordinates![1])).toBeCloseTo(index * seamX * 2, 5);
           ordinates.push(Number(coordinates![2]));
         }
         // Higher values move up the SVG; the two timestamps occupy the domain endpoints.
         expect(ordinates[0]).toBeGreaterThan(ordinates[1]);
       }
-      expect(rendered.seams).toEqual([{ dash: '4,4', transform: 'translate(150,0)' }]);
     });
   }
 }
