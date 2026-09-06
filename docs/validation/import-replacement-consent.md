@@ -17,7 +17,9 @@ Result: **19 passed, 0 failed, 0 skipped**. The sandbox denied MSBuild IPC socke
 the same command passed with command escalation.
 
 Additional local checks: solution formatting passed; native-core tests passed
-(1,382 passed, 0 failed, 3 existing opt-in live tests skipped).
+(1,382 passed, 0 failed, 3 existing opt-in live tests skipped). The web build
+passed with 0 warnings and 0 errors on an unchanged retry after an MSBuild
+child-process exit (`MSB4166`) during `fast-local-check.sh`.
 
 `OperateImportReplacementHttpTests` renders the real import page, production import
 operation, and production admin HTTP client. Only the HTTP transport is stubbed.
