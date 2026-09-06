@@ -25,24 +25,21 @@ Set `HONUA_CONSOLE_FOCUSED_ORIGIN` to use an already-running candidate Console, 
 `HONUA_CONSOLE_FOCUSED_EVIDENCE_PATH` to choose the output receipt path. The evidence contains
 resource identifiers, route outcomes, and server image/source pins. It never contains credentials.
 
-## Slices waiting on honua-server#3365
+## Remaining publication and candidate evidence
 
-The following slices are deliberately not claimed by this lane until the server publishes and a
-candidate image carries the residual `admin:approve` grant recipe:
+The narrow approval grant from honua-server#3365 is implemented in merged server PR #3576;
+merged PR #4372 adds focused approval-effect and read-only-denial tests. The issue remaining open
+is not evidence that its grant implementation is absent.
 
-1. Approve and reject mutations from the selected proposal panel under a separately scoped human
-   approver bearer.
-2. Console-versus-`honua admin` semantic parity for proposal, decision/approval, operation, audit,
-   publication, and final-link identifiers.
-3. Negative approval cases that require minting the residual grant recipe: insufficient scope,
-   wrong tenant, wrong owner, proposer self-approval, and protected proposal detail non-disclosure.
-4. The full and witness-mode approval smoke. Their read-only inspection coverage can run now, but
-   neither mode can claim approval support before the candidate grant exists.
+The publication-intent bridge for honua-server#3304 remains in open server PR #3980. Until it lands,
+this lane cannot qualify the full proposal/operation/audit/publication/final-link chain using the
+server-owned publication lifecycle. The focused receipt records that remaining dependency.
 
-Receipt parsing, exact-ID read routes, health/release/observability/support reads, operator-bearer
-wiring, fail-closed no-admin-key configuration, and independent UI evidence are not blocked by
-#3365 and live in this directory.
-
+After the bridge lands and the exact candidate exists, run approve and reject through the selected
+generic proposal panel under a separate human principal, compare the separate `honua admin` profile's
+canonical decision and lifecycle identities, and exercise the real server's insufficient-scope,
+wrong-tenant, wrong-owner, self-approval and protected-read cases. Full and witness presentation modes
+must both pass; local proxy transport coverage alone is not approval qualification.
 
 ## Evidence disposition
 

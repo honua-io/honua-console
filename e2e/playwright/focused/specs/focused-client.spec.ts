@@ -53,7 +53,7 @@ test('inspects every exact receipt identity and emits independent UI evidence', 
     generatedAt: new Date().toISOString(),
     terminalReceipt: { path: path.basename(receiptPath!), evidenceKey: receipt.evidenceKey, status: receipt.status },
     server: receipt.server ?? {}, inspected: [],
-    approval: { status: 'blocked', blockedBy: 'honua-server#3365' }, status: 'fail',
+    approval: { status: 'blocked', blockedBy: 'honua-server#3304' }, status: 'fail',
   });
 
   // Stock Development login establishes the Console operator. The server BFF then exchanges
@@ -90,7 +90,7 @@ test('inspects every exact receipt identity and emits independent UI evidence', 
     terminalReceipt: { path: path.basename(receiptPath!), evidenceKey: receipt.evidenceKey, status: receipt.status },
     server: receipt.server ?? {},
     inspected,
-    approval: { status: 'blocked', blockedBy: 'honua-server#3365' },
+    approval: { status: 'blocked', blockedBy: 'honua-server#3304' },
     status: 'blocked',
   };
   writeFocusedEvidence(outputPath, evidence);
