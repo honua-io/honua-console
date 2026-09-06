@@ -172,7 +172,7 @@ For a reviewed Cesium version bump, update the constants in
 The common lock records Cesium's version, archive digest, and extracted-tree digest;
 the tree lock inventories every packaged file. The same update command refreshes
 the committed MapLibre and Vega assets. Cesium's runtime remains build-time output.
-The script re-fetches from the npm registry, checks the tarball against npm's own
+For committed bundles, the script re-fetches from npm, checks the tarball against npm's own
 `dist.integrity`, and records a sha384 digest of every byte it writes; `npm test`
 fails if a committed asset ever stops matching its digest, if a wwwroot interop
 script reaches an origin nobody declared, or if the CSP and those scripts disagree
