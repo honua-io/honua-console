@@ -67,3 +67,6 @@ passed 1,382 tests; its three opt-in live-server tests were skipped by their exi
 environment guards and are not counted as evidence for this upgrade.
 The web-host build also passed with zero warnings and errors, completing
 `./scripts/fast-local-check.sh` on the lane's capped .NET SDK.
+The same 18 Chromium fixtures plus the existing same-origin mounted-chart test
+then passed through the built Console host (19 passed, no skips). The solution's
+`dotnet format --verify-no-changes --no-restore` check passed as well.
