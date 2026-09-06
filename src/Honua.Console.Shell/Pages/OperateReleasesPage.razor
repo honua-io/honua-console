@@ -812,6 +812,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        await Capabilities.RefreshAsync();
         // Capability-gated: when cross-environment promotion is not advertised the page renders the
         // first-class unsupported state (via ConsoleCapabilityGate), so skip the server reads entirely.
         if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.CrossEnvironmentPromotion))

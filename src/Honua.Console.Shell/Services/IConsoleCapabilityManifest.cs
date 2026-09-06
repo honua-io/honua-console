@@ -22,6 +22,9 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 public interface IConsoleCapabilityManifest
 {
+    /// <summary>Notifies navigation when the resolved availability changes.</summary>
+    event Action? Changed { add { } remove { } }
+
     /// <summary>Refreshes capability truth for the current server binding.</summary>
     Task RefreshAsync(CancellationToken cancellationToken = default);
 
@@ -118,6 +121,10 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
         };
 
     private readonly ICapabilityRegistryClient _registry;
+    private readonly object _refreshLock = new();
+    private long _refreshVersion;
+
+    public event Action? Changed;
     private readonly HashSet<string> _localPolicy;
     private readonly HashSet<string> _serverPolicy;
     private HashSet<string> _available = new(StringComparer.OrdinalIgnoreCase);
@@ -148,26 +155,49 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        // A refresh is fail-closed while the current binding is being read. This also prevents a
-        // timed-out environment switch from leaving the previous server's capabilities visible.
-        Interlocked.Exchange(ref _available, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        var snapshot = await _registry.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        var next = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (snapshot.Bound)
+        long version;
+        lock (_refreshLock)
         {
-            foreach (var mapping in ServerCapabilityByConsoleKey)
+            version = ++_refreshVersion;
+            _available = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+        Changed?.Invoke();
+
+        var next = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var snapshot = await _registry.GetSnapshotAsync(timeout.Token).WaitAsync(timeout.Token).ConfigureAwait(false);
+            if (snapshot.Bound)
             {
-                var descriptor = snapshot.Descriptors.FirstOrDefault(item =>
-                    string.Equals(item.Id, mapping.Value, StringComparison.Ordinal));
-                if (descriptor is { Supported: true, Available: true }
-                    && (_serverPolicy.Count == 0 || _serverPolicy.Contains(mapping.Key)))
+                foreach (var mapping in ServerCapabilityByConsoleKey)
                 {
-                    next.Add(mapping.Key);
+                    var descriptors = snapshot.Descriptors.Where(item =>
+                        string.Equals(item.Id, mapping.Value, StringComparison.Ordinal)).ToArray();
+                    if (descriptors is [{ Supported: true, Available: true }]
+                        && (_serverPolicy.Count == 0 || _serverPolicy.Contains(mapping.Key)))
+                    {
+                        next.Add(mapping.Key);
+                    }
                 }
             }
         }
+        catch (Exception)
+        {
+            // Failure, cancellation and timeout all revoke the previous server's availability.
+        }
 
-        Interlocked.Exchange(ref _available, next);
+        lock (_refreshLock)
+        {
+            // A slow response from a previous binding must never replace a newer refresh.
+            if (version != _refreshVersion)
+            {
+                return;
+            }
+            _available = next;
+        }
+        Changed?.Invoke();
     }
 
     internal static IReadOnlyDictionary<string, string> Mappings => ServerCapabilityByConsoleKey;

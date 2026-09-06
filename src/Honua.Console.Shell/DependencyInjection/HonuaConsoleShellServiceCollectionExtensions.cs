@@ -34,12 +34,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // Console; Ctrl on Windows/Linux browser deployments — the overwhelming Console target).
         services.TryAddSingleton<IConsoleShortcutPlatform, RuntimeConsoleShortcutPlatform>();
 
-        // Capability-manifest gate for the deferred "exotic depth" surfaces (first-release cut-line,
-        // docs/roadmap/FIRST_RELEASE_STRATEGY_AND_CUT_LINE.md). The advertised set is empty by default,
-        // so temporal / disconnected-sync / realtime-alerting / cross-environment-promotion /
-        // siem-investigations render the first-class "unsupported" state until the deployment opts them
-        // in via Honua:Console:Capabilities. This is the interim source; the honua-server
-        // capability-manifest document feeds the same seam once its full-document consumption lands.
+        // Server-backed gates use the live SDK manifest independently of Studio intent resolution.
+        // Local capability configuration can only narrow that truth; studio-builders remains local.
         // Capability snapshots are mutable and belong to the current Blazor circuit. The registry
         // remains request-time/operator-aware, but the snapshot itself must not be shared between circuits.
         services.TryAddScoped<IConsoleCapabilityManifest>(serviceProvider =>

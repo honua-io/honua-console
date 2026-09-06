@@ -29,6 +29,7 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
         try
         {
             manifest = await _manifestClient.GetManifestAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            return Project(manifest);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
@@ -42,7 +43,6 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
             };
         }
 
-        return Project(manifest);
     }
 
     // Projects the SDK manifest into the console view model: each advertised capability entry becomes a
@@ -50,6 +50,14 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
     // families. Only supported families are surfaced — an unsupported family is treated as absent.
     private static CapabilityRegistrySnapshot Project(CapabilityManifest manifest)
     {
+        if (manifest.SchemaVersion != "honua.capability_manifest.v1"
+            || manifest.Capabilities is null
+            || manifest.Capabilities.Any(entry => entry is null || string.IsNullOrWhiteSpace(entry.Id))
+            || manifest.Capabilities.GroupBy(entry => entry.Id, StringComparer.Ordinal).Any(group => group.Count() > 1))
+        {
+            return new CapabilityRegistrySnapshot { Bound = false, State = "Unavailable", Detail = "The server capability manifest is invalid or uses an unsupported schema." };
+        }
+
         var descriptors = new List<CapabilityDescriptor>(manifest.Capabilities.Count);
         foreach (var entry in manifest.Capabilities)
         {
