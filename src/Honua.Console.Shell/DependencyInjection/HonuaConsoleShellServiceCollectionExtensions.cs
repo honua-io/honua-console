@@ -28,6 +28,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton(new ConsolePresentation(honuaConsoleMode));
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         services.TryAddSingleton<IConsoleProductMode>(
             _ => new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(honuaConsoleMode)));

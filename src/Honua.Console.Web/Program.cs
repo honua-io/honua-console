@@ -215,7 +215,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
                 mapProxyLogger.LogWarning(
                     "Map-proxy styles upstream returned {StatusCode} for layer {LayerId}.",
                     (int)response.StatusCode, layerId);
-                return Results.StatusCode((int)response.StatusCode);
+                return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
             }
 
             var styleJson = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -301,7 +301,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             mapProxyLogger.LogWarning(
                 "Map-proxy tile upstream returned {StatusCode} for layer {LayerId} z/x/y {Z}/{X}/{Y}.",
                 (int)response.StatusCode, layerId, z, x, y);
-            return Results.StatusCode((int)response.StatusCode);
+            return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
         }
 
         Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
@@ -366,7 +366,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
                 mapProxyLogger.LogWarning(
                     "Map-proxy features upstream returned {StatusCode} for service {ServiceId} layer {LayerId}.",
                     (int)response.StatusCode, Honua.Console.Web.MapProxySupport.LogSafe(serviceId), layerId);
-                return Results.StatusCode((int)response.StatusCode);
+                return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);

@@ -29,6 +29,7 @@ public sealed class ConsoleOperatorBearerProviderTests
         var stored = await sessions.GetSessionAsync("env-a");
         Assert.Equal("bearer-a", stored!.AccessToken);
         Assert.Equal(expiresAt, stored.AccessTokenExpiresAt);
+        Assert.Equal(Profile("env-a").ServerBaseUri, stored.ServerBaseUri);
     }
 
     [Fact]
@@ -141,6 +142,24 @@ public sealed class ConsoleOperatorBearerProviderTests
         Assert.Equal(ConsoleOperatorBearerExchangeStatus.Unavailable, result.Status);
         Assert.Contains("misconfigured", result.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task Resolve_ChangedServerTarget_RequiresSignInWithoutExchangeOrCredentialDisclosure()
+    {
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(Session("env-a", "old-server-bearer") with
+        {
+            ServerBaseUri = new Uri("https://old-server.example/"), AccessTokenExpiresAt = Now.AddHours(1)
+        });
+        var exchange = new StubExchange(_ => throw new InvalidOperationException("Must not exchange a mismatched session."));
+        var provider = new ConsoleOperatorBearerProvider(sessions, exchange, new FixedTimeProvider(Now));
+        var result = await provider.ResolveAsync(Profile("env-a"));
+        Assert.False(result.IsAvailable);
+        Assert.True(result.HasInteractiveSession);
+        Assert.Null(result.AccessToken);
+        Assert.Contains("Sign in", result.Message);
+        Assert.Empty(exchange.ProfileIds);
     }
 
     private static ConsoleAccountSession Session(string profileId, string token) => new()
