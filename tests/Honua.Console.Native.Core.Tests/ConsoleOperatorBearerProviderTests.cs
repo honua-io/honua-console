@@ -150,7 +150,8 @@ public sealed class ConsoleOperatorBearerProviderTests
         var sessions = new InMemoryConsoleAccountSessionStore();
         await sessions.SaveSessionAsync(Session("env-a", "old-server-bearer") with
         {
-            ServerBaseUri = new Uri("https://old-server.example/"), AccessTokenExpiresAt = Now.AddHours(1)
+            ServerBaseUri = new Uri("https://old-server.example/"),
+            AccessTokenExpiresAt = Now.AddHours(1)
         });
         var exchange = new StubExchange(_ => throw new InvalidOperationException("Must not exchange a mismatched session."));
         var provider = new ConsoleOperatorBearerProvider(sessions, exchange, new FixedTimeProvider(Now));

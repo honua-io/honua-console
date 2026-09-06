@@ -16,9 +16,9 @@ public sealed class FocusedOperatorCredentialTests
     public static IEnumerable<object[]> MissingCredentials()
     {
         foreach (var client in new[] { ConsoleServerBoundClients.ServerBoundClientName, "honua-map-proxy" })
-        foreach (var state in new[] { "absent", "sentinel", "expired", "target", "unbound" })
-        foreach (var method in new[] { "GET", "POST" })
-            yield return [client, state, method];
+            foreach (var state in new[] { "absent", "sentinel", "expired", "target", "unbound" })
+                foreach (var method in new[] { "GET", "POST" })
+                    yield return [client, state, method];
     }
 
     [Theory]
@@ -168,14 +168,19 @@ public sealed class FocusedOperatorCredentialTests
             Operator.CurrentOperatorKey = actor;
             await Profiles.UpsertProfileAsync(new ConsoleEnvironmentProfile
             {
-                Id = "environment", ServerBaseUri = new Uri("https://server.honua.test/"), TenantId = tenant,
+                Id = "environment",
+                ServerBaseUri = new Uri("https://server.honua.test/"),
+                TenantId = tenant,
                 Account = new ConsoleAccountBinding { AccountId = actor, TenantId = tenant, AuthMode = ConsoleAccountAuthMode.AccountRbac }
             });
             await Profiles.ActivateProfileAsync("environment");
             await Sessions.SaveSessionAsync(new ConsoleAccountSession
             {
-                ProfileId = "environment", AccountId = actor, TenantId = tenant,
-                AccessToken = $"{actor}-bearer", ServerBaseUri = new Uri("https://server.honua.test/"),
+                ProfileId = "environment",
+                AccountId = actor,
+                TenantId = tenant,
+                AccessToken = $"{actor}-bearer",
+                ServerBaseUri = new Uri("https://server.honua.test/"),
                 AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
             });
         }

@@ -31,3 +31,14 @@ The candidate-only rows are released from pre-cut execution because the exact cu
 terminal receipt cannot exist until after the burn-down and candidate cut (operator ruling B).
 Open server implementation and policy dependencies remain blockers; they are not released as
 candidate-only work. #351 must remain open until those criteria are satisfied or explicitly dispositioned.
+
+## Pre-cut verification
+
+- Focused .NET transport, presentation, session-BFF and cache regressions: **54 passed, 0 skipped**.
+- Focused terminal-receipt contract/adjudication tests: **4 passed**.
+- Current Web host rebuild: **passed, 0 warnings, 0 errors**.
+- Browser, full local suites and final-head CI results are recorded in PR #360 after execution.
+
+The local lane required escalation for MSBuild's denied IPC socket. Shared compilation stayed
+enabled; graceful build-server shutdown released inherited build-slot locks before the successful
+local build. These local results do not substitute for exact-candidate qualification.
