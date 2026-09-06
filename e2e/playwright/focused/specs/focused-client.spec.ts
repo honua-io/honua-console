@@ -21,7 +21,7 @@ function successSurface(page: import('@playwright/test').Page, kind: FocusedClie
     case 'gpResult': return page.locator('#job-detail-heading');
     case 'savedMap':
     case 'savedDashboard': return page.locator('h2').filter({ hasText: 'Versions' });
-    case 'proposal': return page.locator('[data-proposal-id]');
+    case 'proposal': return page.locator('.proposal-approval-panel[data-proposal-id]');
     case 'operation': return page.locator('#deploy-approval-heading');
     case 'audit': return page.locator('#event-detail-heading');
     case 'publication': return page.locator('.publish-review-stack');
@@ -78,7 +78,7 @@ test('inspects every exact receipt identity and emits independent UI evidence', 
   }
 
   // Health/diagnostic and recovery views are read-only and can be certified before approval exists.
-  for (const route of ['/operate/health', '/operate/releases', '/operate/observability', '/support']) {
+  for (const route of ['/operate/health', '/operate/deploy', '/operate/observability', '/support']) {
     await page.goto(route);
     await expect(page.locator('h1')).toBeVisible();
   }
