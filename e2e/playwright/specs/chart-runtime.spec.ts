@@ -114,12 +114,18 @@ for (const schema of [5, 6]) {
       expect(rendered.mounted).toBe(true);
       expect(rendered.points).toHaveLength(series.length * 2);
       for (const [name, first, second] of series) {
-        for (const value of [first, second]) {
+        const ordinates: number[] = [];
+        for (const [index, value] of [first, second].entries()) {
           const matches = rendered.points.filter(point =>
             point.label?.includes(`${title}: ${value}; Series: ${name}`));
           expect(matches).toHaveLength(1);
-          expect(matches[0].transform).toMatch(/^translate\([-\d.]+,[-\d.]+\)$/);
+          const coordinates = matches[0].transform?.match(/^translate\(([-\d.]+),([-\d.]+)\)$/);
+          expect(coordinates).toBeTruthy();
+          expect(Number(coordinates![1])).toBeCloseTo(index * 300, 5);
+          ordinates.push(Number(coordinates![2]));
         }
+        // Higher values move up the SVG; the two timestamps occupy the domain endpoints.
+        expect(ordinates[0]).toBeGreaterThan(ordinates[1]);
       }
       expect(rendered.seams).toEqual([{ dash: '4,4', transform: 'translate(150,0)' }]);
     });
@@ -143,4 +149,33 @@ test('patched Vega rejects expression object coercion properties', async ({ page
   expect(results[0]).toBe('accepted');
   expect(results[1]).toMatch(/Illegal property: toString/);
   expect(results[2]).toMatch(/Illegal property: valueOf/);
+});
+
+test('an empty bound feature result does not fabricate chart values', async ({ page }) => {
+  await page.route('**/map-proxy/features/chart-fixture/0', route =>
+    route.fulfill({ json: { features: [] } }));
+  await page.goto('/studio', { waitUntil: 'domcontentloaded' });
+  const rendered = await page.evaluate(async modulePath => {
+    const mod = await import(modulePath);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    try {
+      const mounted = await mod.init(container, {
+        featuresUrl: '/map-proxy/features/chart-fixture/0',
+        spec: JSON.stringify({
+          $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
+          mark: 'bar',
+          encoding: {
+            x: { field: '__auto__', type: 'nominal' },
+            y: { aggregate: 'count', type: 'quantitative' },
+          },
+        }),
+      });
+      return { mounted, svgCount: container.querySelectorAll('svg').length };
+    } finally {
+      mod.dispose(container);
+      container.remove();
+    }
+  }, modulePath);
+  expect(rendered).toEqual({ mounted: false, svgCount: 0 });
 });
