@@ -48,6 +48,6 @@ test('rejects failed terminal runs and refuses a passing UI receipt while approv
   expect(() => writeFocusedEvidence('/unused/should-not-be-written.json', {
     schema: FOCUSED_RECEIPT_SCHEMA, evidenceKey: 'console.focused-client', generatedAt: '2026-09-05T00:00:00Z',
     terminalReceipt: { path: 'terminal.json', evidenceKey: 'release.e2e.terminal-zero-to-map', status: 'pass' },
-    server: {}, inspected: [], approval: { status: 'blocked', blockedBy: 'honua-server#3365' }, status: 'pass',
+    server: {}, inspected: [], approval: { status: 'blocked', blockedBy: 'honua-server#3304' }, status: 'pass',
   })).toThrow(/blocked approval/);
 });

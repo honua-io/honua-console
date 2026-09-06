@@ -41,7 +41,7 @@ export interface FocusedClientEvidence {
   terminalReceipt: { path: string; evidenceKey: string; status: string };
   server: { image?: string; sourceSha?: string };
   inspected: Array<{ kind: FocusedResourceKind; id: string; route: string; status: 'pass' | 'fail' }>;
-  approval: { status: 'blocked'; blockedBy: 'honua-server#3365' };
+  approval: { status: 'blocked'; blockedBy: 'honua-server#3304' };
   status: 'pass' | 'fail' | 'blocked';
 }
 
