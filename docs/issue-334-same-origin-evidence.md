@@ -31,7 +31,7 @@ all page requests and require zero off-origin requests.
   requirement with the previous implementation's missing entry.
 - Chromium preflight against the source static assets passed both populated
   scene/chart tests (2/2), including the three-point tile, exact chart values,
-  and zero off-origin requests. Published-artifact validation remains below.
+  and zero off-origin requests. The PR records published-artifact validation.
 - Removing the point-cloud content from the browser fixture made the scene test
   fail with `pointsLength: 0` versus the required `3` (exit 1), even though Cesium
   mounted successfully and created its canvas. The populated fixture was restored.
@@ -39,7 +39,6 @@ all page requests and require zero off-origin requests.
   explicitly adds files created after project evaluation, covering first builds.
   The Playwright CI job moves the prefetched tree aside before its first publish;
   published-tree verification and real rendering then enforce this build path.
-- .NET and published-artifact browser validation: pending completion.
 
 No acceptance criterion requires an unavailable release candidate. The local
 published artifact proves packaging and runtime behavior; exact-candidate
