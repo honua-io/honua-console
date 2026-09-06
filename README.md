@@ -153,8 +153,8 @@ needs.
 Vendored today: MapLibre GL JS (map preview), Vega / Vega-Lite / Vega-Embed
 (chart preview), and Cesium (3D Tiles preview). Cesium's exact extracted
 `Build/Cesium` tree, version, archive digest, and Apache-2.0 license bytes are
-locked in `scripts/cesium-extracted-tree.lock.json`. The Web project's MSBuild
-`Build` and `Publish` targets run `scripts/fetch-cesium.mjs`, which verifies an
+locked in `scripts/cesium-extracted-tree.lock.json`. The Shell project's MSBuild
+static-asset discovery runs `scripts/fetch-cesium.mjs`, which verifies an
 existing tree or fetches the exact pinned archive into the gitignored static-asset
 directory. This covers `dotnet run`, `dotnet build`, and `dotnet publish`; the
 published artifact is verified again before deployment. The viewer disables

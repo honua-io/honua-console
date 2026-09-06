@@ -267,7 +267,7 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
       contentType: 'application/json',
       body: JSON.stringify({
         asset: { version: '1.0' },
-        geometricError: 0,
+        geometricError: 1000,
         root: {
           // All three fixture points are within 15m of (6378137, 0, 10).
           boundingVolume: { sphere: [6378137, 0, 10, 15] },

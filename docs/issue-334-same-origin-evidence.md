@@ -29,6 +29,11 @@ all page requests and require zero off-origin requests.
 - Removing `packages.cesium` from the common lock made the vendored-assets test
   fail (exit 1); the original lock was restored. This challenges the new pin
   requirement with the previous implementation's missing entry.
+- Chromium preflight against the source static assets passed both populated
+  scene/chart tests (2/2), including the three-point tile, exact chart values,
+  and zero off-origin requests. Published-artifact validation remains below.
+- The fetch hook runs in the Shell before Razor's static-asset inventory and
+  explicitly adds files created after project evaluation, covering first builds.
 - .NET and published-artifact browser validation: pending completion.
 
 No acceptance criterion requires an unavailable release candidate. The local
