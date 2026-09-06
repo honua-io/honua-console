@@ -75,6 +75,13 @@ jobs:
           HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
         run: npx playwright test
 
+      - name: Verify operator-only browser and proxy transport (full and witness)
+        working-directory: e2e/playwright
+        env:
+          CI: "true"
+          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+        run: npx playwright test --config playwright.operator.config.ts
+
       - name: Upload Playwright HTML report
         if: always()
         uses: actions/upload-artifact@v7

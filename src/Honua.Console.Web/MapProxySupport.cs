@@ -42,6 +42,19 @@ public static class MapProxySupport
         return !string.IsNullOrWhiteSpace(session?.AccessToken);
     }
 
+    /// <summary>Preserves server denial status without disclosing its response body.</summary>
+    public static IResult UpstreamFailure(HttpContext context, System.Net.HttpStatusCode status)
+    {
+        if (status == System.Net.HttpStatusCode.Unauthorized)
+        {
+            context.Response.Headers.WWWAuthenticate = "Bearer error=\"invalid_token\"";
+            return Results.Json(new { message = "Sign in to honua-server again.", signIn = "/auth/signin" },
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        return Results.StatusCode((int)status);
+    }
+
     // Validator request headers forwarded to the upstream so it can answer 304 Not Modified.
     private static readonly string[] ConditionalRequestHeaders = ["If-None-Match", "If-Modified-Since"];
 

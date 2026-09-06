@@ -268,3 +268,15 @@ across operators. Two complementary mechanisms keep operators isolated:
 Admin realtime connections also require an operator bearer, re-resolve it on reconnect, and never
 attach the shared key. Proposal, deployment and health subscriptions are scoped per circuit rather
 than shared between operators.
+
+
+## Focused presentation
+
+`Honua:Console:Mode` / `HONUA_CONSOLE_MODE` accepts `full` (default) or `witness`.
+Witness mode limits the primary and Operate navigation to focused inspection, approval and recovery
+surfaces. Full mode keeps the broader navigation and labels those entries Preview. Direct navigation
+to a broader surface shows the Preview notice in either mode; this is presentation, never a client-side
+permission or an Admin API parity claim. Server authorization is identical in both modes.
+
+See [the acceptance evidence matrix](focused-client-2026.1-evidence.md) for what is implemented and
+what still requires server dependencies and exact-candidate qualification.

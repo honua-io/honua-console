@@ -1,9 +1,10 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 
-<div class="console-shell">
+<div class="console-shell" data-console-mode="@Presentation.Mode">
     @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has(). *@
     <input type="checkbox" id="console-collapse" class="console-collapse-toggle" aria-hidden="true" />
     <aside class="console-sidebar" aria-label="Honua Console navigation">
@@ -49,7 +50,12 @@
                 {
                     <NavLink href="@path" Match="NavLinkMatch.Prefix" title="@label">
                         <span class="console-nav-icon">@Icon(icon)</span>
-                        <span class="console-nav-label"><span>@label</span></span>
+                        <span class="console-nav-label"><span>@label</span>
+                            @if (!ConsolePresentation.IsFocusedRoute(path))
+                            {
+                                <small>Preview</small>
+                            }
+                        </span>
                     </NavLink>
                 }
             </nav>
@@ -81,6 +87,12 @@
     </aside>
 
     <main class="console-main">
+        @if (!ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
+        {
+            <p class="console-muted" role="status" data-focused-preview>
+                Preview — this surface is outside the focused 2026.1 inspect, approve, operate and recover client.
+            </p>
+        }
         @Body
     </main>
 
@@ -90,6 +102,7 @@
 </div>
 
 @code {
+    private ConsolePresentation Presentation => Services.GetService<ConsolePresentation>() ?? new();
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
 
@@ -100,14 +113,16 @@
     // stays the canonical IA list (Charter/route-map source of truth) — visibility is a shell concern.
     private IEnumerable<ConsoleWorkflowArea> VisibleAreas =>
         ConsoleRouteMap.Areas.Where(area =>
-            !string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
-            || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders));
+            (!Presentation.IsWitness || ConsolePresentation.IsFocusedRoute(area.Path))
+            && (!string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
+                || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders)));
 
     // Capability-gated depth surfaces (first-release cut-line) are hidden from the Operate nav until the
     // deployment advertises the capability, so the rail never links to a surface that only renders the
     // "unsupported" state. The gated page still renders that first-class state if reached by URL.
     private IEnumerable<(string Path, string Label, string Icon)> VisibleOperateSections =>
-        OperateSections.Where(section => section.Path switch
+        OperateSections.Where(section => !Presentation.IsWitness || ConsolePresentation.IsFocusedRoute(section.Path))
+            .Where(section => section.Path switch
         {
             "/operate/temporal" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal),
             "/operate/sync" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync),

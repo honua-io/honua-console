@@ -52,7 +52,8 @@ builder.Services.AddHonuaConsoleShell(
     // for approval/recovery mutations. API-key fallback is available only through the
     // exact HeadlessService opt-in, a ServiceApiKey profile, and no interactive session.
     builder.Configuration["Honua:Server:CredentialMode"]
-        ?? builder.Configuration["HONUA_SERVER_CREDENTIAL_MODE"]);
+        ?? builder.Configuration["HONUA_SERVER_CREDENTIAL_MODE"],
+    builder.Configuration["Honua:Console:Mode"] ?? builder.Configuration["HONUA_CONSOLE_MODE"]);
 
 static bool ParseFlag(string? value) =>
     bool.TryParse(value, out var parsed) && parsed;
@@ -208,7 +209,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
                 mapProxyLogger.LogWarning(
                     "Map-proxy styles upstream returned {StatusCode} for layer {LayerId}.",
                     (int)response.StatusCode, layerId);
-                return Results.StatusCode((int)response.StatusCode);
+                return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
             }
 
             var styleJson = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -294,7 +295,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             mapProxyLogger.LogWarning(
                 "Map-proxy tile upstream returned {StatusCode} for layer {LayerId} z/x/y {Z}/{X}/{Y}.",
                 (int)response.StatusCode, layerId, z, x, y);
-            return Results.StatusCode((int)response.StatusCode);
+            return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
         }
 
         Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
@@ -359,7 +360,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
                 mapProxyLogger.LogWarning(
                     "Map-proxy features upstream returned {StatusCode} for service {ServiceId} layer {LayerId}.",
                     (int)response.StatusCode, Honua.Console.Web.MapProxySupport.LogSafe(serviceId), layerId);
-                return Results.StatusCode((int)response.StatusCode);
+                return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);

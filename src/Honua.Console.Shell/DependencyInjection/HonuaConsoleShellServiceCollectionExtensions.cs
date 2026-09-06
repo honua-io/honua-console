@@ -23,10 +23,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaSupportKbPath = null,
         string? honuaConsoleAdvertisedCapabilities = null,
         bool registryIntentResolutionEnabled = false,
-        string? honuaServerCredentialMode = null)
+        string? honuaServerCredentialMode = null,
+        string? honuaConsoleMode = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton(new ConsolePresentation(honuaConsoleMode));
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
 
         // Platform-adaptive keyboard-shortcut glyphs (honua-console#313): the primary modifier renders as
