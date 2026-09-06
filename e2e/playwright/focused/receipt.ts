@@ -42,7 +42,7 @@ export interface FocusedClientEvidence {
   server: { image?: string; sourceSha?: string };
   inspected: Array<{ kind: FocusedResourceKind; id: string; route: string; status: 'pass' | 'fail' }>;
   approval: { status: 'blocked'; blockedBy: 'honua-server#3365' };
-  status: 'pass' | 'fail';
+  status: 'pass' | 'fail' | 'blocked';
 }
 
 const resourceKeys: ReadonlyArray<[FocusedResourceKind, string]> = [
@@ -107,7 +107,7 @@ export function parseTerminalReceipt(value: unknown): TerminalJourneyReceipt {
   if (evidenceKey !== 'release.e2e.terminal-zero-to-map') {
     throw new Error('receipt evidenceKey must be release.e2e.terminal-zero-to-map');
   }
-  if (!status) throw new Error('receipt status is required');
+  if (status !== 'pass' && status !== 'paused') throw new Error('receipt status must be pass or paused');
   if (!Array.isArray(receipt.stages) && Object.keys(object(receipt.resources)).length === 0) {
     throw new Error('receipt must contain stages or resources');
   }
@@ -136,6 +136,9 @@ export function focusedResourceIdentities(receipt: TerminalJourneyReceipt): Focu
 }
 
 export function writeFocusedEvidence(outputPath: string, evidence: FocusedClientEvidence): void {
+  if (evidence.status === 'pass' && evidence.approval.status === 'blocked') {
+    throw new Error('blocked approval cannot produce passing focused-client evidence');
+  }
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
 }

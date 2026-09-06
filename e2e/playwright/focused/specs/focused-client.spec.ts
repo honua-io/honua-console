@@ -48,6 +48,14 @@ test('inspects every exact receipt identity and emits independent UI evidence', 
   const identities = focusedResourceIdentities(receipt);
   expect(identities.length, 'terminal receipt must expose at least one focused identity').toBeGreaterThan(0);
 
+  writeFocusedEvidence(outputPath, {
+    schema: FOCUSED_RECEIPT_SCHEMA, evidenceKey: 'console.focused-client',
+    generatedAt: new Date().toISOString(),
+    terminalReceipt: { path: path.basename(receiptPath!), evidenceKey: receipt.evidenceKey, status: receipt.status },
+    server: receipt.server ?? {}, inspected: [],
+    approval: { status: 'blocked', blockedBy: 'honua-server#3365' }, status: 'fail',
+  });
+
   // Stock Development login establishes the Console operator. The server BFF then exchanges
   // that operator through the configured real IdP. The focused config deliberately supplies no
   // shared admin key, so every successful read below is necessarily operator-bearer backed.
@@ -83,7 +91,7 @@ test('inspects every exact receipt identity and emits independent UI evidence', 
     server: receipt.server ?? {},
     inspected,
     approval: { status: 'blocked', blockedBy: 'honua-server#3365' },
-    status: 'pass',
+    status: 'blocked',
   };
   writeFocusedEvidence(outputPath, evidence);
 });

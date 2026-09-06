@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { focusedResourceIdentities, parseTerminalReceipt } from '../receipt';
+import { focusedResourceIdentities, parseTerminalReceipt, writeFocusedEvidence, FOCUSED_RECEIPT_SCHEMA } from '../receipt';
 
 test('projects exact terminal identities onto existing focused read routes', () => {
   const receipt = parseTerminalReceipt({
@@ -39,4 +39,15 @@ test('accepts identities emitted inside stage evidence', () => {
 test('rejects unrelated or identity-free receipts', () => {
   expect(() => parseTerminalReceipt({ evidenceKey: 'other', status: 'pass', resources: { connectionId: 'x' } })).toThrow(/evidenceKey/);
   expect(() => parseTerminalReceipt({ evidenceKey: 'release.e2e.terminal-zero-to-map', status: 'pass' })).toThrow(/stages or resources/);
+});
+
+
+test('rejects failed terminal runs and refuses a passing UI receipt while approval is blocked', () => {
+  expect(() => parseTerminalReceipt({ evidenceKey: 'release.e2e.terminal-zero-to-map', status: 'fail',
+    resources: { connectionId: 'conn-1' } })).toThrow(/pass or paused/);
+  expect(() => writeFocusedEvidence('/unused/should-not-be-written.json', {
+    schema: FOCUSED_RECEIPT_SCHEMA, evidenceKey: 'console.focused-client', generatedAt: '2026-09-05T00:00:00Z',
+    terminalReceipt: { path: 'terminal.json', evidenceKey: 'release.e2e.terminal-zero-to-map', status: 'pass' },
+    server: {}, inspected: [], approval: { status: 'blocked', blockedBy: 'honua-server#3365' }, status: 'pass',
+  })).toThrow(/blocked approval/);
 });
