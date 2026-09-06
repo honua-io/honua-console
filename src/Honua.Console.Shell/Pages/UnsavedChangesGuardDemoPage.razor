@@ -1,5 +1,7 @@
 @page "/studio/_dev/unsaved-changes-demo"
 @using Honua.Console.Shell.Validation
+@using Microsoft.Extensions.Hosting
+@inject IHostEnvironment HostEnvironment
 
 @*
     Demo / manual-test harness for the Wave-0 unsaved-changes guard infra. It is intentionally NOT a
@@ -9,6 +11,15 @@
     discoverable but clearly out of the production IA.
 *@
 
+@if (!HostEnvironment.IsDevelopment())
+{
+    <ConsoleStateView Kind="not-found"
+                      Kicker="Not available"
+                      Title="Development route not available"
+                      Message="This manual-test surface is available only in a Development environment." />
+}
+else
+{
 <UnsavedChangesGuard IsDirty="Dirty.IsDirty" Message="@DemoMessage" />
 
 <section class="console-page">
@@ -41,6 +52,7 @@
         </div>
     </article>
 </section>
+}
 
 @code {
     private const string DemoMessage = "You have unsaved changes in the demo. Leave and discard them?";
