@@ -155,10 +155,9 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddAdditionalAssemblies(typeof(Honua.Console.Shell.ConsoleRoutes).Assembly);
 
-// Map-preview proxy: the server's MapLibre style + vector-tile endpoints require the admin key and must not be
-// exposed to the browser. These same-origin endpoints stream them from honua-server with the key injected
-// server-side, and rewrite the style's tile URLs to flow back through this proxy. The browser (MapLibre GL)
-// only ever talks to the console origin and never sees the admin key.
+// Map-preview proxy: these same-origin endpoints stream authorized styles, tiles and features
+// from honua-server with the operator bearer attached server-side. Rewritten tile URLs keep
+// MapLibre requests on the Console origin without exposing server credentials to the browser.
 //
 // Every proxy request uses the same operator-only credential boundary as privileged clients.
 // The handler rejects missing, expired and target-mismatched credentials before transport.

@@ -1417,10 +1417,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
             ? factory.CreateServerBoundClient(new Uri("https://unbound.invalid/"), timeout)
             : new HttpClient(CreateBoundedLifetimeHandler()) { Timeout = timeout };
 
-    // Family-A server-bound clients are built by HonuaServerClientFactory (profile/session-aware
-    // binding over a bounded-lifetime pooled handler). The observability client below is not part of
-    // that binding family but shares the same bounded-lifetime handler so a long-lived singleton
-    // client does not pin stale DNS for the active environment's server.
+    // Native fallback and external-service clients use a bounded pool; browser server clients
+    // use the host factory's operator credential boundary and managed pool.
     private static SocketsHttpHandler CreateBoundedLifetimeHandler() =>
         new()
         {

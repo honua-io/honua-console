@@ -79,8 +79,8 @@ public static class MapProxySupport
     }
 
     /// <summary>
-    /// Copies the upstream caching + validator headers onto the proxied response so the browser can cache
-    /// vector tiles. Cache-Control is always no-store because these resources belong to one operator.
+    /// Preserves upstream validators while overriding Cache-Control with no-store because
+    /// these resources belong to one operator.
     /// </summary>
     public static void ApplyTileCacheHeaders(HttpResponseMessage upstream, HttpResponse browserResponse)
     {
