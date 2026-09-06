@@ -16,6 +16,9 @@ dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.
 Result: **19 passed, 0 failed, 0 skipped**. The sandbox denied MSBuild IPC sockets;
 the same command passed with command escalation.
 
+Additional local checks: solution formatting passed; native-core tests passed
+(1,382 passed, 0 failed, 3 existing opt-in live tests skipped).
+
 `OperateImportReplacementHttpTests` renders the real import page, production import
 operation, and production admin HTTP client. Only the HTTP transport is stubbed.
 The assertions inspect serialized schema/table, source URL/layer ID, overwrite
