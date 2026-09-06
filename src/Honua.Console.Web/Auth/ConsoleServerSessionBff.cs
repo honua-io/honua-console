@@ -503,6 +503,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
             }) with
             {
                 AccessToken = exchange.AccessToken,
+                ServerBaseUri = profile.ServerBaseUri,
                 AccessTokenExpiresAt = expiresAt
             }, cancellationToken).ConfigureAwait(false);
 

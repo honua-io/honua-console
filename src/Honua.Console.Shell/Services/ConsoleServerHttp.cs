@@ -136,7 +136,8 @@ internal static class ConsoleServerHttp
 
         // A Console session sentinel marks "operator signed in" for read context but is not
         // a real honua-server bearer; do not forward it.
-        return ConsoleAuthConstants.IsSessionSentinel(token)
+        return (session?.ServerBaseUri is { } boundServer && boundServer != profile.ServerBaseUri)
+            || ConsoleAuthConstants.IsSessionSentinel(token)
             || session?.AccessTokenExpiresAt <= DateTimeOffset.UtcNow
                 ? null
                 : token;

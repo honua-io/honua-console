@@ -150,6 +150,11 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
             return Missing(hasInteractiveSession: false, profile, detail: null);
         }
 
+        if (session.ServerBaseUri is not null && session.ServerBaseUri != profile.ServerBaseUri)
+        {
+            return Missing(hasInteractiveSession: true, profile, "The environment target changed. Sign in again.");
+        }
+
         var now = _timeProvider.GetUtcNow();
         if (IsForwardable(session.AccessToken)
             && (session.AccessTokenExpiresAt is null
@@ -172,6 +177,7 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
             var refreshed = session with
             {
                 AccessToken = exchange.AccessToken,
+                ServerBaseUri = profile.ServerBaseUri,
                 AccessTokenExpiresAt = expiresAt
             };
             await _sessions.SaveSessionAsync(refreshed, cancellationToken).ConfigureAwait(false);
@@ -201,7 +207,7 @@ public sealed class ConsoleOperatorBearerProvider : IConsoleOperatorBearerProvid
         {
             HasInteractiveSession = hasInteractiveSession,
             Message = $"Your operator credential for {environment} is missing or expired. "
-                + "Sign in to honua-server again before retrying this human mutation. "
+                + "Sign in to honua-server again before retrying this request. "
                 + $"The Console did not use the shared admin API key.{suffix}"
         };
     }

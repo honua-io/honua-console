@@ -91,6 +91,7 @@ public sealed class ConsoleOperatorSessionBridge
         //     sentinel: signed in for read context, human mutations require exchange/reauthentication.
         string accessToken;
         DateTimeOffset? accessTokenExpiresAt = null;
+        Uri? credentialServer = profile.ServerBaseUri;
         if (!string.IsNullOrWhiteSpace(bearer))
         {
             accessToken = bearer;
@@ -103,6 +104,7 @@ public sealed class ConsoleOperatorSessionBridge
             {
                 accessToken = existing.AccessToken;
                 accessTokenExpiresAt = existing.AccessTokenExpiresAt;
+                credentialServer = existing.ServerBaseUri;
             }
             else
             {
@@ -117,6 +119,7 @@ public sealed class ConsoleOperatorSessionBridge
             DisplayName = displayName,
             TenantId = tenantId,
             AccessToken = accessToken,
+            ServerBaseUri = credentialServer,
             AccessTokenExpiresAt = accessTokenExpiresAt
         }, cancellationToken).ConfigureAwait(false);
     }

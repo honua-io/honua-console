@@ -10,8 +10,7 @@ namespace Honua.Console.Shell.Services;
 /// <c>SignalRConsoleProposalRealtimeClient</c>, honua-server #1695).
 ///
 /// Every admin-hub-backed realtime client connects the same way: resolve the active environment
-/// profile, resolve the operator's forwardable bearer (falling back to the shared admin
-/// <c>X-API-Key</c>), and build the connection with automatic reconnect and case-insensitive
+/// profile, require the operator's forwardable bearer without a shared key fallback, and build the connection with automatic reconnect and case-insensitive
 /// JSON. Centralizing this here means the next admin-hub client (deploy operations, health) does
 /// not re-derive the auth decision — the same rule <see cref="ConsoleServerHttp"/> centralizes
 /// for the Family-B REST clients applies to hub connections too.
@@ -44,20 +43,26 @@ internal static class ConsoleAdminHubConnectionFactory
             .ResolveForwardableBearerAsync(sessions, profile, cancellationToken)
             .ConfigureAwait(false);
 
+        if (string.IsNullOrWhiteSpace(bearer))
+        {
+            return null;
+        }
+
         var hubUri = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, hubPath);
 
         return new HubConnectionBuilder()
             .WithUrl(hubUri, options =>
             {
-                if (!string.IsNullOrWhiteSpace(adminApiKey))
+                options.AccessTokenProvider = async () =>
                 {
-                    options.Headers["X-API-Key"] = adminApiKey;
-                }
-
-                if (!string.IsNullOrWhiteSpace(bearer) && !ConsoleAuthConstants.IsSessionSentinel(bearer))
-                {
-                    options.AccessTokenProvider = () => Task.FromResult<string?>(bearer);
-                }
+                    var current = await profileStore.GetActiveProfileAsync();
+                    var token = current?.Id == profile.Id && current.ServerBaseUri == profile.ServerBaseUri
+                        ? await ConsoleServerHttp.ResolveForwardableBearerAsync(sessions, current, CancellationToken.None)
+                        : null;
+                    return !string.IsNullOrWhiteSpace(token)
+                        ? token
+                        : throw new HttpRequestException("Sign in to honua-server again.", null, System.Net.HttpStatusCode.Unauthorized);
+                };
             })
             .WithAutomaticReconnect()
             .AddJsonProtocol(o => o.PayloadSerializerOptions.PropertyNameCaseInsensitive = true)

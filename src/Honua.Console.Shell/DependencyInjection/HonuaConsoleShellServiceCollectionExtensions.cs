@@ -126,7 +126,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // explicit test/demo provider overridable.
         services.TryAddSingleton<IConsoleOperateObservabilityClient>(serviceProvider =>
             new HttpConsoleOperateObservabilityClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -142,7 +142,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // state. The admin API key is sent as X-API-Key (admin-authorized endpoints).
         services.TryAddSingleton<IConsoleGitOpsReleaseClient>(serviceProvider =>
             new HttpConsoleGitOpsReleaseClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
@@ -158,7 +158,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // API key is available only to a sessionless caller in explicit HeadlessService mode.
         services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>
             new HttpConsoleDeployApprovalClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -173,7 +173,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // in-memory source is registered (Charter section 11).
         services.TryAddSingleton<IConsoleDeployOperationsClient>(serviceProvider =>
             new HttpConsoleDeployOperationsClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
@@ -183,7 +183,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // FallbackEngaged against every server available today — the cockpit's existing poll
         // loop (OperateDeploymentApprovalPanel's PeriodicTimer) stays authoritative until the
         // group exists (console#293 shared realtime seam, PA-233 fix).
-        services.TryAddSingleton<IConsoleDeployOperationRealtimeClient>(serviceProvider =>
+        services.TryAddScoped<IConsoleDeployOperationRealtimeClient>(serviceProvider =>
             new SignalRConsoleDeployOperationRealtimeClient(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
@@ -201,7 +201,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // to X-API-Key.
         services.TryAddSingleton<IConsoleProposalsClient>(serviceProvider =>
             new HttpConsoleProposalsClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -213,7 +213,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // {server}/hubs/admin and projects ProposalPending / ProposalResolved events onto the
         // inbox without polling. A connect failure (no environment bound, hub unsupported)
         // degrades to an inert no-op so the inbox stays usable via manual refresh.
-        services.TryAddSingleton<IConsoleProposalRealtimeClient>(serviceProvider =>
+        services.TryAddScoped<IConsoleProposalRealtimeClient>(serviceProvider =>
             new SignalRConsoleProposalRealtimeClient(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
@@ -248,7 +248,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // the admin key is attached when present for admin-gated edges but is not required.
         services.TryAddSingleton<IConsoleServerVersionClient>(serviceProvider =>
             new HttpConsoleServerVersionClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
 
@@ -262,7 +262,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // metric in parallel into one snapshot, each carrying its own section status.
         services.TryAddSingleton<IConsoleMonitoringMetricsClient>(serviceProvider =>
             new HttpConsoleMonitoringMetricsClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
         services.TryAddSingleton<IOperateMetricsDataSource>(serviceProvider =>
@@ -282,7 +282,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // HeadlessService operation.
         services.TryAddSingleton<IConsoleOpsHealthClient>(serviceProvider =>
             new HttpConsoleOpsHealthClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 honuaServerAdminApiKey));
         services.TryAddSingleton<IOpsHealthDataSource>(serviceProvider =>
@@ -295,7 +295,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // ticket was authored, so this degrades to FallbackEngaged against every server available
         // today — the trend charts' history-refresh poll stays authoritative until the group
         // exists (console#293 shared realtime seam, PA-233 fix).
-        services.TryAddSingleton<IConsoleOpsHealthRealtimeClient>(serviceProvider =>
+        services.TryAddScoped<IConsoleOpsHealthRealtimeClient>(serviceProvider =>
             new SignalRConsoleOpsHealthRealtimeClient(
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
@@ -303,7 +303,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 honuaServerAdminApiKey));
         services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
             new HttpConsoleOpsFindingsClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -317,7 +317,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // older servers return Unsupported and leave the propose-only seat unchanged.
         services.TryAddSingleton<IConsoleOpsAutonomyClient>(serviceProvider =>
             new HttpConsoleOpsAutonomyClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey,
@@ -397,7 +397,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IConsoleSupportTicketClient>(serviceProvider =>
                 new HttpSupportTicketClient(
-                    CreateOperateObservabilityHttpClient(),
+                    new HttpClient(CreateBoundedLifetimeHandler()) { Timeout = TimeSpan.FromSeconds(30) },
                     supportBaseUri,
                     serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                     serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
@@ -890,7 +890,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IConsoleSensorThingsClient>(serviceProvider =>
                 new HttpConsoleSensorThingsClient(
-                    CreateOperateObservabilityHttpClient(),
+                    CreateOperateObservabilityHttpClient(serviceProvider),
                     serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                     serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                     honuaServerAdminApiKey));
@@ -917,7 +917,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IConsoleSceneClient>(serviceProvider =>
                 new HttpConsoleSceneClient(
-                    CreateSceneIngestHttpClient(),
+                    CreateSceneIngestHttpClient(serviceProvider),
                     serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                     serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                     honuaServerAdminApiKey));
@@ -1318,7 +1318,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         {
             services.TryAddSingleton<IConsoleAlertRulesClient>(serviceProvider =>
                 new HttpConsoleAlertRulesClient(
-                    CreateOperateObservabilityHttpClient(),
+                    CreateOperateObservabilityHttpClient(serviceProvider),
                     serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                     honuaServerAdminApiKey));
 
@@ -1384,11 +1384,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<IOperateLayerStyleOverrideDataSource, UnsupportedOperateLayerStyleOverrideDataSource>();
     }
 
-    private static HttpClient CreateOperateObservabilityHttpClient() =>
-        new(CreateBoundedLifetimeHandler())
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
+    private static HttpClient CreateOperateObservabilityHttpClient(IServiceProvider services) =>
+        CreateInteractiveServerHttpClient(services, TimeSpan.FromSeconds(30));
 
     // The L0 support assistant drives the SAME slow local-CPU LLM inference path as the Studio
     // generation clients (qwen via NIM/vLLM/llama.cpp/Ollama) with a non-streaming chat completion,
@@ -1409,11 +1406,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
     // SceneReadStatus.Unavailable). Give the ingest path the same generation-class budget the slow
     // generation/support clients use (10 min) instead of the 30s read budget; the caller's
     // CancellationToken still governs user-initiated cancellation.
-    private static HttpClient CreateSceneIngestHttpClient() =>
-        new(CreateBoundedLifetimeHandler())
-        {
-            Timeout = TimeSpan.FromMinutes(10)
-        };
+    private static HttpClient CreateSceneIngestHttpClient(IServiceProvider services) =>
+        CreateInteractiveServerHttpClient(services, TimeSpan.FromMinutes(10));
+
+    private static HttpClient CreateInteractiveServerHttpClient(IServiceProvider services, TimeSpan timeout) =>
+        services.GetService<IHonuaServerBoundClientFactory>() is { } factory
+            // These clients supply absolute request URIs from the active profile.
+            ? factory.CreateServerBoundClient(new Uri("https://unbound.invalid/"), timeout)
+            : new HttpClient(CreateBoundedLifetimeHandler()) { Timeout = timeout };
 
     // Family-A server-bound clients are built by HonuaServerClientFactory (profile/session-aware
     // binding over a bounded-lifetime pooled handler). The observability client below is not part of

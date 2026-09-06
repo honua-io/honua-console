@@ -42,3 +42,21 @@ candidate image carries the residual `admin:approve` grant recipe:
 Receipt parsing, exact-ID read routes, health/release/observability/support reads, operator-bearer
 wiring, fail-closed no-admin-key configuration, and independent UI evidence are not blocked by
 #3365 and live in this directory.
+
+
+## Evidence disposition
+
+The current harness reports `blocked` after successful inspection while approval parity remains
+unqualified. It writes a fresh failed receipt before browser actions and rejects passing evidence
+with a blocked approval. Failed terminal receipts cannot be inputs. Receipt-contract tests run in
+the normal Playwright CI job; skipped candidate smoke is not support evidence.
+
+Console transport regressions run in `FocusedOperatorCredentialTests`: both privileged and map
+clients deny missing/sentinel/expired/unbound/wrong-target sessions before transport even with a
+configured shared key. The tests also prove per-operator bearer forwarding, unchanged server 403s,
+production target initialization and an actual typed version read of the independent `2026.1.7`
+fixture. These tests prove Console wiring, not Honua's server-side RBAC policies.
+
+Exact-candidate qualification still requires the terminal receipt, separate real Console and CLI
+principals, scoped approval grant, server policy tests, and full/witness browser runs on the cut image.
+A passing pre-cut transport or receipt-contract test does not replace that qualification.
