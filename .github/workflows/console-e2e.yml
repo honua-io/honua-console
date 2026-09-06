@@ -53,6 +53,11 @@ jobs:
       - name: Fetch digest-verified Cesium assets
         run: node scripts/fetch-cesium.mjs --force
 
+      - name: Exercise first-publish Cesium discovery
+        # Publish must fetch AND discover assets that were absent at project
+        # evaluation. Prefetching alone masked a late BeforeTargets=Build hook.
+        run: mv src/Honua.Console.Shell/wwwroot/vendor/cesium "$RUNNER_TEMP/cesium-before-publish"
+
       - name: Publish Blazor Web host
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal
 
