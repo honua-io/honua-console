@@ -7,7 +7,7 @@ const contentRoot = dll ? path.dirname(dll) : undefined;
 const server = (mode: string, port: number) => ({
   command: dll
     ? `dotnet "${dll}" --urls http://127.0.0.1:${port} --contentRoot "${contentRoot}"`
-    : `dotnet run --no-build --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:${port}`,
+    : `dotnet run --no-build --no-launch-profile --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:${port}`,
   cwd: root, url: `http://127.0.0.1:${port}/version.json`, timeout: 120_000,
   env: {
     ASPNETCORE_ENVIRONMENT: 'Production',

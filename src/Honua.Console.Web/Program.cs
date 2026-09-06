@@ -120,6 +120,17 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/map-proxy")
+        && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
+    {
+        // Fetch clients must receive the original 401/403, never a rendered not-found page.
+        statusPages.Enabled = false;
+    }
+
+    await next();
+});
 app.UseHttpsRedirection();
 
 // Authentication + the trusted edge-forwarded-identity middleware + authorization. Must run before
