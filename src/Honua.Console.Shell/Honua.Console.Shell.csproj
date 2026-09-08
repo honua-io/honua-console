@@ -8,17 +8,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
     <!-- AuthorizeRouteView / CascadingAuthenticationState for fail-closed route authorization
          (honua-console#233). -->
-    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.11" />
     <!-- SignalR client for the approval-inbox live updates: the console connects to the
          honua-server admin realtime hub's proposals group (honua-server #1695, issue #193). -->
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
     <!-- Server-owned Studio capability-manifest projection (GET /api/v1/capabilities/manifest).
          The registry-driven Studio-AI intent resolver (honua-console#266) binds this SDK client so
          deferred/unavailable capabilities are gated out of Studio AI. -->
-    <PackageReference Include="Honua.Sdk.Studio" Version="1.5.0" />
+    <PackageReference Include="Honua.Sdk.Studio" Version="1.6.0" />
   </ItemGroup>
 
   <ItemGroup>
