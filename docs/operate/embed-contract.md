@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Embedding contract"
+description: "What another application may rely on when embedding Console surfaces, and what is explicitly not part of that contract."
+tags: [embed, integration, contract]
+---
 # Operate Embed Contract
 
 Status: filed 2026-05-23.

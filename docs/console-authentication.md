@@ -1,3 +1,9 @@
+---
+type: concept
+title: "How Console authenticates operators"
+description: "How the Console authenticates an operator and forwards that identity to honua-server, so an operator knows what is being sent on their behalf."
+tags: [auth, identity, operators]
+---
 # Console authentication & server binding (#233 / #234)
 
 This document describes how the Honua Console authenticates operators and how it forwards that

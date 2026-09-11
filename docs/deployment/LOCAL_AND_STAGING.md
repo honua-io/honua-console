@@ -1,3 +1,9 @@
+---
+type: guide
+title: "Run Console locally and in staging"
+description: "Standing up the Console against a local or staging server: what it needs, how it is configured, and what differs between the two."
+tags: [deployment, local, staging]
+---
 # Local and Staging Startup
 
 Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
