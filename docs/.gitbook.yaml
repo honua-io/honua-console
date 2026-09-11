@@ -10,5 +10,5 @@
 root: ./
 
 structure:
-  readme: console-authentication.md
+  readme: README.md
   summary: SUMMARY.md

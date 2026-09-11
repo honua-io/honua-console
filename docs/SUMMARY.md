@@ -1,5 +1,9 @@
 # Table of contents
 
+## Start here
+
+* [Honua Console documentation](README.md)
+
 ## Guides
 
 * [Run Console locally and in staging](deployment/LOCAL_AND_STAGING.md)
