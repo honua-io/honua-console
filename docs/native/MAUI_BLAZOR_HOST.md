@@ -1,3 +1,9 @@
+---
+type: concept
+title: "The optional native host"
+description: "Console stays a browser-deployable Blazor app; the MAUI host is an optional operator shell over the same Razor routes, adding native profile, certificate and gRPC wiring."
+tags: [maui, native, blazor]
+---
 # Optional MAUI Blazor Hybrid Host
 
 Honua Console remains a browser-deployable Blazor web app. The native host is an optional operator and power-user shell that renders the same shared Razor routes from `Honua.Console.Shell` and adds native profile, certificate, and gRPC wiring.
