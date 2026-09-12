@@ -30,7 +30,7 @@ public static class AdminEndpointIssueFactory
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
         HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
         HttpStatusCode.Conflict or HttpStatusCode.PreconditionRequired or HttpStatusCode.PreconditionFailed => "Conflict",
-        HttpStatusCode.BadRequest => "Rejected",
+        HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => "Rejected",
         _ => "Unavailable"
     };
 
@@ -39,6 +39,45 @@ public static class AdminEndpointIssueFactory
     /// with a domain-specific detail call <see cref="MapState"/> directly and supply their own detail.
     /// </summary>
     public static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)
+    {
+        var receipt = ConsoleFailureReceiptParser.FromStatus(statusCode);
+        return CreateIssue(contract, statusCode, receipt);
+    }
+
+    public static HonuaAdminEndpointIssue CreateIssue(
+        string contract,
+        HttpResponseMessage response,
+        string? body = null)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        var receipt = ConsoleFailureReceiptParser.Parse(response, body);
+        return CreateIssue(contract, response.StatusCode, receipt);
+    }
+
+    /// <summary>Reads the failure payload before creating the issue so no caller drops its receipt.</summary>
+    public static async Task<HonuaAdminEndpointIssue> CreateIssueAsync(
+        string contract,
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        string? body = null;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+        {
+            // Headers and status remain a useful terminal receipt when a broken body stream cannot be read.
+        }
+
+        return CreateIssue(contract, response, body);
+    }
+
+    private static HonuaAdminEndpointIssue CreateIssue(
+        string contract,
+        HttpStatusCode statusCode,
+        TerminalFailureReceipt receipt)
     {
         var detail = statusCode switch
         {
@@ -49,7 +88,7 @@ public static class AdminEndpointIssueFactory
             HttpStatusCode.NotImplemented => "The Honua server reports this admin capability is not implemented.",
             HttpStatusCode.Conflict or HttpStatusCode.PreconditionRequired or HttpStatusCode.PreconditionFailed =>
                 "The Honua server reported a conflict for the admin request; reload before retrying.",
-            HttpStatusCode.BadRequest =>
+            HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity =>
                 "The Honua server rejected the admin request; resolve the reported issues before retrying.",
             _ => string.Format(
                 CultureInfo.InvariantCulture,
@@ -58,6 +97,17 @@ public static class AdminEndpointIssueFactory
                 statusCode)
         };
 
-        return new HonuaAdminEndpointIssue(MapState(statusCode), contract, detail, (int)statusCode);
+        return new HonuaAdminEndpointIssue(MapState(statusCode), contract, detail, (int)statusCode)
+        {
+            Receipt = receipt,
+            FieldErrors = receipt.FieldErrors.Select(error => new HonuaFieldValidationError
+            {
+                Code = error.Code ?? string.Empty,
+                Severity = error.Severity,
+                Path = error.Path,
+                FieldId = error.FieldId,
+                Message = error.Message ?? string.Empty
+            }).ToArray()
+        };
     }
 }

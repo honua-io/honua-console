@@ -237,7 +237,9 @@ public sealed class HonuaConsoleContentHttpClient : IHonuaConsoleContentClient, 
             {
                 if (!response.IsSuccessStatusCode)
                 {
-                    return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, response.StatusCode));
+                    return HonuaAdminEndpointResult<T>.FromIssue(
+                        await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                            .ConfigureAwait(false));
                 }
 
                 HonuaAdminApiResponse<T>? envelope;
