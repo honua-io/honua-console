@@ -134,6 +134,9 @@ public sealed record ConsoleAccountSession
 
     public string[] PermissionIds { get; init; } = [];
 
+    /// <summary>The server base URI for which this operator credential was obtained.</summary>
+    public Uri? ServerBaseUri { get; init; }
+
     public string AccessToken { get; init; } = string.Empty;
 
     /// <summary>

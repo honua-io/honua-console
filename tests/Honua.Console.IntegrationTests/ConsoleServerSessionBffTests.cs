@@ -275,6 +275,24 @@ public sealed class ConsoleServerSessionBffTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Exchange_WithoutServerSession_DeniesLocallyWithoutCreatingAnAnonymousPartition()
+    {
+        var context = new SwitchableOperatorContext("operator-a");
+        var partitionsCreated = 0;
+        await using var store = new ConsoleServerSessionClientStore(TimeProvider.System, (key, cookies) =>
+        {
+            partitionsCreated++;
+            return new SimulatedServerAuthHandler(key, cookies);
+        });
+        var exchange = new PartitionedConsoleOperatorBearerExchange(context, store);
+        var result = await exchange.ExchangeAsync(Profile("env"));
+        Assert.Equal(ConsoleOperatorBearerExchangeStatus.Denied, result.Status);
+        Assert.Contains("Sign in", result.Message);
+        Assert.Equal(0, partitionsCreated);
+        Assert.False(store.TryGet("operator-a", Profile("env"), out _));
+    }
+
     private static async Task SeedOperatorAsync(
         SwitchableOperatorContext context,
         IConsoleEnvironmentProfileStore profiles,

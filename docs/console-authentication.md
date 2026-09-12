@@ -64,7 +64,7 @@ Operators sign in one of three ways, selected by `Honua:Console:Auth:Mode` / con
 | Mode | When | How the operator is established | Server credential |
 | --- | --- | --- | --- |
 | **EdgeForwarded** | `EdgeForwarded.Enabled=true` or `Mode=EdgeForwarded` | An ingress / oauth2-proxy authenticates against the customer IdP and injects forwarded-identity headers; `ConsoleEdgeIdentityMiddleware` builds the operator principal per request | Operator's `X-Forwarded-Access-Token` is forwarded as `Authorization: Bearer` (real per-principal RBAC). If the proxy supplies no token, the operator obtains a server bearer through the same-origin BFF; that bearer persists across subsequent identity-only requests (honua-console#306). An edge-supplied token still overrides a stored bearer. |
-| **Dev** | `Development` environment, or explicit `Mode=Dev` | `/auth/login` signs in a developer cookie | Reads may use the configured admin key; human approval/recovery mutations fail closed without a forwardable bearer. |
+| **Dev** | `Development` environment, or explicit `Mode=Dev` | `/auth/login` signs in a developer cookie | All interactive reads and mutations require a forwardable operator bearer; dev login alone grants no server access. |
 | _unset_ (non-Development) | default | **Fail-closed** — `/auth/login` returns 401; no anonymous access | n/a |
 
 ### Trusting the edge
@@ -86,20 +86,23 @@ client already had — without rewriting ~20 typed clients. On every outbound re
 1. rewrites the request authority to the **active environment profile's** `ServerBaseUri` (fixing the
    "mutations mis-target the startup server" bug); and
 2. attaches the active operator's **bearer** as `Authorization: Bearer` and removes any shared
-   `X-API-Key` the inner client added, so the request runs as the real operator principal. Only when
-   there is no operator bearer does the admin-key fallback remain.
+   `X-API-Key` the inner client added, so the request runs as the real operator principal.
+   The browser host adds `ConsoleOperatorCredentialHandler` immediately before transport. It strips
+   every configured key, resolves/refreshes the operator bearer, verifies its recorded server target,
+   and returns 401 with a sign-in message before transport when no valid credential is available.
 
 `HonuaServerClientFactory.Create(...)` builds the Family-A `HttpClient`s with this handler; the DI
 registrations in `HonuaConsoleShellServiceCollectionExtensions` now use it.
 
-Family-B clients that construct absolute requests per active profile use the same read decision through
-`ConsoleServerHttp.AttachAuthenticationAsync(...)`. Proposal decisions, deploy submit/rollback, and
+Family-B clients that construct absolute requests per active profile also use this browser transport
+boundary, including release/version, observability, health, proposals and diagnostics. Proposal decisions, deploy submit/rollback, and
 ops-finding proposals use the stricter `AttachMutationAuthenticationAsync(...)`: interactive mode
 requires a forwardable bearer, and a missing, sentinel, or expired bearer returns a clear sign-in state
 without sending any request. Honua-server derives the audit actor from bearer claims; the Console does
 not send an actor header.
 
-`Honua:Server:CredentialMode` / `HONUA_SERVER_CREDENTIAL_MODE` defaults to `Interactive`. The only
+The browser transport never permits a service key, including when `HeadlessService` is configured.
+For non-browser service callers, `Honua:Server:CredentialMode` / `HONUA_SERVER_CREDENTIAL_MODE` defaults to `Interactive`. The only
 value that enables API-key mutation fallback is the exact `HeadlessService` opt-in. Even then, the key
 is usable only when no account session exists and the host supplied an explicit `ServiceApiKey`
 environment profile. Interactive profile creation does not offer that account mode, and signing in on
@@ -111,10 +114,10 @@ fails closed, so headless mode cannot silently change that human's audit actor.
 When an operator is authenticated to the Console but no forwardable honua-server bearer exists yet
 (dev login, or an edge proxy that passes no access token), the account session stores a
 non-forwardable sentinel token (`profile-session:<id>`). It marks the session "signed in" for
-client-side read context but is **never** forwarded to honua-server. Read-only clients may apply their
-documented admin-key fallback; human mutations do not. A real operator bearer never carries this prefix.
+client-side read context but is **never** forwarded to honua-server. Interactive reads and mutations
+require exchange or reauthentication; neither may fall back to a shared key. A real operator bearer never carries this prefix.
 
-For a human mutation, the sentinel triggers the configured operator-bearer provider. A successful
+For an interactive server request, the sentinel triggers the configured operator-bearer provider. A successful
 exchange replaces it with the short-lived bearer and expiry in the profile-partitioned protected
 session store. Exchange denial, an expired bearer, or an unconfigured exchange returns a re-sign-in
 message and never falls back to `X-API-Key`.
@@ -185,15 +188,19 @@ closed with a re-sign-in state and never fall back to the shared admin key.
 
 ## Map-proxy
 
-The map-preview BFF endpoints (`/map-proxy/*`) act with honua-server privileges. They require an
-authenticated operator and forward the operator's bearer to honua-server when one exists
-(`MapProxySupport.ResolveOperatorBearerAsync` + `ApplyUpstreamCredential`), falling back to the shared
-admin key only when no operator bearer is available.
+The map-preview BFF endpoints (`/map-proxy/*`) require an authenticated operator and the same
+`ConsoleOperatorCredentialHandler` as privileged typed clients. No configured admin key reaches
+transport. Missing, expired, unexchangeable or target-mismatched credentials return 401. The proxy
+checks its configured upstream against the active profile before forwarding a bearer; switching or
+editing a profile cannot forward that profile's token to another server.
 
-As of honua-console#254 the operator gate is **fail-closed by construction**: each endpoint resolves the
-request's scoped `IConsoleOperatorScope` and denies (401) when it yields `null`. The code path that
-builds the admin-keyed upstream request is unreachable without a non-null `ConsoleOperatorIdentity`, so
-"no resolved operator" cannot silently proceed.
+Styles, feature rows and tiles use `Cache-Control: no-store` to prevent cross-operator cache reuse.
+Redirects and pooled cookies are disabled on interactive upstream clients. Public catalog/style
+clients may send anonymous requests, but strip shared keys as well.
+
+Configured server URLs initialize an isolated profile for each operator in Production and Development.
+This creates no session or server privilege; the operator must sign in. Without a configured URL the
+host retains its explicit missing-binding state.
 
 ## Multi-operator isolation (fail-closed by construction, #254)
 
@@ -224,7 +231,7 @@ across operators. Two complementary mechanisms keep operators isolated:
     content publication, collaboration, catalog discovery) funnels through this one chain.
   - **`honua-server-public` (anonymous-capable).** Same binding but NO guard, so the legitimately-anonymous
     `/public` open-data catalog reads (`IConsoleCatalogClient`) and the public OGC `/ogc/styles` list keep
-    rendering for anonymous visitors by design (documented admin-key / anonymous fallback), never a sentinel.
+    rendering for anonymous visitors by design (anonymous requests carry no service key), never a sentinel.
 
   The typed-client registrations are unchanged in shape: they still call `HonuaServerClientFactory.Create`
   / `.CreatePublic`, which delegate to the `IHonuaServerBoundClientFactory` when the host registers one and
@@ -262,6 +269,21 @@ across operators. Two complementary mechanisms keep operators isolated:
   unconditionally (relying on the handler to retarget to the active profile) is the remaining step to
   bring the native host — where the URL is known only after connect — to parity. Deferred to keep the
   missing-binding UX guarantees intact in this pass.
-- **Other Family-B admin-key fallbacks.** Proposal decisions, deploy submit/rollback, and finding
-  proposals are bearer-only in interactive mode. Read-only and other legacy Family-B paths retain
-  their documented fallback semantics pending separate mutation-by-mutation hardening.
+- **Native/headless legacy clients.** Their service-credential mode remains separate from the browser
+  host. Every browser server client, including Family-B reads, passes the operator-only transport boundary.
+
+Admin realtime connections also require an operator bearer, re-resolve it on reconnect, and never
+attach the shared key. Proposal, deployment and health subscriptions are scoped per circuit rather
+than shared between operators.
+
+
+## Focused presentation
+
+`Honua:Console:Mode` / `HONUA_CONSOLE_MODE` accepts `full` (default) or `witness`.
+Witness mode limits the primary and Operate navigation to focused inspection, approval and recovery
+surfaces. Full mode keeps the broader navigation and labels those entries Preview. Direct navigation
+to a broader surface shows the Preview notice in either mode; this is presentation, never a client-side
+permission or an Admin API parity claim. Server authorization is identical in both modes.
+
+See [the acceptance evidence matrix](focused-client-2026.1-evidence.md) for what is implemented and
+what still requires server dependencies and exact-candidate qualification.

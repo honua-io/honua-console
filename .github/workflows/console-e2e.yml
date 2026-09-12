@@ -57,6 +57,12 @@ jobs:
         working-directory: e2e/playwright
         run: npm ci
 
+      - name: Verify focused-client receipt adjudication
+        working-directory: e2e/playwright
+        env:
+          HONUA_CONSOLE_FOCUSED_ORIGIN: http://127.0.0.1:9
+        run: npx playwright test --config playwright.focused.config.ts focused/specs/receipt-contract.spec.ts
+
       - name: Install Playwright chromium
         working-directory: e2e/playwright
         run: npx playwright install --with-deps chromium
@@ -68,6 +74,13 @@ jobs:
           # Boot the published artifact instead of `dotnet run` (faster, matches the deployed binary).
           HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
         run: npx playwright test
+
+      - name: Verify operator-only browser and proxy transport (full and witness)
+        working-directory: e2e/playwright
+        env:
+          CI: "true"
+          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+        run: npx playwright test --config playwright.operator.config.ts
 
       - name: Upload Playwright HTML report
         if: always()

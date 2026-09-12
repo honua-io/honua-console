@@ -23,19 +23,19 @@ public sealed class MapProxyCacheHeaderTests
         var response = new DefaultHttpContext().Response;
         MapProxySupport.ApplyTileCacheHeaders(upstream, response);
 
-        Assert.Contains("max-age=7200", response.Headers.CacheControl.ToString());
+        Assert.Equal("no-store", response.Headers.CacheControl.ToString());
         Assert.Equal("\"abc123\"", response.Headers.ETag.ToString());
     }
 
     [Fact]
-    public void ApplyTileCacheHeaders_NoUpstreamCacheControl_AppliesImmutableDefault()
+    public void ApplyTileCacheHeaders_NoUpstreamCacheControl_PreventsCrossOperatorCaching()
     {
         using var upstream = new HttpResponseMessage();
 
         var response = new DefaultHttpContext().Response;
         MapProxySupport.ApplyTileCacheHeaders(upstream, response);
 
-        Assert.Equal("public, max-age=86400, immutable", response.Headers.CacheControl.ToString());
+        Assert.Equal("no-store", response.Headers.CacheControl.ToString());
     }
 
     [Fact]
