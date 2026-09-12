@@ -217,7 +217,7 @@ test('a mounted chart runs the vendored Vega build, fetched from this origin', a
     {
       modulePath: CHART_MODULE_PATH,
       spec: JSON.stringify({
-        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
         mark: 'bar',
         data: { values: [{ category: 'a', amount: 28 }, { category: 'b', amount: 55 }] },
         encoding: {

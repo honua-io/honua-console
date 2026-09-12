@@ -84,7 +84,7 @@ Family-specific editor payloads:
 | Query | `predicate`, `parameter`, `generated_sql`, `result_limit` |
 | Analysis | `operation`, `distance`, `worker_profile`, `output_schema` |
 | Map | `basemap`, `layer_style`, `popup_fields`, `initial_extent` |
-| Dashboard / Report | `chart_standard = "vega-lite/v5"`, `chart_title`, `measure`, `dimension`, `version_pin`, `vega_lite_spec` |
+| Dashboard / Report | `chart_standard = "vega-lite/v6"`, `chart_title`, `measure`, `dimension`, `version_pin`, `vega_lite_spec` |
 | Form | `field_group`, `required_field`, `domain`, `submit_target`, `offline_sync_policy`, `offline_policy_reviewed`, `attachment_policy` |
 | App | `pages`, `components`, `action`, `permission`, `reopened_edit_policy = "create_new_content_version"` |
 
@@ -94,7 +94,7 @@ Lifecycle operations update a `StudioPackageLifecycleSnapshot` with:
 - `published`, `shared`, and `embedded` booleans.
 - Evidence entries with stable prefixes: `content-version.create`, `content-version.read`, `publication.create`, `share-access.update`, `embed-token.mint`, and `rollback.create`.
 
-Share, embed, and rollback require `published = true` and a non-zero `published_version`; the mock must not represent shared, embedded, or rolled-back draft-only content. Form publish is disabled until a non-empty offline/sync policy is selected and the review flag is set. Reopened app edits create a new current content version without mutating the published version. Dashboard and report chart projections use Vega-Lite v5.
+Share, embed, and rollback require `published = true` and a non-zero `published_version`; the mock must not represent shared, embedded, or rolled-back draft-only content. Form publish is disabled until a non-empty offline/sync policy is selected and the review flag is set. Reopened app edits create a new current content version without mutating the published version. Dashboard and report chart projections emit Vega-Lite v6 while continuing to accept older Vega-Lite schema declarations on reopened content.
 
 ## Acceptance Notes
 

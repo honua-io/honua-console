@@ -23,7 +23,7 @@
     },
     {
       "name": "vega",
-      "version": "5.33.0",
+      "version": "6.4.0",
       "license": "BSD-3-Clause",
       "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega",
       "files": [
@@ -33,7 +33,7 @@
     },
     {
       "name": "vega-lite",
-      "version": "5.23.0",
+      "version": "6.4.3",
       "license": "BSD-3-Clause",
       "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega-lite",
       "files": [
@@ -43,7 +43,7 @@
     },
     {
       "name": "vega-embed",
-      "version": "6.29.0",
+      "version": "7.1.0",
       "license": "BSD-3-Clause",
       "destination": "src/Honua.Console.Shell/wwwroot/vendor/vega-embed",
       "files": [
