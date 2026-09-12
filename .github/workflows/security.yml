@@ -21,4 +21,4 @@ jobs:
       scan-type: fs
 
   scorecard:
-    uses: honua-io/.github/.github/workflows/reusable-scorecard.yml@aebfacd3f3c6b551fa9bf703501c0a12a050faf3 # main
+    uses: honua-io/.github/.github/workflows/reusable-scorecard.yml@e26b67e904f2c23796fe677d267d73188a764545 # v2.4.4 image fix
