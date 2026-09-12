@@ -15,6 +15,53 @@ namespace Honua.Console.Web;
 /// </summary>
 public static class MapProxySupport
 {
+    /// <summary>Canonicalizes a relative asset path under a server-owned 3D Tiles scene.</summary>
+    public static string? NormalizeSceneAssetPath(string? assetPath)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return null;
+        }
+
+        var segments = assetPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return null;
+        }
+
+        var encoded = new string[segments.Length];
+        for (var index = 0; index < segments.Length; index++)
+        {
+            string segment;
+            try
+            {
+                segment = Uri.UnescapeDataString(segments[index]).Trim();
+            }
+            catch (UriFormatException)
+            {
+                return null;
+            }
+            if (segment.Length == 0 || segment is "." or ".." || segment.Contains('/') || segment.Contains('\\'))
+            {
+                return null;
+            }
+            encoded[index] = Uri.EscapeDataString(segment);
+        }
+        return string.Join('/', encoded);
+    }
+
+    /// <summary>Builds a scene asset URI against the selected environment's server.</summary>
+    public static Uri BuildSceneAssetUri(Uri serverBaseUri, string sceneId, string assetPath)
+    {
+        ArgumentNullException.ThrowIfNull(serverBaseUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
+
+        return ConsoleServerHttp.BuildUri(
+            serverBaseUri,
+            $"scenes/{sceneId}/{assetPath}");
+    }
+
     /// <summary>
     /// Neutralizes CR/LF in a user-provided value before it reaches a log entry, so a crafted
     /// route/query value cannot forge additional log lines (CodeQL cs/log-forging). Structured
