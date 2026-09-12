@@ -32,7 +32,7 @@
             @if (Host.SupportsNativeTransports)
             {
                 <h2>Create your first environment</h2>
-                <p class="console-muted">No environment profiles exist yet. Add a managed Honua Server to connect, validate trust, and stream telemetry.</p>
+                <p class="console-muted">No environment profiles exist yet. Add a self-hosted Honua Server to connect, validate trust, and stream telemetry.</p>
                 <a class="console-button" href="/environments/new">Create environment profile</a>
             }
             else
@@ -67,6 +67,11 @@
                             }
                         </div>
                     </div>
+
+                    @if (!string.IsNullOrWhiteSpace(profile.TenantId))
+                    {
+                        <TenancyPreviewNotice />
+                    }
 
                     <dl class="console-definition-list">
                         <dt>Server</dt>

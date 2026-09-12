@@ -16,6 +16,24 @@ namespace Honua.Console.IntegrationTests;
 public sealed class EnvironmentProfileNewPageRenderTests
 {
     [Fact]
+    public void TenantField_IsExplicitlyPreviewTrialAndNonProduction()
+    {
+        var page = Render();
+
+        page.WaitForAssertion(
+            () => Assert.NotNull(page.Find("[data-tenancy-preview]")),
+            TimeSpan.FromSeconds(5));
+
+        Assert.Contains("Preview / trial only", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Honua 2026.1 GA is single-tenant", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("non-production", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("customer production data", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("does not provide SaaS or managed hosting", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Tenant ID (Preview/trial only)", page.Markup, StringComparison.Ordinal);
+        Assert.NotNull(page.Find("input[placeholder='trial-a']"));
+    }
+
+    [Fact]
     public void DefaultForm_HttpsScheme_IsValid_AndCreateEnabled()
     {
         var page = Render();

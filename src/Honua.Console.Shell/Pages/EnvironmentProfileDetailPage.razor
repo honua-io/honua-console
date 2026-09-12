@@ -39,6 +39,11 @@ else
             </div>
         </div>
 
+        @if (!string.IsNullOrWhiteSpace(_profile.TenantId))
+        {
+            <TenancyPreviewNotice />
+        }
+
         @if (!Host.SupportsNativeTransports)
         {
             <article class="console-panel console-state-info" role="note">
