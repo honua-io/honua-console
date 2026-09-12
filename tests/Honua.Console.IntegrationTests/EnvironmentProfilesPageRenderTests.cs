@@ -65,11 +65,46 @@ public sealed class EnvironmentProfilesPageRenderTests
         Assert.DoesNotContain("Connect · Native host only", page.Markup, StringComparison.Ordinal);
     }
 
-    private static Bunit.BunitContext NewBrowserContext(IConsoleEnvironmentProfileStore store)
+    [Fact]
+    public void ActivatingProfile_RefreshesCapabilitiesForTheNewEnvironment()
+    {
+        var store = new InMemoryConsoleEnvironmentProfileStore(
+            [Profile("dev", "Development"), Profile("prod", "Production")],
+            states: null,
+            activeProfileId: "dev");
+        var manifest = new RecordingCapabilityManifest();
+        using var ctx = NewBrowserContext(store, manifest);
+
+        var page = ctx.Render<EnvironmentProfilesPage>();
+        page.FindAll("button")
+            .Single(button => button.TextContent.Contains("Use Environment", StringComparison.Ordinal)
+                && !button.HasAttribute("disabled"))
+            .Click();
+
+        Assert.Equal(1, manifest.RefreshCount);
+    }
+
+    private static Bunit.BunitContext NewBrowserContext(
+        IConsoleEnvironmentProfileStore store,
+        IConsoleCapabilityManifest? manifest = null)
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(store);
         ctx.Services.AddSingleton<IConsoleHostCapabilities>(new BrowserConsoleHostCapabilities());
+        ctx.Services.AddSingleton<IConsoleCapabilityManifest>(manifest ?? new ConsoleCapabilityManifest());
         return ctx;
+    }
+
+    private sealed class RecordingCapabilityManifest : IConsoleCapabilityManifest
+    {
+        public int RefreshCount { get; private set; }
+
+        public Task RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            RefreshCount++;
+            return Task.CompletedTask;
+        }
+
+        public bool IsAdvertised(string capabilityKey) => false;
     }
 }

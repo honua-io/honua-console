@@ -34,14 +34,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // Console; Ctrl on Windows/Linux browser deployments — the overwhelming Console target).
         services.TryAddSingleton<IConsoleShortcutPlatform, RuntimeConsoleShortcutPlatform>();
 
-        // Capability-manifest gate for the deferred "exotic depth" surfaces (first-release cut-line,
-        // docs/roadmap/FIRST_RELEASE_STRATEGY_AND_CUT_LINE.md). The advertised set is empty by default,
-        // so temporal / disconnected-sync / realtime-alerting / cross-environment-promotion /
-        // siem-investigations render the first-class "unsupported" state until the deployment opts them
-        // in via Honua:Console:Capabilities. This is the interim source; the honua-server
-        // capability-manifest document feeds the same seam once its full-document consumption lands.
-        services.TryAddSingleton<IConsoleCapabilityManifest>(
-            _ => ConsoleCapabilityManifest.FromConfigurationList(honuaConsoleAdvertisedCapabilities));
+        // Server-backed gates use the live SDK manifest independently of Studio intent resolution.
+        // Local capability configuration can only narrow that truth; studio-builders remains local.
+        // Capability snapshots are mutable and belong to the current Blazor circuit. The registry
+        // remains request-time/operator-aware, but the snapshot itself must not be shared between circuits.
+        services.TryAddScoped<IConsoleCapabilityManifest>(serviceProvider =>
+            new ManifestBackedConsoleCapabilityManifest(
+                serviceProvider.GetRequiredService<ICapabilityRegistryClient>(),
+                ConsoleCapabilityManifest.SplitList(honuaConsoleAdvertisedCapabilities)));
 
         // Shell-owned toast/notification surface. Scoped = one queue per Blazor circuit so a toast a
         // page raises is shown only to that connected user. The single ConsoleNotificationHost in
@@ -1212,22 +1212,16 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddSingleton<ITemporalCapabilityClient, UnsupportedTemporalCapabilityClient>();
     }
 
-    // Registry-driven Studio-AI intent resolution (honua-console#266), behind the
-    // Studio:RegistryIntentResolution flag (default OFF). When the flag is ON AND a valid server base URL is
-    // configured, the capability registry binds to the server capability manifest
-    // (GET /api/v1/capabilities/manifest) through the shared Honua.Sdk.Studio IHonuaCapabilityManifestClient
-    // projection (Console Patterns Charter §11a: binding allowed because the contract lives in the SDK), and
-    // the Studio generate/validate/preview/publish lifecycle resolves against it — deferred/unavailable
-    // capabilities are hidden from Studio AI. Otherwise (flag OFF, or ON with no server bound) the
-    // missing-binding registry client + the no-op resolver are registered, preserving CURRENT behavior:
-    // every phase resolves as available without registry gating. TryAdd keeps a test/demo provider overridable.
+    // The live SDK registry is used by Console gates whenever a server is configured.
+    // Studio:RegistryIntentResolution independently opts Studio AI into registry intent resolution;
+    // leaving that flag off does not replace live Console capability truth with an allowlist.
+    // TryAdd preserves explicit test/demo overrides.
     private static void AddStudioIntentResolution(
         IServiceCollection services,
         string? honuaServerBaseUrl,
         bool registryIntentResolutionEnabled)
     {
-        if (registryIntentResolutionEnabled
-            && TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
+        if (TryGetHonuaServerBaseUri(honuaServerBaseUrl, out var baseUri))
         {
             services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
             {
@@ -1238,9 +1232,12 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 new HonuaServerCapabilityRegistryClient(
                     serviceProvider.GetRequiredService<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>()));
             services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>
-                new StudioIntentResolver(
-                    serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>(),
-                    serviceProvider.GetRequiredService<ICapabilityRegistryClient>()));
+                registryIntentResolutionEnabled
+                    ? new StudioIntentResolver(
+                        serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>(),
+                        serviceProvider.GetRequiredService<ICapabilityRegistryClient>())
+                    : new NoopStudioIntentResolver(
+                        serviceProvider.GetRequiredService<IOmniPromptIntentClassifier>()));
             return;
         }
 

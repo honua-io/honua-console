@@ -1,3 +1,4 @@
+@inject IConsoleCapabilityManifest Capabilities
 @page "/operate/deploy"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -275,6 +276,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Capabilities.RefreshAsync();
         // A deep-linked operation id (console#292) tracks and selects it up front, exactly as
         // the manual "Track operation" input does, so the golden path from a correlation-id chip
         // lands directly on the operation's approval panel.
@@ -377,6 +379,10 @@
 
     private async Task<IReadOnlyList<string>> ResolveReleaseDeployOperationIdsAsync()
     {
+        if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.CrossEnvironmentPromotion))
+        {
+            return [];
+        }
         var proposals = await ReleaseClient.GetReleaseProposalsAsync();
         // Capture the proposal read for the "available to promote" surface. A denied read
         // (missing/unsupported/unavailable) is preserved so the section renders that state

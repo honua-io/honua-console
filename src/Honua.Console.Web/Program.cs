@@ -36,10 +36,9 @@ builder.Services.AddHonuaConsoleShell(
     builder.Configuration["Honua:Llm:Model"] ?? builder.Configuration["HONUA_LLM_MODEL"],
     builder.Configuration["Honua:Llm:ApiKey"] ?? builder.Configuration["HONUA_LLM_API_KEY"],
     builder.Configuration["Honua:Support:KbPath"] ?? builder.Configuration["HONUA_SUPPORT_KB_PATH"],
-    // Deferred exotic-depth capabilities advertised for this release (first-release cut-line). Empty
-    // by default: temporal / disconnected-sync / realtime-alerting / cross-environment-promotion /
-    // siem-investigations render the first-class "unsupported" state until opted in here. The same
-    // list re-enables the SHELVED Console Studio builder surfaces with "studio-builders" — they are
+    // Optional local narrowing policy for server-backed capabilities. The live server manifest is
+    // always the upper bound; this list cannot widen it. The same list controls the local-only
+    // SHELVED Console Studio builder surfaces with "studio-builders" — they are
     // gated off (and hidden from nav) because "Studio" is now the realtime, SDK-driven app builder.
     builder.Configuration["Honua:Console:Capabilities"] ?? builder.Configuration["HONUA_CONSOLE_CAPABILITIES"],
     // Registry-driven Studio-AI intent resolution (honua-console#266): OFF by default. When ON (and a

@@ -238,6 +238,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Capabilities.RefreshAsync();
         // Capability-manifest gate: when temporal is not advertised for this release the page renders
         // the first-class "unsupported" state, so skip the server read entirely.
         if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal))
