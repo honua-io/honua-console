@@ -164,6 +164,7 @@ public sealed class StudioBuildersShelvedRenderTests
         using var ctx = ShelvedContext();
         ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
 
+        ctx.AddAuthorization().SetAuthorized("synthetic-operator");
         var layout = ctx.Render<ConsoleLayout>();
 
         Assert.DoesNotContain("href=\"/studio\"", layout.Markup, StringComparison.Ordinal);
@@ -182,6 +183,7 @@ public sealed class StudioBuildersShelvedRenderTests
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
 
+        ctx.AddAuthorization().SetAuthorized("synthetic-operator");
         var layout = ctx.Render<ConsoleLayout>();
 
         Assert.Contains("href=\"/studio\"", layout.Markup, StringComparison.Ordinal);
