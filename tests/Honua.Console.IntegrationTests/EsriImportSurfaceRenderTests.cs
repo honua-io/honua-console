@@ -269,7 +269,7 @@ public sealed class EsriImportSurfaceRenderTests
     public void WizardPage_MapStep_RendersStepsConversionSummaryAndHonuaDevopsOwner()
     {
         using var ctx = NewContext();
-        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new UnsupportedEsriMigrationRunDataSource());
+        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new StubMigrationRunDataSource());
 
         var page = RenderWizardAtStep(ctx, 2);
 
@@ -500,20 +500,38 @@ public sealed class EsriImportSurfaceRenderTests
     public void WizardPage_SourceStep_ConnectedSource_AllowsAdvance()
     {
         using var ctx = NewContext();
+        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new StubMigrationRunDataSource());
+
+        var page = RenderWizardAtStep(ctx, 0);
+
+        // The run engine returned a plan, so the source is genuinely connected -> Continue is enabled,
+        // and the card describes the source the plan names rather than a hardcoded organization.
+        var next = page.Find("button.publish-wizard-next");
+        Assert.False(next.HasAttribute("disabled"));
+        Assert.Contains("portal.example.org", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("city-gis", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WizardPage_SourceStep_WithNoPlanBound_ReportsMissingBindingAndBlocksAdvance()
+    {
+        using var ctx = NewContext();
         ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new UnsupportedEsriMigrationRunDataSource());
 
         var page = RenderWizardAtStep(ctx, 0);
 
-        // A connected source gates the Source step valid -> the Continue control is enabled.
-        var next = page.Find("button.publish-wizard-next");
-        Assert.False(next.HasAttribute("disabled"));
+        // The source card used to claim "org.maps.arcgis.com / state-gis · connected · 18 items" with
+        // nothing behind it, and _sourceConnected was a hardcoded true that let the wizard advance.
+        Assert.NotNull(page.Find("[data-esri-missing-binding]"));
+        Assert.True(page.Find("button.publish-wizard-next").HasAttribute("disabled"));
+        Assert.DoesNotContain("org.maps.arcgis.com", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
     public void WizardPage_MapStep_ResolvableMappings_AllowsRun()
     {
         using var ctx = NewContext();
-        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new UnsupportedEsriMigrationRunDataSource());
+        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new StubMigrationRunDataSource());
 
         var page = RenderWizardAtStep(ctx, 2);
 
@@ -526,7 +544,20 @@ public sealed class EsriImportSurfaceRenderTests
     private sealed class StubMigrationRunDataSource : IEsriMigrationRunDataSource
     {
         public Task<MigrationPlanLoad> LoadPlanAsync(string migrationId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new MigrationPlanLoad(null, []));
+            Task.FromResult(new MigrationPlanLoad(
+                new MigrationPlanView(
+                    "portal.example.org",
+                    "city-gis",
+                    4,
+                    3,
+                    "honua-devops",
+                    [
+                        new MigrationSelectionItem("Storm Drains Web Map", "Web Map", "map package", ImportFidelity.Clean, "—"),
+                        new MigrationSelectionItem("Ops Dashboard", "Dashboard", "dashboard package", ImportFidelity.Degrade, "1 widget degrades"),
+                        new MigrationSelectionItem("Culverts Web Map", "Web Map", "map package", ImportFidelity.Manual, "1 layer unbound"),
+                        new MigrationSelectionItem("Terrain Scene", "Web Scene", null!, ImportFidelity.Drop, "3D scenes not supported"),
+                    ]),
+                []));
 
         public Task<MigrationRunLoad> LoadRunAsync(string migrationId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new MigrationRunLoad(

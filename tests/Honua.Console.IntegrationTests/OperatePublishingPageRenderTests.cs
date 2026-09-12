@@ -64,18 +64,19 @@ public sealed class OperatePublishingPageRenderTests
         Assert.Contains("Layer", stepper.TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain("Projection", stepper.TextContent, StringComparison.Ordinal);
 
-        // Switch to the advanced author-first mode -> the seven-step flow appears.
+        // Switch to the advanced author-first mode. Its seven steps were a mockup — a compatibility
+        // matrix, a slot id, field aliases, an access summary and a projection preview, none of which
+        // any server contract supplies — so the mode now declares itself unwired instead of rendering
+        // them. The stepper disappears with it.
         var authorFirst = page.FindAll("button.publish-mode-option")
             .Single(b => b.TextContent.Contains("Author resource first", StringComparison.Ordinal));
         authorFirst.Click();
 
         page.WaitForAssertion(
-            () => Assert.Contains("Projection", page.Find("ol.publish-stepper").TextContent, StringComparison.Ordinal),
+            () => Assert.Contains("This flow is not wired yet", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        var advanced = page.Find("ol.publish-stepper");
-        Assert.Contains("Target", advanced.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Compatibility", advanced.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Access", advanced.TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("ol.publish-stepper"));
+        Assert.DoesNotContain("Compatibility", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
