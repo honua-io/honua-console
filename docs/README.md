@@ -2,6 +2,7 @@
 type: index
 title: "Honua Console documentation"
 description: "What is documented here and what deliberately is not: Console's published surfaces for operators and integrators, with the design and planning corpus kept separate."
+resource: "https://github.com/honua-io/honua-console"
 tags: [console, navigation]
 ---
 # Honua Console documentation

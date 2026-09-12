@@ -2,6 +2,7 @@
 type: guide
 title: "Run Console locally and in staging"
 description: "Standing up the Console against a local or staging server: what it needs, how it is configured, and what differs between the two."
+resource: "https://github.com/honua-io/honua-console/pkgs/container/honua-console"
 tags: [deployment, local, staging]
 ---
 # Local and Staging Startup
