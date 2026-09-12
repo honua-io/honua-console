@@ -14,7 +14,66 @@
         <dd>@Job.SubmittedBy</dd>
         <dt>Failure class</dt>
         <dd>@Job.FailureClassification</dd>
+        @if (!string.IsNullOrWhiteSpace(Job.EffectiveIdentity.CorrelationId))
+        {
+            <dt>Audit correlation</dt>
+            <dd data-job-correlation-id><CorrelationIdChip Value="@Job.EffectiveIdentity.CorrelationId" Kind="CorrelationIdKind.CorrelationId" /></dd>
+        }
+        @if (!string.IsNullOrWhiteSpace(Job.EffectiveIdentity.TraceId))
+        {
+            <dt>Trace</dt>
+            <dd class="console-mono" data-job-trace-id>@Job.EffectiveIdentity.TraceId</dd>
+        }
+        @if (!string.IsNullOrWhiteSpace(Job.EffectiveIdentity.ProviderOperationId))
+        {
+            <dt>Provider operation</dt>
+            <dd class="console-mono" data-job-provider-operation-id>@Job.EffectiveIdentity.ProviderOperationId</dd>
+        }
     </dl>
+
+    @if (Job.EffectiveIdentity.IsEsriGpServer)
+    {
+        <section class="operate-evidence-section" data-esri-gpserver-identity>
+            <p class="console-kicker">ArcGIS migration</p>
+            <h4>Esri GPServer identity</h4>
+            <p class="console-muted">
+                This is the Esri-compatible name for the same canonical Honua process and job.
+                Console is inspecting the shared runtime; it is not running a second execution engine.
+            </p>
+            <dl class="console-definition-list">
+                <dt>GPServer service</dt>
+                <dd class="console-mono" data-gpserver-service-id>@Job.EffectiveIdentity.GpServerServiceId</dd>
+                <dt>Esri task</dt>
+                <dd class="console-mono" data-gpserver-task-name>@Job.EffectiveIdentity.GpServerTaskName</dd>
+                @if (!string.IsNullOrWhiteSpace(Job.EffectiveIdentity.ProcessId))
+                {
+                    <dt>Canonical process</dt>
+                    <dd class="console-mono" data-canonical-process-id>@Job.EffectiveIdentity.ProcessId</dd>
+                }
+                @if (!string.IsNullOrWhiteSpace(Job.EffectiveIdentity.ResultPackageId))
+                {
+                    <dt>Result package</dt>
+                    <dd class="console-mono" data-result-package-id>@Job.EffectiveIdentity.ResultPackageId</dd>
+                }
+                <dt>GPServer job route</dt>
+                <dd><code data-gpserver-job-route>@Job.EffectiveIdentity.GpServerJobPath(Job.JobRunId)</code></dd>
+            </dl>
+        </section>
+    }
+
+    @if (Job.EffectiveIdentity.SelectedMetadata.Count > 0)
+    {
+        <details class="operate-evidence-section" data-job-selected-metadata>
+            <summary>Server-selected job metadata</summary>
+            <dl class="console-definition-list">
+                @foreach (var item in Job.EffectiveIdentity.SelectedMetadata)
+                {
+                    <dt>@item.Key</dt>
+                    <dd class="console-mono">@item.Value</dd>
+                }
+            </dl>
+        </details>
+    }
 
     <div class="operate-progress operate-progress-large" aria-label="@($"{Job.ProgressPercent} percent complete")">
         <span style="@($"width: {Job.ProgressPercent}%")"></span>

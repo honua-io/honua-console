@@ -68,7 +68,7 @@ public sealed class ConsoleApprovalInboxClient : IConsoleApprovalInboxClient
             // shared missing / forbidden / unsupported / unavailable surfaces are preserved. The
             // inbox never fabricates a queue (charter §11).
             var primary = results[0].Result;
-            return OperateSectionResult<ApprovalInboxSnapshot>.Denied(primary.Status, primary.Message);
+            return OperateSectionResult<ApprovalInboxSnapshot>.Denied(primary.Status, primary.Message, primary.Detail);
         }
 
         var items = allowed

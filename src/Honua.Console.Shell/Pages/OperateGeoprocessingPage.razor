@@ -46,7 +46,7 @@
             }
             else if (!_jobs.IsAllowed)
             {
-                <OperateSectionStatusPanel Heading="Geoprocessing jobs" Status="_jobs.Status" Message="@_jobs.Message" />
+                <OperateSectionStatusPanel Heading="Geoprocessing jobs" Status="_jobs.Status" Message="@_jobs.Message" Detail="@_jobs.Detail" />
             }
             else if (AllJobs.Count == 0)
             {
@@ -70,6 +70,10 @@
                 @if (!string.IsNullOrWhiteSpace(_actionMessage))
                 {
                     <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
+                    @if (!string.IsNullOrWhiteSpace(_actionDetail))
+                    {
+                        <ConsoleDiagnostics Detail="@_actionDetail" />
+                    }
                 }
 
                 <div class="console-panel operate-table-panel">
@@ -150,7 +154,7 @@
         }
         else if (!_detail.IsAllowed || _detail.Value is null)
         {
-            <OperateSectionStatusPanel Heading="Job detail" Status="_detail.Status" Message="@_detail.Message" />
+            <OperateSectionStatusPanel Heading="Job detail" Status="_detail.Status" Message="@_detail.Message" Detail="@_detail.Detail" />
         }
         else
         {
@@ -181,6 +185,10 @@
                     @if (!string.IsNullOrWhiteSpace(_actionMessage))
                     {
                         <p class="operate-deploy-action-message @_actionMessageClass" role="status">@_actionMessage</p>
+                        @if (!string.IsNullOrWhiteSpace(_actionDetail))
+                        {
+                            <ConsoleDiagnostics Detail="@_actionDetail" />
+                        }
                     }
                     <p class="console-state-danger">
                         Governed action &middot; routed through the server's Execute + destructive-approval gate;
@@ -199,7 +207,7 @@
             }
             else if (!_steps.IsAllowed || _steps.Value is null)
             {
-                <OperateSectionStatusPanel Heading="Steps" Status="_steps.Status" Message="@_steps.Message" />
+                <OperateSectionStatusPanel Heading="Steps" Status="_steps.Status" Message="@_steps.Message" Detail="@_steps.Detail" />
             }
             else
             {
@@ -247,6 +255,7 @@
     // only invokes the action and surfaces the result (incl. "approval required").
     private bool _actionBusy;
     private string? _actionMessage;
+    private string? _actionDetail;
     private string _actionMessageClass = string.Empty;
     private ConsoleConfirmDialog? _confirm;
 
@@ -335,6 +344,7 @@
 
         _actionBusy = true;
         _actionMessage = null;
+        _actionDetail = null;
         try
         {
             var result = await action(jobRunId, CancellationToken.None);
@@ -364,6 +374,7 @@
                     ? OperateSectionPresentation.FallbackMessage(result.Status)
                     : result.Message;
                 _actionMessageClass = "console-state-danger";
+                _actionDetail = result.Detail;
             }
         }
         finally

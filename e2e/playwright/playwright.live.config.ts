@@ -58,6 +58,10 @@ export default defineConfig({
       // the studio-builders capability) in favour of the realtime SDK-driven Studio. These lanes still
       // certify those builders, so advertise the capability for the browser under test.
       HONUA_CONSOLE_CAPABILITIES: 'studio-builders',
+      // Normal runs exercise the focused full Console. A zero-to-map receipt run defaults to
+      // witness mode unless the caller explicitly selects another mode.
+      HONUA_CONSOLE_MODE:
+        process.env.HONUA_CONSOLE_MODE ?? (process.env.HONUA_ZERO_TO_MAP_RECEIPT ? 'witness' : 'full'),
     },
   },
 });

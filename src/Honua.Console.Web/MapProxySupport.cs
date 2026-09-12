@@ -15,6 +15,41 @@ namespace Honua.Console.Web;
 /// </summary>
 public static class MapProxySupport
 {
+    /// <summary>Canonicalizes a relative asset path under a server-owned 3D Tiles scene.</summary>
+    public static string? NormalizeSceneAssetPath(string? assetPath)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return null;
+        }
+
+        var segments = assetPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return null;
+        }
+
+        var encoded = new string[segments.Length];
+        for (var index = 0; index < segments.Length; index++)
+        {
+            string segment;
+            try
+            {
+                segment = Uri.UnescapeDataString(segments[index]).Trim();
+            }
+            catch (UriFormatException)
+            {
+                return null;
+            }
+            if (segment.Length == 0 || segment is "." or ".." || segment.Contains('/') || segment.Contains('\\'))
+            {
+                return null;
+            }
+            encoded[index] = Uri.EscapeDataString(segment);
+        }
+        return string.Join('/', encoded);
+    }
+
     /// <summary>
     /// Neutralizes CR/LF in a user-provided value before it reaches a log entry, so a crafted
     /// route/query value cannot forge additional log lines (CodeQL cs/log-forging). Structured
@@ -92,7 +127,7 @@ public static class MapProxySupport
 
     // Caching + validator response headers copied from the upstream so the browser can cache tiles.
     private static readonly string[] CacheResponseHeaders =
-        ["Cache-Control", "ETag", "Expires", "Last-Modified", "Vary", "Age"];
+        ["ETag", "Expires", "Last-Modified", "Vary", "Age"];
 
     /// <summary>
     /// Forwards the browser's cache-validation headers (<c>If-None-Match</c> / <c>If-Modified-Since</c>) onto
@@ -111,10 +146,9 @@ public static class MapProxySupport
     }
 
     /// <summary>
-    /// Copies the upstream caching + validator headers onto the proxied response so the browser can cache
-    /// vector tiles instead of re-fetching every tile through this admin-keyed proxy on every view. When the
-    /// upstream sends no <c>Cache-Control</c>, applies a conservative immutable long max-age (tiles are
-    /// content-addressed by layer/z/x/y, so a given tile body is stable between publishes).
+    /// Copies upstream validators onto the proxied response while forcing a private revalidation policy.
+    /// These endpoints can fetch bytes using an operator identity, so a shared intermediary must not cache
+    /// the response as public content.
     /// </summary>
     public static void ApplyTileCacheHeaders(HttpResponseMessage upstream, HttpResponse browserResponse)
     {
@@ -127,10 +161,10 @@ public static class MapProxySupport
             }
         }
 
-        if (!browserResponse.Headers.ContainsKey("Cache-Control"))
-        {
-            browserResponse.Headers["Cache-Control"] = "public, max-age=86400, immutable";
-        }
+        // These proxy endpoints require an operator identity. Never preserve or invent a public
+        // cache policy for bytes fetched with that identity; a shared intermediary must not reuse
+        // one operator's response for another operator.
+        browserResponse.Headers["Cache-Control"] = "private, no-cache, must-revalidate";
     }
 
     /// <summary>

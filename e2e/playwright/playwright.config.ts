@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Thin real-browser smoke for the Honua Console Blazor Web host.
 //
@@ -10,7 +11,7 @@ import path from 'node:path';
 
 const PORT = Number(process.env.HONUA_CONSOLE_E2E_PORT ?? '5174');
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const REPO_ROOT = new URL('../../', import.meta.url).pathname;
+const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 // Published-artifact path (preferred in CI): `dotnet <dll> --urls ...`.
 // Source path (local default): `dotnet run --project ... --urls ...`.
