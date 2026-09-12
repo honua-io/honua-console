@@ -2,6 +2,7 @@
 type: reference
 title: "Embedding contract"
 description: "What another application may rely on when embedding Console surfaces, and what is explicitly not part of that contract."
+resource: "honua://capability/admin.control-plane"
 tags: [embed, integration, contract]
 ---
 # Operate Embed Contract

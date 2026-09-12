@@ -2,6 +2,7 @@
 type: reference
 title: "Shared Razor component API"
 description: "The shared Razor component library surface: which components are public, what they take, and what is internal to the Console shell."
+resource: "https://github.com/honua-io/honua-console/tree/trunk/src/Honua.Console.Shell"
 tags: [components, razor, api]
 ---
 # Honua Console Shared Component API Reference

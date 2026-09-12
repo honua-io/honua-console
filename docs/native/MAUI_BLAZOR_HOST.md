@@ -2,6 +2,7 @@
 type: concept
 title: "The optional native host"
 description: "Console stays a browser-deployable Blazor app; the MAUI host is an optional operator shell over the same Razor routes, adding native profile, certificate and gRPC wiring."
+resource: "https://github.com/honua-io/honua-console/tree/trunk/src/Honua.Console.Native.Core"
 tags: [maui, native, blazor]
 ---
 # Optional MAUI Blazor Hybrid Host
