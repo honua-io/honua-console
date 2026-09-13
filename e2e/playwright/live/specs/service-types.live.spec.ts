@@ -1,4 +1,5 @@
 import { test, expect } from '../admin-api';
+import { isServicePublished } from '../published';
 
 // Live e2e for the service CREATION paths — "can I create each service type, and do its layers function and
 // appear in the catalog?". The Honua platform creates served layers three ways: (1) publish a table from a
@@ -20,15 +21,23 @@ test.describe('Service types · connection publish (live)', () => {
   // the resulting property directly: the published PostGIS service is in the catalog and its layer functions.
   test('a published PostGIS layer is listed in the catalog and answers a live query', async ({ page, admin }) => {
     const base = admin.serverUrl;
-    const featureServer = await page.request.get(`${base}/rest/services/e2e_src_fs/FeatureServer?f=json`, { headers: ADMIN_HEADERS });
-    test.skip(!featureServer.ok(), 'e2e_src_fs is not published — run services-layers.live.spec first.');
+    const published = await isServicePublished(page, base, 'e2e_src_fs', ADMIN_HEADERS);
+    test.skip(!published, 'e2e_src_fs is not published — run services-layers.live.spec first.');
 
     // (a) catalog lists it
     const catalog = await (await page.request.get(`${base}/rest/services?f=json`, { headers: ADMIN_HEADERS })).json();
     expect((catalog.services ?? []).some((s: any) => s.name?.includes('e2e_src_fs')), 'catalog lists e2e_src_fs').toBeTruthy();
 
-    // (b) the layer functions: a live query returns the seeded features
-    const query = await (await page.request.get(`${base}/rest/services/e2e_src_fs/FeatureServer/1/query?where=1%3D1&outFields=*&f=json`, { headers: ADMIN_HEADERS })).json();
+    // (b) the layer functions: a live query returns the seeded features.
+    // Resolve the layer id from the FeatureServer rather than assuming 1 — Honua layer ids are GLOBAL, so
+    // e2e_src_fs's layer is only id 1 when it is the first layer ever published on the server. Against a
+    // harness that seeded services of its own (honua-release's Slice-1 stack publishes two layers before
+    // this suite runs) it is not, and the query 404'd on somebody else's numbering. Same fix as the one
+    // services-layers.live.spec.ts already carries.
+    const fsMeta = await (await page.request.get(`${base}/rest/services/e2e_src_fs/FeatureServer?f=json`, { headers: ADMIN_HEADERS })).json();
+    const layer = (fsMeta.layers ?? [])[0];
+    expect(layer, 'e2e_src_fs should expose a layer').toBeTruthy();
+    const query = await (await page.request.get(`${base}/rest/services/e2e_src_fs/FeatureServer/${layer.id}/query?where=1%3D1&outFields=*&f=json`, { headers: ADMIN_HEADERS })).json();
     expect(Array.isArray(query.features) && query.features.length > 0, 'live query returns features').toBeTruthy();
   });
 

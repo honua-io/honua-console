@@ -103,12 +103,13 @@ public sealed class StudioQueryReadoutGeneratorTests
     }
 
     [Fact]
-    public void Generate_NoServiceName_FallsBackToLayerReference()
+    public void Generate_NoServiceName_MarksTheSourceUnboundRatherThanFakingALayerReference()
     {
         var query = new StudioQueryEditor { LayerId = 9 };
 
         var readout = StudioQueryReadoutGenerator.Generate(query);
 
-        Assert.Equal("SELECT * FROM layer:9", readout);
+        // Layer 0 is a valid id, so a bare `layer:{id}` reads like a real binding on an unbound draft.
+        Assert.Equal("SELECT * FROM <unbound service>/layer/9", readout);
     }
 }

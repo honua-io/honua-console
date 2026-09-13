@@ -1,4 +1,5 @@
 import { test, expect } from '../admin-api';
+import { isServicePublished } from '../published';
 
 // Live e2e for the Operate service-settings surface (/operate/services/{svc}/settings): it validates that
 // EVERY service setting the console exposes actually takes effect on the live server — driven through the
@@ -38,8 +39,8 @@ test.describe('Operate · Service settings (live)', () => {
   test.beforeEach(async ({ page, admin }) => {
     // Guard: the settings target must be a published service on this server. NOTE the absolute server URL —
     // a relative path would resolve against the Console baseURL, not honua-server.
-    const res = await page.request.get(`${admin.serverUrl}/rest/services/${SERVICE_NAME}/FeatureServer?f=json`, { headers: ADMIN_HEADERS });
-    test.skip(!res.ok(), `${SERVICE_NAME} is not published on this server — run services-layers.live.spec first.`);
+    const published = await isServicePublished(page, admin.serverUrl, SERVICE_NAME, ADMIN_HEADERS);
+    test.skip(!published, `${SERVICE_NAME} is not published on this server — run services-layers.live.spec first.`);
   });
 
   test('every applicable protocol enabled via the UI serves through its own endpoint', async ({ page, admin }) => {

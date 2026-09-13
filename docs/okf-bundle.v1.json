@@ -1,0 +1,89 @@
+{
+  "version": "honua.okf-bundle/v1",
+  "description": "Which honua-console markdown is part of the Open Knowledge Format bundle. Consumed by scripts/check-okf-bundle.py.",
+  "spec": {
+    "name": "Open Knowledge Format",
+    "version": "0.2",
+    "url": "https://github.com/GoogleCloudPlatform/open-knowledge-format",
+    "note": "One markdown file is one concept; the file path is the concept's identity; relative markdown links are the graph edges. `type` is the only required frontmatter field."
+  },
+  "program": "https://github.com/honua-io/agent-delivery-spec/tree/trunk/.specifica/okf-knowledge-graph-agent-effective-docs",
+  "workstream": "WS9 — the other nine repositories. honua-console is seventh, and is the clearest case of a repository whose docs directory is a working corpus rather than product documentation.",
+  "root": "docs",
+  "conceptTypes": {
+    "index": "A section entry point. Enumerates what the directory holds so a reader or agent can choose before opening.",
+    "concept": "What a thing is and how it fits. No procedure.",
+    "guide": "A task someone performs, start to finish.",
+    "reference": "Lookup material: surfaces, options, contracts, matrices."
+  },
+  "excludedDirs": [
+    {
+      "path": "docs/adr",
+      "why": "Architecture decision records for people changing the Console."
+    },
+    {
+      "path": "docs/architecture",
+      "why": "Information models and visualization designs, every one marked `Status: draft` or `draft for backlog planning`. Design work in progress, not documentation of a shipped surface."
+    },
+    {
+      "path": "docs/design",
+      "why": "A UX redesign proposal, marked `Status: design proposal (draft)`."
+    },
+    {
+      "path": "docs/design-handoff",
+      "why": "The design-to-engineering handoff corpus: mockups, fidelity scorecards, UI surface briefs, workflow catalogues and a decisions log. Marked `handoff draft` throughout. It documents intent for builders, not behaviour for users."
+    },
+    {
+      "path": "docs/migration",
+      "why": "Portal migration policy: freeze policy, parity checklist, retirement playbook, route disposition, SDK shim policy. Internal programme documents for retiring the legacy portal."
+    },
+    {
+      "path": "docs/roadmap",
+      "why": "Backlogs, work breakdowns and release-strategy drafts, all marked `planning draft`. Plans for documentation and features, not either one."
+    },
+    {
+      "path": "docs/testing",
+      "why": "Agent browser-testing procedure and an integration test plan marked `PLAN (analysis only; no product code)`. Contributor apparatus."
+    },
+    {
+      "path": "docs/smoke",
+      "why": "Parity smoke procedure for contributors verifying the Console against the legacy portal."
+    },
+    {
+      "path": "docs/studio",
+      "why": "Package-editor routes, marked `SHELVED (studio-builders capability)`. Documents a surface that is not currently being built."
+    }
+  ],
+  "excludedFiles": [
+    {
+      "path": "docs/SUMMARY.md",
+      "why": "GitBook's table of contents, generated from this bundle by scripts/generate-summary.py. Navigation over the bundle, not a concept in it."
+    },
+    {
+      "path": "docs/console-route-map.md",
+      "why": "A 1251-line route inventory filed against a ticket. A contributor's map of what exists, regenerated as the app changes rather than maintained as prose."
+    },
+    {
+      "path": "docs/metadata-ui-gap-analysis.md",
+      "why": "Marked `Read-only investigation`. Analysis feeding a decision, not the decision or its result."
+    },
+    {
+      "path": "docs/operate/native-transition-surface.md",
+      "why": "Scoped to honua-console#36 and written as its implementation record. The durable operator-facing statement about the native host is native/MAUI_BLAZOR_HOST.md, which is in the bundle."
+    },
+    {
+      "path": "docs/reference/ROUTE_IMPLEMENTATION_CHECKLIST.md",
+      "why": "Its own header says it: filed as a contributor guide. A checklist for people implementing routes, which sits under docs/reference only by filing convention. SHARED_COMPONENT_API.md beside it is the genuinely consumer-facing reference and stays in."
+    }
+  ],
+  "includedFiles": [],
+  "rejectedFields": {
+    "timestamp": "Not an OKF field in any version. The trust family spells the build stamp `generated`."
+  },
+  "dateFields": [
+    "generated",
+    "verified",
+    "stale_after"
+  ],
+  "boundaryNote": "This is the starkest boundary in the programme: 6 of 40 pages are in. That is not a failure to type the other 34 — it is what the repository's own status lines say. Nearly every page here is marked draft, planning draft, handoff draft, PLAN, SHELVED or filed-against-a-ticket. Typing them as concepts would publish a design corpus as though it were product documentation, which is precisely the outcome WS9 exists to prevent. The six that are in are the surfaces someone outside this repository actually depends on: how operators authenticate, how to run it, what the build artifact promises, what the native host is, what embedding guarantees, and what the shared component API exposes. When a design page ships as a real surface, it joins the bundle then."
+}

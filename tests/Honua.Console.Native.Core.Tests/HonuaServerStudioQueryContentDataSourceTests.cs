@@ -333,6 +333,77 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
     }
 
     [Fact]
+    public async Task Generate_ServerLacksContractButCatalogHasALayer_SeedsBaselineBoundToTheRealLayer()
+    {
+        // A server that never shipped the generation route answers 404; one that shipped it and turned it off
+        // answers 200 with status="unsupported". Both mean "no AI generation here", so both must land on the
+        // same honest, catalog-bound baseline. Seeding on only the second left the 404 case showing the blank
+        // scaffold's unbound layer 0 — a draft that resolves against nothing.
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST queries/generate", "Not found.", 404))
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client, CatalogWith(("parcels", 7, "Parcels")));
+
+        var outcome = await source.GenerateAsync(
+            new StudioQueryEditor(),
+            new StudioQueryGenerationRequest { Prompt = "everything in parcels" });
+
+        Assert.Equal(StudioQueryGenerationStatuses.Generated, outcome.Status);
+        Assert.NotNull(outcome.Query);
+        Assert.Equal("parcels", outcome.Query!.ServiceName);
+        Assert.Equal(7, outcome.Query.LayerId);
+        // Honest: the turn says plainly that this is a baseline, not an AI-authored query.
+        Assert.Contains(outcome.Warnings, w => w.Contains("Baseline", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Generate_ServerLacksContractDuringRefinement_PreservesExistingQuery()
+    {
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST queries/generate", "Not found.", 404))
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client, CatalogWith(("parcels", 7, "Parcels")));
+        var current = new StudioQueryEditor
+        {
+            Title = "Authored query",
+            NaturalLanguageQuery = "existing intent",
+            ServiceName = "authored",
+            LayerId = 9,
+        };
+
+        var outcome = await source.GenerateAsync(
+            current,
+            new StudioQueryGenerationRequest { Prompt = "refine the query" });
+
+        Assert.Equal(StudioQueryGenerationStatuses.Unsupported, outcome.Status);
+        Assert.Null(outcome.Query);
+        Assert.Equal("Authored query", current.Title);
+        Assert.Equal("existing intent", current.NaturalLanguageQuery);
+        Assert.Equal("authored", current.ServiceName);
+        Assert.Equal(9, current.LayerId);
+    }
+
+    [Fact]
+    public async Task Generate_ServerLacksContractAndCatalogIsEmpty_StaysUnsupportedRatherThanInventingALayer()
+    {
+        var client = new FakeQueryContentClient
+        {
+            GenerateQueryResult = HonuaAdminEndpointResult<HonuaSavedQueryGenerationResult>.FromIssue(
+                new HonuaAdminEndpointIssue("Unsupported", "POST queries/generate", "Not found.", 404))
+        };
+        var source = new HonuaServerStudioQueryContentDataSource(client, CatalogWith());
+
+        var outcome = await source.GenerateAsync(new StudioQueryEditor(), new StudioQueryGenerationRequest { Prompt = "hi" });
+
+        Assert.Equal(StudioQueryGenerationStatuses.Unsupported, outcome.Status);
+        Assert.Null(outcome.Query);
+    }
+
+    [Fact]
     public async Task Generate_ServerError_BlocksSurfaceWithBindingState()
     {
         var client = new FakeQueryContentClient
@@ -363,6 +434,41 @@ public sealed class HonuaServerStudioQueryContentDataSourceTests
         Assert.True(outcome.NeedsClarification);
         // A blank scaffold has no authored intent, so the first turn requests fresh generation (null query).
         Assert.Null(client.LastGenerateQueryRequest!.Query);
+    }
+
+    /// <summary>A live catalog exposing exactly the given (service, layerId, layerName) triples.</summary>
+    private static IOperateTransitionDataSource CatalogWith(params (string Service, int LayerId, string LayerName)[] layers) =>
+        new StubCatalogDataSource(layers
+            .GroupBy(l => l.Service, StringComparer.Ordinal)
+            .Select(group => new OperateServiceDetail(
+                group.Key,
+                group.Key,
+                "FeatureServer",
+                "Running",
+                "Server",
+                group
+                    .Select(l => new OperateServiceLayerProjection(l.LayerId, l.LayerName, "Point", $"res-{l.LayerId}", l.LayerName))
+                    .ToArray(),
+                [],
+                []))
+            .ToArray());
+
+    private sealed class StubCatalogDataSource(IReadOnlyList<OperateServiceDetail> services) : IOperateTransitionDataSource
+    {
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The query data source reads the layers view, not the whole workspace.");
+
+        public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateServicesView(services, []));
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateConnectionSummary?>(null);
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateResourceEditPreview?>(null);
+
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateServiceDetail?>(services.FirstOrDefault(s => s.Name == serviceName));
     }
 
     private static StudioQueryEditor ReadyQuery(string? queryId)

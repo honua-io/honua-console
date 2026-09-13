@@ -331,8 +331,18 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             // A 404/501 means this server lacks the map generation contract: AI is simply off here (honest
             // "unsupported"), not a missing server binding. Other issues block the surface so the page shows
             // the shared blocked state.
+            //
+            // Seed the SAME honest baseline the body-level "unsupported" below seeds: whether the route is
+            // absent (404) or present-but-disabled is a server-version detail, and both leave the operator
+            // needing a real, viewable starting point rather than an empty package. Mirrors
+            // HonuaServerStudioAnalysisContentDataSource's 404/501 handling.
             if (issue.StatusCode is 404 or 501)
             {
+                if (!hasMap && SeedBaselineMap(currentState, request.Prompt, availableSources) is { } transportBaseline)
+                {
+                    return transportBaseline;
+                }
+
                 return new StudioMapGenerationOutcome
                 {
                     Status = StudioMapGenerationStatuses.Unsupported,
@@ -345,40 +355,55 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
         var outcome = MapGeneration(currentState, result.Data!);
 
-        // When the server returns "unsupported" (map generation is disabled or the provider is not
-        // configured) but a real catalog source is available, seed a baseline single-layer map. This
-        // mirrors the analysis/query baseline pattern: the operator gets a real, viewable starting
-        // point rather than a dead end. ResolveBoundLayerIds then binds the layer via the catalog.
-        if (string.Equals(outcome.Status, StudioMapGenerationStatuses.Unsupported, StringComparison.Ordinal))
+        // When the server reports "unsupported" (map generation is disabled, the provider is not configured,
+        // or the route answered without the generation contract at all) but a real catalog source is
+        // available, seed a baseline single-layer map. This mirrors the analysis/query baseline pattern: the
+        // operator gets a real, viewable starting point rather than a dead end.
+        if (!hasMap
+            && string.Equals(outcome.Status, StudioMapGenerationStatuses.Unsupported, StringComparison.Ordinal)
+            && SeedBaselineMap(currentState, request.Prompt, availableSources) is { } baseline)
         {
-            // Prefer a source the prompt names; fall back to the first usable one.
-            var baseline = SelectBaselineSource(request.Prompt, availableSources);
-            if (baseline is not null)
-            {
-                var name = string.IsNullOrWhiteSpace(baseline.Name) ? baseline.ServiceId : baseline.Name!;
-                currentState.Status = StudioMapStatuses.Draft;
-                currentState.Layers.Add(new StudioMapLayerEditor
-                {
-                    BoundLayerId = baseline.LayerId,
-                    BoundServiceId = baseline.ServiceId,
-                    Title = name,
-                    SourceRef = $"service:{baseline.ServiceId}/{baseline.LayerId}",
-                    Visible = true,
-                });
-                FrameFromSource(currentState, baseline);
-                return new StudioMapGenerationOutcome
-                {
-                    Status = StudioMapGenerationStatuses.Generated,
-                    State = currentState,
-                    Rationale = $"AI map generation isn't available on this server, so I started you from a "
-                        + $"baseline single-layer map of {name}. Refine the layers, style, and frame, or save and publish it.",
-                    Warnings = ["Baseline - not generated from your prompt; the server's AI map generation is unavailable."]
-                };
-            }
+            return baseline;
         }
 
         ResolveBoundLayerIds(outcome.State, availableSources);
         return outcome;
+    }
+
+    // Seed a single-layer baseline map bound to a REAL catalog source when the server cannot generate one.
+    // Returns null when the catalog offers nothing usable — the caller then surfaces the plain "unsupported"
+    // notice, so the console never invents a layer to fill the gap.
+    private static StudioMapGenerationOutcome? SeedBaselineMap(
+        StudioMapEditorState currentState,
+        string? prompt,
+        IReadOnlyList<MapGenerationSource> availableSources)
+    {
+        // Prefer a source the prompt names; fall back to the first usable one.
+        var baseline = SelectBaselineSource(prompt, availableSources);
+        if (baseline is null)
+        {
+            return null;
+        }
+
+        var name = string.IsNullOrWhiteSpace(baseline.Name) ? baseline.ServiceId : baseline.Name!;
+        currentState.Status = StudioMapStatuses.Draft;
+        currentState.Layers.Add(new StudioMapLayerEditor
+        {
+            BoundLayerId = baseline.LayerId,
+            BoundServiceId = baseline.ServiceId,
+            Title = name,
+            SourceRef = $"service:{baseline.ServiceId}/{baseline.LayerId}",
+            Visible = true,
+        });
+        FrameFromSource(currentState, baseline);
+        return new StudioMapGenerationOutcome
+        {
+            Status = StudioMapGenerationStatuses.Generated,
+            State = currentState,
+            Rationale = $"AI map generation isn't available on this server, so I started you from a "
+                + $"baseline single-layer map of {name}. Refine the layers, style, and frame, or save and publish it.",
+            Warnings = ["Baseline - not generated from your prompt; the server's AI map generation is unavailable."]
+        };
     }
 
     // When generation named a service but not the numeric layer id (small local models are inconsistent),
@@ -517,11 +542,21 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             }
         }
 
+        var status = NormalizeStatus(result.Status);
+        var rationale = result.Rationale ?? string.Empty;
+        // A response that carried no status carries no rationale either, so say plainly what happened rather
+        // than leaving the conversation turn blank.
+        if (string.IsNullOrWhiteSpace(rationale)
+            && string.Equals(status, StudioMapGenerationStatuses.Unsupported, StringComparison.Ordinal))
+        {
+            rationale = "This server does not offer AI map generation yet.";
+        }
+
         return new StudioMapGenerationOutcome
         {
-            Status = NormalizeStatus(result.Status),
+            Status = status,
             State = state,
-            Rationale = result.Rationale ?? string.Empty,
+            Rationale = rationale,
             Clarifications = clarifications,
             Warnings = warnings,
             CapabilityState = result.CapabilityState is null
@@ -583,12 +618,23 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         }
     }
 
+    // A 2xx response with NO `status` at all is not a generation failure — it is a server whose
+    // /studio/map-packages/generate route does not implement the generation contract (2026.1-rc.2's
+    // nightly-aot image answers it with a bare draft-package create: {packageId, package:{...}, warnings:[]}
+    // and no status/rationale/validation). Reading that as "error" told the operator "I couldn't turn that
+    // into a map" and dead-ended them; it means the same thing as a 404 on the route, so classify it as
+    // "unsupported" and let the caller seed the honest catalog-bound baseline.
+    //
+    // This is deliberately narrow, and it does NOT make a broken server look healthy: a real failure arrives
+    // either as a non-2xx (surfaced as Blocked before this point) or as an explicit status, and any status
+    // string that is present but unrecognised still normalises to Error.
     private static string NormalizeStatus(string? status) => status switch
     {
         StudioMapGenerationStatuses.Generated => StudioMapGenerationStatuses.Generated,
         StudioMapGenerationStatuses.NeedsClarification => StudioMapGenerationStatuses.NeedsClarification,
         StudioMapGenerationStatuses.Unsupported => StudioMapGenerationStatuses.Unsupported,
         StudioMapGenerationStatuses.Refused => StudioMapGenerationStatuses.Refused,
+        _ when string.IsNullOrWhiteSpace(status) => StudioMapGenerationStatuses.Unsupported,
         _ => StudioMapGenerationStatuses.Error
     };
 
