@@ -222,6 +222,8 @@ checkout. It skips when neither is configured or Docker is unavailable.
 
 ## Documentation
 
+- **[Full documentation index](docs/SUMMARY.md)** — every published page, generated from the documentation bundle so it cannot drift.
+
 | Area | Start here |
 |---|---|
 | Runtime decision | [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md) |
