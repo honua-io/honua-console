@@ -51,7 +51,12 @@
                 {
                     <NavLink href="@path" Match="NavLinkMatch.Prefix" title="@label">
                         <span class="console-nav-icon">@Icon(icon)</span>
-                        <span class="console-nav-label"><span>@label</span></span>
+                        <span class="console-nav-label"><span>@label</span>
+                            @if (!ConsolePresentation.IsFocusedRoute(path))
+                            {
+                                <small>Preview</small>
+                            }
+                        </span>
                     </NavLink>
                 }
             </nav>
@@ -86,6 +91,12 @@
     </aside>
 
     <main class="console-main">
+        @if (!ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
+        {
+            <p class="console-muted" role="status" data-focused-preview>
+                Preview — this surface is outside the focused 2026.1 inspect, approve, operate and recover client.
+            </p>
+        }
         @Body
     </main>
 

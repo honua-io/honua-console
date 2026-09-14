@@ -1,4 +1,8 @@
 Honua Console
+
+This distribution includes cesium (CesiumJS), licensed under Apache-2.0.
+Copyright 2011-2022 CesiumJS Contributors. Its upstream LICENSE.md is included
+with the build-time packaged runtime under vendor/cesium.
 Copyright (c) Honua
 
 This product is licensed under the Apache License, Version 2.0.

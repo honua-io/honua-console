@@ -56,6 +56,11 @@ jobs:
       - name: Fetch digest-verified Cesium assets
         run: node scripts/fetch-cesium.mjs --force
 
+      - name: Exercise first-publish Cesium discovery
+        # Publish must fetch AND discover assets that were absent at project
+        # evaluation. Prefetching alone masked a late BeforeTargets=Build hook.
+        run: mv src/Honua.Console.Shell/wwwroot/vendor/cesium "$RUNNER_TEMP/cesium-before-publish"
+
       - name: Publish Blazor Web host
         run: dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
 
@@ -65,6 +70,12 @@ jobs:
       - name: Install Playwright dependencies
         working-directory: e2e/playwright
         run: npm ci
+
+      - name: Verify focused-client receipt adjudication
+        working-directory: e2e/playwright
+        env:
+          HONUA_CONSOLE_FOCUSED_ORIGIN: http://127.0.0.1:9
+        run: npx playwright test --config playwright.focused.config.ts focused/specs/receipt-contract.spec.ts
 
       - name: Install Playwright chromium
         working-directory: e2e/playwright
@@ -77,6 +88,13 @@ jobs:
           # Boot the published artifact instead of `dotnet run` (faster, matches the deployed binary).
           HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
         run: npx --no-install playwright test
+
+      - name: Verify operator-only browser and proxy transport (full and witness)
+        working-directory: e2e/playwright
+        env:
+          CI: "true"
+          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+        run: npx playwright test --config playwright.operator.config.ts
 
       - name: Upload Playwright HTML report
         if: always()

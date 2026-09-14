@@ -153,19 +153,26 @@ needs.
 Vendored today: MapLibre GL JS (map preview), Vega / Vega-Lite / Vega-Embed
 (chart preview), and Cesium (3D Tiles preview). Cesium's exact extracted
 `Build/Cesium` tree, version, archive digest, and Apache-2.0 license bytes are
-locked in `scripts/cesium-extracted-tree.lock.json` and verified again in every
-published artifact. The viewer disables Cesium Ion's default base layer and
-loads server-owned 3D Tiles through the authenticated same-origin scene proxy;
-neither executable code nor scene assets require a new CSP origin.
+locked in `scripts/cesium-extracted-tree.lock.json`. The Shell project's MSBuild
+static-asset discovery runs `scripts/fetch-cesium.mjs`, which verifies an
+existing tree or fetches the exact pinned archive into the gitignored static-asset
+directory. This covers `dotnet run`, `dotnet build`, and `dotnet publish`; the
+published artifact is verified again before deployment. The viewer disables
+Cesium Ion's default base layer and loads server-owned 3D Tiles through the
+authenticated same-origin scene proxy; neither executable code nor scene assets
+require a new CSP origin.
 
 Versions are pinned exactly in [`scripts/vendored-assets.json`](scripts/vendored-assets.json).
 To bump one: change `version` there, run `node scripts/vendor-assets.mjs --update`,
 and commit the rewritten assets together with `scripts/vendored-assets.lock.json`.
 For a reviewed Cesium version bump, update the constants in
 `scripts/lib/cesium-extracted-tree.mjs`, then run
-`node scripts/fetch-cesium.mjs --force --update-lock` and commit the rewritten
-`scripts/cesium-extracted-tree.lock.json`.
-The script re-fetches from the npm registry, checks the tarball against npm's own
+`node scripts/vendor-assets.mjs --update` and commit the rewritten
+`scripts/cesium-extracted-tree.lock.json` and `scripts/vendored-assets.lock.json`.
+The common lock records Cesium's version, archive digest, and extracted-tree digest;
+the tree lock inventories every packaged file. The same update command refreshes
+the committed MapLibre and Vega assets. Cesium's runtime remains build-time output.
+For committed bundles, the script re-fetches from npm, checks the tarball against npm's own
 `dist.integrity`, and records a sha384 digest of every byte it writes; `npm test`
 fails if a committed asset ever stops matching its digest, if a wwwroot interop
 script reaches an origin nobody declared, or if the CSP and those scripts disagree

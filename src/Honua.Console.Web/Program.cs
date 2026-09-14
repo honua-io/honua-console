@@ -125,6 +125,17 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/map-proxy")
+        && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
+    {
+        // Fetch clients must receive the original 401/403, never a rendered not-found page.
+        statusPages.Enabled = false;
+    }
+
+    await next();
+});
 app.UseHttpsRedirection();
 
 // Authentication + the trusted edge-forwarded-identity middleware + authorization. Must run before
@@ -149,22 +160,14 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddAdditionalAssemblies(typeof(Honua.Console.Shell.ConsoleRoutes).Assembly);
 
-// Map-preview proxy: the server's MapLibre style + vector-tile endpoints require the admin key and must not be
-// exposed to the browser. These same-origin endpoints stream them from honua-server with the key injected
-// server-side, and rewrite the style's tile URLs to flow back through this proxy. The browser (MapLibre GL)
-// only ever talks to the console origin and never sees the admin key.
+// Map-preview proxy: these same-origin endpoints stream authorized styles, tiles and features
+// from honua-server with the operator bearer attached server-side. Rewritten tile URLs keep
+// MapLibre requests on the Console origin without exposing server credentials to the browser.
 //
-// SECURITY (honua-console#210/#233): because these endpoints act with honua-server privileges, every one
-// of them requires an authenticated operator. The host now runs real ASP.NET authentication with a
-// fail-closed RequireAuthenticatedUser fallback policy, so these endpoints check HttpContext.User and
-// forward the operator's identity to honua-server: when the active operator session carries a real bearer
-// (e.g. an edge-forwarded access token) it is sent as Authorization: Bearer so honua-server scopes the
-// read to that operator; only when no operator bearer exists does the proxy fall back to the configured
-// shared admin key (documented in docs/console-authentication.md). Full per-identity scoping for every
-// deployment still depends on honua-server issuing a console-consumable operator bearer (Option C).
+// Every proxy request uses the same operator-only credential boundary as privileged clients.
+// The handler rejects missing, expired and target-mismatched credentials before transport.
 var mapProxyServerUrl =
     (app.Configuration["Honua:Server:BaseUrl"] ?? app.Configuration["HONUA_SERVER_BASE_URL"])?.TrimEnd('/');
-var mapProxyAdminKey = app.Configuration["Honua:Server:AdminApiKey"] ?? app.Configuration["HONUA_ADMIN_API_KEY"];
 
 // The map proxy is the hottest console path but had no error logging, metrics, or trace on upstream
 // failure (honua-console#279 PA-235). A single category logger is captured by the endpoint closures so
@@ -180,8 +183,6 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
         Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
-        Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         // The endpoint acts with honua-server privileges, so it requires an authenticated operator
@@ -196,14 +197,10 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
 
-        // Forward the operator's identity to honua-server when a real bearer exists; otherwise fall
-        // back to the configured shared admin key (documented).
-        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
-            profileStore, sessionStore, cancellationToken);
+        httpContext.Response.Headers.CacheControl = "no-store";
 
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{mapProxyServerUrl}/api/styles/{layerId}.json");
-        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
         HttpResponseMessage response;
         try
@@ -227,11 +224,11 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
                 mapProxyLogger.LogWarning(
                     "Map-proxy styles upstream returned {StatusCode} for layer {LayerId}.",
                     (int)response.StatusCode, layerId);
-                return Results.StatusCode((int)response.StatusCode);
+                return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
             }
 
             var styleJson = await response.Content.ReadAsStringAsync(cancellationToken);
-            // Route tile URLs back through this proxy so the browser fetches tiles with the admin key injected
+            // Route tile URLs back through this proxy so the browser fetches tiles with the operator bearer attached
             // here, not in the page. The URL MUST be ABSOLUTE: MapLibre loads vector tiles in a web worker that
             // calls new Request(url) with no document base, so a root-relative "/map-proxy/tiles/..." throws
             // "Failed to parse URL" and no feature tile ever loads. Build the absolute origin from the incoming
@@ -251,8 +248,6 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
         Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
-        Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         // The endpoint acts with honua-server privileges, so it requires an authenticated operator
@@ -267,16 +262,12 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
 
-        // Forward the operator's identity to honua-server when a real bearer exists; otherwise fall
-        // back to the configured shared admin key (documented).
-        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
-            profileStore, sessionStore, cancellationToken);
+        httpContext.Response.Headers.CacheControl = "no-store";
 
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"{mapProxyServerUrl}/tiles/{layerId}/{z}/{x}/{y}.mvt");
-        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
         // Forward the browser's validators so the upstream can answer 304 and the browser revalidates cheaply.
         Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
@@ -319,7 +310,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             mapProxyLogger.LogWarning(
                 "Map-proxy tile upstream returned {StatusCode} for layer {LayerId} z/x/y {Z}/{X}/{Y}.",
                 (int)response.StatusCode, layerId, z, x, y);
-            return Results.StatusCode((int)response.StatusCode);
+            return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
         }
 
         Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
@@ -340,8 +331,6 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         HttpContext httpContext,
         IHttpClientFactory httpClientFactory,
         Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
-        Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         // The endpoint acts with honua-server privileges, so it requires an authenticated operator
@@ -356,17 +345,13 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             return Results.StatusCode(StatusCodes.Status401Unauthorized);
         }
 
-        // Forward the operator's identity to honua-server when a real bearer exists; otherwise fall
-        // back to the configured shared admin key (documented).
-        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
-            profileStore, sessionStore, cancellationToken);
+        httpContext.Response.Headers.CacheControl = "no-store";
 
         var count = limit is > 0 and <= 2000 ? limit.Value : 200;
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         var url = $"{mapProxyServerUrl}/rest/services/{Uri.EscapeDataString(serviceId)}/FeatureServer/{layerId}/query"
             + $"?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount={count}&f=json";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
 
         HttpResponseMessage response;
         try
@@ -390,7 +375,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
                 mapProxyLogger.LogWarning(
                     "Map-proxy features upstream returned {StatusCode} for service {ServiceId} layer {LayerId}.",
                     (int)response.StatusCode, Honua.Console.Web.MapProxySupport.LogSafe(serviceId), layerId);
-                return Results.StatusCode((int)response.StatusCode);
+                return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -409,7 +394,6 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         IHttpClientFactory httpClientFactory,
         Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
         Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
@@ -425,13 +409,17 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             return Results.BadRequest();
         }
 
-        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
-            profileStore, sessionStore, cancellationToken);
+        var activeProfile = await profileStore.GetActiveProfileAsync(cancellationToken);
+        if (activeProfile is null)
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"{mapProxyServerUrl}/scenes/{safeSceneId}/{safeAssetPath}");
-        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
+            Honua.Console.Web.MapProxySupport.BuildSceneAssetUri(
+                activeProfile.ServerBaseUri, safeSceneId, safeAssetPath));
         Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
 
         HttpResponseMessage response;
@@ -459,7 +447,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         }
         if (!response.IsSuccessStatusCode)
         {
-            return Results.StatusCode((int)response.StatusCode);
+            return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
         }
 
         Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);
