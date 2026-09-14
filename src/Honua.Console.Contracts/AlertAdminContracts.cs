@@ -38,6 +38,8 @@ public static class AlertAdminRoutes
     public static string Rule(long ruleId) => $"{Rules}/{ruleId}";
 
     public static string RuleHealth(long ruleId) => $"{Rule(ruleId)}/health";
+
+    public static string RuleEnabled(long ruleId) => $"{Rule(ruleId)}/enabled";
 }
 
 /// <summary>
@@ -93,6 +95,13 @@ public sealed record AlertRuleTestRequest
     public AlertRuleRequest Rule { get; init; } = new();
 }
 
+/// <summary>Dedicated enable/disable command; testing never changes this state.</summary>
+public sealed record AlertRuleEnabledRequest
+{
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; init; }
+}
+
 /// <summary>
 /// Threshold trigger conditions payload (the parsed shape of <c>conditionsJson</c>
 /// for a <c>threshold</c> rule): a metric field, a comparison operator, and a
@@ -132,6 +141,7 @@ public sealed record AlertDwellConditions
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AlertRuleRequest))]
 [JsonSerializable(typeof(AlertRuleTestRequest))]
+[JsonSerializable(typeof(AlertRuleEnabledRequest))]
 [JsonSerializable(typeof(AlertThresholdConditions))]
 [JsonSerializable(typeof(AlertDwellConditions))]
 public sealed partial class AlertAdminJsonContext : JsonSerializerContext
