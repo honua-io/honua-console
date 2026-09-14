@@ -101,6 +101,22 @@ public sealed class HttpConsoleAlertRulesClient : IConsoleAlertRulesClient
                 cancellationToken);
     }
 
+    public Task<OperateSectionResult<AlertRuleResponse>> SetRuleEnabledAsync(
+        long ruleId,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        var body = Serialize(
+            new AlertRuleEnabledRequest { Enabled = enabled },
+            AlertAdminJsonContext.Default.AlertRuleEnabledRequest);
+        return SendAsync(
+            HttpMethod.Put,
+            AlertAdminRoutes.RuleEnabled(ruleId),
+            body,
+            OperateObservabilityJsonContext.Default.AlertRuleEnvelope,
+            cancellationToken);
+    }
+
     private async Task<OperateSectionResult<T>> SendAsync<T>(
         HttpMethod method,
         string relativePath,
