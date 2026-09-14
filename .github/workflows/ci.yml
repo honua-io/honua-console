@@ -113,6 +113,9 @@ jobs:
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
+
       - name: Stamp artifact metadata
         run: npm run build:metadata
         env:

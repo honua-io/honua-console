@@ -59,6 +59,9 @@ jobs:
       - name: Verify published Cesium assets
         run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
+
       - name: Install Playwright dependencies
         working-directory: e2e/playwright
         run: npm ci
