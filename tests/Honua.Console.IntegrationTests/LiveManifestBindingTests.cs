@@ -36,6 +36,7 @@ public sealed class LiveManifestBindingTests
         ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         ctx.Services.AddSingleton<IConsoleProductMode>(
             new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
+        ctx.AddAuthorization().SetAuthorized("synthetic-operator");
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate");
         var layout = ctx.Render<ConsoleLayout>();
         layout.WaitForAssertion(
