@@ -161,7 +161,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         {
             if (!response.IsSuccessStatusCode)
             {
-                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(CreateIssue(contract, response.StatusCode));
+                return HonuaAdminEndpointResult<HonuaAdminTableInfo[]>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
             }
 
             // This endpoint returns a bare { "tables": [...] } body, NOT the ApiResponse<T> envelope.
@@ -211,7 +213,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         {
             if (!response.IsSuccessStatusCode)
             {
-                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(CreateIssue(contract, response.StatusCode));
+                return HonuaAdminEndpointResult<HonuaAdminImportFormats>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
             }
 
             try
@@ -275,7 +279,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                var issue = CreateIssue(contract, response.StatusCode);
+                var issue = CreateIssue(contract, response, payload);
                 return HonuaAdminEndpointResult<HonuaAdminImportResult>.FromIssue(issue with
                 {
                     Detail = ParseFailureMessage(payload) is { Length: > 0 } m ? m : issue.Detail,
@@ -332,7 +336,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                var issue = CreateIssue(contract, response.StatusCode);
+                var issue = CreateIssue(contract, response, payload);
                 var message = ParseFailureMessage(payload);
                 return HonuaAdminEndpointResult<HonuaAdminExternalServiceDiscovery>.FromIssue(issue with
                 {
@@ -389,7 +393,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                var issue = CreateIssue(contract, response.StatusCode);
+                var issue = CreateIssue(contract, response, payload);
                 var message = ParseFailureMessage(payload);
                 return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportJob>.FromIssue(issue with
                 {
@@ -448,7 +452,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
             var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                var issue = CreateIssue(contract, response.StatusCode);
+                var issue = CreateIssue(contract, response, payload);
                 var message = ParseFailureMessage(payload);
                 return HonuaAdminEndpointResult<HonuaAdminGeoservicesImportProgress>.FromIssue(issue with
                 {
@@ -987,7 +991,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
                 .ConfigureAwait(false);
             return response.IsSuccessStatusCode
                 ? HonuaAdminEndpointResult<bool>.FromData(true)
-                : HonuaAdminEndpointResult<bool>.FromIssue(CreateIssue(contract, response.StatusCode));
+                : HonuaAdminEndpointResult<bool>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
@@ -1030,7 +1036,9 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
         {
             if (!response.IsSuccessStatusCode)
             {
-                return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, response.StatusCode));
+                return HonuaAdminEndpointResult<T>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
             }
 
             HonuaAdminApiResponse<T>? envelope;
@@ -1115,7 +1123,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
 
             if (!response.IsSuccessStatusCode)
             {
-                var issue = CreateIssue(contract, response.StatusCode);
+                var issue = CreateIssue(contract, response, payload);
                 // The layer-publish endpoint currently returns a flat ApiResponse failure (a `message`
                 // field, no errors[]); surface that actionable server reason instead of the generic
                 // status text so validation/conflict rejections reach the operator verbatim.
@@ -1192,7 +1200,7 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
 
             if (!response.IsSuccessStatusCode)
             {
-                var issue = CreateIssue(contract, response.StatusCode);
+                var issue = CreateIssue(contract, response, payload);
                 var serverMessage = ParseFailureMessage(payload);
                 return HonuaAdminEndpointResult<TResponse>.FromIssue(issue with
                 {
@@ -1313,8 +1321,11 @@ public sealed partial class HonuaAdminOperateHttpClient : IHonuaAdminOperateClie
     // PA-239 fix (honua-console#279): this mapper had drifted — it lacked the Conflict and BadRequest
     // arms, so 409/400 admin responses were mis-reported as "Unavailable" instead of "Conflict"/"Rejected".
     // Delegate to the shared canonical mapper so this shim can never drift from the rest again.
-    private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode) =>
-        AdminEndpointIssueFactory.CreateIssue(contract, statusCode);
+    private static HonuaAdminEndpointIssue CreateIssue(
+        string contract,
+        HttpResponseMessage response,
+        string? body = null) =>
+        AdminEndpointIssueFactory.CreateIssue(contract, response, body);
 }
 
 public sealed record HonuaAdminEndpointResult<T>(T? Data, HonuaAdminEndpointIssue? Issue)
@@ -1330,6 +1341,8 @@ public sealed record HonuaAdminEndpointIssue(
     string Detail,
     int? StatusCode = null)
 {
+    public TerminalFailureReceipt? Receipt { get; init; }
+
     /// <summary>
     /// Field-addressable validation errors parsed from an RFC-7807 ProblemDetails <c>errors[]</c> extension
     /// when the server rejected the request with the shared field-level validation contract (the

@@ -302,13 +302,8 @@ public sealed class HonuaContentPublicationHttpClient : IHonuaContentPublication
         {
             if (!response.IsSuccessStatusCode)
             {
-                // A 400 may carry the shared field-level validation contract (RFC-7807 ProblemDetails with an
-                // errors[] extension). Parse it so the report builder can bind each error onto the offending
-                // input; the flat issue stays as the fallback message.
-                var fieldErrors = response.StatusCode == HttpStatusCode.BadRequest
-                    ? await ReadFieldErrorsAsync(response, cancellationToken).ConfigureAwait(false)
-                    : [];
-                var issue = CreateIssue(contract, response.StatusCode) with { FieldErrors = fieldErrors };
+                var issue = await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                    .ConfigureAwait(false);
                 return HonuaAdminEndpointResult<T>.FromIssue(issue);
             }
 

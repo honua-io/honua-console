@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <None Include="..\..\config\console-areas.json" Link="console-areas.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\terminal-error-receipts.v1.json" Link="terminal-error-receipts.v1.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

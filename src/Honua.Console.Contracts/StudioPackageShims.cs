@@ -76,8 +76,13 @@ public sealed record StudioEndpointIssue(
     string Detail,
     int? StatusCode = null)
 {
+    public TerminalFailureReceipt? Receipt { get; init; }
+
     /// <summary>True when the server reported an optimistic-concurrency conflict and the caller must reload.</summary>
-    public bool IsConflict => StatusCode == (int)HttpStatusCode.Conflict;
+    public bool IsConflict => Receipt?.Kind == TerminalFailureKind.Conflict ||
+        StatusCode is (int)HttpStatusCode.Conflict or
+            (int)HttpStatusCode.PreconditionFailed or
+            (int)HttpStatusCode.PreconditionRequired;
 
     /// <summary>
     /// Structured Studio validation diagnostics parsed from a non-2xx validation body
@@ -442,8 +447,13 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             // issue instead of discarding it, so the console can bind each diagnostic onto the offending editor
             // field (map layer / query predicate) via the Wave-0 ServerFieldErrorMapper.
             var diagnostics = ParseDiagnostics(ex.ResponseBody);
+            using var response = new HttpResponseMessage(ex.StatusCode);
             return StudioEndpointResult<TResponse>.FromIssue(
-                CreateIssue(contract, ex.StatusCode) with { Diagnostics = diagnostics });
+                CreateIssue(contract, ex.StatusCode) with
+                {
+                    Diagnostics = diagnostics,
+                    Receipt = ConsoleFailureReceiptParser.Parse(response, ex.ResponseBody)
+                });
         }
         catch (HonuaStudioContractException ex)
         {
@@ -503,9 +513,14 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         {
             if (!response.IsSuccessStatusCode)
             {
-                var diagnostics = await ReadDiagnosticsAsync(response, cancellationToken).ConfigureAwait(false);
+                var raw = await ReadErrorBodyAsync(response, cancellationToken).ConfigureAwait(false);
+                var diagnostics = ParseDiagnostics(raw);
                 return StudioEndpointResult<StudioPackageDraftListResponse>.FromIssue(
-                    CreateIssue(contract, response.StatusCode) with { Diagnostics = diagnostics });
+                    CreateIssue(contract, response.StatusCode) with
+                    {
+                        Diagnostics = diagnostics,
+                        Receipt = ConsoleFailureReceiptParser.Parse(response, raw)
+                    });
             }
 
             StudioApiResponse<StudioPackageDraftListResponse>? envelope;
@@ -543,7 +558,8 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
             HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-            HttpStatusCode.Conflict => "Conflict",
+            HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => "Validation failed",
+            HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed or HttpStatusCode.PreconditionRequired => "Conflict",
             _ => "Unavailable"
         };
 
@@ -554,7 +570,9 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             HttpStatusCode.NotFound => "The Honua server does not expose this Studio package contract, or the draft/version was not found.",
             HttpStatusCode.MethodNotAllowed => "The Honua server exposes the route but not the required Studio API verb.",
             HttpStatusCode.NotImplemented => "The Honua server reports this Studio capability is not implemented.",
-            HttpStatusCode.Conflict => "The Studio draft changed on the server (optimistic concurrency); reload before retrying.",
+            HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => "The Honua server rejected the Studio request as invalid.",
+            HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed or HttpStatusCode.PreconditionRequired =>
+                "The Studio draft changed on the server (optimistic concurrency); reload before retrying.",
             _ => string.Format(
                 CultureInfo.InvariantCulture,
                 "The Honua server returned HTTP {0} ({1}) for the Studio request.",
@@ -593,7 +611,7 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
     /// direct-HTTP draft-list path. Probes the same common locations as <see cref="ExtractDiagnostics"/> and
     /// never throws.
     /// </summary>
-    private static async Task<IReadOnlyList<StudioValidationDiagnostic>> ReadDiagnosticsAsync(
+    private static async Task<string?> ReadErrorBodyAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
@@ -604,10 +622,10 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
         {
-            return [];
+            return null;
         }
 
-        return ParseDiagnostics(body);
+        return body;
     }
 
     private static IReadOnlyList<StudioValidationDiagnostic> ExtractDiagnostics(JsonElement root)
