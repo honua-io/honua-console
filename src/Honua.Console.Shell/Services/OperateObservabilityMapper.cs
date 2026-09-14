@@ -371,7 +371,50 @@ public static class OperateObservabilityMapper
             LogsStatus: logsStatus,
             LogsMessage: logsMessage,
             ArtifactsStatus: artifactsStatus,
-            ArtifactsMessage: artifactsMessage);
+            ArtifactsMessage: artifactsMessage,
+            Identity: MapJobIdentity(detail));
+
+    private static OperateJobIdentity MapJobIdentity(ConsoleJobDetail detail)
+    {
+        var metadata = detail.SelectedMetadata ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        var selected = metadata
+            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => new OperateJobStepMetadata(pair.Key, pair.Value))
+            .ToArray();
+
+        return new OperateJobIdentity(
+            CorrelationId: detail.CorrelationId ?? string.Empty,
+            TraceId: detail.TraceId ?? string.Empty,
+            ProviderOperationId: detail.ProviderOperationId ?? string.Empty,
+            DefinitionId: detail.DefinitionId ?? string.Empty,
+            ProcessId: MetadataValue(metadata,
+                "honua.geoprocessing.process_definitions",
+                "geoprocessing.processDefinitions",
+                "processDefinitions",
+                "processId",
+                "protocolProcessId"),
+            GpServerServiceId: MetadataValue(metadata, "gpserver.serviceId"),
+            GpServerTaskName: MetadataValue(metadata, "gpserver.taskName"),
+            ResultPackageId: MetadataValue(metadata, "resultPackageId"),
+            SelectedMetadata: selected);
+    }
+
+    private static string MetadataValue(
+        IReadOnlyDictionary<string, string> metadata,
+        params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var match = metadata.FirstOrDefault(pair =>
+                string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(match.Value))
+            {
+                return match.Value;
+            }
+        }
+
+        return string.Empty;
+    }
 
     public static OperateJobAction MapJobAction(ConsoleJobActionDescriptor action) =>
         new(
@@ -400,7 +443,8 @@ public static class OperateObservabilityMapper
             Href: artifact.ProviderLink ?? string.Empty,
             Detail: string.IsNullOrWhiteSpace(artifact.Message)
                 ? $"{artifact.Availability} artifact"
-                : artifact.Message!)).ToArray();
+                : artifact.Message!,
+            Identifier: artifact.ArtifactId)).ToArray();
 
     public static OperateJobStepsView MapJobSteps(ConsoleJobStepsResponse response) =>
         new(

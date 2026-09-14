@@ -1,4 +1,4 @@
-# Vendored: vega-embed@6.29.0
+# Vendored: vega-embed@7.1.0
 
 Committed third-party browser assets, served from the Console's own origin. The Console must not
 fetch executable code from a CDN at page load (honua-console#333): a customer without egress gets a
@@ -6,10 +6,10 @@ broken surface, and the CSP would have to admit a script origin nothing else nee
 
 | | |
 | --- | --- |
-| Package | `vega-embed@6.29.0` |
+| Package | `vega-embed@7.1.0` |
 | License | BSD-3-Clause (see `LICENSE.txt`) |
-| Source | https://registry.npmjs.org/vega-embed/-/vega-embed-6.29.0.tgz |
-| Tarball integrity | `sha512-PmlshTLtLFLgWtF/b23T1OwX53AugJ9RZ3qPE2c01VFAbgt3/GSNI/etzA/GzdrkceXFma+FDHNXUppKuM0U6Q==` |
+| Source | https://registry.npmjs.org/vega-embed/-/vega-embed-7.1.0.tgz |
+| Tarball integrity | `sha512-ZmEIn5XJrQt7fSh2lwtSdXG/9uf3yIqZnvXFEwBJRppiBgrEWZcZbj6VK3xn8sNTFQ+sQDXW5sl/6kmbAW3s5A==` |
 
 **Do not edit these files by hand.** They are byte-for-byte copies of the published npm tarball
 contents, and `npm test` verifies their digests against `scripts/vendored-assets.lock.json`.
