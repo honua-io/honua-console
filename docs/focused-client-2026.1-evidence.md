@@ -1,3 +1,10 @@
+---
+type: concept
+title: "Focused Console 2026.1 evidence — #351"
+description: "Acceptance areas for the optional, supported inspect/approve/operate/recover Console surface: what is implemented and proven pre-cut, and what remains to qualify."
+tags: [focused-client, operator, evidence]
+---
+
 # Focused Console 2026.1 evidence — #351
 
 The release promise is the optional, supported inspect/approve/operate/recover Console surface,

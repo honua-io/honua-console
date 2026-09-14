@@ -1,3 +1,10 @@
+---
+type: concept
+title: "Vega runtime security upgrade (#337)"
+description: "Vega is upgraded from 5.33.0 to 6.4.0 to clear the high-severity advisory affecting user- and model-authored report/dashboard specs, with no residual risk accepted."
+tags: [security, vega, dependency-upgrade]
+---
+
 # Vega runtime security upgrade (#337)
 
 The 2026.1 quality contract requires security fixes for shipped Console code, including
