@@ -1,3 +1,10 @@
+---
+type: concept
+title: "Selected-layer import replacement authorization (#363)"
+description: "The focused Console Operate import surface requires explicit operator authorization before a destructive table replacement, with local verification evidence."
+tags: [import, operate, authorization]
+---
+
 # Selected-layer import replacement authorization (#363)
 
 Release promise: the 2026.1 focused Console Operate surface must require explicit

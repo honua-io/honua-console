@@ -1,3 +1,10 @@
+---
+type: concept
+title: "Same-origin scene and chart assets (#334)"
+description: "Cesium and Vega are vendored and served from the Console origin instead of a third-party CDN, so the privileged Console surface loads no executable dependency cross-origin."
+tags: [security, same-origin, cesium, vega]
+---
+
 # Same-origin scene and chart assets (#334)
 
 Release promise: the shipped privileged Console origin must retain secure
