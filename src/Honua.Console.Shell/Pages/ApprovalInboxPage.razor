@@ -74,6 +74,10 @@
             {
                 <p class="console-muted approval-inbox-error-detail" data-inbox-error-detail>@_result.Message</p>
             }
+            @if (!string.IsNullOrWhiteSpace(_result.Detail))
+            {
+                <ConsoleDiagnostics Detail="@_result.Detail" />
+            }
             <p class="console-muted approval-inbox-error-refreshed" data-inbox-last-refreshed>
                 @ConsoleFreshness.LastRefreshed(_lastSuccessfulRefreshUtc)
             </p>
@@ -85,7 +89,7 @@
     }
     else if (!_result.IsAllowed)
     {
-        <OperateSectionStatusPanel Heading="Approval inbox" Status="_result.Status" Message="@_result.Message" />
+        <OperateSectionStatusPanel Heading="Approval inbox" Status="_result.Status" Message="@_result.Message" Detail="@_result.Detail" />
     }
     else
     {
@@ -327,6 +331,7 @@
 
                 // Drop a stale selection / filter that no longer maps onto a queue item.
                 if (_selectedProposalId is { Length: > 0 } selected
+                    && !string.Equals(ProposalId?.Trim(), selected, StringComparison.Ordinal)
                     && _result.Value?.Items.All(item => !string.Equals(item.ProposalId, selected, StringComparison.Ordinal)) == true)
                 {
                     _selectedProposalId = null;

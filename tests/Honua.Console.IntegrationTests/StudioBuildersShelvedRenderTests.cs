@@ -31,6 +31,8 @@ public sealed class StudioBuildersShelvedRenderTests
 
         // Empty manifest = the shipped default: studio-builders is not advertised.
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
+        ctx.Services.AddSingleton<IConsoleProductMode>(
+            new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
 
         // The shelved pages keep their real service seams; the honest "unsupported/unbound" shells stand
         // in so a failure to gate would surface as a missing-binding surface, not a DI error.
@@ -181,6 +183,8 @@ public sealed class StudioBuildersShelvedRenderTests
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+        ctx.Services.AddSingleton<IConsoleProductMode>(
+            new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
 
         var layout = ctx.Render<ConsoleLayout>();
 

@@ -30,7 +30,7 @@
                 <tbody>
                     @foreach (var row in _layers)
                     {
-                        <tr>
+                        <tr data-layer-id="@row.Layer.LayerId" data-service-id="@row.Service.Name">
                             <td><a href="@($"/operate/layers/{row.Layer.CanonicalResourceId}")">@row.Layer.LayerId</a></td>
                             <td>@row.Layer.Name</td>
                             <td><a href="@($"/operate/services/{row.Service.Name}/settings")">@row.Service.DisplayName</a></td>

@@ -56,6 +56,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /studio/form/ai                Form-from-prompt conversational authoring — SHELVED (studio-builders)
 /studio/workflows/new          New unified GP/ETL workflow package draft — SHELVED (studio-builders)
 /studio/workflows/:draftId     Reopen a workflow.package draft editor
+/studio/_dev/unsaved-changes-demo  Development-only manual test harness; unavailable outside Development
 
 /catalog                       Search / list (q, type, tag, owner, visibility, sort, cursor)
 /catalog/:idOrSlug             Catalog item detail

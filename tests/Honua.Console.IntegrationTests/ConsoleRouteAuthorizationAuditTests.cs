@@ -48,6 +48,15 @@ public sealed class ConsoleRouteAuthorizationAuditTests
     };
 
     [Fact]
+    public void DevelopmentOnlyManualRoutesRemainAuthenticated()
+    {
+        var demoPage = RoutableComponents().Single(component =>
+            component.Templates.Contains("/studio/_dev/unsaved-changes-demo", StringComparer.Ordinal));
+
+        Assert.False(demoPage.AllowsAnonymous);
+    }
+
+    [Fact]
     public void HostAnonymousRoutes_ExactlyMatchReviewedInventory()
     {
         var anonymousTemplates = RoutableComponents()

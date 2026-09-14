@@ -334,7 +334,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 // keeps the pages already read and flags the result as partial.
                 if (jobs.Count == 0)
                 {
-                    return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Denied(fetch.Status, fetch.Message);
+                    return OperateSectionResult<IReadOnlyList<OperateJobRun>>.Denied(fetch.Status, fetch.Message, fetch.Detail);
                 }
 
                 truncated = true;
@@ -395,7 +395,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
         if (!fetch.Ok)
         {
-            return OperateSectionResult<OperateJobControlOutcome>.Denied(fetch.Status, fetch.Message);
+            return OperateSectionResult<OperateJobControlOutcome>.Denied(fetch.Status, fetch.Message, fetch.Detail);
         }
 
         var response = fetch.Value!;
@@ -420,7 +420,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
         if (!detailFetch.Ok)
         {
-            return OperateSectionResult<OperateJobRun>.Denied(detailFetch.Status, detailFetch.Message);
+            return OperateSectionResult<OperateJobRun>.Denied(detailFetch.Status, detailFetch.Message, detailFetch.Detail);
         }
 
         // Logs and artifacts are sub-resources; load them alongside the detail
@@ -470,7 +470,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
         return fetch.Ok
             ? OperateSectionResult<OperateJobStepsView>.Allowed(OperateObservabilityMapper.MapJobSteps(fetch.Value!))
-            : OperateSectionResult<OperateJobStepsView>.Denied(fetch.Status, fetch.Message);
+            : OperateSectionResult<OperateJobStepsView>.Denied(fetch.Status, fetch.Message, fetch.Detail);
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<OperateInvestigation>>> GetInvestigationsAsync(
@@ -1126,6 +1126,10 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
             if (!response.IsSuccessStatusCode)
             {
+                var problem = await ConsoleServerHttp.ReadProblemAsync(
+                    response,
+                    $"The honua-server admin API returned {(int)response.StatusCode} {response.ReasonPhrase}.",
+                    cancellationToken).ConfigureAwait(false);
                 _logger.LogWarning(
                     "Operate observability GET {RelativePath} returned {StatusCode} {ReasonPhrase} from the honua-server admin API.",
                     LogSafe(relativePath),
@@ -1133,8 +1137,9 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                     LogSafe(response.ReasonPhrase));
                 return FetchResult<T>.Failed(
                     MapStatus(response.StatusCode),
-                    $"The honua-server admin API returned {(int)response.StatusCode} {response.ReasonPhrase}.",
-                    profile);
+                    problem.Message,
+                    profile,
+                    problem.Detail);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -1196,7 +1201,11 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
             if (!response.IsSuccessStatusCode)
             {
-                var body = await ReadBodySafelyAsync(response, cancellationToken).ConfigureAwait(false);
+                var problem = await ConsoleServerHttp.ReadProblemAsync(
+                    response,
+                    MapControlErrorMessage(response.StatusCode, action, string.Empty),
+                    cancellationToken).ConfigureAwait(false);
+                var body = $"{problem.Message} {problem.Detail}";
                 _logger.LogWarning(
                     "Operate control action {Action} ({RelativePath}) returned {StatusCode} {ReasonPhrase} from the honua-server admin API.",
                     action,
@@ -1206,7 +1215,8 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 return FetchResult<T>.Failed(
                     MapStatus(response.StatusCode),
                     MapControlErrorMessage(response.StatusCode, action, body),
-                    profile);
+                    profile,
+                    problem.Detail);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -1230,18 +1240,6 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 OperateSectionStatus.Unavailable,
                 "The honua-server admin API is unreachable or returned an unreadable response.",
                 profile);
-        }
-    }
-
-    private static async Task<string> ReadBodySafelyAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
-        {
-            return string.Empty;
         }
     }
 
@@ -1297,6 +1295,8 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
         public string Message { get; private init; } = string.Empty;
 
+        public string? Detail { get; private init; }
+
         public ConsoleEnvironmentProfile? Profile { get; private init; }
 
         public bool Ok => Status == OperateSectionStatus.Allowed && Value is not null;
@@ -1304,8 +1304,12 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
         public static FetchResult<T> Succeeded(T value, ConsoleEnvironmentProfile profile) =>
             new() { Status = OperateSectionStatus.Allowed, Value = value, Profile = profile };
 
-        public static FetchResult<T> Failed(OperateSectionStatus status, string message, ConsoleEnvironmentProfile? profile) =>
-            new() { Status = status, Message = message, Profile = profile };
+        public static FetchResult<T> Failed(
+            OperateSectionStatus status,
+            string message,
+            ConsoleEnvironmentProfile? profile,
+            string? detail = null) =>
+            new() { Status = status, Message = message, Detail = detail, Profile = profile };
     }
 
     private sealed record RuleHealthResult(
