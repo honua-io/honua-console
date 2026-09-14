@@ -84,14 +84,29 @@
             }
         </svg>
 
-        @* Scale control. *@
-        <div class="map-preview-scale" data-map-scale>
-            <span>@ScaleText</span>
-            <span class="map-preview-scale-sep" aria-hidden="true">·</span>
-            <span>@Crs</span>
-            <span class="map-preview-scale-sep" aria-hidden="true">·</span>
-            <span>z @Zoom</span>
-        </div>
+        @* Scale control. Each chip renders only when the caller supplied that value, so the strip
+           describes the preview it accompanies instead of asserting a scale, CRS and zoom nothing
+           read. The schematic placeholder has no camera and therefore no scale of its own; a caller
+           that knows the real figures (a live style, a layer's declared CRS) passes them. *@
+        @if (ScaleText is not null || Crs is not null || Zoom is not null)
+        {
+            <div class="map-preview-scale" data-map-scale>
+                @{
+                    var chips = new List<string>();
+                    if (ScaleText is { Length: > 0 }) chips.Add(ScaleText);
+                    if (Crs is { Length: > 0 }) chips.Add(Crs);
+                    if (Zoom is { } zoom) chips.Add($"z {zoom}");
+                }
+                @for (var index = 0; index < chips.Count; index++)
+                {
+                    if (index > 0)
+                    {
+                        <span class="map-preview-scale-sep" aria-hidden="true">·</span>
+                    }
+                    <span>@chips[index]</span>
+                }
+            </div>
+        }
 
         @* Zoom chrome. Drives the live MapLibre camera when one is bound; disabled over the static
            schematic placeholder (no camera to move) so it is never a clickable no-op. *@
@@ -217,17 +232,33 @@
     [Parameter]
     public int Height { get; set; } = 360;
 
-    /// <summary>Scale string shown in the scale control (e.g. <c>1:8,000</c>).</summary>
+    /// <summary>
+    /// Scale string shown in the scale control (e.g. <c>1:8,000</c>), or null to omit the chip.
+    /// </summary>
+    /// <remarks>
+    /// These three used to default to <c>1:8,000</c> / <c>EPSG:4326</c> / <c>z 14</c>, so every
+    /// preview asserted a scale, a CRS and a zoom whether or not anything had read them — including
+    /// on layer pages where they read as that layer's declared CRS. They are opt-in now.
+    /// </remarks>
     [Parameter]
-    public string ScaleText { get; set; } = "1:8,000";
+    public string? ScaleText { get; set; }
 
-    /// <summary>CRS shown alongside the scale.</summary>
+    /// <summary>CRS shown alongside the scale, or null to omit the chip.</summary>
     [Parameter]
-    public string Crs { get; set; } = "EPSG:4326";
+    public string? Crs { get; set; }
 
-    /// <summary>Zoom level shown alongside the scale.</summary>
+    /// <summary>Zoom level shown alongside the scale, or null to omit the chip.</summary>
+    /// <remarks>
+    /// This is the DISPLAYED zoom. The live MapLibre camera reads <see cref="CameraZoom"/>, which
+    /// falls back to <see cref="DefaultCameraZoom"/> — omitting the chip must not move the map.
+    /// </remarks>
     [Parameter]
-    public int Zoom { get; set; } = 14;
+    public int? Zoom { get; set; }
+
+    /// <summary>Initial camera zoom used when a live map mounts and the caller named no zoom.</summary>
+    private const double DefaultCameraZoom = 14d;
+
+    private double CameraZoom => Zoom ?? DefaultCameraZoom;
 
     /// <summary>Toggle the feature labels (layer mode).</summary>
     [Parameter]
@@ -356,7 +387,7 @@
                 {
                     styleUrl = StyleUrl,
                     center = Center,
-                    zoom = (double)Zoom,
+                    zoom = CameraZoom,
                     bounds = Bounds,
                     showScale = true,
                 });
