@@ -1,3 +1,10 @@
+---
+type: concept
+title: "Live Console capability gates"
+description: "How Console derives feature gates from the live server capabilities manifest, and how refresh, retarget, and outage behavior are guaranteed."
+resource: "honua://capability/capabilities.manifest"
+tags: [capabilities, manifest, gates]
+---
 # Live Console capability gates
 
 Server-backed Console gates consume `GET /api/v1/capabilities/manifest` through

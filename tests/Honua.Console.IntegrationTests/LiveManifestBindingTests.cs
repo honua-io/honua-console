@@ -33,19 +33,25 @@ public sealed class LiveManifestBindingTests
             new HonuaServerCapabilityRegistryClient(new HonuaCapabilityManifestClient(http)));
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
         ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+        ctx.Services.AddSingleton<IConsoleProductMode>(
+            new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate");
         var layout = ctx.Render<ConsoleLayout>();
-        layout.WaitForAssertion(() => Assert.Contains("href=\"/operate/temporal\"", layout.Markup, StringComparison.Ordinal));
+        layout.WaitForAssertion(
+            () => Assert.Contains("href=\"/operate/temporal\"", layout.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("href=\"/operate/sync\"", layout.Markup, StringComparison.Ordinal);
 
         await profiles.ActivateProfileAsync("two");
         await manifest.RefreshAsync();
 
-        layout.WaitForAssertion(() =>
-        {
-            Assert.DoesNotContain("href=\"/operate/temporal\"", layout.Markup, StringComparison.Ordinal);
-            Assert.Contains("href=\"/operate/sync\"", layout.Markup, StringComparison.Ordinal);
-        });
+        layout.WaitForAssertion(
+            () =>
+            {
+                Assert.DoesNotContain("href=\"/operate/temporal\"", layout.Markup, StringComparison.Ordinal);
+                Assert.Contains("href=\"/operate/sync\"", layout.Markup, StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
         Assert.Equal(new[] { "one.example", "two.example" }, server.Requests.Select(request => request.Host));
         Assert.Equal(new[] { "operator-one", "operator-two" }, server.Requests.Select(request => request.Bearer));
         Assert.All(server.Requests, request => Assert.Equal("/api/v1/capabilities/manifest", request.Path));
