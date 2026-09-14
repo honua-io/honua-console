@@ -4,6 +4,19 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class SceneProxyPathTests
 {
+    [Fact]
+    public void BuildSceneAssetUri_UsesSelectedEnvironmentBaseUri()
+    {
+        var uri = MapProxySupport.BuildSceneAssetUri(
+            new Uri("https://active.example/honua"),
+            "scene-1",
+            "tiles/0/mesh.b3dm");
+
+        Assert.Equal(
+            "https://active.example/honua/scenes/scene-1/tiles/0/mesh.b3dm",
+            uri.AbsoluteUri);
+    }
+
     [Theory]
     [InlineData("tileset.json", "tileset.json")]
     [InlineData("tiles/0/mesh.b3dm", "tiles/0/mesh.b3dm")]

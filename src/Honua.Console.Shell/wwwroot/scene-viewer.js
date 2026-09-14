@@ -95,7 +95,7 @@ export async function init(element, tilesetUrl) {
         viewer.scene.primitives.add(tileset);
         await viewer.zoomTo(tileset);
 
-        instances.set(element, { viewer, tilesetUrl: safeTilesetUrl });
+        instances.set(element, { viewer, tileset, tilesetUrl: safeTilesetUrl });
         return true;
     } catch {
         try {
@@ -115,6 +115,8 @@ export function inspect(element) {
     return {
         imageryLayerCount: instance.viewer.imageryLayers.length,
         tilesetUrl: instance.tilesetUrl,
+        tilesLoaded: instance.tileset.tilesLoaded,
+        pointsLength: instance.tileset.root.content?.pointsLength ?? 0,
     };
 }
 
