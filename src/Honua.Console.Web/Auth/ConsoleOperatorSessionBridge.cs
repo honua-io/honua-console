@@ -15,8 +15,8 @@ namespace Honua.Console.Web.Auth;
 /// supplied (real per-principal RBAC on honua-server); otherwise, because this runs per request, it
 /// preserves an existing forwardable bearer the operator obtained out-of-band through the server-session
 /// BFF (honua-console#306) rather than erasing it, and falls back to a non-forwardable session sentinel
-/// only when no forwardable bearer exists (signed in for read context; human mutations require
-/// exchange/reauthentication).</item>
+/// only when no forwardable bearer exists (authenticated to the Console; privileged server requests
+/// require exchange/reauthentication).</item>
 /// </list>
 /// When no environment profile is active (browser host first-run) there is nothing to bridge; the
 /// operator is still authenticated for routing and Family-A/B surfaces render their missing-binding
@@ -88,9 +88,10 @@ public sealed class ConsoleOperatorSessionBridge
         //     (honua-console#306). Preserve an existing forwardable (BFF-exchanged) bearer and its expiry;
         //     the bearer provider still enforces expiry and re-exchange downstream.
         //  3. With neither a forwarded bearer nor a preserved one, write the non-forwardable session
-        //     sentinel: signed in for read context, human mutations require exchange/reauthentication.
+        //     sentinel: authenticated to the Console, privileged server requests require exchange/reauthentication.
         string accessToken;
         DateTimeOffset? accessTokenExpiresAt = null;
+        Uri? credentialServer = profile.ServerBaseUri;
         if (!string.IsNullOrWhiteSpace(bearer))
         {
             accessToken = bearer;
@@ -103,6 +104,7 @@ public sealed class ConsoleOperatorSessionBridge
             {
                 accessToken = existing.AccessToken;
                 accessTokenExpiresAt = existing.AccessTokenExpiresAt;
+                credentialServer = existing.ServerBaseUri;
             }
             else
             {
@@ -117,6 +119,7 @@ public sealed class ConsoleOperatorSessionBridge
             DisplayName = displayName,
             TenantId = tenantId,
             AccessToken = accessToken,
+            ServerBaseUri = credentialServer,
             AccessTokenExpiresAt = accessTokenExpiresAt
         }, cancellationToken).ConfigureAwait(false);
     }
