@@ -39,7 +39,7 @@ jobs:
           dotnet-version: 10.0.302
 
       - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20.x
 
@@ -55,9 +55,15 @@ jobs:
         working-directory: src/Honua.Console.Web
         run: dotnet restore ../../Honua.Console.slnx --locked-mode
 
+      - name: Fetch digest-verified Cesium assets
+        run: node scripts/fetch-cesium.mjs --force
+
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
-        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ github.sha }}
+
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Stamp artifact metadata
         run: npm run build:metadata
@@ -153,7 +159,7 @@ jobs:
           dotnet-version: 10.0.302
 
       - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20.x
 
@@ -169,9 +175,15 @@ jobs:
         working-directory: src/Honua.Console.Web
         run: dotnet restore ../../Honua.Console.slnx --locked-mode
 
+      - name: Fetch digest-verified Cesium assets
+        run: node scripts/fetch-cesium.mjs --force
+
       - name: Publish Console artifact
         working-directory: src/Honua.Console.Web
-        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal
+        run: dotnet publish Honua.Console.Web.csproj -c Release -o ../../artifacts/honua-console-web --no-restore --nologo --verbosity minimal -p:HonuaConsoleCommitSha=${{ env.SOURCE_SHA }}
+
+      - name: Verify published Cesium assets
+        run: node scripts/verify-published-cesium.mjs artifacts/honua-console-web
 
       - name: Stamp artifact metadata
         run: npm run build:metadata

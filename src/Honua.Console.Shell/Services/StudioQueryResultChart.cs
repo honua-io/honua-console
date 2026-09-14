@@ -14,7 +14,7 @@ namespace Honua.Console.Shell.Services;
 /// </summary>
 public static class StudioQueryResultChart
 {
-    public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v5.json";
+    public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v6.json";
 
     // Cached once rather than allocated per BuildSpec() call. A fresh JsonSerializerOptions instance
     // per serialization bypasses the type-metadata cache and reallocates on every chart render

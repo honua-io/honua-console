@@ -125,7 +125,7 @@ public static class StudioReportVisibilities
 /// <summary>Builds and validates the Vega-Lite chart spec for report chart panels.</summary>
 public static class StudioReportChartSpec
 {
-    public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v5.json";
+    public const string VegaLiteSchema = "https://vega.github.io/schema/vega-lite/v6.json";
 
     private static readonly JsonSerializerOptions SpecOptions = new() { WriteIndented = true };
 

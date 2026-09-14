@@ -23,11 +23,14 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         string? honuaSupportKbPath = null,
         string? honuaConsoleAdvertisedCapabilities = null,
         bool registryIntentResolutionEnabled = false,
-        string? honuaServerCredentialMode = null)
+        string? honuaServerCredentialMode = null,
+        string? honuaConsoleMode = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+        services.TryAddSingleton<IConsoleProductMode>(
+            _ => new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(honuaConsoleMode)));
 
         // Platform-adaptive keyboard-shortcut glyphs (honua-console#313): the primary modifier renders as
         // ⌘ on macOS and Ctrl on Windows/Linux. The default follows the host OS (exact on the native desktop
@@ -207,6 +210,13 @@ public static class HonuaConsoleShellServiceCollectionExtensions
                 honuaServerAdminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
                 serverCredentialMode));
+
+        services.TryAddSingleton<IConsoleReleaseWitnessClient>(serviceProvider =>
+            new HttpConsoleReleaseWitnessClient(
+                CreateOperateObservabilityHttpClient(),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                honuaServerAdminApiKey));
 
         // Live approval-inbox updates (issue #193, honua-server #1695): the console connects
         // from its server process to the honua-server admin realtime hub's proposals group at
