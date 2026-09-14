@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Bunit;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -38,20 +39,43 @@ public sealed class LiveManifestBindingTests
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate");
         var layout = ctx.Render<ConsoleLayout>();
         layout.WaitForAssertion(
-            () => Assert.Contains("href=\"/operate/temporal\"", layout.Markup, StringComparison.Ordinal),
+            () => Assert.True(manifest.IsAdvertised(ConsoleCapabilityKeys.Temporal)),
             TimeSpan.FromSeconds(5));
-        Assert.DoesNotContain("href=\"/operate/sync\"", layout.Markup, StringComparison.Ordinal);
+        Assert.False(manifest.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync));
+
+        // #338 (src/Honua.Console.Shell/Layout/ConsoleLayout.razor, OperateSections) rewrote the
+        // focused Operate nav rail as a fixed list with no per-item capability filter, so
+        // /operate/temporal and /operate/sync are no longer nav-rail links at all — gated or
+        // otherwise. There is no remaining nav-rail entry to assert manifest-driven visibility on;
+        // #365's "no page keeps a second allowlist path" denominator is satisfied by #338 removing
+        // the allowlist, not by nav coverage here. The manifest-driven observable that survives is
+        // the page-level gate every capability-gated Operate route still renders through
+        // ConsoleCapabilityGate (e.g. OperateTemporalPage, OperateSyncPage), so assert that directly
+        // against this same live, server-refreshed manifest instance across the profile switch.
+        var temporalGateBefore = ctx.Render<ConsoleCapabilityGate>(parameters => parameters
+            .Add(p => p.Capability, ConsoleCapabilityKeys.Temporal)
+            .AddChildContent("<div data-live=\"1\">temporal surface</div>"));
+        Assert.Contains("temporal surface", temporalGateBefore.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("console-state-unsupported", temporalGateBefore.Markup, StringComparison.Ordinal);
 
         await profiles.ActivateProfileAsync("two");
         await manifest.RefreshAsync();
 
-        layout.WaitForAssertion(
-            () =>
-            {
-                Assert.DoesNotContain("href=\"/operate/temporal\"", layout.Markup, StringComparison.Ordinal);
-                Assert.Contains("href=\"/operate/sync\"", layout.Markup, StringComparison.Ordinal);
-            },
-            TimeSpan.FromSeconds(5));
+        Assert.False(manifest.IsAdvertised(ConsoleCapabilityKeys.Temporal));
+        Assert.True(manifest.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync));
+
+        var temporalGateAfter = ctx.Render<ConsoleCapabilityGate>(parameters => parameters
+            .Add(p => p.Capability, ConsoleCapabilityKeys.Temporal)
+            .AddChildContent("<div data-live=\"1\">temporal surface</div>"));
+        Assert.Contains("console-state-unsupported", temporalGateAfter.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("temporal surface", temporalGateAfter.Markup, StringComparison.Ordinal);
+
+        var syncGateAfter = ctx.Render<ConsoleCapabilityGate>(parameters => parameters
+            .Add(p => p.Capability, ConsoleCapabilityKeys.DisconnectedSync)
+            .AddChildContent("<div data-live=\"1\">sync surface</div>"));
+        Assert.Contains("sync surface", syncGateAfter.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("console-state-unsupported", syncGateAfter.Markup, StringComparison.Ordinal);
+
         Assert.Equal(new[] { "one.example", "two.example" }, server.Requests.Select(request => request.Host));
         Assert.Equal(new[] { "operator-one", "operator-two" }, server.Requests.Select(request => request.Bearer));
         Assert.All(server.Requests, request => Assert.Equal("/api/v1/capabilities/manifest", request.Path));
