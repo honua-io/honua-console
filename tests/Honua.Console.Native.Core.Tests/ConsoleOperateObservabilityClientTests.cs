@@ -258,8 +258,19 @@ public sealed class ConsoleOperateObservabilityClientTests
                     PercentComplete = 0.5,
                     AttemptCount = 1,
                     MaxAttempts = 3,
+                    DefinitionId = "gpserver-geoprocessing-geometry-buffer",
+                    CorrelationId = "corr-gp-buffer-1",
+                    TraceId = "trace-gp-buffer-1",
+                    ProviderOperationId = "provider-gp-buffer-1",
                     ResourceRefs = ["service:svc-live"],
                     ArtifactCount = 2,
+                    SelectedMetadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["gpserver.serviceId"] = "geoprocessing",
+                        ["gpserver.taskName"] = "Buffer",
+                        ["honua.geoprocessing.process_definitions"] = "geometry.buffer",
+                        ["resultPackageId"] = "result-live-job-1"
+                    },
                     Stages =
                     [
                         new ConsoleJobStage
@@ -295,6 +306,17 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Equal(OperateSectionStatus.Unsupported, job.ArtifactsStatus);
         Assert.Contains("501", job.ArtifactsMessage);
         Assert.Empty(job.Artifacts);
+        Assert.Equal("corr-gp-buffer-1", job.EffectiveIdentity.CorrelationId);
+        Assert.Equal("trace-gp-buffer-1", job.EffectiveIdentity.TraceId);
+        Assert.Equal("provider-gp-buffer-1", job.EffectiveIdentity.ProviderOperationId);
+        Assert.Equal("gpserver-geoprocessing-geometry-buffer", job.EffectiveIdentity.DefinitionId);
+        Assert.Equal("geoprocessing", job.EffectiveIdentity.GpServerServiceId);
+        Assert.Equal("Buffer", job.EffectiveIdentity.GpServerTaskName);
+        Assert.Equal("geometry.buffer", job.EffectiveIdentity.ProcessId);
+        Assert.Equal("result-live-job-1", job.EffectiveIdentity.ResultPackageId);
+        Assert.Equal(
+            "/rest/services/geoprocessing/GPServer/Buffer/jobs/live-job-1",
+            job.EffectiveIdentity.GpServerJobPath(job.JobRunId));
     }
 
     [Fact]

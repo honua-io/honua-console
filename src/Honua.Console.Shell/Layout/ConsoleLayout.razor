@@ -2,8 +2,9 @@
 @inject NavigationManager Navigation
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
+@inject Honua.Console.Shell.Services.IConsoleProductMode ProductMode
 
-<div class="console-shell">
+<div class="console-shell" data-console-mode="@ModeName">
     @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has(). *@
     <input type="checkbox" id="console-collapse" class="console-collapse-toggle" aria-hidden="true" />
     <aside class="console-sidebar" aria-label="Honua Console navigation">
@@ -12,7 +13,7 @@
                 <span class="console-brand-mark">H</span>
                 <span class="console-brand-label">
                     <strong>Honua Console</strong>
-                    <small>Unified surface</small>
+                    <small>@(ProductMode.IsWitness ? "Witness mode" : "Focused console")</small>
                 </span>
             </a>
             <label for="console-collapse" class="console-collapse-button" title="Collapse navigation" aria-label="Toggle navigation">
@@ -55,22 +56,25 @@
             </nav>
         }
 
-        <nav class="console-nav console-nav-secondary" aria-label="Native host">
-            <NavLink href="/environments" Match="NavLinkMatch.Prefix" title="Environments">
-                <span class="console-nav-icon">@Icon("environments")</span>
-                <span class="console-nav-label"><span>Environments</span></span>
-            </NavLink>
-            @* Native Stream is the gRPC streaming proof — only meaningful on a host that registers native
-               transports. Hide it on the browser host (where it can only ever show "native unavailable")
-               rather than leaving a nav item that dead-ends on an explainer. *@
-            @if (Host.SupportsNativeTransports)
-            {
-                <NavLink href="/operate/native-stream" Match="NavLinkMatch.Prefix" title="Native Stream">
-                    <span class="console-nav-icon">@Icon("native-stream")</span>
-                    <span class="console-nav-label"><span>Native Stream</span></span>
+        @if (!ProductMode.IsWitness)
+        {
+            <nav class="console-nav console-nav-secondary" aria-label="Native host">
+                <NavLink href="/environments" Match="NavLinkMatch.Prefix" title="Environments">
+                    <span class="console-nav-icon">@Icon("environments")</span>
+                    <span class="console-nav-label"><span>Environments</span></span>
                 </NavLink>
-            }
-        </nav>
+                @* Native Stream is the gRPC streaming proof — only meaningful on a host that registers native
+                   transports. Hide it on the browser host (where it can only ever show "native unavailable")
+                   rather than leaving a nav item that dead-ends on an explainer. *@
+                @if (Host.SupportsNativeTransports)
+                {
+                    <NavLink href="/operate/native-stream" Match="NavLinkMatch.Prefix" title="Native Stream">
+                        <span class="console-nav-icon">@Icon("native-stream")</span>
+                        <span class="console-nav-label"><span>Native Stream</span></span>
+                    </NavLink>
+                }
+            </nav>
+        }
 
         <nav class="console-nav console-nav-secondary console-nav-help" aria-label="Help">
             <NavLink href="/support" Match="NavLinkMatch.Prefix" title="Contact support">
@@ -93,6 +97,8 @@
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
 
+    private string ModeName => ProductMode.Mode.ToString().ToLowerInvariant();
+
     // The Studio area is the Console's non-realtime builder entry, shelved behind the studio-builders
     // capability: "Studio" is now the realtime, SDK-driven app builder that lives outside the Console.
     // Hide it from the primary rail until advertised so the nav never links to a shelved surface; the
@@ -100,53 +106,31 @@
     // stays the canonical IA list (Charter/route-map source of truth) — visibility is a shell concern.
     private IEnumerable<ConsoleWorkflowArea> VisibleAreas =>
         ConsoleRouteMap.Areas.Where(area =>
-            !string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
-            || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders));
+            ProductMode.ShowsArea(area.Id)
+            && (!string.Equals(area.Id, "studio", StringComparison.OrdinalIgnoreCase)
+                || Capabilities.IsAdvertised(ConsoleCapabilityKeys.StudioBuilders)));
 
-    // Capability-gated depth surfaces (first-release cut-line) are hidden from the Operate nav until the
-    // deployment advertises the capability, so the rail never links to a surface that only renders the
-    // "unsupported" state. The gated page still renders that first-class state if reached by URL.
-    private IEnumerable<(string Path, string Label, string Icon)> VisibleOperateSections =>
-        OperateSections.Where(section => section.Path switch
-        {
-            "/operate/temporal" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.Temporal),
-            "/operate/sync" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.DisconnectedSync),
-            "/operate/alerts/rules" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting),
-            "/operate/releases" => Capabilities.IsAdvertised(ConsoleCapabilityKeys.CrossEnvironmentPromotion),
-            _ => true,
-        });
+    private static IEnumerable<(string Path, string Label, string Icon)> VisibleOperateSections =>
+        OperateSections;
 
-    // Operate section nav — ordered Data → Services → Monitor → Access/Admin → Deploy → AI.
-    // AI (Ask Honua) is intentionally last: it is an accelerator, not the required entry point.
-    // Capability-gated entries (sync, alerts/rules, releases, temporal) are hidden until the
-    // connected deployment advertises the capability; ungated entries are always visible.
+    // 2026.1 focused human boundary: inspect deployment health/release, resources, jobs, and
+    // evidence; approve through Inbox. Authoring and broad admin parity routes remain reachable as
+    // explicit preview/deep links but are not advertised as normal-image Console navigation.
     private static readonly (string Path, string Label, string Icon)[] OperateSections =
     [
         // Data
+        ("/operate/health", "Health", "health"),
         ("/operate/data", "Data & Layers", "layers"),
         ("/operate/connections", "Connections", "connections"),
-        ("/operate/import/esri", "Import from Esri", "import"),
-        ("/operate/publishing", "Publishing", "services"),
-        ("/operate/versions", "Versions", "versions"),
-        ("/operate/sync", "Sync", "sync"),                          // capability-gated: disconnected-sync
+        ("/operate/services", "Services", "services"),
         // Services
-        ("/operate/sensors", "SensorThings", "sensors"),
-        ("/operate/scenes", "3D Scenes", "scenes"),
         ("/operate/geoprocessing", "Geoprocessing", "geoprocessing"),
         // Monitor
         ("/operate/observability", "Observability", "observability"),
         ("/operate/metrics", "Metrics", "metrics"),
-        ("/operate/alerts/rules", "Alert Rules", "alert-rules"),    // capability-gated: realtime-alerting
-        ("/operate/temporal", "Temporal", "temporal"),              // capability-gated: temporal
-        // Access & Admin
-        ("/operate/access", "Access", "access"),
-        ("/operate/catalogs", "Catalogs", "catalogs"),
-        ("/operate/settings", "Settings", "settings"),
         // Deploy
         ("/operate/deploy", "Deploy", "deploy"),
-        ("/operate/releases", "Releases", "releases"),              // capability-gated: cross-environment-promotion
-        // AI accelerator — always last so the manual surfaces read as the foundation
-        ("/operate/ai", "Ask Honua (AI)", "studio"),
+        ("/operate/releases", "Releases", "releases"),
     ];
 
     // Minimal inline line-icon set (24x24, currentColor). Subpaths separated by '|'.
@@ -172,6 +156,7 @@
             "sensors" => "M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0|M7.8 7.8a6 6 0 0 0 0 8.4|M16.2 16.2a6 6 0 0 0 0-8.4|M5 5a9 9 0 0 0 0 14|M19 19a9 9 0 0 0 0-14",
             "scenes" => "M12 2 2 7l10 5 10-5-10-5Z|M2 17l10 5 10-5|M2 12l10 5 10-5",
             "metrics" => "M3 3v18h18|M8 16v-5|M13 16V8|M18 16v-9",
+            "health" => "M3 12h4l2-5 4 10 2-5h6",
             "geoprocessing" => "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z|M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6a7 7 0 0 0 .1-1Z",
             "import" => "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2|M7 11l5 5 5-5|M12 4v12",
             "sync" => "M23 4v6h-6|M1 20v-6h6|M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15",

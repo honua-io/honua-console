@@ -265,6 +265,44 @@ public sealed class ConsoleProposalsClientTests
     }
 
     [Fact]
+    public async Task ApproveFailurePreservesProblemDetailAndComparableIdentifiers()
+    {
+        var handler = new RecordingHandler(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                ReasonPhrase = "Forbidden",
+                Content = new StringContent(
+                    """
+                    {
+                      "title": "Approval denied",
+                      "detail": "The requester cannot approve their own proposal.",
+                      "code": "separation-of-duties",
+                      "proposalId": "prop-identity-1",
+                      "operationId": "op-identity-1",
+                      "correlationId": "corr-identity-1"
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/problem+json")
+            };
+            response.Headers.TryAddWithoutValidation("X-Request-ID", "request-identity-1");
+            return response;
+        });
+        var client = CreateClient(handler, sessions: BearerSessions());
+
+        var result = await client.ApproveAsync("prop-identity-1");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Equal("The requester cannot approve their own proposal.", result.Message);
+        Assert.Contains("code=separation-of-duties", result.Detail, StringComparison.Ordinal);
+        Assert.Contains("proposalId=prop-identity-1", result.Detail, StringComparison.Ordinal);
+        Assert.Contains("operationId=op-identity-1", result.Detail, StringComparison.Ordinal);
+        Assert.Contains("correlationId=corr-identity-1", result.Detail, StringComparison.Ordinal);
+        Assert.Contains("requestId=request-identity-1", result.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RejectPostsReasonBody_ToRejectEndpoint()
     {
         const string body = """
