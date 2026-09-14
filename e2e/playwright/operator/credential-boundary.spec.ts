@@ -74,7 +74,10 @@ test('browser fetches exact feature values and tile bytes as its own operator', 
   });
   expect(result.features.features.map((f: { attributes: { count: number } }) => f.attributes.count)).toEqual([17, 25]);
   expect(result.tile).toEqual([0x1a, 0x03, 0x0a, 0x01, 0x41]);
-  expect(result.cache).toBe('no-store');
+  // Tiles use MapProxySupport.ApplyTileCacheHeaders, which forwards upstream validators (ETag,
+  // Last-Modified) and forces a private/must-revalidate policy rather than the "no-store" default
+  // set before the upstream call — see MapProxyCacheHeaderTests for the header-builder coverage.
+  expect(result.cache).toBe('private, no-cache, must-revalidate');
   expect(result.style.sources.parcels.tiles).toEqual([`${baseURL}/map-proxy/tiles/7/{z}/{x}/{y}.mvt`]);
   expect(requests).toHaveLength(3);
   expect(requests.every(r => r.bearer === 'Bearer alice-valid' && !r.key)).toBe(true);
