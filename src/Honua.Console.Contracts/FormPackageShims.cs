@@ -370,7 +370,9 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
                     }
                 }
 
-                return HonuaAdminEndpointResult<T>.FromIssue(CreateIssue(contract, response.StatusCode));
+                return HonuaAdminEndpointResult<T>.FromIssue(
+                    await AdminEndpointIssueFactory.CreateIssueAsync(contract, response, cancellationToken)
+                        .ConfigureAwait(false));
             }
 
             T? payload;
@@ -412,11 +414,11 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         const string contract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish";
         HonuaFormPackageValidationResult? validation;
+        string raw;
         try
         {
-            validation = await response.Content
-                .ReadFromJsonAsync<HonuaFormPackageValidationResult>(JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
+            raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            validation = JsonSerializer.Deserialize<HonuaFormPackageValidationResult>(raw, JsonOptions);
         }
         catch (JsonException ex)
         {
@@ -439,7 +441,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
                 Version = packageVersion,
                 Validation = validation
             },
-            CreateIssue(contract, response.StatusCode));
+            AdminEndpointIssueFactory.CreateIssue(contract, response, raw));
     }
 
     private static HonuaAdminEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode)

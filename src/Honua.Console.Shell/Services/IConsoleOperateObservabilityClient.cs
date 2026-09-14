@@ -127,6 +127,8 @@ public enum OperateSectionStatus
     Allowed,
     Missing,
     Forbidden,
+    Rejected,
+    Conflict,
     Unavailable,
     Unsupported
 }
@@ -142,6 +144,8 @@ public static class OperateSectionPresentation
     {
         OperateSectionStatus.Missing => "Not found",
         OperateSectionStatus.Forbidden => "Permission required",
+        OperateSectionStatus.Rejected => "Request rejected",
+        OperateSectionStatus.Conflict => "Conflict requires attention",
         OperateSectionStatus.Unsupported => "Unsupported by this server",
         _ => "Temporarily unavailable"
     };
@@ -150,6 +154,8 @@ public static class OperateSectionPresentation
     {
         OperateSectionStatus.Missing => "This server build does not expose this Operate surface.",
         OperateSectionStatus.Forbidden => "The active environment profile is not permitted to read this surface.",
+        OperateSectionStatus.Rejected => "The request was rejected. Resolve the reported validation issues before retrying.",
+        OperateSectionStatus.Conflict => "The resource changed or conflicts with the request. Reload it before retrying.",
         OperateSectionStatus.Unsupported => "The connected server does not advertise this capability.",
         _ => "The honua-server admin API could not be reached. Retry once the environment is connected."
     };
