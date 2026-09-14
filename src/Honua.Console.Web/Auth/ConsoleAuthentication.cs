@@ -133,11 +133,9 @@ public static class ConsoleAuthentication
         // factory and keeps the self-contained pooled client.
         builder.Services.AddConsoleServerBoundClients();
 
-        // Development testbed convenience: the browser host cannot create environment profiles (profile
-        // creation runs on the native host), so seed + activate one from the configured server URL for
-        // EACH operator's partition on first use. Mirrors the prior startup seed, but per-operator so it
-        // survives partitioning (and never seeds outside Development).
-        var browserSeed = BuildBrowserDevSeed(builder);
+        // Bind the configured deployment target in every environment. Each operator receives a
+        // separate profile; this does not create a session or grant server access.
+        var browserSeed = BuildBrowserProfileSeed(builder);
         builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleEnvironmentProfileStore>(serviceProvider =>
             new OperatorScopedEnvironmentProfileStore(
                 serviceProvider.GetRequiredService<IConsoleOperatorContext>(),
@@ -259,16 +257,10 @@ public static class ConsoleAuthentication
         return string.Equals(mode, "Dev", StringComparison.OrdinalIgnoreCase);
     }
 
-    // Builds the per-operator dev-seed factory: in Development with a configured server URL, each new
-    // operator partition starts with one active "Local honua-server" profile so a browser-only testbed
-    // binds without the native host. Outside Development (or with no server URL) partitions start empty.
-    private static Func<InMemoryConsoleEnvironmentProfileStore>? BuildBrowserDevSeed(WebApplicationBuilder builder)
+    // Browser deployments need their configured target in Production as well as Development.
+    // With no server URL, partitions remain empty and render the missing-binding state.
+    private static Func<InMemoryConsoleEnvironmentProfileStore>? BuildBrowserProfileSeed(WebApplicationBuilder builder)
     {
-        if (!builder.Environment.IsDevelopment())
-        {
-            return null;
-        }
-
         var seedUrl = builder.Configuration["Honua:Server:BaseUrl"]
             ?? builder.Configuration["HONUA_SERVER_BASE_URL"];
         if (string.IsNullOrWhiteSpace(seedUrl) || !Uri.TryCreate(seedUrl, UriKind.Absolute, out var seedUri))
@@ -281,9 +273,9 @@ public static class ConsoleAuthentication
             var devProfile = new ConsoleEnvironmentProfile
             {
                 Id = "local-dev",
-                DisplayName = "Local honua-server",
+                DisplayName = builder.Environment.IsDevelopment() ? "Local honua-server" : "Configured honua-server",
                 ServerBaseUri = seedUri,
-                EnvironmentKind = "development",
+                EnvironmentKind = builder.Environment.EnvironmentName.ToLowerInvariant(),
                 Account = new ConsoleAccountBinding
                 {
                     AuthMode = ConsoleAccountAuthMode.AccountRbac,
@@ -310,10 +302,10 @@ public static class ConsoleAuthentication
 
     private static bool IsApiRequest(HttpRequest request)
     {
-        // Note: /map-proxy/ paths intentionally use the standard cookie-redirect flow (not the
-        // 401-direct path) so that the dev auto-login can round-trip back to the original map-proxy
-        // URL via the returnTo parameter. In production the user is already signed in before any
-        // page with a map is rendered, so the redirect case is rare and handles correctly.
+        if (request.Path.StartsWithSegments("/map-proxy"))
+        {
+            return true;
+        }
 
         var requestedWith = request.Headers["X-Requested-With"];
         if (requestedWith.Count > 0 && string.Equals(requestedWith[0], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase))
