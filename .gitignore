@@ -10,3 +10,7 @@ obj/
 # Smoke evidence output (committed samples live under smoke/parity/sample-evidence/).
 smoke-evidence/
 .claude/
+
+# CesiumJS is fetched at deploy/build time by scripts/fetch-cesium.mjs, never committed
+# (honua-console#334) — the Build/Cesium tree is ~20 MB resolved dynamically at runtime.
+src/Honua.Console.Shell/wwwroot/vendor/cesium/
