@@ -1,3 +1,10 @@
+---
+type: reference
+title: "Build artifact contract"
+description: "The contract between this repository and the single deployable artifact honua-devops produces, for anyone building or consuming that artifact."
+resource: "https://github.com/honua-io/honua-console/pkgs/container/honua-console"
+tags: [build, artifact, contract]
+---
 # Honua Console Build Artifact Contract
 
 This is the contract between `honua-console` and the single deployable artifact

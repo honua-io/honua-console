@@ -1,6 +1,7 @@
 ﻿using Honua.Console.Native.Core.DependencyInjection;
 using Honua.Console.Native.Services;
 using Honua.Console.Shell.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Honua.Console.Native;
@@ -18,6 +19,9 @@ public static class MauiProgram
 			});
 
 		builder.Services.AddMauiBlazorWebView();
+		// The shared shell injects IHostEnvironment for development-only routes. MAUI exposes the
+		// configured environment on the builder but does not register that interface in DI.
+		builder.Services.AddSingleton<IHostEnvironment>(builder.Environment);
 		builder.Services.AddHonuaConsoleShell();
 		builder.Services.AddHonuaConsoleNativeCore();
 		builder.Services.AddSingleton<NativeSecureStorage>();
