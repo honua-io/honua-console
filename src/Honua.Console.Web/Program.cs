@@ -395,7 +395,6 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         IHttpClientFactory httpClientFactory,
         Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
         Honua.Console.Shell.Services.IConsoleEnvironmentProfileStore profileStore,
-        Honua.Console.Shell.Services.IConsoleAccountSessionStore sessionStore,
         CancellationToken cancellationToken) =>
     {
         var operatorIdentity = await operatorScope.ResolveAsync(cancellationToken);
@@ -417,14 +416,11 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
-        var operatorBearer = await Honua.Console.Web.MapProxySupport.ResolveOperatorBearerAsync(
-            profileStore, sessionStore, cancellationToken);
         var client = httpClientFactory.CreateClient("honua-map-proxy");
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             Honua.Console.Web.MapProxySupport.BuildSceneAssetUri(
                 activeProfile.ServerBaseUri, safeSceneId, safeAssetPath));
-        Honua.Console.Web.MapProxySupport.ApplyUpstreamCredential(request, operatorBearer, mapProxyAdminKey);
         Honua.Console.Web.MapProxySupport.ForwardConditionalHeaders(httpContext.Request, request);
 
         HttpResponseMessage response;
@@ -452,7 +448,7 @@ if (!string.IsNullOrWhiteSpace(mapProxyServerUrl))
         }
         if (!response.IsSuccessStatusCode)
         {
-            return Results.StatusCode((int)response.StatusCode);
+            return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
         }
 
         Honua.Console.Web.MapProxySupport.ApplyTileCacheHeaders(response, httpContext.Response);

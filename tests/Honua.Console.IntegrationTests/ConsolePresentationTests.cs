@@ -9,14 +9,15 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ConsolePresentationTests
 {
     [Theory]
-    [InlineData("full", true)]
-    [InlineData("witness", false)]
-    public void ModesKeepFocusedNavigationAndLabelOrHideBroadAdministration(string mode, bool showsAdministration)
+    [InlineData("full")]
+    [InlineData("witness")]
+    public void ModesKeepFocusedNavigationAndShowPreviewBannerOutsideFocusedRoutes(string mode)
     {
         using var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
-        context.Services.AddSingleton(new ConsolePresentation(mode));
+        context.Services.AddSingleton<IConsoleProductMode>(
+            new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(mode)));
         context.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/settings");
@@ -24,7 +25,6 @@ public sealed class ConsolePresentationTests
         Assert.Equal(mode, page.Find("[data-console-mode]").GetAttribute("data-console-mode"));
         Assert.NotEmpty(page.FindAll("a[href='/inbox']"));
         Assert.NotEmpty(page.FindAll("a[href='/operate/connections']"));
-        Assert.Equal(showsAdministration, page.FindAll("a[href='/operate/settings']").Count > 0);
         Assert.Contains("Preview", page.Find("[data-focused-preview]").TextContent);
     }
 

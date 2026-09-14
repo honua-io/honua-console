@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
-@inject IServiceProvider Services
 @inject Honua.Console.Shell.Services.IConsoleHostCapabilities Host
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 @inject Honua.Console.Shell.Services.IConsoleProductMode ProductMode
@@ -106,7 +105,6 @@
 </div>
 
 @code {
-    private ConsolePresentation Presentation => Services.GetService<ConsolePresentation>() ?? new();
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
 

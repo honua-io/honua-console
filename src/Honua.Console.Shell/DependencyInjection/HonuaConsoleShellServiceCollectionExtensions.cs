@@ -214,7 +214,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
 
         services.TryAddSingleton<IConsoleReleaseWitnessClient>(serviceProvider =>
             new HttpConsoleReleaseWitnessClient(
-                CreateOperateObservabilityHttpClient(),
+                CreateOperateObservabilityHttpClient(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 honuaServerAdminApiKey));
