@@ -4,11 +4,11 @@
     "net10.0": {
       "Honua.Sdk.Studio": {
         "type": "Direct",
-        "requested": "[1.5.0, )",
-        "resolved": "1.5.0",
-        "contentHash": "wmMkCQdmM1Mp/FDg9MJx6tEnVTYWrIsO75AqwaoYJ+RvKcwaJVsg2eG3+raFwoH+WNV/4hQC8EdL/JLXpvBQ2w==",
+        "requested": "[1.6.0, )",
+        "resolved": "1.6.0",
+        "contentHash": "OYkz3osXOFK2kxV7Fa0aUbMXYjSJFxm25nGcrOsRBa9S+aol6+bxtraoRQDiZeqBre7X8OMcElilfS1vLRioFw==",
         "dependencies": {
-          "Honua.Sdk.Abstractions": "1.5.0",
+          "Honua.Sdk.Abstractions": "1.6.0",
           "Microsoft.Extensions.Http": "10.0.7",
           "Microsoft.Extensions.Http.Resilience": "10.5.0",
           "Microsoft.Extensions.Options": "10.0.7"
@@ -16,8 +16,8 @@
       },
       "Honua.Sdk.Abstractions": {
         "type": "Transitive",
-        "resolved": "1.5.0",
-        "contentHash": "wuIK+KM+8nVlqqoNTOqg1K2Xs/2Fv4mXG9kuAx+IcR3n/p5+DEiDt73EVvioPQYKIS4sWoQbzoCruWLpinQtFQ=="
+        "resolved": "1.6.0",
+        "contentHash": "vKKxNRwQo7lsMvqlrUZonKjn29nIrcYd3erNuNCHkT0RmGq9Dpr9Y9NgVYLkUeV2nrEK5VBFdE8yRuePlIKwhg=="
       },
       "Microsoft.Extensions.AmbientMetadata.Application": {
         "type": "Transitive",
