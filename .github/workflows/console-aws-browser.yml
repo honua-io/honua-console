@@ -55,7 +55,8 @@ jobs:
           CI: "true"
           HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
           HONUA_CONSOLE_AWS_SERVER_URL: https://demo.honua.io
-          HONUA_CONSOLE_AWS_ADMIN_KEY: ${{ secrets.HONUA_CONSOLE_AWS_ADMIN_KEY }}
+          HONUA_CONSOLE_AWS_OPERATOR_USERNAME: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_USERNAME }}
+          HONUA_CONSOLE_AWS_OPERATOR_PASSWORD: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_PASSWORD }}
         run: npm run e2e:aws
 
       - name: Upload live AWS browser evidence
