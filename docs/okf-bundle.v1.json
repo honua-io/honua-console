@@ -74,6 +74,22 @@
     {
       "path": "docs/reference/ROUTE_IMPLEMENTATION_CHECKLIST.md",
       "why": "Its own header says it: filed as a contributor guide. A checklist for people implementing routes, which sits under docs/reference only by filing convention. SHARED_COMPONENT_API.md beside it is the genuinely consumer-facing reference and stays in."
+    },
+    {
+      "path": "docs/focused-client-2026.1-evidence.md",
+      "why": "Acceptance evidence for the 2026.1 focused-client cut: what was proven pre-cut and what still needs qualification. A dated receipt for the people shipping the release, not documentation of the product."
+    },
+    {
+      "path": "docs/issue-334-same-origin-evidence.md",
+      "why": "Verification evidence for one issue (Cesium and Vega served same-origin). A record of the change and its checks, written for whoever reviewed it."
+    },
+    {
+      "path": "docs/vega-security-upgrade.md",
+      "why": "Dependency-upgrade record for one advisory: versions, residual risk, test evidence. Maintainer material."
+    },
+    {
+      "path": "docs/validation/import-replacement-consent.md",
+      "why": "Local verification evidence for one issue's authorization gate. The behaviour a reader needs is stated in the product itself; the evidence is for the reviewer."
     }
   ],
   "includedFiles": [],
@@ -85,5 +101,5 @@
     "verified",
     "stale_after"
   ],
-    "boundaryNote": "This is the starkest boundary in the programme: 7 of 41 pages are in. That is not a failure to type the other 34 — it is what the repository's own status lines say. Nearly every page here is marked draft, planning draft, handoff draft, PLAN, SHELVED or filed-against-a-ticket. Typing them as concepts would publish a design corpus as though it were product documentation, which is precisely the outcome WS9 exists to prevent. Six of the seven are the surfaces someone outside this repository actually depends on: how operators authenticate, how to run it, what the build artifact promises, what the native host is, what embedding guarantees, and what the shared component API exposes. The seventh, docs/README.md, is the index into them. When a design page ships as a real surface, it joins the bundle then."
+  "boundaryNote": "This is the starkest boundary in the programme: 7 of 41 pages are in. That is not a failure to type the other 34 — it is what the repository's own status lines say. Nearly every page here is marked draft, planning draft, handoff draft, PLAN, SHELVED or filed-against-a-ticket. Typing them as concepts would publish a design corpus as though it were product documentation, which is precisely the outcome WS9 exists to prevent. Six of the seven are the surfaces someone outside this repository actually depends on: how operators authenticate, how to run it, what the build artifact promises, what the native host is, what embedding guarantees, and what the shared component API exposes. The seventh, docs/README.md, is the index into them. When a design page ships as a real surface, it joins the bundle then."
 }
