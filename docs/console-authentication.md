@@ -5,10 +5,10 @@ description: "How the Console authenticates an operator and forwards that identi
 resource: "honua://capability/identity.oidc"
 tags: [auth, identity, operators]
 ---
-# Console authentication & server binding (#233 / #234)
+# How Console authenticates operators
 
 This document describes how the Honua Console authenticates operators and how it forwards that
-operator identity to honua-server. It implements the decision recorded on honua-console#233.
+operator identity to honua-server.
 
 ## Problem
 
@@ -284,6 +284,3 @@ Witness mode limits the primary and Operate navigation to focused inspection, ap
 surfaces. Full mode keeps the broader navigation and labels those entries Preview. Direct navigation
 to a broader surface shows the Preview notice in either mode; this is presentation, never a client-side
 permission or an Admin API parity claim. Server authorization is identical in both modes.
-
-See [the acceptance evidence matrix](focused-client-2026.1-evidence.md) for what is implemented and
-what still requires server dependencies and exact-candidate qualification.

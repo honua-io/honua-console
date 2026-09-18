@@ -36,22 +36,3 @@ state immediately and are bounded to five seconds. Failed, missing, unauthorized
 unreadable, unsupported-schema, duplicate, absent, unsupported, and unavailable
 manifest predicates keep the feature gate closed. The rest of the shell remains
 usable during a manifest outage.
-
-The Docker-free `LiveManifestPageGateTests` suite sends manifest JSON through the
-real SDK client and renders the five actual Console pages. Each row checks the
-expected gate and feature-client call count, including a delayed initial response.
-`LiveManifestBindingTests` switches between two server authorities and operator
-bearers and checks the existing navigation. Refresh-order and cancellation
-regressions live in `ManifestBackedConsoleCapabilityManifestTests`.
-
-Local verification on 2026-09-05 (HST) used the .NET 10.0.400 lane shim with the four-node
-MSBuild cap. The focused `LiveManifest` and
-`ManifestBackedConsoleCapabilityManifestTests` filter executed 77 tests: 77 passed,
-zero failed, zero skipped (55 SDK-to-page cases plus binding/policy/refresh tests).
-
-The full native-core suite passed 1,383 tests (three existing opt-in tests skipped),
-and the full integration/render suite passed 899 (56 existing opt-in live-server
-cases skipped). Those skips are not evidence for this issue; its focused 77 cases
-all executed. The web build passed with zero warnings and errors, solution
-formatting completed without edits, Node tests passed 12/12, and the vendored
-server ops parity-map check passed.
