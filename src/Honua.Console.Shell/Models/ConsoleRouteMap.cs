@@ -26,16 +26,36 @@ public static class ConsoleRouteMap
     public static ConsoleWorkflowArea? FindArea(string areaId) =>
         Areas.FirstOrDefault(area => string.Equals(area.Id, areaId, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// Resolves the workflow area a relative route sits in, or <see langword="null"/> for the
+    /// shell-owned routes outside the four areas (inbox, environments, support, auth, embed).
+    /// </summary>
+    public static ConsoleWorkflowArea? FindAreaForPath(string relativePath)
+    {
+        ArgumentNullException.ThrowIfNull(relativePath);
+
+        var path = NormalizePath(relativePath);
+        var separatorIndex = path.IndexOf('/');
+
+        return FindArea(separatorIndex >= 0 ? path[..separatorIndex] : path);
+    }
+
     public static bool IsOperateRoute(string relativePath)
     {
         ArgumentNullException.ThrowIfNull(relativePath);
 
-        var queryOrFragmentIndex = relativePath.IndexOfAny(['?', '#']);
-        var path = queryOrFragmentIndex >= 0 ? relativePath[..queryOrFragmentIndex] : relativePath;
-        path = path.Trim('/');
+        var path = NormalizePath(relativePath);
 
         return string.Equals(path, "operate", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("operate/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizePath(string relativePath)
+    {
+        var queryOrFragmentIndex = relativePath.IndexOfAny(['?', '#']);
+        var path = queryOrFragmentIndex >= 0 ? relativePath[..queryOrFragmentIndex] : relativePath;
+
+        return path.Trim('/');
     }
 }
 
