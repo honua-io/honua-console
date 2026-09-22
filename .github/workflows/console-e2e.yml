@@ -96,6 +96,20 @@ jobs:
           HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
         run: npx playwright test --config playwright.operator.config.ts
 
+      # honua-server#4428: the Console had NO accessibility gate — every `axe|a11y|accessib|wcag`
+      # hit in the repository was prose, while release section 14 requires the focused Console
+      # journey to pass one. This runs axe-core against the same backend-free published host the
+      # smoke above boots, on all four area routes, tagged to WCAG 2.1 A/AA, and fails on any
+      # serious or critical violation. Moderate and minor findings are attached to the report
+      # rather than enforced, so the gate asserts a defensible floor instead of a standard the
+      # Console has never been measured against. It also asserts the shell is keyboard reachable.
+      - name: Run Console accessibility gate (axe-core, WCAG 2.1 A/AA)
+        working-directory: e2e/playwright
+        env:
+          CI: "true"
+          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+        run: npx --no-install playwright test --config playwright.a11y.config.ts
+
       - name: Upload Playwright HTML report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
