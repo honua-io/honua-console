@@ -38,6 +38,14 @@ for (const route of AREA_ROUTES) {
     await page.waitForTimeout(1500);
 
     const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+    await testInfo.attach(`axe-${route.replace(/\W+/g, '-')}`, {
+      body: JSON.stringify(results, null, 2),
+      contentType: 'application/json',
+    });
+    await testInfo.attach(`screen-${route.replace(/\W+/g, '-')}`, {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: 'image/png',
+    });
 
     const blocking = results.violations.filter(
       (violation) => violation.impact === 'serious' || violation.impact === 'critical',
