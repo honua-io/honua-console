@@ -56,6 +56,9 @@ jobs:
         run: |
           mkdir -p e2e/playwright/live-auth/certs
           bash e2e/playwright/live-auth/gen-certs.sh
+          # The isolated test IdP runs as uid 1000 and must read its ephemeral key.
+          sudo chown 1000:0 e2e/playwright/live-auth/certs/kc.key
+          sudo chmod 640 e2e/playwright/live-auth/certs/kc.key
           docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml pull
           docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml up -d --wait --wait-timeout 300
           for attempt in {1..60}; do

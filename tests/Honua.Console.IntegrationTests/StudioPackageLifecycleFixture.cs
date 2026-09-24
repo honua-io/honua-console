@@ -83,7 +83,7 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         }
 
-        var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
+        var httpClient = new HttpClient(new LiveContractEvidenceHandler(handler)) { BaseAddress = BaseAddress };
         return new HttpStudioPackageLifecycleClient(
             httpClient,
             new StudioPackageLifecycleClientOptions(BaseAddress, Options.StudioAdminApiKey));
