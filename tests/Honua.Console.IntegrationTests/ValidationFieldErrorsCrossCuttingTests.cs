@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 
@@ -60,8 +61,8 @@ public sealed class ValidationFieldErrorsCrossCuttingTests
         var result = await operation.PublishAsync(command);
 
         // A clean validation rejection is the expected behavior; a 5xx / Unavailable means the pinned image is
-        // not ready for the publish path (contract drift) — skip rather than false-fail.
-        Skip.If(
+        // not ready for the publish path (contract drift), so the required receipt must fail.
+        Assert.False(
             string.Equals(result.State, "Unavailable", StringComparison.OrdinalIgnoreCase),
             $"The pinned honua-server image could not service the layer-publish path ({result.State} — {result.Detail}).");
 
@@ -94,48 +95,25 @@ public sealed class ValidationFieldErrorsCrossCuttingTests
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
-        var dataSource = new HonuaServerStudioAnalysisContentDataSource(_fixture.CreateAnalysisClient());
-
-        // Invalid plan: a known method ("buffer") with NO inputs and NO parameters — the server's analysis
-        // package validation rejects an incomplete plan (a buffer needs an input source + distance) with the
-        // shared field-validation contract, and no analysis content item lands in the catalog.
+        // Draft persistence accepts incomplete execution inputs. Its actual structural contract
+        // requires at least one plan step, so submit an empty step collection through the real client.
         var title = $"Console analysis validation {Guid.NewGuid():N}";
         var plan = StudioAnalysisPackageMapper.CreateTemplate();
         plan.Title = title;
-        plan.Goal = string.Empty;
-        plan.Method = "buffer";
-        plan.ComputeProfile = "standard";
-        plan.OutputContentType = "layer";
-        // Deliberately leave Inputs, Parameters, and OutputSchema empty so the plan is invalid.
-
-        var saved = await dataSource.SaveDraftAsync(plan);
-
-        // Server-not-ready (Unavailable/Unsupported capability state) is contract drift, not a console
-        // regression — skip cleanly. A clean rejection of an invalid plan is the expected result.
-        Skip.If(
-            saved.Issue is { } state
-            && (string.Equals(state.State, "Unavailable", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(state.State, "Unsupported", StringComparison.OrdinalIgnoreCase)),
-            $"The pinned honua-server image could not service the analysis content path ({saved.Issue?.State} — {saved.Issue?.Detail}).");
-
-        // If the pinned server happens to accept this minimal plan (validation may be looser than expected),
-        // skip rather than assert a false negative — the deterministic layer-publish surface above is the
-        // hard field-error proof. The analysis surface asserts the reject→nothing-lands round-trip when it
-        // does reject.
-        Skip.If(
-            saved.Succeeded,
-            "The pinned honua-server image accepted the minimal analysis plan; the field-error assertion is "
-            + "exercised on the deterministic layer-publish surface, and the analysis surface only asserts the "
-            + "reject→nothing-lands round-trip when the server rejects.");
-
-        Assert.False(saved.Succeeded);
-        Assert.Null(saved.Plan);
-
-        // When field-level errors are returned they must be addressable (bound to a field), never empty.
-        if (saved.FieldErrors is { Count: > 0 } fieldErrors)
+        var package = StudioAnalysisPackageMapper.ToPackageContent(plan);
+        var saved = await _fixture.CreateAnalysisClient().CreateItemAsync(new HonuaCreateAnalysisContentItemRequest
         {
-            Assert.All(fieldErrors, error => Assert.False(string.IsNullOrWhiteSpace(error.Message)));
-        }
+            Name = $"invalid-{Guid.NewGuid():N}",
+            Title = title,
+            Kind = HonuaAnalysisContentKinds.AnalysisPackage,
+            AnalysisPackage = package with { Plan = package.Plan! with { Steps = [] } }
+        });
+
+        Assert.Null(saved.Data);
+        Assert.NotNull(saved.Issue);
+        Assert.Equal(400, saved.Issue.StatusCode);
+        Assert.Contains(saved.Issue.FieldErrors, error =>
+            string.Equals(error.Path, "/analysisPackage/plan/steps", StringComparison.Ordinal));
 
         // Independent proof NOTHING landed: the rejected title is not searchable in the catalog.
         using var verifier = _fixture.CreateVerifier();
