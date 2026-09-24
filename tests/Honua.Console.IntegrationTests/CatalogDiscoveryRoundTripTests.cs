@@ -46,10 +46,10 @@ public sealed class CatalogDiscoveryRoundTripTests
 
         // --- Strong route-mounted discriminator: probe the admin-gated registry route ANONYMOUSLY. ---
         // 401 = route mounted + admin-gated; 404 = route absent (contract #1279 not on this image). Status 0
-        // means the server was unreachable (image not ready) → skip cleanly rather than false-fail.
+        // means the server was unreachable and the required live receipt must fail.
         var anonStatus = await verifier.ProbeAdminRouteAnonymousStatusAsync(
             $"/api/v1/console/catalog-endpoints/{Workspace}");
-        Skip.If(
+        Assert.False(
             anonStatus == 0,
             "The catalog discovery registry route was unreachable; the pinned server image is not ready for the round-trip.");
 
@@ -59,7 +59,7 @@ public sealed class CatalogDiscoveryRoundTripTests
         // by content rather than 401. Treat any non-404 mounted response as "route present"; a 404 is the
         // authoritative "contract absent" signal.
         var routeMounted = anonStatus != 404;
-        Skip.If(
+        Assert.False(
             !routeMounted,
             "The pinned honua-server image does not mount the catalog discovery-endpoints registry "
             + "(honua-server#1279): an anonymous probe returned 404. The console correctly renders the "
@@ -67,7 +67,7 @@ public sealed class CatalogDiscoveryRoundTripTests
 
         // --- The route is mounted: the independent admin read returns the server-owned registry. ---
         var serverRegistry = await verifier.GetCatalogDiscoveryRegistryAsync(Workspace);
-        Skip.If(
+        Assert.False(
             serverRegistry is null,
             "The catalog discovery-endpoints route is mounted but the admin read did not return a registry on "
             + "this image (contract drift); the console↔server registry assertion needs a ready #1279 build.");
@@ -89,17 +89,13 @@ public sealed class CatalogDiscoveryRoundTripTests
         Assert.Equal(serverKeys, consoleKeys);
 
         // --- Endpoint + item drill-down round-trip (only when the registry advertises an endpoint). ---
-        // Once the server advertises an endpoint, the console MUST bind its detail (asserting the drill-down
-        // route the test is meant to cover) — a failed binding is a real failure or an explicit skip with the
-        // reported issue, never a silent pass (Codex #154). The detail/item routes are part of #1279, so a
-        // detail binding that comes back unbound on a not-yet-ready image skips cleanly; a bound detail that
-        // disagrees with the advertised endpoint fails.
+        // An advertised endpoint must bind its detail; missing routes and failed reads fail the receipt.
         var endpointWithItems = serverRegistry.Endpoints.FirstOrDefault(e => (e.Entries ?? 0) > 0)
             ?? serverRegistry.Endpoints.FirstOrDefault();
         if (endpointWithItems?.Key is { Length: > 0 } endpointKey)
         {
             var detail = await dataSource.LoadEndpointAsync(Workspace, endpointKey);
-            Skip.If(
+            Assert.False(
                 !detail.HasDetail,
                 "The catalog discovery endpoint-detail route is not ready on this image "
                 + $"({DescribeStates(detail.CapabilityStates)}); the registry list round-trip above stands.");
@@ -116,7 +112,7 @@ public sealed class CatalogDiscoveryRoundTripTests
             if (item is not null)
             {
                 var itemLoad = await dataSource.LoadItemAsync(Workspace, endpointKey, item.Id);
-                Skip.If(
+                Assert.False(
                     !itemLoad.HasItem,
                     "The catalog discovery item-editor route is not ready on this image "
                     + $"({DescribeStates(itemLoad.CapabilityStates)}); the endpoint-detail round-trip above stands.");

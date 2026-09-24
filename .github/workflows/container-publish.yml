@@ -120,6 +120,11 @@ jobs:
           assert set(payload["areas"]) == {"studio", "catalog", "operate", "share"}, payload
           PY
 
+      - name: Verify packaged runtime mode and authentication
+        env:
+          IMAGE_REF: ${{ env.IMAGE }}:pr-${{ github.event.number }}
+        run: python3 scripts/check-container-runtime-config.py "$IMAGE_REF"
+
   publish:
     name: Build, smoke, and publish
     if: >-
