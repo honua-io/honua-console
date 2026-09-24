@@ -442,8 +442,8 @@ public sealed class StudioFormPublishRoundTripTests
         // --- OPERATION: author a publishable form, save → validate → publish through the real lifecycle. ---
         var seed = StudioFormPackageMapper.CreateTemplate();
         seed.Title = title;
-        seed.ServiceId = "console-form-fixture";
-        seed.LayerId = 0;
+        seed.ServiceId = _fixture.TargetServiceId;
+        seed.LayerId = _fixture.TargetLayerId;
         seed.OfflinePolicyReviewed = true;
 
         var saved = await dataSource.SaveDraftAsync(seed);
@@ -465,7 +465,7 @@ public sealed class StudioFormPublishRoundTripTests
         Assert.NotNull(package);
         Assert.Equal(formId, package!.FormId);
         Assert.Equal(title, package.Title);
-        Assert.Equal("console-form-fixture", package.ServiceId);
+        Assert.Equal(_fixture.TargetServiceId, package.ServiceId);
         Assert.Equal(HonuaFormPackageStatus.Published, package.Status);
         Assert.Equal(publishedVersion, package.Version);
 
@@ -499,8 +499,8 @@ public sealed class StudioFormPublishRoundTripTests
         // draft exists, then publish to trigger the server-side rejection.
         var seed = StudioFormPackageMapper.CreateTemplate();
         seed.Title = title;
-        seed.ServiceId = "console-form-fixture-bad";
-        seed.LayerId = 0;
+        seed.ServiceId = _fixture.TargetServiceId;
+        seed.LayerId = _fixture.TargetLayerId;
         seed.OfflinePolicyReviewed = true;
         seed.Fields.Clear();
         seed.Fields.Add(new StudioFormFieldEditor

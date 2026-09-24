@@ -61,6 +61,7 @@ jobs:
       HONUA_CONSOLE_LIVE_SERVER_STARTUP_TIMEOUT_SECONDS: "420"
       DOTNET_NOLOGO: "1"
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      HONUA_CONSOLE_SERVER_LOG_DIR: ${{ github.workspace }}/artifacts/test-results/server-logs
 
     steps:
       - name: Check out repository
@@ -173,5 +174,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-live-integration-trx
-          path: artifacts/test-results/**/*.trx
+          path: |
+            artifacts/test-results/**/*.trx
+            artifacts/test-results/server-logs/
           if-no-files-found: warn

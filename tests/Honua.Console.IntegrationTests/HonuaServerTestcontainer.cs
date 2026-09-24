@@ -17,17 +17,20 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
     private INetwork? _network;
     private PostgreSqlContainer? _postgres;
     private IContainer? _server;
+    private IContainer? _redis;
 
     private HonuaServerTestcontainer(
         INetwork network,
         PostgreSqlContainer postgres,
         IContainer server,
+        IContainer redis,
         Uri baseAddress,
         string postgresConnectionString)
     {
         _network = network;
         _postgres = postgres;
         _server = server;
+        _redis = redis;
         BaseAddress = baseAddress;
         PostgresConnectionString = postgresConnectionString;
     }
@@ -47,6 +50,7 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
         INetwork? network = null;
         PostgreSqlContainer? postgres = null;
         IContainer? server = null;
+        IContainer? redis = null;
         try
         {
             network = new NetworkBuilder().Build();
@@ -60,6 +64,13 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
                 .WithPassword("honua")
                 .Build();
             await postgres.StartAsync(cancellationToken).ConfigureAwait(false);
+
+            redis = new ContainerBuilder("redis:7-alpine")
+                .WithNetwork(network)
+                .WithNetworkAliases("redis")
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilCommandIsCompleted("redis-cli", "ping"))
+                .Build();
+            await redis.StartAsync(cancellationToken).ConfigureAwait(false);
 
             const string connectionString = "Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua";
             var useTls = string.Equals(options.ServerScheme, "https", StringComparison.OrdinalIgnoreCase);
@@ -93,6 +104,7 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
                 builder = builder.WithEnvironment(key, value);
             }
 
+            builder = builder.WithEnvironment("ConnectionStrings__Redis", "redis:6379");
             server = builder.Build();
             await server.StartAsync(cancellationToken).ConfigureAwait(false);
 
@@ -103,31 +115,54 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
             // The PostgreSqlContainer's own connection string targets the mapped host port, so a test on the
             // host can seed the very database the server reaches over the Docker network (host=postgres).
             var postgresConnectionString = postgres.GetConnectionString();
-            return new HonuaServerTestcontainer(network, postgres, server, baseAddress, postgresConnectionString);
+            return new HonuaServerTestcontainer(network, postgres, server, redis, baseAddress, postgresConnectionString);
         }
         catch
         {
-            await DisposeQuietlyAsync(server, postgres, network).ConfigureAwait(false);
+            await DisposeQuietlyAsync(server, redis, postgres, network).ConfigureAwait(false);
             throw;
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        await DisposeQuietlyAsync(_server, _postgres, _network).ConfigureAwait(false);
+        await DisposeQuietlyAsync(_server, _redis, _postgres, _network).ConfigureAwait(false);
         _server = null;
+        _redis = null;
         _postgres = null;
         _network = null;
     }
 
     private static async ValueTask DisposeQuietlyAsync(
         IContainer? server,
+        IContainer? redis,
         PostgreSqlContainer? postgres,
         INetwork? network)
     {
         if (server is not null)
         {
+            var evidenceDirectory = Environment.GetEnvironmentVariable("HONUA_CONSOLE_SERVER_LOG_DIR");
+            if (!string.IsNullOrWhiteSpace(evidenceDirectory))
+            {
+                try
+                {
+                    Directory.CreateDirectory(evidenceDirectory);
+                    var (stdout, stderr) = await server.GetLogsAsync().ConfigureAwait(false);
+                    await File.WriteAllTextAsync(Path.Combine(evidenceDirectory, $"{server.Id}.log"), stdout + stderr)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is not OutOfMemoryException)
+                {
+                    System.Console.Error.WriteLine($"Could not retain server logs: {exception.Message}");
+                }
+            }
+
             await server.DisposeAsync().ConfigureAwait(false);
+        }
+
+        if (redis is not null)
+        {
+            await redis.DisposeAsync().ConfigureAwait(false);
         }
 
         if (postgres is not null)

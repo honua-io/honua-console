@@ -99,7 +99,7 @@ public sealed class ServiceLayerPublishRoundTripTests
         Assert.Contains("id", metadata.Fields.Keys, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("name", metadata.Fields.Keys, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("area_m2", metadata.Fields.Keys, StringComparer.OrdinalIgnoreCase);
-        Assert.Equal("esriFieldTypeInteger", metadata.Fields["id"]);
+        Assert.Equal("esriFieldTypeOID", metadata.Fields["id"]);
         Assert.Equal("esriFieldTypeString", metadata.Fields["name"]);
         Assert.Equal("esriFieldTypeDouble", metadata.Fields["area_m2"]);
         Assert.Contains("Query", metadata.Capabilities, StringComparer.OrdinalIgnoreCase);

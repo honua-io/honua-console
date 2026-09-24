@@ -68,6 +68,8 @@ public sealed class PublishingWorkspaceLiveServerTests
 
         // 5. The page renders the live workspace.
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(dataSource);
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         var page = ctx.Render<OperatePublishingPage>();
