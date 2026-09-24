@@ -10,7 +10,7 @@ internal sealed class LiveContractEvidenceHandler(HttpMessageHandler innerHandle
         var directory = Environment.GetEnvironmentVariable("HONUA_CONSOLE_SERVER_LOG_DIR");
         if (!string.IsNullOrWhiteSpace(directory)
             && request.Method == HttpMethod.Post
-            && request.RequestUri?.AbsolutePath is "/api/v1/studio/package-drafts" or "/api/v1/analysis/content")
+            && request.RequestUri?.AbsolutePath.TrimEnd('/') is "/api/v1/studio/package-drafts" or "/api/v1/analysis/content")
         {
             // These routes contain only this suite's generated authoring fixtures. Never record
             // headers, connection credentials, login requests, or arbitrary server responses.
