@@ -1,0 +1,78 @@
+name: Console Live Publish Journey
+
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/console-live-journey.yml'
+      - 'e2e/docker-compose.yml'
+      - 'e2e/initdb/**'
+      - 'e2e/playwright/live/**'
+      - 'e2e/playwright/playwright.live.config.ts'
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: console-live-journey-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish-query:
+    name: Publish and query through a real server
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: src/Honua.Console.Web/global.json
+      - name: Select the pinned SDK
+        run: cp src/Honua.Console.Web/global.json global.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20.x
+      - name: Authenticate GitHub Packages feed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget update source github-honua --username "$GITHUB_ACTOR" --password "$GH_TOKEN" --store-password-in-clear-text --configfile NuGet.config
+      - name: Restore Console
+        run: dotnet restore Honua.Console.slnx --locked-mode
+      - name: Install browser dependencies
+        working-directory: e2e/playwright
+        run: |
+          npm ci
+          npx --no-install playwright install --with-deps chromium
+      - name: Start authenticated server and seeded PostGIS
+        run: |
+          docker compose -f e2e/docker-compose.yml pull
+          docker compose -f e2e/docker-compose.yml up -d --wait --wait-timeout 300
+          mkdir -p artifacts/live-journey
+          docker image inspect "$HONUA_CONSOLE_E2E_SERVER_IMAGE" --format '{{json .RepoDigests}}' > artifacts/live-journey/server-digests.json
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8088/api/v1/admin/services)
+          test "$status" = 401 || test "$status" = 403
+      - name: Publish from Console and verify three seeded features
+        working-directory: e2e/playwright
+        run: npx --no-install playwright test --config playwright.live.config.ts services-layers.live.spec.ts --grep 'publish a PostGIS table and verify via catalog, metadata, and a live query' --reporter=list,json > ../../artifacts/live-journey/playwright.log
+      - name: Retain server diagnostics
+        if: always()
+        run: |
+          mkdir -p artifacts/live-journey
+          docker compose -f e2e/docker-compose.yml logs --no-color > artifacts/live-journey/containers.log
+      - name: Stop the testbed
+        if: always()
+        run: docker compose -f e2e/docker-compose.yml down -v
+      - name: Upload journey evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: console-live-publish-journey
+          path: |
+            artifacts/live-journey/
+            e2e/playwright/test-results/
