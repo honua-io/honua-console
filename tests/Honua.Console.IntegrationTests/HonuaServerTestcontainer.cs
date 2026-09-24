@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
@@ -122,6 +124,22 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
             }
 
             builder = builder.WithEnvironment("ConnectionStrings__Redis", "redis:6379");
+            if (isProduction)
+            {
+                // Redis-backed operation secrets require protected durable keys in Production.
+                // Give this isolated testbed its own certificate instead of disabling that guard.
+                var certificatePassword = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+                using var key = RSA.Create(2048);
+                var request = new CertificateRequest(
+                    "CN=console-integration-key-ring", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                using var certificate = request.CreateSelfSigned(
+                    DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddDays(1));
+                builder = builder
+                    .WithResourceMapping(certificate.Export(X509ContentType.Pfx, certificatePassword), "/certs/operations.pfx")
+                    .WithEnvironment("Operations__SecretChannel__KeyRingCertificatePath", "/certs/operations.pfx")
+                    .WithEnvironment("Operations__SecretChannel__KeyRingCertificatePassword", certificatePassword);
+            }
+
             server = builder.Build();
             await server.StartAsync(cancellationToken).ConfigureAwait(false);
 

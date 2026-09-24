@@ -71,6 +71,7 @@ public sealed class PublishingWorkspaceLiveServerTests
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IPublishingWorkspaceDataSource>(dataSource);
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());
         ctx.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
         var page = ctx.Render<OperatePublishingPage>();
         page.WaitForAssertion(
