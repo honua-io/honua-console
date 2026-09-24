@@ -55,13 +55,23 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
         {
             network = new NetworkBuilder().Build();
 
+            // Production deliberately rejects the repository's example credentials.
+            // Other fixtures register this database using the shared development DSN.
+            var isProduction = string.Equals(
+                options.BuildServerEnvironment(string.Empty).GetValueOrDefault("ASPNETCORE_ENVIRONMENT"),
+                "Production",
+                StringComparison.OrdinalIgnoreCase);
+            var databasePassword = isProduction
+                ? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+                : "honua";
+
             postgres = new PostgreSqlBuilder()
                 .WithImage("postgis/postgis:16-3.4")
                 .WithNetwork(network)
                 .WithNetworkAliases("postgres")
                 .WithDatabase("honua")
                 .WithUsername("honua")
-                .WithPassword("honua")
+                .WithPassword(databasePassword)
                 .Build();
             await postgres.StartAsync(cancellationToken).ConfigureAwait(false);
 
@@ -72,7 +82,14 @@ internal sealed class HonuaServerTestcontainer : IAsyncDisposable
                 .Build();
             await redis.StartAsync(cancellationToken).ConfigureAwait(false);
 
-            const string connectionString = "Host=postgres;Port=5432;Database=honua;Username=honua;Password=honua";
+            var connectionString = new Npgsql.NpgsqlConnectionStringBuilder
+            {
+                Host = "postgres",
+                Port = 5432,
+                Database = "honua",
+                Username = "honua",
+                Password = databasePassword
+            }.ConnectionString;
             var useTls = string.Equals(options.ServerScheme, "https", StringComparison.OrdinalIgnoreCase);
 
             var builder = new ContainerBuilder(options.ServerImage!)
