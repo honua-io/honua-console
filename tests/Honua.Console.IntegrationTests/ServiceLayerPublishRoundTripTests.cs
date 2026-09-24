@@ -76,9 +76,9 @@ public sealed class ServiceLayerPublishRoundTripTests
         var result = await operation.PublishAsync(command);
         // A server-side 5xx on a known-valid publish indicates the pinned server image is not ready for
         // the layer-publish path (e.g. a stale image missing the metadata_v2 schema) rather than a console
-        // regression. Skip cleanly on that contract-drift condition; a clean validation rejection (4xx) is
+        // regression. Fail the live evidence on that contract-drift condition; a clean validation rejection (4xx) is
         // still a real failure for a known-valid request. The negative companion proves the reject path.
-        SkipIfServerNotReady(result);
+        AssertServerReady(result);
         Assert.True(result.Succeeded, $"Publish operation failed: {result.State} — {result.Detail}");
         Assert.NotNull(result.LayerId);
         var layerId = result.LayerId!.Value;
@@ -223,7 +223,7 @@ public sealed class ServiceLayerPublishRoundTripTests
         };
 
         var first = await operation.PublishAsync(command);
-        SkipIfServerNotReady(first);
+        AssertServerReady(first);
         Assert.True(first.Succeeded, $"First publish failed: {first.State} — {first.Detail}");
         var layerId = first.LayerId!.Value;
 
@@ -261,9 +261,8 @@ public sealed class ServiceLayerPublishRoundTripTests
 
     // A known-valid publish that comes back Unavailable / with a 5xx detail means the pinned server image
     // cannot service the layer-publish path (contract drift / missing schema), not a console regression.
-    // Skip cleanly so the lane signals "not exercised" rather than a false failure; the negative companion
-    // still proves the publish→reject→independent-verify round-trip end to end.
-    private static void SkipIfServerNotReady(ServiceLayerPublishResult result)
+    // Fail the receipt when the required publish path is unavailable.
+    private static void AssertServerReady(ServiceLayerPublishResult result)
     {
         if (result.Succeeded)
         {
@@ -275,7 +274,7 @@ public sealed class ServiceLayerPublishRoundTripTests
             || (result.Detail?.Contains("HTTP 5", StringComparison.OrdinalIgnoreCase) ?? false)
             || (result.Detail?.Contains("500", StringComparison.Ordinal) ?? false);
 
-        Skip.If(
+        Assert.False(
             serverNotReady,
             $"The pinned honua-server image could not service the layer-publish path ({result.State} — {result.Detail}); "
             + "the service-layer-publish round-trip needs a server build whose admin layer-publishing path is ready.");
