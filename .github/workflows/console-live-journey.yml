@@ -7,7 +7,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/console-live-journey.yml'
-      - 'e2e/docker-compose.yml'
+      - 'e2e/docker-compose*.yml'
+      - 'e2e/playwright/live-auth/**'
       - 'e2e/initdb/**'
       - 'e2e/playwright/live/**'
       - 'e2e/playwright/playwright.live.config.ts'
@@ -27,6 +28,8 @@ jobs:
     timeout-minutes: 30
     env:
       CI: 'true'
+      HONUA_CONSOLE_E2E_OIDC: 'true'
+      HONUA_CONSOLE_E2E_LIVE_PORT: '5274'
       HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -51,8 +54,17 @@ jobs:
           npx --no-install playwright install --with-deps chromium
       - name: Start authenticated server and seeded PostGIS
         run: |
-          docker compose -f e2e/docker-compose.yml pull
-          docker compose -f e2e/docker-compose.yml up -d --wait --wait-timeout 300
+          mkdir -p e2e/playwright/live-auth/certs
+          bash e2e/playwright/live-auth/gen-certs.sh
+          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml pull
+          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml up -d --wait --wait-timeout 300
+          for attempt in {1..60}; do
+            if curl --insecure --fail --silent https://127.0.0.1:8443/realms/honua/.well-known/openid-configuration > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --insecure --fail --silent https://127.0.0.1:8443/realms/honua/.well-known/openid-configuration > /dev/null
           mkdir -p artifacts/live-journey
           docker image inspect "$HONUA_CONSOLE_E2E_SERVER_IMAGE" --format '{{json .RepoDigests}}' > artifacts/live-journey/server-digests.json
           status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8088/api/v1/admin/services)
@@ -64,10 +76,10 @@ jobs:
         if: always()
         run: |
           mkdir -p artifacts/live-journey
-          docker compose -f e2e/docker-compose.yml logs --no-color > artifacts/live-journey/containers.log
+          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml logs --no-color > artifacts/live-journey/containers.log
       - name: Stop the testbed
         if: always()
-        run: docker compose -f e2e/docker-compose.yml down -v
+        run: docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml down -v
       - name: Upload journey evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
