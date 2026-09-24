@@ -49,7 +49,7 @@ services:
       retries: 15
 
   honua-server:
-    image: ghcr.io/honua-io/honua-server:nightly-aot
+    image: ${HONUA_CONSOLE_E2E_SERVER_IMAGE:-ghcr.io/honua-io/honua-server:nightly-aot}
     # Shares postgis's network namespace: localhost:5544 = PostGIS, localhost:6379 = Redis.
     network_mode: "service:postgis"
     depends_on:
