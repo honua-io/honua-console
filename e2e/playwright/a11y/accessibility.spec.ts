@@ -17,7 +17,7 @@ import AxeBuilder from '@axe-core/playwright';
 //      recorded as a test annotation so the debt is visible without the gate asserting a standard
 //      the Console has never been measured against.
 //   2. the app is keyboard reachable: tabbing from the document body reaches a focusable element
-//      inside the main landmark, which is the floor under "keyboard-first".
+//      in the app shell, which checks basic keyboard reachability.
 //
 // The threshold is deliberate and documented rather than convenient: `serious` and `critical` are
 // axe's own impact levels for findings that block a user, and nothing here suppresses a rule.

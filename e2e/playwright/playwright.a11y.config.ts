@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 // Accessibility gate for the Honua Console Blazor Web host (honua-server#4428).
 //
 // Identical boot to playwright.config.ts — the same published artifact, the same backend-free
-// missing-binding mode, the same port — but it runs ./a11y instead of ./specs. It is a separate
+// missing-binding mode, a separate port — but it runs ./a11y instead of ./specs. It is a separate
 // config rather than extra specs in the smoke so the accessibility result is reported as its own
 // lane and an a11y regression is never confused with a browser-boot regression.
 //
@@ -40,9 +40,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  // Browser smokes can be marginally flaky on cold CI runners; allow a couple of retries
-  // but keep the suite advisory (see .github/workflows/console-e2e.yml) so a transient
-  // failure never blocks merge.
+  // Retry transient browser startup failures on cold CI runners. Exhausting
+  // retries fails the accessibility step in console-e2e.yml.
   retries: process.env.CI ? 2 : 0,
   timeout: 30_000,
   expect: { timeout: 10_000 },
