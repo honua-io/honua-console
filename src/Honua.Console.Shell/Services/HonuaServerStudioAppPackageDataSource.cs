@@ -114,6 +114,9 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         }
 
         var mapped = ToEditorState(result.Data!);
+        mapped.PreviousPublication = state.PendingPublication ?? state.PreviousPublication;
+        mapped.PublishedVersion = state.PublishedVersion;
+        mapped.PublishedVersionId = state.PublishedVersionId;
         return new StudioAppCommandResult(true, $"Saved app draft ({result.Data!.PackageKey}).", mapped);
     }
 
@@ -147,7 +150,7 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        if (state.PendingPublication is { } pendingSubmission)
+        if (state.HasPendingPublication && state.PendingPublication is { } pendingSubmission)
         {
             return new StudioAppCommandResult(true, pendingSubmission.Message, state);
         }
@@ -201,7 +204,7 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
 
         if (publishResult.Data!.Operation is { } pendingOperation)
         {
-            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation, state.DraftId, state.Generation);
             return new StudioAppCommandResult(true, state.PendingPublication.Message, state);
         }
 
@@ -209,6 +212,7 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         if (status == StudioPublicationRequestStatus.Accepted)
         {
             state.PublishedVersion = version.VersionNumber;
+            state.PublishedVersionId = version.VersionId;
         }
 
         return new StudioAppCommandResult(

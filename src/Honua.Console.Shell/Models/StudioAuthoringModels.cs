@@ -147,6 +147,9 @@ public sealed record StudioAuthoringSession(
     /// <summary>Approval context for the saved version submitted from this session.</summary>
     public StudioPendingPublication? PendingPublication { get; init; }
 
+    /// <summary>Older proposal context retained after saving another immutable version.</summary>
+    public StudioPendingPublication? PreviousPublication { get; init; }
+
     /// <summary>True when the active package is backed by a live server draft.</summary>
     public bool HasServerDraft => Draft is not null;
 

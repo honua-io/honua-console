@@ -59,6 +59,15 @@ public sealed class StudioAppEditorState
     /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
     public StudioPendingPublication? PendingPublication { get; set; }
 
+    /// <summary>Previous proposal context retained when a new draft generation is explicitly saved.</summary>
+    public StudioPendingPublication? PreviousPublication { get; set; }
+
+    /// <summary>Only the same saved version and unchanged draft generation are deduplicated.</summary>
+    public bool HasPendingPublication => PendingPublication is { IsPending: true } pending
+        && pending.ItemId == ItemId && pending.VersionId == CurrentVersionId
+        && pending.DraftId == DraftId && pending.DraftGeneration == Generation;
+
+
     public Guid? DraftId { get; set; }
 
     public Guid? ItemId { get; set; }
@@ -66,6 +75,9 @@ public sealed class StudioAppEditorState
     public Guid? CurrentVersionId { get; set; }
 
     public int? PublishedVersion { get; set; }
+
+    /// <summary>Exact published pointer when observed; a previous published number does not publish the current version.</summary>
+    public Guid? PublishedVersionId { get; set; }
 
     /// <summary>Server optimistic-concurrency generation token for the open draft.</summary>
     public long Generation { get; set; }
@@ -87,7 +99,9 @@ public sealed class StudioAppEditorState
 
     public bool IsExistingDraft => DraftId is not null;
 
-    public bool IsPublished => PublishedVersion is > 0;
+    public bool IsPublished => PublishedVersionId is { } publishedId
+        ? CurrentVersionId == publishedId
+        : CurrentVersionId is null && PublishedVersion is > 0;
 }
 
 /// <summary>

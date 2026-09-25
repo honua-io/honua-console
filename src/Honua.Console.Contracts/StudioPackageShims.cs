@@ -159,6 +159,12 @@ public interface IStudioPackageLifecycleClient
         CreateStudioPublicationRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Reads exact server current and published content pointers.</summary>
+    Task<StudioEndpointResult<StudioContentItemPointers?>> GetContentItemPointersAsync(
+        Guid itemId, CancellationToken cancellationToken = default)
+        => Task.FromResult(StudioEndpointResult<StudioContentItemPointers?>.FromIssue(new StudioEndpointIssue(
+            "Unsupported", "GET /api/v1/studio/content-items", "This binding cannot read publication pointers.")));
+
     /// <summary>Submits publication while preserving a governed approval outcome.</summary>
     async Task<StudioEndpointResult<StudioPublicationSubmission>> SubmitPublishRequestAsync(
         Guid itemId,
@@ -375,6 +381,11 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
             cancellationToken);
     }
 
+    public Task<StudioEndpointResult<StudioContentItemPointers?>> GetContentItemPointersAsync(
+        Guid itemId, CancellationToken cancellationToken = default)
+        => ExecuteAsync(ct => _sdk.GetContentItemPointersAsync(itemId, ct),
+            "GET /api/v1/studio/content-items", cancellationToken);
+
     public Task<StudioEndpointResult<StudioPublicationSubmission>> SubmitPublishRequestAsync(
         Guid itemId,
         Guid versionId,
@@ -459,7 +470,7 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         Func<CancellationToken, Task<TResponse>> operation,
         string contract,
         CancellationToken cancellationToken)
-        where TResponse : class
+        where TResponse : class?
     {
         try
         {

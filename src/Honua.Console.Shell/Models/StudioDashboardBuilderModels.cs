@@ -16,6 +16,15 @@ public sealed class StudioDashboardEditorState
     /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
     public StudioPendingPublication? PendingPublication { get; set; }
 
+    /// <summary>Previous proposal context retained when a new draft generation is explicitly saved.</summary>
+    public StudioPendingPublication? PreviousPublication { get; set; }
+
+    /// <summary>Only the same saved version and unchanged draft generation are deduplicated.</summary>
+    public bool HasPendingPublication => PendingPublication is { IsPending: true } pending
+        && pending.ItemId == ItemId && pending.VersionId == CurrentVersionId
+        && pending.DraftId == DraftId && pending.DraftGeneration == Generation;
+
+
     /// <summary>
     /// Stable server package id (the honua-server content-item id). Null until the first draft is saved
     /// server-side and a content version is created. Exposed as a string for the editor/list surface.

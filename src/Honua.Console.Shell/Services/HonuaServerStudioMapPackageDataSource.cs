@@ -188,6 +188,8 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         // Keep the operator's current authoring edits and only stamp the server-owned identity/generation
         // from the response. Rehydrating from the echoed envelope body here would risk dropping unsaved
         // local intent if the server normalised the body; the body round-trip belongs to load/reopen.
+        state.PreviousPublication = state.PendingPublication ?? state.PreviousPublication;
+        state.PendingPublication = null;
         ApplyServerIdentity(state, result.Data!);
         return new StudioMapCommandResult(
             true,
@@ -201,7 +203,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        if (state.PendingPublication is { } pendingSubmission)
+        if (state.HasPendingPublication && state.PendingPublication is { } pendingSubmission)
         {
             return new StudioMapCommandResult(true, pendingSubmission.Message, state);
         }
@@ -263,7 +265,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
         if (publishResult.Data!.Operation is { } pendingOperation)
         {
-            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation, state.DraftId, state.Generation);
             return new StudioMapCommandResult(true, state.PendingPublication.Message, state);
         }
 

@@ -168,6 +168,13 @@ public sealed class ServerStudioAuthoringShellTests
         Assert.Contains("awaiting approval", submitted.StatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(submitted.PendingPublication, repeated.PendingPublication);
         Assert.Equal(1, client.PublishRequestCount);
+
+        var nextVersion = await shell.SaveVersionAsync(submitted);
+        Assert.Null(nextVersion.PendingPublication);
+        Assert.Equal(submitted.PendingPublication, nextVersion.PreviousPublication);
+        var nextSubmission = await shell.PublishAsync(nextVersion);
+        Assert.NotEqual(submitted.PendingPublication.VersionId, nextSubmission.PendingPublication!.VersionId);
+        Assert.Equal(2, client.PublishRequestCount);
     }
 
     private static async Task<StudioAuthoringSession> ResolveAllClarificationsAsync(

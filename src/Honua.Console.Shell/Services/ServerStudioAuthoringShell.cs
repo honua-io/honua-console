@@ -351,6 +351,8 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                     .ToArray()
             },
             Draft = session.Draft with { CurrentVersionId = version.VersionId.ToString() },
+            PreviousPublication = session.PendingPublication ?? session.PreviousPublication,
+            PendingPublication = null,
             StatusMessage = $"Saved content version v{version.VersionNumber}."
         };
     }
@@ -370,8 +372,10 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             return session with { StatusMessage = "Resolve open clarifications before publishing." };
         }
 
-        if (session.PendingPublication is { } pendingSubmission
-            && pendingSubmission.VersionId.ToString() == session.Draft.CurrentVersionId)
+        if (session.PendingPublication is { IsPending: true } pendingSubmission
+            && pendingSubmission.ItemId.ToString() == session.Draft.ItemId
+            && pendingSubmission.VersionId.ToString() == session.Draft.CurrentVersionId
+            && pendingSubmission.DraftGeneration == session.Draft.Generation)
         {
             return session with { StatusMessage = pendingSubmission.Message };
         }
@@ -390,7 +394,8 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         if (result.Data.Operation is { } pendingOperation)
         {
             var pending = new StudioPendingPublication(
-                Guid.Parse(session.Draft.ItemId), Guid.Parse(session.Draft.CurrentVersionId), pendingOperation);
+                Guid.Parse(session.Draft.ItemId), Guid.Parse(session.Draft.CurrentVersionId), pendingOperation,
+                Guid.Parse(session.Draft.DraftId), session.Draft.Generation);
             return session with
             {
                 ActivePackage = session.ActivePackage with { LifecycleState = StudioPackageLifecycleState.SavedVersion },

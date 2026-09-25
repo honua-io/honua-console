@@ -164,6 +164,8 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
             }
         }
 
+        state.PreviousPublication = state.PendingPublication ?? state.PreviousPublication;
+        state.PendingPublication = null;
         var mapped = ApplyDraftIdentity(state, result.Data!);
         return new StudioDashboardCommandResult(true, $"Saved dashboard draft ({result.Data!.PackageKey}).", mapped);
     }
@@ -212,7 +214,7 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        if (state.PendingPublication is { } pendingSubmission)
+        if (state.HasPendingPublication && state.PendingPublication is { } pendingSubmission)
         {
             return new StudioDashboardCommandResult(true, pendingSubmission.Message, state);
         }
@@ -267,7 +269,7 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
 
         if (publishResult.Data!.Operation is { } pendingOperation)
         {
-            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation, state.DraftId, state.Generation);
             return new StudioDashboardCommandResult(true, state.PendingPublication.Message, state);
         }
 

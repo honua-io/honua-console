@@ -14,6 +14,15 @@ public sealed class StudioMapEditorState
     /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
     public StudioPendingPublication? PendingPublication { get; set; }
 
+    /// <summary>Previous proposal context retained when a new draft generation is explicitly saved.</summary>
+    public StudioPendingPublication? PreviousPublication { get; set; }
+
+    /// <summary>Only the same saved version and unchanged draft generation are deduplicated.</summary>
+    public bool HasPendingPublication => PendingPublication is { IsPending: true } pending
+        && pending.ItemId == ItemId && pending.VersionId == VersionId
+        && pending.DraftId == DraftId && pending.DraftGeneration == Generation;
+
+
     /// <summary>Stable server package id. Null until the first draft is created server-side.</summary>
     public string? MapId { get; set; }
 
