@@ -571,7 +571,7 @@ public sealed class StudioMapBuilderRenderTests
                     packageKey = "studio-map-public-works",
                     family = "map",
                     generation = 1,
-                    envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+                    envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
                     validation = new { status = "not-validated" },
                     createdAt = "2026-05-30T00:00:00Z",
                     updatedAt = "2026-05-30T00:00:00Z"
@@ -583,7 +583,7 @@ public sealed class StudioMapBuilderRenderTests
                     versionId = _versionId,
                     versionNumber = 1,
                     contentHash = "abc",
-                    envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+                    envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
                     validation = new { status = "valid" },
                     createdAt = "2026-05-30T00:00:00Z"
                 },

@@ -510,7 +510,8 @@ public sealed class StudioMapPackageDataSourceTests
             envelope = new
             {
                 family = "map",
-                schemaVersion = StudioMapPackageMapper.SchemaVersion,
+                schemaVersion = "1.0",
+                format = "honua_map_package.v1",
                 body = new
                 {
                     schemaVersion = StudioMapPackageMapper.SchemaVersion,
@@ -537,7 +538,7 @@ public sealed class StudioMapPackageDataSourceTests
             versionId,
             versionNumber,
             contentHash = "abc",
-            envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+            envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
             validation = new { status = "valid" },
             createdAt = "2026-05-30T00:00:00Z"
         };

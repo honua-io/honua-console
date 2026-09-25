@@ -338,7 +338,7 @@ public sealed class StudioPublicationSubmissionTests
                     packageKey = "studio-test",
                     family = "map",
                     generation = 7,
-                    envelope = new { family = "map", schemaVersion = "honua_map_package.v1" },
+                    envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
                     createdAt = "2026-09-25T12:00:00Z",
                     updatedAt = "2026-09-25T12:00:00Z"
                 };
@@ -436,7 +436,7 @@ public sealed class StudioPublicationSubmissionTests
             packageKey = "studio-test",
             versionNumber = SaveCount > 1 ? 4 : 3,
             contentHash = "abc",
-            envelope = new { family = "map", schemaVersion = "honua_map_package.v1" },
+            envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
             validation = new { status = "valid" },
             createdAt = "2026-09-25T12:00:00Z"
         };

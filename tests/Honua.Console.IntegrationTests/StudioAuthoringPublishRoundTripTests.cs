@@ -95,7 +95,7 @@ public sealed class StudioMapPublishRoundTripTests
             published.State.VersionId!.Value);
         Assert.NotNull(version);
         Assert.Equal("map", version!.Family);
-        Assert.Equal(StudioMapPackageMapper.SchemaVersion, version.SchemaVersion);
+        Assert.Equal("1.0", version.SchemaVersion);
         Assert.Equal(published.State.VersionId!.Value.ToString(), version.VersionId);
         Assert.NotNull(version.VersionNumber);
         using var lifecycle = (HttpStudioPackageLifecycleClient)_fixture.CreateClient();
@@ -217,8 +217,8 @@ public sealed class StudioMapPublishRoundTripTests
             Envelope = new StudioPackageEnvelope
             {
                 Family = StudioPackageFamily.Map,
-                SchemaVersion = StudioMapPackageMapper.SchemaVersion,
-                Format = "map.package",
+                SchemaVersion = "1.0",
+                Format = "honua_map_package.v1",
                 Body = System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone()
             }
         });
