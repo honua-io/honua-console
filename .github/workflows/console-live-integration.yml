@@ -55,12 +55,14 @@ jobs:
       # The setup step supplies the same fresh admin key to server and client.
       # Anonymous requests must stay anonymous to exercise publication denial.
       # Extra server env enables durable Studio/job surfaces (KEY=VALUE pairs).
-      # Licensing__DevGrantEdition=Enterprise wires the Redis-backed durable
-      # job/Studio stores (caching.redis entitlement) outside Production.
-      HONUA_CONSOLE_SERVER_ENV: "ASPNETCORE_ENVIRONMENT=Test;HONUA_DEV_AUTH=false;HONUA_DEV_AUTH_ALLOW_BYPASS=false;HONUA_REGISTER_TEST_INFRASTRUCTURE=true;Licensing__DevGrantEdition=Enterprise"
+      # The documented 2026.1 Disabled license posture retains Enterprise
+      # entitlements and direct draft composition, with governed action floors.
+      # A separate Enterprise-mode test requires a pending approval, not a draft.
+      HONUA_CONSOLE_SERVER_ENV: "ASPNETCORE_ENVIRONMENT=Test;HONUA_DEV_AUTH=false;HONUA_DEV_AUTH_ALLOW_BYPASS=false;HONUA_REGISTER_TEST_INFRASTRUCTURE=true;Licensing__Mode=Disabled"
       HONUA_CONSOLE_LIVE_SERVER_STARTUP_TIMEOUT_SECONDS: "420"
       DOTNET_NOLOGO: "1"
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      HONUA_CONSOLE_SERVER_LOG_DIR: ${{ github.workspace }}/artifacts/test-results/server-logs
 
     steps:
       - name: Check out repository
@@ -130,7 +132,7 @@ jobs:
             --logger "trx;LogFileName=integration.trx" \
             --results-directory artifacts/test-results/integration
 
-      - name: Require private-publication denial evidence
+      - name: Require private-publication denial and Enterprise approval evidence
         if: ${{ !cancelled() }}
         run: |
           python3 - <<'PY'
@@ -139,10 +141,12 @@ jobs:
 
           paths = list(pathlib.Path('artifacts/test-results/integration').glob('*.trx'))
           results = [node for path in paths for node in ET.parse(path).getroot().iter()
-                     if node.tag.rsplit('}', 1)[-1] == 'UnitTestResult'
-                     and 'PrivatePublish_LandsButIsNotAnonymouslyReachable' in node.get('testName', '')]
-          assert len(results) == 1, f'Expected one private-publication denial proof, found {len(results)}'
-          assert results[0].get('outcome') == 'Passed', ET.tostring(results[0], encoding='unicode')
+                     if node.tag.rsplit('}', 1)[-1] == 'UnitTestResult']
+          for name in ('PrivatePublish_LandsButIsNotAnonymouslyReachable',
+                       'EnterpriseCreateDraft_RequiresApproval_AndDoesNotCreateDraft'):
+              required = [node for node in results if name in node.get('testName', '')]
+              assert len(required) == 1, f'Expected one {name} proof, found {len(required)}'
+              assert required[0].get('outcome') == 'Passed', ET.tostring(required[0], encoding='unicode')
           PY
 
       - name: Write step summary
@@ -173,5 +177,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: console-live-integration-trx
-          path: artifacts/test-results/**/*.trx
+          path: |
+            artifacts/test-results/**/*.trx
+            artifacts/test-results/server-logs/
           if-no-files-found: warn

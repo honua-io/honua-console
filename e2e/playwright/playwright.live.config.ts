@@ -16,6 +16,7 @@ const PORT = Number(process.env.HONUA_CONSOLE_E2E_LIVE_PORT ?? '5176');
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const SERVER_URL = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1:8088';
 const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
+const REAL_OIDC = process.env.HONUA_CONSOLE_E2E_OIDC === 'true';
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 
 export default defineConfig({
@@ -35,6 +36,10 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    ignoreHTTPSErrors: REAL_OIDC,
+    launchOptions: REAL_OIDC
+      ? { args: ['--host-resolver-rules=MAP host.docker.internal 127.0.0.1'] }
+      : {},
   },
   projects: [
     {
@@ -53,7 +58,8 @@ export default defineConfig({
       DOTNET_CLI_TELEMETRY_OPTOUT: '1',
       // Bind the Console to the live honua-server so Operate/Catalog surfaces hit real endpoints.
       HONUA_SERVER_BASE_URL: SERVER_URL,
-      HONUA_ADMIN_API_KEY: ADMIN_KEY,
+      // OIDC CI proves the browser forwards its exchanged operator bearer.
+      HONUA_ADMIN_API_KEY: REAL_OIDC ? '' : ADMIN_KEY,
       // The Console's non-realtime Studio builder surfaces are SHELVED (gated off by default behind
       // the studio-builders capability) in favour of the realtime SDK-driven Studio. These lanes still
       // certify those builders, so advertise the capability for the browser under test.

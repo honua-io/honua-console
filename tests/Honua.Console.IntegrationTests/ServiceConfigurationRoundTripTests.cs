@@ -215,10 +215,22 @@ public sealed class ServiceConfigurationRoundTripTests
         var operation = new HonuaServerServiceConfigurationOperation(_fixture.CreateOperateClient());
         using var verifier = _fixture.CreateVerifier();
 
+        // Newly published services may legitimately have no explicit policy. Seed a
+        // policy through the supported API so this test measures a real transition.
+        var seed = await operation.UpdateAccessPolicyAsync(new ServiceAccessPolicyCommand
+        {
+            ServiceName = serviceName,
+            AllowAnonymous = false,
+            AllowAnonymousWrite = false,
+            AllowedRoles = ["viewer"]
+        });
+        Assert.True(seed.Succeeded, $"Access-policy seed failed: {seed.State} — {seed.Detail}");
+
         var before = await verifier.GetServiceSettingsAsync(serviceName);
         Assert.False(
             before?.AccessPolicy is null,
             "The pinned honua-server image does not expose the service access-policy projection.");
+        Assert.False(before!.AccessPolicy!.AllowAnonymous);
 
         // --- OPERATION: flip anonymous access to the opposite of its current value, restrict write. ---
         var target = !(before!.AccessPolicy!.AllowAnonymous ?? false);

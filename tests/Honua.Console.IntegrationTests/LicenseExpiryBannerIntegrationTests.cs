@@ -58,6 +58,7 @@ public sealed class LicenseExpiryBannerIntegrationTests
                 "HostValidation__AllowedHosts__0=license-fixture.example",
                 "Security__DisableHttpsRedirection=true",
                 "HONUA_ADMIN_PASSWORD=" + adminKey,
+                "Licensing__Mode=Enabled",
                 "Licensing__DevGrantEdition=",
                 "Licensing__Edition=Pro",
                 "Licensing__LicenseContent=" + envelope,
