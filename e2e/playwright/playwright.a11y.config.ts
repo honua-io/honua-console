@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 // The host runs WITHOUT a backend (missing-binding / demo mode), so the smoke needs no
 // live honua-server. We boot the published artifact when HONUA_CONSOLE_E2E_DLL points at a
 // built `Honua.Console.Web.dll` (CI path), and otherwise fall back to `dotnet run` against
-// the source project (local path). Both bind 127.0.0.1:5174 over plain HTTP.
+// the source project (local path). Both bind the configured loopback port over plain HTTP.
 
 // A distinct default port so a local a11y run can sit alongside a running smoke host.
 const PORT = Number(process.env.HONUA_CONSOLE_A11Y_PORT ?? process.env.HONUA_CONSOLE_E2E_PORT ?? '5178');
@@ -80,8 +80,8 @@ export default defineConfig({
       Honua__Server__AdminApiKey: '',
       Honua__Server__PublicationIds: '',
       // The Console's non-realtime Studio builder surfaces are SHELVED (gated off by default behind
-      // the studio-builders capability) in favour of the realtime SDK-driven Studio. These lanes still
-      // certify those builders, so advertise the capability for the browser under test.
+      // the studio-builders capability) in favour of the realtime SDK-driven Studio. Enable their
+      // backend-free surface for this shell scan; this does not certify live authoring workflows.
       HONUA_CONSOLE_CAPABILITIES: 'studio-builders',
     },
   },

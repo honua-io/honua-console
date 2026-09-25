@@ -85,7 +85,7 @@ test('the app shell is reachable by keyboard', async ({ page }) => {
 
   // Walk the tab order from the top of the document. A keyboard-first shell must put a focusable
   // element within reach of a small number of tab stops; 25 is generous for a skip link plus the
-  // area chrome, and bounds the walk so a focus trap fails the test instead of hanging it.
+  // area chrome, and bounds the attempts. This does not test focus-trap escape or every control.
   let focusedTag = '';
   let reachedInteractive = false;
   for (let stop = 0; stop < 25; stop += 1) {
