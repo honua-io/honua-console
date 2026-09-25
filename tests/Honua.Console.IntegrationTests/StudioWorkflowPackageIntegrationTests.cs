@@ -80,6 +80,8 @@ public sealed class StudioWorkflowPackageIntegrationTests
 
         // 4. The actual editor page renders the live package (not a mock / not the blocked surface).
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.JSInterop.Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(client);
         var page = ctx.Render<StudioWorkflowEditorPage>(
             parameters => parameters.Add(component => component.DraftId, save.ContentItemId));
