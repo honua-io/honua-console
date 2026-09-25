@@ -60,25 +60,30 @@ public sealed class StudioMapPublishRoundTripTests
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var title = $"Console IT map {suffix}";
-        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), _fixture.CreateMapStyles());
 
         // --- OPERATION: author + save a real map draft, then publish it (freezes an immutable version). ---
         var load = await source.LoadAsync(null);
         Assert.True(load.HasEditor);
         var state = load.State!;
         state.Title = title;
-        state.Basemap = "basemap:streets";
+        state.Basemap = "server-default";
         state.InitialExtent = "-158.3,21.2,-157.6,21.7";
         state.ShareTier = "organization";
         state.EmbedAllowed = true;
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
+        state.Layers.Add(await _fixture.CreatePublishedMapLayerAsync());
 
         var saved = await source.SaveDraftAsync(state);
-        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "map draft save");
+        StudioLifecycleAssertions.RequireConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "map draft save");
         Assert.NotNull(saved.State!.DraftId);
+        await _fixture.AssertValidDraftAsync(saved.State.DraftId.Value);
 
         var published = await source.PublishAsync(saved.State);
-        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "map publish");
+        StudioLifecycleAssertions.RequireConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "map publish");
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.False(published.State.IsPublished);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
         Assert.Equal(StudioMapStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.VersionId);
@@ -90,9 +95,22 @@ public sealed class StudioMapPublishRoundTripTests
             published.State.VersionId!.Value);
         Assert.NotNull(version);
         Assert.Equal("map", version!.Family);
-        Assert.Equal(StudioMapPackageMapper.SchemaVersion, version.SchemaVersion);
+        Assert.Equal("1.0", version.SchemaVersion);
         Assert.Equal(published.State.VersionId!.Value.ToString(), version.VersionId);
         Assert.NotNull(version.VersionNumber);
+        using var lifecycle = (HttpStudioPackageLifecycleClient)_fixture.CreateClient();
+        var observedVersion = await lifecycle.GetContentVersionAsync(published.State.ItemId.Value, published.State.VersionId.Value);
+        Assert.True(observedVersion.IsSuccess, observedVersion.Issue?.Detail);
+        var actualStyle = observedVersion.Data!.Envelope.Body!.Value.GetProperty("mapSpec");
+        var preparedStyle = saved.State.CanonicalMapStyle!.Value;
+        foreach (var member in new[] { "sources", "layers" })
+        {
+            Assert.True(System.Text.Json.Nodes.JsonNode.DeepEquals(
+                System.Text.Json.Nodes.JsonNode.Parse(preparedStyle.GetProperty(member).GetRawText()),
+                System.Text.Json.Nodes.JsonNode.Parse(actualStyle.GetProperty(member).GetRawText())));
+        }
+        Assert.NotEmpty(actualStyle.GetProperty("sources").EnumerateObject());
+        Assert.NotEmpty(actualStyle.GetProperty("layers").EnumerateArray());
         // The publication intent (visibility/route the operator chose) is frozen on the content envelope.
         Assert.Equal("organization", version.Visibility);
 
@@ -114,6 +132,77 @@ public sealed class StudioMapPublishRoundTripTests
     }
 
     [SkippableFact]
+    public async Task FocusedApproverKey_ReadsAndApprovesButCannotWrite()
+    {
+        Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
+        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(),
+            new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), _fixture.CreateMapStyles());
+        var state = (await source.LoadAsync(null)).State!;
+        state.Title = $"Focused approval {Guid.NewGuid():N}"[..40];
+        state.Basemap = "server-default";
+        state.InitialExtent = "-158.3,21.2,-157.6,21.7";
+        state.ShareTier = "organization";
+        state.Layers.Add(await _fixture.CreatePublishedMapLayerAsync());
+        var saved = await source.SaveDraftAsync(state);
+        RequireSuccess(saved);
+        var submitted = await source.PublishAsync(saved.State!);
+        RequireSuccess(submitted);
+        var pending = Assert.IsType<StudioPendingPublication>(submitted.State!.PendingPublication);
+        await _fixture.AssertFocusedApprovalPermissionsAsync(pending);
+        var approved = await _fixture.ApprovePublicationAsDistinctActorAsync(pending);
+        approved.Apply(submitted.State);
+        Assert.True(submitted.State.IsPublished);
+    }
+
+    [SkippableFact]
+    public async Task MapPublish_StaleProposalAndInvalidIntent_DoNotMovePublishedPointer()
+    {
+        Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
+        var client = _fixture.CreateClient();
+        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), _fixture.CreateMapStyles());
+        var state = (await source.LoadAsync(null)).State!;
+        state.Title = $"Governed map {Guid.NewGuid():N}"[..40];
+        state.Basemap = "server-default";
+        state.InitialExtent = "-158.3,21.2,-157.6,21.7";
+        state.ShareTier = "organization";
+        state.Layers.Add(await _fixture.CreatePublishedMapLayerAsync());
+        var saved = await source.SaveDraftAsync(state);
+        RequireSuccess(saved);
+        var first = await source.PublishAsync(saved.State!);
+        RequireSuccess(first);
+        var stale = Assert.IsType<StudioPendingPublication>(first.State!.PendingPublication);
+
+        first.State.Title += " revised";
+        var revised = await source.SaveDraftAsync(first.State);
+        RequireSuccess(revised);
+        var second = await source.PublishAsync(revised.State!);
+        RequireSuccess(second);
+        var current = Assert.IsType<StudioPendingPublication>(second.State!.PendingPublication);
+        Assert.NotEqual(stale.VersionId, current.VersionId);
+        Assert.Equal(stale.ItemId, current.ItemId);
+
+        var invalidIntent = await client.SubmitPublishRequestAsync(current.ItemId, current.VersionId,
+            new CreateStudioPublicationRequest { Intent = new StudioPublicationIntent { Visibility = "unsupported-visibility" } });
+        Assert.Equal(400, invalidIntent.Issue?.StatusCode);
+        Assert.Null(invalidIntent.Data);
+        var before = await client.GetContentItemPointersAsync(current.ItemId);
+        Assert.True(before.IsSuccess, before.Issue?.Detail);
+        Assert.Equal(current.VersionId, before.Data!.CurrentVersionId);
+        Assert.Null(before.Data.PublishedVersionId);
+
+        var refusedStale = await _fixture.ApprovePublicationAsDistinctActorAsync(stale, expectValidationFailure: true);
+        Assert.Equal(current.VersionId, refusedStale.Pointers!.CurrentVersionId);
+        Assert.Null(refusedStale.Pointers.PublishedVersionId);
+        var approvedCurrent = await _fixture.ApprovePublicationAsDistinctActorAsync(current);
+        approvedCurrent.Apply(second.State);
+        Assert.True(second.State.IsPublished);
+        Assert.Equal(current.VersionId, approvedCurrent.Pointers!.PublishedVersionId);
+    }
+
+    private static void RequireSuccess(StudioMapCommandResult result)
+        => StudioLifecycleAssertions.RequireConsoleOperation(result.Succeeded, result.Issue?.State, result.Message, "governed map lifecycle");
+
+    [SkippableFact]
     public async Task MapPublish_WithInvalidDraft_IsRejectedWithFieldErrors_AndNothingLands()
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
@@ -128,24 +217,23 @@ public sealed class StudioMapPublishRoundTripTests
             Envelope = new StudioPackageEnvelope
             {
                 Family = StudioPackageFamily.Map,
-                SchemaVersion = StudioMapPackageMapper.SchemaVersion,
-                Format = "map.package",
+                SchemaVersion = "1.0",
+                Format = "honua_map_package.v1",
                 Body = System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone()
             }
         });
-        StudioLifecycleSkips.SkipIfDraftNotReady(createResult.Issue);
+        StudioLifecycleAssertions.AssertDraftReady(createResult.Issue);
         Assert.Null(createResult.Issue);
         var draft = createResult.Data!;
 
         var validation = await client.ValidatePackageDraftAsync(draft.DraftId);
-        StudioLifecycleSkips.SkipIfValidateNotReady(validation.Issue);
+        StudioLifecycleAssertions.AssertValidateReady(validation.Issue);
         Assert.Null(validation.Issue);
 
         // The validation initiative requires a rejecting validation to carry field-addressable diagnostics.
-        // A pinned image whose map validation depth does not yet reject an empty body would return Valid;
-        // skip cleanly in that case rather than asserting a contract the image does not implement yet.
+        // A valid result here would fail to prove the required rejection contract.
         var summary = validation.Data!;
-        Skip.If(
+        Assert.False(
             summary.Status is StudioPackageValidationStatus.Valid,
             "The pinned server image's map package validation did not reject an empty envelope body; "
             + "the field-level rejection round-trip needs a server build whose map validation depth flags it.");
@@ -156,9 +244,9 @@ public sealed class StudioMapPublishRoundTripTests
 
         // Exercise the GATED publish path the operation uses (Codex #155): drive cut-version → publish-request
         // and assert no PUBLISHED content lands for a blocker-validated draft. Some server images defer
-        // validation enforcement to publish-request (the cut is allowed but the publish is refused), so accept
-        // a rejection at EITHER gate; what must never happen is an accepted publish request.
-        await StudioLifecycleSkips.AssertInvalidDraftNeverPublishesAsync(client, draft);
+        // validation enforcement to approved replay. If admitted for approval, exercise that supported
+        // path and require terminal validation failure with no published pointer change.
+        await StudioLifecycleAssertions.AssertInvalidDraftNeverPublishesAsync(client, draft, _fixture);
 
         // Independently confirm NOTHING landed as published: the publication route for the item is absent.
         using var verifier = _fixture.CreateVerifier();
@@ -191,14 +279,18 @@ public sealed class StudioDashboardPublishRoundTripTests
 
         // --- OPERATION: save → server-validate → publish (freezes an immutable content version). ---
         var saved = await source.SaveDraftAsync(editor);
-        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "dashboard draft save");
+        StudioLifecycleAssertions.RequireConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "dashboard draft save");
         Assert.NotNull(saved.State!.DraftId);
 
         var validated = await source.ValidateAsync(saved.State);
-        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(validated.Succeeded, validated.Issue?.State, validated.Message, "dashboard validate");
+        StudioLifecycleAssertions.RequireConsoleOperation(validated.Succeeded, validated.Issue?.State, validated.Message, "dashboard validate");
 
         var published = await source.PublishAsync(validated.State!);
-        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "dashboard publish");
+        StudioLifecycleAssertions.RequireConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "dashboard publish");
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.False(published.State.IsPublished);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
         Assert.Equal(StudioDashboardStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.CurrentVersionId);
@@ -236,7 +328,7 @@ public sealed class StudioDashboardPublishRoundTripTests
 
         var client = _fixture.CreateClient();
 
-        // A dashboard draft with an empty body (no panels/bindings) violates the dashboard package schema.
+        // Dashboard widgets, when present, must be an array; an empty dashboard is a valid draft.
         var createResult = await client.CreatePackageDraftAsync(new CreateStudioPackageDraftRequest
         {
             PackageKey = $"studio-dashboard-invalid-{Guid.NewGuid():N}"[..40],
@@ -245,21 +337,21 @@ public sealed class StudioDashboardPublishRoundTripTests
                 Family = StudioPackageFamily.Dashboard,
                 SchemaVersion = StudioDashboardPackageMapper.SchemaVersion,
                 Format = StudioDashboardPackageMapper.EnvelopeFormat,
-                Body = System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone()
+                Body = System.Text.Json.JsonDocument.Parse("""{"widgets": "not-an-array"}""").RootElement.Clone()
             }
         });
-        StudioLifecycleSkips.SkipIfDraftNotReady(createResult.Issue);
+        StudioLifecycleAssertions.AssertDraftReady(createResult.Issue);
         Assert.Null(createResult.Issue);
         var draft = createResult.Data!;
 
         var validation = await client.ValidatePackageDraftAsync(draft.DraftId);
-        StudioLifecycleSkips.SkipIfValidateNotReady(validation.Issue);
+        StudioLifecycleAssertions.AssertValidateReady(validation.Issue);
         Assert.Null(validation.Issue);
 
         var summary = validation.Data!;
-        Skip.If(
+        Assert.False(
             summary.Status is StudioPackageValidationStatus.Valid,
-            "The pinned server image's dashboard package validation did not reject an empty envelope body; "
+            "The pinned server image's dashboard package validation did not reject a non-array widgets value; "
             + "the field-level rejection round-trip needs a server build whose dashboard validation depth flags it.");
         Assert.Contains(
             summary.Diagnostics,
@@ -269,7 +361,7 @@ public sealed class StudioDashboardPublishRoundTripTests
         // Exercise the GATED publish path the operation uses (Codex #155): drive cut-version → publish-request
         // and assert no PUBLISHED content lands for a blocker-validated draft (rejection accepted at either
         // gate; an accepted publish request must never happen).
-        await StudioLifecycleSkips.AssertInvalidDraftNeverPublishesAsync(client, draft);
+        await StudioLifecycleAssertions.AssertInvalidDraftNeverPublishesAsync(client, draft, _fixture);
 
         // Independently confirm NOTHING landed as published: the publication route for the item is absent.
         using var verifier = _fixture.CreateVerifier();
@@ -400,7 +492,7 @@ public sealed class StudioReportPublishRoundTripTests
             }
         });
 
-        Skip.If(
+        Assert.False(
             result.Issue is { } issue5 && issue5.StatusCode >= 500,
             $"The pinned honua-server image could not service the publish path ({result.Issue!.State} — {result.Issue.Detail}).");
         Assert.Null(result.Data);
@@ -442,8 +534,8 @@ public sealed class StudioFormPublishRoundTripTests
         // --- OPERATION: author a publishable form, save → validate → publish through the real lifecycle. ---
         var seed = StudioFormPackageMapper.CreateTemplate();
         seed.Title = title;
-        seed.ServiceId = "console-form-fixture";
-        seed.LayerId = 0;
+        seed.ServiceId = _fixture.TargetServiceId;
+        seed.LayerId = _fixture.TargetLayerId;
         seed.OfflinePolicyReviewed = true;
 
         var saved = await dataSource.SaveDraftAsync(seed);
@@ -452,10 +544,10 @@ public sealed class StudioFormPublishRoundTripTests
         Assert.False(string.IsNullOrWhiteSpace(formId));
 
         var validated = await dataSource.ValidateAsync(saved.State);
-        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(validated.Succeeded, validated.Issue?.State, validated.Message, "form validate");
+        StudioLifecycleAssertions.RequireConsoleOperation(validated.Succeeded, validated.Issue?.State, validated.Message, "form validate");
 
         var published = await dataSource.PublishAsync(validated.State!);
-        StudioLifecycleSkips.SkipOrFailOnConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "form publish");
+        StudioLifecycleAssertions.RequireConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "form publish");
         Assert.Equal(HonuaFormStatuses.Published, published.State!.Status);
         var publishedVersion = published.State.Version;
 
@@ -465,7 +557,7 @@ public sealed class StudioFormPublishRoundTripTests
         Assert.NotNull(package);
         Assert.Equal(formId, package!.FormId);
         Assert.Equal(title, package.Title);
-        Assert.Equal("console-form-fixture", package.ServiceId);
+        Assert.Equal(_fixture.TargetServiceId, package.ServiceId);
         Assert.Equal(HonuaFormPackageStatus.Published, package.Status);
         Assert.Equal(publishedVersion, package.Version);
 
@@ -499,8 +591,8 @@ public sealed class StudioFormPublishRoundTripTests
         // draft exists, then publish to trigger the server-side rejection.
         var seed = StudioFormPackageMapper.CreateTemplate();
         seed.Title = title;
-        seed.ServiceId = "console-form-fixture-bad";
-        seed.LayerId = 0;
+        seed.ServiceId = _fixture.TargetServiceId;
+        seed.LayerId = _fixture.TargetLayerId;
         seed.OfflinePolicyReviewed = true;
         seed.Fields.Clear();
         seed.Fields.Add(new StudioFormFieldEditor
@@ -520,14 +612,14 @@ public sealed class StudioFormPublishRoundTripTests
         // bad submit target. A 5xx / Unavailable here means the pinned image cannot service the form
         // validate/publish path (contract drift) — skip cleanly rather than false-fail (mirrors W1/W3).
         var validated = await dataSource.ValidateAsync(saved.State);
-        StudioLifecycleSkips.SkipIfFormValidateNotReady(validated);
+        StudioLifecycleAssertions.AssertFormValidateReady(validated);
 
         // ValidateAsync returns Succeeded=true even when the server reports issues (the command surfaces the
         // findings on Validation); a genuinely invalid form must therefore carry validation issues, and at
         // least one must be field-addressable. If the server validated it clean, the pinned image's form
         // validation depth does not yet flag a bad submit target — skip cleanly.
         var validationIssues = validated.Validation?.Issues ?? saved.State.LastValidation?.Issues ?? [];
-        Skip.If(
+        Assert.False(
             validated.Validation is { IsValid: true } || validationIssues.Count == 0,
             "The pinned server image's form validation did not flag an invalid submit target; the field-level "
             + "rejection round-trip needs a server build whose form validation depth flags it.");
@@ -549,57 +641,28 @@ public sealed class StudioFormPublishRoundTripTests
 }
 
 /// <summary>
-/// Shared skip helpers for the Studio authoring→publish round-trips: a not-ready signal from the pinned image
-/// (missing lifecycle path / unsupported verb / 5xx) is a server-readiness condition, not a console
-/// regression, so the lane reports "not exercised" rather than a false failure (mirrors the W1/W3 pattern).
+/// Required assertions for opted-in Studio authoring and publishing contract receipts.
+/// Missing routes, permission failures, and server errors must fail the configured live lane.
 /// </summary>
-internal static class StudioLifecycleSkips
+internal static class StudioLifecycleAssertions
 {
-    // Server-readiness states the builder data sources surface on their capability state when the pinned image
-    // cannot service a lifecycle path (transport/5xx → "Unavailable"; missing route/verb → "Unsupported";
-    // permission gaps → "Missing permission"). These are NOT console regressions, so they justify a clean skip.
-    private static readonly string[] ServerNotReadyStates =
-        ["Unavailable", "Unsupported", "Missing permission"];
-
-    /// <summary>
-    /// For a console builder OPERATION driven with a known-good input: succeed silently, SKIP cleanly when the
-    /// failure carries a server-not-ready capability state (the pinned image lacks the path — mirrors W1/W3), or
-    /// FAIL when the operation failed for any other reason (a real console-side regression — e.g. the operation
-    /// built an invalid envelope/publish request). This is the Codex #155 fix: a rejected publish of a valid
-    /// input must fail, not silently skip and let the nightly lane look green while nothing was published.
-    /// </summary>
-    public static void SkipOrFailOnConsoleOperation(bool succeeded, string? issueState, string message, string operation)
+    public static void RequireConsoleOperation(bool succeeded, string? issueState, string message, string operation)
     {
-        if (succeeded)
-        {
-            return;
-        }
-
-        var serverNotReady = issueState is not null
-            && ServerNotReadyStates.Any(state => string.Equals(state, issueState, StringComparison.OrdinalIgnoreCase));
-
-        Skip.If(
-            serverNotReady,
-            $"The pinned honua-server image could not service the {operation} path ({issueState} — {message}); "
-            + "the authoring→publish round-trip needs a server build whose Studio lifecycle is ready.");
-
-        Assert.True(
-            succeeded,
-            $"The console {operation} operation failed against a ready server (no server-not-ready signal): {message}. "
-            + "A regression in the operation under test must fail here, not skip.");
+        Assert.True(succeeded, $"The console {operation} failed ({issueState}): {message}.");
     }
 
     /// <summary>
     /// Drives the gated cut-version → publish-request path for a blocker-validated draft and asserts no
     /// PUBLISHED content lands (Codex #155). Server images differ on WHERE the validation gate enforces: some
-    /// refuse the version cut, others allow the cut but refuse the publish request. Accept a rejection at
-    /// either gate; the only forbidden outcome is an accepted publish request. When the cut is allowed and the
-    /// publish request is rejected, the cut version is an unpublished draft revision — that is fine; the
+    /// refuse the version cut, others defer validation until the approved proposal is replayed. A pending
+    /// proposal must reach terminal failure through a distinct reviewer, with the published pointer unchanged.
+    /// When the cut is allowed but publication is rejected, the cut version is an unpublished draft revision — that is fine; the
     /// caller's independent publication-route check proves nothing reachable landed.
     /// </summary>
     public static async Task AssertInvalidDraftNeverPublishesAsync(
         IStudioPackageLifecycleClient client,
-        StudioPackageDraft draft)
+        StudioPackageDraft draft,
+        StudioPackageLifecycleFixture fixture)
     {
         var versionAttempt = await client.SaveContentVersionAsync(
             draft.DraftId,
@@ -607,52 +670,62 @@ internal static class StudioLifecycleSkips
 
         if (versionAttempt.Issue is not null)
         {
-            // The server gated at the version-cut step — no version, nothing to publish.
+            // Only a validation/conflict rejection proves the gate; transport and server failures do not.
+            Assert.True(versionAttempt.Issue.StatusCode is 400 or 409 or 422, versionAttempt.Issue.Detail);
             Assert.Null(versionAttempt.Data);
             return;
         }
 
-        // The cut was allowed; the publish request MUST be the gate that refuses a blocker-validated version.
+        // The cut was allowed; submission or approved replay must refuse a blocker-validated version.
         var version = versionAttempt.Data!;
-        var publishAttempt = await client.CreatePublishRequestAsync(
+        var publishAttempt = await client.SubmitPublishRequestAsync(
             version.ItemId,
             version.VersionId,
             new CreateStudioPublicationRequest());
 
+        if (publishAttempt.Data?.Operation is { } pendingOperation)
+        {
+            // Admission for approval is not validation success. Exercise the supported actuator
+            // through a distinct reviewer and prove terminal failure plus an unchanged pointer.
+            var pending = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            await fixture.ApprovePublicationAsDistinctActorAsync(pending, expectValidationFailure: true);
+            return;
+        }
+
         Assert.True(
-            publishAttempt.Issue is not null
-                || publishAttempt.Data?.Status is StudioPublicationRequestStatus.Rejected,
+            publishAttempt.Issue?.StatusCode is 400 or 409 or 422
+                || publishAttempt.Data?.Publication?.Status is StudioPublicationRequestStatus.Rejected,
             "A blocker-validated draft must not yield an accepted publish request; "
-            + $"the server accepted it (status {publishAttempt.Data?.Status}).");
+            + $"the server accepted it (status {publishAttempt.Data?.Publication?.Status}).");
     }
 
-    public static void SkipIfDraftNotReady(StudioEndpointIssue? issue)
+    public static void AssertDraftReady(StudioEndpointIssue? issue)
     {
         if (issue is null)
         {
             return;
         }
 
-        Skip.If(
+        Assert.False(
             issue.State is "Unsupported" or "Unavailable" || issue.StatusCode >= 500,
             $"The pinned honua-server image could not service the Studio package-draft path ({issue.State} — {issue.Detail}); "
             + "the authoring→publish round-trip needs a server build whose Studio package lifecycle (#1180) is ready.");
     }
 
-    public static void SkipIfValidateNotReady(StudioEndpointIssue? issue)
+    public static void AssertValidateReady(StudioEndpointIssue? issue)
     {
         if (issue is null)
         {
             return;
         }
 
-        Skip.If(
+        Assert.False(
             issue.State is "Unsupported" or "Unavailable" || issue.StatusCode >= 500,
             $"The pinned honua-server image could not service the Studio validate path ({issue.State} — {issue.Detail}); "
             + "the field-level rejection round-trip needs a server build whose Studio validation (#1181) is ready.");
     }
 
-    public static void SkipIfFormValidateNotReady(StudioFormCommandResult result)
+    public static void AssertFormValidateReady(StudioFormCommandResult result)
     {
         if (result.Issue is not { } issue)
         {
@@ -660,10 +733,8 @@ internal static class StudioLifecycleSkips
         }
 
         // The form client maps a 5xx / transport failure to the neutral "Unavailable"/"Unsupported" state. That
-        // signals the pinned image cannot service the form validate/publish path (the nightly image currently
-        // 500s on form validate), so skip cleanly rather than false-fail. A genuine "Rejected" with findings is
-        // the real reject path and must not be skipped.
-        Skip.If(
+        // fails the live contract receipt. A "Rejected" response with findings is the expected negative path.
+        Assert.False(
             issue.State is "Unavailable" or "Unsupported",
             $"The pinned honua-server image could not service the form validate path ({issue.State} — {issue.Detail}).");
     }

@@ -51,6 +51,7 @@ public sealed class StudioAppBuilderIntegrationTests
         // 2. Server validation runs against the live draft.
         var validated = await source.ValidateAsync(saved.State!);
         Assert.NotNull(validated.Validation);
+        await _fixture.AssertValidDraftAsync(saved.State.DraftId!.Value);
 
         // 3. Publish freezes an immutable version + creates a publication request.
         var published = await source.PublishAsync(saved.State!);
@@ -58,6 +59,11 @@ public sealed class StudioAppBuilderIntegrationTests
             published.Issue is not null,
             $"The live server rejected publish: {published.Issue?.Detail}");
         Assert.True(published.Succeeded);
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.False(published.State.IsPublished);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
+        Assert.True(published.State.IsPublished);
         var itemId = published.State!.ItemId!.Value;
 
         // 4. Version history lists the immutable version from the live server.

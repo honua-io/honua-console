@@ -1,0 +1,48 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+@if (Pending is { } pending)
+{
+    <div class="console-notice" role="status" data-publication-state="@(pending.IsPending ? "awaiting-approval" : "reviewed")">
+        <strong>@(pending.IsPending ? "Awaiting approval" : "Publication review")</strong>
+        <p>@pending.Message</p>
+        <a class="console-button-link" href="/approvals">Open approvals</a>
+        <button class="console-button console-button-secondary" disabled="@_refreshing" @onclick="Refresh">Refresh publication</button>
+        @if (_message is not null)
+        {
+            <p>@_message</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public StudioPendingPublication? Pending { get; set; }
+    [Parameter] public EventCallback<StudioPublicationRefresh> Refreshed { get; set; }
+    private bool _refreshing;
+    private string? _message;
+
+    private async Task Refresh()
+    {
+        if (Pending is not { } pending || _refreshing) return;
+        var reader = Services.GetService<IStudioPublicationStatusReader>();
+        if (reader is null)
+        {
+            _message = "Publication status is not bound to a server.";
+            return;
+        }
+
+        _refreshing = true;
+        try
+        {
+            var result = await reader.RefreshAsync(pending);
+            _message = result.Message;
+            if (result.Succeeded) await Refreshed.InvokeAsync(result);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+}

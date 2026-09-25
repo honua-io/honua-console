@@ -1,35 +1,17 @@
+using System.Net;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
 
 namespace Honua.Console.IntegrationTests;
 
 /// <summary>
-/// Catalog-discovery round-trip (console-integration-test-plan.md Wave 3, Family G, P2; honua-console#125 /
-/// honua-server#1279).
-///
-/// Drives the production <see cref="HonuaServerCatalogDiscoveryDataSource"/> (the console catalogs OPERATION
-/// path) to load the discovery-endpoints registry, and asserts the result INDEPENDENTLY through the
-/// <see cref="ServerStateVerifier"/> oracle hitting the server's own registry API
-/// (<c>/api/v1/console/catalog-endpoints/{workspaceId}</c>) — proving the console catalogs reflection matches
-/// the server-owned registry (rule #2). The detail/item drill-downs round-trip the same way when an endpoint
-/// with items is present.
-///
-/// ROUTE-MOUNTED DISCRIMINATOR (prior-agent finding): asserting the console projection's opaque
-/// <c>state == "Unsupported"</c> is a weak route-existence check (it cannot tell a deliberately-404'd absent
-/// contract from a mounted route returning an unexpected shape). The strong discriminator is an ANONYMOUS
-/// request to the admin-gated route: a mounted + gated route rejects it with 401 (matching the server's
-/// <c>AnonymousRequests_AreRejectedWithoutAdminAuthorization</c> tests) while an absent route returns 404.
-/// This suite asserts that discriminator directly, then — only when the route is mounted AND the admin read
-/// returns the registry — asserts the console↔server registry round-trip.
-///
-/// Off by default; the SkippableFacts skip cleanly without Docker / the opt-in env (Console Patterns Charter
-/// section 11) and RUN in the nightly lane.
+/// Publishes real layers through the supported API, then verifies the mapped workspace registry,
+/// Console detail/item reflection, namespace isolation and authentication against the hosted server.
 /// </summary>
 [Collection(TemporalReplicaIntegrationCollection.Name)]
 public sealed class CatalogDiscoveryRoundTripTests
 {
-    private const string Workspace = "default";
-
+    private const string Workspace = TemporalReplicaFixture.CatalogWorkspace;
     private readonly TemporalReplicaFixture _fixture;
 
     public CatalogDiscoveryRoundTripTests(TemporalReplicaFixture fixture)
@@ -41,92 +23,68 @@ public sealed class CatalogDiscoveryRoundTripTests
     public async Task CatalogDiscovery_RouteMountedDiscriminator_And_ConsoleReflectsServerRegistry()
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
-
         using var verifier = _fixture.CreateVerifier();
-
-        // --- Strong route-mounted discriminator: probe the admin-gated registry route ANONYMOUSLY. ---
-        // 401 = route mounted + admin-gated; 404 = route absent (contract #1279 not on this image). Status 0
-        // means the server was unreachable (image not ready) → skip cleanly rather than false-fail.
-        var anonStatus = await verifier.ProbeAdminRouteAnonymousStatusAsync(
+        var anonymousStatus = await verifier.ProbeAdminRouteAnonymousStatusAsync(
             $"/api/v1/console/catalog-endpoints/{Workspace}");
-        Skip.If(
-            anonStatus == 0,
-            "The catalog discovery registry route was unreachable; the pinned server image is not ready for the round-trip.");
+        Assert.True(anonymousStatus is 401 or 403,
+            $"The mounted catalog route must deny anonymous callers; received {anonymousStatus}.");
 
-        // Mounted+gated routes deny anonymous callers with 401 (some deployments use 403). An absent contract
-        // returns 404. NOTE: the nightly lane runs the server with dev-auth bypass, which auto-authenticates
-        // every request — so on that profile the anonymous probe is treated as admin and may return 200/404
-        // by content rather than 401. Treat any non-404 mounted response as "route present"; a 404 is the
-        // authoritative "contract absent" signal.
-        var routeMounted = anonStatus != 404;
-        Skip.If(
-            !routeMounted,
-            "The pinned honua-server image does not mount the catalog discovery-endpoints registry "
-            + "(honua-server#1279): an anonymous probe returned 404. The console correctly renders the "
-            + "missing-binding state; the registry round-trip lights up once #1279 lands.");
+        // Mapping alone does not populate a registry. No synthetic catalog or metadata graph is seeded.
+        var before = await verifier.GetCatalogDiscoveryRegistryAsync(Workspace);
+        Assert.NotNull(before);
+        Assert.Empty(before.Endpoints);
 
-        // --- The route is mounted: the independent admin read returns the server-owned registry. ---
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var published = await PublishedLayerSeeder.PublishNamespacedLayerAsync(
+            _fixture, $"catalog_{suffix}", TemporalReplicaFixture.CatalogNamespace);
+        var foreign = await PublishedLayerSeeder.PublishNamespacedLayerAsync(
+            _fixture, $"foreign_{suffix}", "console-other-namespace");
+
+        // An independent protocol read proves the configured registry describes a real served layer.
+        var features = await verifier.QueryFeatureServerAsync(published.ServiceName, published.LayerId, "1=1");
+        Assert.NotNull(features);
+        Assert.Equal(3, features.Count);
         var serverRegistry = await verifier.GetCatalogDiscoveryRegistryAsync(Workspace);
-        Skip.If(
-            serverRegistry is null,
-            "The catalog discovery-endpoints route is mounted but the admin read did not return a registry on "
-            + "this image (contract drift); the console↔server registry assertion needs a ready #1279 build.");
+        Assert.NotNull(serverRegistry);
+        var serverEndpoint = Assert.Single(serverRegistry.Endpoints);
+        Assert.Equal("esri", serverEndpoint.Key);
+        Assert.True((serverEndpoint.Entries ?? 0) > 0);
 
-        // --- OPERATION under test: the console catalogs data source loads the same registry. ---
-        var dataSource = new HonuaServerCatalogDiscoveryDataSource(
-            new HonuaCatalogDiscoveryHttpClient(
-                _fixture.CreateRawClient(),
-                new HonuaCatalogDiscoveryClientOptions(_fixture.BaseAddress, _fixture.AdminApiKey)));
-
+        using var client = new HonuaCatalogDiscoveryHttpClient(_fixture.CreateRawClient(),
+            new HonuaCatalogDiscoveryClientOptions(_fixture.BaseAddress, _fixture.AdminApiKey));
+        var dataSource = new HonuaServerCatalogDiscoveryDataSource(client);
         var load = await dataSource.LoadRegistryAsync(Workspace);
-        Assert.True(load.HasRegistry, "The console catalogs registry did not bind to the live server registry.");
+        Assert.True(load.HasRegistry, DescribeStates(load.CapabilityStates));
         Assert.Empty(load.CapabilityStates);
+        Assert.Equal(serverRegistry.WorkspaceId, load.Registry!.WorkspaceId);
+        Assert.Equal(serverRegistry.Endpoints.Select(endpoint => endpoint.Key),
+            load.Registry.Endpoints.Select(endpoint => endpoint.Key));
 
-        // The console reflection matches the SERVER-owned registry: same workspace + same endpoint keys. ---
-        Assert.Equal(serverRegistry!.WorkspaceId, load.Registry!.WorkspaceId);
-        var serverKeys = serverRegistry.Endpoints.Select(e => e.Key).OrderBy(k => k).ToArray();
-        var consoleKeys = load.Registry.Endpoints.Select(e => e.Key).OrderBy(k => k).ToArray();
-        Assert.Equal(serverKeys, consoleKeys);
-
-        // --- Endpoint + item drill-down round-trip (only when the registry advertises an endpoint). ---
-        // Once the server advertises an endpoint, the console MUST bind its detail (asserting the drill-down
-        // route the test is meant to cover) — a failed binding is a real failure or an explicit skip with the
-        // reported issue, never a silent pass (Codex #154). The detail/item routes are part of #1279, so a
-        // detail binding that comes back unbound on a not-yet-ready image skips cleanly; a bound detail that
-        // disagrees with the advertised endpoint fails.
-        var endpointWithItems = serverRegistry.Endpoints.FirstOrDefault(e => (e.Entries ?? 0) > 0)
-            ?? serverRegistry.Endpoints.FirstOrDefault();
-        if (endpointWithItems?.Key is { Length: > 0 } endpointKey)
+        var detail = await dataSource.LoadEndpointAsync(Workspace, "esri");
+        Assert.True(detail.HasDetail, DescribeStates(detail.CapabilityStates));
+        Assert.Equal(serverEndpoint.Entries, detail.Detail!.Items.Count);
+        Assert.NotEmpty(detail.Detail.Items);
+        Assert.All(detail.Detail.Items, item => Assert.Equal(published.ServiceName, item.Title));
+        Assert.DoesNotContain(detail.Detail.Items, item => item.Title == foreign.ServiceName);
+        foreach (var row in detail.Detail.Items)
         {
-            var detail = await dataSource.LoadEndpointAsync(Workspace, endpointKey);
-            Skip.If(
-                !detail.HasDetail,
-                "The catalog discovery endpoint-detail route is not ready on this image "
-                + $"({DescribeStates(detail.CapabilityStates)}); the registry list round-trip above stands.");
-
-            Assert.Equal(endpointKey, detail.Detail!.Endpoint.Key);
-
-            // An endpoint that advertised entries must expose its mirrored items table.
-            if ((endpointWithItems.Entries ?? 0) > 0)
-            {
-                Assert.NotEmpty(detail.Detail.Items);
-            }
-
-            var item = detail.Detail.Items.FirstOrDefault();
-            if (item is not null)
-            {
-                var itemLoad = await dataSource.LoadItemAsync(Workspace, endpointKey, item.Id);
-                Skip.If(
-                    !itemLoad.HasItem,
-                    "The catalog discovery item-editor route is not ready on this image "
-                    + $"({DescribeStates(itemLoad.CapabilityStates)}); the endpoint-detail round-trip above stands.");
-                Assert.Equal(item.Id, itemLoad.Item!.Id);
-            }
+            var item = await dataSource.LoadItemAsync(Workspace, "esri", row.Id);
+            Assert.True(item.HasItem, DescribeStates(item.CapabilityStates));
+            Assert.Equal(row.Id, item.Item!.Id);
+            Assert.Equal(published.ServiceName, item.Item.Title);
         }
+
+        using var http = _fixture.CreateRawClient();
+        http.DefaultRequestHeaders.Add("X-API-Key", _fixture.AdminApiKey);
+        using var unknown = await http.GetAsync("/api/v1/console/catalog-endpoints/unmapped-workspace");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        // The same API key resolves the configured public tenant, not a tenant selected by the workspace URL.
+        using var wrongTenant = await http.GetAsync("/api/v1/console/catalog-endpoints/other-tenant-workspace");
+        Assert.Equal(HttpStatusCode.NotFound, wrongTenant.StatusCode);
     }
 
     private static string DescribeStates(IReadOnlyList<Honua.Console.Shell.Models.CatalogDiscoveryCapabilityState> states) =>
         states.Count == 0
             ? "<no capability states>"
-            : string.Join("; ", states.Select(s => $"{s.State}: {s.Detail}"));
+            : string.Join("; ", states.Select(state => $"{state.State}: {state.Detail}"));
 }

@@ -1,4 +1,5 @@
 using Honua.Sdk.Studio.Packages;
+using Honua.Sdk.Abstractions.Operations;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -147,6 +148,35 @@ public sealed class ServerStudioAuthoringShellTests
         Assert.Equal(publishable.Draft, published.Draft);
     }
 
+    [Fact]
+    public async Task Publish_ApprovalRequired_KeepsSavedVersionAndDoesNotResubmit()
+    {
+        var client = new RecordingStudioPackageLifecycleClient { ApprovalRequired = true };
+        IStudioAuthoringShell shell = new ServerStudioAuthoringShell(client);
+        var session = await shell.GeneratePackageAsync(await shell.CreateInitialSessionAsync(), "map", "Make a map");
+        var clarified = await ResolveAllClarificationsAsync(shell, session);
+        var saved = await shell.SaveVersionAsync(clarified);
+
+        var submitted = await shell.PublishAsync(saved);
+        var repeated = await shell.PublishAsync(submitted);
+
+        Assert.Equal(StudioPackageLifecycleState.SavedVersion, submitted.ActivePackage.LifecycleState);
+        Assert.Equal(saved.Draft, submitted.Draft);
+        Assert.Null(submitted.BindingState);
+        Assert.NotNull(submitted.PendingPublication);
+        Assert.Equal("proposal-1", submitted.PendingPublication.Operation.ProposalId);
+        Assert.Contains("awaiting approval", submitted.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(submitted.PendingPublication, repeated.PendingPublication);
+        Assert.Equal(1, client.PublishRequestCount);
+
+        var nextVersion = await shell.SaveVersionAsync(submitted);
+        Assert.Null(nextVersion.PendingPublication);
+        Assert.Equal(submitted.PendingPublication, nextVersion.PreviousPublication);
+        var nextSubmission = await shell.PublishAsync(nextVersion);
+        Assert.NotEqual(submitted.PendingPublication.VersionId, nextSubmission.PendingPublication!.VersionId);
+        Assert.Equal(2, client.PublishRequestCount);
+    }
+
     private static async Task<StudioAuthoringSession> ResolveAllClarificationsAsync(
         IStudioAuthoringShell shell,
         StudioAuthoringSession session)
@@ -167,6 +197,8 @@ public sealed class ServerStudioAuthoringShellTests
         public Uri BaseUri { get; } = new("https://honua.test");
 
         public bool ConflictOnceOnUpdate { get; init; }
+
+        public bool ApprovalRequired { get; init; }
 
         public List<UpdateStudioPackageDraftRequest> UpdateRequests { get; } = [];
 
@@ -388,6 +420,33 @@ public sealed class ServerStudioAuthoringShellTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(NotFound<StudioContentVersion>(
                 "GET /api/v1/studio/content-items/{itemId}/versions/{versionId}"));
+
+        public async Task<StudioEndpointResult<StudioPublicationSubmission>> SubmitPublishRequestAsync(
+            Guid itemId,
+            Guid versionId,
+            CreateStudioPublicationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (!ApprovalRequired)
+            {
+                var result = await CreatePublishRequestAsync(itemId, versionId, request, cancellationToken);
+                return StudioEndpointResult<StudioPublicationSubmission>.FromData(
+                    StudioPublicationSubmission.FromPublication(result.Data!));
+            }
+
+            PublishRequestCount++;
+            return StudioEndpointResult<StudioPublicationSubmission>.FromData(StudioPublicationSubmission.AwaitingApproval(
+                new HonuaOperationHandle
+                {
+                    OperationInstanceId = "invocation-1",
+                    OperationId = "studio.content.create-publication-request",
+                    Status = HonuaOperationStatus.RequiresApproval,
+                    CorrelationId = "correlation-1",
+                    ProposalId = "proposal-1",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                }));
+        }
 
         public Task<StudioEndpointResult<StudioPublicationRequest>> CreatePublishRequestAsync(
             Guid itemId,

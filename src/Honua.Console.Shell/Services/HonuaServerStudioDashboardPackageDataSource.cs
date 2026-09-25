@@ -131,17 +131,35 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
 
         var envelope = BuildEnvelope(state);
         StudioEndpointResult<StudioPackageDraft> result;
+        var editableDraftId = state.DraftId;
+        var editableGeneration = state.Generation;
+        if (state.FrozenDraft is { } frozen
+            && frozen.DraftId == state.DraftId && frozen.ItemId == state.ItemId
+            && frozen.VersionId == state.CurrentVersionId)
+        {
+            // Explicit Save after submission starts from the exact immutable version. Never
+            // overwrite a concurrently edited old draft or guess the generation advanced by freeze.
+            var reopened = await _client.ReopenContentVersionAsync(frozen.ItemId, frozen.VersionId, cancellationToken)
+                .ConfigureAwait(false);
+            if (reopened.Issue is { } reopenIssue)
+            {
+                return Failure(reopenIssue.Detail, ToCapabilityState(ReopenContract, reopenIssue));
+            }
 
-        if (state.IsExistingDraft)
+            editableDraftId = reopened.Data!.DraftId;
+            editableGeneration = reopened.Data.Generation;
+        }
+
+        if (editableDraftId is not null)
         {
             var request = new UpdateStudioPackageDraftRequest
             {
                 PackageKey = BuildPackageKey(state),
                 Envelope = envelope,
-                Generation = state.Generation
+                Generation = editableGeneration
             };
             result = await _client
-                .UpdatePackageDraftAsync(state.DraftId!.Value, request, cancellationToken)
+                .UpdatePackageDraftAsync(editableDraftId!.Value, request, cancellationToken)
                 .ConfigureAwait(false);
 
             if (result.Issue is { } updateIssue)
@@ -164,6 +182,9 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
             }
         }
 
+        state.PreviousPublication = state.PendingPublication ?? state.PreviousPublication;
+        state.PendingPublication = null;
+        state.FrozenDraft = null;
         var mapped = ApplyDraftIdentity(state, result.Data!);
         return new StudioDashboardCommandResult(true, $"Saved dashboard draft ({result.Data!.PackageKey}).", mapped);
     }
@@ -212,6 +233,11 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
     {
         ArgumentNullException.ThrowIfNull(state);
 
+        if (state.HasPendingPublication && state.PendingPublication is { } pendingSubmission)
+        {
+            return new StudioDashboardCommandResult(true, pendingSubmission.Message, state);
+        }
+
         var readiness = StudioDashboardPublishEvaluator.Evaluate(state);
         if (!readiness.CanPublish)
         {
@@ -238,6 +264,11 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         }
 
         var version = versionResult.Data!;
+        state.FrozenDraft = new StudioFrozenDraft(state.DraftId.Value, version.ItemId, version.VersionId);
+        state.ItemId = version.ItemId;
+        state.CurrentVersionId = version.VersionId;
+        state.Version = version.VersionNumber;
+        state.DashboardId = version.ItemId.ToString();
         var publishRequest = new CreateStudioPublicationRequest
         {
             Intent = new StudioPublicationIntent
@@ -248,7 +279,7 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         };
 
         var publishResult = await _client
-            .CreatePublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
+            .SubmitPublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
             .ConfigureAwait(false);
 
         if (publishResult.Issue is { } publishIssue)
@@ -256,16 +287,21 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
             return Failure(publishIssue.Detail, ToCapabilityState(PublishContract, publishIssue));
         }
 
-        state.ItemId = version.ItemId;
-        state.DashboardId = version.ItemId.ToString();
-        state.CurrentVersionId = version.VersionId;
-        state.PublishedVersion = version.VersionNumber;
-        state.Version = version.VersionNumber;
-        state.Status = StudioDashboardStatuses.Published;
+        if (publishResult.Data!.Operation is { } pendingOperation)
+        {
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation, state.DraftId, state.Generation);
+            return new StudioDashboardCommandResult(true, state.PendingPublication.Message, state);
+        }
 
-        var status = publishResult.Data!.Status;
+        var status = publishResult.Data.Publication!.Status;
+        if (status == StudioPublicationRequestStatus.Accepted)
+        {
+            state.PublishedVersion = version.VersionNumber;
+            state.Status = StudioDashboardStatuses.Published;
+        }
+
         return new StudioDashboardCommandResult(
-            true,
+            status != StudioPublicationRequestStatus.Rejected,
             $"Publication request {status.ToString().ToLowerInvariant()} for v{version.VersionNumber}.",
             state);
     }

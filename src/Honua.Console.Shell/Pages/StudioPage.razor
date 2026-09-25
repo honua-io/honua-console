@@ -171,6 +171,8 @@ else
                     </button>
                 </div>
 
+                <StudioPublicationApprovalNotice Pending="@(_session.PendingPublication ?? _session.PreviousPublication)" Refreshed="result => _session = result.Apply(_session)" />
+
                 @if (!string.IsNullOrEmpty(_session.StatusMessage))
                 {
                     <p class="console-status studio-status-message" role="status" aria-live="polite">@_session.StatusMessage</p>

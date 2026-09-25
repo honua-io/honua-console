@@ -78,6 +78,12 @@ public interface IHonuaOgcStylesClient
     /// <summary>Reads the server-advertised styleIds (the styles list), or a capability issue on failure.</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesList>> ListStylesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Reads the server's stored or default style for a known published layer.</summary>
+    Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetLayerStylesheetAsync(
+        int layerId, CancellationToken cancellationToken = default) => Task.FromResult(
+            HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported", "GET /api/styles/{layerId}.json", "Layer styles are not bound.")));
+
     /// <summary>Reads a style's stylesheet in the requested encoding (<c>GET /ogc/styles/{styleId}</c>).</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
         string styleId,
@@ -213,15 +219,25 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
     private const string MapboxMediaType = "application/vnd.mapbox.style+json";
     private const string EsriMediaType = "application/vnd.esri.drawinginfo+json";
 
-    public async Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
-        string styleId,
-        HonuaOgcStyleEncoding encoding,
-        CancellationToken cancellationToken = default)
+    public Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetLayerStylesheetAsync(
+        int layerId, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(layerId);
+        return ReadStylesheetAsync(layerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            HonuaOgcStyleEncoding.MapLibre, $"/api/styles/{layerId}.json", "GET /api/styles/{layerId}.json", cancellationToken);
+    }
+
+    public Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
+        string styleId, HonuaOgcStyleEncoding encoding, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(styleId);
+        return ReadStylesheetAsync(styleId, encoding, $"{StylesPath}/{Uri.EscapeDataString(styleId)}",
+            "GET /ogc/styles/{styleId}", cancellationToken);
+    }
 
-        const string contract = "GET /ogc/styles/{styleId}";
-        var path = $"{StylesPath}/{Uri.EscapeDataString(styleId)}";
+    private async Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> ReadStylesheetAsync(
+        string styleId, HonuaOgcStyleEncoding encoding, string path, string contract, CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.TryAddWithoutValidation("Accept", MediaTypeFor(encoding));
         if (!string.IsNullOrWhiteSpace(_apiKey))
@@ -234,7 +250,7 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
         {
             response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
             return HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new HonuaAdminEndpointIssue(
                 "Unavailable", contract, $"The Honua server OGC API - Styles endpoint could not be reached: {ex.Message}"));

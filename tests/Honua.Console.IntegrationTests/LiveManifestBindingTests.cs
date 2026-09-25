@@ -90,7 +90,7 @@ public sealed class LiveManifestBindingTests
             var uri = request.RequestUri!;
             Requests.Add((uri.Host, request.Headers.Authorization?.Parameter, uri.AbsolutePath));
             var id = uri.Host == "one.example" ? "temporal.filtering" : "sync.offline";
-            var body = $$"""{"schemaVersion":"honua.capability_manifest.v1","capabilities":[{"id":"{{id}}","supported":true,"available":true}]}""";
+            var body = $$"""{"schemaVersion":"honua.capability_manifest.v1","capabilities":[{"id":"{{id}}","lifecycle":"Implemented","optInRequired":false,"supported":true,"available":true}]}""";
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),

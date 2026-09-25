@@ -53,6 +53,8 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         // manual dismiss). Pages surface server failures here through RunGuardedAsync rather than
         // letting an exception vanish silently.
         services.TryAddScoped<IConsoleNotificationService, ConsoleNotificationService>();
+        services.TryAddScoped<IStudioPublicationStatusReader>(provider => new StudioPublicationStatusReader(
+            provider.GetService<IStudioPackageLifecycleClient>(), provider.GetRequiredService<IConsoleProposalsClient>()));
         // Environment profiles are host-owned local state (Console Patterns Charter §11 local-state
         // carve-out), but they must not ship fabricated demo profiles. The default store starts EMPTY so
         // the first-run experience is "create your first environment", never seeded dev.honua.local /
