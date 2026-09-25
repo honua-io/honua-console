@@ -81,7 +81,7 @@ public sealed class StudioAnalysisContentFixture : IAsyncLifetime
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         }
 
-        var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
+        var httpClient = new HttpClient(new LiveContractEvidenceHandler(handler)) { BaseAddress = BaseAddress };
         return new HonuaAnalysisContentHttpClient(
             httpClient,
             new HonuaAnalysisContentClientOptions(BaseAddress, Options.StudioAdminApiKey));

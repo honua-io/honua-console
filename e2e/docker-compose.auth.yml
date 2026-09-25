@@ -1,0 +1,36 @@
+# Adds the existing real Keycloak realm to the publishing testbed.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-live-proof-pw
+      KC_HOSTNAME: https://host.docker.internal:8443
+      KC_HTTP_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/certs/kc.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/certs/kc.key
+    volumes:
+      - ./playwright/live-auth/certs:/opt/keycloak/certs:ro
+      - ./playwright/live-auth/realm:/opt/keycloak/data/import:ro
+    ports:
+      - "8443:8443"
+    networks:
+      default:
+        aliases:
+          - host.docker.internal
+
+  honua-server:
+    environment:
+      PUBLIC_BASE_URL: http://127.0.0.1:5274
+      Oidc__Enabled: "true"
+      Oidc__Generic__Enabled: "true"
+      Oidc__Generic__DisplayName: "Keycloak (live proof)"
+      Oidc__Generic__Authority: https://host.docker.internal:8443/realms/honua
+      Oidc__Generic__ClientId: honua-console-bff
+      Oidc__Generic__ClientSecret: honua-console-bff-live-proof-secret
+      Authentication__OperatorBearer__Enabled: "true"
+      Authentication__OperatorBearer__SigningKey: live-proof-operator-bearer-signing-key-0123456789
+      SSL_CERT_FILE: /certs/kc.crt
+    volumes:
+      - ./playwright/live-auth/certs:/certs:ro
