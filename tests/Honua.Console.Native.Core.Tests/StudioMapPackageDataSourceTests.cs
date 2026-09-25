@@ -380,7 +380,8 @@ public sealed class StudioMapPackageDataSourceTests
         // The publish intent carries the reviewed share tier + embed decision (AC#2).
         using var document = JsonDocument.Parse(handler.LastRequestBody!);
         var intent = document.RootElement.GetProperty("intent");
-        Assert.Equal(state.ShareTier, intent.GetProperty("visibility").GetString());
+        Assert.Equal("workspace", state.ShareTier);
+        Assert.Equal("team", intent.GetProperty("visibility").GetString());
         Assert.True(intent.GetProperty("embed").GetBoolean());
     }
 

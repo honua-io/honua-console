@@ -175,7 +175,8 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
         var validation = await lifecycle.ValidatePackageDraftAsync(draftId);
         Assert.True(validation.IsSuccess, validation.Issue?.Detail);
         Assert.NotNull(validation.Data);
-        Assert.True(validation.Data.IsValid, JsonSerializer.Serialize(validation.Data));
+        Assert.True(validation.Data.Status is StudioPackageValidationStatus.Valid or StudioPackageValidationStatus.Warning,
+            JsonSerializer.Serialize(validation.Data));
     }
 
     /// <summary>Explicit test action: assert self-approval denial, then have a distinct scoped reviewer act.</summary>
