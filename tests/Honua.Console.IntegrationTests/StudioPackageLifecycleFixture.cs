@@ -4,6 +4,7 @@ using System.Text.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Honua.Sdk.Studio.Packages;
 
 namespace Honua.Console.IntegrationTests;
 
