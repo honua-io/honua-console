@@ -105,6 +105,8 @@
         var canPublish = readiness.CanPublish && !_validation.HasBlockingClientErrors;
         var selectedLayer = SelectedLayer(editor);
 
+        <StudioPublicationApprovalNotice Pending="editor.PendingPublication" />
+
         @if (_view == EditorView.FromPrompt)
         {
             @* StudioMapAI — conversation + clarification + right-side package inspector with a MapPreview. *@
@@ -133,7 +135,7 @@
                         <div class="studio-ai-preview-head-spacer"></div>
                         <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="SaveDraftFromPrompt">Save draft</button>
                         <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
-                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
+                        <button class="console-button" type="button" disabled="@(_busy || editor.PendingPublication is not null || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     </PreviewHeader>
                     <PreviewContent>
                         <div class="studio-map-ai-inspect">
@@ -249,7 +251,7 @@
                     }
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to maps</button>
                     <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.PendingPublication is not null || editor.IsPublished || !canPublish)" @onclick="OpenPublishWizard">Publish…</button>
                     @if (editor.IsPublished)
                     {
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>

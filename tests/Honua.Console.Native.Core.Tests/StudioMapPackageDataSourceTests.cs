@@ -551,7 +551,7 @@ public sealed class StudioMapPackageDataSourceTests
         public string? LastRequestBody => _requests.Count == 0 ? null : _requests[^1].Body;
 
         public void Map(HttpMethod method, string path, string json) =>
-            _responses[Key(method, path)] = (HttpStatusCode.OK, json);
+            _responses[Key(method, path)] = (path.EndsWith("/publish-requests", StringComparison.Ordinal) ? HttpStatusCode.Created : HttpStatusCode.OK, json);
 
         public void MapStatus(HttpMethod method, string path, HttpStatusCode status) =>
             _responses[Key(method, path)] = (status, null);

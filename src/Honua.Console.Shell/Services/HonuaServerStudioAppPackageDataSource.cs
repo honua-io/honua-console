@@ -147,6 +147,11 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
     {
         ArgumentNullException.ThrowIfNull(state);
 
+        if (state.PendingPublication is { } pendingSubmission)
+        {
+            return new StudioAppCommandResult(true, pendingSubmission.Message, state);
+        }
+
         var readiness = StudioAppPackageMapper.EvaluatePublishReadiness(state);
         if (!readiness.CanPublish)
         {
@@ -174,6 +179,8 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         }
 
         var version = versionResult.Data!;
+        state.ItemId = version.ItemId;
+        state.CurrentVersionId = version.VersionId;
         var publishRequest = new CreateStudioPublicationRequest
         {
             Intent = new StudioPublicationIntent
@@ -184,7 +191,7 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         };
 
         var publishResult = await _client
-            .CreatePublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
+            .SubmitPublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
             .ConfigureAwait(false);
 
         if (publishResult.Issue is { } publishIssue)
@@ -192,16 +199,22 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
             return Failure(publishIssue.Detail, ToCapabilityState(PublishContract, publishIssue));
         }
 
-        var published = state;
-        published.ItemId = version.ItemId;
-        published.CurrentVersionId = version.VersionId;
-        published.PublishedVersion = version.VersionNumber;
+        if (publishResult.Data!.Operation is { } pendingOperation)
+        {
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            return new StudioAppCommandResult(true, state.PendingPublication.Message, state);
+        }
 
-        var status = publishResult.Data!.Status;
+        var status = publishResult.Data.Publication!.Status;
+        if (status == StudioPublicationRequestStatus.Accepted)
+        {
+            state.PublishedVersion = version.VersionNumber;
+        }
+
         return new StudioAppCommandResult(
-            true,
+            status != StudioPublicationRequestStatus.Rejected,
             $"Publication request {status.ToString().ToLowerInvariant()} for v{version.VersionNumber}.",
-            published);
+            state);
     }
 
     public async Task<StudioAppCommandResult> PreviewAsync(
@@ -239,15 +252,16 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
 
         // Server omits an empty version list as JSON null; coalesce before LINQ.
         var versions = result.Data!.Versions ?? [];
-        var maxVersion = versions.Count == 0 ? 0 : versions.Max(version => version.VersionNumber);
+        // This endpoint returns immutable versions, not current/published pointers.
+        // A newer saved version can still be awaiting approval; never infer publication from order.
         var items = versions
             .OrderByDescending(version => version.VersionNumber)
             .Select(version => new StudioAppVersionItem(
                 version.VersionId,
                 version.VersionNumber,
                 version.ChangeNote,
-                IsPublished: version.VersionNumber == maxVersion,
-                IsCurrent: version.VersionNumber == maxVersion,
+                IsPublished: false,
+                IsCurrent: false,
                 version.CreatedAt))
             .ToArray();
 

@@ -11,6 +11,9 @@ namespace Honua.Console.Shell.Models;
 /// </summary>
 public sealed class StudioMapEditorState
 {
+    /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
+    public StudioPendingPublication? PendingPublication { get; set; }
+
     /// <summary>Stable server package id. Null until the first draft is created server-side.</summary>
     public string? MapId { get; set; }
 

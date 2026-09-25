@@ -159,6 +159,19 @@ public interface IStudioPackageLifecycleClient
         CreateStudioPublicationRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Submits publication while preserving a governed approval outcome.</summary>
+    async Task<StudioEndpointResult<StudioPublicationSubmission>> SubmitPublishRequestAsync(
+        Guid itemId,
+        Guid versionId,
+        CreateStudioPublicationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await CreatePublishRequestAsync(itemId, versionId, request, cancellationToken).ConfigureAwait(false);
+        return result.Data is { } publication && result.IsSuccess
+            ? StudioEndpointResult<StudioPublicationSubmission>.FromData(StudioPublicationSubmission.FromPublication(publication))
+            : new StudioEndpointResult<StudioPublicationSubmission>(null, result.Issue);
+    }
+
     /// <summary>
     /// Reopens an immutable content version as a fresh editable draft (server route
     /// <c>POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/reopen</c>). The server clones the
@@ -358,6 +371,19 @@ public sealed class HttpStudioPackageLifecycleClient : IStudioPackageLifecycleCl
         ArgumentNullException.ThrowIfNull(request);
         return ExecuteAsync(
             ct => _sdk.CreatePublishRequestAsync(itemId, versionId, request, ct),
+            "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/publish-requests",
+            cancellationToken);
+    }
+
+    public Task<StudioEndpointResult<StudioPublicationSubmission>> SubmitPublishRequestAsync(
+        Guid itemId,
+        Guid versionId,
+        CreateStudioPublicationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ExecuteAsync(
+            ct => _sdk.SubmitPublishRequestAsync(itemId, versionId, request, ct),
             "POST /api/v1/studio/content-items/{itemId}/versions/{versionId}/publish-requests",
             cancellationToken);
     }

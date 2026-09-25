@@ -144,6 +144,9 @@ public sealed record StudioAuthoringSession(
     StudioDraftHandle? Draft = null,
     string? StatusMessage = null)
 {
+    /// <summary>Approval context for the saved version submitted from this session.</summary>
+    public StudioPendingPublication? PendingPublication { get; init; }
+
     /// <summary>True when the active package is backed by a live server draft.</summary>
     public bool HasServerDraft => Draft is not null;
 

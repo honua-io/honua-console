@@ -56,6 +56,9 @@ public static class StudioAppVisibilityModes
 /// </summary>
 public sealed class StudioAppEditorState
 {
+    /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
+    public StudioPendingPublication? PendingPublication { get; set; }
+
     public Guid? DraftId { get; set; }
 
     public Guid? ItemId { get; set; }

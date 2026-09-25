@@ -1,4 +1,4 @@
-﻿using Honua.Sdk.Studio.Packages;
+using Honua.Sdk.Studio.Packages;
 using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
@@ -201,6 +201,11 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
     {
         ArgumentNullException.ThrowIfNull(state);
 
+        if (state.PendingPublication is { } pendingSubmission)
+        {
+            return new StudioMapCommandResult(true, pendingSubmission.Message, state);
+        }
+
         if (state.IsPublished)
         {
             return Failure("This map version is published. Reopen it as a draft before publishing a new version.");
@@ -235,6 +240,9 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         }
 
         var version = versionResult.Data!;
+        state.ItemId = version.ItemId;
+        state.VersionId = version.VersionId;
+        state.Version = version.VersionNumber;
         var publishRequest = new CreateStudioPublicationRequest
         {
             Intent = new StudioPublicationIntent
@@ -245,7 +253,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         };
 
         var publishResult = await _client
-            .CreatePublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
+            .SubmitPublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
             .ConfigureAwait(false);
 
         if (publishResult.Issue is { } publishIssue)
@@ -253,17 +261,22 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             return FailureFrom(PublishContract, publishIssue);
         }
 
-        var published = state;
-        published.ItemId = version.ItemId;
-        published.VersionId = version.VersionId;
-        published.Version = version.VersionNumber;
-        published.Status = StudioMapStatuses.Published;
+        if (publishResult.Data!.Operation is { } pendingOperation)
+        {
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            return new StudioMapCommandResult(true, state.PendingPublication.Message, state);
+        }
 
-        var status = publishResult.Data!.Status.ToString().ToLowerInvariant();
+        var status = publishResult.Data.Publication!.Status;
+        if (status == StudioPublicationRequestStatus.Accepted)
+        {
+            state.Status = StudioMapStatuses.Published;
+        }
+
         return new StudioMapCommandResult(
-            true,
-            $"Publication request {status} for v{version.VersionNumber.ToString(CultureInfo.InvariantCulture)}.",
-            published);
+            status != StudioPublicationRequestStatus.Rejected,
+            $"Publication request {status.ToString().ToLowerInvariant()} for v{version.VersionNumber}.",
+            state);
     }
 
     public async Task<StudioMapCommandResult> ReopenAsync(

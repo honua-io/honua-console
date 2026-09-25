@@ -370,7 +370,13 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             return session with { StatusMessage = "Resolve open clarifications before publishing." };
         }
 
-        var result = await _client.CreatePublishRequestAsync(
+        if (session.PendingPublication is { } pendingSubmission
+            && pendingSubmission.VersionId.ToString() == session.Draft.CurrentVersionId)
+        {
+            return session with { StatusMessage = pendingSubmission.Message };
+        }
+
+        var result = await _client.SubmitPublishRequestAsync(
                 Guid.Parse(session.Draft.ItemId),
                 Guid.Parse(session.Draft.CurrentVersionId),
                 new CreateStudioPublicationRequest(),
@@ -381,7 +387,19 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
             return session with { BindingState = ToBindingState(result.Issue) };
         }
 
-        var publication = result.Data;
+        if (result.Data.Operation is { } pendingOperation)
+        {
+            var pending = new StudioPendingPublication(
+                Guid.Parse(session.Draft.ItemId), Guid.Parse(session.Draft.CurrentVersionId), pendingOperation);
+            return session with
+            {
+                ActivePackage = session.ActivePackage with { LifecycleState = StudioPackageLifecycleState.SavedVersion },
+                PendingPublication = pending,
+                StatusMessage = pending.Message
+            };
+        }
+
+        var publication = result.Data.Publication!;
         var published = publication.Status == StudioPublicationRequestStatus.Accepted;
         return session with
         {
@@ -392,6 +410,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
                     .Append(new StudioProvenanceEvent("Studio", "Publication requested", $"{publication.Status} ({publication.RequestId})"))
                     .ToArray()
             },
+            PendingPublication = null,
             StatusMessage = published
                 ? "Published the current content version."
                 : $"Publication request {FormatPublicationStatus(publication.Status)}."

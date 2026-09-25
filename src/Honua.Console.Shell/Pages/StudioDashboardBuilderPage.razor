@@ -115,6 +115,8 @@
             var readiness = StudioDashboardPublishEvaluator.Evaluate(editor);
             var selected = SelectedPanel(editor);
 
+        <StudioPublicationApprovalNotice Pending="editor.PendingPublication" />
+
             @if (_view == DashboardView.Ai)
             {
                 @* StudioDashboardAI: conversation-from-prompt with a live dashboard package preview. *@
@@ -147,7 +149,7 @@
                                 }
                                 <div class="studio-ai-preview-titlebar-spacer"></div>
                                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="OpenEditorView">Open editor →</button>
-                                <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishView">Publish…</button>
+                                <button class="console-button" type="button" disabled="@(_busy || editor.PendingPublication is not null || editor.IsPublished || !readiness.CanPublish)" @onclick="OpenPublishView">Publish…</button>
                             </div>
                         </PreviewHeader>
                         <PreviewContent>
@@ -224,7 +226,7 @@
                             <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to dashboards</button>
                             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
                             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished)" @onclick="Validate">Validate</button>
-                            <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="OpenPublishView">Publish…</button>
+                            <button class="console-button" type="button" disabled="@(_busy || editor.PendingPublication is not null || editor.IsPublished || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="OpenPublishView">Publish…</button>
                             @if (editor.IsPublished)
                             {
                                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>

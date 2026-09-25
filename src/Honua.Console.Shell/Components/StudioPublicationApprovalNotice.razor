@@ -1,0 +1,14 @@
+@using Honua.Console.Shell.Models
+
+@if (Pending is { } pending)
+{
+    <div class="console-notice" role="status" data-publication-state="awaiting-approval">
+        <strong>Awaiting approval</strong>
+        <p>@pending.Message</p>
+        <a class="console-button-link" href="/approvals">Open approvals</a>
+    </div>
+}
+
+@code {
+    [Parameter] public StudioPendingPublication? Pending { get; set; }
+}

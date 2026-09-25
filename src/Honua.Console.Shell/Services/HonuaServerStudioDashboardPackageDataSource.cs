@@ -212,6 +212,11 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
     {
         ArgumentNullException.ThrowIfNull(state);
 
+        if (state.PendingPublication is { } pendingSubmission)
+        {
+            return new StudioDashboardCommandResult(true, pendingSubmission.Message, state);
+        }
+
         var readiness = StudioDashboardPublishEvaluator.Evaluate(state);
         if (!readiness.CanPublish)
         {
@@ -238,6 +243,10 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         }
 
         var version = versionResult.Data!;
+        state.ItemId = version.ItemId;
+        state.CurrentVersionId = version.VersionId;
+        state.Version = version.VersionNumber;
+        state.DashboardId = version.ItemId.ToString();
         var publishRequest = new CreateStudioPublicationRequest
         {
             Intent = new StudioPublicationIntent
@@ -248,7 +257,7 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
         };
 
         var publishResult = await _client
-            .CreatePublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
+            .SubmitPublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
             .ConfigureAwait(false);
 
         if (publishResult.Issue is { } publishIssue)
@@ -256,16 +265,21 @@ public sealed class HonuaServerStudioDashboardPackageDataSource : IStudioDashboa
             return Failure(publishIssue.Detail, ToCapabilityState(PublishContract, publishIssue));
         }
 
-        state.ItemId = version.ItemId;
-        state.DashboardId = version.ItemId.ToString();
-        state.CurrentVersionId = version.VersionId;
-        state.PublishedVersion = version.VersionNumber;
-        state.Version = version.VersionNumber;
-        state.Status = StudioDashboardStatuses.Published;
+        if (publishResult.Data!.Operation is { } pendingOperation)
+        {
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            return new StudioDashboardCommandResult(true, state.PendingPublication.Message, state);
+        }
 
-        var status = publishResult.Data!.Status;
+        var status = publishResult.Data.Publication!.Status;
+        if (status == StudioPublicationRequestStatus.Accepted)
+        {
+            state.PublishedVersion = version.VersionNumber;
+            state.Status = StudioDashboardStatuses.Published;
+        }
+
         return new StudioDashboardCommandResult(
-            true,
+            status != StudioPublicationRequestStatus.Rejected,
             $"Publication request {status.ToString().ToLowerInvariant()} for v{version.VersionNumber}.",
             state);
     }

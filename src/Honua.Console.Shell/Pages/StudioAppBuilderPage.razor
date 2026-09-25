@@ -49,6 +49,8 @@
         var readiness = StudioAppPackageMapper.EvaluatePublishReadiness(editor);
         var selectedPage = SelectedPage;
 
+        <StudioPublicationApprovalNotice Pending="editor.PendingPublication" />
+
         @if (_view == EditorView.FromPrompt)
         {
             @* StudioAppAI — conversation + clarification on the left, a live app-package inspector on the
@@ -74,7 +76,7 @@
                         <span class="console-status @(readiness.CanPublish ? string.Empty : "console-status-warning")">@(readiness.CanPublish ? "ready to publish" : $"{readiness.UnmetRequirements.Count} to resolve")</span>
                         <div class="studio-ai-preview-head-spacer"></div>
                         <button class="console-button" type="button" disabled="@_busy" @onclick="OpenEditorFromPrompt">Open editor →</button>
-                        <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">Publish…</button>
+                        <button class="console-button" type="button" disabled="@(_busy || editor.PendingPublication is not null || editor.IsPublished || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">Publish…</button>
                     </PreviewHeader>
                     <PreviewContent>
                         @* The RESULT: a live preview of the generated app shell — the real pages laid out as
@@ -149,7 +151,7 @@
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Preview">Live preview ↗</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingDraft)" @onclick="Validate">Validate</button>
                 <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Save">Save draft</button>
-                <button class="console-button" type="button" disabled="@(_busy || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">Publish…</button>
+                <button class="console-button" type="button" disabled="@(_busy || editor.PendingPublication is not null || !readiness.CanPublish || _validation.HasBlockingClientErrors)" @onclick="Publish">Publish…</button>
             </div>
 
             @if (!string.IsNullOrEmpty(_status))

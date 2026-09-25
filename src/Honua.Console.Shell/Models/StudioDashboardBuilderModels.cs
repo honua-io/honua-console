@@ -13,6 +13,9 @@ namespace Honua.Console.Shell.Models;
 /// </summary>
 public sealed class StudioDashboardEditorState
 {
+    /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
+    public StudioPendingPublication? PendingPublication { get; set; }
+
     /// <summary>
     /// Stable server package id (the honua-server content-item id). Null until the first draft is saved
     /// server-side and a content version is created. Exposed as a string for the editor/list surface.
