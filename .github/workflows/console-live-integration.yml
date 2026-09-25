@@ -150,7 +150,9 @@ jobs:
                        'DashboardPublish_WithInvalidDraft_IsRejectedWithFieldErrors_AndNothingLands',
                        'MapPublish_StaleProposalAndInvalidIntent_DoNotMovePublishedPointer',
                        'MapBuilder_SaveThenPublish_RunsAgainstLiveServer',
-                       'AppBuilder_FullLifecycle_FromLiveServer'):
+                       'AppBuilder_FullLifecycle_FromLiveServer',
+                       'CatalogDiscovery_RouteMountedDiscriminator_And_ConsoleReflectsServerRegistry',
+                       'FocusedApproverKey_ReadsAndApprovesButCannotWrite'):
               required = [node for node in results if name in node.get('testName', '')]
               assert len(required) == 1, f'Expected one {name} proof, found {len(required)}'
               assert required[0].get('outcome') == 'Passed', ET.tostring(required[0], encoding='unicode')

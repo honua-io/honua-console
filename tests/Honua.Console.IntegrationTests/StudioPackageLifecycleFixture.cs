@@ -25,7 +25,8 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
     private HonuaServerTestcontainer? _container;
     private string? _proposerKey;
     private string? _reviewerKey;
-    private readonly List<Guid> _managedKeyIds = [];
+    private string? _readOnlyKey;
+    private readonly Dictionary<string, Guid> _managedKeyIds = [];
 
     public ConsoleTrustIntegrationOptions Options { get; } = ConsoleTrustIntegrationOptions.Load();
 
@@ -73,7 +74,8 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
             // Contract/auth failures here fail initialization instead of being converted to a Docker skip.
             using var bootstrap = CreateHttpClient(Options.StudioAdminApiKey);
             _proposerKey = await CreateActorAsync(bootstrap, "proposer", "admin");
-            _reviewerKey = await CreateActorAsync(bootstrap, "reviewer", "admin:approve");
+            _reviewerKey = await CreateActorAsync(bootstrap, "reviewer", "admin:read", "admin:approve");
+            _readOnlyKey = await CreateActorAsync(bootstrap, "reader", "admin:read");
         }
     }
 
@@ -84,7 +86,7 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
             try
             {
                 using var bootstrap = CreateHttpClient(Options.StudioAdminApiKey);
-                foreach (var id in _managedKeyIds)
+                foreach (var id in _managedKeyIds.Values)
                 {
                     using var response = await bootstrap.PostAsync($"/api/v1/admin/api-keys/{id}/revoke", null);
                     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -162,18 +164,52 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
         return observed;
     }
 
-    private async Task<string> CreateActorAsync(HttpClient bootstrap, string role, string permission)
+    /// <summary>Proves the focused read/approve key recipe without granting general administrative writes.</summary>
+    public async Task AssertFocusedApprovalPermissionsAsync(StudioPendingPublication pending)
+    {
+        Assert.NotNull(_container);
+        Assert.NotNull(_readOnlyKey);
+        Assert.NotNull(_reviewerKey);
+        using var readerHttp = CreateHttpClient();
+        var reader = CreateProposalsClient(readerHttp, _readOnlyKey);
+        var denied = await reader.ApproveAsync(pending.Operation.ProposalId!);
+        Assert.Equal(OperateSectionStatus.Forbidden, denied.Status);
+        Assert.Contains("admin:approve", denied.Message + " " + denied.Detail, StringComparison.OrdinalIgnoreCase);
+
+        using var reviewer = CreateHttpClient(_reviewerKey);
+        foreach (var path in new[] { "/api/v1/admin/proposals", $"/api/v1/admin/proposals/{pending.Operation.ProposalId}" })
+        {
+            using var response = await reviewer.GetAsync(path);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+        using var permissionsResponse = await reviewer.GetAsync(
+            $"/api/v1/admin/api-keys/{_managedKeyIds["reviewer"]}/effective-permissions");
+        Assert.Equal(HttpStatusCode.OK, permissionsResponse.StatusCode);
+        using var permissionsDocument = JsonDocument.Parse(await permissionsResponse.Content.ReadAsStringAsync());
+        var permissions = permissionsDocument.RootElement.GetProperty("data").GetProperty("permissions")
+            .EnumerateArray().Select(value => value.GetString()).OrderBy(value => value).ToArray();
+        Assert.Equal(new[] { "admin:approve", "admin:read" }, permissions);
+
+        using var write = await reviewer.PutAsJsonAsync("/api/v1/admin/services/focused-grant-probe/access-policy",
+            new { allowAnonymous = true });
+        Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
+        var unchanged = await reader.GetAsync(pending.Operation.ProposalId!);
+        Assert.True(unchanged.IsAllowed, unchanged.Message);
+        Assert.Equal(ConsoleProposalStatus.AwaitingApproval, unchanged.Value!.Status);
+    }
+
+    private async Task<string> CreateActorAsync(HttpClient bootstrap, string role, params string[] permissions)
     {
         using var response = await bootstrap.PostAsJsonAsync("/api/v1/admin/api-keys", new
         {
             name = $"console-publication-{role}-{Guid.NewGuid():N}",
-            permissions = new[] { permission },
+            permissions,
             expiresAt = DateTimeOffset.UtcNow.AddHours(1)
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var data = document.RootElement.GetProperty("data");
-        _managedKeyIds.Add(data.GetProperty("apiKey").GetProperty("id").GetGuid());
+        _managedKeyIds.Add(role, data.GetProperty("apiKey").GetProperty("id").GetGuid());
         return data.GetProperty("key").GetString()!;
     }
 

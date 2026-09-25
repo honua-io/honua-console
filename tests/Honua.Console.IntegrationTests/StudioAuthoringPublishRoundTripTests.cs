@@ -118,6 +118,29 @@ public sealed class StudioMapPublishRoundTripTests
     }
 
     [SkippableFact]
+    public async Task FocusedApproverKey_ReadsAndApprovesButCannotWrite()
+    {
+        Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
+        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(),
+            new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var state = (await source.LoadAsync(null)).State!;
+        state.Title = $"Focused approval {Guid.NewGuid():N}"[..40];
+        state.Basemap = "basemap:streets";
+        state.InitialExtent = "-158.3,21.2,-157.6,21.7";
+        state.ShareTier = "organization";
+        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
+        var saved = await source.SaveDraftAsync(state);
+        RequireSuccess(saved);
+        var submitted = await source.PublishAsync(saved.State!);
+        RequireSuccess(submitted);
+        var pending = Assert.IsType<StudioPendingPublication>(submitted.State!.PendingPublication);
+        await _fixture.AssertFocusedApprovalPermissionsAsync(pending);
+        var approved = await _fixture.ApprovePublicationAsDistinctActorAsync(pending);
+        approved.Apply(submitted.State);
+        Assert.True(submitted.State.IsPublished);
+    }
+
+    [SkippableFact]
     public async Task MapPublish_StaleProposalAndInvalidIntent_DoNotMovePublishedPointer()
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
