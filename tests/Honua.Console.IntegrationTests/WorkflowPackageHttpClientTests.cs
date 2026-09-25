@@ -21,6 +21,47 @@ public sealed class WorkflowPackageHttpClientTests
     private static readonly Uri BaseAddress = new("https://honua.test");
 
     [Fact]
+    public async Task GetNodeRegistry_ReadsEveryPublishedRuntimeKind_IncludingAuthoring()
+    {
+        const string payload = """
+            {"success":true,"data":{"registryVersion":"runtime-contract","nodes":[
+              {"nodeTypeId":"gp","runtimeKind":"Geoprocessing"},
+              {"nodeTypeId":"etl","runtimeKind":"ExtractTransformLoad"},
+              {"nodeTypeId":"utility","runtimeKind":"WorkflowUtility"},
+              {"nodeTypeId":"authoring","runtimeKind":"Authoring"}
+            ]}}
+            """;
+        using var client = CreateClient(new RecordingHandler(_ => Raw(HttpStatusCode.OK, payload)));
+
+        var result = await client.GetNodeRegistryAsync();
+
+        Assert.True(result.IsSuccess, result.Issue?.Detail);
+        Assert.Equal(new[]
+        {
+            WorkflowNodeRuntimeKind.Geoprocessing,
+            WorkflowNodeRuntimeKind.ExtractTransformLoad,
+            WorkflowNodeRuntimeKind.WorkflowUtility,
+            WorkflowNodeRuntimeKind.Authoring
+        }, result.Data!.Nodes.Select(node => node.RuntimeKind));
+        Assert.Equal("authoring", result.Data.Nodes[3].NodeTypeId);
+    }
+
+    [Fact]
+    public async Task GetNodeRegistry_UnknownRuntimeKind_RemainsExplicitContractFailure()
+    {
+        const string payload = """
+            {"success":true,"data":{"nodes":[{"nodeTypeId":"future","runtimeKind":"FutureRuntime"}]}}
+            """;
+        using var client = CreateClient(new RecordingHandler(_ => Raw(HttpStatusCode.OK, payload)));
+
+        var result = await client.GetNodeRegistryAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(result.Data);
+        Assert.Contains("runtimeKind", result.Issue!.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetNodeRegistry_TargetsConsoleRouteWithApiKey_AndUnwrapsEnvelope()
     {
         var handler = new RecordingHandler(_ => Envelope(new WorkflowNodeRegistrySnapshot

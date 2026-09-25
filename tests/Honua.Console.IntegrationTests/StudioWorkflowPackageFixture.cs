@@ -81,7 +81,7 @@ public sealed class StudioWorkflowPackageFixture : IAsyncLifetime
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         }
 
-        var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };
+        var httpClient = new HttpClient(new WorkflowRegistryEvidenceHandler(handler)) { BaseAddress = BaseAddress };
         return new HttpWorkflowPackageApiClient(
             httpClient,
             new WorkflowPackageClientOptions(BaseAddress, Options.StudioAdminApiKey));
