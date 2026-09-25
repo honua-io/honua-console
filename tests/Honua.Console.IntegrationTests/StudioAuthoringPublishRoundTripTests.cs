@@ -79,6 +79,10 @@ public sealed class StudioMapPublishRoundTripTests
 
         var published = await source.PublishAsync(saved.State);
         StudioLifecycleAssertions.RequireConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "map publish");
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.False(published.State.IsPublished);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
         Assert.Equal(StudioMapStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.VersionId);
@@ -112,6 +116,54 @@ public sealed class StudioMapPublishRoundTripTests
             () => Assert.DoesNotContain("Map package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
     }
+
+    [SkippableFact]
+    public async Task MapPublish_StaleProposalAndInvalidIntent_DoNotMovePublishedPointer()
+    {
+        Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
+        var client = _fixture.CreateClient();
+        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var state = (await source.LoadAsync(null)).State!;
+        state.Title = $"Governed map {Guid.NewGuid():N}"[..40];
+        state.Basemap = "basemap:streets";
+        state.InitialExtent = "-158.3,21.2,-157.6,21.7";
+        state.ShareTier = "organization";
+        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
+        var saved = await source.SaveDraftAsync(state);
+        RequireSuccess(saved);
+        var first = await source.PublishAsync(saved.State!);
+        RequireSuccess(first);
+        var stale = Assert.IsType<StudioPendingPublication>(first.State!.PendingPublication);
+
+        first.State.Title += " revised";
+        var revised = await source.SaveDraftAsync(first.State);
+        RequireSuccess(revised);
+        var second = await source.PublishAsync(revised.State!);
+        RequireSuccess(second);
+        var current = Assert.IsType<StudioPendingPublication>(second.State!.PendingPublication);
+        Assert.NotEqual(stale.VersionId, current.VersionId);
+        Assert.Equal(stale.ItemId, current.ItemId);
+
+        var invalidIntent = await client.SubmitPublishRequestAsync(current.ItemId, current.VersionId,
+            new CreateStudioPublicationRequest { Intent = new StudioPublicationIntent { Visibility = "unsupported-visibility" } });
+        Assert.Equal(400, invalidIntent.Issue?.StatusCode);
+        Assert.Null(invalidIntent.Data);
+        var before = await client.GetContentItemPointersAsync(current.ItemId);
+        Assert.True(before.IsSuccess, before.Issue?.Detail);
+        Assert.Equal(current.VersionId, before.Data!.CurrentVersionId);
+        Assert.Null(before.Data.PublishedVersionId);
+
+        var refusedStale = await _fixture.ApprovePublicationAsDistinctActorAsync(stale, expectValidationFailure: true);
+        Assert.Equal(current.VersionId, refusedStale.Pointers!.CurrentVersionId);
+        Assert.Null(refusedStale.Pointers.PublishedVersionId);
+        var approvedCurrent = await _fixture.ApprovePublicationAsDistinctActorAsync(current);
+        approvedCurrent.Apply(second.State);
+        Assert.True(second.State.IsPublished);
+        Assert.Equal(current.VersionId, approvedCurrent.Pointers!.PublishedVersionId);
+    }
+
+    private static void RequireSuccess(StudioMapCommandResult result)
+        => StudioLifecycleAssertions.RequireConsoleOperation(result.Succeeded, result.Issue?.State, result.Message, "governed map lifecycle");
 
     [SkippableFact]
     public async Task MapPublish_WithInvalidDraft_IsRejectedWithFieldErrors_AndNothingLands()
@@ -155,9 +207,9 @@ public sealed class StudioMapPublishRoundTripTests
 
         // Exercise the GATED publish path the operation uses (Codex #155): drive cut-version → publish-request
         // and assert no PUBLISHED content lands for a blocker-validated draft. Some server images defer
-        // validation enforcement to publish-request (the cut is allowed but the publish is refused), so accept
-        // a rejection at EITHER gate; what must never happen is an accepted publish request.
-        await StudioLifecycleAssertions.AssertInvalidDraftNeverPublishesAsync(client, draft);
+        // validation enforcement to approved replay. If admitted for approval, exercise that supported
+        // path and require terminal validation failure with no published pointer change.
+        await StudioLifecycleAssertions.AssertInvalidDraftNeverPublishesAsync(client, draft, _fixture);
 
         // Independently confirm NOTHING landed as published: the publication route for the item is absent.
         using var verifier = _fixture.CreateVerifier();
@@ -198,6 +250,10 @@ public sealed class StudioDashboardPublishRoundTripTests
 
         var published = await source.PublishAsync(validated.State!);
         StudioLifecycleAssertions.RequireConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "dashboard publish");
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.False(published.State.IsPublished);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
         Assert.Equal(StudioDashboardStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.CurrentVersionId);
@@ -268,7 +324,7 @@ public sealed class StudioDashboardPublishRoundTripTests
         // Exercise the GATED publish path the operation uses (Codex #155): drive cut-version → publish-request
         // and assert no PUBLISHED content lands for a blocker-validated draft (rejection accepted at either
         // gate; an accepted publish request must never happen).
-        await StudioLifecycleAssertions.AssertInvalidDraftNeverPublishesAsync(client, draft);
+        await StudioLifecycleAssertions.AssertInvalidDraftNeverPublishesAsync(client, draft, _fixture);
 
         // Independently confirm NOTHING landed as published: the publication route for the item is absent.
         using var verifier = _fixture.CreateVerifier();
@@ -561,14 +617,15 @@ internal static class StudioLifecycleAssertions
     /// <summary>
     /// Drives the gated cut-version → publish-request path for a blocker-validated draft and asserts no
     /// PUBLISHED content lands (Codex #155). Server images differ on WHERE the validation gate enforces: some
-    /// refuse the version cut, others allow the cut but refuse the publish request. Accept a rejection at
-    /// either gate; the only forbidden outcome is an accepted publish request. When the cut is allowed and the
-    /// publish request is rejected, the cut version is an unpublished draft revision — that is fine; the
+    /// refuse the version cut, others defer validation until the approved proposal is replayed. A pending
+    /// proposal must reach terminal failure through a distinct reviewer, with the published pointer unchanged.
+    /// When the cut is allowed but publication is rejected, the cut version is an unpublished draft revision — that is fine; the
     /// caller's independent publication-route check proves nothing reachable landed.
     /// </summary>
     public static async Task AssertInvalidDraftNeverPublishesAsync(
         IStudioPackageLifecycleClient client,
-        StudioPackageDraft draft)
+        StudioPackageDraft draft,
+        StudioPackageLifecycleFixture fixture)
     {
         var versionAttempt = await client.SaveContentVersionAsync(
             draft.DraftId,
@@ -582,18 +639,27 @@ internal static class StudioLifecycleAssertions
             return;
         }
 
-        // The cut was allowed; the publish request MUST be the gate that refuses a blocker-validated version.
+        // The cut was allowed; submission or approved replay must refuse a blocker-validated version.
         var version = versionAttempt.Data!;
-        var publishAttempt = await client.CreatePublishRequestAsync(
+        var publishAttempt = await client.SubmitPublishRequestAsync(
             version.ItemId,
             version.VersionId,
             new CreateStudioPublicationRequest());
 
+        if (publishAttempt.Data?.Operation is { } pendingOperation)
+        {
+            // Admission for approval is not validation success. Exercise the supported actuator
+            // through a distinct reviewer and prove terminal failure plus an unchanged pointer.
+            var pending = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation);
+            await fixture.ApprovePublicationAsDistinctActorAsync(pending, expectValidationFailure: true);
+            return;
+        }
+
         Assert.True(
             publishAttempt.Issue?.StatusCode is 400 or 409 or 422
-                || publishAttempt.Data?.Status is StudioPublicationRequestStatus.Rejected,
+                || publishAttempt.Data?.Publication?.Status is StudioPublicationRequestStatus.Rejected,
             "A blocker-validated draft must not yield an accepted publish request; "
-            + $"the server accepted it (status {publishAttempt.Data?.Status}).");
+            + $"the server accepted it (status {publishAttempt.Data?.Publication?.Status}).");
     }
 
     public static void AssertDraftReady(StudioEndpointIssue? issue)

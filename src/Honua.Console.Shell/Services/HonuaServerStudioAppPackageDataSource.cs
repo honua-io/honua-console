@@ -256,20 +256,22 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
 
         // Server omits an empty version list as JSON null; coalesce before LINQ.
         var versions = result.Data!.Versions ?? [];
-        // This endpoint returns immutable versions, not current/published pointers.
-        // A newer saved version can still be awaiting approval; never infer publication from order.
+        // Version order cannot identify publication: read the current/published pointers separately.
+        var pointerResult = await _client.GetContentItemPointersAsync(itemId, cancellationToken).ConfigureAwait(false);
+        var pointers = pointerResult.IsSuccess && pointerResult.Data?.ItemId == itemId ? pointerResult.Data : null;
         var items = versions
             .OrderByDescending(version => version.VersionNumber)
             .Select(version => new StudioAppVersionItem(
                 version.VersionId,
                 version.VersionNumber,
                 version.ChangeNote,
-                IsPublished: false,
-                IsCurrent: false,
+                IsPublished: pointers?.PublishedVersionId == version.VersionId,
+                IsCurrent: pointers?.CurrentVersionId == version.VersionId,
                 version.CreatedAt))
             .ToArray();
 
-        return new StudioAppVersionHistory(itemId, items);
+        return new StudioAppVersionHistory(itemId, items,
+            pointerResult.Issue is { } pointerIssue ? ToCapabilityState("GET /api/v1/studio/content-items", pointerIssue) : null);
     }
 
     public async Task<StudioAppCommandResult> ReopenAsync(

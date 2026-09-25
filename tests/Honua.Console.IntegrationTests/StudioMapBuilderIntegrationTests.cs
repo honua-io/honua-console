@@ -57,6 +57,10 @@ public sealed class StudioMapBuilderIntegrationTests
         Skip.If(
             !published.Succeeded,
             $"The live server did not accept the map publish: {published.Message}");
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.False(published.State.IsPublished);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
         Assert.Equal(StudioMapStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.VersionId);

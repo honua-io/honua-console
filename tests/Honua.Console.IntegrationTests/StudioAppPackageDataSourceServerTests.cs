@@ -224,6 +224,7 @@ public sealed class StudioAppPackageDataSourceServerTests
         public int SaveVersionCount { get; private set; }
 
         public int PublishCount { get; private set; }
+        private Guid? _publishedVersionId;
 
         public int PreviewCount { get; private set; }
 
@@ -378,6 +379,13 @@ public sealed class StudioAppPackageDataSourceServerTests
                 : StudioEndpointResult<StudioContentVersion>.FromData(version));
         }
 
+        public Task<StudioEndpointResult<StudioContentItemPointers?>> GetContentItemPointersAsync(
+            Guid itemId, CancellationToken cancellationToken = default)
+            => Task.FromResult(StudioEndpointResult<StudioContentItemPointers?>.FromData(new StudioContentItemPointers
+            {
+                ItemId = itemId, CurrentVersionId = LastVersionId, PublishedVersionId = _publishedVersionId
+            }));
+
         public Task<StudioEndpointResult<StudioPublicationRequest>> CreatePublishRequestAsync(
             Guid itemId,
             Guid versionId,
@@ -385,6 +393,7 @@ public sealed class StudioAppPackageDataSourceServerTests
             CancellationToken cancellationToken = default)
         {
             PublishCount++;
+            _publishedVersionId = versionId;
             LastPublishIntent = request.Intent;
             return Task.FromResult(StudioEndpointResult<StudioPublicationRequest>.FromData(new StudioPublicationRequest
             {
@@ -444,6 +453,7 @@ public sealed class StudioAppPackageDataSourceServerTests
             CancellationToken cancellationToken = default)
         {
             LastRollback = request;
+            _publishedVersionId = request.TargetVersionId;
             return Task.FromResult(StudioEndpointResult<StudioRollbackRequest>.FromData(new StudioRollbackRequest
             {
                 RequestId = Guid.NewGuid(),

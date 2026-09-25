@@ -58,6 +58,11 @@ public sealed class StudioAppBuilderIntegrationTests
             published.Issue is not null,
             $"The live server rejected publish: {published.Issue?.Detail}");
         Assert.True(published.Succeeded);
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.False(published.State.IsPublished);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
+        Assert.True(published.State.IsPublished);
         var itemId = published.State!.ItemId!.Value;
 
         // 4. Version history lists the immutable version from the live server.

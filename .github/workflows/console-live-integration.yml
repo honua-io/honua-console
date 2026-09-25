@@ -132,7 +132,7 @@ jobs:
             --logger "trx;LogFileName=integration.trx" \
             --results-directory artifacts/test-results/integration
 
-      - name: Require private-publication denial and Enterprise approval evidence
+      - name: Require governed publication and denial evidence
         if: ${{ !cancelled() }}
         run: |
           python3 - <<'PY'
@@ -143,7 +143,14 @@ jobs:
           results = [node for path in paths for node in ET.parse(path).getroot().iter()
                      if node.tag.rsplit('}', 1)[-1] == 'UnitTestResult']
           for name in ('PrivatePublish_LandsButIsNotAnonymouslyReachable',
-                       'EnterpriseCreateDraft_RequiresApproval_AndDoesNotCreateDraft'):
+                       'EnterpriseCreateDraft_RequiresApproval_AndDoesNotCreateDraft',
+                       'MapPublish_LandsContentVersion_VerifiedIndependently_AndBuilderReflectsIt',
+                       'DashboardPublish_LandsContentVersion_VerifiedIndependently_AndBuilderReflectsIt',
+                       'MapPublish_WithInvalidDraft_IsRejectedWithFieldErrors_AndNothingLands',
+                       'DashboardPublish_WithInvalidDraft_IsRejectedWithFieldErrors_AndNothingLands',
+                       'MapPublish_StaleProposalAndInvalidIntent_DoNotMovePublishedPointer',
+                       'MapBuilder_SaveThenPublish_RunsAgainstLiveServer',
+                       'AppBuilder_FullLifecycle_FromLiveServer'):
               required = [node for node in results if name in node.get('testName', '')]
               assert len(required) == 1, f'Expected one {name} proof, found {len(required)}'
               assert required[0].get('outcome') == 'Passed', ET.tostring(required[0], encoding='unicode')
