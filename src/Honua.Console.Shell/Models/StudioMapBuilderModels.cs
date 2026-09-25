@@ -11,6 +11,14 @@ namespace Honua.Console.Shell.Models;
 /// </summary>
 public sealed class StudioMapEditorState
 {
+    public StudioFrozenDraft? FrozenDraft { get; set; }
+
+    public string PackageId { get; set; } = $"map_{Guid.NewGuid():N}";
+    public DateTimeOffset PackageCreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public JsonElement? CanonicalPackage { get; set; }
+    public JsonElement? CanonicalMapStyle { get; set; }
+    public string? SavedStyleSignature { get; set; }
+
     /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
     public StudioPendingPublication? PendingPublication { get; set; }
 
@@ -91,6 +99,47 @@ public sealed class StudioMapEditorState
 /// <summary>A single operational layer binding within the map package.</summary>
 public sealed class StudioMapLayerEditor
 {
+    /// <summary>Original canonical binding, including protocol and locator, from the server.</summary>
+    public JsonElement? SourceBinding { get; set; }
+
+    public bool HasCanonicalSource
+    {
+        get
+        {
+            if (SourceBinding is not { ValueKind: JsonValueKind.Object } binding
+                || Identifier(binding, "sourceId") != SourceRef
+                || string.IsNullOrWhiteSpace(Identifier(binding, "protocol"))
+                || !binding.TryGetProperty("locator", out var locator) || locator.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+            var service = Identifier(locator, "serviceId");
+            var layer = Identifier(locator, "layerId");
+            if ((!string.IsNullOrWhiteSpace(BoundServiceId) && service != BoundServiceId)
+                || (!string.IsNullOrWhiteSpace(BoundLayerId) && layer != BoundLayerId))
+            {
+                return false;
+            }
+            var url = Identifier(locator, "url");
+            return (!string.IsNullOrWhiteSpace(service) && !string.IsNullOrWhiteSpace(layer))
+                || !string.IsNullOrWhiteSpace(Identifier(locator, "collectionId"))
+                || (Uri.TryCreate(url, UriKind.Absolute, out var absolute) && absolute.Scheme is "http" or "https");
+        }
+    }
+
+    public bool HasResolvedSource => HasCanonicalSource
+        || (!string.IsNullOrWhiteSpace(BoundServiceId) && !string.IsNullOrWhiteSpace(BoundLayerId)
+            && SourceRef == $"service:{BoundServiceId}/{BoundLayerId}");
+
+    private static string? Identifier(JsonElement value, string member) => value.TryGetProperty(member, out var property)
+        ? property.ValueKind switch
+        {
+            JsonValueKind.String => property.GetString(),
+            JsonValueKind.Number => property.GetRawText(),
+            _ => null
+        }
+        : null;
+
     /// <summary>Content/source reference this layer renders, e.g. <c>content:hydrants@v12</c>.</summary>
     public string SourceRef { get; set; } = string.Empty;
 
@@ -234,6 +283,11 @@ public static class StudioMapPublishEvaluator
             unmet.Add("Every layer must bind a source reference.");
         }
 
+        if (state.Layers.Any(layer => !layer.HasResolvedSource))
+        {
+            unmet.Add("Resolve every layer to a published source before publishing.");
+        }
+
         if (string.IsNullOrWhiteSpace(state.Basemap))
         {
             unmet.Add("Select a basemap.");
@@ -288,6 +342,7 @@ public static class StudioMapPackageMapper
 
         var body = new Dictionary<string, object?>
         {
+            ["savedStyleSignature"] = state.SavedStyleSignature,
             ["schemaVersion"] = SchemaVersion,
             ["title"] = state.Title,
             ["description"] = state.Description,
@@ -296,6 +351,9 @@ public static class StudioMapPackageMapper
             ["layers"] = state.Layers.Select(layer => new Dictionary<string, object?>
             {
                 ["sourceRef"] = layer.SourceRef,
+                ["boundServiceId"] = layer.BoundServiceId,
+                ["boundLayerId"] = layer.BoundLayerId,
+                ["sourceBinding"] = layer.SourceBinding,
                 ["title"] = layer.Title,
                 ["visible"] = layer.Visible,
                 ["filter"] = layer.Filter,
@@ -315,7 +373,54 @@ public static class StudioMapPackageMapper
             }
         };
 
-        return JsonSerializer.SerializeToElement(body);
+        var package = state.CanonicalPackage is { ValueKind: JsonValueKind.Object } original
+            ? original.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone())
+            : new Dictionary<string, object?>();
+        package["mapPackageId"] = state.PackageId;
+        package["format"] = "honua_map_package.v1";
+        package["status"] = "Draft";
+        package["createdAt"] = state.PackageCreatedAt;
+        if (state.CanonicalMapStyle is { ValueKind: JsonValueKind.Object } composedStyle)
+        {
+            package["mapSpec"] = composedStyle;
+        }
+        var mapSpec = package.TryGetValue("mapSpec", out var existingSpec)
+            && existingSpec is JsonElement { ValueKind: JsonValueKind.Object } spec
+            ? spec.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone())
+            : new Dictionary<string, object?>();
+        var metadata = mapSpec.TryGetValue("metadata", out var existingMetadata)
+            && existingMetadata is JsonElement { ValueKind: JsonValueKind.Object } meta
+            ? meta.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone())
+            : new Dictionary<string, object?>();
+        metadata["honua:console"] = body;
+        mapSpec["metadata"] = metadata;
+        package["mapSpec"] = mapSpec;
+        package["sourceBindings"] = state.Layers.Where(layer => layer.HasResolvedSource).Select(layer =>
+        {
+            var binding = layer.HasCanonicalSource && layer.SourceBinding is { ValueKind: JsonValueKind.Object } existing
+                ? existing.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone())
+                : new Dictionary<string, object?>
+                {
+                    ["protocol"] = "geoservices_feature_service",
+                    ["locator"] = new { serviceId = layer.BoundServiceId, layerId = layer.BoundLayerId }
+                };
+            binding["sourceId"] = layer.SourceRef;
+            binding["filter"] = layer.Filter;
+            return binding;
+        }).ToArray();
+        var coordinates = state.InitialExtent.Split(',');
+        if (coordinates.Length == 4 && coordinates.All(value => double.TryParse(value,
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var number) && double.IsFinite(number)))
+        {
+            var view = package.TryGetValue("initialView", out var previousView)
+                && previousView is JsonElement { ValueKind: JsonValueKind.Object } originalView
+                ? originalView.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone())
+                : new Dictionary<string, object?>();
+            view["bbox"] = coordinates.Select(value => double.Parse(value, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            view.TryAdd("crs", "EPSG:4326");
+            package["initialView"] = view;
+        }
+        return JsonSerializer.SerializeToElement(package);
     }
 
     /// <summary>
@@ -332,6 +437,22 @@ public static class StudioMapPackageMapper
             return;
         }
 
+        if (root.TryGetProperty("format", out var format) && format.ValueKind == JsonValueKind.String && format.GetString() == "honua_map_package.v1")
+        {
+            _ = ApplyGeneratedPackage(state, root);
+            if (root.TryGetProperty("mapSpec", out var spec) && spec.ValueKind == JsonValueKind.Object
+                && spec.TryGetProperty("metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object
+                && metadata.TryGetProperty("honua:console", out var editor) && editor.ValueKind == JsonValueKind.Object)
+            {
+                root = editor;
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        state.SavedStyleSignature = ReadString(root, "savedStyleSignature", string.Empty);
         state.Title = ReadString(root, "title", state.Title);
         state.Description = ReadString(root, "description", state.Description);
         state.Basemap = ReadString(root, "basemap", state.Basemap);
@@ -363,6 +484,9 @@ public static class StudioMapPackageMapper
                 state.Layers.Add(new StudioMapLayerEditor
                 {
                     SourceRef = ReadString(layer, "sourceRef", string.Empty),
+                    BoundServiceId = ReadString(layer, "boundServiceId", string.Empty),
+                    BoundLayerId = ReadString(layer, "boundLayerId", string.Empty),
+                    SourceBinding = layer.TryGetProperty("sourceBinding", out var binding) && binding.ValueKind == JsonValueKind.Object ? binding.Clone() : null,
                     Title = ReadString(layer, "title", string.Empty),
                     Visible = ReadBool(layer, "visible", true),
                     Filter = ReadString(layer, "filter", string.Empty),
@@ -389,6 +513,15 @@ public static class StudioMapPackageMapper
         if (package is not { ValueKind: JsonValueKind.Object } root)
         {
             return notes;
+        }
+
+        state.CanonicalPackage = root.Clone();
+        state.CanonicalMapStyle = root.TryGetProperty("mapSpec", out var canonicalStyle)
+            && canonicalStyle.ValueKind == JsonValueKind.Object ? canonicalStyle.Clone() : null;
+        state.PackageId = ReadString(root, "mapPackageId", state.PackageId);
+        if (root.TryGetProperty("createdAt", out var createdAt) && createdAt.ValueKind == JsonValueKind.String && createdAt.TryGetDateTimeOffset(out var timestamp))
+        {
+            state.PackageCreatedAt = timestamp;
         }
 
         // The generated package carries no authoring title; derive a readable one from the package id so the
@@ -481,6 +614,7 @@ public static class StudioMapPackageMapper
 
                 state.Layers.Add(new StudioMapLayerEditor
                 {
+                    SourceBinding = source.Clone(),
                     SourceRef = sourceId,
                     Title = Humanize(sourceId),
                     Visible = true,

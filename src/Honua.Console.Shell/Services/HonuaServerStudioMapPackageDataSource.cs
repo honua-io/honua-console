@@ -36,15 +36,18 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
     private readonly IStudioPackageLifecycleClient _client;
     private readonly IStudioMapGenerationClient _generation;
     private readonly IOperateTransitionDataSource _operate;
+    private readonly IStudioMapStyleCatalogDataSource? _styles;
 
     public HonuaServerStudioMapPackageDataSource(
         IStudioPackageLifecycleClient client,
         IStudioMapGenerationClient generation,
-        IOperateTransitionDataSource operate)
+        IOperateTransitionDataSource operate,
+        IStudioMapStyleCatalogDataSource? styles = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _generation = generation ?? throw new ArgumentNullException(nameof(generation));
         _operate = operate ?? throw new ArgumentNullException(nameof(operate));
+        _styles = styles;
     }
 
     // Catalog grounding: the real published layers in the workspace, so map generation binds real
@@ -150,16 +153,49 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             return Failure("This map version is published. Reopen it as a draft before editing.");
         }
 
-        var envelope = BuildEnvelope(state);
-        StudioEndpointResult<StudioPackageDraft> result;
+        if (state.Layers.Count > 0 && state.Layers.All(layer => layer.HasResolvedSource) && _styles is not null)
+        {
+            var style = await StudioMapStyleComposer.ComposeAsync(state, _styles, cancellationToken).ConfigureAwait(false);
+            if (style.Issue is not null)
+            {
+                return Failure(style.Issue);
+            }
+            state.CanonicalMapStyle = style.Style;
+            state.SavedStyleSignature = StudioMapStyleComposer.Signature(state);
+        }
 
-        if (state.DraftId is { } existingDraftId)
+        var savedSignature = StudioMapStyleComposer.MatchesSavedStyle(state) ? state.SavedStyleSignature : null;
+        state.SavedStyleSignature = savedSignature;
+        var envelope = BuildEnvelope(state);
+        // Until the envelope is persisted, a failed Save must never enable publication of an older body.
+        state.SavedStyleSignature = null;
+        StudioEndpointResult<StudioPackageDraft> result;
+        var editableDraftId = state.DraftId;
+        var editableGeneration = state.Generation;
+        if (state.FrozenDraft is { } frozen
+            && frozen.DraftId == state.DraftId && frozen.ItemId == state.ItemId
+            && frozen.VersionId == state.VersionId)
+        {
+            // Explicit Save after submission starts from the exact immutable version. Never
+            // overwrite a concurrently edited old draft or guess the generation advanced by freeze.
+            var reopened = await _client.ReopenContentVersionAsync(frozen.ItemId, frozen.VersionId, cancellationToken)
+                .ConfigureAwait(false);
+            if (reopened.Issue is { } reopenIssue)
+            {
+                return FailureFrom(ReopenContract, reopenIssue);
+            }
+
+            editableDraftId = reopened.Data!.DraftId;
+            editableGeneration = reopened.Data.Generation;
+        }
+
+        if (editableDraftId is { } existingDraftId)
         {
             var request = new UpdateStudioPackageDraftRequest
             {
                 PackageKey = StudioMapPackageMapper.BuildPackageKey(state),
                 Envelope = envelope,
-                Generation = state.Generation
+                Generation = editableGeneration
             };
             result = await _client
                 .UpdatePackageDraftAsync(existingDraftId, request, cancellationToken)
@@ -190,6 +226,8 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         // local intent if the server normalised the body; the body round-trip belongs to load/reopen.
         state.PreviousPublication = state.PendingPublication ?? state.PreviousPublication;
         state.PendingPublication = null;
+        state.FrozenDraft = null;
+        state.SavedStyleSignature = savedSignature;
         ApplyServerIdentity(state, result.Data!);
         return new StudioMapCommandResult(
             true,
@@ -227,6 +265,11 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
             return Failure("Save the map draft before publishing.");
         }
 
+        if (!StudioMapStyleComposer.MatchesSavedStyle(state))
+        {
+            return Failure("Save the map with resolved layer styles before publishing. Unsupported filter edits must be removed or expressed in the server stylesheet.");
+        }
+
         // Freeze the current draft as an immutable content version. Reopened edits create a new draft
         // generation and a new version on the next save, so a published version is never mutated in place.
         var versionResult = await _client
@@ -242,6 +285,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         }
 
         var version = versionResult.Data!;
+        state.FrozenDraft = new StudioFrozenDraft(draftId, version.ItemId, version.VersionId);
         state.ItemId = version.ItemId;
         state.VersionId = version.VersionId;
         state.Version = version.VersionNumber;
@@ -499,7 +543,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
             if (string.IsNullOrWhiteSpace(state.Basemap))
             {
-                state.Basemap = "basemap:streets";
+                state.Basemap = "server-default";
             }
 
             if (string.IsNullOrWhiteSpace(state.Title))
@@ -624,7 +668,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
 
         if (string.IsNullOrWhiteSpace(state.Basemap))
         {
-            state.Basemap = "basemap:streets";
+            state.Basemap = "server-default";
         }
 
         if (string.IsNullOrWhiteSpace(state.Title))

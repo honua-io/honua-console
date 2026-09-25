@@ -16,19 +16,74 @@ public sealed class StudioPublicationSubmissionTests
     private static readonly Guid VersionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     [Fact]
-    public async Task Map_PendingApproval_KeepsSavedIdentityAndDoesNotResubmit()
+    public async Task Map_FreezeThenSubmissionForbidden_NextExplicitSaveReopensExactVersion()
+    {
+        using var handler = new PublicationHandler { RejectPublication = true };
+        using var http = Client(handler);
+        using var lifecycle = new HttpStudioPackageLifecycleClient(http, new StudioPackageLifecycleClientOptions(http.BaseAddress!));
+        var source = new HonuaServerStudioMapPackageDataSource(lifecycle, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), new TestMapStyles());
+        var state = new StudioMapEditorState { DraftId = Guid.NewGuid(), Title = "Before", Basemap = "server-default", InitialExtent = "0,0,1,1" };
+        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "service:roads/0", BoundServiceId = "roads", BoundLayerId = "0" });
+        TestMapStyles.MarkSaved(state);
+        var denied = await source.PublishAsync(state);
+        Assert.False(denied.Succeeded);
+        Assert.Null(state.PendingPublication);
+        Assert.Equal(VersionId, state.FrozenDraft!.VersionId);
+        state.Title = "Unsaved edit retained";
+        var saved = await source.SaveDraftAsync(state);
+        Assert.True(saved.Succeeded, saved.Message);
+        Assert.Equal(handler.ReopenedDraftId, saved.State!.DraftId);
+        Assert.Equal("Unsaved edit retained", saved.State.Title);
+        Assert.Null(saved.State.FrozenDraft);
+    }
+
+    [Theory]
+    [InlineData("title")]
+    [InlineData("description")]
+    [InlineData("visibility")]
+    [InlineData("popup")]
+    public async Task Map_AuthoredChangeAfterSave_RequiresAnotherSaveBeforeFreeze(string field)
     {
         using var handler = new PublicationHandler();
         using var http = Client(handler);
         using var lifecycle = new HttpStudioPackageLifecycleClient(http, new StudioPackageLifecycleClientOptions(http.BaseAddress!));
         var source = new HonuaServerStudioMapPackageDataSource(lifecycle, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var state = new StudioMapEditorState { DraftId = Guid.NewGuid(), Title = "Before", Basemap = "server-default", InitialExtent = "0,0,1,1" };
+        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "service:roads/0", BoundServiceId = "roads", BoundLayerId = "0" });
+        TestMapStyles.MarkSaved(state);
+        switch (field)
+        {
+            case "title": state.Title = "Changed"; break;
+            case "description": state.Description = "Changed"; break;
+            case "visibility": state.ShareTier = "public"; break;
+            case "popup": state.Layers[0].PopupFields = "name"; break;
+        }
+        var result = await source.PublishAsync(state);
+        Assert.False(result.Succeeded);
+        Assert.Contains("Save", result.Message, StringComparison.Ordinal);
+        Assert.Equal(0, handler.SaveCount);
+        Assert.Equal(0, handler.PublishCount);
+    }
+
+    [Fact]
+    public async Task Map_PendingApproval_KeepsSavedIdentityAndDoesNotResubmit()
+    {
+        using var handler = new PublicationHandler();
+        using var http = Client(handler);
+        using var lifecycle = new HttpStudioPackageLifecycleClient(http, new StudioPackageLifecycleClientOptions(http.BaseAddress!));
+        var source = new HonuaServerStudioMapPackageDataSource(lifecycle, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), new TestMapStyles());
         var state = new StudioMapEditorState
         {
-            DraftId = Guid.NewGuid(), Title = "Map", Basemap = "basemap:streets",
-            InitialExtent = "-120,30,-110,40", ShareTier = "private", ReopenedFromVersion = 2
+            DraftId = Guid.NewGuid(),
+            Title = "Map",
+            Basemap = "server-default",
+            InitialExtent = "-120,30,-110,40",
+            ShareTier = "private",
+            ReopenedFromVersion = 2
         };
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:roads@v1", Title = "Roads" });
+        state.Layers.Add(new StudioMapLayerEditor { BoundServiceId = "roads", BoundLayerId = "0", SourceRef = "service:roads/0", Title = "Roads" });
 
+        TestMapStyles.MarkSaved(state);
         var result = await source.PublishAsync(state);
         var again = await source.PublishAsync(state);
 
@@ -42,9 +97,12 @@ public sealed class StudioPublicationSubmissionTests
         Assert.Equal(1, handler.SaveCount);
         Assert.Equal(1, handler.PublishCount);
         var oldProposal = state.PendingPublication;
+        state.Title += " revised";
         var nextDraft = await source.SaveDraftAsync(state);
         Assert.True(nextDraft.Succeeded);
-        Assert.Null(nextDraft.State!.PendingPublication);
+        Assert.EndsWith(" revised", nextDraft.State!.Title, StringComparison.Ordinal);
+        Assert.Equal(handler.ReopenedDraftId, nextDraft.State.DraftId);
+        Assert.Null(nextDraft.State.PendingPublication);
         Assert.Equal(oldProposal, nextDraft.State.PreviousPublication);
         var nextSubmission = await source.PublishAsync(nextDraft.State);
         Assert.True(nextSubmission.Succeeded);
@@ -63,12 +121,16 @@ public sealed class StudioPublicationSubmissionTests
         var source = new HonuaServerStudioDashboardPackageDataSource(lifecycle);
         var state = new StudioDashboardEditorState
         {
-            DraftId = Guid.NewGuid(), Title = "Dashboard", PublishedVersion = 2
+            DraftId = Guid.NewGuid(),
+            Title = "Dashboard",
+            PublishedVersion = 2
         };
         state.Bindings.Add(new StudioDashboardBindingEditor { Alias = "roads", ContentRef = "content:roads", VersionPin = "v1" });
         state.Panels.Add(new StudioDashboardPanelEditor
         {
-            Title = "Road count", Kind = StudioDashboardPanelKinds.Chart, BindingAlias = "roads",
+            Title = "Road count",
+            Kind = StudioDashboardPanelKinds.Chart,
+            BindingAlias = "roads",
             VegaLiteSpec = StudioDashboardChartSpec.DefaultBarChart("district", "count")
         });
 
@@ -84,9 +146,12 @@ public sealed class StudioPublicationSubmissionTests
         Assert.Equal(1, handler.SaveCount);
         Assert.Equal(1, handler.PublishCount);
         var oldProposal = state.PendingPublication;
+        state.Title += " revised";
         var nextDraft = await source.SaveDraftAsync(state);
         Assert.True(nextDraft.Succeeded);
-        Assert.Null(nextDraft.State!.PendingPublication);
+        Assert.EndsWith(" revised", nextDraft.State!.Title, StringComparison.Ordinal);
+        Assert.Equal(handler.ReopenedDraftId, nextDraft.State.DraftId);
+        Assert.Null(nextDraft.State.PendingPublication);
         Assert.Equal(oldProposal, nextDraft.State.PreviousPublication);
         var nextSubmission = await source.PublishAsync(nextDraft.State);
         Assert.True(nextSubmission.Succeeded);
@@ -125,9 +190,12 @@ public sealed class StudioPublicationSubmissionTests
         Assert.Equal(1, handler.PublishCount);
         Assert.All(history.Versions, version => Assert.False(version.IsPublished));
         var oldProposal = state.PendingPublication;
+        state.Title += " revised";
         var nextDraft = await source.SaveDraftAsync(state);
         Assert.True(nextDraft.Succeeded);
-        Assert.Null(nextDraft.State!.PendingPublication);
+        Assert.EndsWith(" revised", nextDraft.State!.Title, StringComparison.Ordinal);
+        Assert.Equal(handler.ReopenedDraftId, nextDraft.State.DraftId);
+        Assert.Null(nextDraft.State.PendingPublication);
         Assert.Equal(oldProposal, nextDraft.State.PreviousPublication);
         nextDraft.State.ShareEmbedPolicyReviewed = true;
         var nextSubmission = await source.PublishAsync(nextDraft.State);
@@ -239,6 +307,8 @@ public sealed class StudioPublicationSubmissionTests
     private sealed class PublicationHandler : HttpMessageHandler
     {
         public Guid? ObservedPublishedId { get; init; }
+        public bool RejectPublication { get; init; }
+        public Guid ReopenedDraftId { get; } = Guid.NewGuid();
         public int SaveCount { get; private set; }
         public int PublishCount { get; private set; }
 
@@ -253,26 +323,60 @@ public sealed class StudioPublicationSubmissionTests
             object data;
             var status = HttpStatusCode.OK;
             var path = request.RequestUri!.AbsolutePath;
-            if (request.Method == HttpMethod.Put)
+            if (path.EndsWith("/reopen", StringComparison.Ordinal))
             {
-                using var document = JsonDocument.Parse(body!);
+                Assert.Contains($"/{ItemId}/versions/{VersionId}/", path, StringComparison.Ordinal);
+                status = HttpStatusCode.Created;
                 data = new
                 {
-                    draftId = Guid.Parse(path.Split('/')[^1]), itemId = ItemId, packageKey = "studio-test",
+                    draftId = ReopenedDraftId,
+                    itemId = ItemId,
+                    baseVersionId = VersionId,
+                    packageKey = "studio-test",
+                    family = "map",
+                    generation = 7,
+                    envelope = new { family = "map", schemaVersion = "honua_map_package.v1" },
+                    createdAt = "2026-09-25T12:00:00Z",
+                    updatedAt = "2026-09-25T12:00:00Z"
+                };
+            }
+            else if (request.Method == HttpMethod.Put)
+            {
+                using var document = JsonDocument.Parse(body!);
+                Assert.EndsWith(ReopenedDraftId.ToString(), path, StringComparison.Ordinal);
+                Assert.Equal(7, document.RootElement.GetProperty("generation").GetInt64());
+                data = new
+                {
+                    draftId = Guid.Parse(path.Split('/')[^1]),
+                    itemId = ItemId,
+                    packageKey = "studio-test",
                     family = document.RootElement.GetProperty("envelope").GetProperty("family").GetString(),
-                    generation = 2, envelope = document.RootElement.GetProperty("envelope").Clone(),
-                    createdAt = "2026-09-25T12:00:00Z", updatedAt = "2026-09-25T12:00:00Z"
+                    generation = 2,
+                    envelope = document.RootElement.GetProperty("envelope").Clone(),
+                    createdAt = "2026-09-25T12:00:00Z",
+                    updatedAt = "2026-09-25T12:00:00Z"
                 };
             }
             else if (path.EndsWith("/publish-requests", StringComparison.Ordinal))
             {
                 PublishCount++;
+                if (RejectPublication)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                    {
+                        Content = new StringContent("{\"title\":\"Forbidden\"}", Encoding.UTF8, "application/problem+json")
+                    };
+                }
                 status = HttpStatusCode.Accepted;
                 data = new
                 {
-                    operationInstanceId = "invocation-1", operationId = "studio.content.create-publication-request",
-                    status = 4, correlationId = "correlation-1", proposalId = "proposal-1",
-                    createdAt = "2026-09-25T12:00:00Z", updatedAt = "2026-09-25T12:00:00Z"
+                    operationInstanceId = "invocation-1",
+                    operationId = "studio.content.create-publication-request",
+                    status = 4,
+                    correlationId = "correlation-1",
+                    proposalId = "proposal-1",
+                    createdAt = "2026-09-25T12:00:00Z",
+                    updatedAt = "2026-09-25T12:00:00Z"
                 };
             }
             else if (path.EndsWith("/content-versions", StringComparison.Ordinal))
@@ -307,9 +411,14 @@ public sealed class StudioPublicationSubmissionTests
 
         private object Version() => new
         {
-            itemId = ItemId, versionId = SaveCount > 1 ? NextVersionId : VersionId, packageKey = "studio-test", versionNumber = SaveCount > 1 ? 4 : 3,
-            contentHash = "abc", envelope = new { family = "map", schemaVersion = "honua_map_package.v1" },
-            validation = new { status = "valid" }, createdAt = "2026-09-25T12:00:00Z"
+            itemId = ItemId,
+            versionId = SaveCount > 1 ? NextVersionId : VersionId,
+            packageKey = "studio-test",
+            versionNumber = SaveCount > 1 ? 4 : 3,
+            contentHash = "abc",
+            envelope = new { family = "map", schemaVersion = "honua_map_package.v1" },
+            validation = new { status = "valid" },
+            createdAt = "2026-09-25T12:00:00Z"
         };
     }
 }

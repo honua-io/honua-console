@@ -13,6 +13,8 @@ namespace Honua.Console.Shell.Models;
 /// </summary>
 public sealed class StudioDashboardEditorState
 {
+    public StudioFrozenDraft? FrozenDraft { get; set; }
+
     /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
     public StudioPendingPublication? PendingPublication { get; set; }
 

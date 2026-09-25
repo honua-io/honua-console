@@ -60,18 +60,18 @@ public sealed class StudioMapPublishRoundTripTests
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var title = $"Console IT map {suffix}";
-        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), _fixture.CreateMapStyles());
 
         // --- OPERATION: author + save a real map draft, then publish it (freezes an immutable version). ---
         var load = await source.LoadAsync(null);
         Assert.True(load.HasEditor);
         var state = load.State!;
         state.Title = title;
-        state.Basemap = "basemap:streets";
+        state.Basemap = "server-default";
         state.InitialExtent = "-158.3,21.2,-157.6,21.7";
         state.ShareTier = "organization";
         state.EmbedAllowed = true;
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
+        state.Layers.Add(await _fixture.CreatePublishedMapLayerAsync());
 
         var saved = await source.SaveDraftAsync(state);
         StudioLifecycleAssertions.RequireConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "map draft save");
@@ -97,6 +97,19 @@ public sealed class StudioMapPublishRoundTripTests
         Assert.Equal(StudioMapPackageMapper.SchemaVersion, version.SchemaVersion);
         Assert.Equal(published.State.VersionId!.Value.ToString(), version.VersionId);
         Assert.NotNull(version.VersionNumber);
+        using var lifecycle = (HttpStudioPackageLifecycleClient)_fixture.CreateClient();
+        var observedVersion = await lifecycle.GetContentVersionAsync(published.State.ItemId.Value, published.State.VersionId.Value);
+        Assert.True(observedVersion.IsSuccess, observedVersion.Issue?.Detail);
+        var actualStyle = observedVersion.Data!.Envelope.Body!.Value.GetProperty("mapSpec");
+        var preparedStyle = saved.State.CanonicalMapStyle!.Value;
+        foreach (var member in new[] { "sources", "layers" })
+        {
+            Assert.True(System.Text.Json.Nodes.JsonNode.DeepEquals(
+                System.Text.Json.Nodes.JsonNode.Parse(preparedStyle.GetProperty(member).GetRawText()),
+                System.Text.Json.Nodes.JsonNode.Parse(actualStyle.GetProperty(member).GetRawText())));
+        }
+        Assert.NotEmpty(actualStyle.GetProperty("sources").EnumerateObject());
+        Assert.NotEmpty(actualStyle.GetProperty("layers").EnumerateArray());
         // The publication intent (visibility/route the operator chose) is frozen on the content envelope.
         Assert.Equal("organization", version.Visibility);
 
@@ -122,13 +135,13 @@ public sealed class StudioMapPublishRoundTripTests
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
         var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(),
-            new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+            new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), _fixture.CreateMapStyles());
         var state = (await source.LoadAsync(null)).State!;
         state.Title = $"Focused approval {Guid.NewGuid():N}"[..40];
-        state.Basemap = "basemap:streets";
+        state.Basemap = "server-default";
         state.InitialExtent = "-158.3,21.2,-157.6,21.7";
         state.ShareTier = "organization";
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
+        state.Layers.Add(await _fixture.CreatePublishedMapLayerAsync());
         var saved = await source.SaveDraftAsync(state);
         RequireSuccess(saved);
         var submitted = await source.PublishAsync(saved.State!);
@@ -145,13 +158,13 @@ public sealed class StudioMapPublishRoundTripTests
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
         var client = _fixture.CreateClient();
-        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), _fixture.CreateMapStyles());
         var state = (await source.LoadAsync(null)).State!;
         state.Title = $"Governed map {Guid.NewGuid():N}"[..40];
-        state.Basemap = "basemap:streets";
+        state.Basemap = "server-default";
         state.InitialExtent = "-158.3,21.2,-157.6,21.7";
         state.ShareTier = "organization";
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
+        state.Layers.Add(await _fixture.CreatePublishedMapLayerAsync());
         var saved = await source.SaveDraftAsync(state);
         RequireSuccess(saved);
         var first = await source.PublishAsync(saved.State!);

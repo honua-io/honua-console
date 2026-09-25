@@ -438,9 +438,13 @@ public sealed class ServerStudioAuthoringShellTests
             return StudioEndpointResult<StudioPublicationSubmission>.FromData(StudioPublicationSubmission.AwaitingApproval(
                 new HonuaOperationHandle
                 {
-                    OperationInstanceId = "invocation-1", OperationId = "studio.content.create-publication-request",
-                    Status = HonuaOperationStatus.RequiresApproval, CorrelationId = "correlation-1", ProposalId = "proposal-1",
-                    CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+                    OperationInstanceId = "invocation-1",
+                    OperationId = "studio.content.create-publication-request",
+                    Status = HonuaOperationStatus.RequiresApproval,
+                    CorrelationId = "correlation-1",
+                    ProposalId = "proposal-1",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
                 }));
         }
 

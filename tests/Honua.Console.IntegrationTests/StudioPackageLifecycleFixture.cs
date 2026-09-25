@@ -113,6 +113,46 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
             new StudioPackageLifecycleClientOptions(BaseAddress, _proposerKey ?? Options.StudioAdminApiKey));
     }
 
+    public IStudioMapStyleCatalogDataSource CreateMapStyles() => new HonuaServerStudioMapStyleCatalogDataSource(
+        new HonuaOgcStylesHttpClient(CreateHttpClient(), new HonuaOgcStylesClientOptions(BaseAddress, _proposerKey)));
+
+    public async Task<StudioMapLayerEditor> CreatePublishedMapLayerAsync()
+    {
+        Assert.NotNull(_container);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var table = $"studio_{suffix}";
+        var service = $"studio_{suffix}";
+        await PublishedLayerSeeder.SeedPointTableAsync(_container.PostgresConnectionString, table);
+        using var http = CreateHttpClient(_proposerKey);
+        using var connection = await http.PostAsJsonAsync("/api/v1/admin/connections/", new
+        {
+            name = table, host = "postgres", port = 5432, databaseName = "honua",
+            username = "honua", password = "honua", provider = "postgis", sslRequired = false, sslMode = "Disable"
+        });
+        connection.EnsureSuccessStatusCode();
+        using var connectionBody = JsonDocument.Parse(await connection.Content.ReadAsStringAsync());
+        var connectionId = connectionBody.RootElement.GetProperty("data").GetProperty("connectionId").GetString();
+        using var publication = await http.PostAsJsonAsync($"/api/v1/admin/connections/{connectionId}/layers", new
+        {
+            schema = "public", table, serviceName = service, layerName = "Studio observations",
+            geometryColumn = "geom", geometryType = "Point", srid = 3857,
+            primaryKey = "id", fields = new[] { "id", "name", "observed" }, enabled = true
+        });
+        var publicationJson = await publication.Content.ReadAsStringAsync();
+        Assert.True(publication.StatusCode == HttpStatusCode.Created, publicationJson);
+        using var published = JsonDocument.Parse(publicationJson);
+        var layerId = published.RootElement.GetProperty("data").GetProperty("layerId").GetInt32();
+        using var query = await http.GetAsync($"/rest/services/{service}/FeatureServer/{layerId}/query?where=1%3D1&returnCountOnly=true&f=json");
+        query.EnsureSuccessStatusCode();
+        using var count = JsonDocument.Parse(await query.Content.ReadAsStringAsync());
+        Assert.Equal(3, count.RootElement.GetProperty("count").GetInt32());
+        return new StudioMapLayerEditor
+        {
+            SourceRef = $"service:{service}/{layerId}", Title = "Studio observations",
+            BoundServiceId = service, BoundLayerId = layerId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+    }
+
     /// <summary>Explicit test action: assert self-approval denial, then have a distinct scoped reviewer act.</summary>
     public async Task<StudioPublicationRefresh> ApprovePublicationAsDistinctActorAsync(
         StudioPendingPublication pending, bool expectValidationFailure = false)
@@ -146,7 +186,9 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
         Assert.False(string.IsNullOrWhiteSpace(decision.Value.RequestedBy));
         Assert.False(string.IsNullOrWhiteSpace(decision.Value.ResolvedBy));
         Assert.NotEqual(decision.Value.RequestedBy, decision.Value.ResolvedBy);
-        Assert.Equal(expectValidationFailure ? ConsoleProposalStatus.Failed : ConsoleProposalStatus.Succeeded, decision.Value.Status);
+        var expectedStatus = expectValidationFailure ? ConsoleProposalStatus.Failed : ConsoleProposalStatus.Succeeded;
+        Assert.True(decision.Value.Status == expectedStatus,
+            $"Expected {expectedStatus}, received {decision.Value.Status}: {decision.Value.ResolutionReason}");
 
         var observed = await new StudioPublicationStatusReader(lifecycle, proposer).RefreshAsync(pending);
         Assert.True(observed.Succeeded, observed.Issue);
@@ -217,7 +259,9 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
     {
         var profile = new ConsoleEnvironmentProfile
         {
-            Id = "publication-fixture", DisplayName = "Ephemeral publication fixture", ServerBaseUri = BaseAddress,
+            Id = "publication-fixture",
+            DisplayName = "Ephemeral publication fixture",
+            ServerBaseUri = BaseAddress,
             UpdatedAt = DateTimeOffset.UtcNow,
             Account = new ConsoleAccountBinding { AuthMode = ConsoleAccountAuthMode.ServiceApiKey }
         };

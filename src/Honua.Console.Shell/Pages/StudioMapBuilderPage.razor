@@ -403,7 +403,9 @@
                     <div class="console-panel-grid">
                         <label class="studio-form-label">
                             <span>Basemap</span>
-                            <input class="console-input" @bind="editor.Basemap" @bind:after="OnEdit" placeholder="basemap:streets" />
+                            <input class="console-input" @bind="editor.Basemap" @bind:after="OnEdit" placeholder="server-default" list="studio-map-basemap-options" />
+                            <datalist id="studio-map-basemap-options"><option value="server-default">Layer styles only</option></datalist>
+                            <small>Layer styles only uses the published server styles. External basemaps need a composed server style.</small>
                             <ValidationMessageInline FieldKey="@StudioMapFieldKeys.Basemap" State="_validation" />
                         </label>
                         <label class="studio-form-label">

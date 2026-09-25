@@ -18,3 +18,6 @@ public sealed record StudioPendingPublication(Guid ItemId, Guid VersionId, Honua
             + "A separate authorized reviewer must act in Approvals; submission did not change the published version."
         : $"Proposal {Operation.ProposalId}: {ProposalStatus}. Refresh reads the actual published version.";
 }
+
+/// <summary>A draft frozen by this editor, independently of whether publication submission succeeded.</summary>
+public sealed record StudioFrozenDraft(Guid DraftId, Guid ItemId, Guid VersionId);

@@ -29,7 +29,7 @@ public sealed class StudioMapBuilderIntegrationTests
     {
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
-        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var source = new HonuaServerStudioMapPackageDataSource(_fixture.CreateClient(), new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), _fixture.CreateMapStyles());
 
         // The workspace must surface the no-list-verb capability state from live data rather than fabricate
         // a package list (Console Patterns Charter section 11).
@@ -42,9 +42,9 @@ public sealed class StudioMapBuilderIntegrationTests
 
         var state = load.State!;
         state.Title = "Live integration map";
-        state.Basemap = "basemap:streets";
+        state.Basemap = "server-default";
         state.InitialExtent = "-158.3,21.2,-157.6,21.7";
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:parcels@v1", Title = "Parcels" });
+        state.Layers.Add(await _fixture.CreatePublishedMapLayerAsync());
 
         var saved = await source.SaveDraftAsync(state);
         Skip.If(

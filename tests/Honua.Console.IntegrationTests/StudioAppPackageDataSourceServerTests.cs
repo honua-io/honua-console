@@ -383,7 +383,9 @@ public sealed class StudioAppPackageDataSourceServerTests
             Guid itemId, CancellationToken cancellationToken = default)
             => Task.FromResult(StudioEndpointResult<StudioContentItemPointers?>.FromData(new StudioContentItemPointers
             {
-                ItemId = itemId, CurrentVersionId = LastVersionId, PublishedVersionId = _publishedVersionId
+                ItemId = itemId,
+                CurrentVersionId = LastVersionId,
+                PublishedVersionId = _publishedVersionId
             }));
 
         public Task<StudioEndpointResult<StudioPublicationRequest>> CreatePublishRequestAsync(

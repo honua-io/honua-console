@@ -137,7 +137,7 @@ public sealed class LiveManifestPageGateTests
                 "unauthorized" => HttpStatusCode.Unauthorized,
                 _ => HttpStatusCode.OK,
             };
-            var entry = $$"""{"id":"{{id}}","available":{{(state != "unavailable").ToString().ToLowerInvariant()}},"supported":{{(state != "unsupported").ToString().ToLowerInvariant()}}} """;
+            var entry = $$"""{"id":"{{id}}","lifecycle":"Implemented","optInRequired":false,"available":{{(state != "unavailable").ToString().ToLowerInvariant()}},"supported":{{(state != "unsupported").ToString().ToLowerInvariant()}}} """;
             var entries = state switch { "absent" => "[]", "null-capabilities" => "null", "duplicate" => $"[{entry},{entry}]", _ => $"[{entry}]" };
             var schema = state == "invalid-schema" ? "unknown.v99" : "honua.capability_manifest.v1";
             var json = state == "invalid-json" ? "{" : $$"""{"schemaVersion":"{{schema}}","capabilities":{{entries}}}""";

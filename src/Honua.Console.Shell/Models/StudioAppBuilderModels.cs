@@ -56,6 +56,12 @@ public static class StudioAppVisibilityModes
 /// </summary>
 public sealed class StudioAppEditorState
 {
+    public StudioFrozenDraft? FrozenDraft { get; set; }
+
+    public string PackageId { get; set; } = $"app_{Guid.NewGuid():N}";
+    public DateTimeOffset PackageCreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public JsonElement? CanonicalPackage { get; set; }
+
     /// <summary>Approval context for the submitted immutable version, without claiming publication.</summary>
     public StudioPendingPublication? PendingPublication { get; set; }
 
@@ -274,7 +280,25 @@ public static class StudioAppPackageMapper
             }
         };
 
-        return JsonSerializer.SerializeToElement(body);
+        var package = state.CanonicalPackage is { ValueKind: JsonValueKind.Object } original
+            ? original.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone())
+            : new Dictionary<string, object?>();
+        package["appPackageId"] = state.PackageId;
+        package["format"] = "honua_app_package.v1";
+        package.TryAdd("targetSdk", "honua-sdk-js");
+        package["status"] = "Draft";
+        package["createdAt"] = state.PackageCreatedAt;
+        var config = package.TryGetValue("runtimeConfig", out var existingConfig)
+            && existingConfig is JsonElement { ValueKind: JsonValueKind.Object } originalConfig
+            ? originalConfig.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone())
+            : new Dictionary<string, object?>();
+        foreach (var field in body)
+        {
+            config[field.Key] = field.Value;
+        }
+        package["runtimeConfig"] = config;
+        package["sharePolicy"] = body["sharePolicy"];
+        return JsonSerializer.SerializeToElement(package);
     }
 
     /// <summary>
@@ -290,6 +314,21 @@ public static class StudioAppPackageMapper
         if (body is not { ValueKind: JsonValueKind.Object } element)
         {
             return;
+        }
+
+        if (element.TryGetProperty("format", out var format)
+            && format.ValueKind == JsonValueKind.String && format.GetString() == "honua_app_package.v1")
+        {
+            state.CanonicalPackage = element.Clone();
+            state.PackageId = ReadString(element, "appPackageId", state.PackageId);
+            if (element.TryGetProperty("createdAt", out var createdAt) && createdAt.ValueKind == JsonValueKind.String && createdAt.TryGetDateTimeOffset(out var timestamp))
+            {
+                state.PackageCreatedAt = timestamp;
+            }
+            if (element.TryGetProperty("runtimeConfig", out var config) && config.ValueKind == JsonValueKind.Object)
+            {
+                element = config;
+            }
         }
 
         if (element.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
