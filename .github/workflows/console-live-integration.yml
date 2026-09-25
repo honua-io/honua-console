@@ -43,11 +43,13 @@ jobs:
       HONUA_CONSOLE_INTEGRATION: "true"
       # Pinned, repo-variable-overridable connect-only honua-server image.
       # Pin a digest via the HONUA_CONSOLE_PR_SERVER_IMAGE repo variable for a
-      # deterministic required check; the literal fallback keeps the lane green
-      # out of the box. A job-level env block cannot read the `env` context, so
+      # deterministic required check. The immutable fallback is the published
+      # fe1636ca0 image for approval evidence; catalog proof requires the later
+      # image containing namespace-aware publication (#5226). A job-level env
+      # block cannot read the `env` context, so
       # reference the `vars` context directly with a literal fallback here.
-      HONUA_CONSOLE_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
-      HONUA_CONSOLE_OPERATE_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
+      HONUA_CONSOLE_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:14b597d78aa6889d3adb2b0e5e2fdbfd4617da4eb11c12079b9655ec7f709b55' }}
+      HONUA_CONSOLE_OPERATE_SERVER_IMAGE: ${{ vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:14b597d78aa6889d3adb2b0e5e2fdbfd4617da4eb11c12079b9655ec7f709b55' }}
       # The pinned image boots plain HTTP on 8080 and exposes /healthz/live.
       HONUA_CONSOLE_SERVER_SCHEME: http
       HONUA_CONSOLE_SERVER_PORT: "8080"
