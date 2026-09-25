@@ -207,7 +207,7 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         {
             Intent = new StudioPublicationIntent
             {
-                Visibility = state.Visibility,
+                Visibility = StudioPublicationVisibility.ToCanonical(state.Visibility),
                 Embed = state.EmbedEnabled
             }
         };
@@ -478,11 +478,11 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         new()
         {
             Family = StudioPackageFamily.App,
-            SchemaVersion = StudioAppPackageMapper.SchemaVersion,
-            Format = "app.package",
+            SchemaVersion = "1.0",
+            Format = "honua_app_package.v1",
             PublicationIntent = new StudioPublicationIntent
             {
-                Visibility = state.Visibility,
+                Visibility = StudioPublicationVisibility.ToCanonical(state.Visibility),
                 Embed = state.EmbedEnabled
             },
             Body = StudioAppPackageMapper.BuildEnvelopeBody(state)
@@ -522,7 +522,7 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         {
             if (!string.IsNullOrWhiteSpace(intent.Visibility))
             {
-                state.Visibility = intent.Visibility!;
+                state.Visibility = StudioPublicationVisibility.ToEditor(intent.Visibility);
             }
 
             if (intent.Embed is { } embed)

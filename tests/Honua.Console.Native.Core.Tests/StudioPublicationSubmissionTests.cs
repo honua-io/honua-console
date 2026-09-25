@@ -68,7 +68,7 @@ public sealed class StudioPublicationSubmissionTests
     [Fact]
     public async Task Map_PendingApproval_KeepsSavedIdentityAndDoesNotResubmit()
     {
-        using var handler = new PublicationHandler();
+        using var handler = new PublicationHandler { ExpectedVisibility = "personal" };
         using var http = Client(handler);
         using var lifecycle = new HttpStudioPackageLifecycleClient(http, new StudioPackageLifecycleClientOptions(http.BaseAddress!));
         var source = new HonuaServerStudioMapPackageDataSource(lifecycle, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), new TestMapStyles());
@@ -100,6 +100,7 @@ public sealed class StudioPublicationSubmissionTests
         state.Title += " revised";
         var nextDraft = await source.SaveDraftAsync(state);
         Assert.True(nextDraft.Succeeded);
+        Assert.Equal("private", nextDraft.State!.ShareTier);
         Assert.EndsWith(" revised", nextDraft.State!.Title, StringComparison.Ordinal);
         Assert.Equal(handler.ReopenedDraftId, nextDraft.State.DraftId);
         Assert.Null(nextDraft.State.PendingPublication);
@@ -166,7 +167,7 @@ public sealed class StudioPublicationSubmissionTests
     [InlineData(2)]
     public async Task App_PendingApproval_PreservesPublishedPointerAndDoesNotLabelNewestHistoryPublished(int? previousPublished)
     {
-        using var handler = new PublicationHandler();
+        using var handler = new PublicationHandler { ExpectedVisibility = "team" };
         using var http = Client(handler);
         using var lifecycle = new HttpStudioPackageLifecycleClient(http, new StudioPackageLifecycleClientOptions(http.BaseAddress!));
         var source = new HonuaServerStudioAppPackageDataSource(lifecycle);
@@ -193,6 +194,7 @@ public sealed class StudioPublicationSubmissionTests
         state.Title += " revised";
         var nextDraft = await source.SaveDraftAsync(state);
         Assert.True(nextDraft.Succeeded);
+        Assert.Equal("workspace", nextDraft.State!.Visibility);
         Assert.EndsWith(" revised", nextDraft.State!.Title, StringComparison.Ordinal);
         Assert.Equal(handler.ReopenedDraftId, nextDraft.State.DraftId);
         Assert.Null(nextDraft.State.PendingPublication);
@@ -308,6 +310,7 @@ public sealed class StudioPublicationSubmissionTests
     {
         public Guid? ObservedPublishedId { get; init; }
         public bool RejectPublication { get; init; }
+        public string? ExpectedVisibility { get; init; }
         public Guid ReopenedDraftId { get; } = Guid.NewGuid();
         public int SaveCount { get; private set; }
         public int PublishCount { get; private set; }
@@ -345,6 +348,18 @@ public sealed class StudioPublicationSubmissionTests
                 using var document = JsonDocument.Parse(body!);
                 Assert.EndsWith(ReopenedDraftId.ToString(), path, StringComparison.Ordinal);
                 Assert.Equal(7, document.RootElement.GetProperty("generation").GetInt64());
+                var envelope = document.RootElement.GetProperty("envelope");
+                var family = envelope.GetProperty("family").GetString();
+                if (ExpectedVisibility is not null)
+                {
+                    Assert.Equal(ExpectedVisibility, envelope.GetProperty("publicationIntent").GetProperty("visibility").GetString());
+                }
+                if (family is "map" or "app")
+                {
+                    Assert.Equal("1.0", envelope.GetProperty("schemaVersion").GetString());
+                    Assert.Equal($"honua_{family}_package.v1", envelope.GetProperty("format").GetString());
+                    Assert.Equal($"honua_{family}_package.v1", envelope.GetProperty("body").GetProperty("format").GetString());
+                }
                 data = new
                 {
                     draftId = Guid.Parse(path.Split('/')[^1]),
@@ -360,6 +375,11 @@ public sealed class StudioPublicationSubmissionTests
             else if (path.EndsWith("/publish-requests", StringComparison.Ordinal))
             {
                 PublishCount++;
+                if (ExpectedVisibility is not null)
+                {
+                    using var publication = JsonDocument.Parse(body!);
+                    Assert.Equal(ExpectedVisibility, publication.RootElement.GetProperty("intent").GetProperty("visibility").GetString());
+                }
                 if (RejectPublication)
                 {
                     return new HttpResponseMessage(HttpStatusCode.Forbidden)

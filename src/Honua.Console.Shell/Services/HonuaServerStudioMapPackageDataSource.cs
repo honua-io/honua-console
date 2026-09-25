@@ -293,7 +293,7 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         {
             Intent = new StudioPublicationIntent
             {
-                Visibility = state.ShareTier,
+                Visibility = StudioPublicationVisibility.ToCanonical(state.ShareTier),
                 Embed = state.EmbedAllowed
             }
         };
@@ -701,11 +701,11 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         new()
         {
             Family = StudioPackageFamily.Map,
-            SchemaVersion = StudioMapPackageMapper.SchemaVersion,
-            Format = "map.package",
+            SchemaVersion = "1.0",
+            Format = "honua_map_package.v1",
             PublicationIntent = new StudioPublicationIntent
             {
-                Visibility = state.ShareTier,
+                Visibility = StudioPublicationVisibility.ToCanonical(state.ShareTier),
                 Embed = state.EmbedAllowed
             },
             Body = StudioMapPackageMapper.BuildEnvelopeBody(state)
@@ -719,6 +719,11 @@ public sealed class HonuaServerStudioMapPackageDataSource : IStudioMapPackageDat
         var state = StudioMapPackageMapper.CreateTemplate();
         StudioMapPackageMapper.ApplyEnvelopeBody(state, draft.Envelope?.Body);
         ApplyServerIdentity(state, draft);
+        if (draft.Envelope?.PublicationIntent is { Visibility: { Length: > 0 } visibility } intent)
+        {
+            state.ShareTier = StudioPublicationVisibility.ToEditor(visibility);
+            state.EmbedAllowed = intent.Embed ?? state.EmbedAllowed;
+        }
         return state;
     }
 
