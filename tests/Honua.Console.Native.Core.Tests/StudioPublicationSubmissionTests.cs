@@ -195,6 +195,12 @@ public sealed class StudioPublicationSubmissionTests
         Assert.Null(session.PendingPublication);
         Assert.Equal(ConsoleProposalStatus.Succeeded, map.PreviousPublication!.ProposalStatus);
         Assert.Equal(1, handler.PublishCount); // Refresh never submits/approves another operation.
+
+        var unsaved = StudioAuthoringSession.Empty with
+        {
+            Draft = new StudioDraftHandle(Guid.NewGuid().ToString(), ItemId.ToString(), "package", 1)
+        };
+        Assert.Equal(StudioPackageLifecycleState.Draft, refreshed.Apply(unsaved).ActivePackage.LifecycleState);
     }
 
     private sealed class ReadOnlyProposalClient : IConsoleProposalsClient

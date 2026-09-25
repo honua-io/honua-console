@@ -375,6 +375,7 @@ public sealed class ServerStudioAuthoringShell : IStudioAuthoringShell
         if (session.PendingPublication is { IsPending: true } pendingSubmission
             && pendingSubmission.ItemId.ToString() == session.Draft.ItemId
             && pendingSubmission.VersionId.ToString() == session.Draft.CurrentVersionId
+            && pendingSubmission.DraftId?.ToString() == session.Draft.DraftId
             && pendingSubmission.DraftGeneration == session.Draft.Generation)
         {
             return session with { StatusMessage = pendingSubmission.Message };

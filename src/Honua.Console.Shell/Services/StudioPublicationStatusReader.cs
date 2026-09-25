@@ -107,12 +107,15 @@ public sealed record StudioPublicationRefresh(
     public StudioAuthoringSession Apply(StudioAuthoringSession session)
     {
         if (!Succeeded || session.Draft?.ItemId != Pointers!.ItemId.ToString()) return session;
-        var currentPublished = session.Draft.CurrentVersionId == Pointers.PublishedVersionId?.ToString();
+        var hasSavedVersion = !string.IsNullOrWhiteSpace(session.Draft.CurrentVersionId);
+        var currentPublished = hasSavedVersion && Pointers.PublishedVersionId is { } publishedId
+            && session.Draft.CurrentVersionId == publishedId.ToString();
         return session with
         {
             ActivePackage = session.ActivePackage with
             {
-                LifecycleState = currentPublished ? StudioPackageLifecycleState.Published : StudioPackageLifecycleState.SavedVersion
+                LifecycleState = currentPublished ? StudioPackageLifecycleState.Published
+                    : hasSavedVersion ? StudioPackageLifecycleState.SavedVersion : StudioPackageLifecycleState.Draft
             },
             PendingPublication = session.PendingPublication?.Operation.OperationInstanceId == Submission.Operation.OperationInstanceId
                 ? (Submission.IsPending ? Submission : null) : session.PendingPublication,
