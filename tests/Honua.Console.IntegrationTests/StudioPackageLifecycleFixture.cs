@@ -126,17 +126,31 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
         using var http = CreateHttpClient(_proposerKey);
         using var connection = await http.PostAsJsonAsync("/api/v1/admin/connections/", new
         {
-            name = table, host = "postgres", port = 5432, databaseName = "honua",
-            username = "honua", password = "honua", provider = "postgis", sslRequired = false, sslMode = "Disable"
+            name = table,
+            host = "postgres",
+            port = 5432,
+            databaseName = "honua",
+            username = "honua",
+            password = "honua",
+            provider = "postgis",
+            sslRequired = false,
+            sslMode = "Disable"
         });
         connection.EnsureSuccessStatusCode();
         using var connectionBody = JsonDocument.Parse(await connection.Content.ReadAsStringAsync());
         var connectionId = connectionBody.RootElement.GetProperty("data").GetProperty("connectionId").GetString();
         using var publication = await http.PostAsJsonAsync($"/api/v1/admin/connections/{connectionId}/layers", new
         {
-            schema = "public", table, serviceName = service, layerName = "Studio observations",
-            geometryColumn = "geom", geometryType = "Point", srid = 3857,
-            primaryKey = "id", fields = new[] { "id", "name", "observed" }, enabled = true
+            schema = "public",
+            table,
+            serviceName = service,
+            layerName = "Studio observations",
+            geometryColumn = "geom",
+            geometryType = "Point",
+            srid = 3857,
+            primaryKey = "id",
+            fields = new[] { "id", "name", "observed" },
+            enabled = true
         });
         var publicationJson = await publication.Content.ReadAsStringAsync();
         Assert.True(publication.StatusCode == HttpStatusCode.Created, publicationJson);
@@ -148,9 +162,20 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
         Assert.Equal(3, count.RootElement.GetProperty("count").GetInt32());
         return new StudioMapLayerEditor
         {
-            SourceRef = $"service:{service}/{layerId}", Title = "Studio observations",
-            BoundServiceId = service, BoundLayerId = layerId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            SourceRef = $"service:{service}/{layerId}",
+            Title = "Studio observations",
+            BoundServiceId = service,
+            BoundLayerId = layerId.ToString(System.Globalization.CultureInfo.InvariantCulture)
         };
+    }
+
+    public async Task AssertValidDraftAsync(Guid draftId)
+    {
+        using var lifecycle = (HttpStudioPackageLifecycleClient)CreateClient();
+        var validation = await lifecycle.ValidatePackageDraftAsync(draftId);
+        Assert.True(validation.IsSuccess, validation.Issue?.Detail);
+        Assert.NotNull(validation.Data);
+        Assert.True(validation.Data.IsValid, JsonSerializer.Serialize(validation.Data));
     }
 
     /// <summary>Explicit test action: assert self-approval denial, then have a distinct scoped reviewer act.</summary>
@@ -187,8 +212,14 @@ public sealed class StudioPackageLifecycleFixture : IAsyncLifetime
         Assert.False(string.IsNullOrWhiteSpace(decision.Value.ResolvedBy));
         Assert.NotEqual(decision.Value.RequestedBy, decision.Value.ResolvedBy);
         var expectedStatus = expectValidationFailure ? ConsoleProposalStatus.Failed : ConsoleProposalStatus.Succeeded;
+        var failureDetail = decision.Value.ResolutionReason;
+        if (decision.Value.Status != expectedStatus && decision.Value.ExecutionOperationId is { } operationId)
+        {
+            using var operation = await proposerHttp.GetAsync($"/api/v1/operations/handles/{Uri.EscapeDataString(operationId)}");
+            failureDetail += await operation.Content.ReadAsStringAsync();
+        }
         Assert.True(decision.Value.Status == expectedStatus,
-            $"Expected {expectedStatus}, received {decision.Value.Status}: {decision.Value.ResolutionReason}");
+            $"Expected {expectedStatus}, received {decision.Value.Status}: {failureDetail}");
 
         var observed = await new StudioPublicationStatusReader(lifecycle, proposer).RefreshAsync(pending);
         Assert.True(observed.Succeeded, observed.Issue);

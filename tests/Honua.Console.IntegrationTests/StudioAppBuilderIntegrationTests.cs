@@ -51,6 +51,7 @@ public sealed class StudioAppBuilderIntegrationTests
         // 2. Server validation runs against the live draft.
         var validated = await source.ValidateAsync(saved.State!);
         Assert.NotNull(validated.Validation);
+        await _fixture.AssertValidDraftAsync(saved.State.DraftId!.Value);
 
         // 3. Publish freezes an immutable version + creates a publication request.
         var published = await source.PublishAsync(saved.State!);

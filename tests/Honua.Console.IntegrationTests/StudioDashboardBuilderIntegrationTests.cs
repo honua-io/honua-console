@@ -75,7 +75,9 @@ public sealed class StudioDashboardBuilderIntegrationTests
             () => Assert.DoesNotContain("Dashboard package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
         // The live workspace exposes the New-dashboard authoring entry point.
-        Assert.Contains("New dashboard", page.Markup, StringComparison.Ordinal);
+        page.WaitForAssertion(
+            () => Assert.Contains("Open blank editor", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(10));
     }
 
     private static StudioDashboardEditorState ReadyDashboard()

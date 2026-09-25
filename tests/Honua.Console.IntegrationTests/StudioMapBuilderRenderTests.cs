@@ -516,7 +516,7 @@ public sealed class StudioMapBuilderRenderTests
             InitialExtent = "-158.3,21.2,-157.6,21.7",
             ETag = "etag-3"
         };
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:hydrants@v12", Title = "Hydrants" });
+        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "service:public-works/1", BoundServiceId = "public-works", BoundLayerId = 1, Title = "Hydrants" });
         return state;
     }
 

@@ -24,8 +24,15 @@ public static class StudioMapStyleComposer
         state.InitialExtent,
         layers = state.Layers.Select(layer => new
         {
-            layer.SourceRef, layer.BoundServiceId, layer.BoundLayerId, layer.SourceBinding,
-            layer.Title, layer.Visible, layer.Style, layer.Filter, layer.PopupFields
+            layer.SourceRef,
+            layer.BoundServiceId,
+            layer.BoundLayerId,
+            layer.SourceBinding,
+            layer.Title,
+            layer.Visible,
+            layer.Style,
+            layer.Filter,
+            layer.PopupFields
         }).ToArray()
     });
 
@@ -232,8 +239,11 @@ public static class StudioMapStyleComposer
             }
             composedBindings[layer.SourceRef] = new JsonObject
             {
-                ["serviceId"] = layer.BoundServiceId, ["layerId"] = layer.BoundLayerId, ["styleId"] = layer.Style,
-                ["sources"] = sourceNames, ["layers"] = layerNames
+                ["serviceId"] = layer.BoundServiceId,
+                ["layerId"] = layer.BoundLayerId,
+                ["styleId"] = layer.Style,
+                ["sources"] = sourceNames,
+                ["layers"] = layerNames
             };
         }
         if (result is null || combinedSources.Count == 0 || combinedLayers.Count == 0)

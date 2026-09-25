@@ -23,7 +23,10 @@ public sealed class StudioCanonicalPackageTests
         var state = StudioMapPackageMapper.CreateTemplate();
         var layer = new StudioMapLayerEditor
         {
-            SourceRef = "service:old/1", BoundServiceId = "old", BoundLayerId = "1", SourceBinding = binding.RootElement.Clone()
+            SourceRef = "service:old/1",
+            BoundServiceId = "old",
+            BoundLayerId = "1",
+            SourceBinding = binding.RootElement.Clone()
         };
         Assert.True(layer.HasResolvedSource);
         layer.SourceRef = "service:new/2";

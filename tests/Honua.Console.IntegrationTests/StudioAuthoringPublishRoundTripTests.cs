@@ -76,6 +76,7 @@ public sealed class StudioMapPublishRoundTripTests
         var saved = await source.SaveDraftAsync(state);
         StudioLifecycleAssertions.RequireConsoleOperation(saved.Succeeded, saved.Issue?.State, saved.Message, "map draft save");
         Assert.NotNull(saved.State!.DraftId);
+        await _fixture.AssertValidDraftAsync(saved.State.DraftId.Value);
 
         var published = await source.PublishAsync(saved.State);
         StudioLifecycleAssertions.RequireConsoleOperation(published.Succeeded, published.Issue?.State, published.Message, "map publish");

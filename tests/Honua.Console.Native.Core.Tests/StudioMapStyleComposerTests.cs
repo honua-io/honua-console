@@ -137,7 +137,9 @@ public sealed class StudioMapStyleComposerTests
 
     private static StudioMapLayerEditor Layer(int id, bool visible) => new()
     {
-        SourceRef = $"service:observations/{id}", BoundServiceId = "observations",
-        BoundLayerId = id.ToString(System.Globalization.CultureInfo.InvariantCulture), Visible = visible
+        SourceRef = $"service:observations/{id}",
+        BoundServiceId = "observations",
+        BoundLayerId = id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        Visible = visible
     };
 }
