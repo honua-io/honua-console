@@ -8,8 +8,8 @@ namespace Honua.Console.Contracts;
 
 // SHIM(honua-sdk-dotnet#169): the honua-server unified GP/ETL workflow package + node registry API
 // (#1185 commit 6d385f5c4, reconciled by #1228 commit 9b1ece3f7) is merged to honua-server trunk, but
-// honua-sdk-dotnet does not yet project these workflow DTOs (no consumable Honua.Sdk workflow package,
-// and honua-console wires no SDK NuGet feed). Per SDK_SHIM_POLICY.md the wire records and the thin HTTP
+// the published SDK 1.10.0 API does not project these workflow DTOs.
+// Per SDK_SHIM_POLICY.md the wire records and the thin HTTP
 // client live behind this single Console contracts boundary until honua-sdk-dotnet#169 publishes the
 // workflow projection and honua-console#7 swaps to SDK types. Do not add a sibling-repo ProjectReference;
 // do not mirror these DTOs anywhere else. The wire shape mirrors
@@ -28,7 +28,8 @@ public enum WorkflowNodeRuntimeKind
 {
     Geoprocessing,
     ExtractTransformLoad,
-    WorkflowUtility
+    WorkflowUtility,
+    Authoring
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<WorkflowSchemaValueType>))]

@@ -135,7 +135,7 @@ jobs:
             --logger "trx;LogFileName=integration.trx" \
             --results-directory artifacts/test-results/integration
 
-      - name: Require governed publication and denial evidence
+      - name: Require governed publication, workflow, and denial evidence
         if: ${{ !cancelled() }}
         run: |
           python3 - <<'PY'
@@ -154,6 +154,8 @@ jobs:
                        'MapPublish_StaleProposalAndInvalidIntent_DoNotMovePublishedPointer',
                        'MapBuilder_SaveThenPublish_RunsAgainstLiveServer',
                        'AppBuilder_FullLifecycle_FromLiveServer',
+                       'WorkflowEditor_RendersNodeRegistryAndCreatedPackage_FromLiveServer',
+                       'WorkflowEditor_DryRunAndPublish_BindToLiveServer',
                        'CatalogDiscovery_RouteMountedDiscriminator_And_ConsoleReflectsServerRegistry',
                        'FocusedApproverKey_ReadsAndApprovesButCannotWrite'):
               required = [node for node in results if name in node.get('testName', '')]

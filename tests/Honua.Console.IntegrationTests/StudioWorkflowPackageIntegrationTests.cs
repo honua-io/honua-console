@@ -39,17 +39,15 @@ public sealed class StudioWorkflowPackageIntegrationTests
 
         // 1. Opening the editor hydrates the live node registry (palette) - the binding probe must succeed.
         var context = await client.OpenEditorAsync("new");
-        Skip.If(
-            context.BindingState is not null,
-            $"The live server did not bind the workflow node registry: {context.BindingState?.Detail}");
+        Assert.True(context.BindingState is null, context.BindingState?.Detail);
         Assert.NotEmpty(context.NodeDefinitions);
 
         // 2. Create a real package fixture through the editor's binding using a live registry node type.
         var registry = await api.GetNodeRegistryAsync();
-        Skip.If(!registry.IsSuccess || registry.Data is null, "Live node registry was unavailable.");
-        var nodeType = registry.Data!.Nodes.FirstOrDefault(node => node.NodeTypeId == AreaNodeTypeId)?.NodeTypeId
-            ?? registry.Data.Nodes.FirstOrDefault()?.NodeTypeId;
-        Skip.If(nodeType is null, "The live server published no workflow node definitions.");
+        Assert.True(registry.IsSuccess, registry.Issue?.Detail);
+        Assert.NotNull(registry.Data);
+        Assert.Contains(registry.Data.Nodes, node => node.RuntimeKind == WorkflowNodeRuntimeKind.Authoring);
+        var nodeType = Assert.Single(registry.Data.Nodes, node => node.NodeTypeId == AreaNodeTypeId).NodeTypeId;
 
         var title = $"Console live workflow {Guid.NewGuid():N}";
         var draft = context.Draft!;
@@ -68,9 +66,7 @@ public sealed class StudioWorkflowPackageIntegrationTests
         });
 
         var save = await client.SaveVersionAsync(draft, "integration fixture");
-        Skip.If(
-            save.BindingState is not null,
-            $"The live server did not accept the workflow package: {save.BindingState?.Detail}");
+        Assert.True(save.BindingState is null, save.BindingState?.Detail);
         Assert.False(string.IsNullOrEmpty(save.ContentItemId)); // the package draft persisted on the server
 
         // 3. The package list + detail render from live server data.
@@ -101,14 +97,14 @@ public sealed class StudioWorkflowPackageIntegrationTests
 
         var api = _fixture.CreateApiClient();
         var registry = await api.GetNodeRegistryAsync();
-        Skip.If(!registry.IsSuccess || registry.Data is null, "Live node registry was unavailable.");
-        Skip.If(
-            registry.Data!.Nodes.All(node => node.NodeTypeId != AreaNodeTypeId),
-            $"The live server geoprocessing palette does not expose {AreaNodeTypeId}; cannot build a known-valid graph.");
+        Assert.True(registry.IsSuccess, registry.Issue?.Detail);
+        Assert.NotNull(registry.Data);
+        Assert.Contains(registry.Data.Nodes, node => node.RuntimeKind == WorkflowNodeRuntimeKind.Authoring);
+        Assert.Contains(registry.Data.Nodes, node => node.NodeTypeId == AreaNodeTypeId);
 
         IStudioWorkflowPackageClient client = new ServerStudioWorkflowPackageClient(api);
         var context = await client.OpenEditorAsync("new");
-        Skip.If(context.BindingState is not null, $"Workflow registry did not bind: {context.BindingState?.Detail}");
+        Assert.True(context.BindingState is null, context.BindingState?.Detail);
 
         var draft = context.Draft!;
         draft.Title = $"Console live area {Guid.NewGuid():N}";
@@ -127,7 +123,7 @@ public sealed class StudioWorkflowPackageIntegrationTests
 
         // Save creates a real immutable version against live PostgreSQL-backed server state.
         var save = await client.SaveVersionAsync(draft, "integration valid graph");
-        Skip.If(save.BindingState is not null, $"Save did not bind: {save.BindingState?.Detail}");
+        Assert.True(save.BindingState is null, save.BindingState?.Detail);
         Assert.Equal(1, save.VersionNumber);
 
         // Dry-run binds to the live server and returns a real estimation (no Operate job for the synchronous
