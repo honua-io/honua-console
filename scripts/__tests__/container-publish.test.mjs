@@ -49,7 +49,7 @@ describe("Console container publication contract", () => {
     assert.match(workflow, /IMAGE_REF: \$\{\{ env\.IMAGE \}\}@\$\{\{ steps\.image\.outputs\.digest \}\}/);
     assert.match(workflow, /127\.0\.0\.1:4174\/version\.json/);
     assert.match(workflow, /payload\["commit"\] == os\.environ\["SOURCE_SHA"\]/);
-    assert.match(workflow, /actions\/attest-build-provenance@[0-9a-f]{40} # v3/);
+    assert.match(workflow, /actions\/attest-build-provenance@[0-9a-f]{40} # v4(?:\.\d+){0,2}\r?$/m);
 
     const smoke = workflow.indexOf("Smoke-test the published Console");
     const attest = workflow.indexOf("Attest verified candidate image provenance");
