@@ -67,11 +67,17 @@ jobs:
           node-version: 20.x
           cache: npm
 
+      # Every later dotnet step in this job resolves packages only from the clean,
+      # anonymously restored cache below, never from a pre-populated global folder.
+      - name: Isolate NuGet caches for the anonymous public restore
+        run: |
+          {
+            echo "NUGET_PACKAGES=${RUNNER_TEMP}/honua-console-public-packages"
+            echo "NUGET_HTTP_CACHE_PATH=${RUNNER_TEMP}/honua-console-public-http-cache"
+            echo "NUGET_PLUGINS_CACHE_PATH=${RUNNER_TEMP}/honua-console-public-plugin-cache"
+          } >> "$GITHUB_ENV"
+
       - name: Restore .NET projects anonymously from public sources
-        env:
-          NUGET_PACKAGES: ${{ runner.temp }}/honua-console-public-packages
-          NUGET_HTTP_CACHE_PATH: ${{ runner.temp }}/honua-console-public-http-cache
-          NUGET_PLUGINS_CACHE_PATH: ${{ runner.temp }}/honua-console-public-plugin-cache
         run: dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache --locked-mode
 
       - name: Verify public package locks are current
@@ -97,7 +103,7 @@ jobs:
         # Gates the bUnit component-render tests. The opt-in Testcontainers/live-server tests
         # skip cleanly here (HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS is not set in CI); the nightly
         # console-nightly.yml lane runs those for real. Coverage is collected for visibility only.
-        run: dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/integration
+        run: dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj --no-restore --nologo --verbosity minimal --collect:"XPlat Code Coverage" --results-directory artifacts/test-results/integration
 
       - name: Fetch digest-verified Cesium assets
         # The Web project target also makes a direct local dotnet build/run/publish complete. Fetch

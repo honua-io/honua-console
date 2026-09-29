@@ -64,7 +64,14 @@ test("blocking CI proves a clean credential-free locked restore", () => {
     workflow,
     /dotnet restore Honua\.Console\.slnx --configfile NuGet\.config --no-cache --locked-mode/,
   );
-  assert.match(workflow, /NUGET_PACKAGES: \$\{\{ runner\.temp \}\}\/honua-console-public-packages/);
+  assert.match(workflow, /NUGET_PACKAGES=\$\{RUNNER_TEMP\}\/honua-console-public-packages[\s\S]*>> "\$GITHUB_ENV"/);
+  const dotnetCommands = workflow
+    .split("\n")
+    .filter((line) => /^\s*(?:run:\s*)?dotnet (?:test|build|publish|format)\b/.test(line));
+  assert.ok(dotnetCommands.length > 0, "CI must run dotnet build/test commands");
+  for (const command of dotnetCommands) {
+    assert.match(command, /--no-restore/, `CI must not implicitly re-restore: ${command.trim()}`);
+  }
   assert.match(workflow, /Verify public package locks are current/);
   assert.match(workflow, /git diff --exit-code -- ':\(glob\)\*\*\/packages\.lock\.json'/);
   assert.doesNotMatch(workflow, /Authenticate GitHub Packages|nuget update source github-honua/);
