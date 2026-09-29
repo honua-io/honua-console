@@ -140,7 +140,7 @@ UI implementation may transition over time. Contract divergence is not acceptabl
 3. Use Metadata v2 as the shared model consumed by both operator and builder workflows.
 4. Generate or validate .NET and JavaScript client contracts from server-owned OpenAPI/JSON Schema/proto sources.
 5. Use SignalR/SSE for browser realtime and full gRPC streaming for native/internal clients.
-6. Model saved environment profiles for Console, including server URL, tenant/environment identity, transport capability, auth mode, and optional native mTLS trust state.
+6. Model saved environment profiles for Console, including server URL, tenant/environment identity, transport capability, auth mode, and optional native mTLS trust state. In 2026.1, GA deployments are single-tenant; multi-tenancy is Preview/trial only for non-production evaluation, with no customer production data or GA, availability, performance, durability, SLA, or SLO commitment. Honua provides no SaaS or managed hosting. Tenant authorization and isolation remain mandatory at full severity.
 7. Bundle current Studio/Portal and Admin outputs into one deployed runtime as an interim step.
 8. Put both surfaces behind the same auth/session/RBAC path.
 9. Hide or redirect duplicate builder/app-builder routes from legacy Admin.

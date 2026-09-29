@@ -17,6 +17,11 @@
     }
     else
     {
+        @if (_profile.IsTenantScoped())
+        {
+            <TenancyPreviewNotice />
+        }
+
         @if (!string.IsNullOrWhiteSpace(_serverAuthMessage))
         {
             <article class="console-panel console-status-danger" role="alert">

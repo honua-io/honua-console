@@ -42,6 +42,46 @@ public sealed class EnvironmentProfilesPageRenderTests
     }
 
     [Fact]
+    public void AccountBoundTenant_ShowsTenancyPreviewNotice_EvenWithoutProfileTenant()
+    {
+        // An edge/IdP operator tenant is stored only on the account binding; the profile is still
+        // tenant-scoped and must carry the Preview/trial notice.
+        var tenantBound = Profile("trial", "Trial tenant") with
+        {
+            Account = new ConsoleAccountBinding { AccountId = "operator", TenantId = "trial-a" }
+        };
+        var store = new InMemoryConsoleEnvironmentProfileStore(
+            [tenantBound],
+            states: null,
+            activeProfileId: "trial");
+        using var ctx = NewBrowserContext(store);
+
+        var page = ctx.Render<EnvironmentProfilesPage>();
+
+        page.WaitForAssertion(
+            () => Assert.NotEmpty(page.FindAll("[data-tenancy-preview]")),
+            TimeSpan.FromSeconds(5));
+        Assert.Contains("Preview / trial only", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SingleTenantProfile_DoesNotShowTenancyPreviewNotice()
+    {
+        var store = new InMemoryConsoleEnvironmentProfileStore(
+            [Profile("dev", "Local honua-server")],
+            states: null,
+            activeProfileId: "dev");
+        using var ctx = NewBrowserContext(store);
+
+        var page = ctx.Render<EnvironmentProfilesPage>();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("In use now", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Empty(page.FindAll("[data-tenancy-preview]"));
+    }
+
+    [Fact]
     public void BrowserProfileCard_StatesBrowserAlternative_ForNativeOnlyConnect()
     {
         // The native-only Connect must state the browser-user alternative, not dead-end (honua-console#313 item 3).
