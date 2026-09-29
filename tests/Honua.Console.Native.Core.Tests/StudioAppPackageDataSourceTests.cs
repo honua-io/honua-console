@@ -59,7 +59,10 @@ public sealed class StudioAppPackageDataSourceTests
         state.EmbedEnabled = true;
         state.ShareEmbedPolicyReviewed = true;
 
-        var body = StudioAppPackageMapper.BuildEnvelopeBody(state);
+        var package = StudioAppPackageMapper.BuildEnvelopeBody(state);
+        Assert.Equal("honua_app_package.v1", package.GetProperty("format").GetString());
+        Assert.Equal("honua-sdk-js", package.GetProperty("targetSdk").GetString());
+        var body = package.GetProperty("runtimeConfig");
 
         Assert.Equal(StudioAppPackageMapper.SchemaVersion, body.GetProperty("schemaVersion").GetString());
         Assert.Equal("Field operations", body.GetProperty("title").GetString());

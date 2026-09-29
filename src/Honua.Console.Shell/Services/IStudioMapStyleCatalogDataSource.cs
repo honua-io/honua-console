@@ -15,6 +15,12 @@ public interface IStudioMapStyleCatalogDataSource
     /// <summary>Loads the server-advertised style catalog, or a catalog carrying a capability issue.</summary>
     Task<StudioMapStyleCatalog> GetStyleCatalogAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Reads a real layer's default or stored canonical style.</summary>
+    Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetLayerStylesheetAsync(
+        int layerId, CancellationToken cancellationToken = default) => Task.FromResult(
+            HonuaAdminEndpointResult<HonuaOgcStylesheet>.FromIssue(new HonuaAdminEndpointIssue(
+                "Unsupported", "GET /api/styles/{layerId}.json", "Layer styles are not bound.")));
+
     /// <summary>Reads a style's stylesheet in the requested encoding for the dual-mode editor.</summary>
     Task<HonuaAdminEndpointResult<HonuaOgcStylesheet>> GetStylesheetAsync(
         string styleId,

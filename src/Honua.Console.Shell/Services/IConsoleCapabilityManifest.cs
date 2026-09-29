@@ -16,13 +16,18 @@ namespace Honua.Console.Shell.Services;
 /// this release advertise the capability at all?", so a server that happens to serve a deferred
 /// endpoint still renders unsupported until the deployment opts the capability in.
 ///
-/// Advertised-set source (interim): the <c>Honua:Console:Capabilities</c> configuration list,
-/// threaded through <c>AddHonuaConsoleShell</c>. This is the same seam the honua-server
-/// capability-manifest document (<c>GET /api/v1/capabilities/manifest</c>) will feed once its
-/// full-document consumption lands — swapping the source is a registration change, not a rewrite.
+/// Server-backed gates resolve from <c>GET /api/v1/capabilities/manifest</c> and fail closed.
+/// <c>Honua:Console:Capabilities</c> is an optional intersection-only local policy; it cannot
+/// make a server-unavailable capability available. <c>studio-builders</c> remains local-only.
 /// </summary>
 public interface IConsoleCapabilityManifest
 {
+    /// <summary>Notifies navigation when the resolved availability changes.</summary>
+    event Action? Changed { add { } remove { } }
+
+    /// <summary>Refreshes capability truth for the current server binding.</summary>
+    Task RefreshAsync(CancellationToken cancellationToken = default);
+
     /// <summary>
     /// True when the connected deployment advertises <paramref name="capabilityKey"/> for this
     /// release (see <see cref="ConsoleCapabilityKeys"/>). Unknown/unadvertised keys return false so
@@ -65,9 +70,7 @@ public static class ConsoleCapabilityKeys
 }
 
 /// <summary>
-/// Default <see cref="IConsoleCapabilityManifest"/> backed by an explicit advertised-capability set
-/// (interim source = the <c>Honua:Console:Capabilities</c> configuration list). An empty set — the
-/// default for first release — means every deferred capability renders as unsupported.
+/// Static <see cref="IConsoleCapabilityManifest"/> used by tests and local-only hosts.
 /// </summary>
 public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
 {
@@ -90,10 +93,116 @@ public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
     public bool IsAdvertised(string capabilityKey) =>
         !string.IsNullOrWhiteSpace(capabilityKey) && _advertised.Contains(capabilityKey);
 
-    private static IEnumerable<string> SplitList(string? value) =>
+    public Task RefreshAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    internal static IEnumerable<string> SplitList(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? []
             : value.Split(
                 [',', ';', ' ', '\t', '\n', '\r'],
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+
+/// <summary>
+/// Resolves server-backed Console gates from the live server manifest. Local
+/// configuration is intersection-only; <c>studio-builders</c> remains local.
+/// Failed or incomplete manifest reads clear every server-backed gate.
+/// </summary>
+public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapabilityManifest
+{
+    private static readonly IReadOnlyDictionary<string, string> ServerCapabilityByConsoleKey =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [ConsoleCapabilityKeys.Temporal] = "temporal.filtering",
+            [ConsoleCapabilityKeys.DisconnectedSync] = "sync.offline",
+            [ConsoleCapabilityKeys.RealtimeAlerting] = "alerts.geofence",
+            [ConsoleCapabilityKeys.CrossEnvironmentPromotion] = "gitops.release-manifest",
+            [ConsoleCapabilityKeys.SiemInvestigations] = "ops.findings",
+        };
+
+    private readonly ICapabilityRegistryClient _registry;
+    private readonly object _refreshLock = new();
+    private long _refreshVersion;
+
+    private readonly HashSet<string> _localPolicy;
+    private readonly HashSet<string> _serverPolicy;
+    private HashSet<string> _available = new(StringComparer.OrdinalIgnoreCase);
+
+    public event Action? Changed;
+
+    public ManifestBackedConsoleCapabilityManifest(
+        ICapabilityRegistryClient registry,
+        IEnumerable<string>? localPolicy = null)
+    {
+        _registry = registry;
+        _localPolicy = new HashSet<string>(localPolicy ?? [], StringComparer.OrdinalIgnoreCase);
+        _serverPolicy = new HashSet<string>(
+            _localPolicy.Where(key => !string.Equals(
+                key,
+                ConsoleCapabilityKeys.StudioBuilders,
+                StringComparison.OrdinalIgnoreCase)),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    public bool IsAdvertised(string capabilityKey)
+    {
+        if (string.Equals(capabilityKey, ConsoleCapabilityKeys.StudioBuilders, StringComparison.OrdinalIgnoreCase))
+        {
+            return _localPolicy.Contains(capabilityKey);
+        }
+
+        lock (_refreshLock)
+        {
+            return _available.Contains(capabilityKey);
+        }
+    }
+
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        long version;
+        lock (_refreshLock)
+        {
+            version = ++_refreshVersion;
+            _available = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+        Changed?.Invoke();
+
+        var next = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var snapshot = await _registry.GetSnapshotAsync(timeout.Token).WaitAsync(timeout.Token).ConfigureAwait(false);
+            if (snapshot.Bound)
+            {
+                foreach (var mapping in ServerCapabilityByConsoleKey)
+                {
+                    var descriptors = snapshot.Descriptors.Where(item =>
+                        string.Equals(item.Id, mapping.Value, StringComparison.Ordinal)).ToArray();
+                    if (descriptors is [{ Supported: true, Available: true }]
+                        && (_serverPolicy.Count == 0 || _serverPolicy.Contains(mapping.Key)))
+                    {
+                        next.Add(mapping.Key);
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Failure, cancellation and timeout all revoke the previous server's availability.
+        }
+
+        lock (_refreshLock)
+        {
+            // A slow response from a previous binding must never replace a newer refresh.
+            if (version != _refreshVersion)
+            {
+                return;
+            }
+            _available = next;
+        }
+        Changed?.Invoke();
+    }
+
+    internal static IReadOnlyDictionary<string, string> Mappings => ServerCapabilityByConsoleKey;
 }

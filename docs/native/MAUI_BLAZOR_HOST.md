@@ -1,3 +1,10 @@
+---
+type: concept
+title: "The optional native host"
+description: "Console stays a browser-deployable Blazor app; the MAUI host is an optional operator shell over the same Razor routes, adding native profile, certificate and gRPC wiring."
+resource: "https://github.com/honua-io/honua-console/tree/trunk/src/Honua.Console.Native.Core"
+tags: [maui, native, blazor]
+---
 # Optional MAUI Blazor Hybrid Host
 
 Honua Console remains a browser-deployable Blazor web app. The native host is an optional operator and power-user shell that renders the same shared Razor routes from `Honua.Console.Shell` and adds native profile, certificate, and gRPC wiring.
@@ -43,7 +50,7 @@ Shared routes gate native capabilities on the shell-owned `IConsoleHostCapabilit
 The native profile store seeds two environments, `dev` and `staging`, and supports adding more with distinct profile state stored as JSON under `honua.console.native.environment-profiles.v1`:
 
 - server base URL
-- environment kind and tenant ID
+- environment kind and optional tenant ID (multi-tenancy is Preview/trial only in 2026.1)
 - browser HTTP/realtime capabilities
 - native gRPC capability
 - optional native mTLS capability
@@ -56,7 +63,7 @@ The implemented profile shape is Console-owned UI state, not a duplicate of serv
 | Field | Notes |
 | --- | --- |
 | `Id`, `DisplayName` | Stable profile identity and operator-facing label. |
-| `ServerBaseUri`, `EnvironmentKind`, `TenantId` | Active Honua Server target and tenant/environment identity. |
+| `ServerBaseUri`, `EnvironmentKind`, `TenantId` | Active self-hosted Honua Server target. GA is single-tenant; a tenant ID selects a non-production Preview/trial context only. Never connect it to customer production data. No GA, availability, performance, durability, SLA, or SLO commitment applies to multi-tenancy. Honua offers no SaaS or managed hosting. |
 | `TransportCapabilities` | `BrowserHttp`, `BrowserRealtime`, `NativeGrpc`, and `NativeMtls` capability flags. |
 | `Account` | Account/RBAC binding with auth mode, account id, tenant id, display name, and permission hints. |
 | `ClientCertificate` | Optional certificate reference for native mTLS, plus an optional server trust profile id passed to the validation endpoint. Supported reference kinds are `None`, `FilePath`, `StoreThumbprint`, and `StoreSubject`. |

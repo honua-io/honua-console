@@ -17,7 +17,7 @@
 
 @if (_detail is null)
 {
-    <OperateSectionStatusPanel Heading="Proposal review" Status="_status" Message="@_message" />
+    <OperateSectionStatusPanel Heading="Proposal review" Status="_status" Message="@_message" Detail="@_detailMessage" />
 }
 else
 {
@@ -34,7 +34,8 @@ else
                     <span class="console-mono">@detail.ProposalId</span>
                 </h3>
             </div>
-            <span class="console-status @ConsoleProposalPresentation.StatusClass(detail.Status)" data-proposal-status>
+            <span class="console-status @ConsoleProposalPresentation.StatusClass(detail.Status)"
+                  data-proposal-status="@detail.Status">
                 @ConsoleProposalPresentation.StatusLabel(detail.Status)
             </span>
         </div>
@@ -197,6 +198,10 @@ else
             <p class="proposal-approval-action-message @_actionMessageClass" role="status" data-proposal-action-message>
                 @_actionMessage
             </p>
+            @if (!string.IsNullOrWhiteSpace(_actionDetail))
+            {
+                <ConsoleDiagnostics Detail="@_actionDetail" />
+            }
         }
 
         <p class="proposal-approval-governed console-state-danger">
@@ -224,10 +229,12 @@ else
     private ConsoleProposalDetail? _detail;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
     private string _message = string.Empty;
+    private string? _detailMessage;
     private string? _reason;
     private bool _busy;
     private bool _approveForbidden;
     private string? _actionMessage;
+    private string? _actionDetail;
     private string _actionMessageClass = string.Empty;
 
     private string? _loadedProposalId;
@@ -261,6 +268,7 @@ else
     {
         _status = result.Status;
         _message = result.Message;
+        _detailMessage = result.Detail;
         _detail = result.IsAllowed ? result.Value : null;
     }
 
@@ -293,6 +301,7 @@ else
 
         _busy = true;
         _actionMessage = null;
+        _actionDetail = null;
         try
         {
             var result = await action();
@@ -316,6 +325,7 @@ else
                     ? OperateSectionPresentation.FallbackMessage(result.Status)
                     : result.Message;
                 _actionMessageClass = "console-state-danger";
+                _actionDetail = result.Detail;
 
                 // Reload so a conflict (already-resolved) reflects the server's current state.
                 if (result.Status == OperateSectionStatus.Unavailable || result.Status == OperateSectionStatus.Missing)

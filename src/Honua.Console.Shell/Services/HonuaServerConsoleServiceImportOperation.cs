@@ -73,7 +73,7 @@ public sealed class HonuaServerConsoleServiceImportOperation : IConsoleServiceIm
                     LayerId = request.LayerId,
                     TableName = request.TableName,
                     TargetSchema = request.TargetSchema,
-                    OverwriteExisting = true,
+                    OverwriteExisting = request.OverwriteExisting,
                     AutoPublish = request.AutoPublish,
                     ServiceName = request.ServiceName,
                     Credentials = MapImportCredentials(request.Auth),

@@ -80,17 +80,35 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
 
         var envelope = BuildEnvelope(state);
         StudioEndpointResult<StudioPackageDraft> result;
+        var editableDraftId = state.DraftId;
+        var editableGeneration = state.Generation;
+        if (state.FrozenDraft is { } frozen
+            && frozen.DraftId == state.DraftId && frozen.ItemId == state.ItemId
+            && frozen.VersionId == state.CurrentVersionId)
+        {
+            // Explicit Save after submission starts from the exact immutable version. Never
+            // overwrite a concurrently edited old draft or guess the generation advanced by freeze.
+            var reopened = await _client.ReopenContentVersionAsync(frozen.ItemId, frozen.VersionId, cancellationToken)
+                .ConfigureAwait(false);
+            if (reopened.Issue is { } reopenIssue)
+            {
+                return Failure(reopenIssue.Detail, ToCapabilityState(ReopenContract, reopenIssue));
+            }
 
-        if (state.IsExistingDraft)
+            editableDraftId = reopened.Data!.DraftId;
+            editableGeneration = reopened.Data.Generation;
+        }
+
+        if (editableDraftId is not null)
         {
             var request = new UpdateStudioPackageDraftRequest
             {
                 PackageKey = BuildPackageKey(state),
                 Envelope = envelope,
-                Generation = state.Generation
+                Generation = editableGeneration
             };
             result = await _client
-                .UpdatePackageDraftAsync(state.DraftId!.Value, request, cancellationToken)
+                .UpdatePackageDraftAsync(editableDraftId!.Value, request, cancellationToken)
                 .ConfigureAwait(false);
 
             if (result.Issue is { } updateIssue)
@@ -114,6 +132,9 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         }
 
         var mapped = ToEditorState(result.Data!);
+        mapped.PreviousPublication = state.PendingPublication ?? state.PreviousPublication;
+        mapped.PublishedVersion = state.PublishedVersion;
+        mapped.PublishedVersionId = state.PublishedVersionId;
         return new StudioAppCommandResult(true, $"Saved app draft ({result.Data!.PackageKey}).", mapped);
     }
 
@@ -147,6 +168,11 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
     {
         ArgumentNullException.ThrowIfNull(state);
 
+        if (state.HasPendingPublication && state.PendingPublication is { } pendingSubmission)
+        {
+            return new StudioAppCommandResult(true, pendingSubmission.Message, state);
+        }
+
         var readiness = StudioAppPackageMapper.EvaluatePublishReadiness(state);
         if (!readiness.CanPublish)
         {
@@ -174,17 +200,20 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         }
 
         var version = versionResult.Data!;
+        state.FrozenDraft = new StudioFrozenDraft(state.DraftId.Value, version.ItemId, version.VersionId);
+        state.ItemId = version.ItemId;
+        state.CurrentVersionId = version.VersionId;
         var publishRequest = new CreateStudioPublicationRequest
         {
             Intent = new StudioPublicationIntent
             {
-                Visibility = state.Visibility,
+                Visibility = StudioPublicationVisibility.ToCanonical(state.Visibility),
                 Embed = state.EmbedEnabled
             }
         };
 
         var publishResult = await _client
-            .CreatePublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
+            .SubmitPublishRequestAsync(version.ItemId, version.VersionId, publishRequest, cancellationToken)
             .ConfigureAwait(false);
 
         if (publishResult.Issue is { } publishIssue)
@@ -192,16 +221,23 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
             return Failure(publishIssue.Detail, ToCapabilityState(PublishContract, publishIssue));
         }
 
-        var published = state;
-        published.ItemId = version.ItemId;
-        published.CurrentVersionId = version.VersionId;
-        published.PublishedVersion = version.VersionNumber;
+        if (publishResult.Data!.Operation is { } pendingOperation)
+        {
+            state.PendingPublication = new StudioPendingPublication(version.ItemId, version.VersionId, pendingOperation, state.DraftId, state.Generation);
+            return new StudioAppCommandResult(true, state.PendingPublication.Message, state);
+        }
 
-        var status = publishResult.Data!.Status;
+        var status = publishResult.Data.Publication!.Status;
+        if (status == StudioPublicationRequestStatus.Accepted)
+        {
+            state.PublishedVersion = version.VersionNumber;
+            state.PublishedVersionId = version.VersionId;
+        }
+
         return new StudioAppCommandResult(
-            true,
+            status != StudioPublicationRequestStatus.Rejected,
             $"Publication request {status.ToString().ToLowerInvariant()} for v{version.VersionNumber}.",
-            published);
+            state);
     }
 
     public async Task<StudioAppCommandResult> PreviewAsync(
@@ -239,19 +275,22 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
 
         // Server omits an empty version list as JSON null; coalesce before LINQ.
         var versions = result.Data!.Versions ?? [];
-        var maxVersion = versions.Count == 0 ? 0 : versions.Max(version => version.VersionNumber);
+        // Version order cannot identify publication: read the current/published pointers separately.
+        var pointerResult = await _client.GetContentItemPointersAsync(itemId, cancellationToken).ConfigureAwait(false);
+        var pointers = pointerResult.IsSuccess && pointerResult.Data?.ItemId == itemId ? pointerResult.Data : null;
         var items = versions
             .OrderByDescending(version => version.VersionNumber)
             .Select(version => new StudioAppVersionItem(
                 version.VersionId,
                 version.VersionNumber,
                 version.ChangeNote,
-                IsPublished: version.VersionNumber == maxVersion,
-                IsCurrent: version.VersionNumber == maxVersion,
+                IsPublished: pointers?.PublishedVersionId == version.VersionId,
+                IsCurrent: pointers?.CurrentVersionId == version.VersionId,
                 version.CreatedAt))
             .ToArray();
 
-        return new StudioAppVersionHistory(itemId, items);
+        return new StudioAppVersionHistory(itemId, items,
+            pointerResult.Issue is { } pointerIssue ? ToCapabilityState("GET /api/v1/studio/content-items", pointerIssue) : null);
     }
 
     public async Task<StudioAppCommandResult> ReopenAsync(
@@ -439,11 +478,11 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         new()
         {
             Family = StudioPackageFamily.App,
-            SchemaVersion = StudioAppPackageMapper.SchemaVersion,
-            Format = "app.package",
+            SchemaVersion = "1.0",
+            Format = "honua_app_package.v1",
             PublicationIntent = new StudioPublicationIntent
             {
-                Visibility = state.Visibility,
+                Visibility = StudioPublicationVisibility.ToCanonical(state.Visibility),
                 Embed = state.EmbedEnabled
             },
             Body = StudioAppPackageMapper.BuildEnvelopeBody(state)
@@ -483,7 +522,7 @@ public sealed class HonuaServerStudioAppPackageDataSource : IStudioAppPackageDat
         {
             if (!string.IsNullOrWhiteSpace(intent.Visibility))
             {
-                state.Visibility = intent.Visibility!;
+                state.Visibility = StudioPublicationVisibility.ToEditor(intent.Visibility);
             }
 
             if (intent.Embed is { } embed)

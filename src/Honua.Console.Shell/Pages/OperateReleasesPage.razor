@@ -810,6 +810,8 @@
     private static string? DeployApprovalOperationId(GitOpsReleaseOperation operation) =>
         string.IsNullOrWhiteSpace(operation.DeployOperationId) ? null : operation.DeployOperationId;
 
+    protected override Task OnInitializedAsync() => Capabilities.RefreshAsync();
+
     protected override async Task OnParametersSetAsync()
     {
         // Capability-gated: when cross-environment promotion is not advertised the page renders the

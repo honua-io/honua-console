@@ -82,14 +82,13 @@ public sealed class ConsoleBuildMetadataTests : IDisposable
     [Fact]
     public void CommitGatesPopulateFullAndTruncatedShortSha()
     {
-        const string sha = "0123456789abcdef0123456789abcdef01234567";
-        Environment.SetEnvironmentVariable("HONUA_CONSOLE_COMMIT_SHA", sha);
+        Environment.SetEnvironmentVariable("HONUA_CONSOLE_COMMIT_SHA", "attacker-controlled-runtime-value");
         Environment.SetEnvironmentVariable("HONUA_CONSOLE_REF", "release/2026.06");
 
         var metadata = ConsoleBuildMetadata.Create();
 
-        Assert.Equal(sha, metadata["commit"]);
-        Assert.Equal("0123456789ab", metadata["shortCommit"]);
+        Assert.NotEqual("attacker-controlled-runtime-value", metadata["commit"]);
+        Assert.NotEqual("attacker-contr", metadata["shortCommit"]);
         Assert.Equal("release/2026.06", metadata["ref"]);
     }
 

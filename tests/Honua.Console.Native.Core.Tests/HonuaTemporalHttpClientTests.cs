@@ -78,12 +78,20 @@ public sealed class HonuaTemporalHttpClientTests
     [Fact]
     public async Task GetCapability_Forbidden_MapsToForbidden()
     {
-        var handler = new RecordingHandler(_ => ProblemDetails(HttpStatusCode.Forbidden));
+        var handler = new RecordingHandler(_ =>
+        {
+            var response = ProblemDetails(HttpStatusCode.Forbidden);
+            response.Headers.Add("X-Correlation-ID", "temporal-forbidden-1");
+            return response;
+        });
         var client = CreateClient(handler);
 
         var result = await client.GetCapabilityAsync("parcels", 0);
 
         Assert.Equal("Forbidden", result.Issue!.State);
+        Assert.Equal(TerminalFailureKind.Authorization, result.Issue.Receipt!.Kind);
+        Assert.Equal("permission_denied", result.Issue.Receipt.Code);
+        Assert.Equal("temporal-forbidden-1", result.Issue.Receipt.CorrelationId);
     }
 
     [Fact]
@@ -315,6 +323,8 @@ public sealed class HonuaTemporalHttpClientTests
         // a recoverable Conflict state (reload-and-retry), never "Unsupported".
         Assert.Equal("Conflict", result.Issue!.State);
         Assert.Contains("already been resolved", result.Issue.Detail, StringComparison.Ordinal);
+        Assert.Equal(TerminalFailureKind.Conflict, result.Issue.Receipt!.Kind);
+        Assert.Equal("resource_conflict", result.Issue.Receipt.Code);
     }
 
     [Fact]

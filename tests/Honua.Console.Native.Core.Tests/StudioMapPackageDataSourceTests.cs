@@ -127,7 +127,7 @@ public sealed class StudioMapPackageDataSourceTests
         // Round-trips through the serializer and back into a fresh editor state.
         var json = JsonSerializer.Serialize(body);
         using var document = JsonDocument.Parse(json);
-        Assert.Equal(StudioMapPackageMapper.SchemaVersion, document.RootElement.GetProperty("schemaVersion").GetString());
+        Assert.Equal("honua_map_package.v1", document.RootElement.GetProperty("format").GetString());
 
         var rehydrated = StudioMapPackageMapper.CreateTemplate();
         StudioMapPackageMapper.ApplyEnvelopeBody(rehydrated, document.RootElement.Clone());
@@ -259,8 +259,8 @@ public sealed class StudioMapPackageDataSourceTests
         using var document = JsonDocument.Parse(body);
         Assert.Equal("map", document.RootElement.GetProperty("envelope").GetProperty("family").GetString());
         Assert.Equal(
-            "content:hydrants@v12",
-            document.RootElement.GetProperty("envelope").GetProperty("body").GetProperty("layers")[0].GetProperty("sourceRef").GetString());
+            "service:hydrants/0",
+            document.RootElement.GetProperty("envelope").GetProperty("body").GetProperty("sourceBindings")[0].GetProperty("sourceId").GetString());
     }
 
     [Fact]
@@ -321,6 +321,29 @@ public sealed class StudioMapPackageDataSourceTests
     }
 
     [Fact]
+    public async Task Save_ChangedSourceWithoutStyleBinding_CannotCertifyOldStyleOrPublish()
+    {
+        var draftId = Guid.NewGuid();
+        var handler = new RecordingHandler();
+        handler.Map(HttpMethod.Put, $"/api/v1/studio/package-drafts/{draftId}", DraftJson(draftId, Guid.NewGuid(), 2));
+        using var http = new HttpClient(handler) { BaseAddress = BaseUri };
+        using var client = new HttpStudioPackageLifecycleClient(http, new StudioPackageLifecycleClientOptions(BaseUri));
+        var source = new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        var state = ReadyState();
+        state.DraftId = draftId;
+        state.Layers[0].SourceRef = "service:new-service/9";
+        state.Layers[0].BoundServiceId = "new-service";
+        state.Layers[0].BoundLayerId = "9";
+        var saved = await source.SaveDraftAsync(state);
+        Assert.True(saved.Succeeded, saved.Message);
+        Assert.Null(saved.State!.SavedStyleSignature);
+        var publish = await source.PublishAsync(saved.State);
+        Assert.False(publish.Succeeded);
+        Assert.Contains("Save", publish.Message, StringComparison.Ordinal);
+        Assert.Single(handler.RequestedPaths);
+    }
+
+    [Fact]
     public async Task Publish_FreezesContentVersionThenRoutesToPublicationRegistry()
     {
         var draftId = Guid.NewGuid();
@@ -357,7 +380,8 @@ public sealed class StudioMapPackageDataSourceTests
         // The publish intent carries the reviewed share tier + embed decision (AC#2).
         using var document = JsonDocument.Parse(handler.LastRequestBody!);
         var intent = document.RootElement.GetProperty("intent");
-        Assert.Equal(state.ShareTier, intent.GetProperty("visibility").GetString());
+        Assert.Equal("workspace", state.ShareTier);
+        Assert.Equal("team", intent.GetProperty("visibility").GetString());
         Assert.True(intent.GetProperty("embed").GetBoolean());
     }
 
@@ -456,12 +480,13 @@ public sealed class StudioMapPackageDataSourceTests
         var state = new StudioMapEditorState
         {
             Title = "Public works",
-            Basemap = "basemap:streets",
+            Basemap = "server-default",
             InitialExtent = "-158.3,21.2,-157.6,21.7",
             ShareTier = "workspace",
             EmbedAllowed = true
         };
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:hydrants@v12", Title = "Hydrants" });
+        state.Layers.Add(new StudioMapLayerEditor { BoundServiceId = "hydrants", BoundLayerId = "0", SourceRef = "service:hydrants/0", Title = "Hydrants" });
+        TestMapStyles.MarkSaved(state);
         return state;
     }
 
@@ -471,7 +496,7 @@ public sealed class StudioMapPackageDataSourceTests
         var client = new HttpStudioPackageLifecycleClient(
             httpClient,
             new StudioPackageLifecycleClientOptions(BaseUri, "test-api-key"));
-        return new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource());
+        return new HonuaServerStudioMapPackageDataSource(client, new NoopStudioMapGenerationClient(), new UnsupportedOperateTransitionDataSource(), new TestMapStyles());
     }
 
     private static string DraftJson(Guid draftId, Guid itemId, long generation)
@@ -486,7 +511,8 @@ public sealed class StudioMapPackageDataSourceTests
             envelope = new
             {
                 family = "map",
-                schemaVersion = StudioMapPackageMapper.SchemaVersion,
+                schemaVersion = "1.0",
+                format = "honua_map_package.v1",
                 body = new
                 {
                     schemaVersion = StudioMapPackageMapper.SchemaVersion,
@@ -513,7 +539,7 @@ public sealed class StudioMapPackageDataSourceTests
             versionId,
             versionNumber,
             contentHash = "abc",
-            envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+            envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
             validation = new { status = "valid" },
             createdAt = "2026-05-30T00:00:00Z"
         };
@@ -551,7 +577,7 @@ public sealed class StudioMapPackageDataSourceTests
         public string? LastRequestBody => _requests.Count == 0 ? null : _requests[^1].Body;
 
         public void Map(HttpMethod method, string path, string json) =>
-            _responses[Key(method, path)] = (HttpStatusCode.OK, json);
+            _responses[Key(method, path)] = (path.EndsWith("/publish-requests", StringComparison.Ordinal) ? HttpStatusCode.Created : HttpStatusCode.OK, json);
 
         public void MapStatus(HttpMethod method, string path, HttpStatusCode status) =>
             _responses[Key(method, path)] = (status, null);

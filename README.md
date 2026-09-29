@@ -60,24 +60,19 @@ Prerequisites:
 
 - **.NET 10 SDK**
 - **Node.js >= 20** (only for the smoke/e2e harnesses and build-metadata stamping)
-- A GitHub token with `read:packages` — the `Honua.Sdk.*` packages resolve from
-  the `github-honua` GitHub Packages feed declared in [NuGet.config](NuGet.config),
-  and GitHub Packages requires authentication even for public packages.
+- Anonymous access to nuget.org. Every package, including `Honua.Sdk.Studio`
+  and `Honua.Sdk.Abstractions`, restores from the single public source declared
+  in [NuGet.config](NuGet.config); no GitHub Packages credential or token is
+  part of the build contract. Restores are lockfile-strict: after changing a
+  package reference, run `dotnet restore Honua.Console.slnx --configfile NuGet.config --force-evaluate`
+  and commit the regenerated `packages.lock.json` files. CI rejects lock drift
+  before it builds or tests the Console.
 
 ```bash
 git clone https://github.com/honua-io/honua-console.git
 cd honua-console
 
-# Authenticate the Honua SDK package feed (once). This stores the credential in
-# your user-level NuGet config — never put the token in the repo's tracked
-# NuGet.config. Credentials are matched to the feed by source name.
-dotnet nuget add source https://nuget.pkg.github.com/honua-io/index.json \
-  --name github-honua \
-  --username <your-github-username> --password <token-with-read:packages> \
-  --store-password-in-clear-text \
-  --configfile "$HOME/.nuget/NuGet/NuGet.Config"
-
-dotnet restore Honua.Console.slnx
+dotnet restore Honua.Console.slnx --configfile NuGet.config --locked-mode
 dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
 ```
 
@@ -150,18 +145,29 @@ Blazor session and the admin-keyed map proxy, an air-gapped deployment would get
 a broken surface, and the CSP would have to admit a script origin nothing else
 needs.
 
-Vendored today: MapLibre GL JS (map preview) and Vega / Vega-Lite / Vega-Embed
-(chart preview). Cesium (`scene-viewer.js`) is the one remaining runtime-CDN
-consumer and is tracked by honua-console#334: its `Build/Cesium` tree is tens of
-megabytes of workers, assets, and widgets resolved dynamically through
-`window.CESIUM_BASE_URL`, so where those bytes should live is its own decision
-rather than a mechanical port. It is why `https://cdn.jsdelivr.net` is still in
-the CSP.
+Vendored today: MapLibre GL JS (map preview), Vega / Vega-Lite / Vega-Embed
+(chart preview), and Cesium (3D Tiles preview). Cesium's exact extracted
+`Build/Cesium` tree, version, archive digest, and Apache-2.0 license bytes are
+locked in `scripts/cesium-extracted-tree.lock.json`. The Shell project's MSBuild
+static-asset discovery runs `scripts/fetch-cesium.mjs`, which verifies an
+existing tree or fetches the exact pinned archive into the gitignored static-asset
+directory. This covers `dotnet run`, `dotnet build`, and `dotnet publish`; the
+published artifact is verified again before deployment. The viewer disables
+Cesium Ion's default base layer and loads server-owned 3D Tiles through the
+authenticated same-origin scene proxy; neither executable code nor scene assets
+require a new CSP origin.
 
 Versions are pinned exactly in [`scripts/vendored-assets.json`](scripts/vendored-assets.json).
 To bump one: change `version` there, run `node scripts/vendor-assets.mjs --update`,
 and commit the rewritten assets together with `scripts/vendored-assets.lock.json`.
-The script re-fetches from the npm registry, checks the tarball against npm's own
+For a reviewed Cesium version bump, update the constants in
+`scripts/lib/cesium-extracted-tree.mjs`, then run
+`node scripts/vendor-assets.mjs --update` and commit the rewritten
+`scripts/cesium-extracted-tree.lock.json` and `scripts/vendored-assets.lock.json`.
+The common lock records Cesium's version, archive digest, and extracted-tree digest;
+the tree lock inventories every packaged file. The same update command refreshes
+the committed MapLibre and Vega assets. Cesium's runtime remains build-time output.
+For committed bundles, the script re-fetches from npm, checks the tarball against npm's own
 `dist.integrity`, and records a sha384 digest of every byte it writes; `npm test`
 fails if a committed asset ever stops matching its digest, if a wwwroot interop
 script reaches an origin nobody declared, or if the CSP and those scripts disagree
@@ -221,6 +227,8 @@ checkout. It skips when neither is configured or Docker is unavailable.
   Playwright harness.
 
 ## Documentation
+
+- **[Full documentation index](docs/SUMMARY.md)** — every published page, generated from the documentation bundle so it cannot drift.
 
 | Area | Start here |
 |---|---|

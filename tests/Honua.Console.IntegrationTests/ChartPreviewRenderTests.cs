@@ -54,7 +54,7 @@ public sealed class ChartPreviewRenderTests
         Assert.NotNull(spec);
         using var doc = System.Text.Json.JsonDocument.Parse(spec!);
         var root = doc.RootElement;
-        Assert.Contains("vega-lite", root.GetProperty("$schema").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(StudioQueryResultChart.VegaLiteSchema, root.GetProperty("$schema").GetString());
         Assert.Equal("bar", root.GetProperty("mark").GetProperty("type").GetString());
         Assert.Equal("name", root.GetProperty("encoding").GetProperty("x").GetProperty("field").GetString());
         Assert.Equal("count", root.GetProperty("encoding").GetProperty("y").GetProperty("aggregate").GetString());
@@ -85,6 +85,7 @@ public sealed class ChartPreviewRenderTests
         Assert.NotNull(spec);
         using var doc = System.Text.Json.JsonDocument.Parse(spec!);
         var root = doc.RootElement;
+        Assert.Equal(StudioAnalysisInputChart.VegaLiteSchema, root.GetProperty("$schema").GetString());
         Assert.Equal("bar", root.GetProperty("mark").GetProperty("type").GetString());
         Assert.Equal("__auto__", root.GetProperty("encoding").GetProperty("x").GetProperty("field").GetString());
         Assert.Equal("count", root.GetProperty("encoding").GetProperty("y").GetProperty("aggregate").GetString());

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Honua.Console.Shell.Models;
@@ -82,6 +83,39 @@ internal static class PublishedLayerSeeder
         }
 
         return new SeededLayer(serviceName, result.LayerId.Value, connectionId, table);
+    }
+
+    /// <summary>Creates real source data and publishes scoped metadata through the supported admin API.</summary>
+    public static async Task<SeededLayer> PublishNamespacedLayerAsync(
+        TemporalReplicaFixture fixture, string suffix, string metadataNamespace)
+    {
+        var table = $"obs_{suffix}";
+        var serviceName = $"obs_svc_{suffix}";
+        await SeedPointTableAsync(fixture.PostgresConnectionString!, table);
+        var connectionId = await CreateConnectionAsync(fixture, $"obs-conn-{suffix}");
+        using var http = fixture.CreateRawClient();
+        http.DefaultRequestHeaders.Add("X-API-Key", fixture.AdminApiKey);
+        using var response = await http.PostAsJsonAsync($"/api/v1/admin/connections/{connectionId}/layers", new
+        {
+            schema = "public",
+            table,
+            layerName = "Workspace observations",
+            serviceName,
+            @namespace = metadataNamespace,
+            geometryColumn = "geom",
+            geometryType = "Point",
+            srid = 3857,
+            primaryKey = "id",
+            fields = new[] { "id", "name", "observed" },
+            enabled = true
+        }, JsonOptions);
+        var payload = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.Created,
+            $"Namespaced layer publication returned {(int)response.StatusCode}: {payload}");
+        using var document = JsonDocument.Parse(payload);
+        var data = document.RootElement.GetProperty("data");
+        Assert.Equal(serviceName, data.GetProperty("serviceName").GetString());
+        return new SeededLayer(serviceName, data.GetProperty("layerId").GetInt32(), connectionId, table);
     }
 
     private static async Task<string> CreateConnectionAsync(TemporalReplicaFixture fixture, string name)

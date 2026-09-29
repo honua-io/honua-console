@@ -75,7 +75,7 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
     }
 
     [Fact]
-    public async Task PublicClient_UnresolvedOperator_ToleratesAnonymous_AndRetainsAdminKey()
+    public async Task PublicClient_UnresolvedOperator_ToleratesAnonymous_AndStripsAdminKey()
     {
         var context = new SwitchableOperatorContext { CurrentOperatorKey = ConsoleOperatorContext.AnonymousKey };
         using var harness = Harness.Build(context);
@@ -85,7 +85,7 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
         // keeps the documented admin-key fallback on the configured server (never impersonating an operator).
         var anon = await SendAsync(factory.CreatePublicClient(new Uri("https://startup.honua.test/")));
         Assert.Null(anon.Authorization);
-        Assert.Equal("admin-key", anon.ApiKey);
+        Assert.Null(anon.ApiKey);
         Assert.Equal("startup.honua.test", anon.Host);
     }
 
@@ -172,6 +172,7 @@ public sealed class ConsoleServerBoundClientFactoryFailClosedTests
             ProfileId = "env-shared",
             AccountId = operatorKey,
             AccessToken = bearer,
+            ServerBaseUri = new Uri(serverBaseUri),
         });
     }
 

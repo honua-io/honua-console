@@ -18,7 +18,7 @@
     <!-- Server-owned Studio capability-manifest projection (GET /api/v1/capabilities/manifest).
          The registry-driven Studio-AI intent resolver (honua-console#266) binds this SDK client so
          deferred/unavailable capabilities are gated out of Studio AI. -->
-    <PackageReference Include="Honua.Sdk.Studio" Version="1.5.0" />
+    <PackageReference Include="Honua.Sdk.Studio" Version="1.10.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,5 +49,16 @@
       <LogicalName>Honua.Console.Shell.Diagnostics.diagnostic-bundle.v1.json</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
+
+  <!-- Fetch before Razor inventories static assets, including on the first build
+       of a clean checkout. Files created after project evaluation must also be
+       added to Content explicitly; a Web BeforeTargets=Build hook runs too late. -->
+  <Target Name="FetchCesiumAssets" BeforeTargets="ResolveProjectStaticWebAssets"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="node &quot;scripts/fetch-cesium.mjs&quot;" WorkingDirectory="$(MSBuildProjectDirectory)/../.." />
+    <ItemGroup>
+      <Content Include="wwwroot/vendor/cesium/**/*" Exclude="@(Content)" />
+    </ItemGroup>
+  </Target>
 
 </Project>

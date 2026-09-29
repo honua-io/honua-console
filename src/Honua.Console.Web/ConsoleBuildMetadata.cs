@@ -9,7 +9,9 @@ public static class ConsoleBuildMetadata
 
     public static IReadOnlyDictionary<string, object?> Create()
     {
-        var sha = Environment.GetEnvironmentVariable("HONUA_CONSOLE_COMMIT_SHA") ?? "unknown";
+        var sha = typeof(ConsoleBuildMetadata).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => attribute.Key == "HonuaConsoleCommitSha")?.Value ?? "unknown";
 
         return new Dictionary<string, object?>
         {

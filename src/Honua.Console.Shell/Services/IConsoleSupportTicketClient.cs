@@ -36,11 +36,16 @@ public sealed record SupportTicketResult
 
     public string Message { get; init; } = string.Empty;
 
+    public TerminalFailureReceipt? Receipt { get; init; }
+
     public bool IsAllowed => Status == OperateSectionStatus.Allowed && Value is not null;
 
     public static SupportTicketResult Allowed(SupportTicketResponse value) =>
         new() { Status = OperateSectionStatus.Allowed, Value = value };
 
-    public static SupportTicketResult Denied(OperateSectionStatus status, string message) =>
-        new() { Status = status, Message = message };
+    public static SupportTicketResult Denied(
+        OperateSectionStatus status,
+        string message,
+        TerminalFailureReceipt? receipt = null) =>
+        new() { Status = status, Message = message, Receipt = receipt };
 }

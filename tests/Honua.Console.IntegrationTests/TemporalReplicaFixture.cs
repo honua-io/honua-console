@@ -21,6 +21,10 @@ public sealed class TemporalReplicaIntegrationCollection : ICollectionFixture<Te
 /// </summary>
 public sealed class TemporalReplicaFixture : IAsyncLifetime
 {
+    public const string CatalogWorkspace = "default";
+    public const string CatalogTenant = "public";
+    public const string CatalogNamespace = "console-catalog-fixture";
+
     private HonuaServerTestcontainer? _container;
 
     public ConsoleTrustIntegrationOptions Options { get; } = ConsoleTrustIntegrationOptions.Load();
@@ -50,7 +54,20 @@ public sealed class TemporalReplicaFixture : IAsyncLifetime
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-            _container = await HonuaServerTestcontainer.StartAsync(Options, timeout.Token).ConfigureAwait(false);
+            // Explicit mapping for this ephemeral server; real publications must carry the namespace.
+            var scopedOptions = Options with
+            {
+                ServerEnvironment = string.Join("\n", Options.ServerEnvironment,
+                    $"Console__CatalogDiscovery__Workspaces__0__Id={CatalogWorkspace}",
+                    "MultiTenancy__Enabled=true",
+                    $"MultiTenancy__DefaultTenantId={CatalogTenant}",
+                    $"Console__CatalogDiscovery__Workspaces__0__TenantId={CatalogTenant}",
+                    $"Console__CatalogDiscovery__Workspaces__0__Namespace={CatalogNamespace}",
+                    "Console__CatalogDiscovery__Workspaces__1__Id=other-tenant-workspace",
+                    "Console__CatalogDiscovery__Workspaces__1__TenantId=other-tenant",
+                    $"Console__CatalogDiscovery__Workspaces__1__Namespace={CatalogNamespace}")
+            };
+            _container = await HonuaServerTestcontainer.StartAsync(scopedOptions, timeout.Token).ConfigureAwait(false);
             BaseAddress = _container.BaseAddress;
             PostgresConnectionString = _container.PostgresConnectionString;
         }

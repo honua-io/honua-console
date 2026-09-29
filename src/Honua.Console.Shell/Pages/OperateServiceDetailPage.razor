@@ -5,14 +5,14 @@
 @inject IServiceConfigurationOperation ServiceConfig
 @inject IConsoleNotificationService Notifications
 
-<section class="console-page">
+<section class="console-page" data-service-name="@ServiceName" data-service-loaded="@(_service is not null)">
     @if (_service is null)
     {
         <MissingItemView Kind="service" AreaLabel="Operate / Services" />
     }
     else
     {
-        <div class="console-page-heading">
+        <div class="console-page-heading" data-service-detail="@_service.Name">
             <p class="console-kicker">Operate / Services</p>
             <h1>@_service.DisplayName</h1>
             <p>@_service.MetadataOwnership</p>
@@ -279,7 +279,7 @@
                     <tbody>
                         @foreach (var layer in _service.Layers)
                         {
-                            <tr>
+                            <tr data-layer-id="@layer.LayerId">
                                 <td>@layer.LayerId</td>
                                 <td>@layer.Name</td>
                                 <td>@layer.Geometry</td>

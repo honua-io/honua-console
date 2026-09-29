@@ -79,6 +79,65 @@ public sealed class OperateGeoprocessingPageTests
     }
 
     [Fact]
+    public async Task DetailModeRendersEsriAliasCanonicalProcessAndComparableAuditIdentifiers()
+    {
+        var detail = Job("gp-buffer-1", "Succeeded", "Done", 100, "agent.release") with
+        {
+            Identity = new OperateJobIdentity(
+                CorrelationId: "corr-buffer-1",
+                TraceId: "trace-buffer-1",
+                ProviderOperationId: "provider-buffer-1",
+                DefinitionId: "gpserver-buffer",
+                ProcessId: "geometry.buffer",
+                GpServerServiceId: "geoprocessing",
+                GpServerTaskName: "Buffer",
+                ResultPackageId: "result-gp-buffer-1",
+                SelectedMetadata:
+                [
+                    new OperateJobStepMetadata("gpserver.taskName", "Buffer"),
+                    new OperateJobStepMetadata("honua.geoprocessing.process_definitions", "geometry.buffer"),
+                    new OperateJobStepMetadata("resultPackageId", "result-gp-buffer-1")
+                ])
+        };
+
+        var html = await RenderAsync(
+            new StubGeoprocessingClient
+            {
+                Detail = OperateSectionResult<OperateJobRun>.Allowed(detail)
+            },
+            selectedJobRunId: "gp-buffer-1");
+
+        Assert.Contains("Esri GPServer identity", html);
+        Assert.Contains("Buffer", html);
+        Assert.Contains("geometry.buffer", html);
+        Assert.Contains("result-gp-buffer-1", html);
+        Assert.Contains("corr-buffer-1", html);
+        Assert.Contains("trace-buffer-1", html);
+        Assert.Contains("provider-buffer-1", html);
+        Assert.Contains("/rest/services/geoprocessing/GPServer/Buffer/jobs/gp-buffer-1", html);
+        Assert.DoesNotContain("Run a process", html);
+    }
+
+    [Fact]
+    public async Task DetailFailureRendersTechnicalProblemDiagnostics()
+    {
+        var html = await RenderAsync(
+            new StubGeoprocessingClient
+            {
+                Detail = OperateSectionResult<OperateJobRun>.Denied(
+                    OperateSectionStatus.Unavailable,
+                    "The job detail could not be loaded.",
+                    "HTTP 500; correlationId=corr-failed-gp; operationId=gp-failed")
+            },
+            selectedJobRunId: "gp-failed");
+
+        Assert.Contains("The job detail could not be loaded.", html);
+        Assert.Contains("Technical detail", html);
+        Assert.Contains("corr-failed-gp", html);
+        Assert.Contains("gp-failed", html);
+    }
+
+    [Fact]
     public async Task DetailModeRendersMissingState()
     {
         var html = await RenderAsync(

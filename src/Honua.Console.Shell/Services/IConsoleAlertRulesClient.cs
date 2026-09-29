@@ -34,4 +34,10 @@ public interface IConsoleAlertRulesClient
         long? ruleId,
         AlertRuleRequest rule,
         CancellationToken cancellationToken = default);
+
+    /// <summary>PUT /rules/{ruleId}/enabled — change activation independently from save/test.</summary>
+    Task<OperateSectionResult<AlertRuleResponse>> SetRuleEnabledAsync(
+        long ruleId,
+        bool enabled,
+        CancellationToken cancellationToken = default);
 }

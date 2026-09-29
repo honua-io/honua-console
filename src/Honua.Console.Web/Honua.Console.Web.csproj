@@ -18,12 +18,19 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Version>0.1.0</Version>
+    <!-- The release revision is embedded in the assembly at publish time. It is deliberately not
+         read from the process environment, which an older or modified image could change at runtime. -->
+    <HonuaConsoleCommitSha Condition="'$(HonuaConsoleCommitSha)' == ''">unknown</HonuaConsoleCommitSha>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>HonuaConsoleCommitSha</_Parameter1>
+      <_Parameter2>$(HonuaConsoleCommitSha)</_Parameter2>
+    </AssemblyAttribute>
     <InternalsVisibleTo Include="Honua.Console.IntegrationTests" />
   </ItemGroup>
 

@@ -14,6 +14,38 @@ namespace Honua.Console.IntegrationTests;
 public sealed class MapPreviewRenderTests
 {
     [Fact]
+    public void MapPreview_WithNoScaleSupplied_OmitsTheStripRatherThanAssertingOne()
+    {
+        using var ctx = new Bunit.BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var cut = ctx.Render<MapPreview>();
+
+        // ScaleText / Crs / Zoom used to default to "1:8,000" / "EPSG:4326" / 14, so every preview
+        // asserted a scale, a CRS and a zoom that nothing had read — including on layer pages where
+        // the CRS chip read as that layer's declared CRS. With none supplied, no strip renders.
+        Assert.Empty(cut.FindAll("[data-map-scale]"));
+
+        // The schematic itself is unaffected: it still draws, and still reports it is not bound.
+        Assert.Contains("map-preview-schematic", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-map-bound=\"false\"", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MapPreview_WithOnlyCrsSupplied_RendersThatChipAlone()
+    {
+        using var ctx = new Bunit.BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var cut = ctx.Render<MapPreview>(parameters => parameters.Add(p => p.Crs, "EPSG:3857"));
+
+        var scale = cut.Find("[data-map-scale]");
+        Assert.Contains("EPSG:3857", scale.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("z ", scale.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("1:", scale.TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MapPreview_WithoutBackend_RendersSchematicScaleAndZoomChrome()
     {
         using var ctx = new Bunit.BunitContext();

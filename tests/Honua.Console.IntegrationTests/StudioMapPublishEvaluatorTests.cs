@@ -18,7 +18,7 @@ public sealed class StudioMapPublishEvaluatorTests
             Basemap = "basemap:streets",
             InitialExtent = "-158.3,21.2,-157.6,21.7"
         };
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:hydrants@v12" });
+        state.Layers.Add(new StudioMapLayerEditor { BoundServiceId = "hydrants", BoundLayerId = "0", SourceRef = "service:hydrants/0" });
 
         var readiness = StudioMapPublishEvaluator.Evaluate(state);
 

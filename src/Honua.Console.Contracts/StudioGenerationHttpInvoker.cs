@@ -85,8 +85,9 @@ internal sealed class StudioGenerationHttpInvoker
         {
             if (!response.IsSuccessStatusCode)
             {
-                var serverDetail = await TryReadErrorDetailAsync(response, cancellationToken).ConfigureAwait(false);
-                return StudioEndpointResult<TResponse>.FromIssue(CreateIssue(contract, response.StatusCode, serverDetail));
+                var raw = await TryReadErrorBodyAsync(response, cancellationToken).ConfigureAwait(false);
+                var serverDetail = TryReadErrorDetail(raw);
+                return StudioEndpointResult<TResponse>.FromIssue(CreateIssue(contract, response, serverDetail, raw));
             }
 
             // The generation endpoints return the BARE result object ({status, package, rationale, ...}) via
@@ -122,46 +123,53 @@ internal sealed class StudioGenerationHttpInvoker
         }
     }
 
-    private static async Task<string?> TryReadErrorDetailAsync(
+    private static async Task<string?> TryReadErrorBodyAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
         try
         {
             var raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                return null;
-            }
-
-            using var document = JsonDocument.Parse(raw);
-            var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
-            {
-                return null;
-            }
-
-            return root.TryGetProperty("message", out var messageElement) &&
-                messageElement.ValueKind == JsonValueKind.String
-                ? messageElement.GetString()
-                : root.TryGetProperty("detail", out var detailElement) && detailElement.ValueKind == JsonValueKind.String
-                    ? detailElement.GetString()
-                    : null;
+            return string.IsNullOrWhiteSpace(raw) ? null : raw;
         }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        catch (Exception ex) when (ex is HttpRequestException or NotSupportedException or InvalidOperationException)
         {
             return null;
         }
     }
 
-    private StudioEndpointIssue CreateIssue(string contract, HttpStatusCode statusCode, string? serverDetail)
+    private static string? TryReadErrorDetail(string? raw)
     {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(raw);
+            var root = document.RootElement;
+            return root.TryGetProperty("message", out var messageElement) && messageElement.ValueKind == JsonValueKind.String
+                ? messageElement.GetString()
+                : root.TryGetProperty("detail", out var detailElement) && detailElement.ValueKind == JsonValueKind.String
+                    ? detailElement.GetString()
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private StudioEndpointIssue CreateIssue(
+        string contract,
+        HttpResponseMessage response,
+        string? serverDetail,
+        string? raw)
+    {
+        var statusCode = response.StatusCode;
         var state = statusCode switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
             HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-            HttpStatusCode.BadRequest => "Validation failed",
-            HttpStatusCode.Conflict => "Conflict",
+            HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => "Validation failed",
+            HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed or HttpStatusCode.PreconditionRequired => "Conflict",
             _ => "Unavailable"
         };
 
@@ -172,7 +180,9 @@ internal sealed class StudioGenerationHttpInvoker
             HttpStatusCode.NotFound => $"The Honua server does not expose the {_subject} contract.",
             HttpStatusCode.MethodNotAllowed => $"The Honua server exposes the route but not the required {_subject} verb.",
             HttpStatusCode.NotImplemented => $"The Honua server reports {_subject} is not implemented.",
-            HttpStatusCode.BadRequest => $"The Honua server rejected the {_subject} request as invalid.",
+            HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => $"The Honua server rejected the {_subject} request as invalid.",
+            HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed or HttpStatusCode.PreconditionRequired =>
+                $"The Honua server reported a conflict for the {_subject} request; reload before retrying.",
             _ => string.Format(
                 CultureInfo.InvariantCulture,
                 "The Honua server returned HTTP {0} ({1}) for the {2} request.",
@@ -181,6 +191,9 @@ internal sealed class StudioGenerationHttpInvoker
                 _subject)
         };
 
-        return new StudioEndpointIssue(state, contract, detail, (int)statusCode);
+        return new StudioEndpointIssue(state, contract, detail, (int)statusCode)
+        {
+            Receipt = ConsoleFailureReceiptParser.Parse(response, raw)
+        };
     }
 }

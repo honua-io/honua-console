@@ -25,10 +25,12 @@
 // committed bytes from a public registry without trusting this repo's history.
 
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
+import { canonicalJson, validateManifest } from "./lib/cesium-extracted-tree.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifestPath = resolve(repoRoot, "scripts/vendored-assets.json");
@@ -98,9 +100,31 @@ async function readLock() {
   return JSON.parse(await readFile(lockPath, "utf8"));
 }
 
+// Cesium is packaged at build time; keep its archive and full tree identity in the
+// common lock without committing its multi-megabyte runtime to Git.
+export async function cesiumLockEntry() {
+  const tree = JSON.parse(await readFile(resolve(repoRoot, "scripts/cesium-extracted-tree.lock.json"), "utf8"));
+  validateManifest(tree);
+  return {
+    version: tree.version,
+    license: tree.license.spdx,
+    resolved: `https://registry.npmjs.org/cesium/-/cesium-${tree.version}.tgz`,
+    integrity: `sha256-${Buffer.from(tree.archiveSha256, "hex").toString("base64")}`,
+    destination: "src/Honua.Console.Shell/wwwroot/vendor/cesium",
+    buildTime: true,
+    treeLock: "scripts/cesium-extracted-tree.lock.json",
+    treeSha256: tree.treeSha256,
+  };
+}
+
 async function update() {
   const manifest = await readManifest();
   const lock = { $comment: LOCK_COMMENT, packages: {} };
+
+  execFileSync(process.execPath, [resolve(repoRoot, "scripts/fetch-cesium.mjs"), "--force", "--update-lock"], {
+    stdio: "inherit",
+  });
+  lock.packages.cesium = await cesiumLockEntry();
 
   for (const pkg of manifest.packages) {
     const metadataUrl = `${registryBase}/${pkg.name}/${pkg.version}`;
@@ -197,6 +221,14 @@ export async function verify() {
   const manifest = await readManifest();
   const lock = await readLock();
   const problems = [];
+
+  try {
+    if (canonicalJson(lock.packages?.cesium) !== canonicalJson(await cesiumLockEntry())) {
+      problems.push("cesium: common asset lock differs from the pinned archive/tree — re-run --update");
+    }
+  } catch (error) {
+    problems.push(`cesium: ${error.message}`);
+  }
 
   for (const pkg of manifest.packages) {
     const locked = lock.packages?.[pkg.name];

@@ -82,6 +82,8 @@ public sealed class ConsoleEndToEndSmokeTests
 
         using (var catalogContext = new Bunit.BunitContext())
         {
+            catalogContext.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+            catalogContext.AddConsoleNotifications();
             catalogContext.Services.AddSingleton<IConsoleCatalogClient>(catalog);
             catalogContext.Services.AddSingleton<IConsoleCatalogReadContextResolver>(
                 new AuthenticatedReadContextResolver());
@@ -138,6 +140,8 @@ public sealed class ConsoleEndToEndSmokeTests
 
         using (var studioContext = new Bunit.BunitContext())
         {
+            studioContext.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+            studioContext.AddConsoleNotifications();
             studioContext.Services.AddSingleton<IStudioAuthoringShell>(seededShell);
             var studioPage = studioContext.Render<StudioPage>();
             studioPage.WaitForAssertion(
@@ -184,6 +188,8 @@ public sealed class ConsoleEndToEndSmokeTests
 
         using (var operateContext = new Bunit.BunitContext())
         {
+            operateContext.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+            operateContext.AddConsoleNotifications();
             operateContext.Services.AddSingleton<IPublishingWorkspaceDataSource>(publishingDataSource);
             operateContext.Services.AddSingleton<IServiceLayerPublishOperation>(new UnsupportedServiceLayerPublishOperation());
             operateContext.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());

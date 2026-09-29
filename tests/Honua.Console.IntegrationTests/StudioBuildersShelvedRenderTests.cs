@@ -31,6 +31,8 @@ public sealed class StudioBuildersShelvedRenderTests
 
         // Empty manifest = the shipped default: studio-builders is not advertised.
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
+        ctx.Services.AddSingleton<IConsoleProductMode>(
+            new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
 
         // The shelved pages keep their real service seams; the honest "unsupported/unbound" shells stand
         // in so a failure to gate would surface as a missing-binding surface, not a DI error.
@@ -164,6 +166,7 @@ public sealed class StudioBuildersShelvedRenderTests
         using var ctx = ShelvedContext();
         ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
 
+        ctx.AddAuthorization().SetAuthorized("synthetic-operator");
         var layout = ctx.Render<ConsoleLayout>();
 
         Assert.DoesNotContain("href=\"/studio\"", layout.Markup, StringComparison.Ordinal);
@@ -181,7 +184,10 @@ public sealed class StudioBuildersShelvedRenderTests
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         ctx.Services.AddSingleton<IConsoleHostCapabilities, BrowserConsoleHostCapabilities>();
+        ctx.Services.AddSingleton<IConsoleProductMode>(
+            new ConfiguredConsoleProductMode(ConsoleProductMode.Full));
 
+        ctx.AddAuthorization().SetAuthorized("synthetic-operator");
         var layout = ctx.Render<ConsoleLayout>();
 
         Assert.Contains("href=\"/studio\"", layout.Markup, StringComparison.Ordinal);

@@ -68,6 +68,12 @@ public sealed record ConsoleServiceImportRunRequest
 
     public string? TargetSchema { get; init; }
 
+    /// <summary>
+    /// Explicit current-action authorization to replace this named target. Defaults to the
+    /// server's non-destructive existing-target behavior.
+    /// </summary>
+    public bool OverwriteExisting { get; init; }
+
     public bool AutoPublish { get; init; } = true;
 
     /// <summary>Optional Honua service name to auto-publish the imported layer into.</summary>

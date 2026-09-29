@@ -8,15 +8,14 @@ import { SOURCE_DB, sourceConnectionBody } from '../source-db';
 //   3. live service/layer   — the FeatureServer /query returns the seeded features in the right SRID.
 //
 // Source: public.e2e_layer_src — a PostGIS polygon table (integer PK, 3 rows, EPSG:3857) seeded into the
-// server's database for this workflow test. The service name is fixed: the first run publishes it; later
-// runs find it already published and re-verify the live output (the verification reads global GeoServices
-// state, so it is independent of which run created the layer or which connection published it).
+// server's database for this workflow test. Each worker publishes a fresh named service so an old
+// publication cannot satisfy a failed UI operation's verification reads.
 
 const stamp = Date.now().toString(36);
 // Overridable so the suite can publish out of whatever PostGIS the surrounding harness booted; the
 // default is the console testbed's seeded table. See live/source-db.ts.
 const SOURCE_TABLE = SOURCE_DB.table;
-const SERVICE_NAME = 'e2e_src_fs';
+const SERVICE_NAME = `e2e_src_fs_${stamp}`;
 const LAYER_NAME = 'E2E Source';
 
 test.describe('Operate · Publish layer workflow (live)', () => {
@@ -24,6 +23,18 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // Cold PostGIS table discovery (column/PK/row scan across all spatial tables) can be slow on a freshly
     // created connection — especially under full-suite load — so allow generous headroom.
     test.setTimeout(300_000);
+    if (process.env.HONUA_CONSOLE_E2E_OIDC === 'true') {
+      // Establish the Console identity, then exchange a real IdP login for a server bearer.
+      await page.goto('/auth/login');
+      await page.waitForURL('**/');
+      await page.goto('/auth/server/login?profileId=local-dev&returnTo=%2Foperate%2Fconnections');
+      await page.waitForURL(/host\.docker\.internal:8443/);
+      await page.locator('#username').fill('alice');
+      await page.locator('#password').fill('alice-live-proof-pw');
+      await page.locator('#kc-login').click();
+      await page.waitForURL('**/operate/connections');
+      await expect(page.getByText('Operate binding')).toHaveCount(0);
+    }
     const connName = `e2e-pub-conn-${stamp}`;
     const conn = await admin.createConnection(sourceConnectionBody(connName));
     admin.trackConnectionName(connName);
@@ -41,6 +52,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
 
     // --- Drive the publish UI ---
     await page.goto('/operate/publishing/quick');
+    await expect(page.getByLabel('Connection', { exact: true })).toBeVisible();
     const tableSelect = page.getByLabel('Table', { exact: true });
     // Selecting the connection triggers the UI's table discovery. The first cold scan can be slow under
     // load, so retry with a page reload — by a later attempt the server-side discovery is warm.
@@ -58,9 +70,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     await page.getByPlaceholder('parcels-fs').fill(SERVICE_NAME);
     await page.getByPlaceholder('Parcels', { exact: true }).fill(LAYER_NAME);
     await page.getByRole('button', { name: 'Publish layer' }).click();
-    // First run publishes the layer; later runs report it already exists. Either way it is now live —
-    // the assertions below verify the live server state, not which run created it.
-    await expect(page.getByText(/Layer published|Layer not published/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'Layer published', exact: true })).toBeVisible({ timeout: 30_000 });
 
     // --- Verification 1: catalog (GeoServices services directory lists the service) ---
     const catalog = await admin.getJson('/rest/services?f=json');

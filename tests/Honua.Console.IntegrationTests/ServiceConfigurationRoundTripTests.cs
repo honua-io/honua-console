@@ -40,7 +40,7 @@ public sealed class ServiceConfigurationRoundTripTests
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
         var setup = await SeedAndPublishAsync("layertoggle");
-        Skip.If(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
+        Assert.False(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
         var (connectionId, serviceName, layerId) = setup!.Value;
 
         var operation = new HonuaServerServiceConfigurationOperation(_fixture.CreateOperateClient());
@@ -96,7 +96,7 @@ public sealed class ServiceConfigurationRoundTripTests
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
         var setup = await SeedAndPublishAsync("protocols");
-        Skip.If(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
+        Assert.False(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
         var (_, serviceName, layerId) = setup!.Value;
 
         var operation = new HonuaServerServiceConfigurationOperation(_fixture.CreateOperateClient());
@@ -104,7 +104,7 @@ public sealed class ServiceConfigurationRoundTripTests
 
         // A freshly published service exposes all protocols; confirm FeatureServer is among them.
         var before = await verifier.GetServiceSettingsAsync(serviceName);
-        Skip.If(before is null, "The pinned honua-server image does not expose the service-settings projection.");
+        Assert.False(before is null, "The pinned honua-server image does not expose the service-settings projection.");
         Assert.Contains("FeatureServer", before!.EnabledProtocols, StringComparer.OrdinalIgnoreCase);
 
         // --- OPERATION: restrict the service to FeatureServer + MapServer only. ---
@@ -138,14 +138,14 @@ public sealed class ServiceConfigurationRoundTripTests
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
         var setup = await SeedAndPublishAsync("protoneg");
-        Skip.If(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
+        Assert.False(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
         var (_, serviceName, _) = setup!.Value;
 
         var operation = new HonuaServerServiceConfigurationOperation(_fixture.CreateOperateClient());
         using var verifier = _fixture.CreateVerifier();
 
         var before = await verifier.GetServiceSettingsAsync(serviceName);
-        Skip.If(before is null, "The pinned honua-server image does not expose the service-settings projection.");
+        Assert.False(before is null, "The pinned honua-server image does not expose the service-settings projection.");
         var originalProtocols = before!.EnabledProtocols.OrderBy(p => p, StringComparer.Ordinal).ToArray();
 
         // Invalid config: a bogus protocol name is rejected deterministically by the server
@@ -172,13 +172,13 @@ public sealed class ServiceConfigurationRoundTripTests
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
         var setup = await SeedAndPublishAsync("protoidem");
-        Skip.If(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
+        Assert.False(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
         var (_, serviceName, _) = setup!.Value;
 
         var operation = new HonuaServerServiceConfigurationOperation(_fixture.CreateOperateClient());
         using var verifier = _fixture.CreateVerifier();
 
-        Skip.If(
+        Assert.False(
             await verifier.GetServiceSettingsAsync(serviceName) is null,
             "The pinned honua-server image does not expose the service-settings projection.");
 
@@ -209,16 +209,28 @@ public sealed class ServiceConfigurationRoundTripTests
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
 
         var setup = await SeedAndPublishAsync("accesspolicy");
-        Skip.If(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
+        Assert.False(setup is null, "The pinned honua-server image could not service the layer-publish precondition.");
         var (_, serviceName, _) = setup!.Value;
 
         var operation = new HonuaServerServiceConfigurationOperation(_fixture.CreateOperateClient());
         using var verifier = _fixture.CreateVerifier();
 
+        // Newly published services may legitimately have no explicit policy. Seed a
+        // policy through the supported API so this test measures a real transition.
+        var seed = await operation.UpdateAccessPolicyAsync(new ServiceAccessPolicyCommand
+        {
+            ServiceName = serviceName,
+            AllowAnonymous = false,
+            AllowAnonymousWrite = false,
+            AllowedRoles = ["viewer"]
+        });
+        Assert.True(seed.Succeeded, $"Access-policy seed failed: {seed.State} — {seed.Detail}");
+
         var before = await verifier.GetServiceSettingsAsync(serviceName);
-        Skip.If(
+        Assert.False(
             before?.AccessPolicy is null,
             "The pinned honua-server image does not expose the service access-policy projection.");
+        Assert.False(before!.AccessPolicy!.AllowAnonymous);
 
         // --- OPERATION: flip anonymous access to the opposite of its current value, restrict write. ---
         var target = !(before!.AccessPolicy!.AllowAnonymous ?? false);
@@ -246,7 +258,7 @@ public sealed class ServiceConfigurationRoundTripTests
     // ---------------------------------------------------------------------------------------------
 
     // Seeds a parcels table + admin connection and publishes a queryable layer. Returns null when the
-    // pinned server image cannot service the publish path (contract drift), so callers skip cleanly.
+    // pinned server image cannot service the publish path (contract drift), so callers fail with their setup diagnostic.
     private async Task<(string ConnectionId, string ServiceName, int LayerId)?> SeedAndPublishAsync(string tag)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
@@ -273,7 +285,7 @@ public sealed class ServiceConfigurationRoundTripTests
 
         if (!result.Succeeded || result.LayerId is null)
         {
-            // Contract-drift: the pinned image cannot publish. Caller skips rather than false-fails.
+            // Contract-drift: the pinned image cannot publish. The caller fails the required setup assertion.
             return null;
         }
 

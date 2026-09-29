@@ -870,6 +870,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Capabilities.RefreshAsync();
         // A correlation-id chip deep link (console#292) seeds the filter so the timeline opens
         // already scoped to the correlated events — no extra operator action required.
         if (!string.IsNullOrWhiteSpace(CorrelationId))
@@ -889,7 +890,10 @@
         var alertsTask = OperateClient.GetAlertsAsync();
         var rulesTask = OperateClient.GetRulesAsync();
         var jobsTask = OperateClient.GetJobsAsync();
-        var investigationsTask = OperateClient.GetInvestigationsAsync();
+        var investigationsTask = Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations)
+            ? OperateClient.GetInvestigationsAsync()
+            : Task.FromResult(OperateSectionResult<IReadOnlyList<OperateInvestigation>>.Denied(
+                OperateSectionStatus.Unsupported, "The server does not advertise investigations."));
 
         await Task.WhenAll(overviewTask, eventsTask, logsTask, alertsTask, rulesTask, jobsTask, investigationsTask);
 

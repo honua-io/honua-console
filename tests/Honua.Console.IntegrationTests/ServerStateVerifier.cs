@@ -689,6 +689,9 @@ public sealed class ServerStateVerifier : IDisposable
     /// visible (plan §5.5). Returns <c>null</c> when neither version route is mounted (a contract-drift signal
     /// in its own right).
     /// </summary>
+    private static JsonElement UnwrapData(JsonElement root) =>
+        root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : root;
+
     public async Task<VerifiedServerContract?> GetServerContractAsync(CancellationToken cancellationToken = default)
     {
         string? version = null;
@@ -701,7 +704,7 @@ public sealed class ServerStateVerifier : IDisposable
         {
             if (versionDoc is not null && versionDoc.RootElement.ValueKind == JsonValueKind.Object)
             {
-                var root = versionDoc.RootElement;
+                var root = UnwrapData(versionDoc.RootElement);
                 versionRouteMounted = true;
                 version = GetString(root, "version");
                 metadataApiVersion = GetString(root, "metadataApiVersion");
@@ -713,7 +716,7 @@ public sealed class ServerStateVerifier : IDisposable
         {
             if (capabilitiesDoc is not null && capabilitiesDoc.RootElement.ValueKind == JsonValueKind.Object)
             {
-                var root = capabilitiesDoc.RootElement;
+                var root = UnwrapData(capabilitiesDoc.RootElement);
                 capabilitiesRouteMounted = true;
                 version ??= GetString(root, "serverVersion");
                 metadataApiVersion ??= GetString(root, "metadataApiVersion");

@@ -38,4 +38,25 @@ public sealed class UnsupportedOperateAlertRulesDataSource : IOperateAlertRulesD
         ArgumentNullException.ThrowIfNull(edit);
         return Task.FromResult(OperateAlertRuleSaveResult.Blocked(MissingBinding));
     }
+
+    public Task<OperateAlertRuleTestResult> TestRuleAsync(
+        OperateAlertRuleDraft draft,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new OperateAlertRuleTestResult(false, [], [], MissingBinding));
+
+    public Task<OperateAlertRuleTestResult> TestRuleAsync(
+        OperateAlertRuleEdit edit,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new OperateAlertRuleTestResult(false, [], [], MissingBinding));
+
+    public Task<OperateAlertRuleSaveResult> CreateRuleAsync(
+        OperateAlertRuleDraft draft,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(OperateAlertRuleSaveResult.Blocked(MissingBinding));
+
+    public Task<OperateAlertRuleSaveResult> SetRuleEnabledAsync(
+        string ruleId,
+        bool enabled,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(OperateAlertRuleSaveResult.Blocked(MissingBinding));
 }

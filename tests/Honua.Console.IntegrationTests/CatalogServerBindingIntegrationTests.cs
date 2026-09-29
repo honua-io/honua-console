@@ -68,6 +68,8 @@ public sealed class CatalogServerBindingIntegrationTests
 
         // 4. The Catalog page renders the seeded item from the live server-bound client.
         using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton<IConsoleCatalogClient>(catalog);
         ctx.Services.AddSingleton<IConsoleCatalogReadContextResolver>(new AuthenticatedReadContextResolver());
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new UnsupportedOperateTransitionDataSource());

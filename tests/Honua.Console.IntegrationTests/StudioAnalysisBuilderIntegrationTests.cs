@@ -49,7 +49,8 @@ public sealed class StudioAnalysisBuilderIntegrationTests
         // accept a known-valid analysis package seed, so a rejection is a real regression that must fail the
         // smoke — never a skip that reports false-green evidence.
         var saved = await dataSource.SaveDraftAsync(seed);
-        Assert.True(saved.Succeeded, $"The live server rejected the seeded analysis package: {saved.Message}");
+        Assert.True(saved.Succeeded, $"The live server rejected the seeded analysis package: {saved.Message}; "
+            + System.Text.Json.JsonSerializer.Serialize(saved.FieldErrors));
         Assert.NotNull(saved.Plan);
         var analysisId = saved.Plan!.AnalysisId;
         Assert.False(string.IsNullOrWhiteSpace(analysisId));

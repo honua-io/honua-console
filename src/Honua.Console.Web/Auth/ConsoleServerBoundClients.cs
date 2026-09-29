@@ -30,8 +30,16 @@ public static class ConsoleServerBoundClients
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton<IConsoleOperatorBearerExchange, UnavailableConsoleOperatorBearerExchange>();
+        services.TryAddSingleton<IConsoleOperatorBearerProvider, ConsoleOperatorBearerProvider>();
+
+        services.AddHttpClient("honua-map-proxy")
+            .ConfigurePrimaryHttpMessageHandler(CreatePooledPrimaryHandler)
+            .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider));
+
         // The privileged chain: operator guard (fail-closed) OUTERMOST, then the shared profile/session
-        // binding (retarget + operator bearer / admin-key), then the pooled primary handler. The guard
+        // binding (retarget), then the operator credential boundary and pooled primary handler. The guard
         // ensures an unresolved operator can never reach the binding step.
         services.AddHttpClient(ServerBoundClientName)
             .ConfigurePrimaryHttpMessageHandler(CreatePooledPrimaryHandler)
@@ -41,29 +49,40 @@ public static class ConsoleServerBoundClients
             .AddHttpMessageHandler(serviceProvider =>
                 new HonuaServerBindingHandler(
                     serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
+                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()))
+            .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider));
 
         // The anonymous-capable chain: same binding (forwards the operator bearer WHEN resolved) but NO
         // fail-closed guard, so /public open-data + the public /ogc/styles list keep rendering for
-        // anonymous visitors (documented admin-key / anonymous fallback), by explicit design.
+        // anonymous visitors. The final credential boundary strips all shared keys.
         services.AddHttpClient(PublicClientName)
             .ConfigurePrimaryHttpMessageHandler(CreatePooledPrimaryHandler)
             .AddHttpMessageHandler(serviceProvider =>
                 new HonuaServerBindingHandler(
                     serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()));
+                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()))
+            .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider, allowAnonymous: true));
 
         services.TryAddSingleton<IHonuaServerBoundClientFactory, HttpClientFactoryServerBoundClientFactory>();
 
         return services;
     }
 
+    private static ConsoleOperatorCredentialHandler CreateCredentialHandler(IServiceProvider services, bool allowAnonymous = false) =>
+        new(services.GetRequiredService<IConsoleOperatorContext>(),
+            services.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+            services.GetRequiredService<IConsoleAccountSessionStore>(),
+            services.GetRequiredService<IConsoleOperatorBearerProvider>(),
+            allowAnonymous);
+
     private static SocketsHttpHandler CreatePooledPrimaryHandler() =>
         new()
         {
             // Refresh pooled connections so a long-lived client does not pin stale DNS for the active
             // environment's server.
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            AllowAutoRedirect = false,
+            UseCookies = false
         };
 
     private sealed class HttpClientFactoryServerBoundClientFactory : IHonuaServerBoundClientFactory

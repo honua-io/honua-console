@@ -49,6 +49,10 @@ public sealed class StudioDashboardBuilderIntegrationTests
         // 3. Publish saves an immutable version and creates a publish request on the live server.
         var published = await dataSource.PublishAsync(validated.State!);
         Assert.True(published.Succeeded, published.Message);
+        Assert.NotNull(published.State!.PendingPublication);
+        Assert.NotEqual(StudioDashboardStatuses.Published, published.State.Status);
+        var approval = await _fixture.ApprovePublicationAsDistinctActorAsync(published.State.PendingPublication);
+        approval.Apply(published.State);
         Assert.Equal(StudioDashboardStatuses.Published, published.State!.Status);
         Assert.NotNull(published.State.ItemId);
         Assert.NotNull(published.State.PublishedVersion);
@@ -71,7 +75,9 @@ public sealed class StudioDashboardBuilderIntegrationTests
             () => Assert.DoesNotContain("Dashboard package lifecycle is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(10));
         // The live workspace exposes the New-dashboard authoring entry point.
-        Assert.Contains("New dashboard", page.Markup, StringComparison.Ordinal);
+        page.WaitForAssertion(
+            () => Assert.Contains("Open blank editor", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(10));
     }
 
     private static StudioDashboardEditorState ReadyDashboard()

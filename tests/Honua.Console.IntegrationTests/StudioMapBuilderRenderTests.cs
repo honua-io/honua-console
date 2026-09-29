@@ -168,10 +168,10 @@ public sealed class StudioMapBuilderRenderTests
     }
 
     [Fact]
-    public void MapBuilder_ServerBound_NewMapSaveThenPublish_RendersLifecycleFromTypedClient()
+    public void MapBuilder_ServerBound_UnresolvedLayerSavesDraftButCannotPublish()
     {
         // Drives the page through the production server-bound data source over a recording HttpClient, so
-        // the binding (create draft -> freeze content version -> publication request) is exercised
+        // the draft binding and unresolved-source publish guard are exercised
         // end-to-end through the typed lifecycle client rather than a hand-written fake.
         var draftId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
@@ -210,7 +210,7 @@ public sealed class StudioMapBuilderRenderTests
 
         // Author a publish-ready map directly on the rendered editor, then save (creates the live draft).
         page.Find("input[placeholder='Public works map']").Change("Public works");
-        page.Find("input[placeholder='basemap:streets']").Change("basemap:streets");
+        page.Find("input[placeholder='server-default']").Change("basemap:streets");
         page.Find("input[placeholder='-158.3,21.2,-157.6,21.7']").Change("-158.3,21.2,-157.6,21.7");
         FindButton(page, "Add layer").Click();
         page.Find("input[placeholder='content:hydrants@v12']").Change("content:hydrants@v12");
@@ -220,33 +220,9 @@ public sealed class StudioMapBuilderRenderTests
             () => Assert.Contains("Saved map draft", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
-        // "Publish…" opens the multi-step publish wizard on the Access tab; walk it to Confirm and finish.
-        FindButton(page, "Publish…").Click();
-        page.WaitForAssertion(
-            () => Assert.NotNull(page.Find("[data-publish-wizard]")),
-            TimeSpan.FromSeconds(5));
-        foreach (var continueLabel in new[]
-                 {
-                     "Continue · Dependencies",
-                     "Continue · Visibility",
-                     "Continue · Embed",
-                     "Continue · Rollback",
-                     "Continue · Confirm",
-                 })
-        {
-            FindButton(page, continueLabel).Click();
-        }
-        page.WaitForAssertion(
-            () => Assert.NotNull(page.Find("[data-wizard-step='confirm']")),
-            TimeSpan.FromSeconds(5));
-        page.FindAll("button.publish-wizard-finish").Single().Click();
-        page.WaitForAssertion(
-            () => Assert.Contains("Publication request accepted", page.Markup, StringComparison.Ordinal),
-            TimeSpan.FromSeconds(5));
-
-        // After publish the editor is terminal: publish is disabled and reopen is offered.
+        // An opaque authored reference remains a valid draft, but cannot silently publish a layerless map.
         Assert.True(FindButton(page, "Publish…").HasAttribute("disabled"));
-        Assert.NotNull(FindButton(page, "Reopen as draft"));
+        Assert.DoesNotContain("Publication request accepted", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -540,7 +516,7 @@ public sealed class StudioMapBuilderRenderTests
             InitialExtent = "-158.3,21.2,-157.6,21.7",
             ETag = "etag-3"
         };
-        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "content:hydrants@v12", Title = "Hydrants" });
+        state.Layers.Add(new StudioMapLayerEditor { SourceRef = "service:public-works/1", BoundServiceId = "public-works", BoundLayerId = "1", Title = "Hydrants" });
         return state;
     }
 
@@ -595,7 +571,7 @@ public sealed class StudioMapBuilderRenderTests
                     packageKey = "studio-map-public-works",
                     family = "map",
                     generation = 1,
-                    envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+                    envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
                     validation = new { status = "not-validated" },
                     createdAt = "2026-05-30T00:00:00Z",
                     updatedAt = "2026-05-30T00:00:00Z"
@@ -607,7 +583,7 @@ public sealed class StudioMapBuilderRenderTests
                     versionId = _versionId,
                     versionNumber = 1,
                     contentHash = "abc",
-                    envelope = new { family = "map", schemaVersion = StudioMapPackageMapper.SchemaVersion },
+                    envelope = new { family = "map", schemaVersion = "1.0", format = "honua_map_package.v1" },
                     validation = new { status = "valid" },
                     createdAt = "2026-05-30T00:00:00Z"
                 },
@@ -635,7 +611,7 @@ public sealed class StudioMapBuilderRenderTests
             }
 
             var json = JsonSerializer.Serialize(new { success = true, data });
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(new HttpResponseMessage(path.EndsWith("/publish-requests", StringComparison.Ordinal) ? HttpStatusCode.Created : HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
             });

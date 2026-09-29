@@ -12,6 +12,15 @@ import { test, expect } from '../admin-api';
 // test target because it always has rollback buttons once a publication exists. Tests that require
 // server-side data (versions, custom roles) skip gracefully when that data is absent.
 
+// A publishing page with no publications must still show its own empty/unbound state. Asserting it
+// keeps the "no rollback buttons" branch honest instead of silently passing.
+async function expectPublicationsEmptyState(page: import('@playwright/test').Page) {
+  const emptyOrUnbound = page
+    .locator('[data-esri-missing-binding], .console-state, [data-publications-empty], [data-publish-tree-empty]')
+    .first();
+  await expect(emptyOrUnbound).toBeVisible();
+}
+
 test.describe('Trust & feedback · confirm dialog (live)', () => {
   test('toast host is mounted on every operate route', async ({ page }) => {
     await page.goto('/operate');
@@ -25,10 +34,12 @@ test.describe('Trust & feedback · confirm dialog (live)', () => {
     test('rollback button opens the confirm dialog', async ({ page }) => {
       await page.goto('/operate/publishing');
 
-      // If no publications are loaded the test cannot proceed; skip gracefully.
       const rollbackButton = page.getByRole('button', { name: /Roll back to rev/ }).first();
       if ((await rollbackButton.count()) === 0) {
-        test.skip(true, 'No rollback buttons visible; server has no published resources');
+        // Nothing published yet. Assert the page says so rather than skipping: a silent skip means a
+        // deployment with an empty registry reports "passed" for a surface nobody looked at, which is
+        // how the publish wizard's fixtures survived this lane for months.
+        await expectPublicationsEmptyState(page);
         return;
       }
 
@@ -48,7 +59,10 @@ test.describe('Trust & feedback · confirm dialog (live)', () => {
 
       const rollbackButton = page.getByRole('button', { name: /Roll back to rev/ }).first();
       if ((await rollbackButton.count()) === 0) {
-        test.skip(true, 'No rollback buttons visible');
+        // Nothing published yet. Assert the page says so rather than skipping: a silent skip means a
+        // deployment with an empty registry reports "passed" for a surface nobody looked at, which is
+        // how the publish wizard's fixtures survived this lane for months.
+        await expectPublicationsEmptyState(page);
         return;
       }
 
@@ -67,7 +81,10 @@ test.describe('Trust & feedback · confirm dialog (live)', () => {
 
       const rollbackButton = page.getByRole('button', { name: /Roll back to rev/ }).first();
       if ((await rollbackButton.count()) === 0) {
-        test.skip(true, 'No rollback buttons visible');
+        // Nothing published yet. Assert the page says so rather than skipping: a silent skip means a
+        // deployment with an empty registry reports "passed" for a surface nobody looked at, which is
+        // how the publish wizard's fixtures survived this lane for months.
+        await expectPublicationsEmptyState(page);
         return;
       }
 

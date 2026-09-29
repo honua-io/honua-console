@@ -8,13 +8,58 @@ namespace Honua.Console.Web;
 
 /// <summary>
 /// Shared gating + rewrite helpers for the map-preview BFF proxy endpoints.
-/// These endpoints inject the honua-server admin API key server-side, so they MUST only be
-/// reachable by an authenticated console session — otherwise any client that can reach the
-/// console origin can pull layer styles, vector tiles, and full feature rows with admin
-/// privileges (honua-console#210, confused-deputy / broken access control).
+/// These endpoints forward only the active operator bearer through the browser transport boundary.
+/// Their responses must not be cached across operator sessions.
 /// </summary>
 public static class MapProxySupport
 {
+    /// <summary>Canonicalizes a relative asset path under a server-owned 3D Tiles scene.</summary>
+    public static string? NormalizeSceneAssetPath(string? assetPath)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return null;
+        }
+
+        var segments = assetPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return null;
+        }
+
+        var encoded = new string[segments.Length];
+        for (var index = 0; index < segments.Length; index++)
+        {
+            string segment;
+            try
+            {
+                segment = Uri.UnescapeDataString(segments[index]).Trim();
+            }
+            catch (UriFormatException)
+            {
+                return null;
+            }
+            if (segment.Length == 0 || segment is "." or ".." || segment.Contains('/') || segment.Contains('\\'))
+            {
+                return null;
+            }
+            encoded[index] = Uri.EscapeDataString(segment);
+        }
+        return string.Join('/', encoded);
+    }
+
+    /// <summary>Builds a scene asset URI against the selected environment's server.</summary>
+    public static Uri BuildSceneAssetUri(Uri serverBaseUri, string sceneId, string assetPath)
+    {
+        ArgumentNullException.ThrowIfNull(serverBaseUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetPath);
+
+        return ConsoleServerHttp.BuildUri(
+            serverBaseUri,
+            $"scenes/{sceneId}/{assetPath}");
+    }
+
     /// <summary>
     /// Neutralizes CR/LF in a user-provided value before it reaches a log entry, so a crafted
     /// route/query value cannot forge additional log lines (CodeQL cs/log-forging). Structured
@@ -44,47 +89,17 @@ public static class MapProxySupport
         return !string.IsNullOrWhiteSpace(session?.AccessToken);
     }
 
-    /// <summary>
-    /// Resolves the active operator's forwardable bearer for a map-proxy upstream request
-    /// (honua-console#233/#210). Returns the operator's real bearer when one exists so honua-server
-    /// can scope the proxied style/tile/feature read to that operator's identity; returns
-    /// <c>null</c> when only a non-forwardable session sentinel exists (the caller then falls back to
-    /// the configured shared admin key). Operator authentication for the endpoint itself is enforced
-    /// separately via <c>HttpContext.User</c>.
-    /// </summary>
-    public static async Task<string?> ResolveOperatorBearerAsync(
-        IConsoleEnvironmentProfileStore profiles,
-        IConsoleAccountSessionStore sessions,
-        CancellationToken cancellationToken)
+    /// <summary>Preserves server denial status without disclosing its response body.</summary>
+    public static IResult UpstreamFailure(HttpContext context, System.Net.HttpStatusCode status)
     {
-        var activeProfile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        if (activeProfile is null || activeProfile.Account.AuthMode == ConsoleAccountAuthMode.Anonymous)
+        if (status == System.Net.HttpStatusCode.Unauthorized)
         {
-            return null;
+            context.Response.Headers.WWWAuthenticate = "Bearer error=\"invalid_token\"";
+            return Results.Json(new { message = "Sign in to honua-server again.", signIn = "/auth/signin" },
+                statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        var session = await sessions.GetSessionAsync(activeProfile.Id, cancellationToken).ConfigureAwait(false);
-        var token = session?.AccessToken;
-        return ConsoleAuthConstants.IsSessionSentinel(token) ? null : token;
-    }
-
-    /// <summary>
-    /// Attaches the operator's bearer to an upstream map-proxy request when one is available,
-    /// otherwise the configured shared admin key (documented fallback). Centralises the
-    /// "operator-first, admin-key-fallback" rule across the three proxy endpoints.
-    /// </summary>
-    public static void ApplyUpstreamCredential(HttpRequestMessage request, string? operatorBearer, string? adminApiKey)
-    {
-        if (!string.IsNullOrWhiteSpace(operatorBearer))
-        {
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", operatorBearer);
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(adminApiKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-API-Key", adminApiKey);
-        }
+        return Results.StatusCode((int)status);
     }
 
     // Validator request headers forwarded to the upstream so it can answer 304 Not Modified.
@@ -92,7 +107,7 @@ public static class MapProxySupport
 
     // Caching + validator response headers copied from the upstream so the browser can cache tiles.
     private static readonly string[] CacheResponseHeaders =
-        ["Cache-Control", "ETag", "Expires", "Last-Modified", "Vary", "Age"];
+        ["ETag", "Expires", "Last-Modified", "Vary", "Age"];
 
     /// <summary>
     /// Forwards the browser's cache-validation headers (<c>If-None-Match</c> / <c>If-Modified-Since</c>) onto
@@ -111,10 +126,9 @@ public static class MapProxySupport
     }
 
     /// <summary>
-    /// Copies the upstream caching + validator headers onto the proxied response so the browser can cache
-    /// vector tiles instead of re-fetching every tile through this admin-keyed proxy on every view. When the
-    /// upstream sends no <c>Cache-Control</c>, applies a conservative immutable long max-age (tiles are
-    /// content-addressed by layer/z/x/y, so a given tile body is stable between publishes).
+    /// Copies upstream validators onto the proxied response while forcing a private revalidation policy.
+    /// These endpoints can fetch bytes using an operator identity, so a shared intermediary must not cache
+    /// the response as public content.
     /// </summary>
     public static void ApplyTileCacheHeaders(HttpResponseMessage upstream, HttpResponse browserResponse)
     {
@@ -127,15 +141,15 @@ public static class MapProxySupport
             }
         }
 
-        if (!browserResponse.Headers.ContainsKey("Cache-Control"))
-        {
-            browserResponse.Headers["Cache-Control"] = "public, max-age=86400, immutable";
-        }
+        // These proxy endpoints require an operator identity. Never preserve or invent a public
+        // cache policy for bytes fetched with that identity; a shared intermediary must not reuse
+        // one operator's response for another operator.
+        browserResponse.Headers["Cache-Control"] = "private, no-cache, must-revalidate";
     }
 
     /// <summary>
     /// Rewrites every vector-tile URL in a MapLibre style document so the browser fetches tiles
-    /// back through this proxy (where the admin key is injected) rather than directly from
+    /// back through this proxy (where the operator bearer is attached) rather than directly from
     /// honua-server. Parses the style's <c>sources[*].tiles[]</c> entries and rewrites both
     /// root-relative (<c>/tiles/...</c>) and absolute (<c>http(s)://server/tiles/...</c>) URL
     /// shapes, replacing everything up to and including the <c>/tiles/</c> segment with the

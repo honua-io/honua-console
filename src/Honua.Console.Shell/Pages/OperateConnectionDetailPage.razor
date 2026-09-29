@@ -4,7 +4,7 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleConnectionCreateOperation ConnectionOps
 
-<section class="console-page">
+<section class="console-page" data-connection-id="@ConnectionId" data-connection-loaded="@(_connection is not null)">
     @if (_connection is null)
     {
         <MissingItemView Kind="connection" AreaLabel="Operate / Connections" />
