@@ -39,7 +39,7 @@ else
             </div>
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(_profile.TenantId))
+        @if (_profile.IsTenantScoped())
         {
             <TenancyPreviewNotice />
         }
