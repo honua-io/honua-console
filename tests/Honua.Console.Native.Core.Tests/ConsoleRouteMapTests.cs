@@ -66,6 +66,27 @@ public sealed class ConsoleRouteMapTests
         Assert.False(ConsoleRouteMap.IsOperateRoute(relativePath));
     }
 
+    [Theory]
+    [InlineData("studio", "Studio")]
+    [InlineData("/catalog", "Catalog")]
+    [InlineData("operate/resources/table/ns/name?tab=validation", "Operate")]
+    [InlineData("share/public#embed", "Share")]
+    public void AreaRoutesResolveToTheirWorkflowAreaForTheDocumentTitle(string relativePath, string expectedName)
+    {
+        Assert.Equal(expectedName, ConsoleRouteMap.FindAreaForPath(relativePath)?.Name);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("inbox")]
+    [InlineData("environments")]
+    [InlineData("support")]
+    [InlineData("operate-preview")]
+    public void ShellOwnedRoutesResolveToNoWorkflowArea(string relativePath)
+    {
+        Assert.Null(ConsoleRouteMap.FindAreaForPath(relativePath));
+    }
+
     [Fact]
     public void RouteMapPinsCatalogViewerShareAndEmbedParityRoutes()
     {

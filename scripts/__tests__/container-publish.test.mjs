@@ -21,10 +21,20 @@ describe("Console container publication contract", () => {
   });
 
   test("keeps pull requests read-only and publishes immutable multi-architecture images", async () => {
-    const workflow = await readFile(resolve(root, ".github/workflows/container-publish.yml"), "utf8");
+    const workflow = (
+      await readFile(resolve(root, ".github/workflows/container-publish.yml"), "utf8")
+    ).replace(/\r\n/g, "\n");
 
-    assert.match(workflow, /permissions:\n  contents: read\n  packages: read/);
-    assert.match(workflow, /validate:[\s\S]*if: github\.event_name == 'pull_request'[\s\S]*packages: read/);
+    assert.match(workflow, /permissions:\n  contents: read\n\nenv:/);
+    assert.doesNotMatch(workflow, /^\s*packages:\s*read\s*$/m);
+    assert.match(
+      workflow,
+      /validate:[\s\S]*if: github\.event_name == 'pull_request'[\s\S]*permissions:\n      contents: read\n    concurrency:/,
+    );
+    assert.match(
+      workflow,
+      /Restore Console anonymously from public sources[\s\S]*--configfile \.\.\/\.\.\/NuGet\.config --no-cache --locked-mode/,
+    );
     assert.match(workflow, /workflow_run:[\s\S]*workflows:[\s\S]*- CI[\s\S]*- completed/);
     assert.doesNotMatch(workflow, /workflow_dispatch:/);
     assert.match(
@@ -49,7 +59,7 @@ describe("Console container publication contract", () => {
     assert.match(workflow, /IMAGE_REF: \$\{\{ env\.IMAGE \}\}@\$\{\{ steps\.image\.outputs\.digest \}\}/);
     assert.match(workflow, /127\.0\.0\.1:4174\/version\.json/);
     assert.match(workflow, /payload\["commit"\] == os\.environ\["SOURCE_SHA"\]/);
-    assert.match(workflow, /actions\/attest-build-provenance@[0-9a-f]{40} # v3/);
+    assert.match(workflow, /actions\/attest-build-provenance@[0-9a-f]{40} # v4(?:\.\d+){0,2}\r?$/m);
 
     const smoke = workflow.indexOf("Smoke-test the published Console");
     const attest = workflow.indexOf("Attest verified candidate image provenance");

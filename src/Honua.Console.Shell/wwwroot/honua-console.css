@@ -72,13 +72,21 @@ a {
     transition: grid-template-columns 0.18s ease;
 }
 
-/* CSS-only collapse driver — the checkbox is never shown; its state collapses the rail. */
+/* CSS-only collapse driver — the checkbox is never shown; its state collapses the rail. It stays
+   focusable and in the accessibility tree (it is the control), so its keyboard focus ring is
+   projected onto the visible .console-collapse-button below rather than drawn on a 1px box. */
 .console-collapse-toggle {
     position: absolute;
     width: 1px;
     height: 1px;
     opacity: 0;
     pointer-events: none;
+}
+
+.console-shell:has(.console-collapse-toggle:focus-visible) .console-collapse-button {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: var(--honua-focus-ring);
 }
 
 .console-sidebar {

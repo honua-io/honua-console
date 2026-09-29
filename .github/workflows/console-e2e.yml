@@ -19,7 +19,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 concurrency:
   group: console-e2e-${{ github.workflow }}-${{ github.ref }}
@@ -47,11 +46,8 @@ jobs:
         with:
           node-version: 20.x
 
-      - name: Authenticate GitHub Packages feed
-        run: dotnet nuget update source github-honua --username "${{ github.actor }}" --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
-
-      - name: Restore .NET projects
-        run: dotnet restore Honua.Console.slnx --locked-mode
+      - name: Restore .NET projects anonymously from public sources
+        run: dotnet restore Honua.Console.slnx --configfile NuGet.config --no-cache --locked-mode
 
       - name: Fetch digest-verified Cesium assets
         run: node scripts/fetch-cesium.mjs --force
@@ -95,6 +91,20 @@ jobs:
           CI: "true"
           HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
         run: npx playwright test --config playwright.operator.config.ts
+
+      # honua-server#4428: the Console had NO accessibility gate — every `axe|a11y|accessib|wcag`
+      # hit in the repository was prose, while release section 14 requires the focused Console
+      # journey to pass one. This runs axe-core against the same backend-free published host the
+      # smoke above boots, on all four area routes, tagged to WCAG 2.1 A/AA, and fails on any
+      # serious or critical violation. Moderate and minor findings are attached to the report
+      # rather than enforced, so the gate asserts a defensible floor instead of a standard the
+      # Console has never been measured against. It also asserts the shell is keyboard reachable.
+      - name: Run Console accessibility gate (axe-core, WCAG 2.1 A/AA)
+        working-directory: e2e/playwright
+        env:
+          CI: "true"
+          HONUA_CONSOLE_E2E_DLL: ${{ github.workspace }}/artifacts/honua-console-web/Honua.Console.Web.dll
+        run: npx --no-install playwright test --config playwright.a11y.config.ts
 
       - name: Upload Playwright HTML report
         if: always()

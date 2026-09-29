@@ -5,9 +5,18 @@
 @inject Honua.Console.Shell.Services.IConsoleCapabilityManifest Capabilities
 @inject Honua.Console.Shell.Services.IConsoleProductMode ProductMode
 
+@* Every Console route needs a descriptive document title (WCAG 2.4.2). The shell owns it rather than
+   each of the ~100 pages repeating one, and names the area the operator is in so tabs and screen
+   reader announcements are distinguishable: "Operate — Honua Console". *@
+<PageTitle>@DocumentTitle</PageTitle>
+
 <div class="console-shell" data-console-mode="@ModeName">
-    @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has(). *@
-    <input type="checkbox" id="console-collapse" class="console-collapse-toggle" aria-hidden="true" />
+    @* CSS-only collapse: the checkbox state drives the rail width + label visibility via :has().
+       The checkbox is the real control and stays in the accessibility tree and the tab order — it
+       was previously aria-hidden while still focusable, which tells assistive technology a reachable
+       control does not exist. Its name lives here because aria-label is prohibited on <label>; the
+       <label> below is the visible affordance and the click target. *@
+    <input type="checkbox" id="console-collapse" class="console-collapse-toggle" aria-label="Toggle navigation" />
     <aside class="console-sidebar" aria-label="Honua Console navigation">
         <div class="console-sidebar-head">
             <a class="console-brand" href="/" title="Honua Console">
@@ -17,7 +26,7 @@
                     <small>@(ProductMode.IsWitness ? "Witness mode" : "Focused console")</small>
                 </span>
             </a>
-            <label for="console-collapse" class="console-collapse-button" title="Collapse navigation" aria-label="Toggle navigation">
+            <label for="console-collapse" class="console-collapse-button" title="Collapse navigation">
                 @Icon("collapse")
             </label>
         </div>
@@ -169,6 +178,16 @@
 
     private bool ShowOperateNavigation =>
         ConsoleRouteMap.IsOperateRoute(Navigation.ToBaseRelativePath(Navigation.Uri));
+
+    private const string ProductTitle = "Honua Console";
+
+    // Area-scoped where an area owns the route, product name elsewhere (inbox, environments,
+    // support, sign-in). Pages that want a more specific title can still render their own
+    // <PageTitle>, which wins over the layout's.
+    private string DocumentTitle =>
+        ConsoleRouteMap.FindAreaForPath(Navigation.ToBaseRelativePath(Navigation.Uri)) is { } area
+            ? $"{area.Name} — {ProductTitle}"
+            : ProductTitle;
 
     private string ModeName => ProductMode.Mode.ToString().ToLowerInvariant();
 
