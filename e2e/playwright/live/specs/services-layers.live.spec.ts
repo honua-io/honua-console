@@ -1,4 +1,5 @@
 import { test, expect } from '../admin-api';
+import { hasGovernedOperatorSession } from '../operator-session';
 import { SOURCE_DB, sourceConnectionBody } from '../source-db';
 
 // Live e2e for the core admin workflow: data connection -> pick a datasource table -> publish a service
@@ -23,7 +24,9 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // Cold PostGIS table discovery (column/PK/row scan across all spatial tables) can be slow on a freshly
     // created connection — especially under full-suite load — so allow generous headroom.
     test.setTimeout(300_000);
-    if (process.env.HONUA_CONSOLE_E2E_OIDC === 'true') {
+    // The shared setup already holds the governed session. Repeat the exchange only when a
+    // caller still opts into the inline path without that session (no service-key fallback).
+    if (process.env.HONUA_CONSOLE_E2E_OIDC === 'true' && !(await hasGovernedOperatorSession(page))) {
       // Establish the Console identity, then exchange a real IdP login for a server bearer.
       await page.goto('/auth/login');
       await page.waitForURL('**/');
