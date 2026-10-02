@@ -1,4 +1,5 @@
 import { test, expect } from '../admin-api';
+import { SOURCE_DB, sourceConnectionBody } from '../source-db';
 
 // Live content coverage for the publishing WIZARD at /operate/publishing.
 //
@@ -14,7 +15,7 @@ import { test, expect } from '../admin-api';
 // question, so a fixture cannot satisfy them.
 
 const stamp = Date.now().toString(36);
-const SOURCE_TABLE = 'public.e2e_layer_src';
+const SOURCE_TABLE = SOURCE_DB.table;
 
 test.describe('Operate · Publishing wizard (live)', () => {
   test('the service tree lists services the admin API reports', async ({ page, admin }) => {
@@ -56,17 +57,9 @@ test.describe('Operate · Publishing wizard (live)', () => {
     test.setTimeout(300_000);
 
     const connName = `e2e-wizard-conn-${stamp}`;
-    const conn = await admin.createConnection({
-      name: connName,
-      host: 'localhost',
-      port: 5544,
-      databaseName: 'honua_dev',
-      username: 'honua_user',
-      password: 'honua_password',
-      provider: 'postgis',
-      sslRequired: false,
-      sslMode: 'Disable',
-    });
+    // Same source the rest of the suite publishes from. The host must resolve inside the
+    // server (the release stack is not the testbed's shared network namespace on :5544).
+    const conn = await admin.createConnection(sourceConnectionBody(connName));
     admin.trackConnectionName(connName);
 
     // Warm server-side discovery before driving the UI (a cold scan on a fresh connection can lag).
