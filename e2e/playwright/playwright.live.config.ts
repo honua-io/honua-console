@@ -17,24 +17,26 @@ import { defineConfig, devices } from '@playwright/test';
 //   - A local OIDC IdP at HONUA_CONSOLE_E2E_IDP_HOST (default host.docker.internal:8443)
 //     whose client redirect URI is
 //     http://127.0.0.1:${HONUA_CONSOLE_E2E_LIVE_PORT}/admin/auth/callback
+//     (e2e/docker-compose.auth.yml + live-auth/realm register port 5274 only)
 //     and whose operator user is HONUA_CONSOLE_E2E_OPERATOR_USER / _PASSWORD
 //     (defaults alice / alice-live-proof-pw, realm role admin, `roles` claim).
 //   - That server's Public:BaseUrl AND PUBLIC_BASE_URL set to this Console origin
-//     (http://127.0.0.1:${HONUA_CONSOLE_E2E_LIVE_PORT}, default port 5176), with
+//     (http://127.0.0.1:${HONUA_CONSOLE_E2E_LIVE_PORT}, default port 5274), with
 //     Oidc:Generic enabled against that IdP, Authentication:OperatorBearer enabled,
 //     RateLimiting disabled, and the IdP TLS cert trusted for the server's backchannel.
 //     Use a server dedicated to this suite. The slice-1 stack's public base URL also
 //     builds STAC/OGC links, so it cannot be retargeted at the Console.
 //   - Source database inputs (HONUA_CONSOLE_E2E_SOURCE_*) and HONUA_TEST_DB_DSN inside
 //     the server, as before.
-// Playwright boots ONLY the Console on HONUA_CONSOLE_E2E_LIVE_PORT.
+// Playwright boots ONLY the Console on HONUA_CONSOLE_E2E_LIVE_PORT. `npm run e2e:live`
+// (e2e/run-live.mjs) stands up all of the above from docker-compose.yml + docker-compose.auth.yml.
 
 const IDP_HOST = process.env.HONUA_CONSOLE_E2E_IDP_HOST ?? 'host.docker.internal:8443';
 const IDP_HOSTNAME = IDP_HOST.replace(/:\d+$/, '');
 const MAP_IDP_TO_LOOPBACK = IDP_HOSTNAME === 'host.docker.internal'
   || process.env.HONUA_CONSOLE_E2E_IDP_MAP_LOOPBACK === '1';
 
-const PORT = Number(process.env.HONUA_CONSOLE_E2E_LIVE_PORT ?? '5176');
+const PORT = Number(process.env.HONUA_CONSOLE_E2E_LIVE_PORT ?? '5274');
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const SERVER_URL = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1:8088';
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
@@ -68,7 +70,10 @@ export default defineConfig({
       name: 'setup',
       testDir: './live',
       testMatch: /operator-session\.setup\.ts/,
-      use: { trace: 'on' },
+      // The sign-in fills the operator password and carries the auth code exchange. A trace
+      // would record both, and CI uploads test-results/. operator-session-callback.json is the
+      // redacted evidence for this step instead.
+      use: { trace: 'off' },
     },
     {
       name: 'chromium',

@@ -11,16 +11,18 @@ make e2e-live          # or: npm run e2e:live
 - Docker (with Compose v2 — `docker compose` as a sub-command)
 - Node.js >= 20 with `npx` on `PATH`
 - .NET 10 SDK (the Console host starts via `dotnet run`)
+- `openssl` and `bash` (the runner generates a throwaway TLS cert for the test IdP)
 - Outbound HTTPS (service-import specs contact public ArcGIS sample servers)
 
 ## What it does
 
 1. Pulls `postgis/postgis:16-3.4`, `redis:7-alpine`, and
    `ghcr.io/honua-io/honua-server:nightly-aot`.
-2. Starts the stack via `docker compose up -d --wait`; all services must be
+2. Starts the stack (`docker-compose.yml` plus the `docker-compose.auth.yml`
+   Keycloak overlay) via `docker compose up -d --wait`; all services must be
    healthy before Playwright runs.
 3. Boots the Console (`src/Honua.Console.Web`) via `dotnet run` (managed by
-   Playwright's `webServer` hook) bound to `http://127.0.0.1:5176`.
+   Playwright's `webServer` hook) bound to `http://127.0.0.1:5274`.
 4. Runs `playwright test --config playwright.live.config.ts` against the live
    stack (specs under `e2e/playwright/live/specs/`).
 5. Tears down the stack with `docker compose down -v` and exits with
@@ -67,4 +69,4 @@ source for the `services-layers` publish workflow and the `studio-results` specs
 |----------|---------|---------|
 | `HONUA_CONSOLE_E2E_SERVER_URL` | `http://127.0.0.1:8088` | honua-server base URL (for Playwright + Console) |
 | `HONUA_CONSOLE_E2E_ADMIN_KEY` | `honua-console-dev-key` | `X-API-Key` sent to admin endpoints |
-| `HONUA_CONSOLE_E2E_LIVE_PORT` | `5176` | Console port (Playwright webServer) |
+| `HONUA_CONSOLE_E2E_LIVE_PORT` | `5274` | Console port (Playwright webServer); must match the realm's registered callback |
