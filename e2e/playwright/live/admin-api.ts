@@ -1,9 +1,15 @@
 import { test as base, expect, request, type APIRequestContext } from '@playwright/test';
+import { establishGovernedOperatorSession } from './operator-session';
 
-// honua-server admin API used by the live e2e specs to (a) seed/verify state independently of the
-// Console UI under test, and (b) clean up everything a spec created. Mirrors the ServerStateVerifier
-// discipline from docs/testing/console-integration-test-plan.md: assert results through a different
-// path than the operation went through.
+// Shared live fixtures.
+//
+// `page` completes the governed server/Console operator session before the test body when the
+// setup project's storage state is not already on the context. Specs that import `test` from
+// @playwright/test still receive that session: playwright.live.config.ts applies the same
+// storage state to the chromium project.
+//
+// `admin` is the independent honua-server admin API. It uses the service key only on this
+// direct client, never as a browser operator. The Console host is started without that key.
 
 const SERVER_URL = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1:8088';
 const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
@@ -33,6 +39,10 @@ export interface AdminApi {
 }
 
 export const test = base.extend<{ admin: AdminApi }>({
+  page: async ({ page }, use) => {
+    await establishGovernedOperatorSession(page);
+    await use(page);
+  },
   admin: async ({ playwright }, use) => {
     const ctx: APIRequestContext = await request.newContext({
       baseURL: SERVER_URL,

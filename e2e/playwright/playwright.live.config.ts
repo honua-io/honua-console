@@ -6,17 +6,37 @@ import { defineConfig, devices } from '@playwright/test';
 // smoke), this config boots the Console BOUND to a real honua-server and drives create/test
 // flows that mutate live server state, verifying the result through the server admin API.
 //
-// Prerequisites it does NOT boot (provide them first):
-//   - honua-server reachable at HONUA_CONSOLE_E2E_SERVER_URL with HONUA_CONSOLE_E2E_ADMIN_KEY,
-//     and its backing databases. Locally that is the `console-testbed` docker compose stack plus
-//     the provider-aware source server; in CI it is the pinned server image + DB services.
-// Playwright boots ONLY the Console (bound to that server) on HONUA_CONSOLE_E2E_LIVE_PORT.
+// The Console host strips X-API-Key. Privileged browser calls need a server-bound operator
+// bearer from the governed OIDC exchange (live/operator-session.ts). The admin key below is
+// read only by live/admin-api.ts, which calls honua-server directly as an independent
+// verifier. It is deliberately NOT given to the Console process.
+//
+// Prerequisites it does NOT boot (the release harness must provide this topology):
+//   - honua-server at HONUA_CONSOLE_E2E_SERVER_URL (default http://127.0.0.1:8088).
+//   - HONUA_CONSOLE_E2E_ADMIN_KEY (default honua-console-dev-key) for the verifier only.
+//   - A local OIDC IdP at HONUA_CONSOLE_E2E_IDP_HOST (default host.docker.internal:8443)
+//     whose client redirect URI is
+//     http://127.0.0.1:${HONUA_CONSOLE_E2E_LIVE_PORT}/admin/auth/callback
+//     and whose operator user is HONUA_CONSOLE_E2E_OPERATOR_USER / _PASSWORD
+//     (defaults alice / alice-live-proof-pw, realm role admin, `roles` claim).
+//   - That server's Public:BaseUrl AND PUBLIC_BASE_URL set to this Console origin
+//     (http://127.0.0.1:${HONUA_CONSOLE_E2E_LIVE_PORT}, default port 5176), with
+//     Oidc:Generic enabled against that IdP, Authentication:OperatorBearer enabled,
+//     RateLimiting disabled, and the IdP TLS cert trusted for the server's backchannel.
+//     Use a server dedicated to this suite. The slice-1 stack's public base URL also
+//     builds STAC/OGC links, so it cannot be retargeted at the Console.
+//   - Source database inputs (HONUA_CONSOLE_E2E_SOURCE_*) and HONUA_TEST_DB_DSN inside
+//     the server, as before.
+// Playwright boots ONLY the Console on HONUA_CONSOLE_E2E_LIVE_PORT.
+
+const IDP_HOST = process.env.HONUA_CONSOLE_E2E_IDP_HOST ?? 'host.docker.internal:8443';
+const IDP_HOSTNAME = IDP_HOST.replace(/:\d+$/, '');
+const MAP_IDP_TO_LOOPBACK = IDP_HOSTNAME === 'host.docker.internal'
+  || process.env.HONUA_CONSOLE_E2E_IDP_MAP_LOOPBACK === '1';
 
 const PORT = Number(process.env.HONUA_CONSOLE_E2E_LIVE_PORT ?? '5176');
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const SERVER_URL = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1:8088';
-const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
-const REAL_OIDC = process.env.HONUA_CONSOLE_E2E_OIDC === 'true';
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 
 export default defineConfig({
@@ -36,15 +56,28 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    ignoreHTTPSErrors: REAL_OIDC,
-    launchOptions: REAL_OIDC
-      ? { args: ['--host-resolver-rules=MAP host.docker.internal 127.0.0.1'] }
+    // The governed local IdP serves a self-signed certificate. The browser must reach it
+    // by the same hostname the server puts in the authorize URL (issuer parity).
+    ignoreHTTPSErrors: true,
+    launchOptions: MAP_IDP_TO_LOOPBACK
+      ? { args: [`--host-resolver-rules=MAP ${IDP_HOSTNAME} 127.0.0.1`] }
       : {},
   },
   projects: [
     {
+      name: 'setup',
+      testDir: './live',
+      testMatch: /operator-session\.setup\.ts/,
+      use: { trace: 'on' },
+    },
+    {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      testDir: './live/specs',
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'live/.auth/operator.json',
+      },
     },
   ],
   webServer: {
@@ -58,8 +91,10 @@ export default defineConfig({
       DOTNET_CLI_TELEMETRY_OPTOUT: '1',
       // Bind the Console to the live honua-server so Operate/Catalog surfaces hit real endpoints.
       HONUA_SERVER_BASE_URL: SERVER_URL,
-      // OIDC CI proves the browser forwards its exchanged operator bearer.
-      HONUA_ADMIN_API_KEY: REAL_OIDC ? '' : ADMIN_KEY,
+      // The service key must not be available to the browser host. live/admin-api.ts reads
+      // HONUA_CONSOLE_E2E_ADMIN_KEY itself for the independent verifier. An empty value
+      // overrides a leaked parent HONUA_ADMIN_API_KEY, and the Console treats it as no key.
+      HONUA_ADMIN_API_KEY: '',
       // The Console's non-realtime Studio builder surfaces are SHELVED (gated off by default behind
       // the studio-builders capability) in favour of the realtime SDK-driven Studio. These lanes still
       // certify those builders, so advertise the capability for the browser under test.
