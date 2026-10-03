@@ -1,0 +1,10 @@
+{
+  "format": "honua.component-versions/v1",
+  "component": "honua-console",
+  "contractVersions": {
+    "admin": "v1"
+  },
+  "schemaVersions": {
+    "diagnostic-bundle": "1.0"
+  }
+}
