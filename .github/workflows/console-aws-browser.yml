@@ -13,7 +13,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  operator-preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      provisioned: ${{ steps.operator-secrets.outputs.provisioned }}
+    steps:
+      - name: Check live AWS operator precondition
+        id: operator-secrets
+        shell: bash
+        env:
+          HONUA_CONSOLE_AWS_OPERATOR_USERNAME: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_USERNAME }}
+          HONUA_CONSOLE_AWS_OPERATOR_PASSWORD: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_PASSWORD }}
+        run: |
+          if [[ -z "$HONUA_CONSOLE_AWS_OPERATOR_USERNAME" || -z "$HONUA_CONSOLE_AWS_OPERATOR_PASSWORD" ]]; then
+            reason="SKIPPED: live-aws-browser requires HONUA_CONSOLE_AWS_OPERATOR_USERNAME and HONUA_CONSOLE_AWS_OPERATOR_PASSWORD; configure both repository secrets for a provisioned AWS operator, then rerun the workflow."
+            echo "::notice::$reason"
+            echo "$reason" >> "$GITHUB_STEP_SUMMARY"
+            echo "provisioned=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "provisioned=true" >> "$GITHUB_OUTPUT"
+          fi
+
   live-aws-browser:
+    needs: operator-preflight
+    if: needs.operator-preflight.outputs.provisioned == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

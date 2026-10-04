@@ -7,6 +7,7 @@
 ## Guides
 
 * [Run Console locally and in staging](deployment/LOCAL_AND_STAGING.md)
+* [Live AWS browser smoke](ops/live-aws-smoke.md)
 
 ## Concepts
 
