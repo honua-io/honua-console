@@ -1,3 +1,8 @@
+---
+type: guide
+title: Live AWS browser smoke
+---
+
 # Live AWS browser smoke
 
 The scheduled and manually dispatched `.github/workflows/console-aws-browser.yml`
