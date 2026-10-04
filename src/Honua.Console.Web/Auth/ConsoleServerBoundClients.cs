@@ -36,6 +36,10 @@ public static class ConsoleServerBoundClients
 
         services.AddHttpClient("honua-map-proxy")
             .ConfigurePrimaryHttpMessageHandler(CreatePooledPrimaryHandler)
+            .AddHttpMessageHandler(serviceProvider =>
+                new HonuaServerBindingHandler(
+                    serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    serviceProvider.GetRequiredService<IConsoleAccountSessionStore>()))
             .AddHttpMessageHandler(serviceProvider => CreateCredentialHandler(serviceProvider));
 
         // The privileged chain: operator guard (fail-closed) OUTERMOST, then the shared profile/session
