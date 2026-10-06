@@ -6,6 +6,7 @@
 @using Honua.Console.Shell.Services
 @using Microsoft.AspNetCore.Components.Forms
 @inject IConsoleSceneClient Scenes
+@inject IServiceProvider ServiceProvider
 
 <section class="console-page" data-scenes-page>
     <div class="console-page-heading">
@@ -26,7 +27,7 @@
             <div class="console-detail-actions">
                 <a class="console-button-link" href="/operate/scenes" data-scenes-back>Back to scenes</a>
             </div>
-            <SceneViewer TilesetUrl="@_viewerTilesetUrl" AriaLabel="@($"3D Tiles viewer for scene {SceneId}")" />
+            <SceneViewer TilesetUrl="@_viewerTilesetUrl" EnvironmentId="@_environmentId" AriaLabel="@($"3D Tiles viewer for scene {SceneId}")" />
         </section>
     }
 
@@ -167,6 +168,8 @@
     private SceneReadResult<SceneListResponse>? _scenes;
     private SceneReadResult<PointCloudIngestResult>? _ingestResult;
     private string? _viewerTilesetUrl;
+    // Active environment profile id the scene proxy URL is pinned to.
+    private string? _environmentId;
     private string? _resolvedViewerFor;
 
     private IBrowserFile? _selectedFile;
@@ -185,6 +188,8 @@
         if (!string.IsNullOrWhiteSpace(SceneId) && _resolvedViewerFor != SceneId)
         {
             _resolvedViewerFor = SceneId;
+            _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+                ServiceProvider.GetService<IConsoleEnvironmentProfileStore>()).ConfigureAwait(false);
             _viewerTilesetUrl = await Scenes.ResolveTilesetUrlAsync(SceneId).ConfigureAwait(false);
         }
         else if (string.IsNullOrWhiteSpace(SceneId))

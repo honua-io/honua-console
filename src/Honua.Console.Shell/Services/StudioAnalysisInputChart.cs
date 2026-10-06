@@ -37,19 +37,13 @@ public static class StudioAnalysisInputChart
 
     /// <summary>
     /// The console features-proxy URL serving the first bound input layer's real rows
-    /// (/map-proxy/features/{serviceId}/{layerId}), or null when no input is bound.
+    /// (/map-proxy/{environmentId}/features/{serviceId}/{layerId}), or null when no input is bound or
+    /// there is no active environment to pin the URL to.
     /// </summary>
-    public static string? FeaturesUrl(StudioAnalysisPlanEditor plan)
+    public static string? FeaturesUrl(StudioAnalysisPlanEditor plan, string? environmentId)
     {
         var input = BoundInput(plan);
-        if (input is null)
-        {
-            return null;
-        }
-
-        var service = Uri.EscapeDataString(input.ServiceId);
-        var layer = input.LayerId.ToString(CultureInfo.InvariantCulture);
-        return $"/map-proxy/features/{service}/{layer}";
+        return input is null ? null : ConsoleProxyRoutes.MapFeatures(environmentId, input.ServiceId, input.LayerId);
     }
 
     /// <summary>

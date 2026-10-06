@@ -57,6 +57,7 @@
     private IJSObjectReference? _module;
     private bool _liveBound;
     private string? _boundTilesetUrl;
+    private string? _boundEnvironmentId;
 
     /// <summary>
     /// Absolute tileset.json URL. When set AND a browser Cesium runtime is
@@ -66,6 +67,14 @@
     /// </summary>
     [Parameter]
     public string? TilesetUrl { get; set; }
+
+    /// <summary>
+    /// Active environment profile id the same-origin <c>/scene-proxy/{environmentId}/</c> route is
+    /// pinned to, so tiles a scene loads later never come from an environment activated afterwards.
+    /// A server-owned <c>/scenes/</c> tileset URL without it is not proxied and the schematic stays.
+    /// </summary>
+    [Parameter]
+    public string? EnvironmentId { get; set; }
 
     /// <summary>Pixel height of the viewer stage.</summary>
     [Parameter]
@@ -107,7 +116,9 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (string.IsNullOrWhiteSpace(TilesetUrl) || string.Equals(TilesetUrl, _boundTilesetUrl, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(TilesetUrl)
+            || (string.Equals(TilesetUrl, _boundTilesetUrl, StringComparison.Ordinal)
+                && string.Equals(EnvironmentId, _boundEnvironmentId, StringComparison.Ordinal)))
         {
             return;
         }
@@ -131,10 +142,11 @@
                 _liveBound = false;
             }
 
-            var bound = await _module.InvokeAsync<bool>("init", _canvas, TilesetUrl);
+            var bound = await _module.InvokeAsync<bool>("init", _canvas, TilesetUrl, EnvironmentId);
             if (bound)
             {
                 _boundTilesetUrl = TilesetUrl;
+                _boundEnvironmentId = EnvironmentId;
                 _liveBound = true;
                 StateHasChanged();
             }

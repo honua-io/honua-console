@@ -256,11 +256,11 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
   const offOrigin = recordOffOriginRequests(page, origin);
   const tilesetRequests: string[] = [];
   const pointRequests: string[] = [];
-  await page.route('**/scene-proxy/scenes/reviewed/points.pnts', async (route) => {
+  await page.route('**/scene-proxy/local-dev/scenes/reviewed/points.pnts', async (route) => {
     pointRequests.push(route.request().url());
     await route.fulfill({ status: 200, contentType: 'application/octet-stream', body: scenePoints() });
   });
-  await page.route('**/scene-proxy/scenes/reviewed/tileset.json', async (route) => {
+  await page.route('**/scene-proxy/local-dev/scenes/reviewed/tileset.json', async (route) => {
     tilesetRequests.push(route.request().url());
     await route.fulfill({
       status: 200,
@@ -290,7 +290,7 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
     container.style.width = '640px';
     container.style.height = '360px';
     document.body.appendChild(container);
-    const mounted = await mod.init(container, splitHostTileset);
+    const mounted = await mod.init(container, splitHostTileset, 'local-dev');
     const deadline = performance.now() + 20_000;
     while (mounted && (!mod.inspect(container)?.tilesLoaded || mod.inspect(container)?.pointsLength !== 3)
         && performance.now() < deadline) {
@@ -312,11 +312,11 @@ test('a mounted 3D Tiles scene uses vendored Cesium, no Ion base layer, and only
   expect(result.version).toBe('1.119');
   expect(result.inspection).toEqual({
     imageryLayerCount: 0,
-    tilesetUrl: `${origin}/scene-proxy/scenes/reviewed/tileset.json`,
+    tilesetUrl: `${origin}/scene-proxy/local-dev/scenes/reviewed/tileset.json`,
     tilesLoaded: true,
     pointsLength: 3,
   });
-  expect(tilesetRequests).toEqual([`${origin}/scene-proxy/scenes/reviewed/tileset.json`]);
-  expect(pointRequests).toEqual([`${origin}/scene-proxy/scenes/reviewed/points.pnts`]);
+  expect(tilesetRequests).toEqual([`${origin}/scene-proxy/local-dev/scenes/reviewed/tileset.json`]);
+  expect(pointRequests).toEqual([`${origin}/scene-proxy/local-dev/scenes/reviewed/points.pnts`]);
   expect(offOrigin, 'mounting a 3D Tiles scene reached off-origin (including Cesium Ion)').toEqual([]);
 });

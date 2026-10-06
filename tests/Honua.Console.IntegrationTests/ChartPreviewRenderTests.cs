@@ -42,8 +42,10 @@ public sealed class ChartPreviewRenderTests
 
         Assert.True(StudioQueryResultChart.IsBound(query));
 
-        // The features URL targets the console proxy for the bound service/layer — the REAL rows path.
-        Assert.Equal("/map-proxy/features/e2e_src_fs/1", StudioQueryResultChart.FeaturesUrl(query));
+        // The features URL targets the console proxy for the bound service/layer — the REAL rows path —
+        // pinned to the environment that rendered the query; no active environment means no URL.
+        Assert.Equal("/map-proxy/local-dev/features/e2e_src_fs/1", StudioQueryResultChart.FeaturesUrl(query, "local-dev"));
+        Assert.Null(StudioQueryResultChart.FeaturesUrl(query, null));
 
         // The dimension skips the id/objectid key and groups by the first real attribute field.
         Assert.Equal("name", StudioQueryResultChart.DimensionField(query));
@@ -66,7 +68,7 @@ public sealed class ChartPreviewRenderTests
         var query = new StudioQueryEditor { ServiceName = string.Empty };
 
         Assert.False(StudioQueryResultChart.IsBound(query));
-        Assert.Null(StudioQueryResultChart.FeaturesUrl(query));
+        Assert.Null(StudioQueryResultChart.FeaturesUrl(query, "local-dev"));
         Assert.Null(StudioQueryResultChart.BuildSpec(query));
     }
 
@@ -77,7 +79,8 @@ public sealed class ChartPreviewRenderTests
         plan.Inputs.Add(new StudioAnalysisInputEditor { Role = "source", ServiceId = "e2e_src_fs", LayerId = 1 });
 
         Assert.True(StudioAnalysisInputChart.IsBound(plan));
-        Assert.Equal("/map-proxy/features/e2e_src_fs/1", StudioAnalysisInputChart.FeaturesUrl(plan));
+        Assert.Equal("/map-proxy/local-dev/features/e2e_src_fs/1", StudioAnalysisInputChart.FeaturesUrl(plan, "local-dev"));
+        Assert.Null(StudioAnalysisInputChart.FeaturesUrl(plan, null));
 
         // The analysis input carries no field list, so the spec's x-encoding uses the "__auto__" sentinel —
         // chart-preview.js resolves the real dimension from the fetched rows.
@@ -99,7 +102,7 @@ public sealed class ChartPreviewRenderTests
         plan.Inputs.Add(new StudioAnalysisInputEditor { Role = "source", ServiceId = string.Empty, LayerId = 0 });
 
         Assert.False(StudioAnalysisInputChart.IsBound(plan));
-        Assert.Null(StudioAnalysisInputChart.FeaturesUrl(plan));
+        Assert.Null(StudioAnalysisInputChart.FeaturesUrl(plan, "local-dev"));
         Assert.Null(StudioAnalysisInputChart.BuildSpec(plan));
     }
 }

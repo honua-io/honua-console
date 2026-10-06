@@ -78,7 +78,7 @@ test.describe('Studio · workflow result rendering (live)', () => {
     // MapGenerationService. Like QueryGenerationService it has no deterministic/fixture path and gates on
     // WorkflowGeneration being enabled, so on nightly-aot it returns status "unsupported". The console then
     // seeds an honest baseline single-layer map bound to the real published catalog source (e2e_src_fs),
-    // so PreviewStyleUrl resolves to /map-proxy/styles/{layerId}.json — the layer's REAL MapLibre style
+    // so PreviewStyleUrl resolves to /map-proxy/{environmentId}/styles/{layerId}.json — the layer's REAL MapLibre style
     // proxied from the live server. Mirrors the ANALYSIS/QUERY baseline pattern.
     test.setTimeout(180_000);
     await page.goto('/studio/map');
@@ -87,14 +87,14 @@ test.describe('Studio · workflow result rendering (live)', () => {
 
     // Arm the listener BEFORE sending: when generation binds the real layer (catalog fallback resolves the
     // single source), the preview requests that layer's real MapLibre style through the console proxy.
-    const styleRequest = page.waitForRequest((req) => /\/map-proxy\/styles\/\d+\.json(\?|$)/.test(req.url()), { timeout: 150_000 });
+    const styleRequest = page.waitForRequest((req) => /\/map-proxy\/[^/]+\/styles\/\d+\.json(\?|$)/.test(req.url()), { timeout: 150_000 });
     await page.getByRole('button', { name: /Send/ }).click();
 
     // The FINAL OUTPUT: the map preview is bound to the published layer's REAL style/tiles (this proves the
     // workflow produced a map backed by real server data). The live MapLibre mount over it is best-effort
     // (CDN + vector-tile web worker), so the deterministic result-signal is the proxied real style request.
     const req = await styleRequest;
-    expect(req.url(), 'map preview bound a real published-layer style URL').toMatch(/\/map-proxy\/styles\/\d+\.json/);
+    expect(req.url(), 'map preview bound a real published-layer style URL').toMatch(/\/map-proxy\/[^/]+\/styles\/\d+\.json/);
     const styleResponse = await req.response();
     expect(styleResponse?.status(), 'the bound style resolves through the proxy').toBe(200);
     await expect(page.locator('figure.map-preview').first()).toBeVisible();

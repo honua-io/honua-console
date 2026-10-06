@@ -63,7 +63,7 @@ function loadCesium() {
     return cesiumPromise;
 }
 
-export async function init(element, tilesetUrl) {
+export async function init(element, tilesetUrl, environmentId) {
     if (!element || !tilesetUrl) {
         return false;
     }
@@ -75,7 +75,7 @@ export async function init(element, tilesetUrl) {
 
     let viewer;
     try {
-        const safeTilesetUrl = sameOriginTilesetUrl(tilesetUrl);
+        const safeTilesetUrl = sameOriginTilesetUrl(tilesetUrl, environmentId);
         viewer = new Cesium.Viewer(element, {
             // Cesium's implicit default is an Ion-backed base layer. The Console
             // scene surface renders only the supplied candidate-owned tileset.
@@ -132,7 +132,10 @@ export function dispose(element) {
     }
 }
 
-function sameOriginTilesetUrl(value) {
+// Same-origin scene BFF route pinned to one environment profile: /scene-proxy/{environmentId}/scenes/...
+const PINNED_SCENE_PROXY = /^\/scene-proxy\/[^/]+\/scenes\//;
+
+function sameOriginTilesetUrl(value, environmentId) {
     const source = new URL(value, window.location.href);
     if (source.username || source.password || source.hash) {
         throw new Error('tileset URL must not contain credentials or a fragment');
@@ -141,10 +144,18 @@ function sameOriginTilesetUrl(value) {
     // A server-bound Console commonly has a different origin from honua-server.
     // Derive the upstream from the active environment inside the same-origin BFF;
     // never widen browser CSP or forward an operator credential cross-origin.
+    // The route carries the environment that produced the URL, so descendant tiles
+    // Cesium resolves relative to it fail closed (409) once another environment is
+    // activated instead of loading that environment's assets into this scene.
     if (source.pathname.startsWith('/scenes/')) {
-        return new URL(`/scene-proxy${source.pathname}${source.search}`, window.location.origin).href;
+        if (!environmentId) {
+            throw new Error('tileset URL needs an active environment to pin the scene proxy');
+        }
+        return new URL(
+            `/scene-proxy/${encodeURIComponent(environmentId)}${source.pathname}${source.search}`,
+            window.location.origin).href;
     }
-    if (source.origin !== window.location.origin || !source.pathname.startsWith('/scene-proxy/scenes/')) {
+    if (source.origin !== window.location.origin || !PINNED_SCENE_PROXY.test(source.pathname)) {
         throw new Error('tileset URL must be a Honua scene route');
     }
     return source.href;

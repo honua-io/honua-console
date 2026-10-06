@@ -35,7 +35,8 @@ test.beforeAll(async () => {
 test.afterAll(async () => { await new Promise<void>((resolve) => upstream.close(() => resolve())); });
 test.beforeEach(() => { requests = []; });
 
-for (const route of ['/map-proxy/styles/7.json', '/map-proxy/tiles/7/0/0/0.mvt', '/map-proxy/features/parcels/7']) {
+// Proxy URLs are pinned to the environment that rendered them; the configured-server seed profile is "local-dev".
+for (const route of ['/map-proxy/local-dev/styles/7.json', '/map-proxy/local-dev/tiles/7/0/0/0.mvt', '/map-proxy/local-dev/features/parcels/7']) {
   test(`anonymous proxy request requires reauthentication: ${route}`, async ({ request }) => {
     const response = await request.get(route, { maxRedirects: 0 });
     expect(response.status()).toBe(401);
@@ -61,15 +62,23 @@ for (const route of ['/map-proxy/styles/7.json', '/map-proxy/tiles/7/0/0/0.mvt',
     }
     expect(requests).toHaveLength(3);
   });
+
+  test(`a URL pinned to another environment fails closed before transport: ${route}`, async ({ request }) => {
+    const response = await request.get(route.replace('/local-dev/', '/environment-a/'), { headers: edge('alice', 'alice-valid') });
+    expect(response.status()).toBe(409);
+    expect(await response.json()).toEqual({ message: 'The active Honua environment changed. Reload this view.', reload: true });
+    expect(response.headers()['cache-control']).toBe('no-store');
+    expect(requests).toEqual([]);
+  });
 }
 
 test('browser fetches exact feature values and tile bytes as its own operator', async ({ page, baseURL }) => {
   await page.setExtraHTTPHeaders(edge('alice', 'alice-valid'));
   await page.goto('/version.json');
   const result = await page.evaluate(async () => {
-    const features = await fetch('/map-proxy/features/parcels/7').then(r => r.json());
-    const tile = await fetch('/map-proxy/tiles/7/0/0/0.mvt');
-    const style = await fetch('/map-proxy/styles/7.json').then(r => r.json());
+    const features = await fetch('/map-proxy/local-dev/features/parcels/7').then(r => r.json());
+    const tile = await fetch('/map-proxy/local-dev/tiles/7/0/0/0.mvt');
+    const style = await fetch('/map-proxy/local-dev/styles/7.json').then(r => r.json());
     return { features, tile: Array.from(new Uint8Array(await tile.arrayBuffer())), cache: tile.headers.get('cache-control'), style };
   });
   expect(result.features.features.map((f: { attributes: { count: number } }) => f.attributes.count)).toEqual([17, 25]);
@@ -78,7 +87,7 @@ test('browser fetches exact feature values and tile bytes as its own operator', 
   // Last-Modified) and forces a private/must-revalidate policy rather than the "no-store" default
   // set before the upstream call — see MapProxyCacheHeaderTests for the header-builder coverage.
   expect(result.cache).toBe('private, no-cache, must-revalidate');
-  expect(result.style.sources.parcels.tiles).toEqual([`${baseURL}/map-proxy/tiles/7/{z}/{x}/{y}.mvt`]);
+  expect(result.style.sources.parcels.tiles).toEqual([`${baseURL}/map-proxy/local-dev/tiles/7/{z}/{x}/{y}.mvt`]);
   expect(requests).toHaveLength(3);
   expect(requests.every(r => r.bearer === 'Bearer alice-valid' && !r.key)).toBe(true);
 });

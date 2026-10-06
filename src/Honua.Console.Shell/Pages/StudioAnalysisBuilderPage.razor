@@ -2,6 +2,7 @@
 @using Honua.Console.Shell.Validation
 @inject IStudioAnalysisPackageDataSource AnalysisData
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider ServiceProvider
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved analysis changes. Leave this page and discard them?" />
 
@@ -210,7 +211,7 @@
                                     <p class="console-muted studio-analysis-ai-section" data-analysis-ai-input-chart="true">Input data · live (@boundInput.ServiceId/layer @boundInput.LayerId)</p>
                                     <ChartPreview Title="Input feature distribution"
                                                   Spec="@StudioAnalysisInputChart.BuildSpec(_plan)"
-                                                  FeaturesUrl="@StudioAnalysisInputChart.FeaturesUrl(_plan)"
+                                                  FeaturesUrl="@StudioAnalysisInputChart.FeaturesUrl(_plan, _environmentId)"
                                                   Height="200"
                                                   AriaLabel="Analysis input data chart" />
                                 }
@@ -646,9 +647,15 @@
         return LoadWorkspaceAsync();
     }
 
+    // Active environment profile id the page's proxy URLs are pinned to (null renders the schematic).
+    private string? _environmentId;
+
     private async Task LoadWorkspaceAsync()
     {
         _loading = true;
+        // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
+        _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+            ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
         _workspace = await AnalysisData.GetWorkspaceAsync();
         ApplyStates(_workspace.CapabilityStates);
         _loading = false;

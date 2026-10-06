@@ -126,7 +126,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/map-proxy")
+    if ((context.Request.Path.StartsWithSegments("/map-proxy") || context.Request.Path.StartsWithSegments("/scene-proxy"))
         && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
     {
         // Fetch clients must receive the original 401/403, never a rendered not-found page.
@@ -165,7 +165,9 @@ app.MapRazorComponents<App>()
 //
 // Every proxy request resolves the active environment at request time and uses the same operator-only
 // binding and credential boundaries as privileged clients. The final handler rejects missing, expired
-// and target-mismatched credentials before transport.
+// and target-mismatched credentials before transport. Proxy URLs carry the environment profile id that
+// produced them (ConsoleProxyRoutes); a request whose pin is no longer the active profile fails closed
+// with 409 rather than rendering another environment's assets in a stale view.
 
 // The map proxy is the hottest console path but had no error logging, metrics, or trace on upstream
 // failure (honua-console#279 PA-235). A single category logger is captured by the endpoint closures so
@@ -174,7 +176,8 @@ app.MapRazorComponents<App>()
 var mapProxyLogger = app.Services.GetRequiredService<ILoggerFactory>()
     .CreateLogger("Honua.Console.Web.MapProxy");
 
-app.MapGet("/map-proxy/styles/{layerId:int}.json", async (
+app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
+    string environmentId,
     int layerId,
     HttpContext httpContext,
     IHttpClientFactory httpClientFactory,
@@ -194,10 +197,12 @@ app.MapGet("/map-proxy/styles/{layerId:int}.json", async (
         return Results.StatusCode(StatusCodes.Status401Unauthorized);
     }
 
-    var activeProfile = await profileStore.GetActiveProfileAsync(cancellationToken);
+    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
+        profileStore, environmentId, cancellationToken);
     if (activeProfile is null)
     {
-        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        httpContext.Response.Headers.CacheControl = "no-store";
+        return pinFailure!;
     }
 
     httpContext.Response.Headers.CacheControl = "no-store";
@@ -239,13 +244,16 @@ app.MapGet("/map-proxy/styles/{layerId:int}.json", async (
         // "Failed to parse URL" and no feature tile ever loads. Build the absolute origin from the incoming
         // request so it works behind any host/scheme. Parse the style sources rather than string-replacing a
         // single prefix, so absolute server-emitted tile URLs are rewritten too (honua-console#213).
-        var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/map-proxy/tiles/";
+        // The rewritten tile URLs keep the style's environment pin, so tiles never outlive their environment.
+        var absoluteTileBase = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}"
+            + Honua.Console.Shell.Services.ConsoleProxyRoutes.MapTileBase(activeProfile.Id);
         styleJson = Honua.Console.Web.MapProxySupport.RewriteTileUrls(styleJson, absoluteTileBase);
         return Results.Content(styleJson, "application/json");
     }
 });
 
-app.MapGet("/map-proxy/tiles/{layerId:int}/{z:int}/{x:int}/{y:int}.mvt", async (
+app.MapGet("/map-proxy/{environmentId}/tiles/{layerId:int}/{z:int}/{x:int}/{y:int}.mvt", async (
+    string environmentId,
     int layerId,
     int z,
     int x,
@@ -268,10 +276,12 @@ app.MapGet("/map-proxy/tiles/{layerId:int}/{z:int}/{x:int}/{y:int}.mvt", async (
         return Results.StatusCode(StatusCodes.Status401Unauthorized);
     }
 
-    var activeProfile = await profileStore.GetActiveProfileAsync(cancellationToken);
+    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
+        profileStore, environmentId, cancellationToken);
     if (activeProfile is null)
     {
-        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        httpContext.Response.Headers.CacheControl = "no-store";
+        return pinFailure!;
     }
 
     httpContext.Response.Headers.CacheControl = "no-store";
@@ -337,7 +347,8 @@ app.MapGet("/map-proxy/tiles/{layerId:int}/{z:int}/{x:int}/{y:int}.mvt", async (
 // serviceId and the layerId, both captured into the editor binding at generation time) with the admin
 // key injected here, never in the page. Returns the server's Esri feature JSON verbatim so the browser
 // chart/table interop maps attributes → rows. No binding → the caller never calls this (no mock rows).
-app.MapGet("/map-proxy/features/{serviceId}/{layerId:int}", async (
+app.MapGet("/map-proxy/{environmentId}/features/{serviceId}/{layerId:int}", async (
+    string environmentId,
     string serviceId,
     int layerId,
     int? limit,
@@ -359,10 +370,12 @@ app.MapGet("/map-proxy/features/{serviceId}/{layerId:int}", async (
         return Results.StatusCode(StatusCodes.Status401Unauthorized);
     }
 
-    var activeProfile = await profileStore.GetActiveProfileAsync(cancellationToken);
+    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
+        profileStore, environmentId, cancellationToken);
     if (activeProfile is null)
     {
-        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        httpContext.Response.Headers.CacheControl = "no-store";
+        return pinFailure!;
     }
 
     httpContext.Response.Headers.CacheControl = "no-store";
@@ -409,7 +422,8 @@ app.MapGet("/map-proxy/features/{serviceId}/{layerId:int}", async (
 // /scenes/{id}/... tree to this route so Cesium workers, tileset JSON, and
 // binary descendants never require a split-host CSP exception and never
 // receive an operator credential in the browser.
-app.MapGet("/scene-proxy/scenes/{sceneId}/{**assetPath}", async (
+app.MapGet("/scene-proxy/{environmentId}/scenes/{sceneId}/{**assetPath}", async (
+    string environmentId,
     string sceneId,
     string assetPath,
     HttpContext httpContext,
@@ -431,10 +445,12 @@ app.MapGet("/scene-proxy/scenes/{sceneId}/{**assetPath}", async (
         return Results.BadRequest();
     }
 
-    var activeProfile = await profileStore.GetActiveProfileAsync(cancellationToken);
+    var (activeProfile, pinFailure) = await Honua.Console.Web.MapProxySupport.ResolvePinnedProfileAsync(
+        profileStore, environmentId, cancellationToken);
     if (activeProfile is null)
     {
-        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        httpContext.Response.Headers.CacheControl = "no-store";
+        return pinFailure!;
     }
 
     var client = httpClientFactory.CreateClient("honua-map-proxy");
