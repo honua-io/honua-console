@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Honua.Console.Shell.Services;
 using Honua.Console.Web;
 
 namespace Honua.Console.IntegrationTests;
@@ -13,6 +14,32 @@ namespace Honua.Console.IntegrationTests;
 public sealed class MapProxyTileRewriteTests
 {
     private const string ProxyBase = "https://console.example/map-proxy/tiles/";
+
+    [Fact]
+    public void ProxyRoutes_PinEveryUrlToTheProducingEnvironment()
+    {
+        Assert.Equal("/map-proxy/env%20b/styles/7.json", ConsoleProxyRoutes.MapStyle("env b", 7));
+        Assert.Equal("/map-proxy/env%20b/tiles/", ConsoleProxyRoutes.MapTileBase("env b"));
+        Assert.Equal("/map-proxy/env%20b/features/parcels%2Fa/7", ConsoleProxyRoutes.MapFeatures("env b", "parcels/a", 7));
+
+        // No active environment: no unpinned proxy URL, so the caller renders its missing-binding state.
+        Assert.Null(ConsoleProxyRoutes.MapStyle(null, 7));
+        Assert.Null(ConsoleProxyRoutes.MapStyle(" ", "7"));
+        Assert.Null(ConsoleProxyRoutes.MapFeatures(null, "parcels", 7));
+    }
+
+    [Fact]
+    public void RewriteTileUrls_PinnedTileBase_KeepsTheStyleEnvironmentOnEveryTile()
+    {
+        var style = """
+            {"version":8,"sources":{"layer":{"type":"vector","tiles":["/tiles/7/{z}/{x}/{y}.mvt"]}},"layers":[]}
+            """;
+
+        var rewritten = MapProxySupport.RewriteTileUrls(
+            style, "https://console.example" + ConsoleProxyRoutes.MapTileBase("local-dev"));
+
+        Assert.Equal("https://console.example/map-proxy/local-dev/tiles/7/{z}/{x}/{y}.mvt", TileUrl(rewritten, "layer"));
+    }
 
     [Fact]
     public void RewriteTileUrls_RootRelativeTileUrl_RoutesThroughProxy()

@@ -4,7 +4,9 @@ using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
+using Honua.Console.Web;
 using Honua.Console.Web.Auth;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -60,9 +62,95 @@ public sealed class FocusedOperatorCredentialTests
     {
         using var fixture = new Fixture();
         await fixture.BindAsync("alice", "tenant-a");
+        var profile = (await fixture.Profiles.GetActiveProfileAsync())!;
+        await fixture.Profiles.UpsertProfileAsync(profile with
+        {
+            ServerBaseUri = new Uri("https://another.honua.test/")
+        });
         using var client = fixture.Services.GetRequiredService<IHttpClientFactory>().CreateClient("honua-map-proxy");
-        using var response = await client.GetAsync("https://another.honua.test/tiles/7/0/0/0.mvt");
+        using var response = await client.GetAsync("https://server.honua.test/tiles/7/0/0/0.mvt");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Empty(fixture.Wire.Requests);
+    }
+
+    [Fact]
+    public async Task MapProxy_ActiveProfileSwitchRetargetsRequestAndCredentialTogether()
+    {
+        using var fixture = new Fixture();
+        await fixture.BindAsync("alice", "tenant-a");
+        await fixture.Profiles.UpsertProfileAsync(new ConsoleEnvironmentProfile
+        {
+            Id = "environment-b",
+            ServerBaseUri = new Uri("https://server-b.honua.test/"),
+            TenantId = "tenant-b",
+            Account = new ConsoleAccountBinding
+            {
+                AccountId = "alice",
+                TenantId = "tenant-b",
+                AuthMode = ConsoleAccountAuthMode.AccountRbac
+            }
+        });
+        await fixture.Profiles.ActivateProfileAsync("environment-b");
+        await fixture.Sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "environment-b",
+            AccountId = "alice",
+            TenantId = "tenant-b",
+            AccessToken = "alice-b-bearer",
+            ServerBaseUri = new Uri("https://server-b.honua.test/"),
+            AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
+        });
+
+        using var client = fixture.Services.GetRequiredService<IHttpClientFactory>().CreateClient("honua-map-proxy");
+        using var response = await client.GetAsync("https://server.honua.test/tiles/7/0/0/0.mvt");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("https://server-b.honua.test/tiles/7/0/0/0.mvt", Assert.Single(fixture.Wire.Targets));
+        Assert.Equal("Bearer alice-b-bearer", Assert.Single(fixture.Wire.Requests));
+    }
+
+    [Fact]
+    public async Task MapProxy_UrlPinnedToAPreviousEnvironmentFailsClosedAfterSwitch()
+    {
+        using var fixture = new Fixture();
+        Assert.Equal(
+            StatusCodes.Status503ServiceUnavailable,
+            Assert.IsAssignableFrom<IStatusCodeHttpResult>(
+                (await MapProxySupport.ResolvePinnedProfileAsync(fixture.Profiles, "environment", default)).Failure).StatusCode);
+
+        await fixture.BindAsync("alice", "tenant-a");
+        var (pinned, pinnedFailure) = await MapProxySupport.ResolvePinnedProfileAsync(fixture.Profiles, "environment", default);
+        Assert.Null(pinnedFailure);
+        Assert.Equal("environment", pinned!.Id);
+
+        await fixture.Profiles.UpsertProfileAsync(new ConsoleEnvironmentProfile
+        {
+            Id = "environment-b",
+            ServerBaseUri = new Uri("https://server-b.honua.test/"),
+            TenantId = "tenant-b",
+            Account = new ConsoleAccountBinding
+            {
+                AccountId = "alice",
+                TenantId = "tenant-b",
+                AuthMode = ConsoleAccountAuthMode.AccountRbac
+            }
+        });
+        await fixture.Profiles.ActivateProfileAsync("environment-b");
+
+        // A map/chart/scene rendered under "environment" keeps its pin after another tab activates B:
+        // it fails closed instead of rendering B's assets with A's style/query state.
+        foreach (var stalePin in new[] { "environment", "", null })
+        {
+            var (stale, staleFailure) = await MapProxySupport.ResolvePinnedProfileAsync(fixture.Profiles, stalePin, default);
+            Assert.Null(stale);
+            Assert.Equal(
+                StatusCodes.Status409Conflict,
+                Assert.IsAssignableFrom<IStatusCodeHttpResult>(staleFailure).StatusCode);
+        }
+
+        var (current, currentFailure) = await MapProxySupport.ResolvePinnedProfileAsync(fixture.Profiles, "environment-b", default);
+        Assert.Null(currentFailure);
+        Assert.Equal(new Uri("https://server-b.honua.test/"), current!.ServerBaseUri);
         Assert.Empty(fixture.Wire.Requests);
     }
 
@@ -198,11 +286,13 @@ public sealed class FocusedOperatorCredentialTests
     private sealed class CaptureHandler : HttpMessageHandler
     {
         public List<string> Requests { get; } = [];
+        public List<string> Targets { get; } = [];
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Assert.False(request.Headers.Contains("X-API-Key"));
             Requests.Add(request.Headers.Authorization?.ToString() ?? "anonymous");
+            Targets.Add(request.RequestUri!.AbsoluteUri);
             return Task.FromResult(new HttpResponseMessage(Status)
             {
                 Content = new StringContent(Status == HttpStatusCode.OK

@@ -89,6 +89,34 @@ public static class MapProxySupport
         return !string.IsNullOrWhiteSpace(session?.AccessToken);
     }
 
+    /// <summary>
+    /// Resolves the environment a pinned proxy URL was produced for (<see cref="ConsoleProxyRoutes"/>).
+    /// The pin must name the operator's CURRENT active profile: a view rendered under environment A that
+    /// keeps fetching after the operator activated B elsewhere gets 409 instead of B's assets rendered
+    /// with A's style/query state. No active profile is 503, as before pinning.
+    /// </summary>
+    public static async Task<(ConsoleEnvironmentProfile? Profile, IResult? Failure)> ResolvePinnedProfileAsync(
+        IConsoleEnvironmentProfileStore profiles,
+        string? environmentId,
+        CancellationToken cancellationToken)
+    {
+        var activeProfile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (activeProfile is null)
+        {
+            return (null, Results.StatusCode(StatusCodes.Status503ServiceUnavailable));
+        }
+
+        if (string.IsNullOrWhiteSpace(environmentId)
+            || !string.Equals(activeProfile.Id, environmentId, StringComparison.Ordinal))
+        {
+            return (null, Results.Json(
+                new { message = "The active Honua environment changed. Reload this view.", reload = true },
+                statusCode: StatusCodes.Status409Conflict));
+        }
+
+        return (activeProfile, null);
+    }
+
     /// <summary>Preserves server denial status without disclosing its response body.</summary>
     public static IResult UpstreamFailure(HttpContext context, System.Net.HttpStatusCode status)
     {

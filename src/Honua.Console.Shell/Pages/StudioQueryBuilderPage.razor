@@ -3,6 +3,7 @@
 @using Honua.Console.Shell.Validation
 @inject IStudioQueryPackageDataSource QueryData
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider ServiceProvider
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved query changes. Leave this page and discard them?" />
 
@@ -202,7 +203,7 @@
                                     <p class="console-muted studio-query-ai-section" data-query-ai-result="true">Result · live (@_query.ServiceName/layer @_query.LayerId)</p>
                                     <ChartPreview Title="@("Features by " + StudioQueryResultChart.DimensionField(_query))"
                                                   Spec="@StudioQueryResultChart.BuildSpec(_query)"
-                                                  FeaturesUrl="@StudioQueryResultChart.FeaturesUrl(_query)"
+                                                  FeaturesUrl="@StudioQueryResultChart.FeaturesUrl(_query, _environmentId)"
                                                   Height="200"
                                                   AriaLabel="Query result chart" />
                                 }
@@ -603,9 +604,15 @@
             ? Array.Empty<ConsoleFieldError>()
             : StudioQueryValidator.Instance.Evaluate(_query));
 
+    // Active environment profile id the page's proxy URLs are pinned to (null renders the schematic).
+    private string? _environmentId;
+
     private async Task LoadWorkspaceAsync()
     {
         _loading = true;
+        // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
+        _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+            ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
         _workspace = await QueryData.GetWorkspaceAsync();
         ApplyStates(_workspace.CapabilityStates);
         _loading = false;

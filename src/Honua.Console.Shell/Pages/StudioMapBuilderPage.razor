@@ -7,6 +7,7 @@
 @inject IStudioMapStyleCatalogDataSource StyleCatalog
 @inject Honua.Console.Shell.Services.IConsoleNotificationService Notifications
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider ServiceProvider
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have unsaved map changes. Leave this page and discard them?" />
 
@@ -622,9 +623,15 @@
             ? Array.Empty<ConsoleFieldError>()
             : StudioMapValidator.Instance.Evaluate(_editor));
 
+    // Active environment profile id the page's proxy URLs are pinned to (null renders the schematic).
+    private string? _environmentId;
+
     private async Task LoadWorkspaceAsync()
     {
         _loading = true;
+        // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
+        _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+            ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
         _workspace = await MapData.GetWorkspaceAsync();
         // The per-layer style picker (#161) binds to the styleIds the server advertises on /ogc/styles.
         // A capability issue (no server bound, missing permission, unsupported) is carried on the catalog so
@@ -889,10 +896,10 @@
     // When a generated/edited layer is bound to a real published layer, point the preview at that layer's
     // live MapLibre style through the console map-proxy so the builder shows the ACTUAL rendered map
     // (basemap + features), not the schematic placeholder. Returns null (schematic) when no real binding.
-    private static string? PreviewStyleUrl(StudioMapEditorState editor)
+    private string? PreviewStyleUrl(StudioMapEditorState editor)
     {
         var bound = editor.Layers.FirstOrDefault(layer => !string.IsNullOrWhiteSpace(layer.BoundLayerId));
-        return bound is null ? null : $"/map-proxy/styles/{bound.BoundLayerId}.json";
+        return bound is null ? null : ConsoleProxyRoutes.MapStyle(_environmentId, bound.BoundLayerId);
     }
 
     // Parses the map's initial extent ("minLon,minLat,maxLon,maxLat") into MapPreview bounds so the live

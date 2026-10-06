@@ -34,19 +34,13 @@ public static class StudioQueryResultChart
 
     /// <summary>
     /// The console features-proxy URL serving the bound layer's real rows
-    /// (/map-proxy/features/{serviceName}/{layerId}), or null when the query is unbound.
+    /// (/map-proxy/{environmentId}/features/{serviceName}/{layerId}), or null when the query is unbound
+    /// or there is no active environment to pin the URL to.
     /// </summary>
-    public static string? FeaturesUrl(StudioQueryEditor query)
+    public static string? FeaturesUrl(StudioQueryEditor query, string? environmentId)
     {
         ArgumentNullException.ThrowIfNull(query);
-        if (string.IsNullOrWhiteSpace(query.ServiceName))
-        {
-            return null;
-        }
-
-        var service = Uri.EscapeDataString(query.ServiceName);
-        var layer = query.LayerId.ToString(CultureInfo.InvariantCulture);
-        return $"/map-proxy/features/{service}/{layer}";
+        return ConsoleProxyRoutes.MapFeatures(environmentId, query.ServiceName, query.LayerId);
     }
 
     /// <summary>

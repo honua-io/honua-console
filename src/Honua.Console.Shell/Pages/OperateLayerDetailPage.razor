@@ -5,6 +5,7 @@
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleLayerFieldsOperation LayerFields
 @inject IConsoleNotificationService Notifications
+@inject IServiceProvider ServiceProvider
 
 <section class="console-page" data-layer-resource-id="@ResourceId" data-layer-loaded="@(_exposures.Count > 0)">
     @if (_exposures.Count == 0)
@@ -64,7 +65,7 @@
             <h2>Rendered map</h2>
             <p class="console-muted">Live render of this layer using honua-server's own MapLibre style and vector tiles, proxied through the console so the server credentials stay server-side.</p>
             <MapPreview Mode="MapPreviewMode.Layer"
-                        StyleUrl="@($"/map-proxy/styles/{_exposures[0].Layer.LayerId}.json")"
+                        StyleUrl="@ConsoleProxyRoutes.MapStyle(_environmentId, _exposures[0].Layer.LayerId)"
                         Center="_previewCenter"
                         Zoom="1"
                         Bounds="_exposures[0].Layer.Extent"
@@ -288,8 +289,14 @@
         public bool Hidden { get; set; }
     }
 
+    // Active environment profile id the page's proxy URLs are pinned to (null renders the schematic).
+    private string? _environmentId;
+
     protected override async Task OnParametersSetAsync()
     {
+        // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
+        _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+            ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
         var view = await OperateData.GetLayersViewAsync();
         _exposures = view.Services
             .SelectMany(service => service.Layers.Select(layer => (Service: service, Layer: layer)))
