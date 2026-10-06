@@ -90,7 +90,7 @@ public sealed class OperateLayerFieldRangeDomainTests
     }
 
     [Fact]
-    public async Task RealOperation_SetDomain_PutsRangeDefaultAndPolicies()
+    public async Task CON_006_DefaultValueUpdate_FailsClosedWithoutPut()
     {
         var client = new RecordingAdminClient();
         var operation = new HonuaServerConsoleLayerFieldsOperation(client);
@@ -108,28 +108,13 @@ public sealed class OperateLayerFieldRangeDomainTests
             DefaultValueText = "0",
         });
 
-        Assert.True(result.Succeeded);
-        Assert.NotNull(client.LastUpdate);
-        var field = Assert.Single(client.LastUpdate!.Fields);
-        Assert.Equal("elevation", field.Name);
-
-        // Range domain with [min, max] bounds + policy tokens.
-        Assert.NotNull(field.Domain);
-        Assert.Equal("range", field.Domain!.Type);
-        Assert.Equal("elevation_range", field.Domain.Name);
-        Assert.NotNull(field.Domain.Range);
-        Assert.Equal([0d, 8848d], field.Domain.Range!.ToArray());
-        Assert.Equal("esriMPTDefaultValue", field.Domain.MergePolicy);
-        Assert.Equal("esriSPTDuplicate", field.Domain.SplitPolicy);
-
-        // Per-field default value carried as a JSON scalar (the typed "0" parses to a JSON number).
-        Assert.NotNull(field.DefaultValue);
-        Assert.Equal(JsonValueKind.Number, field.DefaultValue!.Value.ValueKind);
-        Assert.Equal(0, field.DefaultValue.Value.GetDouble());
+        Assert.False(result.Succeeded);
+        Assert.Equal("Unsupported", result.State);
+        Assert.Null(client.LastUpdate);
     }
 
     [Fact]
-    public async Task RealOperation_ClearDefault_SendsJsonNull()
+    public async Task CON_006_ClearDefaultValue_FailsClosedWithoutPut()
     {
         var client = new RecordingAdminClient();
         var operation = new HonuaServerConsoleLayerFieldsOperation(client);
@@ -141,13 +126,47 @@ public sealed class OperateLayerFieldRangeDomainTests
             DefaultValueIntent = ConsoleDefaultValueIntent.Clear,
         });
 
+        Assert.False(result.Succeeded);
+        Assert.Equal("Unsupported", result.State);
+        Assert.Null(client.LastUpdate);
+    }
+
+    [Fact]
+    public async Task CON_007_NumericCodedValues_RoundTripAsNumbers()
+    {
+        var client = new RecordingAdminClient();
+        var operation = new HonuaServerConsoleLayerFieldsOperation(client);
+
+        var read = await operation.GetFieldsAsync(LayerId);
+        Assert.Equal("1", Assert.Single(Assert.Single(read.Fields).CodedValues).Code);
+
+        var result = await operation.SetCodedValueDomainAsync(
+            LayerId, "elevation", "elevation_codes", [new ConsoleCodedValue("2", "High")]);
+
         Assert.True(result.Succeeded);
-        var field = Assert.Single(client.LastUpdate!.Fields);
-        // Clearing the default sends an explicit JSON null (not a C# null / omitted property).
-        Assert.NotNull(field.DefaultValue);
-        Assert.Equal(JsonValueKind.Null, field.DefaultValue!.Value.ValueKind);
-        // No domain authored means the existing domain is left untouched (Domain stays null).
-        Assert.Null(field.Domain);
+        var update = Assert.Single(client.LastUpdate!.Fields);
+        Assert.Equal("Elevation", update.Alias);
+        var code = Assert.Single(update.Domain!.CodedValues).Code;
+        Assert.Equal(JsonValueKind.Number, code.ValueKind);
+        Assert.Equal(2, code.GetInt32());
+    }
+
+    [Fact]
+    public async Task RealOperation_NullFieldsOnPrerequisiteRead_ReportsMissingWithoutPut()
+    {
+        // System.Text.Json overwrites the DTO's empty initializer when the server sends an explicit null.
+        var nullFields = JsonSerializer.Deserialize<HonuaAdminLayerFields>(
+            "{\"layerId\":7,\"fields\":null}", new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Null(nullFields.Fields);
+        var client = new RecordingAdminClient(nullFields);
+        var operation = new HonuaServerConsoleLayerFieldsOperation(client);
+
+        var result = await operation.SetCodedValueDomainAsync(
+            LayerId, "elevation", "elevation_codes", [new ConsoleCodedValue("2", "High")]);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Missing", result.State);
+        Assert.Null(client.LastUpdate);
     }
 
     [Fact]
@@ -227,7 +246,7 @@ public sealed class OperateLayerFieldRangeDomainTests
 
     /// <summary>Minimal recording admin client: captures the PUT body for the fields endpoint and echoes it
     /// back; every other member is unused by these tests.</summary>
-    private sealed class RecordingAdminClient : IHonuaAdminOperateClient
+    private sealed class RecordingAdminClient(HonuaAdminLayerFields? fieldsOverride = null) : IHonuaAdminOperateClient
     {
         public HonuaAdminLayerFieldsUpdate? LastUpdate { get; private set; }
 
@@ -236,7 +255,32 @@ public sealed class OperateLayerFieldRangeDomainTests
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
             int layerId, CancellationToken cancellationToken = default) =>
             Task.FromResult(HonuaAdminEndpointResult<HonuaAdminLayerFields>.FromData(
-                new HonuaAdminLayerFields { LayerId = layerId, Fields = [] }));
+                fieldsOverride ?? new HonuaAdminLayerFields
+                {
+                    LayerId = layerId,
+                    Fields =
+                    [
+                        new HonuaAdminLayerField
+                        {
+                            Name = "elevation",
+                            Type = "esriFieldTypeDouble",
+                            Alias = "Elevation",
+                            Domain = new HonuaAdminFieldDomain
+                            {
+                                Name = "existing",
+                                Type = "codedValue",
+                                CodedValues =
+                                [
+                                    new HonuaAdminCodedValue
+                                    {
+                                        Code = JsonSerializer.SerializeToElement(1),
+                                        Name = "Low",
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                }));
 
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
             int layerId, HonuaAdminLayerFieldsUpdate request, CancellationToken cancellationToken = default)

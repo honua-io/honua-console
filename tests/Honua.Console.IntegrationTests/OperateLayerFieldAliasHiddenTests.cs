@@ -75,7 +75,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
     }
 
     [Fact]
-    public async Task RealOperation_SetFieldConfiguration_PutsAliasAndHidden()
+    public async Task CON_001_AliasUpdate_PreservesExistingDomain()
     {
         var client = new RecordingAdminClient();
         var operation = new HonuaServerConsoleLayerFieldsOperation(client);
@@ -88,8 +88,7 @@ public sealed class OperateLayerFieldAliasHiddenTests
         Assert.Equal("status", field.Name);
         Assert.Equal("Status code", field.Alias);
         Assert.Equal(true, field.Hidden);
-        // Alias/hidden update must not disturb the field's domain.
-        Assert.Null(field.Domain);
+        Assert.Same(client.CurrentDomain, field.Domain);
     }
 
     /// <summary>Records the page's calls into <see cref="IConsoleLayerFieldsOperation"/> and serves the
@@ -134,6 +133,20 @@ public sealed class OperateLayerFieldAliasHiddenTests
     /// back; every other member is unused by these tests.</summary>
     private sealed class RecordingAdminClient : IHonuaAdminOperateClient
     {
+        public HonuaAdminFieldDomain CurrentDomain { get; } = new()
+        {
+            Name = "status_domain",
+            Type = "codedValue",
+            CodedValues =
+            [
+                new HonuaAdminCodedValue
+                {
+                    Code = System.Text.Json.JsonSerializer.SerializeToElement(1),
+                    Name = "Open",
+                },
+            ],
+        };
+
         public HonuaAdminLayerFieldsUpdate? LastUpdate { get; private set; }
 
         public Uri BaseUri => new("https://server.test");
@@ -141,7 +154,11 @@ public sealed class OperateLayerFieldAliasHiddenTests
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> GetLayerFieldsAsync(
             int layerId, CancellationToken cancellationToken = default) =>
             Task.FromResult(HonuaAdminEndpointResult<HonuaAdminLayerFields>.FromData(
-                new HonuaAdminLayerFields { LayerId = layerId, Fields = [] }));
+                new HonuaAdminLayerFields
+                {
+                    LayerId = layerId,
+                    Fields = [new HonuaAdminLayerField { Name = "status", Domain = CurrentDomain }],
+                }));
 
         public Task<HonuaAdminEndpointResult<HonuaAdminLayerFields>> UpdateLayerFieldsAsync(
             int layerId, HonuaAdminLayerFieldsUpdate request, CancellationToken cancellationToken = default)

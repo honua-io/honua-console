@@ -38,7 +38,7 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
                         DomainName = field.Domain?.Name,
                         DomainKind = MapDomainKind(field.Domain),
                         CodedValues = (field.Domain?.CodedValues ?? [])
-                            .Select(cv => new ConsoleCodedValue(cv.Code ?? string.Empty, cv.Name ?? string.Empty))
+                            .Select(cv => new ConsoleCodedValue(FormatCode(cv.Code), cv.Name ?? string.Empty))
                             .ToArray(),
                         RangeMin = field.Domain?.Range is { Count: >= 1 } range ? range[0] : null,
                         RangeMax = field.Domain?.Range is { Count: >= 2 } range2 ? range2[1] : null,
@@ -64,6 +64,17 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
 
+        var currentResult = await GetCurrentFieldAsync(layerId, fieldName, cancellationToken).ConfigureAwait(false);
+        if (currentResult.Field is not { } current)
+        {
+            return currentResult.Failure!;
+        }
+
+        if (codedValues.Any(cv => !CanParseCode(cv.Code, current.Type)))
+        {
+            return Failure("Invalid", $"Every code for numeric field '{fieldName}' must be a JSON number.");
+        }
+
         // An empty coded-value list clears the domain (Domain = null); otherwise set a codedValue domain.
         HonuaAdminFieldDomain? domain = codedValues.Count == 0
             ? null
@@ -72,13 +83,13 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
                 Name = string.IsNullOrWhiteSpace(domainName) ? fieldName : domainName,
                 Type = "codedValue",
                 CodedValues = codedValues
-                    .Select(cv => new HonuaAdminCodedValue { Code = cv.Code, Name = cv.Label })
+                    .Select(cv => new HonuaAdminCodedValue { Code = ParseCode(cv.Code, current.Type), Name = cv.Label })
                     .ToArray(),
             };
 
         var request = new HonuaAdminLayerFieldsUpdate
         {
-            Fields = [new HonuaAdminLayerFieldUpdate { Name = fieldName, Domain = domain }],
+            Fields = [new HonuaAdminLayerFieldUpdate { Name = fieldName, Alias = current.Alias, Domain = domain }],
         };
 
         var result = await _client.UpdateLayerFieldsAsync(layerId, request, cancellationToken).ConfigureAwait(false);
@@ -115,6 +126,24 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
         var mergePolicy = string.IsNullOrWhiteSpace(authoring.MergePolicy) ? null : authoring.MergePolicy.Trim();
         var splitPolicy = string.IsNullOrWhiteSpace(authoring.SplitPolicy) ? null : authoring.SplitPolicy.Trim();
 
+        if (authoring.DefaultValueIntent != ConsoleDefaultValueIntent.Unchanged)
+        {
+            return Failure("Unsupported",
+                $"The field metadata endpoint does not support changing the default value on '{fieldName}'.");
+        }
+
+        var currentResult = await GetCurrentFieldAsync(layerId, fieldName, cancellationToken).ConfigureAwait(false);
+        if (currentResult.Field is not { } current)
+        {
+            return currentResult.Failure!;
+        }
+
+        if (authoring.Kind == ConsoleDomainKind.CodedValue &&
+            authoring.CodedValues.Any(cv => !CanParseCode(cv.Code, current.Type)))
+        {
+            return Failure("Invalid", $"Every code for numeric field '{fieldName}' must be a JSON number.");
+        }
+
         HonuaAdminFieldDomain? domain = authoring.Kind switch
         {
             // An empty coded-value list clears the domain (Domain = null) — mirrors SetCodedValueDomainAsync.
@@ -123,7 +152,7 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
                 Name = string.IsNullOrWhiteSpace(authoring.DomainName) ? fieldName : authoring.DomainName,
                 Type = "codedValue",
                 CodedValues = authoring.CodedValues
-                    .Select(cv => new HonuaAdminCodedValue { Code = cv.Code, Name = cv.Label })
+                    .Select(cv => new HonuaAdminCodedValue { Code = ParseCode(cv.Code, current.Type), Name = cv.Label })
                     .ToArray(),
                 MergePolicy = mergePolicy,
                 SplitPolicy = splitPolicy,
@@ -155,28 +184,11 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
             }
         }
 
-        JsonElement? defaultValue = null;
-        switch (authoring.DefaultValueIntent)
-        {
-            case ConsoleDefaultValueIntent.Clear:
-                defaultValue = ParseJsonScalar("null");
-                break;
-            case ConsoleDefaultValueIntent.Set:
-                if (!TryParseDefaultValue(authoring.DefaultValueText, out var parsed))
-                {
-                    return Failure("Invalid",
-                        $"The default value for '{fieldName}' must be a JSON scalar (a number, true/false, or quoted string).");
-                }
-
-                defaultValue = parsed;
-                break;
-        }
-
         var update = new HonuaAdminLayerFieldUpdate
         {
             Name = fieldName,
+            Alias = current.Alias,
             Domain = domain,
-            DefaultValue = defaultValue,
         };
 
         var request = new HonuaAdminLayerFieldsUpdate { Fields = [update] };
@@ -209,9 +221,14 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
 
-        // Carry only alias + hidden; leaving Domain null on the update record preserves the field's existing
-        // domain (the server only mutates the properties the request sets). An empty alias is normalized to null
-        // so the server clears any prior override instead of persisting an empty string.
+        var currentResult = await GetCurrentFieldAsync(layerId, fieldName, cancellationToken).ConfigureAwait(false);
+        if (currentResult.Field is not { } current)
+        {
+            return currentResult.Failure!;
+        }
+
+        // The endpoint replaces alias and domain together, so carry the domain read above while changing the
+        // alias/visibility. An empty alias is normalized to null to explicitly clear the prior override.
         var normalizedAlias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
         var request = new HonuaAdminLayerFieldsUpdate
         {
@@ -221,6 +238,7 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
                 {
                     Name = fieldName,
                     Alias = normalizedAlias,
+                    Domain = current.Domain,
                     Hidden = hidden,
                 }
             ],
@@ -249,6 +267,47 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
     private static ConsoleSetDomainResult Failure(string state, string detail) =>
         new() { Succeeded = false, State = state, Detail = detail };
 
+    private async Task<(HonuaAdminLayerField? Field, ConsoleSetDomainResult? Failure)> GetCurrentFieldAsync(
+        int layerId, string fieldName, CancellationToken cancellationToken)
+    {
+        var result = await _client.GetLayerFieldsAsync(layerId, cancellationToken).ConfigureAwait(false);
+        if (result.Data is null)
+        {
+            return (null, Failure(result.Issue?.State ?? "Unavailable",
+                result.Issue?.Detail ?? "The current field configuration could not be read before updating it."));
+        }
+
+        var field = (result.Data.Fields ?? []).FirstOrDefault(candidate =>
+            string.Equals(candidate.Name, fieldName, StringComparison.Ordinal));
+        return field is null
+            ? (null, Failure("Missing", $"Field '{fieldName}' was not returned by the field metadata endpoint."))
+            : (field, null);
+    }
+
+    private static string FormatCode(JsonElement code) => code.ValueKind switch
+    {
+        JsonValueKind.String => code.GetString() ?? string.Empty,
+        JsonValueKind.Undefined => string.Empty,
+        _ => code.GetRawText(),
+    };
+
+    private static bool CanParseCode(string code, string? fieldType) =>
+        !IsNumericField(fieldType) || ParseJsonScalar(code)?.ValueKind == JsonValueKind.Number;
+
+    private static JsonElement ParseCode(string code, string? fieldType)
+    {
+        if (IsNumericField(fieldType))
+        {
+            return ParseJsonScalar(code)!.Value;
+        }
+
+        return ParseJsonScalar(JsonSerializer.Serialize(code))!.Value;
+    }
+
+    private static bool IsNumericField(string? fieldType) => fieldType is
+        "esriFieldTypeSmallInteger" or "esriFieldTypeInteger" or "esriFieldTypeSingle" or
+        "esriFieldTypeDouble" or "esriFieldTypeOID";
+
     private static ConsoleDomainKind MapDomainKind(HonuaAdminFieldDomain? domain) =>
         domain?.Type switch
         {
@@ -273,30 +332,6 @@ public sealed class HonuaServerConsoleLayerFieldsOperation : IConsoleLayerFields
         return element.ValueKind == JsonValueKind.String
             ? element.GetString()
             : element.GetRawText();
-    }
-
-    // Parses the operator's default-value text into a JSON scalar. A bare token is tried as JSON first (so
-    // numbers/true/false/null are typed); otherwise it is treated as a JSON string. Empty text is rejected so
-    // the caller can distinguish "set" from "clear" intent explicitly.
-    private static bool TryParseDefaultValue(string? text, out JsonElement value)
-    {
-        value = default;
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        var trimmed = text.Trim();
-        var parsed = ParseJsonScalar(trimmed);
-        if (parsed is { } element && element.ValueKind is not (JsonValueKind.Object or JsonValueKind.Array))
-        {
-            value = element;
-            return true;
-        }
-
-        // Not valid bare JSON (or a non-scalar) — treat the literal text as a JSON string.
-        value = ParseJsonScalar(JsonSerializer.Serialize(trimmed))!.Value;
-        return true;
     }
 
     private static JsonElement? ParseJsonScalar(string json)
